@@ -50,6 +50,31 @@ func (s *Service) CreateTeam(ctx context.Context, p *authz.Principal, in CreateT
 	var out model.Team
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		// The plan's team limit, checked here and nowhere else.
+		//
+		// Inside the transaction rather than before it, so the count cannot be stale by the
+		// time the row is written — two admins creating the workspace's third team at once
+		// would otherwise both read two and both be admitted. `entitlement.Set.CanAddTeam`
+		// owns the boundary; this only supplies the number and lets the refusal through,
+		// because an *entitlement.Error already unwraps to CodeEntitlement and carries the
+		// structure a paywall needs. Wrapping it in a sentence here would give the client
+		// something to string-match instead.
+		//
+		// Self-hosted is unlimited, so on the open-source product this reads the workspace
+		// row and always says yes. That is the cost of having the check exist at all, and it
+		// is one indexed count on a rare write.
+		ent, err := entitlementSetFor(ctx, q, p.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		teams, err := q.CountTeamsInWorkspace(ctx, p.WorkspaceID)
+		if err != nil {
+			return platform.Internal(err)
+		}
+		if err := ent.CanAddTeam(int(teams)); err != nil {
+			return err
+		}
+
 		id, err := uuid.NewV7()
 		if err != nil {
 			return platform.Internal(err)

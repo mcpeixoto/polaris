@@ -186,6 +186,24 @@ func (s *Service) SuspendUser(ctx context.Context, p *authz.Principal, userID uu
 		if existing.WorkspaceID != p.WorkspaceID {
 			return platform.NotFound("user")
 		}
+		// Un-suspending takes a seat back, so it is subject to the same limit as an
+		// acceptance. Suspension is how an admin frees a seat — CountWorkspaceSeats counts
+		// only active people — which makes un-suspension the way one is reclaimed, and a
+		// workspace that dropped to a smaller plan while somebody was suspended must not be
+		// able to exceed its new limit by reactivating them.
+		//
+		// Only on the way back in. Suspending is always allowed: a workspace over its limit
+		// has to be able to get under it.
+		if !suspended && existing.Status != "active" {
+			ent, err := entitlementSetFor(ctx, q, p.WorkspaceID)
+			if err != nil {
+				return err
+			}
+			if err := ent.CanAddSeat(); err != nil {
+				return err
+			}
+		}
+
 		if suspended && authz.Role(existing.Role).IsAdmin() {
 			admins, err := q.CountActiveAdminsInWorkspace(ctx, p.WorkspaceID)
 			if err != nil {
