@@ -1,29 +1,44 @@
 /**
- * The menu that puts labels on an issue.
+ * The menu that chooses labels.
  *
  * It is a controlled Menu and nothing else, in the mould of the three property pickers: it
  * does not own its trigger, it does not perform the write, and it reports a decision that
- * the caller turns into mutations. What it does own is everything the *user* should never
- * have to find out, because the database owns three rules and would otherwise teach them one
- * refusal at a time:
+ * the caller turns into whatever a decision means where it was made. What it does own is
+ * everything the *user* should never have to find out, because the database owns three rules
+ * and would otherwise teach them one refusal at a time:
  *
  * **A group is not a label.** A group is a label with `isGroup` set, it exists to name a
- * heading, and it can never be applied to an issue. So it is a heading here and never an
+ * heading, and it can never be applied to anything. So it is a heading here and never an
  * item — not a disabled item, which would only invite the click that fails.
  *
- * **A team's label only goes on that team's issues.** The picker is filtered by the issue's
- * team rather than showing the workspace's labels and letting the server say no. A label that
- * is not offered is a rule nobody has to learn.
+ * **A team's label only goes on that team's issues.** The picker is filtered by the team
+ * rather than showing the workspace's labels and letting the server say no. A label that is
+ * not offered is a rule nobody has to learn.
  *
- * **At most one label from a group.** Choosing "P1" while "P0" is on the issue replaces it
+ * **At most one label from a group.** Choosing "P1" while "P0" is already chosen replaces it
  * rather than being refused — the two possible interactions are "work out for yourself that
  * P0 is in the way" and "swap them", and only the second is a product. The row says so
  * before it is chosen: the displaced label is named in the hint, so the swap is visible
  * rather than something the user notices afterwards.
  *
- * Selecting a label already on the issue takes it off, which is what makes the same list
- * both the add menu and the remove menu. The menu closes after each choice because that is
- * Menu's contract for every picker in the product — applying a second label is `L` again.
+ * Selecting a label already chosen takes it off, which is what makes the same list both the
+ * add menu and the remove menu. The menu closes after each choice because that is Menu's
+ * contract for every picker in the product — applying a second label is `L` again.
+ *
+ * ## Why it takes a set of ids and not an issue
+ *
+ * It used to take an `issueId` and read both halves of its own question through it: the team,
+ * to decide what to offer, and `store.labelIdsFor(issueId)`, to decide what is ticked. That
+ * made "choose some labels" inseparable from "there is already an issue in the replica to
+ * choose them for", so the two places that need it most could not use it at all — a template
+ * editor, whose labels belong to a template and not to any issue, and a create form, where
+ * the issue does not exist until the form is submitted.
+ *
+ * So the value is a plain list of chosen ids and the team is named outright, exactly as
+ * `StatusPicker` takes `teamId` and `value` rather than reading an issue. An issue-backed
+ * caller passes `store.labelIdsFor(id)` and turns `onApply` into `applyLabel`; a form passes
+ * its own `useState` and turns `onApply` into `setState`. Neither is privileged here, which is
+ * the whole point — the component cannot tell them apart, so it cannot be wrong about one.
  */
 
 import type { CSSProperties, RefObject } from 'react';
@@ -34,12 +49,12 @@ import type { Label, Store, UUID } from '~/store';
 
 import styles from './LabelPicker.module.css';
 
-/** One applicable label, resolved against the issue the picker was opened on. */
+/** One applicable label, resolved against the ids the picker was given. */
 export interface LabelOption {
   readonly id: UUID;
   readonly name: string;
   readonly color: string;
-  /** Already on the issue: the row is ticked, and choosing it takes the label off. */
+  /** Already chosen: the row is ticked, and choosing it takes the label off. */
   readonly applied: boolean;
   /**
    * The group-mates applying this label would displace. At most one, because at most one
@@ -65,8 +80,24 @@ export interface LabelPickerProps {
   /** The control the menu belongs to: what it is positioned against, and where focus returns. */
   trigger: RefObject<HTMLElement | null>;
   placement?: MenuPlacement | undefined;
-  /** The issue being labelled. Its team decides what is offered; its labels, what is ticked. */
-  issueId: UUID;
+  /**
+   * The team whose labels are offered, alongside the workspace's.
+   *
+   * `null` for something that is not filed in a team — a workspace-scoped template — where
+   * only the workspace's own labels apply. That is not the same as "no team chosen yet": a
+   * caller that does not know the team yet should not be showing this menu, because half the
+   * labels in it would be ones the eventual answer forbids.
+   */
+  teamId: UUID | null;
+  /**
+   * The labels currently chosen.
+   *
+   * Read, never written. An issue-backed caller passes `store.labelIdsFor(issueId)`; a form
+   * passes its own state. Order is irrelevant — this is a set that happens to be an array,
+   * because every caller already holds one and building a Set to pass it would be a Set the
+   * caller then has to keep in step with what it writes.
+   */
+  value: readonly UUID[];
   /** Apply a label, having removed the group-mates it displaces. See `applyLabel`. */
   onApply: (labelId: UUID, displaced: readonly UUID[]) => void;
   onRemove: (labelId: UUID) => void;
@@ -77,14 +108,23 @@ export function LabelPicker({
   onClose,
   trigger,
   placement,
-  issueId,
+  teamId,
+  value,
   onApply,
   onRemove,
 }: LabelPickerProps) {
   const sections = useLiveQuery(
-    (store) => offerings(store, issueId),
-    ['label', 'issueLabel', 'issue'],
-    [issueId],
+    (store) => offerings(store, teamId, new Set(value)),
+    // `issueLabel` and `issue` are gone from this list along with the issue itself. What is
+    // ticked is now the caller's answer, so a label applied to some other issue no longer
+    // wakes this menu — and the caller that reads `labelIdsFor` subscribes to `issueLabel`
+    // itself, which is where that dependency actually belongs.
+    ['label'],
+    // The content of `value` and not `value`, because an array literal is a new reference
+    // every render: passing it directly would change the subscription's identity on every
+    // render, and a question that changes every render is a re-render loop rather than a
+    // stale answer. The ids are short and few, so joining them is cheaper than the mistake.
+    [teamId, value.join(',')],
   );
 
   const items: MenuNode[] = [];
@@ -134,7 +174,7 @@ export function LabelPicker({
 }
 
 /**
- * The labels this issue may carry, arranged into the sections the menu renders.
+ * The labels a thing in this team may carry, arranged into the sections the menu renders.
  *
  * Sorted by name throughout, and deliberately not by `position`. Positions are fractional
  * indices minted per scope — once for the workspace, once per team — so the ungrouped run,
@@ -142,11 +182,7 @@ export function LabelPicker({
  * filterable menu is searched rather than scanned, and alphabetical is the only order that is
  * correct for every block in it.
  */
-function offerings(store: Store, issueId: UUID): LabelSection[] {
-  const issue = store.get('issue', issueId);
-  if (issue === undefined) return [];
-
-  const applied = store.labelIdsFor(issueId);
+function offerings(store: Store, teamId: UUID | null, applied: ReadonlySet<UUID>): LabelSection[] {
   const groups = new Map<UUID, Label>();
   const children = new Map<UUID, Label[]>();
   const loose: Label[] = [];
@@ -154,8 +190,10 @@ function offerings(store: Store, issueId: UUID): LabelSection[] {
   for (const label of store.labels.values()) {
     if (label.archivedAt !== undefined) continue;
     // A team's label may only go on that team's issues; a workspace label carries no team
-    // and goes on any of them.
-    if (label.teamId !== undefined && label.teamId !== issue.teamId) continue;
+    // and goes on any of them. A null team therefore matches no team-scoped label and every
+    // workspace one, which is the right offering for a workspace-scoped template — and it
+    // falls out of the same comparison rather than needing a branch of its own.
+    if (label.teamId !== undefined && label.teamId !== teamId) continue;
     if (label.isGroup) {
       groups.set(label.id, label);
       continue;

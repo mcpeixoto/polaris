@@ -50,6 +50,26 @@ export function toWire<T extends string>(value: T): Uppercase<T> {
 }
 
 /**
+ * A GraphQL enum value in the store's spelling, for a value that belongs to no store entity.
+ *
+ * `toWire`'s counterpart, and deliberately not called `fromWire`: that name is taken by the
+ * entity-shaped conversion below, which takes a whole row and knows from `ENUM_FIELDS` which
+ * of its fields are enums. This one takes a single value the caller has already identified as
+ * one, and the two are not interchangeable.
+ *
+ * It exists for the handful of types that cross this boundary without being replicated — an
+ * `Invite` is the one in the product today. Those have no row in the store, so they are not in
+ * `EntityType`, so `fromWire` cannot be given them; without this the only way to spell the
+ * conversion at the call site is a bare `.toLowerCase()`, and the whole argument of this file
+ * is that a bare `.toLowerCase()` scattered through feature code is how the four silent bugs
+ * above happened. A screen matching `"ADMIN"` against `'admin'` renders a blank role badge
+ * and nothing anywhere errors.
+ */
+export function fromWireValue<T extends string>(value: T): Lowercase<T> {
+  return value.toLowerCase() as Lowercase<T>;
+}
+
+/**
  * Which fields of each replicated entity hold an enum, by path.
  *
  * A dotted path descends into an embedded object — `actor.type` is the actor's type, which

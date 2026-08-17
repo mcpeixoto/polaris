@@ -20,16 +20,22 @@
  * patch is what takes the person out of the directory on the click rather than on the reply.
  */
 
-import { fromWire, toWire } from '~/gql/enums';
+import { fromWire, fromWireValue, toWire } from '~/gql/enums';
 import { ApiError, gql } from '~/sync/api';
-import type { Issue, Store, User, UUID } from '~/store';
+import type { Issue, Store, User, UserRole, UUID } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
-import { INVITE_TO_WORKSPACE, REMOVE_USER, RESTORE_ISSUE, REVOKE_INVITE } from './operations';
+import {
+  INVITES_QUERY,
+  INVITE_TO_WORKSPACE,
+  REMOVE_USER,
+  RESTORE_ISSUE,
+  REVOKE_INVITE,
+} from './operations';
 
 export interface InviteSummary {
   readonly id: UUID;
   readonly email: string;
-  readonly role: string;
+  readonly role: UserRole;
   readonly invitedBy: UUID | null;
   readonly teamIds: readonly UUID[];
   readonly expiresAt: string;
@@ -38,8 +44,122 @@ export interface InviteSummary {
 
 export interface NewInvite {
   readonly email: string;
-  readonly role: string;
+  readonly role: UserRole;
   readonly teamIds: readonly UUID[];
+}
+
+/**
+ * An invitation as it arrives: every enum still in GraphQL's spelling.
+ *
+ * Declared so that `fromWireValue` has a literal type to narrow rather than `string`, which
+ * would make the conversion a cast that proves nothing. `Uppercase<UserRole>` is what the
+ * schema's `UserRole` enum actually sends, and lower-casing it lands back on `UserRole`
+ * without anybody writing the four values down a second time.
+ */
+interface InviteWire extends Omit<InviteSummary, 'role'> {
+  readonly role: Uppercase<UserRole>;
+}
+
+/**
+ * The workspace's pending invitations.
+ *
+ * A network read and not a store query, and this is the sharpest example of that distinction
+ * in the product: an invitation is not a replicated entity, it has no row in the store, and it
+ * never arrives over the sync stream. So neither `useQuery` nor `useLiveQuery` applies — both
+ * are subscriptions to the replica, and their doc comments say so — and the screen has real
+ * loading, real failure and a retry, the way Trash and API keys do.
+ *
+ * What the server means by "pending" is narrower than it looks, and the screen depends on it:
+ * `ListPendingInvites` filters on `accepted_at IS NULL AND revoked_at IS NULL AND expires_at >
+ * now()`. So an invitation that has been accepted, revoked, or has simply run out of time is
+ * not in this answer at all — there is no status column to render, and a row that vanishes
+ * between two fetches has done one of those three things.
+ */
+export async function fetchInvites(signal?: AbortSignal): Promise<readonly InviteSummary[]> {
+  const data = await gql<{ invites: readonly InviteWire[] }>(INVITES_QUERY, undefined, { signal });
+  return data.invites.map((invite) => ({ ...invite, role: fromWireValue(invite.role) }));
+}
+
+/**
+ * Whether an invitation the client is holding has run out since it was fetched.
+ *
+ * The server never *lists* an expired invitation, so this is only ever true of a row on a
+ * screen that has been open for a while — the fourteen-day window closes while somebody is
+ * looking at it. Worth saying rather than leaving the row looking live: the link in that
+ * person's inbox has stopped working, and the admin's next move is to invite them again, not
+ * to wait.
+ *
+ * It stays revocable, because the server still allows that: `RevokeInvite`'s statement
+ * constrains `revoked_at IS NULL AND accepted_at IS NULL` and says nothing about expiry.
+ */
+export function hasExpired(invite: InviteSummary, now: number = Date.now()): boolean {
+  const at = Date.parse(invite.expiresAt);
+  // An unparseable timestamp is not an expiry. Guessing "expired" would take a working
+  // invitation off the screen because a date format changed.
+  return !Number.isNaN(at) && at <= now;
+}
+
+/**
+ * Why revoking failed, in words that match what actually happened.
+ *
+ * `NOT_FOUND` is the interesting one and the server's message for it is "invitation not
+ * found", which is a lie by omission to an admin looking straight at the row. The statement
+ * requires `revoked_at IS NULL AND accepted_at IS NULL`, so an invitation that another admin
+ * revoked a second ago and one that the recipient accepted a second ago both answer this way,
+ * and so does an id that was never an invitation. The server cannot tell them apart on purpose
+ * — distinguishing them would confirm that an invitation exists in a workspace the caller
+ * cannot see — so neither can this, and the sentence says the one thing that is true of all
+ * three rather than picking the likeliest and being wrong sometimes.
+ */
+export function revocationFailure(error: unknown): string {
+  if (error instanceof ApiError && error.code === 'NOT_FOUND') {
+    return 'That invitation is no longer outstanding — somebody has accepted it, or another admin has already revoked it. The list below has been re-read.';
+  }
+  if (error instanceof ApiError) return error.message;
+  return 'That invitation could not be revoked.';
+}
+
+/**
+ * The member who already holds this address, if anybody does.
+ *
+ * A warning and never a refusal, because the server does not refuse it: `InviteToWorkspace`
+ * checks the role, the teams and the address's shape and never once asks whether that person
+ * is already here. The invitation is created, the link works, and `AcceptInvite` finds them
+ * already a member and accepts idempotently — which does not change their role and does not
+ * un-suspend them. So the honest thing to tell an admin is that the invitation will succeed
+ * and accomplish nothing, and then let them send it anyway.
+ *
+ * Case-insensitive, because two people typing the same address in different cases have typed
+ * the same address; the server agrees, comparing with `lower()` and `EqualFold` everywhere it
+ * matters. Only an admin ever sees this screen, and only an admin is given other people's
+ * addresses by the API, so the comparison has something to compare against.
+ */
+export function existingMember(store: Store, email: string): User | null {
+  const address = email.trim().toLowerCase();
+  if (address === '') return null;
+  for (const user of store.users.values()) {
+    if (user.archivedAt !== undefined) continue;
+    if (user.email?.toLowerCase() === address) return user;
+  }
+  return null;
+}
+
+/**
+ * The outstanding invitation to this address, if there is one.
+ *
+ * Creating a second one is not an error and not a duplicate: the server revokes the first
+ * inside the same transaction — `RevokePendingInvitesForEmail`, backed by a partial unique
+ * index — so what looks like "invite them again" is really "replace the link". The earlier
+ * link stops working at that moment, silently, which is exactly the kind of thing somebody
+ * should be told before they do it rather than after somebody complains the link is dead.
+ */
+export function pendingInviteFor(
+  invites: readonly InviteSummary[],
+  email: string,
+): InviteSummary | null {
+  const address = email.trim().toLowerCase();
+  if (address === '') return null;
+  return invites.find((invite) => invite.email.toLowerCase() === address) ?? null;
 }
 
 /**
@@ -52,13 +172,15 @@ export interface NewInvite {
 export interface CreatedInvite {
   readonly id: UUID;
   readonly email: string;
-  readonly role: string;
+  readonly role: UserRole;
   readonly expiresAt: string;
   readonly token: string;
 }
 
 export async function inviteToWorkspace(input: NewInvite): Promise<CreatedInvite> {
-  const data = await gql<{ inviteToWorkspace: CreatedInvite }>(INVITE_TO_WORKSPACE, {
+  const data = await gql<{
+    inviteToWorkspace: Omit<CreatedInvite, 'role'> & { role: Uppercase<UserRole> };
+  }>(INVITE_TO_WORKSPACE, {
     input: {
       email: input.email,
       role: toWire(input.role),
@@ -67,7 +189,10 @@ export async function inviteToWorkspace(input: NewInvite): Promise<CreatedInvite
       teamIds: [...input.teamIds],
     },
   });
-  return data.inviteToWorkspace;
+  // Converted on the way in for the same reason `restoreIssue` converts something it does not
+  // store: the next caller to render this role would otherwise be the one place in the app
+  // reading `"MEMBER"`, and would reintroduce the bug rather than inherit the fix.
+  return { ...data.inviteToWorkspace, role: fromWireValue(data.inviteToWorkspace.role) };
 }
 
 export async function revokeInvite(id: UUID): Promise<void> {
