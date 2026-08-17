@@ -63,7 +63,7 @@ Decisions taken (see [`docs/05-infrastructure/`](docs/05-infrastructure/) for th
 - **Go** backend (`gqlgen` GraphQL + a WebSocket sync hub), **TypeScript/React** frontend
 - **Custom delta sync over WebSocket** — local-first client store, optimistic mutations, offline outbox
 - **Electron** desktop for Windows + macOS, loading the same bundle as the web app
-- **Docker Compose on the existing VPS**, following the house standard in `/root/SERVER_INFRA.md`: Nginx Proxy Manager ingress on `webnet`, no published ports, `<Prefix>_<role>` container names, root-owned env files, tag-based deploy with auto-rollback
+- **Docker Compose**, with a reverse proxy terminating TLS in front of it and no published ports on any datastore — see [`docs/05-infrastructure/11-self-hosting.md`](docs/05-infrastructure/11-self-hosting.md), which is written to be followed on a machine that is not ours
 - **One GraphQL API** serving web, desktop, the published SDK, agents, and every integration — no private backdoor API
 
 ## How it will be distributed
@@ -76,7 +76,7 @@ Decisions taken (see [`docs/05-infrastructure/`](docs/05-infrastructure/) for th
 
 ## The one-paragraph version
 
-A **workspace** contains **teams**. A team owns **issues**, which move through the team's ordered **workflow statuses**. Issues carry properties (assignee, priority, labels, estimate, due date, SLA, relations, parent/sub-issues) and are grouped for delivery by **cycles** (time-boxed, per-team, auto-repeating) and for outcome by **projects** (cross-team, with milestones, updates, graphs). Projects roll up into **initiatives** (nestable, strategic). Everything is surfaced through **views** (filters + display options + layouts: list/board/timeline), analysed with **Insights** and **dashboards**, and fed by **intake** surfaces (Triage, Asks, support integrations, email, Slack, GitHub). Layered on top: a **real-time sync engine** with offline support, an **agent platform** (Linear Agent, third-party agents, coding sessions, Loops), and a **GraphQL API + webhooks** that every integration is built on — including Linear's own.
+A **workspace** contains **teams**. A team owns **issues**, which move through the team's ordered **workflow statuses**. Issues carry properties (assignee, priority, labels, estimate, due date, SLA, relations, parent/sub-issues) and are grouped for delivery by **cycles** (time-boxed, per-team, auto-repeating) and for outcome by **projects** (cross-team, with milestones, updates, graphs). Projects roll up into **initiatives** (nestable, strategic). Everything is surfaced through **views** (filters + display options + layouts: list/board/timeline), analysed with **Insights** and **dashboards**, and fed by **intake** surfaces (Triage, Asks, support integrations, email, Slack, GitHub). Layered on top: a **real-time sync engine** with offline support, an **agent platform** (first-party and third-party agents, coding sessions), and a **GraphQL API + webhooks** that every integration is built on, including our own.
 
 ## Scale of the thing
 
