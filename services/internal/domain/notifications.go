@@ -540,32 +540,6 @@ func (c *fanOutCache) unsubscribedFrom(ctx context.Context, issueID uuid.UUID, u
 	return out, nil
 }
 
-// mutedTypes reads the one key of the preferences bag this engine cares about:
-//
-//	{"muted": {"issue_status_changed": true}}
-//
-// Everything else in there — channels, digest cadence, product communications — belongs to
-// whoever delivers, not to whoever decides, so this reads loosely and ignores what it does
-// not recognise. A strict decoder would make adding a preference a change to the
-// notification engine. The delivery half of the bag — emailDigest, emailPerNotification — is
-// documented on emailPrefs in digest.go, which is the code that reads it.
-//
-// A bag that will not parse mutes nothing. Failing the other way would silently stop
-// delivering to that user, and nobody reports a notification that never arrived — where an
-// unwanted one is reported within the hour.
-func mutedTypes(raw json.RawMessage) map[string]bool {
-	if len(raw) == 0 {
-		return nil
-	}
-	var prefs struct {
-		Muted map[string]bool `json:"muted"`
-	}
-	if err := json.Unmarshal(raw, &prefs); err != nil {
-		return nil
-	}
-	return prefs.Muted
-}
-
 // ---------------------------------------------------------------------------------------
 // Subscriptions.
 

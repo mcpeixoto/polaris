@@ -399,7 +399,10 @@ func TestUpdateNotificationPrefs_MutesOnlyTheOwnersDeliveries(t *testing.T) {
 	carol := f.PrincipalFor(carolID, authz.RoleMember, f.TeamID)
 
 	user, _, err := svc.UpdateNotificationPrefs(ctx, bob,
-		json.RawMessage(`{"muted":{"issue_status_changed":true}}`))
+		// The array the client writes. This fixture used to be an object, matching a decoder
+		// that only ever agreed with itself — the client's array failed to unmarshal and muted
+		// nothing, and this test passed throughout. See notification_prefs_test.go.
+		json.RawMessage(`{"muted":["issue_status_changed"]}`))
 	if err != nil {
 		t.Fatalf("update prefs: %v", err)
 	}

@@ -115,8 +115,23 @@ export interface User {
 export interface NotificationPrefs {
   /** Per-notification email rather than the digest. A preference, never a default. */
   readonly emailPerNotification?: boolean;
-  readonly emailDigest?: 'off' | 'daily' | 'weekly';
-  /** Types the user has switched off entirely, in either channel. */
+  /**
+   * How often the digest goes out. Absent means daily — the default M1 asks for: digest
+   * first, and quiet enough that nobody's first act is to turn it off.
+   *
+   * The four values are `domain.cadence*` in services/internal/domain/notification_prefs.go,
+   * which is the code that reads them. `hourly` was missing here while the server accepted
+   * it, which is a value the preferences screen could never offer.
+   */
+  readonly emailDigest?: 'off' | 'hourly' | 'daily' | 'weekly';
+  /**
+   * Types the user has switched off entirely, in either channel.
+   *
+   * An array, and the server decodes an array. It decoded an object for a while and the two
+   * never met: unmarshalling `["comment"]` into a map fails, both decoders are lenient by
+   * design, and so muting a type silently did nothing. `TestNotificationPrefsMatchTheClient`
+   * reads this interface and fails when the two shapes part company again.
+   */
   readonly muted?: readonly NotificationType[];
 }
 

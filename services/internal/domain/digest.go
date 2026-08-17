@@ -2,7 +2,6 @@ package domain
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -46,19 +45,6 @@ const (
 	// defaultDigestTick is what the job's period is assumed to be when a caller does not say.
 	// It only affects the hysteresis in `due`.
 	defaultDigestTick = time.Hour
-)
-
-// Delivery cadences, as they are spelled in the preferences bag.
-//
-// The vocabulary is the client's — see NotificationPrefs in web/src/store/types.ts, which
-// declared these before there was anything to read them. Inventing a second spelling here
-// would mean a preference the UI writes and the server never sees, which is the worst kind of
-// bug in a notification system: everything appears to work and nothing arrives.
-const (
-	cadenceOff    = "off"
-	cadenceHourly = "hourly"
-	cadenceDaily  = "daily"
-	cadenceWeekly = "weekly"
 )
 
 // DigestOptions is what a delivery pass needs and the database does not hold.
@@ -329,70 +315,28 @@ func itemFor(row store.ClaimNotificationsForEmailRow, inboxURL, base string) mai
 // ---------------------------------------------------------------------------------------
 // Preferences.
 
-// emailPrefs is the email half of the preferences bag updateNotificationPrefs writes.
-//
-// The whole bag, as of this milestone:
+// The preferences bag `updateNotificationPrefs` writes, in full as of this milestone:
 //
 //	{
-//	  "muted": {"issue_status_changed": true},
+//	  "muted": ["issue_status_changed"],
 //	  "emailDigest": "daily",
 //	  "emailPerNotification": false
 //	}
 //
-//	muted                 read by the fan-out — see mutedTypes in notifications.go. A muted
-//	                      type never becomes a notification, so it cannot reach a digest and
-//	                      nothing here has to check it again.
-//	emailDigest           how often the digest goes out: off, hourly, daily or weekly.
-//	                      Absent means daily, which is the default M1 asks for: digest first,
-//	                      and quiet enough that nobody's first act is to turn it off.
+//	muted                 read by the fan-out — see mutedTypes. A muted type never becomes a
+//	                      notification, so it cannot reach a digest and nothing here has to
+//	                      check it again.
+//	emailDigest           how often the digest goes out: off, hourly, daily or weekly. Absent
+//	                      means daily, which is the default M1 asks for: digest first, and
+//	                      quiet enough that nobody's first act is to turn it off.
 //	emailPerNotification  one email per notification instead of a digest. False by default and
 //	                      deliberately so — "per-notification email is a preference, not a
 //	                      default" is the line in docs/07-milestones/01-milestone-1.md that
 //	                      this whole file exists to satisfy.
 //
-// Read loosely, exactly like mutedTypes: an unparseable bag, an unknown cadence and a missing
-// key all mean the default. A strict decoder here would let one malformed preference stop a
-// person's mail, and nobody reports an email that never arrived.
-type emailPrefs struct {
-	Cadence         string
-	PerNotification bool
-}
-
-func emailPrefsOf(raw json.RawMessage) emailPrefs {
-	prefs := emailPrefs{Cadence: cadenceDaily}
-	if len(raw) == 0 {
-		return prefs
-	}
-	var bag struct {
-		EmailDigest          *string `json:"emailDigest"`
-		EmailPerNotification *bool   `json:"emailPerNotification"`
-	}
-	if err := json.Unmarshal(raw, &bag); err != nil {
-		return prefs
-	}
-	if bag.EmailDigest != nil {
-		switch *bag.EmailDigest {
-		case cadenceOff, cadenceHourly, cadenceDaily, cadenceWeekly:
-			prefs.Cadence = *bag.EmailDigest
-		}
-	}
-	if bag.EmailPerNotification != nil {
-		prefs.PerNotification = *bag.EmailPerNotification
-	}
-	return prefs
-}
-
-// interval is how long this cadence waits between messages.
-func (p emailPrefs) interval() time.Duration {
-	switch p.Cadence {
-	case cadenceHourly:
-		return time.Hour
-	case cadenceWeekly:
-		return 7 * 24 * time.Hour
-	default:
-		return 24 * time.Hour
-	}
-}
+// The struct, the cadences and the decoding all live in notification_prefs.go, because the
+// bag had three definitions — one here, one in the notification engine and one in the client
+// — and two of them disagreed.
 
 // due reports whether this person should hear from us on this pass.
 //
