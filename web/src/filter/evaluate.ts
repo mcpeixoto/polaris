@@ -15,7 +15,7 @@
  * certainly a case in that file, and the comment says which.
  */
 
-import { fold } from '~/store/indexes';
+import { foldExact } from '~/store/indexes';
 import type { Issue, UUID, WorkflowState } from '~/store/types';
 
 import { resolveRelative, type TimeContext } from './relative';
@@ -347,14 +347,17 @@ function compileTextClause(clause: FilterClause, read: Read<string>): IssuePredi
     return compileEquality(clause, read, asText);
   }
 
-  // Folded once here rather than per row. `fold` is the same function the search index
-  // uses, so `contains` and in-view find agree about what "acao" matches — two different
-  // foldings would mean a search and a filter for the same string disagreeing.
-  const needle = fold(single(clause));
+  // Folded once here rather than per row, and folded with `foldExact` — the restatement of
+  // the database's `search_fold` — because this clause has a second implementation in
+  // internal/filter that compiles it to `search_fold(col) LIKE …`. The store's `fold` also
+  // collapses whitespace and trims, which is right for ordering and wrong here: it rewrites
+  // the needle, so a filter matched on screen and returned nothing from the API. See the
+  // whitespace cases in schema/filter-conformance.json.
+  const needle = foldExact(single(clause));
   const negated = clause.op === 'notContains';
   return (issue) => {
     const value = read(issue);
-    const hit = value !== undefined && fold(value).includes(needle);
+    const hit = value !== undefined && foldExact(value).includes(needle);
     return negated ? !hit : hit;
   };
 }

@@ -110,7 +110,7 @@ Polling schedules (from the product spec): Intercom attributes real-time via web
 
 Two directions, both off-box.
 
-**Outbound** — SMTP relay (SES / Postmark / Resend), configured via `SMTP_URL`.
+**Outbound** — SMTP relay (SES / Postmark / Resend), configured via `POLARIS_SMTP_HOST` / `_PORT` / `_USERNAME` / `_PASSWORD` and `POLARIS_MAIL_FROM`. Discrete variables rather than one URL: the password routinely contains characters that have to be percent-encoded inside a URL, and a relay password pasted in raw is a startup failure whose message points at the parser rather than at the paste. Leaving `POLARIS_SMTP_HOST` empty is supported and is the self-host default — the product runs, the inbox works, and nothing is emailed.
 - DNS: SPF, DKIM (provider keys), DMARC on the sending domain.
 - Separate streams for transactional (invites, magic links, digests) and Asks replies, so a bounce storm in one doesn't sink the other's reputation.
 - **Asks custom domains** are a product feature: customers reply-from their own domain, which needs relaxed DMARC alignment (`aspf=r`, `adkim=r`) and per-customer DKIM records. Provider must support multiple verified sending domains — check this before choosing.

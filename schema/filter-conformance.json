@@ -264,6 +264,36 @@
       "expect": ["e2", "e3", "e4"]
     },
     {
+      "$comment": [
+        "The next three pin whitespace, which is where the two evaluators drifted apart.",
+        "",
+        "The server folds with search_fold — lower(unaccent(x)) and nothing else — and then",
+        "matches with LIKE. The client used ~/store's fold, which also collapses runs of",
+        "whitespace and trims the ends, because that fold exists for title ORDERING and for",
+        "the trigram index, where collapsing is right. Applied to contains it silently",
+        "rewrote the needle, so a filter matched on screen and returned nothing from the",
+        "API — the shape of bug a saved view shows you and a digest email does not.",
+        "",
+        "Recorded with the SERVER's answer deliberately. search_fold is baked into the",
+        "IMMUTABLE expression of two GIN indexes on the busiest table in the product, so",
+        "changing that side means a REINDEX; and trimming a needle is the wrong semantics",
+        "anyway. Somebody who types a trailing space meant the trailing space."
+      ],
+      "name": "a trailing space in the needle is part of the needle, not noise to be trimmed",
+      "filter": { "field": "title", "op": "contains", "values": ["redirect "] },
+      "expect": []
+    },
+    {
+      "name": "a leading space likewise — ' the' is not 'the'",
+      "filter": { "field": "title", "op": "contains", "values": [" the"] },
+      "expect": ["e1", "e5"]
+    },
+    {
+      "name": "two spaces in the needle do not collapse to one",
+      "filter": { "field": "title", "op": "contains", "values": ["login  redirect"] },
+      "expect": []
+    },
+    {
       "name": "description is searchable too",
       "filter": { "field": "description", "op": "contains", "values": ["workspace"] },
       "expect": ["e1"]
