@@ -22,6 +22,17 @@ import (
 // suite has no server to disagree with. A constant shared across two languages has no
 // compiler to hold it together, so it needs a test that reads both.
 //
+// It then happened a second time, and this test did not catch that either — because the
+// server had the number written down twice. This package was bumped to 2 and
+// domain.ClientSchemaVersion, which is what the HTTP bootstrap actually sends in its meta
+// frame, stayed at 1. The socket agreed with the client and the bootstrap that has to
+// succeed before the socket is ever opened did not. This test compared the client against
+// the copy that was right.
+//
+// So ClientSchema is now an alias for domain.ClientSchemaVersion rather than a value, which
+// is what makes this test sufficient: there is one number on this side of the wire, and the
+// only contract left is the one across the language boundary, which is the one below.
+//
 // Read out of the TypeScript source rather than duplicated here, because a copy of the
 // number in a Go test is a third place to forget.
 func TestClientSchemaMatchesTheClient(t *testing.T) {
@@ -51,7 +62,7 @@ func TestClientSchemaMatchesTheClient(t *testing.T) {
 			"schema versions have drifted: the client is v%d and this server is v%d.\n\n"+
 				"Every bootstrap will fail while these disagree, and the client will tell the "+
 				"user to reload — which cannot fix it. Bump whichever side is behind:\n"+
-				"  server: internal/syncsrv/protocol.go ClientSchema\n"+
+				"  server: internal/domain/sync.go ClientSchemaVersion (syncsrv aliases it)\n"+
 				"  client: web/src/store/db.ts CLIENT_SCHEMA",
 			client, ClientSchema,
 		)
