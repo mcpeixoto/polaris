@@ -110,6 +110,25 @@ func run() error {
 				return err
 			},
 		},
+		{
+			// The trash's retention sweep: issues soft-deleted longer ago than the restore
+			// window, removed for real.
+			//
+			// Logged at info even though it destroys data, and deliberately so — this is the
+			// only routine job in the product whose effect cannot be undone, and a line
+			// saying how many rows went is what makes "where did that issue go" answerable
+			// six weeks later. The window is the same constant the restore path refuses
+			// outside of, so nothing this deletes was still restorable.
+			name:  "purge expired issues",
+			every: 24 * time.Hour,
+			run: func(ctx context.Context) error {
+				n, err := svc.PurgeExpiredIssues(ctx)
+				if err == nil && n > 0 {
+					log.Info("purged issues past the restore window", "issues", n)
+				}
+				return err
+			},
+		},
 	}
 
 	if cfg.MailEnabled() {
