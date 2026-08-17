@@ -165,6 +165,12 @@ export function FilterBar({
   // Sealed while an editor is open, so the list underneath stops treating letters typed at
   // a popover as its own shortcuts, and so the Escape below wins over the shell's dismiss.
   useKeyContext('menu', editing !== null);
+
+  // The registry captures `run` and `enabled` once, at registration, so the current value has
+  // to be reachable through a ref rather than closed over.
+  const open = useRef(false);
+  open.current = editing !== null;
+
   useActions(
     [
       {
@@ -176,6 +182,11 @@ export function FilterBar({
         // Hidden from the command menu: "close the thing that is open" is not something
         // anybody searches for, and it still appears in the help overlay.
         hidden: true,
+        // Guarded rather than relying on this component being the only thing in `menu`. It is
+        // not: the context is sealed and shared by every popover on the screen, so the
+        // display panel is in it too. A disabled action is treated as unbound, which is what
+        // lets both of them own Escape and only the open one answer for it.
+        enabled: () => open.current,
         run: () => setEditing(null),
       },
     ],

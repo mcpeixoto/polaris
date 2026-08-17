@@ -364,6 +364,25 @@ export class KeymapRegistry<Ctx extends ActionContext = ActionContext> {
       // context, `g` fires immediately and `g i` is unreachable.
       if (!isPrefix(existing.chordIds, chordIds) && !isPrefix(chordIds, existing.chordIds))
         continue;
+
+      // Two *guarded* bindings are not a conflict, and refusing them was wrong.
+      //
+      // `handle` filters candidates by `enabled` before the matcher ever sees them — a
+      // disabled action is treated as unbound, which is the mechanism that lets Escape fall
+      // through from a list with nothing selected to the shell's dismiss. So two actions can
+      // share a key in one context as long as each says when it is live.
+      //
+      // That is not a hypothetical. The `menu` context is sealed and shared by every popover
+      // on a screen, and a popover that owns Escape while it is open is the correct pattern —
+      // the filter bar's clause editor and the display panel each arrived at it
+      // independently. Registering both threw, so a screen was allowed exactly one popover,
+      // which is a rule about the keyboard silently deciding what a screen may contain.
+      //
+      // An unguarded binding still conflicts with everything, because that is the case the
+      // check exists for: two actions both permanently live on one key, where one of them
+      // simply never fires and nobody finds out until somebody presses it.
+      if (existing.action.enabled !== undefined && action.enabled !== undefined) continue;
+
       const relation =
         existing.chordIds.length === chordIds.length ? 'is already bound by' : 'collides with';
       throw new Error(

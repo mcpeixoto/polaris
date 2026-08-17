@@ -12,7 +12,9 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-route
 import { onDeepLink } from '~/platform/runtime';
 import { hasServer } from '~/sync/endpoint';
 import { LabelSettings } from '~/features/labels/LabelSettings';
+import { UndoToast } from '~/features/undo/UndoToast';
 import { AcceptInvite } from '~/views/AcceptInvite';
+import { ApiKeys } from '~/views/ApiKeys';
 import { ConnectServer } from '~/views/ConnectServer';
 import { CreateWorkspace } from '~/views/CreateWorkspace';
 import { Inbox } from '~/views/Inbox';
@@ -20,9 +22,12 @@ import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
 import { MemberSettings } from '~/views/MemberSettings';
 import { MyIssues } from '~/views/MyIssues';
+import { SavedView } from '~/views/SavedView';
+import { Search } from '~/views/Search';
 import { SignIn } from '~/views/SignIn';
 import { SignUp } from '~/views/SignUp';
 import { TeamSettings } from '~/views/TeamSettings';
+import { Trash } from '~/views/Trash';
 import { CreateIssueModal } from '~/features/issue/CreateIssueModal';
 
 import { useQuery } from './context';
@@ -68,16 +73,28 @@ export function App() {
               <Route path="/" element={<FirstTeam />} />
               <Route path="/my-issues" element={<MyIssues />} />
               <Route path="/inbox" element={<Inbox />} />
+              <Route path="/search" element={<Search />} />
+              <Route path="/view/:viewId" element={<SavedView />} />
               <Route path="/team/:teamKey" element={<IssueList />} />
               <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
               <Route path="/issue/:identifier" element={<IssueDetail />} />
               <Route path="/settings/members" element={<MemberSettings />} />
               <Route path="/settings/labels" element={<LabelSettings />} />
+              <Route path="/settings/api-keys" element={<ApiKeys />} />
+              <Route path="/settings/trash" element={<Trash />} />
               {/* Unknown paths go somewhere useful rather than to a dead end. A stale
                   bookmark to a renamed team should land the user in their own work. */}
               <Route path="*" element={<FirstTeam />} />
             </Routes>
           </AppShell>
+          {/*
+            Mounted once, outside the routes, because an undo has to outlive the screen the
+            action was taken on: deleting an issue from its own detail page navigates away,
+            and a toast that unmounted with the page would take the only way back with it.
+            Mounting a second one throws at startup — the keymap registry refuses the
+            duplicate `undo.last` binding — which is the intended way to find out.
+          */}
+          <UndoToast />
         </Boot>
       </KeymapProvider>
     </BrowserRouter>

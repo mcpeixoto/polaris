@@ -88,6 +88,59 @@ describe('registration', () => {
     expect(message).toContain('list');
   });
 
+  it('allows two guarded actions to share a key in one context', () => {
+    const { register, registry, log } = harness();
+    let filterEditorOpen = false;
+    let displayPanelOpen = false;
+
+    // Two popovers on one screen, each owning Escape while it is open. The `menu` context is
+    // sealed and shared by every popover, so refusing this made "one popover per screen" a
+    // rule the keyboard imposed on what a screen was allowed to contain.
+    expect(() =>
+      register(
+        {
+          id: 'filterBar.closeEditor',
+          keys: ['Escape'],
+          when: 'menu',
+          enabled: () => filterEditorOpen,
+        },
+        {
+          id: 'view.closeDisplay',
+          keys: ['Escape'],
+          when: 'menu',
+          enabled: () => displayPanelOpen,
+        },
+      ),
+    ).not.toThrow();
+
+    registry.pushContext('menu');
+
+    // Neither open: Escape reaches neither, because a disabled action is treated as unbound.
+    expect(registry.handle(press('Escape'), 'menu', { source: 'key', context: 'menu', log })).toBe(
+      false,
+    );
+    expect(log).toEqual([]);
+
+    displayPanelOpen = true;
+    registry.handle(press('Escape'), 'menu', { source: 'key', context: 'menu', log });
+    expect(log, 'the live one runs, and only the live one').toEqual(['view.closeDisplay']);
+
+    displayPanelOpen = false;
+    filterEditorOpen = true;
+    registry.handle(press('Escape'), 'menu', { source: 'key', context: 'menu', log });
+    expect(log).toEqual(['view.closeDisplay', 'filterBar.closeEditor']);
+  });
+
+  it('still refuses a guarded action against an unguarded one on the same key', () => {
+    const { register } = harness();
+    // The case the check exists for is unchanged: one binding permanently live means the
+    // other simply never fires, and nobody finds out until they press it.
+    register({ id: 'issue.create', keys: ['c'], when: 'list' });
+    expect(() =>
+      register({ id: 'issue.comment', keys: ['c'], when: 'list', enabled: () => true }),
+    ).toThrow(/issue\.create/);
+  });
+
   it('refuses a binding that shadows a sequence in the same context', () => {
     const { register } = harness();
     register({ id: 'nav.goToIssues', keys: ['g i'] });
