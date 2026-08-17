@@ -159,13 +159,23 @@ jobs:
           path: web/playwright-report/
           retention-days: 7
 
-  keymap-discipline:
-    name: Keymap and design-token discipline
+  # The checks that read two artefacts and compare them. Each exists because the two sides
+  # compile, lint and test independently and can still disagree — which is the only kind of
+  # bug none of the jobs above can see.
+  discipline:
+    name: Cross-artefact discipline
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/lint-keymap.sh
       - run: bash scripts/lint-tokens.sh
+      # The reverse proxy against the routes the servers register. `handle /sync*` sent the
+      # bootstrap to a process that does not serve it, and every self-hosted install came up
+      # with an empty workspace behind a socket reporting healthy.
+      - run: bash scripts/lint-routes.sh
+      # A `:?` guard in an opt-in compose service. Compose interpolates every service before
+      # it picks profiles, so one of those broke `docker compose up` for everybody.
+      - run: bash scripts/lint-compose.sh
 
   secrets:
     name: Secret scan
