@@ -6,8 +6,19 @@ directories:
   output: release
   buildResources: assets
 
+# Runs before electron-builder's own signing step, and only matters when there is no
+# certificate — see scripts/adhoc-sign.cjs for why an unsigned macOS build is not merely
+# unsigned but unopenable without it.
+afterPack: scripts/adhoc-sign.cjs
+
 files:
   - dist/**/*
+  # The tray icon has to be named explicitly. `assets` is the buildResources directory, and
+  # electron-builder excludes that from the app by default — so without this line the icon is
+  # in the repo, in CI, and nowhere the packaged main process can read it. The failure is
+  # invisible in development, where the same relative path resolves to the source tree.
+  - assets/tray.png
+  - assets/tray@2x.png
   - "!**/*.map"
 
 # The renderer is the SAME web/dist the nginx image serves, copied in at package time
@@ -42,6 +53,21 @@ win:
       arch: [x64, arm64]
   # Signing uses an HSM-backed OV or EV certificate. Since June 2023 a code-signing key
   # may not live on disk, so this is a cloud-signing step in CI, not a local .pfx.
+  #
+  # Nothing here signs anything yet. `publisherName` is what electron-updater checks the
+  # downloaded installer's signature against before applying it, so as long as releases are
+  # unsigned this line makes Windows auto-update *refuse* every update rather than silently
+  # accept an unsigned one — which is the safe direction, and worth knowing is happening.
+  #
+  # Trusted Signing needs a config block as well as the AZURE_* credentials the workflow
+  # already passes; without it electron-builder logs "no signing info identified, signing is
+  # skipped" and ships an unsigned installer. Fill this in with the real account when the
+  # certificate exists:
+  #
+  #   azureSignOptions:
+  #     endpoint: https://weu.codesigning.azure.net
+  #     codeSigningAccountName: <account>
+  #     certificateProfileName: <profile>
   signtoolOptions:
     publisherName: Peixoto Labs
 
@@ -55,7 +81,17 @@ linux:
   target: [AppImage, deb]
   category: Development
 
+# The update feed, and the destination of `--publish always`.
+#
+# It has to be the repository the workflow runs in: `secrets.GITHUB_TOKEN` is scoped to that
+# repository and nothing else, so a different owner here fails the release with a 404 that
+# looks like a missing secret. Change both halves together with the remote, or auto-update
+# points at a feed that does not exist — which is silent until the first release nobody gets.
 publish:
   provider: github
-  owner: peixotolabs
+  owner: mcpeixoto
   repo: polaris
+  # Explicit rather than relying on the default. A tag build uploads before the smoke test
+  # has run and before a human has looked at anything, and a draft is what stops that being
+  # a release: nobody's updater sees a draft, so publishing stays a decision.
+  releaseType: draft
