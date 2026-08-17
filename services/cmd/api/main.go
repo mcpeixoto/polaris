@@ -133,6 +133,26 @@ func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
 
 	h := handler.New(es)
 	h.AddTransport(transport.POST{})
+
+	// The backstop the resolvers do not rely on.
+	//
+	// Every resolver already calls graph.PresentError itself, and the comment on that
+	// function explains why both exist: an unclassified error's text routinely carries a
+	// database string — a constraint name, a fragment of SQL, another workspace's id — and
+	// one forgotten call would turn that leak on with no failing test. It was never
+	// installed here, so until now the resolvers were the only thing standing between a raw
+	// error and a client, which is exactly the arrangement the duplication exists to avoid.
+	//
+	// Presenting twice is harmless: PresentError is idempotent on its own output.
+	h.SetErrorPresenter(graph.PresentError)
+
+	// Likewise a panic. gqlgen's default is not a leak — it answers "internal system
+	// error" — but it prints the value and stack to stderr with no request id, no field
+	// path and no structure, and it returns an error carrying no `extensions.code`. So the
+	// one failure that most needs to be traceable is the one that lands outside the logs
+	// everything else is in, and clients that branch on the code see nothing to branch on.
+	h.SetRecoverFunc(graph.RecoverPanic)
+
 	h.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 	h.Use(extension.AutomaticPersistedQuery{Cache: lru.New[string](100)})
 	h.Use(extension.FixedComplexityLimit(maxQueryComplexity))
