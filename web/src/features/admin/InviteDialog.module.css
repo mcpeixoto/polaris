@@ -66,6 +66,26 @@
 }
 
 /*
+ * What the server will do, when it is not what the admin is expecting.
+ *
+ * Deliberately the same neutral treatment as .blocked and deliberately not red: nothing here
+ * has gone wrong and nothing is being refused — the invitation will be created either way.
+ * Red would read as a failure and send somebody looking for the mistake they made. The left
+ * rule is what separates it from the field hints above and below it, which are the same size
+ * and colour and say much less consequential things.
+ */
+.notice {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
  * Takes --priority-urgent for the same reason Field.module.css does: the token layer has no
  * --danger role, and that pair is the only red already tuned for both page colours.
  */

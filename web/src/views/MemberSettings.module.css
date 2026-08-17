@@ -122,6 +122,18 @@
   background-color: var(--bg-secondary);
 }
 
+/*
+ * An invitation whose fourteen days ran out while this page was open.
+ *
+ * Dimmed rather than removed, and for the same reason a suspended member is: the row is still
+ * true — the invitation exists, it is still revocable — and a row that vanished on a timer
+ * would make "where did that invitation go" a support question. The badge beside it says
+ * which state this is; the dimming only stops it competing with the live ones.
+ */
+.inviteStale {
+  color: var(--text-tertiary);
+}
+
 .inviteEmail {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -132,6 +144,33 @@
   flex: none;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+}
+
+/*
+ * The confirmation that a revoke worked.
+ *
+ * Always in the document, empty until there is something to say — a live region inserted
+ * already populated is frequently never announced at all, which would make this an empty
+ * gesture rather than the point of it.
+ */
+.revoked {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * The one place on this screen that waits.
+ *
+ * Everything above it renders from the replica and is on screen before the first frame;
+ * invitations are not replicated and have to be asked for, so this section alone has a state
+ * where the honest answer is "not yet".
+ */
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6) 0;
 }
 
 /* --- the member table ------------------------------------------------------ */
