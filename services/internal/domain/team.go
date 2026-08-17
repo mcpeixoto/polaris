@@ -207,6 +207,48 @@ func (s *Service) ListTeams(ctx context.Context, p *authz.Principal) ([]model.Te
 	return out, nil
 }
 
+// ListTeamMemberships returns who is in each of the caller's teams, from one read, keyed by
+// team.
+//
+// The shape is the one internal/domain/issue_details.go uses for an issue's collections, and
+// for the same reason: Team.members is resolved for every team a query names — a viewer
+// query walking the whole workspace names all of them — and a read per team is the N+1 that
+// makes a sidebar cost a query per row. One statement answers for the lot, and a caller
+// resolving one team pays exactly the same as a caller resolving twenty.
+//
+// The listing covers the principal's visible team set and nothing beyond it — their own
+// memberships plus, for anybody who is not a guest, the workspace's public teams. That set is
+// not chosen here: it is exactly what StreamBootstrap ships memberships for, and exactly what
+// the sync hub lets through, so the API and the replica hold the same rows. A listing that
+// reached further would answer "who is in that team" for a private team somebody has
+// deliberately not been added to, which is the leak the visibility predicate exists to
+// prevent.
+//
+// A team outside that set is simply absent from the map rather than present and empty;
+// minting the empty list is the GraphQL layer's job, because it is the layer that knows the
+// field is non-null.
+func (s *Service) ListTeamMemberships(
+	ctx context.Context, p *authz.Principal,
+) (map[uuid.UUID][]model.TeamMembership, error) {
+	teamIDs := p.Teams.IDs()
+	out := make(map[uuid.UUID][]model.TeamMembership, len(teamIDs))
+	if len(teamIDs) == 0 {
+		return out, nil
+	}
+
+	rows, err := s.db.Queries().ListTeamMembershipsForTeams(ctx, store.ListTeamMembershipsForTeamsParams{
+		WorkspaceID: p.WorkspaceID,
+		TeamIds:     teamIDs,
+	})
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, r := range rows {
+		out[r.TeamID] = append(out[r.TeamID], toMembership(r))
+	}
+	return out, nil
+}
+
 // AddTeamMember adds a user to a team and hands them the team's contents on the sync
 // stream by way of a resync hint — the client re-bootstraps rather than the server
 // replaying every issue as an upsert, which would be unbounded work for a large team.

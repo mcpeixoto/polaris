@@ -263,32 +263,27 @@ func TestSearch_ReachesTheRowsThroughTheFullTextIndex(t *testing.T) {
 	}
 }
 
-// Acceptance test 2, the half that is false today.
+// Acceptance test 2, the half that used to be false.
 //
 //	A filter expressed in the UI, in a saved view and in a search returns identical ids
 //	for the same workspace state.
 //
-// THIS TEST DOCUMENTS A DEFECT. It asserts the behaviour the code has, not the behaviour
-// the criterion claims, and it exists so that the gap is visible in the test output and so
-// that fixing it fails here rather than passing silently.
+// This test was written the other way round, as TestSearch_IgnoresTheFilterItAccepts_
+// DOCUMENTS_A_DEFECT: `domain.Search` took a filter AST, validated it against the grammar
+// saved views use, and then never applied it. `SearchInput.Filter` was read once by
+// `filter.Parse` and referenced nowhere afterwards, and `filter.Compile` — the function that
+// turns the AST into a WHERE fragment, with nearly a thousand lines of tests pinning its
+// output — had no production caller at all.
 //
-// `domain.Search` accepts a filter AST, validates it against the same grammar saved views
-// use — and then never applies it. `SearchInput.Filter` is read once by `filter.Parse` and
-// referenced nowhere afterwards; `store.SearchIssuesParams` has no filter field and the SQL
-// in internal/store/queries/search.sql has no filter fragment. `filter.Compile`, the
-// function that turns the AST into that fragment, has no caller anywhere outside tests.
-//
-// The consequence is the exact failure docs/07-milestones/01-milestone-1.md names as the
+// The consequence was the exact failure docs/07-milestones/01-milestone-1.md names as the
 // reason the grammar is one compiler: "ignoring one silently widens the result set, and a
-// filter that quietly matches more than it says is what makes people stop trusting
-// filters." schema/schema.graphql advertises the opposite to every API caller — "a search
-// and a saved view with identical filters return identical ids" — and an integration
-// holding no replica has nothing to narrow the results with.
+// filter that quietly matches more than it says is what makes people stop trusting filters."
+// It was invisible from the client, which narrows its own replica, and unavoidable for an
+// integration, which has no replica to narrow.
 //
-// When search learns to apply the filter, this test will fail. Replace it then with the
-// inverted assertion: `filtered` must contain only the P0 issue, and `len(filtered) <
-// len(unfiltered)` becomes the point rather than the defect.
-func TestSearch_IgnoresTheFilterItAccepts_DOCUMENTS_A_DEFECT(t *testing.T) {
+// The assertion is now the criterion rather than the defect: the same corpus, the same
+// query, and a filter that selects one of three hits returns that one.
+func TestSearch_NarrowsByTheFilterItAccepts(t *testing.T) {
 	db := testutil.NewDB(t)
 	f := testutil.NewFixture(t, db)
 	svc := domain.NewService(db)
@@ -333,14 +328,23 @@ func TestSearch_IgnoresTheFilterItAccepts_DOCUMENTS_A_DEFECT(t *testing.T) {
 		t.Fatalf("filtered search: %v", err)
 	}
 
-	if len(filtered.Issues) != len(unfiltered.Issues) {
-		t.Fatalf("search now narrows by its filter (%d hits filtered vs %d unfiltered). "+
-			"That is the fix this test was written to wait for — acceptance test 2 is no "+
-			"longer failing, so replace this test with the assertion that only the P0 issue "+
-			"comes back.", len(filtered.Issues), len(unfiltered.Issues))
+	if len(filtered.Issues) != 1 {
+		t.Fatalf("a filter selecting one of three hits returned %d.\n"+
+			"SearchInput.Filter is meant to be compiled by internal/filter and appended to the "+
+			"search's WHERE — see Service.compileSearchFilter. A filter that is accepted and not "+
+			"applied silently widens the result set, which is what acceptance test 2 exists to "+
+			"prevent and what an integration holding no local replica cannot work around.",
+			len(filtered.Issues))
+	}
+	if filtered.Issues[0].Priority != 1 {
+		t.Errorf("the filter selected priority 1 and the hit that came back has priority %d",
+			filtered.Issues[0].Priority)
 	}
 
-	t.Logf("acceptance test 2 FAILS: search returned all %d hits for a filter that selects 1. "+
-		"SearchInput.Filter is validated and discarded; filter.Compile has no production caller.",
-		len(filtered.Issues))
+	// The count labels the list, so it has to be narrowed by the same predicate. A count
+	// taken over the unfiltered set is how a UI ends up saying "showing 1 of 3".
+	if filtered.IssueCount != 1 {
+		t.Errorf("the filtered search reports %d total matches for a list of %d; the count and "+
+			"the list must be the same question", filtered.IssueCount, len(filtered.Issues))
+	}
 }

@@ -66,5 +66,19 @@ UPDATE workflow_state SET is_default = true WHERE id = $1;
 -- name: ArchiveWorkflowState :exec
 UPDATE workflow_state SET archived_at = now() WHERE id = $1 AND NOT is_system;
 
+-- UnarchiveWorkflowState returns the row: the archive reached every client as a delete, so
+-- putting the status back is an upsert and needs the payload.
+--
+-- workflow_state_team_name_key is partial on archived_at IS NULL, so the name this status
+-- held was released when it was archived and the team may have reused it. The violation is
+-- allowed to happen and translated above, rather than pre-checked — a check would be a read
+-- the index performs again a moment later, and it would still be racing.
+--
+-- name: UnarchiveWorkflowState :one
+UPDATE workflow_state SET archived_at = NULL
+WHERE id = $1 AND archived_at IS NOT NULL AND NOT is_system
+RETURNING id, workspace_id, team_id, name, description, color, category, position,
+          is_default, is_system, archived_at, created_at, updated_at;
+
 -- name: CountIssuesInWorkflowState :one
 SELECT count(*) FROM issue WHERE state_id = $1 AND deleted_at IS NULL;

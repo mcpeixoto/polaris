@@ -49,6 +49,11 @@ var notInTheAPI = map[string]string{
 	"PruneExpiredSessions":      "worker cron",
 	"EnsureChangeLogPartitions": "worker cron",
 	"RevokeAllSessions":         "reached through account settings, which is M1",
+	// The retention sweep. Deliberately not reachable by a caller: its cutoff is
+	// IssueRestoreWindow and nothing else, and a mutation that let somebody choose it would
+	// be a way to defeat the recovery window the trash exists to be. What a caller can do —
+	// empty their own workspace's trash, admin-only — is purgeDeletedIssues.
+	"PurgeExpiredIssues": "worker cron",
 
 	// Not a mutation at all — it matches the "Resolve" verb but reads a principal. It is
 	// called by the auth middleware and the socket handshake, never by a caller.
@@ -63,7 +68,7 @@ var notInTheAPI = map[string]string{
 var mutatingPrefixes = []string{
 	"Create", "Update", "Delete", "Archive", "Set", "Add", "Remove",
 	"Suspend", "Resolve", "Accept", "Revoke", "Invite", "Register", "Login",
-	"Prune", "Ensure", "Refresh",
+	"Prune", "Ensure", "Refresh", "Purge",
 }
 
 func TestAPIParity_EveryDomainMutationIsReachableOverGraphQL(t *testing.T) {

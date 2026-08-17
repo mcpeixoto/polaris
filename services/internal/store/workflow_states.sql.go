@@ -257,6 +257,41 @@ func (q *Queries) SetDefaultWorkflowState(ctx context.Context, id uuid.UUID) err
 	return err
 }
 
+const unarchiveWorkflowState = `-- name: UnarchiveWorkflowState :one
+UPDATE workflow_state SET archived_at = NULL
+WHERE id = $1 AND archived_at IS NOT NULL AND NOT is_system
+RETURNING id, workspace_id, team_id, name, description, color, category, position,
+          is_default, is_system, archived_at, created_at, updated_at
+`
+
+// UnarchiveWorkflowState returns the row: the archive reached every client as a delete, so
+// putting the status back is an upsert and needs the payload.
+//
+// workflow_state_team_name_key is partial on archived_at IS NULL, so the name this status
+// held was released when it was archived and the team may have reused it. The violation is
+// allowed to happen and translated above, rather than pre-checked — a check would be a read
+// the index performs again a moment later, and it would still be racing.
+func (q *Queries) UnarchiveWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowState, error) {
+	row := q.db.QueryRow(ctx, unarchiveWorkflowState, id)
+	var i WorkflowState
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.TeamID,
+		&i.Name,
+		&i.Description,
+		&i.Color,
+		&i.Category,
+		&i.Position,
+		&i.IsDefault,
+		&i.IsSystem,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateWorkflowState = `-- name: UpdateWorkflowState :one
 UPDATE workflow_state
 SET name        = COALESCE($1, name),

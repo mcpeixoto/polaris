@@ -269,6 +269,60 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 				}
 			}
 
+			// Label applications and relations, after the issues that name them and before
+			// the comments, in the dependency order this whole function is written in.
+			//
+			// These two were written and never called. Both queries have existed since the
+			// milestone that added them, both are joined against the issue table so they
+			// ship exactly what the snapshot itself contains, and neither was reachable from
+			// here — so every replica built by bootstrap held issues with no label chips and
+			// no links, while a replica built by applying the change stream held both. Two
+			// clients disagreeing about the same workspace with nothing erroring is the
+			// failure the snapshot exists to make impossible.
+			after = uuid.Nil
+			for {
+				applications, err := q.StreamIssueLabelsForBootstrap(ctx, store.StreamIssueLabelsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+				if err != nil {
+					return platform.Internal(err)
+				}
+				for _, a := range applications {
+					if err := w.Entity("issueLabel", a.ID, toIssueLabel(a)); err != nil {
+						return err
+					}
+					after = a.ID
+				}
+				if len(applications) < bootstrapPageSize {
+					break
+				}
+			}
+
+			after = uuid.Nil
+			for {
+				relations, err := q.StreamIssueRelationsForBootstrap(ctx, store.StreamIssueRelationsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+				if err != nil {
+					return platform.Internal(err)
+				}
+				for _, r := range relations {
+					if err := w.Entity("issueRelation", r.ID, toIssueRelation(r)); err != nil {
+						return err
+					}
+					after = r.ID
+				}
+				if len(relations) < bootstrapPageSize {
+					break
+				}
+			}
+
 			after = uuid.Nil
 			for {
 				comments, err := q.StreamCommentsForBootstrap(ctx, store.StreamCommentsForBootstrapParams{

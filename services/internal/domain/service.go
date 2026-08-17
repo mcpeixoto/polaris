@@ -13,6 +13,8 @@
 package domain
 
 import (
+	"time"
+
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
 
@@ -20,10 +22,20 @@ import (
 type Service struct {
 	db *store.DB
 	em Emitter
+
+	// now is the clock the filter grammar's relative tokens resolve against.
+	//
+	// A field rather than a call to time.Now at the point of use, because "today" has to be
+	// answerable at a boundary. A filter saying `createdAt gte -10d` is only correct
+	// relative to an instant, the conformance fixture pins that instant so both languages
+	// answer the same question, and a test that had to wait for a real day to pass could
+	// not check it at all. Nothing else in the package needs it: every other timestamp here
+	// is written by the database's own now().
+	now func() time.Time
 }
 
 func NewService(db *store.DB) *Service {
-	return &Service{db: db}
+	return &Service{db: db, now: time.Now}
 }
 
 // DB exposes the pool for the read-only paths that legitimately need it — the bootstrap

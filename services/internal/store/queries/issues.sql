@@ -26,14 +26,14 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id;
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by;
 
 -- name: GetIssue :one
 SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -46,7 +46,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE;
@@ -56,7 +56,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE team_id = sqlc.arg(team_id) AND number = sqlc.arg(number) AND deleted_at IS NULL;
 
@@ -96,7 +96,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id;
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by;
 
 -- BulkUpdateIssues is the bulk-edit path: one property set across a selection, in one
 -- statement, under one version block.
@@ -132,7 +132,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id;
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by;
 
 -- name: ArchiveIssue :exec
 UPDATE issue SET archived_at = now() WHERE id = $1 AND archived_at IS NULL;
@@ -140,8 +140,15 @@ UPDATE issue SET archived_at = now() WHERE id = $1 AND archived_at IS NULL;
 -- name: UnarchiveIssue :exec
 UPDATE issue SET archived_at = NULL WHERE id = $1;
 
+-- SoftDeleteIssue records who as well as when.
+--
+-- deleted_by is nullable and a caller may pass nothing, which is what the retention sweep
+-- and any future automation want: a deletion nobody instructed has no person to name, and a
+-- guessed one would be worse than a blank on the trash screen.
+--
 -- name: SoftDeleteIssue :exec
-UPDATE issue SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL;
+UPDATE issue SET deleted_at = now(), deleted_by = sqlc.narg(deleted_by)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 
 -- RestoreIssue returns the row because a restore puts the issue back on the sync stream,
 -- and the payload has to be the issue as it is now — not as the client last saw it before
@@ -150,14 +157,18 @@ UPDATE issue SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL;
 -- The window is a parameter rather than a literal: how long a delete stays undoable is a
 -- product decision, and burying "30 days" in a query means changing it is a migration.
 --
+-- deleted_by is cleared alongside deleted_at. Leaving it set would make a live issue carry
+-- the name of somebody who deleted it once and was overruled, which is a fact the activity
+-- feed already holds and this column would then contradict on the next delete.
+--
 -- name: RestoreIssue :one
-UPDATE issue SET deleted_at = NULL
+UPDATE issue SET deleted_at = NULL, deleted_by = NULL
 WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL AND deleted_at > sqlc.arg(deleted_after)
 RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id;
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by;
 
 -- ListDeletedIssues is the "recently deleted" screen. Ordered by deletion time rather than
 -- by sort_order, because the only question being asked here is "what did I just lose".
@@ -167,7 +178,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND team_id = ANY(sqlc.arg(team_ids)::uuid[])
@@ -180,7 +191,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE team_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 ORDER BY sort_order;
@@ -198,7 +209,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE parent_id = $1 AND deleted_at IS NULL
 ORDER BY sub_issue_sort_order, id;
@@ -218,7 +229,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE parent_id = ANY(sqlc.arg(parent_ids)::uuid[])
   AND workspace_id = sqlc.arg(workspace_id)
@@ -239,7 +250,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE id = ANY(sqlc.arg(ids)::uuid[])
   AND workspace_id = sqlc.arg(workspace_id)
@@ -258,7 +269,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND assignee_id = sqlc.arg(assignee_id)
@@ -278,7 +289,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND team_id = ANY(sqlc.arg(team_ids)::uuid[])
@@ -291,6 +302,55 @@ LIMIT sqlc.arg(page_size);
 -- name: CountIssuesInWorkspace :one
 SELECT count(*) FROM issue
 WHERE workspace_id = $1 AND archived_at IS NULL AND deleted_at IS NULL;
+
+-- PurgeDeletedIssues hard-deletes a bounded batch of trashed issues and is the only
+-- statement in the product that removes an issue row.
+--
+-- Everything that references the issue goes with it, by foreign key: comment,
+-- issue_history, issue_label, issue_relation from both ends, issue_subscription and
+-- notification are all ON DELETE CASCADE. Sub-issues are the exception — issue.parent_id is
+-- ON DELETE SET NULL — so a child of a purged parent survives, orphaned, which is the same
+-- choice the client's own cascade makes for the same reason: a cross-team sub-issue belongs
+-- to a team that has lost nothing.
+--
+-- One statement rather than a SELECT followed by a DELETE. The window between the two would
+-- be a window in which somebody restores an issue from the trash screen and has it hard
+-- deleted anyway — the one mistake this table has no way back from. FOR UPDATE inside the
+-- CTE is what makes the choice of victims and their removal the same instant.
+--
+-- The limit is not a nicety. Every returned id becomes a change_log row inside the caller's
+-- transaction, and the version counter is a workspace-wide row lock, so an unbounded purge
+-- of a large trash would hold every other writer in the workspace behind it.
+--
+-- name: PurgeDeletedIssues :many
+WITH doomed AS (
+  SELECT d.id FROM issue d
+  WHERE d.workspace_id = sqlc.arg(workspace_id)
+    AND d.deleted_at IS NOT NULL
+    AND d.deleted_at <= sqlc.arg(deleted_before)
+  ORDER BY d.deleted_at
+  LIMIT sqlc.arg(page_size)
+  FOR UPDATE
+)
+DELETE FROM issue i WHERE i.id IN (SELECT doomed.id FROM doomed)
+RETURNING i.id, i.team_id;
+
+-- CountIssuesToPurge is what is left after a batch, so the caller can say whether the trash
+-- is empty rather than leaving them to call again and find out.
+--
+-- name: CountIssuesToPurge :one
+SELECT count(*) FROM issue
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND deleted_at IS NOT NULL
+  AND deleted_at <= sqlc.arg(deleted_before);
+
+-- ListWorkspacesWithPurgeableIssues drives the retention sweep, which has no principal and
+-- therefore no workspace of its own. Distinct rather than a join over workspace, because
+-- the answer wanted is "where is there work to do", and most workspaces have none.
+--
+-- name: ListWorkspacesWithPurgeableIssues :many
+SELECT DISTINCT workspace_id FROM issue
+WHERE deleted_at IS NOT NULL AND deleted_at <= sqlc.arg(deleted_before);
 
 -- Neighbour lookups for fractional-index insertion: find the sort_order either side of
 -- the target position so a new key can be minted between them.

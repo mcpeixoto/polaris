@@ -175,6 +175,7 @@ type Issue struct {
 	ParentID          *uuid.UUID
 	SubIssueSortOrder *string
 	TemplateID        *uuid.UUID
+	DeletedBy         *uuid.UUID
 }
 
 type IssueHistory struct {

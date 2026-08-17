@@ -395,6 +395,13 @@ var storedButUnwritable = map[string]string{
 	"completedAt": "same, for a completed status",
 	"canceledAt":  "same, for a cancelled one",
 	"archivedAt":  "archiveIssue, and an archived issue is not what this reads back",
+	// The two trash fields are the strongest case in this map: they are not merely unset on
+	// the issue being read, they are unset on every issue any caller can read. `issue(id:)`
+	// and every listing filter deleted rows out, so a non-zero value here would mean the API
+	// had just handed somebody a row from the trash. deletedIssues is the one read that
+	// returns them populated, and TestDeletedIssues_CarryWhenAndByWhom is what checks it.
+	"deletedAt": "only ever set on a row the trash listing returns; this read cannot see one",
+	"deletedBy": "same",
 }
 
 func TestIssueRoundTrip_TheReadPathCarriesEveryStoredField(t *testing.T) {

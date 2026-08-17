@@ -27,6 +27,16 @@ const (
 	ActionIssueDelete  Action = "issue.delete"
 	ActionIssueArchive Action = "issue.archive"
 
+	// Emptying the trash, which is the only irreversible write in the product.
+	//
+	// Deliberately workspace-level and not team-scoped, unlike every other issue action.
+	// A team-scoped purge would let a team owner destroy their own team's history, and the
+	// blast radius does not stop at the team: the issues going are linked from other teams'
+	// boards, and those relations go with them. It is also the one action here whose answer
+	// must not depend on the caller remembering to pass a team, because the failure mode of
+	// getting that wrong is unrecoverable rather than merely wrong.
+	ActionIssuePurge Action = "issue.purge"
+
 	ActionCommentCreate Action = "comment.create"
 	ActionCommentUpdate Action = "comment.update"
 	ActionCommentDelete Action = "comment.delete"
@@ -67,7 +77,7 @@ var AllActions = []Action{
 	ActionTeamCreate, ActionTeamUpdate, ActionTeamDelete, ActionTeamJoin,
 	ActionMemberInvite, ActionMemberRemove, ActionMemberSetRole, ActionMemberSuspend,
 	ActionWorkflowStateManage,
-	ActionIssueCreate, ActionIssueUpdate, ActionIssueDelete, ActionIssueArchive,
+	ActionIssueCreate, ActionIssueUpdate, ActionIssueDelete, ActionIssueArchive, ActionIssuePurge,
 	ActionCommentCreate, ActionCommentUpdate, ActionCommentDelete,
 	ActionWorkspaceLabelManage, ActionTeamLabelManage,
 	ActionWorkspaceViewManage, ActionTeamViewManage,
@@ -116,6 +126,8 @@ func Can(p *Principal, a Action) bool {
 	case ActionWorkspaceUpdate, ActionWorkspaceDelete,
 		ActionMemberInvite, ActionMemberRemove, ActionMemberSetRole, ActionMemberSuspend,
 		ActionTeamCreate,
+		// Emptying the trash destroys rows from every team at once and cannot be undone.
+		ActionIssuePurge,
 		// Workspace-wide labels, views and templates land in everybody's sidebar and
 		// everybody's pickers. That reach is what makes them an admin action while their
 		// team-scoped equivalents are not.

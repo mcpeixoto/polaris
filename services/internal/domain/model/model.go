@@ -189,8 +189,21 @@ type Issue struct {
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 	CanceledAt  *time.Time `json:"canceledAt,omitempty"`
 	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
+
+	// DeletedAt and DeletedBy are the trash's two facts: when the issue was thrown away and
+	// by whom. Both are omitempty and both are nil on every issue a client ever stores,
+	// because a deleted issue is never streamed and never bootstrapped — the delete is what
+	// reaches the replica. They exist here so the one read that does return deleted rows,
+	// ListDeletedIssues, can answer the two questions the trash screen is actually asking;
+	// putting them on a second struct would be a second serialisation of an issue.
+	//
+	// DeletedBy is nil for deletions that predate the column and for the ones the retention
+	// sweep performs, where there is no person to name.
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+	DeletedBy *uuid.UUID `json:"deletedBy,omitempty"`
+
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // DueDateSource values.

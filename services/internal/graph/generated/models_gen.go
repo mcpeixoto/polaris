@@ -106,6 +106,14 @@ type Comment struct {
 	ResolvedBy  *uuid.UUID `json:"resolvedBy,omitempty"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	UpdatedAt   time.Time  `json:"updatedAt"`
+	// The issue this comment is on.
+	//
+	// Non-null, and it can be: a comment is only ever returned to somebody who can already read
+	// its issue — every listing joins through it — so a resolvable comment with an unresolvable
+	// issue is a broken invariant rather than a permission answer. It exists because a search
+	// result is a comment with no way home: without this a client has to fetch the issue by id
+	// to render "in ENG-142", which is a second round trip per hit.
+	Issue *Issue `json:"issue"`
 }
 
 type CommentPayload struct {
@@ -321,22 +329,30 @@ type Issue struct {
 	// Order among siblings, independent of sortOrder — a checklist's order is not the backlog's.
 	SubIssueSortOrder *string `json:"subIssueSortOrder,omitempty"`
 	// Which template made this issue, for the question "is this template still worth having".
-	TemplateID  *uuid.UUID          `json:"templateId,omitempty"`
-	StartedAt   *time.Time          `json:"startedAt,omitempty"`
-	CompletedAt *time.Time          `json:"completedAt,omitempty"`
-	CanceledAt  *time.Time          `json:"canceledAt,omitempty"`
-	ArchivedAt  *time.Time          `json:"archivedAt,omitempty"`
-	CreatedAt   time.Time           `json:"createdAt"`
-	UpdatedAt   time.Time           `json:"updatedAt"`
-	State       *WorkflowState      `json:"state"`
-	Team        *Team               `json:"team"`
-	Assignee    *User               `json:"assignee,omitempty"`
-	Creator     *User               `json:"creator,omitempty"`
-	Comments    []Comment           `json:"comments"`
-	History     []IssueHistoryEntry `json:"history"`
-	Labels      []Label             `json:"labels"`
-	Parent      *Issue              `json:"parent,omitempty"`
-	Children    []Issue             `json:"children"`
+	TemplateID  *uuid.UUID `json:"templateId,omitempty"`
+	StartedAt   *time.Time `json:"startedAt,omitempty"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	CanceledAt  *time.Time `json:"canceledAt,omitempty"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	// When the issue was moved to the trash. Only ever set on a row `deletedIssues` returned:
+	// every other read in the product filters deleted rows out, and the sync stream carries a
+	// delete rather than the row, so a client holding an issue with this set is holding
+	// something it should already have dropped.
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+	// Who moved it there. Null for a deletion that predates the column, and for one performed
+	// by the retention sweep rather than by a person.
+	DeletedBy *uuid.UUID          `json:"deletedBy,omitempty"`
+	CreatedAt time.Time           `json:"createdAt"`
+	UpdatedAt time.Time           `json:"updatedAt"`
+	State     *WorkflowState      `json:"state"`
+	Team      *Team               `json:"team"`
+	Assignee  *User               `json:"assignee,omitempty"`
+	Creator   *User               `json:"creator,omitempty"`
+	Comments  []Comment           `json:"comments"`
+	History   []IssueHistoryEntry `json:"history"`
+	Labels    []Label             `json:"labels"`
+	Parent    *Issue              `json:"parent,omitempty"`
+	Children  []Issue             `json:"children"`
 	// Rolled up from the children. Zero children means null, not zero per cent.
 	Progress *IssueProgress `json:"progress,omitempty"`
 	// Relations where this issue is the subject.
@@ -533,6 +549,26 @@ type NotificationsPayload struct {
 
 func (NotificationsPayload) IsMutationResult() {}
 
+// What a purge destroyed.
+//
+// A list of ids rather than a single one, and no entities: after this response the rows named
+// here do not exist in any table, so there is nothing left to return and nothing any client
+// can do with the ids except confirm what it already dropped.
+type PurgePayload struct {
+	Version int `json:"version"`
+	// The issues that no longer exist. Empty when the trash was already empty.
+	Ids []uuid.UUID `json:"ids"`
+	// How many rows were eligible and were left for the next call.
+	//
+	// A purge is bounded per call so that emptying a large trash cannot mint tens of thousands
+	// of sync versions inside one transaction and stall every other writer in the workspace
+	// behind the version lock. Zero means the trash is now empty; anything else means call it
+	// again.
+	Remaining int `json:"remaining"`
+}
+
+func (PurgePayload) IsMutationResult() {}
+
 type Query struct {
 }
 
@@ -542,11 +578,21 @@ type Query struct {
 // use, so a search and a saved view with identical filters return identical ids — which is
 // one of this milestone's acceptance tests, and the reason there is one compiler.
 type SearchInput struct {
-	Query           string          `json:"query"`
-	Filter          json.RawMessage `json:"filter,omitempty"`
-	TeamID          *uuid.UUID      `json:"teamId,omitempty"`
-	First           *int            `json:"first,omitempty"`
-	IncludeArchived *bool           `json:"includeArchived,omitempty"`
+	Query  string          `json:"query"`
+	Filter json.RawMessage `json:"filter,omitempty"`
+	TeamID *uuid.UUID      `json:"teamId,omitempty"`
+	First  *int            `json:"first,omitempty"`
+	// Widens the search to archived issues.
+	//
+	// It does not survive a filter that says nothing about archiving. The grammar hides archived
+	// and deleted issues unless a clause names them, that default is part of what a filter means,
+	// and the client's evaluator applies the same one — so the two are combined and the stricter
+	// wins. To search archived issues with a filter, say `archived` in the filter. Anything else
+	// would make one filter mean two things depending on where it was used.
+	//
+	// Deleted issues are never returned by search at all, whatever either says: the trash is its
+	// own query, with its own window.
+	IncludeArchived *bool `json:"includeArchived,omitempty"`
 }
 
 type SearchResults struct {
