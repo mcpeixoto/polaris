@@ -374,6 +374,15 @@ export interface IssueProperties {
   readonly estimate?: number | null | undefined;
   /** A calendar day, `2006-01-02`. `null` clears it. */
   readonly dueDate?: DateOnly | null | undefined;
+  /**
+   * The parent, making this a sub-issue. `null` detaches it.
+   *
+   * `UpdateIssueInput` has carried `parentId` and `clearParent` since M0 and nothing in the
+   * client ever sent either, so detaching a sub-issue was unreachable — the same shape as
+   * `DELETE_ISSUE` having no caller. Cross-team is allowed and normal: platform work
+   * blocking a feature is the ordinary case, not the exception.
+   */
+  readonly parentId?: UUID | null | undefined;
 }
 
 /**
@@ -396,10 +405,17 @@ export async function updateIssueProperties(
     ...before,
     ...(fields.estimate === undefined ? null : { estimate: fields.estimate ?? undefined }),
     ...(fields.dueDate === undefined ? null : { dueDate: fields.dueDate ?? undefined }),
+    ...(fields.parentId === undefined ? null : { parentId: fields.parentId ?? undefined }),
     updatedAt: new Date().toISOString(),
   };
   // A picker reselecting the value an issue already has is free rather than a round trip.
-  if (before.estimate === after.estimate && before.dueDate === after.dueDate) return;
+  if (
+    before.estimate === after.estimate &&
+    before.dueDate === after.dueDate &&
+    before.parentId === after.parentId
+  ) {
+    return;
+  }
 
   await engine.mutate({
     mutation: UPDATE_ISSUE,
@@ -770,6 +786,11 @@ function propertiesInputOf(fields: IssueProperties): Record<string, unknown> {
       : fields.dueDate === null
         ? { clearDueDate: true }
         : { dueDate: fields.dueDate }),
+    ...(fields.parentId === undefined
+      ? null
+      : fields.parentId === null
+        ? { clearParent: true }
+        : { parentId: fields.parentId }),
   };
 }
 

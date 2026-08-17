@@ -33,8 +33,18 @@ import {
   Textarea,
   Tooltip,
 } from '~/components';
-import { archiveIssues, postComment, report, updateIssue } from '~/features/issue/mutations';
+import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
+import {
+  archiveIssues,
+  postComment,
+  report,
+  updateIssue,
+  updateIssueProperties,
+} from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
+import { Relations, SubIssues } from '~/features/issue/relations';
+import { browserTimezone } from '~/features/locale';
 import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -99,6 +109,16 @@ export function IssueDetail() {
         creatorName: creator?.displayName ?? null,
         createdAt: found.createdAt,
         archived: found.archivedAt !== undefined,
+        estimate: found.estimate ?? null,
+        dueDate: found.dueDate ?? null,
+        dueDateSource: found.dueDateSource,
+        // The team's zone and not the reader's, so two people looking at one issue agree
+        // about whether it is overdue. A team missing from the replica falls back to the
+        // browser's, which is wrong in the same direction for everybody rather than wrong
+        // differently for each of them.
+        timezone: team?.timezone ?? browserTimezone(),
+        estimatesEnabled: team !== undefined && estimatesEnabled(team),
+        estimateLabel: team === undefined ? null : issueEstimateLabel(found.estimate, team),
       };
     },
     ['issue', 'team', 'user', 'workflowState'],
@@ -121,6 +141,8 @@ export function IssueDetail() {
   const status = useMenuTrigger();
   const assignee = useMenuTrigger();
   const priority = useMenuTrigger();
+  const estimate = useMenuTrigger();
+  const due = useMenuTrigger();
 
   const commands = useRef<DetailCommands>({
     pickStatus: () => {},
@@ -232,6 +254,20 @@ export function IssueDetail() {
             onSave={(description) => updateIssue(engine, issue.id, { description }).catch(report)}
           />
 
+          {/* Above the history rather than below it: sub-issues and relations are part of
+              what this issue *is*, and the history is a record of what has happened to it.
+              Somebody scanning the page for "what is blocking this" should not have to read
+              past a fortnight of status changes to find out. */}
+          <SubIssues
+            issueId={issue.id}
+            teamId={issue.teamId}
+            onDetach={(childId) =>
+              updateIssueProperties(engine, childId, { parentId: null }).catch(report)
+            }
+          />
+
+          <Relations issueId={issue.id} />
+
           <Activity history={activity.history} names={names} />
 
           <Comments
@@ -298,6 +334,33 @@ export function IssueDetail() {
             </Button>
           </div>
 
+          {/* Absent entirely for a team whose scale is `none`, rather than shown disabled: a
+              team that has decided not to estimate should not have a permanently empty
+              estimate field on every issue reminding them of the decision. */}
+          {issue.estimatesEnabled && (
+            <div className={styles.property}>
+              <span className={styles.propertyLabel} id={`${issue.id}-estimate-label`}>
+                Estimate
+              </span>
+              <Button {...estimate.props} fullWidth aria-describedby={`${issue.id}-estimate-label`}>
+                {issue.estimateLabel ?? 'No estimate'}
+              </Button>
+            </div>
+          )}
+
+          <div className={styles.property}>
+            <span className={styles.propertyLabel} id={`${issue.id}-due-label`}>
+              Due date
+            </span>
+            <Button {...due.props} fullWidth aria-describedby={`${issue.id}-due-label`}>
+              <DueDateValue
+                value={issue.dueDate}
+                timezone={issue.timezone}
+                source={issue.dueDateSource}
+              />
+            </Button>
+          </div>
+
           <p className={styles.provenance}>
             {issue.creatorName === null ? 'Created' : `Created by ${issue.creatorName}`}{' '}
             <time dateTime={issue.createdAt} title={exact(issue.createdAt)}>
@@ -331,6 +394,28 @@ export function IssueDetail() {
         value={issue.priority}
         placement="bottom-end"
         onSelect={(level) => updateIssue(engine, issue.id, { priority: level }).catch(report)}
+      />
+      <EstimatePicker
+        open={estimate.open}
+        onClose={estimate.hide}
+        trigger={estimate.ref}
+        teamId={issue.teamId}
+        value={issue.estimate}
+        placement="bottom-end"
+        onSelect={(value) =>
+          updateIssueProperties(engine, issue.id, { estimate: value }).catch(report)
+        }
+      />
+      <DueDatePicker
+        open={due.open}
+        onClose={due.hide}
+        trigger={due.ref}
+        value={issue.dueDate}
+        source={issue.dueDateSource}
+        timezone={issue.timezone}
+        onSelect={(value) =>
+          updateIssueProperties(engine, issue.id, { dueDate: value }).catch(report)
+        }
       />
     </div>
   );

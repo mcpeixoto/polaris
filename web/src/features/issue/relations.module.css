@@ -1,0 +1,231 @@
+/*
+ * Both panels are lists of issues, so they are styled as one thing and share every rule below.
+ * A sub-issue row and a blocked-by row carry the same three marks — a status, an identifier, a
+ * title — and making them look like two different kinds of object would suggest a difference
+ * the product does not have.
+ *
+ * The density is the issue list's, not a card's: 22px rows, hairline separators, no shadows on
+ * anything that is not floating. These sit inside the detail screen's main column, which is
+ * already a surface; a panel drawn as a second surface on top of it reads as a widget somebody
+ * embedded rather than as part of the issue.
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* --- The header ------------------------------------------------------------------------ */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-lg);
+}
+
+.title {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-none);
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* The rollup's numbers, beside the ring rather than inside it: 1/2 is quicker to read than an
+   arc is to judge, and the ring is what makes a glance enough. */
+.count {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.quiet {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.note {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/* --- The rows -------------------------------------------------------------------------- */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  height: var(--row-height);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+.row:hover {
+  background-color: var(--bg-hover);
+}
+
+/*
+ * The identifier and the title are one link, so the accessible name is "ENG-2 Ship the
+ * importer" — the way somebody would say it out loud — rather than two adjacent links to the
+ * same place, which a screen reader announces as two separate destinations.
+ */
+.rowLink {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.rowLink:hover .rowTitle {
+  text-decoration: underline;
+}
+
+.rowLink:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+.identifier {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.rowTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * A link whose other end is not in this replica. Quiet and not red: it is not an error, it is
+ * a fact about what this client is allowed to see, and colouring it as a fault would send
+ * people looking for a bug that is a permission.
+ */
+.unknown {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-md);
+  font-style: italic;
+}
+
+.hint {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+}
+
+/* --- Adding ---------------------------------------------------------------------------- */
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+}
+
+/* The sub-issue version is one line — a title and two buttons — so it lays out along the row
+   rather than down it, and the box takes whatever the buttons leave. The link version is a
+   column of three controls and keeps the default direction, which is why this is keyed on the
+   element rather than on a second class: a `<form>` here is by definition the one-line one. */
+form.addForm {
+  flex-direction: row;
+  align-items: flex-end;
+}
+
+form.addForm > *:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.addFooter {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  /* Bounded so a long list cannot push the Cancel button off the bottom of the panel. */
+  max-height: 200px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  height: var(--control-height-md);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.result:hover {
+  background-color: var(--bg-hover);
+}
+
+.result:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
