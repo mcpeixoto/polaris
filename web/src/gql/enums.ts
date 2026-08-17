@@ -107,45 +107,91 @@ const ENUM_FIELDS: Readonly<Record<EntityType, readonly string[]>> = {
  * already in the database's spelling, and lower-casing them again would be harmless today
  * and wrong the moment a value stops being a single word.
  *
- * Absent and null fields are left exactly as they are. A partial projection is a legitimate
- * thing for a caller to have — this converts what is there rather than asserting a shape.
+ * Two conversions happen here, and the second one is not about spelling.
+ *
+ * **Case.** `ENUM_FIELDS` says which fields hold an enum, and those are lower-cased.
+ *
+ * **Absence.** GraphQL says "this field has no value" with an explicit `null`; the sync
+ * stream says it by omitting the key, and every type in `web/src/store/types.ts` says it
+ * with an optional property — there is not one `null` in that file. So a response written
+ * into the store unchanged puts `null` where the whole client compares against `undefined`,
+ * and the value is once again *present*, *plausible* and equal to nothing.
+ *
+ * That is not hypothetical. `createIssue` upserts the server's row over the optimistic one,
+ * and the server's row carries `archivedAt: null`. `compileFilter` gates every list on
+ * `issue.archivedAt === undefined`, and `IssueIndex.add` decides `live` the same way — so
+ * the issue the user had just created vanished from the list it was created in, and stayed
+ * gone across a reload because the `null` had been persisted to IndexedDB. It only happened
+ * about half the time, because the socket delta for the same issue carries the row in the
+ * stream's spelling and whichever landed second won. The inbox had the same fault through
+ * `hydrateInbox`: `readAt: null` reads as read, so a hydrated page arrived with every row
+ * already dealt with and a badge of zero.
+ *
+ * Null-stripping is confined to the entity's own fields and to the nested objects this table
+ * claims to understand — an `actor`, today. `notification.payload`, `view.filter` and
+ * `view.display` are `JSON` scalars: opaque documents that belong to somebody else's schema,
+ * where a `null` may well be a value rather than an absence, and they are carried through
+ * exactly as they arrived.
+ *
+ * Absent fields stay absent, and `raw` is returned unchanged when there was nothing to
+ * convert. A partial projection is a legitimate thing for a caller to have — this converts
+ * what is there rather than asserting a shape.
  */
 export function fromWire<T extends EntityType>(type: T, raw: EntityOf<T>): EntityOf<T> {
-  const paths = ENUM_FIELDS[type];
-  if (paths.length === 0) return raw;
-
-  let result: Record<string, unknown> | null = null;
-
-  for (const path of paths) {
-    const [head, tail] = splitPath(path);
-    const source = (result ?? raw) as Record<string, unknown>;
-
-    if (tail === null) {
-      const value = source[head];
-      if (typeof value !== 'string') continue;
-      result ??= { ...(raw as object) };
-      result[head] = value.toLowerCase();
-      continue;
-    }
-
-    const nested = source[head];
-    if (nested === null || typeof nested !== 'object') continue;
-    const value = (nested as Record<string, unknown>)[tail];
-    if (typeof value !== 'string') continue;
-
-    result ??= { ...(raw as object) };
-    // Copied rather than mutated: `raw` may be shared with a caller that has already put it
-    // somewhere, and an in-place edit of a nested object would reach through the spread.
-    result[head] = { ...(nested as object), [tail]: value.toLowerCase() };
-  }
-
-  return (result ?? raw) as EntityOf<T>;
+  const converted = convert(raw as unknown as Record<string, unknown>, ENUM_FIELDS[type]);
+  return (converted ?? raw) as EntityOf<T>;
 }
 
 /** Exposed for the test that rebuilds this table from the schema. Not part of the API. */
 export const ENUM_FIELDS_FOR_TEST: Readonly<Record<EntityType, readonly string[]>> = ENUM_FIELDS;
 
-function splitPath(path: string): [string, string | null] {
-  const dot = path.indexOf('.');
-  return dot === -1 ? [path, null] : [path.slice(0, dot), path.slice(dot + 1)];
+/**
+ * One object's worth of the conversion, or `null` when nothing needed changing.
+ *
+ * Reporting "unchanged" rather than always copying is what lets a caller keep object
+ * identity for the overwhelmingly common row that has no enums and no nulls — the store
+ * compares subscription results structurally, and a fresh object per response would be a
+ * re-render per response for every list watching that entity.
+ */
+function convert(
+  source: Record<string, unknown>,
+  paths: readonly string[],
+): Record<string, unknown> | null {
+  let result: Record<string, unknown> | null = null;
+
+  for (const key of Object.keys(source)) {
+    const value = source[key];
+
+    if (value === null) {
+      result ??= { ...source };
+      delete result[key];
+      continue;
+    }
+
+    if (typeof value === 'string') {
+      if (!paths.includes(key)) continue;
+      const lowered = value.toLowerCase();
+      if (lowered === value) continue;
+      result ??= { ...source };
+      result[key] = lowered;
+      continue;
+    }
+
+    // Only the nested objects the table names — see the note about JSON scalars above.
+    if (typeof value !== 'object' || Array.isArray(value)) continue;
+    const prefix = `${key}.`;
+    const nested = paths
+      .filter((path) => path.startsWith(prefix))
+      .map((p) => p.slice(prefix.length));
+    if (nested.length === 0) continue;
+
+    // Copied rather than mutated: `raw` may be shared with a caller that has already put it
+    // somewhere, and an in-place edit of a nested object would reach through the spread.
+    const converted = convert(value as Record<string, unknown>, nested);
+    if (converted === null) continue;
+    result ??= { ...source };
+    result[key] = converted;
+  }
+
+  return result;
 }

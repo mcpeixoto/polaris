@@ -16,10 +16,16 @@
  *   - `setRole` sent `"admin"` for `UserRole!`, so changing a member's role never worked —
  *     and the optimistic patch made it look as though it had, until the rollback landed.
  *   - `createStatus` did both at once for `StateCategory!`.
+ *   - `createIssue` wrote the server's row into the store with its `null`s intact, where the
+ *     client spells absence `undefined`. `archivedAt: null` reads as archived to
+ *     `compileFilter` and to `IssueIndex`, so the issue somebody had just created vanished
+ *     from the list they created it in — about half the time, because the socket delta for
+ *     the same row carries it in the stream's spelling and whichever landed second won.
  *
  * They are tested here rather than in each feature's own file because they are one bug with
- * four faces, and splitting them up would lose the thing worth remembering: any mutation
- * whose argument or whose response mentions an enum has to go through `~/gql/enums`.
+ * five faces, and splitting them up would lose the thing worth remembering: any mutation
+ * whose argument or whose response reaches the store has to go through `~/gql/enums`, for the
+ * case of its enums AND for the shape of its absences.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -29,7 +35,7 @@ import { createStatus } from '~/features/team/mutations';
 import { Store, type Change, type Entity } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
-import { createRelation } from './mutations';
+import { createIssue, createRelation } from './mutations';
 
 const WORKSPACE = '01900000-0000-7000-8000-000000000001';
 const TEAM = '01900000-0000-7000-8000-000000000002';
@@ -234,3 +240,86 @@ function serverRelation(type: string): Record<string, unknown> {
     createdAt: AT,
   };
 }
+
+describe('createIssue', () => {
+  /**
+   * The server's row, as GraphQL actually sends it: every optional field present and `null`.
+   *
+   * This is the whole defect. `IssueFields` asks for twenty-four fields and the server answers
+   * all of them, so a freshly created issue comes back with `archivedAt`, `parentId`,
+   * `assigneeId`, `estimate`, `dueDate` and four timestamps all spelled `null` — none of which
+   * is `undefined`, which is what the client means by "not set".
+   *
+   * `id` is echoed from the request rather than minted here, because that is what the server
+   * does: the client mints the id and sends it, which is what makes the response an upsert
+   * over the optimistic row instead of a swap. A fixture that answered with an id of its own
+   * would be testing a protocol this build does not speak.
+   */
+  function serverIssue(id: unknown): Record<string, unknown> {
+    return {
+      id,
+      workspaceId: WORKSPACE,
+      teamId: TEAM,
+      number: 9,
+      identifier: 'ENG-9',
+      title: 'Made in the browser',
+      description: '',
+      stateId: STATE,
+      assigneeId: null,
+      creatorId: USER,
+      priority: 0,
+      sortOrder: 'V',
+      estimate: null,
+      dueDate: null,
+      dueDateSource: 'MANUAL',
+      parentId: null,
+      subIssueSortOrder: null,
+      templateId: null,
+      startedAt: null,
+      completedAt: null,
+      canceledAt: null,
+      archivedAt: null,
+      createdAt: AT,
+      updatedAt: AT,
+    };
+  }
+
+  /** The engine, answering with the row the request asked to create. */
+  function engineOver(store: Store): SyncEngine {
+    const mutate = vi.fn(async (call: { variables: { input: { id: unknown } } }) => ({
+      createIssue: { issue: serverIssue(call.variables.input.id) },
+    }));
+    return { store, mutate } as unknown as SyncEngine;
+  }
+
+  it('stores the response with its absences absent rather than null', async () => {
+    const store = seeded();
+    const engine = engineOver(store);
+
+    const id = await createIssue(engine, { teamId: TEAM, title: 'Made in the browser' });
+
+    // The row the server sent is now the row in the replica, under the client's own id.
+    const stored = store.get('issue', id);
+    expect(stored?.identifier).toBe('ENG-9');
+    expect('archivedAt' in (stored as object)).toBe(false);
+    expect('parentId' in (stored as object)).toBe(false);
+    expect('assigneeId' in (stored as object)).toBe(false);
+    expect('dueDate' in (stored as object)).toBe(false);
+    // And the enum came down in the store's spelling, like every other response.
+    expect(stored?.dueDateSource).toBe('manual');
+  });
+
+  it('leaves the new issue in the corpus every list is drawn from', async () => {
+    const store = seeded();
+    const engine = engineOver(store);
+
+    const id = await createIssue(engine, { teamId: TEAM, title: 'Made in the browser' });
+
+    // `active()` is the non-archived set, and `compileFilter` gates every unfiltered list on
+    // the same question. A `null` archivedAt takes the issue out of both, which is what made
+    // it disappear from the list it was created in — and stay gone across a reload, because
+    // the null had been persisted to IndexedDB.
+    expect(store.index.active().has(id)).toBe(true);
+    expect(store.index.byTeam(TEAM).has(id)).toBe(true);
+  });
+});

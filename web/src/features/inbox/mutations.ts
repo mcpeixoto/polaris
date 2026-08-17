@@ -11,6 +11,7 @@
  * they had missed.
  */
 
+import { fromWire } from '~/gql/enums';
 import { INBOX_PAGE_SIZE } from './inbox';
 import {
   DELETE_NOTIFICATION,
@@ -57,7 +58,18 @@ export function hydrateInbox(engine: SyncEngine): Promise<void> {
       const patch: EntityPatch[] = [];
       for (const row of data.notifications) {
         if (store.notifications.has(row.id)) continue;
-        patch.push({ type: 'notification', id: row.id, before: null, after: row });
+        // Through `fromWire` like every other GraphQL row that reaches the store, and this
+        // one was not. It cost the inbox twice over: `type` arrived as `"ISSUE_ASSIGNED"`,
+        // so `describeEvent` fell through to "updated ENG-4" for every hydrated row; and
+        // `readAt` arrived as `null` rather than absent, which reads as *read* — so the page
+        // this query exists to fill arrived with a badge of zero and every row greyed out,
+        // and `markNotificationRead` then declined to change one because it already agreed.
+        patch.push({
+          type: 'notification',
+          id: row.id,
+          before: null,
+          after: fromWire('notification', row),
+        });
       }
       // One write for the whole page: the badge and the list both subscribe to this, and
       // five hundred separate writes would be five hundred renders of each.
