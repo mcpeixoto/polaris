@@ -1,0 +1,57 @@
+/*
+ * The undo toast.
+ *
+ * Bottom centre, above everything. `--z-toast` sits above the modal layer on purpose: an issue
+ * deleted from inside a dialog is exactly the delete somebody wants back, and a toast painted
+ * underneath the surface that caused it is a toast nobody can press.
+ *
+ * The host is always in the document, because it is the live region — see UndoToast.tsx — so
+ * it must not eat pointer events while it is empty. It covers the width of the viewport in
+ * order to centre what it holds, and an invisible full-width strip across the bottom of the
+ * screen would otherwise swallow every click aimed at the row underneath it.
+ */
+
+.host {
+  position: fixed;
+  inset-inline: 0;
+  bottom: var(--space-6);
+  z-index: var(--z-toast);
+  display: flex;
+  justify-content: center;
+  padding-inline: var(--space-4);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 60ch;
+  /* Tighter on the trailing side because the button carries its own padding, and a control
+     inset by a full gutter reads as floating away from the edge it belongs to. */
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-tertiary);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  pointer-events: auto;
+  /* It arrives during the frame a destructive action completes in, so it has to be seen
+     without being waited for. Reduced motion collapses this at the token. */
+  animation: rise var(--duration-fast) var(--ease-out);
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}

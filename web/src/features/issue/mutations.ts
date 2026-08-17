@@ -25,6 +25,7 @@ import {
   ARCHIVE_ISSUE,
   CREATE_COMMENT,
   CREATE_ISSUE,
+  DELETE_ISSUE,
   UPDATE_COMMENT,
   UPDATE_ISSUE,
 } from '~/gql/operations';
@@ -205,6 +206,37 @@ export function archiveIssues(engine: SyncEngine, ids: readonly UUID[]): Promise
       return engine.mutate({
         mutation: ARCHIVE_ISSUE,
         variables: { id, archived: true },
+        optimistic: [{ type: 'issue', id, before, after: null }],
+      });
+    }),
+  );
+}
+
+/**
+ * Deletes issues, which is a soft delete the server keeps for thirty days.
+ *
+ * The same optimistic shape as an archive — the row leaves the replica — because the server's
+ * change for a delete says exactly that, and a client holding a row the stream has removed is
+ * a filter result nobody can explain.
+ *
+ * What makes this different from archiving is that it is *recoverable*, and the caller is
+ * expected to say so. `deleteIssue` deliberately does not raise the undo offer itself: the
+ * label is the user's words for what just happened, and only the call site knows them. Pair
+ * it with `offerUndo` from `~/features/undo/UndoToast` and `restoreIssue` from
+ * `~/features/trash/mutations`, which returns `Promise<void>` for exactly that purpose.
+ *
+ * The document for this has existed since M0 and had no caller at all, so deleting an issue
+ * was unreachable from the client — the trash screen was a recovery route for something
+ * nothing could do.
+ */
+export function deleteIssues(engine: SyncEngine, ids: readonly UUID[]): Promise<void> {
+  return all(
+    ids.map((id) => {
+      const before = engine.store.get('issue', id);
+      if (before === undefined) return Promise.resolve();
+      return engine.mutate({
+        mutation: DELETE_ISSUE,
+        variables: { id },
         optimistic: [{ type: 'issue', id, before, after: null }],
       });
     }),
