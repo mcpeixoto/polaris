@@ -61,11 +61,20 @@ func run() error {
 	svc := domain.NewService(db)
 	tokens := httpapi.NewTokens(cfg.JWTSecret, cfg.AccessTokenTTL)
 
+	// Built once and shared: the router charges requests to these buckets and the GraphQL
+	// handler charges complexity to the same ones. Two instances would each see half the
+	// traffic and enforce twice the limit.
+	limits := httpapi.NewLimits(cfg)
+	if limits == nil {
+		log.Warn("per-caller rate limiting is disabled by configuration")
+	}
+
 	router := httpapi.NewRouter(httpapi.Deps{
 		Service: svc,
 		Tokens:  tokens,
 		Config:  cfg,
 		GraphQL: newGraphQLHandler(svc, cfg),
+		Limits:  limits,
 	})
 
 	srv := &http.Server{
@@ -105,11 +114,15 @@ func run() error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// maxQueryComplexity is the budget one GraphQL request may spend.
+// maxQueryComplexity is the budget ONE GraphQL request may spend.
 //
 // It is the only thing standing between a public API and a query that asks for every
 // issue's every comment's author's every issue. A depth limit alone does not help: a
 // shallow query over a large list is just as expensive as a deep one.
+//
+// It is a ceiling on a single request and nothing more, which is why complexityBudget sits
+// beside it: this limit is equally happy to serve a thousand 9,999-point queries a second.
+// The per-caller budget is the one that notices.
 const maxQueryComplexity = 10000
 
 func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
@@ -123,6 +136,8 @@ func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
 	h.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 	h.Use(extension.AutomaticPersistedQuery{Cache: lru.New[string](100)})
 	h.Use(extension.FixedComplexityLimit(maxQueryComplexity))
+	// Registered after the limit above, because it reads the score that one computes.
+	h.Use(complexityBudget{})
 
 	if !cfg.IsDevelopment() {
 		return h

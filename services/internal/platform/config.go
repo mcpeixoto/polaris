@@ -80,6 +80,52 @@ type Config struct {
 	// between the inbox and the spam folder.
 	MailFrom     string `envconfig:"POLARIS_MAIL_FROM" default:"polaris@localhost"`
 	MailFromName string `envconfig:"POLARIS_MAIL_FROM_NAME" default:"Polaris"`
+
+	// Per-caller rate limits, and the defaults are chosen so that nobody using the product
+	// ever meets one.
+	//
+	// The test a default has to pass is the self-hosted install with three people on it:
+	// they share an office IP, they reload pages, their clients refresh tokens, and not one
+	// of them should ever see a 429. So each number below is set at roughly an order of
+	// magnitude above the busiest plausible human, which still leaves it two or three orders
+	// of magnitude below what a loop with no sleep in it produces. A limit that catches a
+	// real user is a limit that gets switched off, and a switched-off limit protects nothing.
+	//
+	// Every one of these can be set to 0 to switch that class off individually, and
+	// RateLimitEnabled=false switches the whole thing off — which is the honest escape hatch
+	// for an operator who has put their own limiter in front of this process.
+	RateLimitEnabled bool `envconfig:"POLARIS_RATE_LIMIT_ENABLED" default:"true"`
+
+	// The GraphQL endpoint, per caller, in requests and in complexity points. Both budgets
+	// are spent by the same traffic: the request count catches a client looping on a trivial
+	// query, and the complexity budget catches the one looping on an expensive one.
+	RateLimitGraphQLRequests   int           `envconfig:"POLARIS_RATE_LIMIT_GRAPHQL_REQUESTS" default:"5000"`
+	RateLimitGraphQLComplexity int           `envconfig:"POLARIS_RATE_LIMIT_GRAPHQL_COMPLEXITY" default:"2000000"`
+	RateLimitGraphQLPeriod     time.Duration `envconfig:"POLARIS_RATE_LIMIT_GRAPHQL_PERIOD" default:"1h"`
+
+	// Sign-in attempts against ONE account, whoever is making them. This is the tightest
+	// budget in the process and the only one aimed at an attacker rather than at a runaway
+	// client, because a password is the one secret in this system that can be guessed.
+	RateLimitLoginAttempts int           `envconfig:"POLARIS_RATE_LIMIT_LOGIN_ATTEMPTS" default:"10"`
+	RateLimitLoginPeriod   time.Duration `envconfig:"POLARIS_RATE_LIMIT_LOGIN_PERIOD" default:"10m"`
+
+	// Unauthenticated requests, per source address. A courtesy limit — see the note in
+	// internal/httpapi/ratelimit.go on why the per-account budget above is the one that
+	// actually stops a brute force.
+	RateLimitAnonRequests int           `envconfig:"POLARIS_RATE_LIMIT_ANON_REQUESTS" default:"120"`
+	RateLimitAnonPeriod   time.Duration `envconfig:"POLARIS_RATE_LIMIT_ANON_PERIOD" default:"1m"`
+
+	// Workspace snapshots, per user. docs/05-infrastructure/03-sync-engine.md sets this at
+	// 3 per 10 minutes; the default here is looser because a developer with the dev server
+	// reloading on save legitimately bootstraps more often than that, and being told to
+	// come back in four minutes while editing is how a limit earns a reputation.
+	RateLimitBootstraps      int           `envconfig:"POLARIS_RATE_LIMIT_BOOTSTRAPS" default:"10"`
+	RateLimitBootstrapPeriod time.Duration `envconfig:"POLARIS_RATE_LIMIT_BOOTSTRAP_PERIOD" default:"10m"`
+
+	// How many callers each limiter remembers before it starts reclaiming. Bounds the
+	// limiter's memory: the keys are caller-supplied (an IP, an email address), so the map
+	// is unbounded by construction and something has to cap it.
+	RateLimitMaxCallers int `envconfig:"POLARIS_RATE_LIMIT_MAX_CALLERS" default:"100000"`
 }
 
 // MailEnabled reports whether a relay is configured. A process with no mail must start
