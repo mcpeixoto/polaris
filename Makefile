@@ -170,19 +170,47 @@ test-web:
 e2e: ## Playwright end-to-end suite
 	$(PNPM) -C web e2e
 
+# Built and then run, rather than `go run`, because `go run` is not the process that ends up
+# holding the port. It compiles to the build cache and execs the result, so the pid recorded
+# by `$$!` is a parent that can die while the listener keeps running — and then `stack-stop`
+# prints "stopped" while the OLD BINARY is still serving. Every request after that answers
+# from code that is no longer in the tree, and the next `make stack` fails with "address
+# already in use" having already told you it succeeded.
+#
+# That cost somebody an hour of this project's life, twice: the symptom is a fix that
+# demonstrably does not work, which sends you back into code that was right all along.
+#
+# Building first also means a compile error stops `make stack` instead of landing quietly at
+# the top of a log file nobody opens until the healthz loop has spun for a while.
 .PHONY: stack
 stack: ## Start the full local stack (infra + api + sync) in the background
 	@$(MAKE) up
 	@cd $(SVC) && $(GO) run ./cmd/polarisctl migrate up --database "$(DB_URL)"
+	@echo "building api and sync…"
+	@cd $(SVC) && $(GO) build -o /tmp/polaris-api ./cmd/api
+	@cd $(SVC) && $(GO) build -o /tmp/polaris-sync ./cmd/sync
 	@echo "starting api and sync…"
-	@cd $(SVC) && DATABASE_URL="$(DB_URL)" $(GO) run ./cmd/api  > /tmp/polaris-api.log  2>&1 & echo $$! > /tmp/polaris-api.pid
-	@cd $(SVC) && DATABASE_URL="$(DB_URL)" $(GO) run ./cmd/sync > /tmp/polaris-sync.log 2>&1 & echo $$! > /tmp/polaris-sync.pid
+	@DATABASE_URL="$(DB_URL)" /tmp/polaris-api  > /tmp/polaris-api.log  2>&1 & echo $$! > /tmp/polaris-api.pid
+	@DATABASE_URL="$(DB_URL)" /tmp/polaris-sync > /tmp/polaris-sync.log 2>&1 & echo $$! > /tmp/polaris-sync.pid
 	@until curl -sf http://127.0.0.1:8088/healthz >/dev/null; do sleep 1; done
 	@echo "api :8088  sync :8089  — logs in /tmp/polaris-*.log"
 
+# Verifies rather than announces. "stopped" while something is still listening is the
+# statement that made the bug above so expensive.
 .PHONY: stack-stop
 stack-stop: ## Stop the background api and sync processes
 	@kill $$(cat /tmp/polaris-api.pid 2>/dev/null) 2>/dev/null || true
 	@kill $$(cat /tmp/polaris-sync.pid 2>/dev/null) 2>/dev/null || true
 	@rm -f /tmp/polaris-api.pid /tmp/polaris-sync.pid
-	@echo "stopped"
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	  lsof -ti :8088 -ti :8089 >/dev/null 2>&1 || break; \
+	  sleep 0.2; \
+	done
+	@held="$$(lsof -ti :8088 2>/dev/null; lsof -ti :8089 2>/dev/null | tr '\\n' ' ')"; \
+	if [ -n "$$held" ]; then \
+	  echo "NOT stopped — still listening on :8088/:8089 as pid(s): $$held"; \
+	  echo "  These are almost certainly a previous build. Kill them before starting again,"; \
+	  echo "  or the stack you test will not be the code you just wrote."; \
+	  exit 1; \
+	fi; \
+	echo "stopped"
