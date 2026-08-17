@@ -93,54 +93,12 @@ export const REVOKE_INVITE = /* GraphQL */ `
   }
 `;
 
-/** Metadata only. There is no token field on `ApiKey`, and there must never be one. */
-export const API_KEY_FIELDS = /* GraphQL */ `
-  fragment ApiKeyFields on ApiKey {
-    id
-    userId
-    name
-    prefix
-    scopes
-    lastUsedAt
-    expiresAt
-    revokedAt
-    createdAt
-  }
-`;
-
-export const API_KEYS_QUERY = /* GraphQL */ `
-  ${API_KEY_FIELDS}
-  query ApiKeys {
-    apiKeys {
-      ...ApiKeyFields
-    }
-  }
-`;
-
-/** The one and only time a key's token leaves the server. See `mutations.createApiKey`. */
-export const CREATE_API_KEY = /* GraphQL */ `
-  ${API_KEY_FIELDS}
-  mutation CreateApiKey($input: CreateApiKeyInput!) {
-    createApiKey(input: $input) {
-      version
-      created {
-        token
-        apiKey {
-          ...ApiKeyFields
-        }
-      }
-    }
-  }
-`;
-
-export const REVOKE_API_KEY = /* GraphQL */ `
-  mutation RevokeApiKey($id: UUID!) {
-    revokeApiKey(id: $id) {
-      version
-      id
-    }
-  }
-`;
+// The API-key documents used to live here, next to the invite ones, because both are
+// administrative and neither is replicated. They now live in `features/apikeys/`, beside the
+// screen that is the only thing that sends them — which is where this repository puts a
+// feature's documents, and which matters more than the loose grouping by subject: two copies
+// of `query ApiKeys` in `src/**` is a hard error from graphql-codegen, so the duplicate would
+// have broken `pnpm codegen` for whoever ran it next rather than for whoever created it.
 
 export const REMOVE_USER = /* GraphQL */ `
   mutation RemoveUser($userId: UUID!) {

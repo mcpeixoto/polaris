@@ -8,6 +8,7 @@
  * needs rather than a network hiccup to swallow.
  */
 
+import { toWire } from '~/gql/enums';
 import { SET_USER_ROLE, SUSPEND_USER } from '~/gql/operations';
 import type { User, UserRole, UUID } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
@@ -19,7 +20,12 @@ export async function setRole(engine: SyncEngine, userId: UUID, role: UserRole):
 
   await engine.mutate({
     mutation: SET_USER_ROLE,
-    variables: { userId, role },
+    // The store's spelling is the database's — `'admin'` — and the argument is declared
+    // `UserRole!`, whose values are `OWNER`, `ADMIN`, `MEMBER`, `GUEST`. GraphQL enum values
+    // are case-sensitive, so this sent a value the server could only reject: changing a
+    // member's role did not work at all, and the optimistic patch made it look as though it
+    // had until the rollback landed. See web/src/gql/enums.ts.
+    variables: { userId, role: toWire(role) },
     optimistic: [{ type: 'user', id: userId, before, after }],
   });
 }

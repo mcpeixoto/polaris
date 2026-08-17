@@ -17,6 +17,7 @@
  * expressible. See `moveStatus`.
  */
 
+import { fromWire, toWire } from '~/gql/enums';
 import {
   ARCHIVE_WORKFLOW_STATE,
   CREATE_WORKFLOW_STATE,
@@ -228,14 +229,20 @@ export async function createStatus(engine: SyncEngine, input: NewStatus): Promis
       input: {
         teamId: input.teamId,
         name: input.name,
-        category: input.category,
+        // `toWire`: the field is declared `StateCategory!`, whose values are `TRIAGE`,
+        // `BACKLOG`, … A GraphQL enum value is case-sensitive, so the store's spelling was a
+        // value the server could only reject — creating a status did not work at all. See
+        // web/src/gql/enums.ts.
+        category: toWire(input.category),
         color: input.color,
       },
     },
     optimistic: [{ type: 'workflowState', id: provisional.id, before: null, after: provisional }],
   });
 
-  const real = data.createWorkflowState.state;
+  // And back the other way: the response spells the category in upper case, while every
+  // reader in the client compares against the lower-case union.
+  const real = fromWire('workflowState', data.createWorkflowState.state);
   const patch: EntityPatch[] = [
     {
       type: 'workflowState',
