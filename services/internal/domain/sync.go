@@ -157,6 +157,65 @@ type BootstrapWriter interface {
 // at the mercy of its biggest customer.
 const bootstrapPageSize = 1000
 
+// BootstrapNotificationLimit is the ceiling on the inbox the snapshot carries.
+//
+// It is the only cap in the snapshot, and the inbox is the only table that earns one. Every
+// other stream here is bounded by something a person maintains — a taxonomy, a sidebar, a
+// backlog with archived work excluded — while the fan-out writes a notification per
+// recipient per event and nothing ever removes one. On a two-year-old workspace an
+// unbounded inbox is not a slow first load, it is the first load: the whole history of
+// somebody's notifications on the wire before they can see a single issue, which is the
+// outage this endpoint's own semaphore exists to survive.
+//
+// 2,000 because that is the number the client already works to: web/src/features/inbox
+// caps an open inbox at 2,000 rows and hydrates 500 at a time, so a snapshot that carries
+// this many carries everything the product will ever render from it. Picking a smaller
+// number would make the badge — which is counted from the replica — disagree with the
+// server on exactly the accounts where somebody would notice.
+//
+// The rest is history rather than inbox, and history is what the tiering table in
+// docs/05-infrastructure/03-sync-engine.md loads on demand.
+const BootstrapNotificationLimit = 2000
+
+// streamPages walks one keyset-paginated bootstrap query to exhaustion, emitting every row
+// it returns.
+//
+// Ten entity types page identically, and the loop has three ways to be wrong that all read
+// as working code: a cursor that is never advanced spins forever, a break on an empty page
+// costs an extra round trip per type, and a break on a non-empty one stops early on a
+// workspace whose row count happens to be a multiple of the page size. Written once, none of
+// them can be written a second time — which matters more here than anywhere, because the
+// symptom of the third is a snapshot that is silently short.
+//
+// The cursor is the row id and nothing else: ids are UUIDv7, so ordering by id is creation
+// order and OFFSET — which degrades quadratically on the tables where the snapshot actually
+// costs something — is never needed.
+func streamPages[R any](
+	ctx context.Context,
+	w BootstrapWriter,
+	entityType string,
+	page func(ctx context.Context, after uuid.UUID) ([]R, error),
+	row func(R) (uuid.UUID, any),
+) error {
+	after := uuid.Nil
+	for {
+		rows, err := page(ctx, after)
+		if err != nil {
+			return platform.Internal(fmt.Errorf("bootstrap %s: %w", entityType, err))
+		}
+		for _, r := range rows {
+			id, payload := row(r)
+			if err := w.Entity(entityType, id, payload); err != nil {
+				return err
+			}
+			after = id
+		}
+		if len(rows) < bootstrapPageSize {
+			return nil
+		}
+	}
+}
+
 // StreamBootstrap writes a complete, permission-filtered replica of the workspace.
 //
 // Everything runs inside one REPEATABLE READ transaction, so the snapshot is a single
@@ -164,11 +223,27 @@ const bootstrapPageSize = 1000
 // read inside that same transaction, which is what lets the client open a socket with
 // {resume: version} and be certain it has neither missed a change nor been sent one twice.
 //
-// Entities are emitted in dependency order — teams before statuses before issues — so a
-// client that applies rows as they arrive never holds a row referencing something it has
-// not seen. That matters because the client renders progressively.
+// Entities are emitted in dependency order — teams before statuses before labels before
+// issues — so a client that applies rows as they arrive never holds a row referencing
+// something it has not seen. That matters because the client renders progressively, and the
+// order below is ENTITY_TYPES in web/src/store/types.ts read top to bottom. The two are one
+// list in two languages: applying an issueLabel before its label is a chip with no name on
+// it, which is the shape of bug this ordering exists to make impossible.
+//
+// Every stream's predicate is the scope its Emit computes, restated in SQL. That is the rule
+// the whole function turns on: a snapshot that ships more than the change stream would have
+// sent this principal is a way to read something the hub refuses to send, and one that ships
+// less is two clients disagreeing about the same workspace with nothing erroring. The place
+// each predicate is written down is the query, next to a comment naming the emitter it
+// mirrors.
 func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w BootstrapWriter) error {
 	teamIDs := p.Teams.IDs()
+
+	// THE visibility predicate, asked once for the scope that has no team to test: whether
+	// this principal receives workspace-wide entities at all. Passed into the statements that
+	// need it rather than re-derived from the role in each of them, so there is still exactly
+	// one definition of what a guest is.
+	includeWorkspaceScoped := authz.Visible(p, authz.WorkspaceScope())
 
 	return s.db.InReadOnlyTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		version, err := q.GetWorkspaceVersion(ctx, p.WorkspaceID)
@@ -187,8 +262,10 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
-		// Users are workspace-scoped and guests do not receive the directory.
-		if !p.IsGuest() {
+		// Users are workspace-scoped and guests do not receive the directory. The same
+		// answer the label, template and view streams are handed below, spelled once: two
+		// spellings of one rule in one function is how the second one drifts.
+		if includeWorkspaceScoped {
 			users, err := q.ListUsersInWorkspace(ctx, p.WorkspaceID)
 			if err != nil {
 				return platform.Internal(err)
@@ -241,32 +318,74 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			}
 		}
 
-		// Issues are keyset-paginated by id. OFFSET degrades quadratically, which is
-		// precisely wrong for the one query that runs against the largest table.
+		// Labels and templates come before the issues, and that is not cosmetic: an
+		// application names a label and an issue may name the template it was created from,
+		// so a client applying rows as they arrive would otherwise hold a chip with no name
+		// on it. The replica was in exactly that state until this milestone — issueLabel rows
+		// were streamed and label rows were not.
 		//
-		// Archived issues are excluded and never cached locally: that exclusion is what
-		// keeps a five-year-old workspace's first load bounded.
-		if len(teamIDs) > 0 {
-			after := uuid.Nil
-			for {
-				issues, err := q.StreamIssuesForBootstrap(ctx, store.StreamIssuesForBootstrapParams{
-					WorkspaceID: p.WorkspaceID,
-					TeamIds:     teamIDs,
-					AfterID:     after,
-					PageSize:    bootstrapPageSize,
+		// Both carry the same two-scope rule, which is requireLabelScope's and
+		// requireTemplateScope's: a row with no team belongs to the workspace and reaches
+		// every non-guest, a row with a team reaches that team's members. It is stated in the
+		// two statements rather than here, because that is where it can be read next to the
+		// column it tests.
+		//
+		// Outside the team guard on purpose. A workspace label exists whether or not the
+		// caller is in any team, and a principal with none still opens a create dialog.
+		if err := streamPages(ctx, w, "label",
+			func(ctx context.Context, after uuid.UUID) ([]store.StreamLabelsForBootstrapRow, error) {
+				return q.StreamLabelsForBootstrap(ctx, store.StreamLabelsForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
 				})
-				if err != nil {
-					return platform.Internal(err)
-				}
-				for _, i := range issues {
-					if err := w.Entity("issue", i.ID, toIssue(i, teamKeys[i.TeamID])); err != nil {
-						return err
-					}
-					after = i.ID
-				}
-				if len(issues) < bootstrapPageSize {
-					break
-				}
+			},
+			func(l store.StreamLabelsForBootstrapRow) (uuid.UUID, any) {
+				return l.ID, toLabel(store.GetLabelRow(l))
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "issueTemplate",
+			func(ctx context.Context, after uuid.UUID) ([]store.StreamIssueTemplatesForBootstrapRow, error) {
+				return q.StreamIssueTemplatesForBootstrap(ctx, store.StreamIssueTemplatesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(t store.StreamIssueTemplatesForBootstrapRow) (uuid.UUID, any) {
+				return t.ID, toIssueTemplate(store.GetIssueTemplateRow(t))
+			},
+		); err != nil {
+			return err
+		}
+
+		// Everything hanging off an issue. Guarded on the caller having a team at all: with
+		// none, every one of these statements is a scan that can only return nothing.
+		//
+		// Archived issues are excluded and never cached locally — that exclusion is what
+		// keeps a five-year-old workspace's first load bounded — and each statement below
+		// joins the issue for the same reason, so the snapshot never carries a row hanging
+		// off an issue it left out.
+		if len(teamIDs) > 0 {
+			if err := streamPages(ctx, w, "issue",
+				func(ctx context.Context, after uuid.UUID) ([]store.Issue, error) {
+					return q.StreamIssuesForBootstrap(ctx, store.StreamIssuesForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(i store.Issue) (uuid.UUID, any) { return i.ID, toIssue(i, teamKeys[i.TeamID]) },
+			); err != nil {
+				return err
 			}
 
 			// Label applications and relations, after the issues that name them and before
@@ -279,71 +398,144 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			// no links, while a replica built by applying the change stream held both. Two
 			// clients disagreeing about the same workspace with nothing erroring is the
 			// failure the snapshot exists to make impossible.
-			after = uuid.Nil
-			for {
-				applications, err := q.StreamIssueLabelsForBootstrap(ctx, store.StreamIssueLabelsForBootstrapParams{
-					WorkspaceID: p.WorkspaceID,
-					TeamIds:     teamIDs,
-					AfterID:     after,
-					PageSize:    bootstrapPageSize,
-				})
-				if err != nil {
-					return platform.Internal(err)
-				}
-				for _, a := range applications {
-					if err := w.Entity("issueLabel", a.ID, toIssueLabel(a)); err != nil {
-						return err
-					}
-					after = a.ID
-				}
-				if len(applications) < bootstrapPageSize {
-					break
-				}
+			if err := streamPages(ctx, w, "issueLabel",
+				func(ctx context.Context, after uuid.UUID) ([]store.IssueLabel, error) {
+					return q.StreamIssueLabelsForBootstrap(ctx, store.StreamIssueLabelsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(a store.IssueLabel) (uuid.UUID, any) { return a.ID, toIssueLabel(a) },
+			); err != nil {
+				return err
 			}
 
-			after = uuid.Nil
-			for {
-				relations, err := q.StreamIssueRelationsForBootstrap(ctx, store.StreamIssueRelationsForBootstrapParams{
-					WorkspaceID: p.WorkspaceID,
-					TeamIds:     teamIDs,
-					AfterID:     after,
-					PageSize:    bootstrapPageSize,
-				})
-				if err != nil {
-					return platform.Internal(err)
-				}
-				for _, r := range relations {
-					if err := w.Entity("issueRelation", r.ID, toIssueRelation(r)); err != nil {
-						return err
-					}
-					after = r.ID
-				}
-				if len(relations) < bootstrapPageSize {
-					break
-				}
+			if err := streamPages(ctx, w, "issueRelation",
+				func(ctx context.Context, after uuid.UUID) ([]store.IssueRelation, error) {
+					return q.StreamIssueRelationsForBootstrap(ctx, store.StreamIssueRelationsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(r store.IssueRelation) (uuid.UUID, any) { return r.ID, toIssueRelation(r) },
+			); err != nil {
+				return err
 			}
 
-			after = uuid.Nil
-			for {
-				comments, err := q.StreamCommentsForBootstrap(ctx, store.StreamCommentsForBootstrapParams{
+			if err := streamPages(ctx, w, "comment",
+				func(ctx context.Context, after uuid.UUID) ([]store.Comment, error) {
+					return q.StreamCommentsForBootstrap(ctx, store.StreamCommentsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(c store.Comment) (uuid.UUID, any) { return c.ID, toComment(c) },
+			); err != nil {
+				return err
+			}
+
+			// Whose subscriptions: the caller's, and nobody else's. A subscription is emitted
+			// under the subscriber's user scope precisely so that one person's watch list does
+			// not land in every teammate's replica, and a snapshot that shipped the whole
+			// watcher list would be the leak the emitter refused to be.
+			if err := streamPages(ctx, w, "issueSubscription",
+				func(ctx context.Context, after uuid.UUID) ([]store.IssueSubscription, error) {
+					return q.StreamIssueSubscriptionsForBootstrap(ctx, store.StreamIssueSubscriptionsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						UserID:      p.UserID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(sub store.IssueSubscription) (uuid.UUID, any) {
+					return sub.ID, toIssueSubscription(sub)
+				},
+			); err != nil {
+				return err
+			}
+		}
+
+		// The inbox, after the comments a notification may name and before the sidebar.
+		//
+		// The only stream here that is capped and the only one with no cursor: see
+		// BootstrapNotificationLimit for why the table that grows forever gets a ceiling, and
+		// why a statement that can never return more than one page does not need paging.
+		notifications, err := q.StreamNotificationsForBootstrap(ctx, store.StreamNotificationsForBootstrapParams{
+			WorkspaceID: p.WorkspaceID,
+			UserID:      p.UserID,
+			TeamIds:     teamIDs,
+			PageSize:    BootstrapNotificationLimit,
+		})
+		if err != nil {
+			return platform.Internal(fmt.Errorf("bootstrap notification: %w", err))
+		}
+		for _, n := range notifications {
+			if err := w.Entity("notification", n.ID, toNotification(n)); err != nil {
+				return err
+			}
+		}
+
+		// The sidebar. A view is three-scoped — private to its owner, or one team's, or the
+		// workspace's — and preferences and favourites belong to one person, so all three
+		// statements are told who is asking as well as which teams they are in.
+		if err := streamPages(ctx, w, "view",
+			func(ctx context.Context, after uuid.UUID) ([]store.StreamViewsForBootstrapRow, error) {
+				return q.StreamViewsForBootstrap(ctx, store.StreamViewsForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					UserID:                 &p.UserID,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(v store.StreamViewsForBootstrapRow) (uuid.UUID, any) {
+				return v.ID, toView(store.GetViewRow(v))
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "viewPreference",
+			func(ctx context.Context, after uuid.UUID) ([]store.ViewPreference, error) {
+				return q.StreamViewPreferencesForBootstrap(ctx, store.StreamViewPreferencesForBootstrapParams{
 					WorkspaceID: p.WorkspaceID,
-					TeamIds:     teamIDs,
+					UserID:      p.UserID,
 					AfterID:     after,
 					PageSize:    bootstrapPageSize,
 				})
-				if err != nil {
-					return platform.Internal(err)
-				}
-				for _, c := range comments {
-					if err := w.Entity("comment", c.ID, toComment(c)); err != nil {
-						return err
-					}
-					after = c.ID
-				}
-				if len(comments) < bootstrapPageSize {
-					break
-				}
-			}
+			},
+			func(pref store.ViewPreference) (uuid.UUID, any) { return pref.ID, toViewPreference(pref) },
+		); err != nil {
+			return err
+		}
+
+		// Favourites last, because one may point at any of the above — and the statement
+		// ships only those whose target this snapshot has already carried. A favourite is a
+		// pointer with no foreign key, and the client deletes one whose target it forgets, so
+		// shipping a dangling entry would leave a bootstrapped replica holding a sidebar row
+		// that opens nothing and that an online replica does not have.
+		if err := streamPages(ctx, w, "favorite",
+			func(ctx context.Context, after uuid.UUID) ([]store.Favorite, error) {
+				return q.StreamFavoritesForBootstrap(ctx, store.StreamFavoritesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					UserID:                 p.UserID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(f store.Favorite) (uuid.UUID, any) { return f.ID, toFavorite(f) },
+		); err != nil {
+			return err
 		}
 
 		return nil
@@ -373,7 +565,14 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 //
 // v2 added label, issueLabel, issueRelation, issueSubscription, notification, view,
 // viewPreference, favorite and issueTemplate to the replica.
-const ClientSchemaVersion = 2
+//
+// v3 is a different kind of bump: nothing changed shape, but the bootstrap started
+// *sending* seven of those types. A v2 replica has somewhere to put a label and has never
+// been given one, so it is not stale in a way that catches up — it has an empty Views
+// sidebar, an empty inbox and label applications naming labels it has never seen, and it
+// stays that way until some unrelated delta happens to carry each row. Discarding it is the
+// only thing that fixes it, which is exactly what this constant is for.
+const ClientSchemaVersion = 3
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

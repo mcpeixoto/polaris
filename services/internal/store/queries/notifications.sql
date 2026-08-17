@@ -66,6 +66,78 @@ WHERE user_id = sqlc.arg(user_id)
 ORDER BY created_at DESC
 LIMIT sqlc.arg(page_size);
 
+-- StreamNotificationsForBootstrap ships the caller's inbox into the initial snapshot, and
+-- is the one stream in it with a ceiling.
+--
+-- Volume is why. Every other table the snapshot walks is bounded by something a person
+-- maintains — a taxonomy, a sidebar, a backlog with archived work excluded — and this one is
+-- bounded by nothing: the fan-out writes a row per recipient per event, forever, so a
+-- two-year-old workspace's first load would carry the whole history of somebody's inbox
+-- before they could see a single issue. StreamCommentsForBootstrap states the same choice as
+-- a tier — the snapshot carries the recent end and the rest loads on demand — and this is
+-- that rule applied to the table that has no other end.
+--
+-- The ceiling is the caller's page size and there is no cursor, deliberately: a statement
+-- that can never return more than the cap is already bounded, and a second page that cannot
+-- exist would be code with no caller. The number itself is domain.BootstrapNotificationLimit,
+-- which is where the product decision is written down.
+--
+-- Newest first, which no other stream in the snapshot is. The cap has to keep the rows
+-- somebody would actually look at, and "the most recent N" is only expressible in the order
+-- the inbox renders in. Nothing else depends on the order: a notification is a leaf, so no
+-- client applying rows as they arrive can end up holding a dangling reference to one.
+-- created_at leads the sort so this stays on notification_inbox_idx; the id breaks ties,
+-- because rows written by one fan-out batch share a timestamp and an order that is not total
+-- is an order that silently drops rows at the cap boundary.
+--
+-- Read and snoozed rows are both included. Marking read and snoozing are upserts on the
+-- change stream, so a replica that watched either happen still holds the row — the badge and
+-- the inbox are computed from it — and only a dismissal, which is emitted as a delete, takes
+-- it away.
+--
+-- The join is on the issue and only on the issue, because that is what the client's cascade
+-- does: forgetting an issue forgets its notifications, and forgetting a comment does not.
+--
+-- name: StreamNotificationsForBootstrap :many
+SELECT n.id, n.workspace_id, n.user_id, n.type, n.issue_id, n.comment_id, n.actor_type,
+       n.actor_id, n.change_version, n.group_key, n.count, n.payload, n.read_at,
+       n.snoozed_until, n.deleted_at, n.created_at, n.updated_at, n.emailed_at
+FROM notification n
+WHERE n.workspace_id = sqlc.arg(workspace_id)
+  AND n.user_id = sqlc.arg(user_id)
+  AND n.deleted_at IS NULL
+  AND (n.issue_id IS NULL OR EXISTS (
+    SELECT 1 FROM issue i
+    WHERE i.id = n.issue_id
+      AND i.team_id = ANY(sqlc.arg(team_ids)::uuid[])
+      AND i.archived_at IS NULL
+      AND i.deleted_at IS NULL))
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT sqlc.arg(page_size);
+
+-- ListNotificationsForIssue is every live inbox row about one issue, for every recipient.
+--
+-- It exists for the restore, and it is the counterpart to StreamNotificationsForBootstrap
+-- above: a delete reaches clients as one change row for the issue and the client's cascade
+-- drops the notifications about it, so the restore owes them back or a replica that watched
+-- the undo ends up with an emptier inbox than one that bootstrapped a second later.
+--
+-- Not scoped to a user, unlike everything else in this file, because the caller is not a
+-- recipient — it is republishing on behalf of all of them, and each row goes out under its
+-- own owner's scope. That is the same shape ListIssueSubscriptionsForIssues has for the same
+-- reason, and it is why this query returns user_id: the emitter needs it to address the
+-- change.
+--
+-- name: ListNotificationsForIssue :many
+SELECT id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
+       change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
+       created_at, updated_at, emailed_at
+FROM notification
+WHERE issue_id = sqlc.arg(issue_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND deleted_at IS NULL
+ORDER BY id;
+
 -- CountUnreadNotifications is the badge, read on every page load. It must stay on
 -- notification_unread_idx, which is why its predicate is that index's predicate verbatim.
 --
@@ -358,3 +430,36 @@ SELECT id, workspace_id, issue_id, user_id, reason, unsubscribed, created_at, up
 FROM issue_subscription
 WHERE workspace_id = sqlc.arg(workspace_id) AND user_id = sqlc.arg(user_id)
 ORDER BY id;
+
+-- StreamIssueSubscriptionsForBootstrap feeds the initial snapshot with the caller's own
+-- subscriptions and nobody else's.
+--
+-- That is the change scope, exactly: a subscription is emitted under the subscriber's user
+-- scope and under no team's, because who is watching what is nobody else's business — and a
+-- snapshot that shipped the whole watcher list would put one person's subscriptions in every
+-- teammate's replica, which is precisely what the emitter refuses to do.
+--
+-- The issue is joined for the reason StreamIssueLabelsForBootstrap joins it: the snapshot
+-- must not carry rows hanging off issues it leaves out. A subscription is user-scoped, so
+-- nothing revokes it when its issue is archived — but the archive reaches clients as a delete
+-- for the issue and the client's cascade takes the subscription with it, so a snapshot that
+-- kept the row would disagree with every replica that watched it happen.
+--
+-- Unsubscribed rows are shipped too. An explicit unsubscribe is a row rather than a missing
+-- one, and a replica without it renders the toggle as "not watching yet" and re-subscribes
+-- the user on the next comment — the four-minute unsubscribe button, arrived at from the
+-- replication side.
+--
+-- name: StreamIssueSubscriptionsForBootstrap :many
+SELECT s.id, s.workspace_id, s.issue_id, s.user_id, s.reason, s.unsubscribed,
+       s.created_at, s.updated_at
+FROM issue_subscription s
+JOIN issue i ON i.id = s.issue_id
+WHERE s.workspace_id = sqlc.arg(workspace_id)
+  AND s.user_id = sqlc.arg(user_id)
+  AND i.team_id = ANY(sqlc.arg(team_ids)::uuid[])
+  AND i.archived_at IS NULL
+  AND i.deleted_at IS NULL
+  AND s.id > sqlc.arg(after_id)
+ORDER BY s.id
+LIMIT sqlc.arg(page_size);

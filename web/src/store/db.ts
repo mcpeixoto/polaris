@@ -47,8 +47,15 @@ import {
  * v2 adds the M1 entities — labels, templates, relations, subscriptions, notifications,
  * views and favourites. A v1 replica has no object store to put any of them in, so it is
  * not stale, it is unusable: the only correct thing to do with it is throw it away.
+ *
+ * v3 changes no layout at all. It exists because the *server* started sending seven of
+ * those types at bootstrap, having previously declared them and shipped none. A v2 replica
+ * therefore has the object stores and has never been given a row to put in them: an empty
+ * Views sidebar, an empty inbox, and label applications naming labels it has never seen.
+ * That does not converge — nothing re-sends a row that was never sent — so the replica has
+ * to be thrown away, which is what a bump does.
  */
-export const CLIENT_SCHEMA = 2;
+export const CLIENT_SCHEMA = 3;
 
 /**
  * One database per workspace per schema version.

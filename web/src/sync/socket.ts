@@ -6,11 +6,28 @@
  * and one rate limiter. This socket carries deltas inward and heartbeats outward.
  */
 
+import { CLIENT_SCHEMA as STORE_SCHEMA } from '~/store/db';
+
 import { ensureFreshToken, currentWorkspace } from './api';
 import { socketUrl } from './endpoint';
 
-/** Must match syncsrv.ClientSchema. A mismatch drops the local store and re-bootstraps. */
-export const CLIENT_SCHEMA = 2;
+/**
+ * The schema version this socket announces in its hello frame. Re-exported from the store,
+ * not declared here.
+ *
+ * It was its own literal, and `engine.ts` compared the two at module load to catch them
+ * drifting — a good instinct, and still one assertion more than a shared constant needs.
+ * Bumping the store to v3 turned that check into a startup crash, which is the *designed*
+ * failure and is still a worse outcome than not being able to disagree: the two numbers
+ * describe one thing, which is what shape of replica this build has.
+ *
+ * The server made exactly this mistake with the same value — see the comment on
+ * domain.ClientSchemaVersion, which is now the single definition on that side for the same
+ * reason. Four copies of one number across two languages is three too many; the one
+ * remaining contract, across the language boundary, is pinned by
+ * services/internal/syncsrv/schema_pin_test.go.
+ */
+export const CLIENT_SCHEMA = STORE_SCHEMA;
 
 export type Op = 'upsert' | 'delete' | 'revoke';
 

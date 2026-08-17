@@ -350,6 +350,60 @@ func (q *Queries) ListFavorites(ctx context.Context, arg ListFavoritesParams) ([
 	return items, nil
 }
 
+const listFavoritesForTarget = `-- name: ListFavoritesForTarget :many
+SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at
+FROM favorite
+WHERE workspace_id = $1
+  AND kind = $2
+  AND target_id = $3
+ORDER BY id
+`
+
+type ListFavoritesForTargetParams struct {
+	WorkspaceID uuid.UUID
+	Kind        string
+	TargetID    uuid.UUID
+}
+
+// ListFavoritesForTarget is everybody's favourites pointing at one thing.
+//
+// It exists for the restore, and it is the counterpart to StreamFavoritesForBootstrap: the
+// client drops a favourite whose target it forgets, so a deleted issue takes every star on
+// it off every sidebar, and only a republication puts them back. Without it the replica that
+// watched the undo is missing sidebar rows that a bootstrap taken a second later has.
+//
+// Not scoped to a user, unlike every other statement in this section, because the caller is
+// not the owner — it is republishing on behalf of all of them, and each row goes out under
+// its own owner's scope.
+func (q *Queries) ListFavoritesForTarget(ctx context.Context, arg ListFavoritesForTargetParams) ([]Favorite, error) {
+	rows, err := q.db.Query(ctx, listFavoritesForTarget, arg.WorkspaceID, arg.Kind, arg.TargetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Favorite{}
+	for rows.Next() {
+		var i Favorite
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.Kind,
+			&i.TargetID,
+			&i.Position,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listViewPreferences = `-- name: ListViewPreferences :many
 SELECT id, workspace_id, user_id, view_key, display, created_at, updated_at
 FROM view_preference
@@ -493,6 +547,264 @@ func (q *Queries) RemoveFavorite(ctx context.Context, arg RemoveFavoriteParams) 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const streamFavoritesForBootstrap = `-- name: StreamFavoritesForBootstrap :many
+SELECT f.id, f.workspace_id, f.user_id, f.kind, f.target_id, f.position,
+       f.created_at, f.updated_at
+FROM favorite f
+WHERE f.workspace_id = $1
+  AND f.user_id = $2
+  AND f.id > $3
+  AND (
+    (f.kind = 'view' AND EXISTS (
+      SELECT 1 FROM view v
+      WHERE v.id = f.target_id
+        AND v.workspace_id = $1
+        AND v.archived_at IS NULL
+        AND (v.team_id IS NULL OR v.team_id = ANY($4::uuid[]))
+        AND (v.owner_id = $2
+             OR (v.owner_id IS NULL
+                 AND (v.team_id IS NOT NULL OR $5::boolean)))))
+    OR (f.kind = 'team' AND EXISTS (
+      SELECT 1 FROM team t
+      WHERE t.id = f.target_id
+        AND t.workspace_id = $1
+        AND t.deleted_at IS NULL
+        AND t.id = ANY($4::uuid[])))
+    OR (f.kind = 'issue' AND EXISTS (
+      SELECT 1 FROM issue i
+      WHERE i.id = f.target_id
+        AND i.workspace_id = $1
+        AND i.team_id = ANY($4::uuid[])
+        AND i.archived_at IS NULL
+        AND i.deleted_at IS NULL))
+    OR (f.kind = 'label' AND EXISTS (
+      SELECT 1 FROM label l
+      WHERE l.id = f.target_id
+        AND l.workspace_id = $1
+        AND l.archived_at IS NULL
+        AND (l.team_id = ANY($4::uuid[])
+             OR (l.team_id IS NULL AND $5::boolean))))
+  )
+ORDER BY f.id
+LIMIT $6
+`
+
+type StreamFavoritesForBootstrapParams struct {
+	WorkspaceID            uuid.UUID
+	UserID                 uuid.UUID
+	AfterID                uuid.UUID
+	TeamIds                []uuid.UUID
+	IncludeWorkspaceScoped bool
+	PageSize               int32
+}
+
+// StreamFavoritesForBootstrap ships the caller's own sidebar, minus the entries pointing at
+// something this same snapshot does not carry.
+//
+// A favourite travels under its owner's user scope, so "yours" is the whole of the
+// visibility rule — but it is not the whole of the predicate, because a favourite is a
+// pointer with no foreign key and the client deletes one whose target it forgets
+// (Store.forget in web/src/store/store.ts, the trailing favoriteTarget walk). Losing a team
+// emits one revoke, for the team; the replica that watched it drops the team's issues, its
+// labels, its views and every favourite pointing at any of them. A snapshot that shipped
+// those favourites back would leave a bootstrapped replica holding sidebar rows that cannot
+// be opened, renamed or removed, and that a replica which stayed online does not have.
+//
+// So each arm below is the membership test of the stream that ships that kind, and the four
+// have to keep agreeing with StreamViewsForBootstrap, StreamLabelsForBootstrap,
+// StreamIssuesForBootstrap and the team filter in StreamBootstrap itself. The team arm is
+// the one that is not obviously the same: the snapshot ships archived teams (they are still
+// yours to look at), so this does too, and only a deleted one is dropped.
+func (q *Queries) StreamFavoritesForBootstrap(ctx context.Context, arg StreamFavoritesForBootstrapParams) ([]Favorite, error) {
+	rows, err := q.db.Query(ctx, streamFavoritesForBootstrap,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.AfterID,
+		arg.TeamIds,
+		arg.IncludeWorkspaceScoped,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Favorite{}
+	for rows.Next() {
+		var i Favorite
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.Kind,
+			&i.TargetID,
+			&i.Position,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const streamViewPreferencesForBootstrap = `-- name: StreamViewPreferencesForBootstrap :many
+SELECT id, workspace_id, user_id, view_key, display, created_at, updated_at
+FROM view_preference
+WHERE workspace_id = $1
+  AND user_id = $2
+  AND id > $3
+ORDER BY id
+LIMIT $4
+`
+
+type StreamViewPreferencesForBootstrapParams struct {
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	AfterID     uuid.UUID
+	PageSize    int32
+}
+
+// StreamViewPreferencesForBootstrap feeds the initial snapshot. A preference travels under
+// its owner's user scope and under nothing else, so the whole visibility rule is "yours".
+//
+// Ordered by id rather than by view_key, which is what ListViewPreferences sorts on: the
+// snapshot pages by id and a key order would need an offset to resume.
+func (q *Queries) StreamViewPreferencesForBootstrap(ctx context.Context, arg StreamViewPreferencesForBootstrapParams) ([]ViewPreference, error) {
+	rows, err := q.db.Query(ctx, streamViewPreferencesForBootstrap,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.AfterID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ViewPreference{}
+	for rows.Next() {
+		var i ViewPreference
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.ViewKey,
+			&i.Display,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const streamViewsForBootstrap = `-- name: StreamViewsForBootstrap :many
+SELECT id, workspace_id, team_id, owner_id, name, description, icon, color,
+       filter, display, position, created_by, archived_at, created_at, updated_at
+FROM view
+WHERE workspace_id = $1
+  AND archived_at IS NULL
+  AND (team_id IS NULL OR team_id = ANY($2::uuid[]))
+  AND (owner_id = $3
+       OR (owner_id IS NULL
+           AND (team_id IS NOT NULL OR $4::boolean)))
+  AND id > $5
+ORDER BY id
+LIMIT $6
+`
+
+type StreamViewsForBootstrapParams struct {
+	WorkspaceID            uuid.UUID
+	TeamIds                []uuid.UUID
+	UserID                 *uuid.UUID
+	IncludeWorkspaceScoped bool
+	AfterID                uuid.UUID
+	PageSize               int32
+}
+
+type StreamViewsForBootstrapRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	OwnerID     *uuid.UUID
+	Name        string
+	Description *string
+	Icon        *string
+	Color       *string
+	Filter      json.RawMessage
+	Display     json.RawMessage
+	Position    string
+	CreatedBy   *uuid.UUID
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// StreamViewsForBootstrap is ListViewsForUser as the snapshot needs it: keyset-paginated,
+// and with the guest arm the listing above leaves to Go stated here instead.
+//
+// The three-way rule is scopeForView's — an owner makes the view personal, a team makes it
+// the team's, and neither makes it the workspace's — so this and the change scope agree
+// about who may see a view.
+//
+// The team clause applies to private views too, and that is not a mistake. A private view
+// anchored to a team travels under its owner's scope, so nothing revokes it when the owner
+// leaves that team — but the client drops a team's views along with the team when the
+// revoke for the team itself arrives (Store.forget in web/src/store/store.ts, the team arm,
+// which walks viewTeam without asking who owns the row). A snapshot that shipped it back
+// would hand a bootstrapped replica a sidebar entry that a replica which watched the
+// removal happen does not have.
+func (q *Queries) StreamViewsForBootstrap(ctx context.Context, arg StreamViewsForBootstrapParams) ([]StreamViewsForBootstrapRow, error) {
+	rows, err := q.db.Query(ctx, streamViewsForBootstrap,
+		arg.WorkspaceID,
+		arg.TeamIds,
+		arg.UserID,
+		arg.IncludeWorkspaceScoped,
+		arg.AfterID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []StreamViewsForBootstrapRow{}
+	for rows.Next() {
+		var i StreamViewsForBootstrapRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Icon,
+			&i.Color,
+			&i.Filter,
+			&i.Display,
+			&i.Position,
+			&i.CreatedBy,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateView = `-- name: UpdateView :one

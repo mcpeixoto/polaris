@@ -37,6 +37,36 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND archived_at IS NULL
 ORDER BY scope_key, position;
 
+-- StreamLabelsForBootstrap feeds the initial snapshot, and its predicate is
+-- requireLabelScope's written out in SQL: a label with no team is workspace-scoped and
+-- reaches every non-guest, and a team's label reaches that team's members. Those are the
+-- two scopes every label change is emitted under, so the snapshot and the change stream
+-- hand the same principal the same rows.
+--
+-- The guest arm is a parameter rather than a predicate on the caller's role, because the
+-- authority on it is authz.Visible: the caller passes what that function answered for a
+-- workspace scope instead of this statement growing a second opinion about who a guest is.
+--
+-- Archived labels are excluded because archiving one emits a delete — every replica has
+-- already thrown its copy away, and shipping it here would put back a label the picker,
+-- the listings and the applications rule all agree is gone.
+--
+-- Keyset-paginated by id like every other stream in the snapshot. A workspace's taxonomy
+-- is small today; the reason to page it anyway is that nothing about this statement then
+-- has to change on the workspace where it is not.
+--
+-- name: StreamLabelsForBootstrap :many
+SELECT id, workspace_id, team_id, parent_id, is_group, name, description, color,
+       position, archived_at, created_at, updated_at
+FROM label
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND archived_at IS NULL
+  AND (team_id = ANY(sqlc.arg(team_ids)::uuid[])
+       OR (team_id IS NULL AND sqlc.arg(include_workspace_scoped)::boolean))
+  AND id > sqlc.arg(after_id)
+ORDER BY id
+LIMIT sqlc.arg(page_size);
+
 -- name: ListLabelsInGroup :many
 SELECT id, workspace_id, team_id, parent_id, is_group, name, description, color,
        position, archived_at, created_at, updated_at

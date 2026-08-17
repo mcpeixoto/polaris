@@ -479,6 +479,98 @@ func (q *Queries) ListLabelsInWorkspace(ctx context.Context, workspaceID uuid.UU
 	return items, nil
 }
 
+const streamLabelsForBootstrap = `-- name: StreamLabelsForBootstrap :many
+SELECT id, workspace_id, team_id, parent_id, is_group, name, description, color,
+       position, archived_at, created_at, updated_at
+FROM label
+WHERE workspace_id = $1
+  AND archived_at IS NULL
+  AND (team_id = ANY($2::uuid[])
+       OR (team_id IS NULL AND $3::boolean))
+  AND id > $4
+ORDER BY id
+LIMIT $5
+`
+
+type StreamLabelsForBootstrapParams struct {
+	WorkspaceID            uuid.UUID
+	TeamIds                []uuid.UUID
+	IncludeWorkspaceScoped bool
+	AfterID                uuid.UUID
+	PageSize               int32
+}
+
+type StreamLabelsForBootstrapRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	ParentID    *uuid.UUID
+	IsGroup     bool
+	Name        string
+	Description *string
+	Color       string
+	Position    string
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// StreamLabelsForBootstrap feeds the initial snapshot, and its predicate is
+// requireLabelScope's written out in SQL: a label with no team is workspace-scoped and
+// reaches every non-guest, and a team's label reaches that team's members. Those are the
+// two scopes every label change is emitted under, so the snapshot and the change stream
+// hand the same principal the same rows.
+//
+// The guest arm is a parameter rather than a predicate on the caller's role, because the
+// authority on it is authz.Visible: the caller passes what that function answered for a
+// workspace scope instead of this statement growing a second opinion about who a guest is.
+//
+// Archived labels are excluded because archiving one emits a delete — every replica has
+// already thrown its copy away, and shipping it here would put back a label the picker,
+// the listings and the applications rule all agree is gone.
+//
+// Keyset-paginated by id like every other stream in the snapshot. A workspace's taxonomy
+// is small today; the reason to page it anyway is that nothing about this statement then
+// has to change on the workspace where it is not.
+func (q *Queries) StreamLabelsForBootstrap(ctx context.Context, arg StreamLabelsForBootstrapParams) ([]StreamLabelsForBootstrapRow, error) {
+	rows, err := q.db.Query(ctx, streamLabelsForBootstrap,
+		arg.WorkspaceID,
+		arg.TeamIds,
+		arg.IncludeWorkspaceScoped,
+		arg.AfterID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []StreamLabelsForBootstrapRow{}
+	for rows.Next() {
+		var i StreamLabelsForBootstrapRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.ParentID,
+			&i.IsGroup,
+			&i.Name,
+			&i.Description,
+			&i.Color,
+			&i.Position,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unarchiveLabel = `-- name: UnarchiveLabel :one
 UPDATE label SET archived_at = NULL
 WHERE id = $1 AND archived_at IS NOT NULL

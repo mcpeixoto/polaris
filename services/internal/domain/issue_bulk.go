@@ -531,17 +531,26 @@ func (s *Service) RestoreIssue(
 // restoredIssueContents is everything a replica threw away when the issue's delete arrived,
 // as the changes that put it back.
 //
-// The four collections are exactly the four the client's cascade removes for an issue, and
+// The six collections are exactly the six the client's cascade removes for an issue, and
 // each is read with the same predicate the bootstrap uses for it, so a replica that applies
 // these lands on the same rows a snapshot taken immediately afterwards would contain. That
 // agreement is the whole point, and it is why the relations come from a query with the
 // bootstrap's joins rather than from the two plain listings the issue panel uses: those
 // return links whose far end is archived or deleted, which the snapshot leaves out.
 //
-// Notifications are not here, and neither are favourites. Both are dropped by the same
-// client cascade, and neither is carried by the bootstrap at all — so republishing them
-// would not close a divergence, it would create one in the other direction. See the report
-// on that gap rather than treating this list as the complete set.
+// Notifications and favourites were the last two to arrive, and they arrived because the
+// snapshot changed underneath this function. While the bootstrap carried neither,
+// republishing them would not have closed a divergence but created one in the other
+// direction; now that it carries both, not republishing them is the divergence — the
+// cascade takes the stars off the issue and the inbox rows about it, and only this puts them
+// back. A list that is a subset of the client's cascade is silently wrong in exactly the way
+// this whole file exists to prevent, so the two have to be read together.
+//
+// The volume trade is the one stated above, taken again and larger: a much-discussed issue
+// carries an inbox row per recipient per event, so the change block a restore mints is
+// proportional to the conversation rather than to the issue. It is still one deliberate act
+// on one issue, and the alternative is a replica whose inbox quietly disagrees with the
+// server's until something forces a re-bootstrap.
 func restoredIssueContents(
 	ctx context.Context, q *store.Queries, workspaceID uuid.UUID, issue store.Issue, private bool,
 ) ([]Change, error) {
@@ -617,6 +626,44 @@ func restoredIssueContents(
 			// One person's row and nobody else's. A team scope here would put everybody's
 			// watch list in every teammate's replica.
 			Scope: authz.UserScope(sub.UserID), Payload: toIssueSubscription(sub),
+			ChangedFields: restored,
+		})
+	}
+
+	notifications, err := q.ListNotificationsForIssue(ctx, store.ListNotificationsForIssueParams{
+		IssueID:     &issue.ID,
+		WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, n := range notifications {
+		changes = append(changes, Change{
+			EntityType: "notification", EntityID: n.ID, Op: OpUpsert,
+			// The recipient's, like the subscription above. internal/notify refuses to fan out
+			// a change about a notification at all, so these carry no risk of telling anybody
+			// again about something they were told weeks ago.
+			Scope: authz.UserScope(n.UserID), Payload: toNotification(n),
+			ChangedFields: restored,
+		})
+	}
+
+	favorites, err := q.ListFavoritesForTarget(ctx, store.ListFavoritesForTargetParams{
+		WorkspaceID: workspaceID,
+		Kind:        model.FavoriteIssue,
+		TargetID:    issue.ID,
+	})
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, fav := range favorites {
+		changes = append(changes, Change{
+			// Only the issue kind: a favourite is dropped when the replica forgets the row it
+			// points at, and the only thing of a favouritable kind that a deleted issue takes
+			// with it is the issue. Its comments and applications are forgotten too, and
+			// nobody can star one of those.
+			EntityType: "favorite", EntityID: fav.ID, Op: OpUpsert,
+			Scope: authz.UserScope(fav.UserID), Payload: toFavorite(fav),
 			ChangedFields: restored,
 		})
 	}
