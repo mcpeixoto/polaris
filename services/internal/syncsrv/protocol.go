@@ -18,7 +18,16 @@ import (
 // Bumped whenever the IndexedDB layout changes. On a mismatch the client drops its whole
 // database and re-bootstraps: cheap, obvious, and impossible to get subtly wrong, which
 // matters far more here than the one-off cost of a re-download.
-const ClientSchema = 1
+//
+// It must equal CLIENT_SCHEMA in web/src/store/db.ts, and TestClientSchemaMatchesTheClient
+// asserts that it does. The two drifted once — the client was bumped to 2 to discard
+// replicas for the M1 entity types and this constant stayed at 1 — and the result was not a
+// degraded app but a dead one: every bootstrap failed, and the error the user saw told them
+// to reload, which cannot possibly fix a disagreement between two source constants.
+//
+// v2 added label, issueLabel, issueRelation, issueSubscription, notification, view,
+// viewPreference, favorite and issueTemplate to the replica.
+const ClientSchema = 2
 
 // Message type tags. Kept as short strings because these are the highest-frequency
 // values on the wire.

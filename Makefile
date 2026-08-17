@@ -4,7 +4,22 @@ SHELL := /bin/bash
 GO      ?= go
 PNPM    ?= pnpm
 SVC     := services
-DB_URL  ?= postgres://polaris:polaris@localhost:55432/polaris?sslmode=disable
+
+# Local configuration, if there is any.
+#
+# `-include` rather than `include`: a fresh clone has no .env and must still be able to run
+# `make help`, `make test` and everything else that needs no secrets. Copy .env.example to
+# .env for the ones that do.
+#
+# This exists because the api and sync processes were once started by hand with the secrets
+# exported into somebody's shell, which worked until that shell was gone — and then the
+# stack could not be restarted at all, because nothing in the repository said what the
+# values had been. Configuration that lives only in a terminal session is configuration
+# nobody else has.
+-include .env
+export
+
+DB_URL  ?= $(if $(DATABASE_URL),$(DATABASE_URL),postgres://polaris:polaris@localhost:55432/polaris?sslmode=disable)
 
 .PHONY: help
 help: ## Show this help
