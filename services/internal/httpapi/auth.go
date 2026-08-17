@@ -9,6 +9,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/auth"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
+	"github.com/peixotolabs/polaris/services/internal/entitlement"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 )
 
@@ -26,13 +27,45 @@ type authHandlers struct {
 	publicURL string
 	secure    bool
 
+	// openSignup mirrors POLARIS_REGISTRATION_MODE=open. False — the closed server — is both
+	// the default and the value a zero authHandlers carries, so a wiring mistake fails towards
+	// refusing strangers rather than towards admitting them.
+	openSignup bool
+
+	// defaultPlan is the entitlement plan a workspace created here starts on. Empty means
+	// self-hosted, which is what domain.CreateWorkspace assumes when it is given nothing —
+	// so a wiring mistake gives somebody the unlimited plan rather than silently capping
+	// their install at five seats.
+	defaultPlan entitlement.Plan
+
 	// limits carries the per-account sign-in budget. Nil when rate limiting is off.
 	limits *Limits
+}
+
+// credentialsRequest is the sign-in body.
+//
+// A separate type from registerRequest, which it used to share. decodeJSON sets
+// DisallowUnknownFields, so sharing one struct would have made POST /auth/login quietly
+// accept an inviteToken and do nothing with it — a request that looks like it worked and
+// leaves the person unjoined.
+type credentialsRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type registerRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+
+	// InviteToken is the invitation this registration redeems, and it is what admits the
+	// caller at all on a default install. It rides along with the credentials rather than
+	// being exchanged for something first, so that the account and the workspace membership
+	// are one transaction — see domain.RegisterInput for why the two-call version is a state
+	// somebody lands in and cannot get out of.
+	InviteToken string `json:"inviteToken,omitempty"`
+
+	// DisplayName is the name the invited person takes in the workspace they are joining.
+	DisplayName string `json:"displayName,omitempty"`
 }
 
 type authResponse struct {
@@ -52,15 +85,22 @@ func (h *authHandlers) register(w http.ResponseWriter, r *http.Request) {
 	// Registration shares the sign-in budget, keyed the same way. Repeated attempts to
 	// register an address that already exists is account enumeration wearing a different
 	// hat, and it deserves the same wall as guessing that account's password.
+	//
+	// Charged before the invitation is looked at, so that probing the endpoint costs the
+	// same whether the caller is refused for having no invitation or admitted for having
+	// one. A budget spent only by successful registrations would be a free oracle.
 	if !h.limits.LoginAttempt(w, r, req.Email) {
 		return
 	}
 
 	accountID, session, err := h.svc.Register(r.Context(), domain.RegisterInput{
-		Email:     req.Email,
-		Password:  req.Password,
-		UserAgent: r.UserAgent(),
-		IP:        clientIP(r),
+		Email:           req.Email,
+		Password:        req.Password,
+		InviteToken:     req.InviteToken,
+		DisplayName:     req.DisplayName,
+		AllowOpenSignup: h.openSignup,
+		UserAgent:       r.UserAgent(),
+		IP:              clientIP(r),
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -70,7 +110,7 @@ func (h *authHandlers) register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *authHandlers) login(w http.ResponseWriter, r *http.Request) {
-	var req registerRequest
+	var req credentialsRequest
 	if err := decodeJSON(w, r, &req); err != nil {
 		writeError(w, r, err)
 		return
@@ -154,6 +194,7 @@ func (h *authHandlers) createWorkspace(w http.ResponseWriter, r *http.Request) {
 		UserTimezone:    req.UserTimezone,
 		FirstTeamKey:    req.FirstTeamKey,
 		FirstTeamName:   req.FirstTeamName,
+		Plan:            h.defaultPlan,
 	})
 	if err != nil {
 		writeError(w, r, err)

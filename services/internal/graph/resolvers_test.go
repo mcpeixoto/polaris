@@ -133,10 +133,19 @@ func TestIssue_FromAnotherWorkspaceIsNotFoundRatherThanForbidden(t *testing.T) {
 
 	// A second, unrelated workspace in the same database, built through the signup path so
 	// that its admin is as real as the first one's.
+	//
+	// AllowOpenSignup because registration is invite-only by default and this database
+	// already has the fixture's account in it, so neither route in — an invitation, or being
+	// the first account on the install — is available. The flag is set on this one call
+	// rather than anywhere broader deliberately: what this test is about is that an issue in
+	// another workspace is reported as NOT_FOUND rather than FORBIDDEN, and it has no opinion
+	// at all about how the other workspace came to exist. Turning the gate off for the whole
+	// package would also turn it off for the next test that meant to exercise it.
 	ctx := context.Background()
 	accountID, _, err := h.svc.Register(ctx, domain.RegisterInput{
-		Email:    "stranger@example.com",
-		Password: "a passphrase nobody guesses",
+		Email:           "stranger@example.com",
+		Password:        "a passphrase nobody guesses",
+		AllowOpenSignup: true,
 	})
 	if err != nil {
 		t.Fatalf("register the other account: %v", err)

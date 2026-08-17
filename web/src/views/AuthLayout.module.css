@@ -98,3 +98,17 @@
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
+
+/*
+ * What to do about a refusal, under the refusal itself.
+ *
+ * Deliberately not red. It sits below `.error`, and repeating the alarm would read as a
+ * second thing having gone wrong rather than as the way forward from the first — this is
+ * ordinary prose, in the tertiary text colour the subtitle uses.
+ */
+.refusal {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

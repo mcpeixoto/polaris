@@ -10,6 +10,15 @@
  * A mistyped password is not something the API can detect — both values are perfectly valid —
  * and the failure lands a week later as somebody locked out of an account they thought they
  * had.
+ *
+ * **This form is refused on a default install, and that is not a fault.**
+ * `POLARIS_REGISTRATION_MODE` is `invite`, so the only people who may register are somebody
+ * holding an invitation and the very first account on an empty server. The client cannot know
+ * which install it is talking to — nothing exposes the mode — so the screen offers the form
+ * and reads the answer, and a refusal is presented as the policy it is rather than as a
+ * failure to retry. The invitation link is not a route *to* this screen: it registers, joins
+ * and signs in on one submit, which is why the copy points at the link rather than telling
+ * somebody to come back here with a token.
  */
 
 import { useRef, useState, type FormEvent } from 'react';
@@ -18,6 +27,7 @@ import { Link } from 'react-router';
 import { Button, Input } from '~/components';
 import { ApiError, auth } from '~/sync/api';
 import { AuthError, AuthForm, AuthLayout } from './AuthLayout';
+import styles from './AuthLayout.module.css';
 
 export interface SignUpProps {
   /** Called once the account exists and the session is live. */
@@ -33,6 +43,14 @@ export function SignUp({ onSignedIn }: SignUpProps) {
   const [confirmation, setConfirmation] = useState('');
   const [mismatch, setMismatch] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Set when the server said this install does not take open registrations.
+   *
+   * Kept apart from `error` because it is a different kind of answer: `error` is something
+   * that went wrong and may not next time, and this is a standing fact about the server that
+   * pressing the button again cannot change.
+   */
+  const [refused, setRefused] = useState(false);
   const [busy, setBusy] = useState(false);
   const confirmationRef = useRef<HTMLInputElement>(null);
 
@@ -48,11 +66,15 @@ export function SignUp({ onSignedIn }: SignUpProps) {
     setMismatch(null);
     setBusy(true);
     setError(null);
+    setRefused(false);
     try {
       await auth.register(email.trim(), password);
       onSignedIn();
     } catch (failure) {
       setBusy(false);
+      // FORBIDDEN from this endpoint means one thing: the server is invite-only and this
+      // caller has no invitation. Anything else is an ordinary failure.
+      setRefused(failure instanceof ApiError && failure.code === 'FORBIDDEN');
       setError(failure instanceof ApiError ? failure.message : 'That did not work. Try again.');
     }
   };
@@ -69,6 +91,17 @@ export function SignUp({ onSignedIn }: SignUpProps) {
     >
       <AuthForm onSubmit={(event) => void onSubmit(event)}>
         <AuthError message={error} />
+        {/* Under the server's own sentence rather than instead of it: the server says what
+            the rule is, and this says what to do about it — which is the part the person
+            reading a refusal actually needs, and the part the server cannot know. Retrying
+            with a different address is legitimate, so the form stays. */}
+        {refused ? (
+          <p className={styles.refusal}>
+            An invitation link signs you up on its own — follow the one you were sent rather than
+            creating an account first. If you were invited at a different address, use that one
+            here.
+          </p>
+        ) : null}
         <Input
           label="Email"
           type="email"

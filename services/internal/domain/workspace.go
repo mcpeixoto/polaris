@@ -11,6 +11,7 @@ import (
 
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
+	"github.com/peixotolabs/polaris/services/internal/entitlement"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
@@ -30,6 +31,22 @@ type CreateWorkspaceInput struct {
 
 	FirstTeamKey  string
 	FirstTeamName string
+
+	// Plan the workspace is created on. Empty means self-hosted.
+	//
+	// It is an input rather than a constant because the answer depends on which product
+	// this build is, and only the composition root knows that: a self-hosted install is
+	// unlimited, and a cloud signup starts on the free tier and moves with billing.
+	//
+	// It used to be the literal "free" for everybody, which is the cloud answer applied to
+	// the open-source one. That gave every self-hosted workspace a five-seat cap, a
+	// two-team cap and ninety days of history — directly against what the README promises
+	// ("self-host free and unlimited on seats") and against the comment on PlanSelfHosted
+	// in internal/entitlement, which says a seat count there "would make the project a
+	// trial with a licence file". Nothing enforced those caps yet, so the damage so far was
+	// a settings screen quoting a limit that did not exist; the day anything did enforce
+	// them, every self-hoster would have hit a paywall nobody meant to ship.
+	Plan entitlement.Plan
 }
 
 // CreateWorkspaceResult carries everything the caller needs to send the new owner
@@ -78,6 +95,19 @@ func (s *Service) CreateWorkspace(ctx context.Context, in CreateWorkspaceInput) 
 		in.UserTimezone = "UTC"
 	}
 
+	// Empty means self-hosted, so a caller that has no opinion gets the unlimited plan
+	// rather than the cloud's free tier. The zero value is the open-source answer, because
+	// this repository is the open-source product and the cloud is the deployment that
+	// knows it is special.
+	plan := in.Plan
+	if plan == "" {
+		plan = entitlement.PlanSelfHosted
+	}
+	if !plan.Valid() {
+		return CreateWorkspaceResult{}, platform.Validation("plan",
+			fmt.Sprintf("%q is not a plan", plan))
+	}
+
 	var out CreateWorkspaceResult
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		wsID, err := uuid.NewV7()
@@ -88,7 +118,7 @@ func (s *Service) CreateWorkspace(ctx context.Context, in CreateWorkspaceInput) 
 			ID:       wsID,
 			Name:     in.Name,
 			UrlKey:   in.URLKey,
-			Plan:     "free",
+			Plan:     string(plan),
 			Settings: json.RawMessage(`{}`),
 		})
 		if err != nil {
