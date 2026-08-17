@@ -1,0 +1,116 @@
+/*
+ * The display panel is a popover full of form controls, so it borrows the menu's surface —
+ * same radius, same shadow, same border — and the settings pages' vertical rhythm inside it.
+ * Looking like a menu is what says "this closes when you are done with it"; being laid out
+ * like a form is what says "you can change several things while you are here".
+ *
+ * It is deliberately narrow. Every control in it is a short label and a small value, and a
+ * wider panel would only put more of the list behind it out of view — which is the thing the
+ * panel exists to let somebody watch.
+ */
+
+.panel {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 20rem;
+  max-width: calc(100vw - var(--space-4));
+  /* Taller than the viewport on a short window: the panel scrolls rather than being clipped,
+     because the properties at the bottom are the ones people come here for most often. */
+  max-height: calc(100vh - var(--space-8));
+  overflow-y: auto;
+  margin-top: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+/* The panel takes focus on opening so the keyboard arrives inside it, but it is a container
+   rather than a control: a ring around the whole surface would say "you are here" about a
+   region nobody has to be told about, and the first control's own ring carries it. */
+.panel:focus {
+  outline: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+/* Pushed against the reset button, which is the thing it is the reason for. */
+.count {
+  flex: 1;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionLabel {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/*
+ * Two buttons that read as one control. The gap is a hairline rather than a space so the
+ * pair is visibly a choice between them, and not two commands that happen to be adjacent.
+ */
+.segmented {
+  display: flex;
+  gap: var(--space-0-5);
+  padding: var(--space-0-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+}
+
+.segmented > * {
+  flex: 1;
+}
+
+/*
+ * "Default: Status". Quiet, because it is a footnote about a value rather than a warning
+ * about one — the user is allowed to have changed it, and most of the time meant to.
+ */
+.changed {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * The ordering that has nothing to say under this grouping. Louder than a footnote and
+ * quieter than an error: nothing is wrong, but the list is not sorted the way the control
+ * above it appears to claim, and that gap is what people blame the software for.
+ */
+.note {
+  margin: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  border-left: 2px solid var(--accent);
+  background-color: var(--accent-subtle);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}

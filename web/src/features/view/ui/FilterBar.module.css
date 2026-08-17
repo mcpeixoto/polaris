@@ -1,0 +1,309 @@
+/*
+ * The filter bar sits between the header and the list, so it obeys the list's density
+ * rules: 22px controls, no cards, no shadows on anything that is not floating. It is read
+ * far more often than it is used — most visits to a filtered view are somebody checking
+ * what the link they followed actually says — so the resting state is quiet type on the
+ * page colour, and only the popover it opens is a surface.
+ *
+ * The row wraps rather than scrolls. A filter of six clauses is a legitimate thing to build
+ * and a horizontal scroller would hide half of it behind a gesture nobody makes at a
+ * toolbar.
+ */
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  /* The editor is positioned against this, so the chips can be laid out by flex while the
+     popover ignores the flow entirely. */
+  position: relative;
+}
+
+.quiet {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+/* --- The chips ---------------------------------------------------------------------- */
+
+/*
+ * A clause is its chip and its remove button, joined into one pill so the two read as one
+ * object. The editor is absolutely positioned against this, which is what keeps a popover
+ * under the chip it belongs to when the row wraps onto three lines.
+ */
+.clause {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-sm);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 100%;
+  padding: 0 var(--space-1) 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background-color: var(--bg-hover);
+}
+
+.chip:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+/*
+ * Three weights in one sentence: the field is what the clause is about and is read first,
+ * the operator is grammar, and the value is the answer. Losing the distinction makes a row
+ * of six chips a wall of small grey text.
+ */
+.chipField {
+  color: var(--text-tertiary);
+}
+
+.chipOp {
+  color: var(--text-tertiary);
+}
+
+.chipValue {
+  font-weight: var(--font-weight-medium);
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.remove {
+  flex: none;
+  margin-right: var(--space-0-5);
+}
+
+/*
+ * The conjunction between two chips. At the top level it is a button; nested it is the same
+ * word drawn as text, because only the top-level group can be changed from here.
+ */
+.conj {
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+button.conj {
+  cursor: pointer;
+}
+
+button.conj:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+button.conj:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* A nested group, drawn with its brackets so the precedence is legible rather than implied. */
+.nested {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.bracket {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+/* --- The editor --------------------------------------------------------------------- */
+
+/*
+ * A floating surface, so it carries the popover shadow and sits on the dropdown layer.
+ *
+ * It is positioned in the flow rather than portalled, unlike Menu. A Menu is opened from
+ * rows inside a scroller that clips; this hangs off a bar that does not, and staying in the
+ * DOM next to its chip is what lets Tab move from the chip into the editor and back out to
+ * the next chip in the order somebody reading the screen would expect.
+ */
+.editor {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 280px;
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.editorFooter {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.optionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* Bounded, because a workspace with two hundred labels would otherwise push the Done
+     button off the bottom of the screen. */
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.hint {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.valueBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.chosen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chosenItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-sm);
+  padding-left: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.addValue {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.addValue > *:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- The unreadable filter ----------------------------------------------------------- */
+
+/*
+ * Takes --priority-urgent for the same reason Field.module.css and LabelSettings do: the
+ * token layer has no --danger role, and that pair is the only red already tuned for both
+ * page colours.
+ */
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.errorText {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The parser's own words. Quieter than the sentence around them, because they are evidence
+   rather than the message. */
+.errorDetail {
+  color: var(--text-tertiary);
+}
+
+/*
+ * Available to a screen reader and to nothing else. Used for a fieldset's legend, which has
+ * to exist so the controls under it are announced as a set, and which would be a redundant
+ * heading on screen inside a popover that already names itself.
+ */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
