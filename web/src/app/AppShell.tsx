@@ -55,7 +55,7 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
   );
   const views = useLiveQuery(
     (store) => (viewerId === null ? [] : visibleViews(store, viewerId)),
-    ['view'],
+    ['view', 'favorite'],
     [viewerId],
   );
 
@@ -328,12 +328,24 @@ function favoriteLink(store: Store, favorite: Favorite): FavoriteLink | null {
  * Shared views in scope plus their own private ones — the same rule the server's `views`
  * query applies, restated here because the replica holds whatever the stream delivered and a
  * sidebar must not show a view somebody else made private. Archived views are excluded.
+ *
+ * A view the person has favourited is left out, because it is already above under Favourites.
+ * Listing it twice is not redundancy the reader can ignore: two identical links in one
+ * sidebar make somebody check whether they go to the same place, and favouriting something
+ * should move it rather than duplicate it.
  */
 function visibleViews(store: Store, userId: UUID): readonly View[] {
+  const favourited = new Set<UUID>();
+  for (const favorite of store.favorites.values()) {
+    if (favorite.userId === userId && favorite.kind === 'view') favourited.add(favorite.targetId);
+  }
+
   return [...store.views.values()]
     .filter(
       (view) =>
-        view.archivedAt === undefined && (view.ownerId === undefined || view.ownerId === userId),
+        view.archivedAt === undefined &&
+        !favourited.has(view.id) &&
+        (view.ownerId === undefined || view.ownerId === userId),
     )
     .sort((a, b) => a.position.localeCompare(b.position) || a.name.localeCompare(b.name));
 }
