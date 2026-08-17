@@ -578,6 +578,78 @@ func (q *Queries) ListChildIssues(ctx context.Context, parentID *uuid.UUID) ([]I
 	return items, nil
 }
 
+const listChildIssuesForParents = `-- name: ListChildIssuesForParents :many
+SELECT id, workspace_id, team_id, number, title, description, state_id,
+       assignee_id, creator_id, priority, sort_order,
+       started_at, completed_at, canceled_at,
+       archived_at, deleted_at, created_at, updated_at,
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+FROM issue
+WHERE parent_id = ANY($1::uuid[])
+  AND workspace_id = $2
+  AND deleted_at IS NULL
+ORDER BY parent_id, sub_issue_sort_order, id
+`
+
+type ListChildIssuesForParentsParams struct {
+	ParentIds   []uuid.UUID
+	WorkspaceID uuid.UUID
+}
+
+// ListChildIssuesForParents is ListChildIssues for a whole page of parents at once.
+//
+// One statement rather than one per row, and that is the entire reason it exists: a list
+// view that renders a progress bar on every parent would otherwise issue a query per
+// visible issue, which is the N+1 the API's hydration layer is built to avoid. The
+// per-parent version above stays for the single-issue path, where the array round trip
+// would buy nothing.
+//
+// Ordered by parent first so the caller can group the rows without sorting them again.
+func (q *Queries) ListChildIssuesForParents(ctx context.Context, arg ListChildIssuesForParentsParams) ([]Issue, error) {
+	rows, err := q.db.Query(ctx, listChildIssuesForParents, arg.ParentIds, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Issue{}
+	for rows.Next() {
+		var i Issue
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.Number,
+			&i.Title,
+			&i.Description,
+			&i.StateID,
+			&i.AssigneeID,
+			&i.CreatorID,
+			&i.Priority,
+			&i.SortOrder,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CanceledAt,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Estimate,
+			&i.DueDate,
+			&i.DueDateSource,
+			&i.ParentID,
+			&i.SubIssueSortOrder,
+			&i.TemplateID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDeletedIssues = `-- name: ListDeletedIssues :many
 SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
@@ -602,6 +674,79 @@ type ListDeletedIssuesParams struct {
 // by sort_order, because the only question being asked here is "what did I just lose".
 func (q *Queries) ListDeletedIssues(ctx context.Context, arg ListDeletedIssuesParams) ([]Issue, error) {
 	rows, err := q.db.Query(ctx, listDeletedIssues, arg.WorkspaceID, arg.TeamIds, arg.DeletedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Issue{}
+	for rows.Next() {
+		var i Issue
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.Number,
+			&i.Title,
+			&i.Description,
+			&i.StateID,
+			&i.AssigneeID,
+			&i.CreatorID,
+			&i.Priority,
+			&i.SortOrder,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CanceledAt,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Estimate,
+			&i.DueDate,
+			&i.DueDateSource,
+			&i.ParentID,
+			&i.SubIssueSortOrder,
+			&i.TemplateID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listIssuesByIDs = `-- name: ListIssuesByIDs :many
+SELECT id, workspace_id, team_id, number, title, description, state_id,
+       assignee_id, creator_id, priority, sort_order,
+       started_at, completed_at, canceled_at,
+       archived_at, deleted_at, created_at, updated_at,
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+FROM issue
+WHERE id = ANY($1::uuid[])
+  AND workspace_id = $2
+  AND team_id = ANY($3::uuid[])
+  AND deleted_at IS NULL
+ORDER BY id
+`
+
+type ListIssuesByIDsParams struct {
+	Ids         []uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamIds     []uuid.UUID
+}
+
+// ListIssuesByIDs reads a scattered set of issues in one round trip, filtered to the teams
+// the caller can see.
+//
+// The team filter is in the statement rather than in Go because this is a read by id: a
+// caller who could name an issue in a team they are not in would otherwise get it back,
+// and "did this uuid come back" is the enumeration oracle every not-found in this package
+// exists to close. Archived issues are included — an issue reached by id is reachable
+// whether or not it is on a board, which is the same rule GetIssue follows.
+func (q *Queries) ListIssuesByIDs(ctx context.Context, arg ListIssuesByIDsParams) ([]Issue, error) {
+	rows, err := q.db.Query(ctx, listIssuesByIDs, arg.Ids, arg.WorkspaceID, arg.TeamIds)
 	if err != nil {
 		return nil, err
 	}

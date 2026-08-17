@@ -67,8 +67,13 @@ const (
 	FieldDueDate     = "due_date"
 	FieldEstimate    = "estimate"
 	FieldSortOrder   = "sort_order"
-	FieldArchived    = "archived_at"
-	FieldDeleted     = "deleted_at"
+	// The order among a parent's children, which is its own sequence and moves
+	// independently of sort_order. No rule below reacts to it — reordering a checklist is
+	// not news — but it is still something a mutation set, and a changed-field list that
+	// omits what nothing happens to notify on is a list nobody can trust for anything else.
+	FieldSubIssueSortOrder = "sub_issue_sort_order"
+	FieldArchived          = "archived_at"
+	FieldDeleted           = "deleted_at"
 	// Comments.
 	FieldBody     = "body"
 	FieldResolved = "resolved_at"

@@ -34,6 +34,11 @@ func (r *mutationResolver) CreateIssue(ctx context.Context, input generated.Crea
 		AssigneeID:   input.AssigneeID,
 		Priority:     deref(input.Priority),
 		AfterIssueID: input.AfterIssueID,
+		Estimate:     input.Estimate,
+		DueDate:      toDate(input.DueDate),
+		ParentID:     input.ParentID,
+		LabelIDs:     input.LabelIds,
+		TemplateID:   input.TemplateID,
 	}
 	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.Issue, int64, error) {
@@ -65,10 +70,20 @@ func (r *mutationResolver) UpdateIssue(ctx context.Context, input generated.Upda
 		Priority:    input.Priority,
 		AssigneeID:  input.AssigneeID,
 		// Three-state on purpose: a null assigneeId means "leave it alone", and unassigning
-		// is a separate flag. Collapsing them is the classic partial-update bug.
-		ClearAssignee: deref(input.ClearAssignee),
-		AfterIssueID:  input.AfterIssueID,
-		MoveToTop:     deref(input.MoveToTop),
+		// is a separate flag. Collapsing them is the classic partial-update bug. The same
+		// pairing runs through estimate, due date and parent below — each one has to be
+		// carried across whole, value and clear flag together, or setting it does nothing
+		// and reports success.
+		ClearAssignee:  deref(input.ClearAssignee),
+		Estimate:       input.Estimate,
+		ClearEstimate:  deref(input.ClearEstimate),
+		DueDate:        toDate(input.DueDate),
+		ClearDueDate:   deref(input.ClearDueDate),
+		ParentID:       input.ParentID,
+		ClearParent:    deref(input.ClearParent),
+		AfterIssueID:   input.AfterIssueID,
+		MoveToTop:      deref(input.MoveToTop),
+		AfterSiblingID: input.AfterSiblingID,
 	}
 	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.Issue, int64, error) {
@@ -587,7 +602,10 @@ func (r *mutationResolver) UpdateTeamEstimates(ctx context.Context, input genera
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out := toTeam(team)
+	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
 	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
 }
 
@@ -679,7 +697,10 @@ func (r *mutationResolver) AddIssueLabel(ctx context.Context, issueID uuid.UUID,
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out := toIssueLabel(applied)
+	out, err := r.hydrateIssueLabel(ctx, p, selectionFor(ctx, "IssueLabelPayload").childOrNone("issueLabel", "IssueLabel"), applied)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
 	return &generated.IssueLabelPayload{Version: int(version), IssueLabel: &out}, nil
 }
 

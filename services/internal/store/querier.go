@@ -350,6 +350,17 @@ type Querier interface {
 	// unfinished for no visible reason.
 	//
 	ListChildIssues(ctx context.Context, parentID *uuid.UUID) ([]Issue, error)
+	// ListChildIssuesForParents is ListChildIssues for a whole page of parents at once.
+	//
+	// One statement rather than one per row, and that is the entire reason it exists: a list
+	// view that renders a progress bar on every parent would otherwise issue a query per
+	// visible issue, which is the N+1 the API's hydration layer is built to avoid. The
+	// per-parent version above stays for the single-issue path, where the array round trip
+	// would buy nothing.
+	//
+	// Ordered by parent first so the caller can group the rows without sorting them again.
+	//
+	ListChildIssuesForParents(ctx context.Context, arg ListChildIssuesForParentsParams) ([]Issue, error)
 	ListCommentsForIssue(ctx context.Context, issueID uuid.UUID) ([]Comment, error)
 	// ListDeletedIssues is the "recently deleted" screen. Ordered by deletion time rather than
 	// by sort_order, because the only question being asked here is "what did I just lose".
@@ -404,21 +415,63 @@ type Querier interface {
 	ListFavorites(ctx context.Context, arg ListFavoritesParams) ([]Favorite, error)
 	ListIssueHistory(ctx context.Context, issueID uuid.UUID) ([]IssueHistory, error)
 	ListIssueLabels(ctx context.Context, issueID uuid.UUID) ([]IssueLabel, error)
+	// ListIssueLabelsForIssues is the same listing for a whole page of issues at once.
+	//
+	// Label chips are drawn on every row of a filtered list, so this is the one collection on
+	// an issue that a list view genuinely asks for — reading it per issue would be the N+1 that
+	// hurts most, on the screen people spend their day in. The denormalised team_id carries the
+	// visibility rule, exactly as it does for the bootstrap stream, so a caller cannot learn
+	// which labels sit on an issue in a team they are not in by naming its id.
+	//
+	ListIssueLabelsForIssues(ctx context.Context, arg ListIssueLabelsForIssuesParams) ([]IssueLabel, error)
 	// ListIssueRelations is the forward direction: what this issue blocks, duplicates, or is
 	// related to.
 	//
 	ListIssueRelations(ctx context.Context, issueID uuid.UUID) ([]IssueRelation, error)
+	// The two listings above, for a whole page of issues at once. Both are here for the same
+	// reason ListIssueLabelsForIssues is: the API hydrates a list of issues in one pass, and a
+	// per-issue query there is a query per visible row.
+	//
+	// Visibility is "a member of either team", the same rule relationScope writes onto the
+	// change row, because a link is a fact about two issues and hiding it from one side would
+	// leave the two teams disagreeing about whether it exists.
+	//
+	ListIssueRelationsForIssues(ctx context.Context, arg ListIssueRelationsForIssuesParams) ([]IssueRelation, error)
 	// ListIssueSubscribers is the fan-out's only read: who is watching this issue and still
 	// wants to hear. Matches issue_subscription_issue_idx, which is partial on the same
 	// predicate.
 	//
 	ListIssueSubscribers(ctx context.Context, issueID uuid.UUID) ([]IssueSubscription, error)
+	// ListIssueSubscriptionsForIssues is the watcher list the issue panel renders, for a whole
+	// page of issues at once.
+	//
+	// Unsubscribed rows are returned, unlike ListIssueSubscribers above, and the difference is
+	// the caller: the fan-out wants people who still want to hear, while a reader wants to know
+	// whether *they* are watching — and an explicit unsubscribe is a row, not an absence, so
+	// dropping it would render the toggle as "not subscribed yet" and re-subscribe them on the
+	// next comment.
+	//
+	// The join is what enforces visibility: issue_subscription carries no team_id of its own,
+	// and without it naming an id would reveal who watches an issue in a team the caller is not
+	// in.
+	//
+	ListIssueSubscriptionsForIssues(ctx context.Context, arg ListIssueSubscriptionsForIssuesParams) ([]IssueSubscription, error)
 	ListIssueSubscriptionsForUser(ctx context.Context, arg ListIssueSubscriptionsForUserParams) ([]IssueSubscription, error)
 	// ListIssueTemplatesForTeam is what the create dialog offers in one team: the workspace's
 	// templates, which are offered everywhere, plus that team's own.
 	//
 	ListIssueTemplatesForTeam(ctx context.Context, arg ListIssueTemplatesForTeamParams) ([]ListIssueTemplatesForTeamRow, error)
 	ListIssueTemplatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListIssueTemplatesInWorkspaceRow, error)
+	// ListIssuesByIDs reads a scattered set of issues in one round trip, filtered to the teams
+	// the caller can see.
+	//
+	// The team filter is in the statement rather than in Go because this is a read by id: a
+	// caller who could name an issue in a team they are not in would otherwise get it back,
+	// and "did this uuid come back" is the enumeration oracle every not-found in this package
+	// exists to close. Archived issues are included — an issue reached by id is reachable
+	// whether or not it is on a board, which is the same rule GetIssue follows.
+	//
+	ListIssuesByIDs(ctx context.Context, arg ListIssuesByIDsParams) ([]Issue, error)
 	ListIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]Issue, error)
 	// ListLabelsForTeam is what the label picker on an issue may offer: the workspace's own
 	// labels plus that one team's. A label from another team is not merely hidden here — the
@@ -451,6 +504,7 @@ type Querier interface {
 	// is why issue_relation carries an index on each side.
 	//
 	ListReverseIssueRelations(ctx context.Context, relatedIssueID uuid.UUID) ([]IssueRelation, error)
+	ListReverseIssueRelationsForIssues(ctx context.Context, arg ListReverseIssueRelationsForIssuesParams) ([]IssueRelation, error)
 	ListSessionsForAccount(ctx context.Context, accountID uuid.UUID) ([]AccountSession, error)
 	// ListTeamIDsForUser resolves a session's visibility set. Called on every socket connect
 	// and on every permission change, so it must stay an index-only scan on

@@ -203,6 +203,50 @@ FROM issue
 WHERE parent_id = $1 AND deleted_at IS NULL
 ORDER BY sub_issue_sort_order, id;
 
+-- ListChildIssuesForParents is ListChildIssues for a whole page of parents at once.
+--
+-- One statement rather than one per row, and that is the entire reason it exists: a list
+-- view that renders a progress bar on every parent would otherwise issue a query per
+-- visible issue, which is the N+1 the API's hydration layer is built to avoid. The
+-- per-parent version above stays for the single-issue path, where the array round trip
+-- would buy nothing.
+--
+-- Ordered by parent first so the caller can group the rows without sorting them again.
+--
+-- name: ListChildIssuesForParents :many
+SELECT id, workspace_id, team_id, number, title, description, state_id,
+       assignee_id, creator_id, priority, sort_order,
+       started_at, completed_at, canceled_at,
+       archived_at, deleted_at, created_at, updated_at,
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+FROM issue
+WHERE parent_id = ANY(sqlc.arg(parent_ids)::uuid[])
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND deleted_at IS NULL
+ORDER BY parent_id, sub_issue_sort_order, id;
+
+-- ListIssuesByIDs reads a scattered set of issues in one round trip, filtered to the teams
+-- the caller can see.
+--
+-- The team filter is in the statement rather than in Go because this is a read by id: a
+-- caller who could name an issue in a team they are not in would otherwise get it back,
+-- and "did this uuid come back" is the enumeration oracle every not-found in this package
+-- exists to close. Archived issues are included — an issue reached by id is reachable
+-- whether or not it is on a board, which is the same rule GetIssue follows.
+--
+-- name: ListIssuesByIDs :many
+SELECT id, workspace_id, team_id, number, title, description, state_id,
+       assignee_id, creator_id, priority, sort_order,
+       started_at, completed_at, canceled_at,
+       archived_at, deleted_at, created_at, updated_at,
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+FROM issue
+WHERE id = ANY(sqlc.arg(ids)::uuid[])
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND team_id = ANY(sqlc.arg(team_ids)::uuid[])
+  AND deleted_at IS NULL
+ORDER BY id;
+
 -- ListMyIssues is everything assigned to the caller across every team they can see.
 --
 -- Ordered most-recently-touched first rather than by priority: 0 means "no priority", so

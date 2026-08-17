@@ -63,6 +63,11 @@ type stateIndex struct {
 	byID map[uuid.UUID]model.WorkflowState
 }
 
+type labelIndex struct {
+	all  []model.Label
+	byID map[uuid.UUID]model.Label
+}
+
 // Loaders holds one request's memoised reads.
 //
 // Request-scoped and never shared between requests. Everything in here came back from a
@@ -71,8 +76,9 @@ type stateIndex struct {
 type Loaders struct {
 	svc *domain.Service
 
-	users batch[userIndex]
-	teams batch[teamIndex]
+	users  batch[userIndex]
+	teams  batch[teamIndex]
+	labels batch[labelIndex]
 
 	// mu guards the states map only. The fetches themselves run outside it, so a slow
 	// query for one team does not hold up another.
@@ -142,6 +148,27 @@ func (l *Loaders) allTeams(ctx context.Context, p *authz.Principal) (teamIndex, 
 	})
 }
 
+// allLabels reads the labels this principal can see, once.
+//
+// A workspace-wide list, like the directory and the teams, and for the same reason: a label
+// is shared by every issue that carries it, so a board showing chips on two hundred rows is
+// still one read. The applications themselves — which label is on which issue — are per
+// issue and come from the batched read in the domain layer; this is only the vocabulary
+// those applications point into.
+func (l *Loaders) allLabels(ctx context.Context, p *authz.Principal) (labelIndex, error) {
+	return l.labels.load(func() (labelIndex, error) {
+		labels, err := l.svc.ListLabels(ctx, p)
+		if err != nil {
+			return labelIndex{}, err
+		}
+		idx := labelIndex{all: labels, byID: make(map[uuid.UUID]model.Label, len(labels))}
+		for _, lbl := range labels {
+			idx.byID[lbl.ID] = lbl
+		}
+		return idx, nil
+	})
+}
+
 // statesFor reads one team's workflow, once per team per request. A status list is a
 // handful of rows and every issue in the team shares it, so this is the query that turns
 // "one status lookup per issue" into "one per team".
@@ -177,9 +204,12 @@ func (l *Loaders) statesFor(ctx context.Context, p *authz.Principal, teamID uuid
 // above. They are the ones a caller outside a GraphQL operation gets by default; the
 // collections — comments, history, a team's issues — are one query per parent row and are
 // fetched only when a query names them.
+// "label" — the one an application points at — is here for the same reason as "state": it is
+// non-null in the schema, so a value handed back without it is not a sparse answer but an
+// unserialisable one, and it is served from a workspace-wide list like the rest.
 var referenceFields = map[string]bool{
 	"state": true, "team": true, "assignee": true, "creator": true,
-	"states": true, "teams": true, "users": true,
+	"states": true, "teams": true, "users": true, "label": true,
 }
 
 // selection is the part of the query below the field being resolved.
@@ -281,12 +311,23 @@ func (r *Resolver) hydrateIssue(ctx context.Context, p *authz.Principal, sel sel
 func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel selection, issues []model.Issue) ([]generated.Issue, error) {
 	out := make([]generated.Issue, 0, len(issues))
 	for _, i := range issues {
-		out = append(out, toIssue(i))
+		g, err := toIssue(i)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, g)
 	}
 	if len(out) == 0 {
 		return out, nil
 	}
 	l := r.loaders(ctx)
+
+	// The ids of the whole batch, minted once. Every collection below is keyed by them, and
+	// building the slice per collection would be the only per-row cost left in here.
+	ids := make([]uuid.UUID, 0, len(issues))
+	for _, i := range issues {
+		ids = append(ids, i.ID)
+	}
 
 	if sel.has("state") {
 		for k, i := range issues {
@@ -400,17 +441,211 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 		}
 	}
 
+	// Everything below is a collection hanging off an issue, and every one of them is one
+	// query for the whole batch rather than one per row — see internal/domain/issue_details.go
+	// for why the single-issue calls beside them are the wrong shape here. Label chips and
+	// progress bars are drawn on every row of a filtered list, so a per-issue read would be
+	// the N+1 that hurts on the screen people spend their day in; the rest are detail-panel
+	// fields that a list never names and therefore never pays for.
+	//
+	// Each list is filled with an empty slice rather than left nil when a query names it,
+	// because the schema declares all of them non-null and a nil slice marshals to null.
+
+	if sel.has("labels") {
+		applied, err := r.Svc.ListIssueLabelsForIssues(ctx, p, ids)
+		if err != nil {
+			return nil, err
+		}
+		labels, err := l.allLabels(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		for k, i := range issues {
+			rows := applied[i.ID]
+			chips := make([]generated.Label, 0, len(rows))
+			for _, row := range rows {
+				lbl, ok := labels.byID[row.LabelID]
+				if !ok {
+					// An archived label is gone as far as every reader is concerned — see
+					// domain.loadLabel — and the applications outlive it until somebody
+					// removes them. Returning a chip nothing can resolve is worse than
+					// leaving it out.
+					continue
+				}
+				chips = append(chips, toLabel(lbl))
+			}
+			out[k].Labels = chips
+		}
+	}
+
+	if child, ok := sel.child("parent", "Issue"); ok {
+		parentIDs := make([]uuid.UUID, 0, len(issues))
+		seen := make(map[uuid.UUID]struct{}, len(issues))
+		for _, i := range issues {
+			if i.ParentID == nil {
+				continue
+			}
+			if _, dup := seen[*i.ParentID]; dup {
+				continue
+			}
+			seen[*i.ParentID] = struct{}{}
+			parentIDs = append(parentIDs, *i.ParentID)
+		}
+
+		if len(parentIDs) > 0 {
+			parents, err := r.Svc.IssuesByID(ctx, p, parentIDs)
+			if err != nil {
+				return nil, err
+			}
+			// Distinct parents only, and hydrated as one batch of their own, so a hundred
+			// sub-issues of one epic resolve that epic's status and team once between them.
+			flat := make([]model.Issue, 0, len(parents))
+			for _, parentID := range parentIDs {
+				if parent, found := parents[parentID]; found {
+					flat = append(flat, parent)
+				}
+			}
+			hydrated, err := r.hydrateIssues(ctx, p, child, flat)
+			if err != nil {
+				return nil, err
+			}
+			byID := make(map[uuid.UUID]*generated.Issue, len(hydrated))
+			for k := range hydrated {
+				byID[hydrated[k].ID] = &hydrated[k]
+			}
+			for k, i := range issues {
+				if i.ParentID == nil {
+					continue
+				}
+				// A parent in a team the reader cannot see stays null. Cross-team parents
+				// are the normal case, so this is a shape the field has to have anyway —
+				// which is why `parent` is nullable in the schema.
+				out[k].Parent = byID[*i.ParentID]
+			}
+		}
+	}
+
+	// Children and progress come from one read, because progress is a rollup of exactly
+	// these rows. Asking for both is what an issue detail does, and paying twice for it
+	// would make the second one look free right up until a list view asked for it.
+	childSel, wantChildren := sel.child("children", "Issue")
+	wantProgress := sel.has("progress")
+	if wantChildren || wantProgress {
+		subs, err := r.Svc.SubIssuesFor(ctx, p, ids)
+		if err != nil {
+			return nil, err
+		}
+		if wantProgress {
+			for k, i := range issues {
+				out[k].Progress = toIssueProgress(subs[i.ID].Progress)
+			}
+		}
+		if wantChildren {
+			// Every parent's children, flattened into one batch and hydrated together, then
+			// handed back in slices. Hydrating each parent's list on its own would put the
+			// N+1 back one level down: a query naming `children { labels { name } }` would
+			// read the applications once per parent instead of once for the page.
+			//
+			// The slicing works because hydrateIssues preserves order, and the capacity is
+			// clamped so a later append to one parent's list cannot write into the next.
+			flat := make([]model.Issue, 0, len(issues))
+			for _, i := range issues {
+				flat = append(flat, subs[i.ID].Children...)
+			}
+			hydrated, err := r.hydrateIssues(ctx, p, childSel, flat)
+			if err != nil {
+				return nil, err
+			}
+			at := 0
+			for k, i := range issues {
+				n := len(subs[i.ID].Children)
+				out[k].Children = hydrated[at : at+n : at+n]
+				at += n
+			}
+		}
+	}
+
+	if sel.has("relations") {
+		relations, err := r.Svc.ListRelationsForIssues(ctx, p, ids)
+		if err != nil {
+			return nil, err
+		}
+		for k, i := range issues {
+			if out[k].Relations, err = toIssueRelations(relations[i.ID]); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if sel.has("blockedBy") {
+		blockers, err := r.Svc.ListBlockersForIssues(ctx, p, ids)
+		if err != nil {
+			return nil, err
+		}
+		for k, i := range issues {
+			if out[k].BlockedBy, err = toIssueRelations(blockers[i.ID]); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if sel.has("subscribers") {
+		subscribers, err := r.Svc.ListSubscribersForIssues(ctx, p, ids)
+		if err != nil {
+			return nil, err
+		}
+		for k, i := range issues {
+			if out[k].Subscribers, err = toIssueSubscriptions(subscribers[i.ID]); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return out, nil
 }
 
-// hydrateTeam fills a team's statuses and, when asked, its issues.
+// hydrateIssueLabel fills in the label an application points at.
+//
+// The schema declares it `label: Label!`, so leaving it nil is not a null field — it is a
+// failed query: gqlgen refuses to marshal null into a non-null position and the whole
+// mutation comes back as an error, after the write has already landed. The label comes from
+// the same memoised workspace list every other label read uses, so this costs nothing beyond
+// the first one.
+func (r *Resolver) hydrateIssueLabel(
+	ctx context.Context, p *authz.Principal, sel selection, applied model.IssueLabel,
+) (generated.IssueLabel, error) {
+	out := toIssueLabel(applied)
+	if !sel.has("label") {
+		return out, nil
+	}
+
+	labels, err := r.loaders(ctx).allLabels(ctx, p)
+	if err != nil {
+		return generated.IssueLabel{}, err
+	}
+	lbl, ok := labels.byID[applied.LabelID]
+	if !ok {
+		// The application was written a moment ago against a label the same principal had to
+		// be able to see, so a miss is a broken invariant rather than a permission answer.
+		return generated.IssueLabel{}, platform.Internal(
+			fmt.Errorf("issue label %s points at label %s, which the reader cannot see", applied.ID, applied.LabelID))
+	}
+	g := toLabel(lbl)
+	out.Label = &g
+	return out, nil
+}
+
+// hydrateTeam fills a team's statuses and, when asked, its issues, labels and templates.
 //
 // Team.members is not filled. The domain layer exposes no membership listing and a
 // resolver may not go around it to the database; membership rows reach a client on the
 // bootstrap snapshot and then on the change stream, which is where a local-first client
 // reads them from in any case.
 func (r *Resolver) hydrateTeam(ctx context.Context, p *authz.Principal, sel selection, team model.Team) (generated.Team, error) {
-	out := toTeam(team)
+	out, err := toTeam(team)
+	if err != nil {
+		return generated.Team{}, err
+	}
 
 	if sel.has("states") {
 		states, err := r.loaders(ctx).statesFor(ctx, p, team.ID)
@@ -430,6 +665,33 @@ func (r *Resolver) hydrateTeam(ctx context.Context, p *authz.Principal, sel sele
 		if out.Issues, err = r.hydrateIssues(ctx, p, child, issues); err != nil {
 			return generated.Team{}, err
 		}
+	}
+
+	// The team's label picker: the workspace's labels, which every team is offered, plus its
+	// own. Filtered from the one workspace-wide read rather than queried per team, so a
+	// viewer query that walks every team still pays for the vocabulary once.
+	if sel.has("labels") {
+		labels, err := r.loaders(ctx).allLabels(ctx, p)
+		if err != nil {
+			return generated.Team{}, err
+		}
+		offered := make([]model.Label, 0, len(labels.all))
+		for _, lbl := range labels.all {
+			if lbl.TeamID == nil || *lbl.TeamID == team.ID {
+				offered = append(offered, lbl)
+			}
+		}
+		out.Labels = toLabels(offered)
+	}
+
+	// Templates are one read per team and are named only by a create dialog, which opens for
+	// one team at a time. Not worth the workspace-wide index the labels get.
+	if sel.has("templates") {
+		templates, err := r.Svc.ListIssueTemplates(ctx, p, &team.ID)
+		if err != nil {
+			return generated.Team{}, err
+		}
+		out.Templates = toIssueTemplates(templates)
 	}
 
 	return out, nil

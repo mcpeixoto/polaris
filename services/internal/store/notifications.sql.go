@@ -493,6 +493,64 @@ func (q *Queries) ListIssueSubscribers(ctx context.Context, issueID uuid.UUID) (
 	return items, nil
 }
 
+const listIssueSubscriptionsForIssues = `-- name: ListIssueSubscriptionsForIssues :many
+SELECT s.id, s.workspace_id, s.issue_id, s.user_id, s.reason, s.unsubscribed,
+       s.created_at, s.updated_at
+FROM issue_subscription s
+JOIN issue i ON i.id = s.issue_id
+WHERE s.issue_id = ANY($1::uuid[])
+  AND s.workspace_id = $2
+  AND i.team_id = ANY($3::uuid[])
+ORDER BY s.issue_id, s.created_at
+`
+
+type ListIssueSubscriptionsForIssuesParams struct {
+	IssueIds    []uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamIds     []uuid.UUID
+}
+
+// ListIssueSubscriptionsForIssues is the watcher list the issue panel renders, for a whole
+// page of issues at once.
+//
+// Unsubscribed rows are returned, unlike ListIssueSubscribers above, and the difference is
+// the caller: the fan-out wants people who still want to hear, while a reader wants to know
+// whether *they* are watching — and an explicit unsubscribe is a row, not an absence, so
+// dropping it would render the toggle as "not subscribed yet" and re-subscribe them on the
+// next comment.
+//
+// The join is what enforces visibility: issue_subscription carries no team_id of its own,
+// and without it naming an id would reveal who watches an issue in a team the caller is not
+// in.
+func (q *Queries) ListIssueSubscriptionsForIssues(ctx context.Context, arg ListIssueSubscriptionsForIssuesParams) ([]IssueSubscription, error) {
+	rows, err := q.db.Query(ctx, listIssueSubscriptionsForIssues, arg.IssueIds, arg.WorkspaceID, arg.TeamIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueSubscription{}
+	for rows.Next() {
+		var i IssueSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.UserID,
+			&i.Reason,
+			&i.Unsubscribed,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listIssueSubscriptionsForUser = `-- name: ListIssueSubscriptionsForUser :many
 SELECT id, workspace_id, issue_id, user_id, reason, unsubscribed, created_at, updated_at
 FROM issue_subscription

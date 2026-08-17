@@ -290,47 +290,7 @@ func (s *Service) AddIssueLabel(
 			return err
 		}
 
-		lbl, err := s.loadLabel(ctx, q, p, labelID)
-		if err != nil {
-			// The label is an input to this call, not the thing being addressed, so it
-			// reads as a bad field rather than a missing resource.
-			if platform.CodeOf(err) == platform.CodeNotFound {
-				return platform.Validation("labelId", "no such label")
-			}
-			return err
-		}
-
-		id, err := uuid.NewV7()
-		if err != nil {
-			return platform.Internal(err)
-		}
-		row, err := q.AddIssueLabel(ctx, store.AddIssueLabelParams{
-			ID:          id,
-			WorkspaceID: p.WorkspaceID,
-			IssueID:     issueID,
-			LabelID:     labelID,
-			CreatedBy:   &p.UserID,
-		})
-		if err != nil {
-			return explainApplyFailure(err, issueID, issue.TeamID, lbl)
-		}
-		out = toIssueLabel(row)
-
-		// Scoped to the issue's team, never the label's: a workspace label applied to a
-		// private team's issue must not be visible to people outside that team, and the
-		// scope on the change row is the only thing the hub consults.
-		//
-		// Deliberately no issue_history entry. History folds consecutive same-kind edits by
-		// one actor into a single row by moving its to-value forward, which is right for a
-		// scalar field and wrong for a set: adding two labels a minute apart would leave a
-		// feed claiming only the second happened. The application is already its own entity
-		// on the change stream; the feed gains a label kind when it gains a rendering that
-		// can express one added and one removed.
-		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
-			EntityType: "issueLabel", EntityID: out.ID, Op: OpUpsert,
-			TeamID: &issue.TeamID, Scope: authz.TeamScope(issue.TeamID, team.Private),
-			Payload: out,
-		})
+		out, version, err = s.applyIssueLabel(ctx, q, p, issue.ID, issue.TeamID, team.Private, labelID)
 		return err
 	})
 	if err != nil {
@@ -338,6 +298,68 @@ func (s *Service) AddIssueLabel(
 		if errors.As(err, &conflict) {
 			return model.IssueLabel{}, 0, s.explainGroupConflict(ctx, conflict)
 		}
+		return model.IssueLabel{}, 0, err
+	}
+	return out, version, nil
+}
+
+// applyIssueLabel is the write half of AddIssueLabel, inside a transaction its caller owns
+// and after that caller has established the issue and its team.
+//
+// It is separate so that creating an issue with labels can apply them in the same
+// transaction that inserts the issue. Doing it as a second call afterwards would mean a
+// window in which the issue exists without the labels it was created with — visible to
+// anybody watching the change stream, and permanent if the second call fails.
+//
+// It returns errLabelGroupConflict unwrapped, exactly as the statement raised it: the
+// conflict cannot be explained until the transaction has rolled back, so naming the label
+// already in the way is the caller's job, after InTx returns. Both callers do it.
+func (s *Service) applyIssueLabel(
+	ctx context.Context, q *store.Queries, p *authz.Principal,
+	issueID, issueTeamID uuid.UUID, teamPrivate bool, labelID uuid.UUID,
+) (model.IssueLabel, int64, error) {
+	lbl, err := s.loadLabel(ctx, q, p, labelID)
+	if err != nil {
+		// The label is an input to this call, not the thing being addressed, so it
+		// reads as a bad field rather than a missing resource.
+		if platform.CodeOf(err) == platform.CodeNotFound {
+			return model.IssueLabel{}, 0, platform.Validation("labelId", "no such label")
+		}
+		return model.IssueLabel{}, 0, err
+	}
+
+	id, err := uuid.NewV7()
+	if err != nil {
+		return model.IssueLabel{}, 0, platform.Internal(err)
+	}
+	row, err := q.AddIssueLabel(ctx, store.AddIssueLabelParams{
+		ID:          id,
+		WorkspaceID: p.WorkspaceID,
+		IssueID:     issueID,
+		LabelID:     labelID,
+		CreatedBy:   &p.UserID,
+	})
+	if err != nil {
+		return model.IssueLabel{}, 0, explainApplyFailure(err, issueID, issueTeamID, lbl)
+	}
+	out := toIssueLabel(row)
+
+	// Scoped to the issue's team, never the label's: a workspace label applied to a
+	// private team's issue must not be visible to people outside that team, and the
+	// scope on the change row is the only thing the hub consults.
+	//
+	// Deliberately no issue_history entry. History folds consecutive same-kind edits by
+	// one actor into a single row by moving its to-value forward, which is right for a
+	// scalar field and wrong for a set: adding two labels a minute apart would leave a
+	// feed claiming only the second happened. The application is already its own entity
+	// on the change stream; the feed gains a label kind when it gains a rendering that
+	// can express one added and one removed.
+	version, err := s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+		EntityType: "issueLabel", EntityID: out.ID, Op: OpUpsert,
+		TeamID: &issueTeamID, Scope: authz.TeamScope(issueTeamID, teamPrivate),
+		Payload: out,
+	})
+	if err != nil {
 		return model.IssueLabel{}, 0, err
 	}
 	return out, version, nil

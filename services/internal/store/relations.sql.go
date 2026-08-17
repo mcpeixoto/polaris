@@ -167,6 +167,60 @@ func (q *Queries) ListIssueRelations(ctx context.Context, issueID uuid.UUID) ([]
 	return items, nil
 }
 
+const listIssueRelationsForIssues = `-- name: ListIssueRelationsForIssues :many
+SELECT id, workspace_id, issue_id, related_issue_id, type, team_id, related_team_id,
+       created_by, created_at
+FROM issue_relation
+WHERE issue_id = ANY($1::uuid[])
+  AND workspace_id = $2
+  AND (team_id = ANY($3::uuid[])
+       OR related_team_id = ANY($3::uuid[]))
+ORDER BY issue_id, created_at
+`
+
+type ListIssueRelationsForIssuesParams struct {
+	IssueIds    []uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamIds     []uuid.UUID
+}
+
+// The two listings above, for a whole page of issues at once. Both are here for the same
+// reason ListIssueLabelsForIssues is: the API hydrates a list of issues in one pass, and a
+// per-issue query there is a query per visible row.
+//
+// Visibility is "a member of either team", the same rule relationScope writes onto the
+// change row, because a link is a fact about two issues and hiding it from one side would
+// leave the two teams disagreeing about whether it exists.
+func (q *Queries) ListIssueRelationsForIssues(ctx context.Context, arg ListIssueRelationsForIssuesParams) ([]IssueRelation, error) {
+	rows, err := q.db.Query(ctx, listIssueRelationsForIssues, arg.IssueIds, arg.WorkspaceID, arg.TeamIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueRelation{}
+	for rows.Next() {
+		var i IssueRelation
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.RelatedIssueID,
+			&i.Type,
+			&i.TeamID,
+			&i.RelatedTeamID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReverseIssueRelations = `-- name: ListReverseIssueRelations :many
 SELECT id, workspace_id, issue_id, related_issue_id, type, team_id, related_team_id,
        created_by, created_at
@@ -180,6 +234,53 @@ ORDER BY created_at
 // is why issue_relation carries an index on each side.
 func (q *Queries) ListReverseIssueRelations(ctx context.Context, relatedIssueID uuid.UUID) ([]IssueRelation, error) {
 	rows, err := q.db.Query(ctx, listReverseIssueRelations, relatedIssueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueRelation{}
+	for rows.Next() {
+		var i IssueRelation
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.RelatedIssueID,
+			&i.Type,
+			&i.TeamID,
+			&i.RelatedTeamID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReverseIssueRelationsForIssues = `-- name: ListReverseIssueRelationsForIssues :many
+SELECT id, workspace_id, issue_id, related_issue_id, type, team_id, related_team_id,
+       created_by, created_at
+FROM issue_relation
+WHERE related_issue_id = ANY($1::uuid[])
+  AND workspace_id = $2
+  AND (team_id = ANY($3::uuid[])
+       OR related_team_id = ANY($3::uuid[]))
+ORDER BY related_issue_id, created_at
+`
+
+type ListReverseIssueRelationsForIssuesParams struct {
+	IssueIds    []uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamIds     []uuid.UUID
+}
+
+func (q *Queries) ListReverseIssueRelationsForIssues(ctx context.Context, arg ListReverseIssueRelationsForIssuesParams) ([]IssueRelation, error) {
+	rows, err := q.db.Query(ctx, listReverseIssueRelationsForIssues, arg.IssueIds, arg.WorkspaceID, arg.TeamIds)
 	if err != nil {
 		return nil, err
 	}
