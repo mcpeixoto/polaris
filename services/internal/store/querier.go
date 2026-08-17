@@ -181,6 +181,18 @@ type Querier interface {
 	// deleted issue does not inflate it.
 	//
 	CountIssuesWithLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
+	// CountTeamsInWorkspace is the number a plan's team limit is measured against.
+	//
+	// Archived teams do not count, mirroring the seat rule in CountWorkspaceSeats: suspending
+	// somebody is how an admin frees a seat, and archiving a team is how they free a team slot.
+	// Without that there is no way back under a limit except deleting work.
+	//
+	// Retired teams DO count. A retired team is closed to new issues and still holds its old
+	// ones, still appears in search and still resolves its identifiers — it is present, so it
+	// occupies a slot, and a limit that ignored it would let a workspace on a two-team plan
+	// accumulate an unbounded number of readable teams.
+	//
+	CountTeamsInWorkspace(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	// CountUnreadNotifications is the badge, read on every page load. It must stay on
 	// notification_unread_idx, which is why its predicate is that index's predicate verbatim.
 	//

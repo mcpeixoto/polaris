@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/peixotolabs/polaris/services/internal/authz"
+	"github.com/peixotolabs/polaris/services/internal/entitlement"
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
 
@@ -73,8 +74,18 @@ func NewFixture(t *testing.T, db *store.DB) *Fixture {
 			Name: "Acme",
 			// Whole id, for the same reason as the account email above: the first eight
 			// characters of a UUIDv7 are a timestamp that barely moves.
-			UrlKey:   "acme-" + f.WorkspaceID.String(),
-			Plan:     "free",
+			UrlKey: "acme-" + f.WorkspaceID.String(),
+			// Self-hosted, which is what CreateWorkspace gives a caller with no opinion
+			// and what this repository's product actually is.
+			//
+			// It was "free" — the cloud's starter tier — which put every test that uses this
+			// fixture under a five-seat, two-team cap. That was invisible while nothing
+			// enforced entitlements and became a failure the moment something did: a test
+			// about GraphQL field resolution refused to create its third team, citing a
+			// paywall. A fixture must not carry a policy the code under test is not about;
+			// the tests that ARE about the caps build their own workspace through
+			// CreateWorkspace and name the plan.
+			Plan:     string(entitlement.PlanSelfHosted),
 			Settings: json.RawMessage(`{}`),
 		}); err != nil {
 			return fmt.Errorf("workspace: %w", err)
@@ -153,6 +164,24 @@ func NewFixture(t *testing.T, db *store.DB) *Fixture {
 		t.Fatalf("build fixture: %v", err)
 	}
 	return f
+}
+
+// SetPlan moves the fixture's workspace onto another entitlement plan.
+//
+// A helper rather than an argument to NewFixture, because the plan matters to a handful of
+// tests and to none of the rest: a fixture that asked every caller which tier they wanted
+// would make a policy decision visible in a hundred tests that are not about policy.
+//
+// Written straight to the column, which is exactly what the billing job does — there is no
+// domain method for changing a workspace's plan and there should not be one, since the plan
+// is a fact about a subscription rather than something a request may set.
+func (f *Fixture) SetPlan(t *testing.T, plan entitlement.Plan) {
+	t.Helper()
+	if _, err := f.DB.Pool().Exec(context.Background(),
+		`UPDATE workspace SET plan = $2 WHERE id = $1`, f.WorkspaceID, string(plan),
+	); err != nil {
+		t.Fatalf("set plan %q: %v", plan, err)
+	}
 }
 
 // Principal returns the fixture's owner, as the domain layer expects to receive one.

@@ -524,6 +524,27 @@ func (s *Service) InviteToWorkspace(ctx context.Context, p *authz.Principal, in 
 
 	var out CreatedInvite
 	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		// Refused here as well as on acceptance, and the duplication is the point.
+		//
+		// The limit is spent when the invitation is redeemed (see applyInvite), so that is
+		// where it must be enforced. But an admin who sends an invitation that cannot be
+		// accepted learns about the cap through their new colleague, from an email link that
+		// fails — which is both the worst moment and the wrong person. This is the same
+		// question asked at the moment somebody can still do something about it.
+		//
+		// Deliberately not counting pending invitations against the limit: an invitation is
+		// not a seat, most of a batch is usually accepted, and reserving capacity for links
+		// that may never be clicked would make a workspace full while nobody is using it.
+		// The consequence is that a batch sent into one free seat is admitted and only the
+		// first acceptance succeeds, which is the honest ordering.
+		ent, err := entitlementSetFor(ctx, q, p.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		if err := ent.CanAddSeat(); err != nil {
+			return err
+		}
+
 		// Re-inviting replaces rather than accumulates, matching the partial unique index.
 		if err := q.RevokePendingInvitesForEmail(ctx, store.RevokePendingInvitesForEmailParams{
 			WorkspaceID: p.WorkspaceID, Email: email,
@@ -632,6 +653,28 @@ func (s *Service) applyInvite(
 		return toUser(existing), nil
 	} else if !store.IsNotFound(err) {
 		return model.User{}, platform.Internal(err)
+	}
+
+	// A seat is consumed here and only here, so this is where the plan's limit is enforced.
+	//
+	// Below the idempotent branch above, deliberately: somebody who already has a membership
+	// and clicks the link twice occupies the seat they are already occupying, and refusing
+	// them because the workspace is now full would break a link that had already worked.
+	//
+	// Inside the caller's transaction, so the count cannot go stale between reading it and
+	// writing the row — two invitations redeemed at the same moment against the last seat
+	// would otherwise both read "one free" and both be admitted.
+	//
+	// InviteToWorkspace checks the same thing when the invitation is sent, which is the
+	// friendlier moment to hear it. That check cannot replace this one: a seat can be taken
+	// in the days between sending and accepting, and the acceptance is where the limit is
+	// actually spent.
+	ent, err := entitlementSetFor(ctx, q, inv.WorkspaceID)
+	if err != nil {
+		return model.User{}, err
+	}
+	if err := ent.CanAddSeat(); err != nil {
+		return model.User{}, err
 	}
 
 	if displayName == "" {

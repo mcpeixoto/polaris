@@ -372,6 +372,11 @@ func TestEntitlements_CountsSeatsAsActiveHumansOnly(t *testing.T) {
 			set.SeatsUsed())
 	}
 
+	// Named, not inherited. The fixture is self-hosted — unlimited, which is what this
+	// repository's product is — and the matrix assertion below is about the cloud's starter
+	// tier, so this test has to say which one it means.
+	f.SetPlan(t, entitlement.PlanFree)
+
 	features, err := svc.Entitlements(ctx, f.Principal())
 	if err != nil {
 		t.Fatalf("entitlements: %v", err)
