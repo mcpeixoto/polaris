@@ -6,11 +6,14 @@
  * than implied by the presence of a list, because somebody arriving on this screen is usually
  * arriving in a mild panic and a list of rows does not tell them how long they have.
  *
- * It is the only screen in the client that loads. Everything else renders from the local
- * replica, so it is either instantaneous or it is empty; a deleted issue is precisely what the
- * replica threw away, so this one has to ask the server, and therefore has a real loading
- * state, a real failure and a retry. See features/trash/mutations for why that is not an
- * oversight in the sync design but a consequence of it.
+ * It is one of the few screens in the client that loads — API keys and the invite list are
+ * the others, and the three have the same shape for the same reason. Everything else renders
+ * from the local replica, so it is either instantaneous or it is empty. What these three want
+ * is precisely what the replica does not hold: a deleted issue is what it threw away, a key's
+ * secret is shown once and never stored, and an invite belongs to no workspace member yet. So
+ * they ask the server, and therefore have a real loading state, a real failure and a retry.
+ * See features/trash/mutations for why that is not an oversight in the sync design but a
+ * consequence of it.
  *
  * What it cannot say, and does not pretend to: *when* an issue was deleted, and by whom. The
  * `Issue` type carries no `deletedAt` and the database has no `deleted_by` column at all, so
