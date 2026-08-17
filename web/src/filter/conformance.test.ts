@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 import type { Issue, StateCategory, Timestamp, UUID, WorkflowState } from '~/store/types';
 
 import { filterIssues, type FilterContext } from './evaluate';
+import { RELATIVE_KEYWORDS, resolveRelative } from './relative';
 import { FILTER_FIELDS, isFilterField } from './types';
 import { FilterError, validateFilter } from './validate';
 
@@ -76,6 +77,8 @@ interface FixtureSubscription {
 interface Fixture {
   readonly evaluatedAt: Timestamp;
   readonly timezone: string;
+  /** Token to the exact UTC instant it resolves to at `evaluatedAt`. `$comment` is lines. */
+  readonly relativeTokens: Readonly<Record<string, string | readonly string[]>>;
   readonly workspace: { readonly id: UUID };
   readonly teams: readonly FixtureTeam[];
   readonly workflowStates: readonly FixtureState[];
@@ -273,6 +276,47 @@ describe('filter conformance errors', () => {
       // The fixture pins a fragment of the message so the two implementations cannot drift
       // into rejecting the same input for different stated reasons.
       expect((thrown as FilterError).message).toContain(testCase.message);
+    });
+  }
+});
+
+/**
+ * Every relative token, resolved, against the instants recorded in the fixture.
+ *
+ * The cases above already compare id sets, and this asks a stricter question of a smaller
+ * thing: not "do the two evaluators select the same issues" but "do they resolve the same
+ * token to the same instant". The fixture holds seven issues, and with seven issues a great
+ * many wrong instants still select the right rows — a resolver that ignored the workspace
+ * timezone would pass every date case above, because nothing in the fixture was created
+ * within an hour of midnight.
+ *
+ * It also reaches what the case list structurally cannot. A case using a token only one side
+ * accepts fails on the side that rejects it, so nobody writes one, so exactly the divergence
+ * this file exists to prevent is the one it cannot see. Five tokens sat in that blind spot:
+ * this evaluator shipped `now`, `yesterday`, `tomorrow`, `startOfMonth` and `startOfYear`,
+ * and the server's `parseRelative` refused all five — so the filter bar built filters that
+ * worked here and that `CreateView` then declined to save.
+ *
+ * services/internal/filter/relative_conformance_test.go reads the same table.
+ */
+describe('relative tokens resolve to the instants the fixture records', () => {
+  const recorded = Object.entries(fixture.relativeTokens).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string',
+  );
+
+  it('covers every keyword this evaluator accepts', () => {
+    // Otherwise a token can be added to both implementations and pinned by neither, which
+    // is the state that produced the divergence in the first place.
+    const pinned = new Set(recorded.map(([token]) => token));
+    for (const keyword of RELATIVE_KEYWORDS) {
+      expect(pinned.has(keyword), `no instant recorded for "${keyword}"`).toBe(true);
+    }
+  });
+
+  for (const [token, expected] of recorded) {
+    it(`${token} resolves to ${expected}`, () => {
+      const { instant } = resolveRelative(token, context.time);
+      expect(new Date(instant).toISOString()).toBe(new Date(expected).toISOString());
     });
   }
 });

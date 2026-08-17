@@ -499,6 +499,13 @@ func parseValue(field Field, kind valueKind, raw string) (any, error) {
 
 	case kindDate:
 		if rel, ok := parseRelative(raw); ok {
+			// `now` names an instant and a DATE column holds no instants. The client
+			// resolves every token to both an instant and a calendar day, and a date field
+			// reads the day — so `now` against a due date means today there. Left as an
+			// instant here it would compare a DATE against the middle of the afternoon,
+			// which Postgres widens to midnight, and `dueDate eq now` would match nothing
+			// for all but the first second of every day.
+			rel.clock = false
 			return temporal{relative: rel, isRelative: true}, nil
 		}
 		t, err := time.Parse(dateLayout, raw)
@@ -540,26 +547,67 @@ type temporal struct {
 
 // relative is a resolved-later date: a base day, then an offset.
 type relative struct {
-	// weekStart anchors to Monday of the current week rather than to today.
-	weekStart bool
+	// anchor is the day the offset is measured from — today, or the first day of the week,
+	// month or year containing it.
+	//
+	// An enum rather than the three booleans it replaced, because the three are mutually
+	// exclusive and a struct that can express "start of the week and also of the year" is a
+	// struct somebody eventually constructs.
+	anchor anchor
+
+	// clock makes this the current instant rather than the start of a day. Only `now` sets
+	// it. Every other token in the grammar names a day, deliberately — see the comment on
+	// RELATIVE_KEYWORDS in web/src/filter/relative.ts for why a token whose meaning each
+	// side picks for itself is not allowed in here.
+	clock bool
 
 	days   int
 	months int
 	years  int
 }
 
-// parseRelative reads the relative token forms the grammar defines: "today",
-// "startOfWeek", and a signed count of days, weeks, months or years.
+// anchor is the day a relative token measures from.
+type anchor uint8
+
+const (
+	anchorToday anchor = iota
+	anchorWeekStart
+	anchorMonthStart
+	anchorYearStart
+)
+
+// parseRelative reads the relative token forms the grammar defines: the seven keywords in
+// RELATIVE_KEYWORDS, and a signed count of days, weeks, months or years.
 //
-// Only these. A token this side understands and the client does not is a filter that
-// returns different issues depending on where it was evaluated, which is the failure the
-// single grammar exists to prevent — so the set grows in the spec first, not here.
+// Only these, and only in step with the client. A token one side understands and the other
+// does not is a filter that returns different issues depending on where it was evaluated,
+// which is the failure the single grammar exists to prevent — so the set grows in the spec
+// first, not here. It grew here second: the client shipped `now`, `yesterday`, `tomorrow`,
+// `startOfMonth` and `startOfYear` and this function refused all five, so the filter bar
+// could build a filter that worked against the replica and that `CreateView` then declined
+// to save. TestRelativeTokens_TheClientEmitsTokensTheServerRefuses reads both sides and
+// fails in either direction, which is what makes the rule above enforceable rather than
+// merely stated.
+//
+// `yesterday` and `tomorrow` are exact synonyms of `-1d` and `+1d`. They are here because
+// the client offers them by name and the two implementations have to accept the same
+// alphabet, not because they add anything the offsets could not say.
 func parseRelative(s string) (relative, bool) {
 	switch s {
+	case "now":
+		return relative{clock: true}, true
 	case "today":
 		return relative{}, true
+	case "yesterday":
+		return relative{days: -1}, true
+	case "tomorrow":
+		return relative{days: 1}, true
 	case "startOfWeek":
-		return relative{weekStart: true}, true
+		return relative{anchor: anchorWeekStart}, true
+	case "startOfMonth":
+		return relative{anchor: anchorMonthStart}, true
+	case "startOfYear":
+		return relative{anchor: anchorYearStart}, true
 	}
 
 	// [+-] digits unit, so at minimum three characters.
@@ -603,12 +651,25 @@ func parseRelative(s string) (relative, bool) {
 // earlier in the day ten days ago and the boundary would move as the day went on.
 func (r relative) resolve(now time.Time, loc *time.Location) time.Time {
 	local := now.In(loc)
+
+	// `now` is the one token that is not a day, so it is the one token that does not snap.
+	// It carries no offset either — the grammar has no `now - 3d`, because that is `-3d`.
+	if r.clock {
+		return local
+	}
+
 	day := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
-	if r.weekStart {
+	switch r.anchor {
+	case anchorWeekStart:
 		// Monday. Go numbers Sunday as 0, so Sunday is six days into the week here and
 		// not the start of it — the week starts on Monday for a European product, and
 		// getting this wrong moves every "this week" view by a day for one seventh of it.
 		day = day.AddDate(0, 0, -((int(day.Weekday()) + 6) % 7))
+	case anchorMonthStart:
+		day = time.Date(local.Year(), local.Month(), 1, 0, 0, 0, 0, loc)
+	case anchorYearStart:
+		day = time.Date(local.Year(), 1, 1, 0, 0, 0, 0, loc)
+	case anchorToday:
 	}
 	return day.AddDate(r.years, r.months, r.days)
 }

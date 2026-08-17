@@ -25,6 +25,48 @@
   "evaluatedAt": "2026-08-15T12:00:00Z",
   "timezone": "Europe/Lisbon",
 
+  "relativeTokens": {
+    "$comment": [
+      "Every relative token, and the exact instant it resolves to at the evaluatedAt above",
+      "in the timezone above. Both suites resolve each token through their own real code",
+      "path and compare against these strings.",
+      "",
+      "This table exists because the case list above structurally cannot catch a token that",
+      "only one evaluator has heard of: a case using such a token fails on the side that",
+      "rejects it, so nobody writes one, so the divergence is invisible to exactly the",
+      "mechanism built to prevent it. That is not hypothetical — the client shipped `now`,",
+      "`yesterday`, `tomorrow`, `startOfMonth` and `startOfYear`, the server refused all",
+      "five, and a filter the bar built could be used and then not saved.",
+      "",
+      "It also pins something the id sets cannot: agreeing on WHICH ISSUES match is weaker",
+      "than agreeing on WHICH INSTANT, because with seven issues a great many wrong instants",
+      "select the right rows. Every value here is a UTC instant, so the timezone arithmetic",
+      "is part of what is being compared and not part of the comparison.",
+      "",
+      "2026-08-15 is a Saturday. Lisbon is UTC+1 in August and UTC+0 in January, which is",
+      "why startOfYear is the only midnight here that is also midnight in UTC — and why a",
+      "resolver that treated the offset as constant would fail on that line alone.",
+      "",
+      "Everything except `now` is the START of a day. `now` is the clock itself: it is the",
+      "one token that names an instant rather than a day, which is what makes `dueDate <",
+      "now` mean overdue."
+    ],
+
+    "now":          "2026-08-15T12:00:00Z",
+    "today":        "2026-08-14T23:00:00Z",
+    "yesterday":    "2026-08-13T23:00:00Z",
+    "tomorrow":     "2026-08-15T23:00:00Z",
+    "startOfWeek":  "2026-08-09T23:00:00Z",
+    "startOfMonth": "2026-07-31T23:00:00Z",
+    "startOfYear":  "2026-01-01T00:00:00Z",
+
+    "-7d": "2026-08-07T23:00:00Z",
+    "+3d": "2026-08-17T23:00:00Z",
+    "+2w": "2026-08-28T23:00:00Z",
+    "-1M": "2026-07-14T23:00:00Z",
+    "-1y": "2025-08-14T23:00:00Z"
+  },
+
   "workspace": {
     "id": "01900000-0000-7000-8000-000000000001",
     "name": "Conformance",

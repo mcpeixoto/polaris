@@ -83,7 +83,41 @@ An operator that does not apply to the field's type is a hard error, for the sam
 ### Relative dates
 
 `createdAt`, `updatedAt`, `completedAt` and `dueDate` accept a relative token instead of a
-literal: `-7d`, `-1M`, `+3d`, `today`, `startOfWeek`.
+literal. There are seven keywords —
+
+| Token | Means |
+|---|---|
+| `now` | the current instant |
+| `today` | the start of today |
+| `yesterday` | the start of yesterday, exactly `-1d` |
+| `tomorrow` | the start of tomorrow, exactly `+1d` |
+| `startOfWeek` | the start of Monday of this week |
+| `startOfMonth` | the start of the 1st of this month |
+| `startOfYear` | the start of 1 January this year |
+
+— and an offset form, `[+-]<count><unit>` where the unit is `d`, `w`, `M` or `y`: `-7d`,
+`+2w`, `-1M`, `+3d`, `-1y`. The sign is required, because `7d` reads as both "seven days
+ago" and "in seven days" depending on who is reading it. `M` is months and is
+case-sensitive, leaving `m` free for minutes if a timestamp filter ever wants them.
+
+`now` is the only token that is not the start of a day, which is what makes `dueDate lt now`
+mean overdue. On a date field it means today, because a `DATE` column holds no instants.
+
+`endOfWeek` is deliberately absent: it has two defensible readings — the last day, or the
+exclusive bound after it — and a grammar shared by two implementations cannot afford a token
+whose meaning each side picks for itself.
+
+**The set of tokens is part of the contract, not an implementation detail.** A token one
+evaluator understands and the other does not is a filter that returns different issues
+depending on where it was evaluated, and the symptom is not an error: the filter bar builds
+it, the screen answers it correctly from the replica, and then saving the view fails. That
+happened — the client shipped five of the seven above before the server had any of them.
+
+So the set grows here first, then in both implementations, then in
+`schema/filter-conformance.json`, which records the exact instant every token resolves to at
+a fixed clock. Both suites read that table. It exists separately from the case list because
+the case list structurally cannot catch this class of divergence: a case using a token only
+one side accepts fails on the side that rejects it, so nobody writes one.
 
 These are resolved **at evaluation time, in the workspace's timezone**, not at save time.
 A view called "Updated this week" that quietly means "the week of 4 March" because that is

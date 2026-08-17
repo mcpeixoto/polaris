@@ -25,25 +25,24 @@ import (
 // side that rejects it, so nobody adds it, so the divergence is invisible to exactly the
 // mechanism built to prevent it.
 //
-// That is not hypothetical here. `web/src/filter/relative.ts` exports seven relative
-// keywords; `parseRelative` in filter.go accepts two of them plus the signed offsets. The
-// server's own comment on that function states the rule the client has broken:
+// That was not hypothetical. `web/src/filter/relative.ts` exports seven relative keywords
+// and `parseRelative` in filter.go accepted two of them plus the signed offsets. The
+// server's own comment on that function stated the rule the client had broken:
 //
 //	Only these. A token this side understands and the client does not is a filter that
 //	returns different issues depending on where it was evaluated, which is the failure the
 //	single grammar exists to prevent — so the set grows in the spec first, not here.
 //
-// docs/03-architecture/06-filter-grammar.md lists `today` and `startOfWeek`, so the spec
-// agrees with the server and the client is the side that grew without it. The user-visible
-// consequence is that the filter bar builds a filter that works in the UI — the client
-// evaluates it against the replica quite happily — and then `CreateView` refuses to save
-// it, because `validateViewFilter` runs the token through this parser.
+// The user-visible consequence was that the filter bar built a filter that worked in the UI
+// — the client evaluates it against the replica quite happily — and then `CreateView`
+// refused to save it, because `validateViewFilter` runs the token through this parser.
 //
-// THIS TEST DOCUMENTS A DEFECT. It asserts the divergence exactly as it stands today rather
-// than asserting the parity the criterion claims, so that the gap is a fact in the test
-// output instead of something a reader has to reconstruct from two files. Asserting the set
-// exactly is what makes it useful: it fails when either side changes, in both directions,
-// so reconciling the grammar cannot happen silently and neither can widening the gap.
+// The server has since been taught all seven, so this test now asserts the parity rather
+// than the gap. It is kept, and kept strict in BOTH directions: a token added to either
+// side alone fails here, which is the only mechanism that can enforce the rule the comment
+// above states. `serverRejects` is deliberately empty and deliberately still present — an
+// entry in it is how a future divergence gets recorded on purpose, with a reason, rather
+// than by a test being deleted.
 
 // relativeFields are the fields whose values may be relative tokens. One is enough to
 // exercise the parser; all four are used so that a field-specific acceptance rule cannot
@@ -55,20 +54,16 @@ var relativeFields = []filter.Field{
 	filter.FieldCompletedAt,
 }
 
-// serverRejects is the divergence as it stands: tokens the client will emit and the server
-// will refuse.
+// serverRejects is the divergence, if any: tokens the client will emit and the server will
+// refuse.
 //
-// When this is empty the grammars agree and this test should be deleted along with the
-// entry that made it necessary.
-var serverRejects = map[string]string{
-	"now":          "an instant rather than a day; the server's relative type has no equivalent",
-	"yesterday":    "expressible as -1d, which is what the server accepts",
-	"tomorrow":     "expressible as +1d",
-	"startOfMonth": "the server's relative type carries no month-start flag",
-	"startOfYear":  "the server's relative type carries no year-start flag",
-}
+// Empty, and that is the passing state. It is not a list to be added to lightly — every
+// entry is a filter that means one thing in the UI and another in a saved view — but a
+// deliberate, reasoned entry is far better than the alternative this file was written to
+// catch, which is the same divergence arriving unrecorded.
+var serverRejects = map[string]string{}
 
-func TestRelativeTokens_TheClientEmitsTokensTheServerRefuses_DOCUMENTS_A_DEFECT(t *testing.T) {
+func TestRelativeTokens_TheTwoGrammarsAcceptTheSameAlphabet(t *testing.T) {
 	keywords := clientRelativeKeywords(t)
 
 	var rejected []string
@@ -111,9 +106,10 @@ func TestRelativeTokens_TheClientEmitsTokensTheServerRefuses_DOCUMENTS_A_DEFECT(
 	}
 
 	if len(rejected) > 0 {
-		t.Logf("acceptance test 2 FAILS at the grammar: the client emits %d relative tokens the "+
-			"server refuses (%s). docs/03-architecture/06-filter-grammar.md lists only `today` and "+
-			"`startOfWeek`, so the client is the side that is out of spec.",
+		t.Logf("acceptance test 2 fails at the grammar: the client emits %d relative tokens the "+
+			"server refuses (%s). Neither evaluator is wrong about its own token — they are "+
+			"wrong about each other, which is the one kind of wrong the conformance fixture "+
+			"cannot see.",
 			len(rejected), strings.Join(rejected, ", "))
 	}
 }
@@ -121,9 +117,13 @@ func TestRelativeTokens_TheClientEmitsTokensTheServerRefuses_DOCUMENTS_A_DEFECT(
 // The tokens both sides do agree on, asserted positively so that the test above cannot pass
 // by the server having stopped accepting everything.
 func TestRelativeTokens_TheSpelledSpecIsAccepted(t *testing.T) {
-	// From docs/03-architecture/06-filter-grammar.md: "literal: -7d, -1M, +3d, today,
-	// startOfWeek".
-	for _, token := range []string{"today", "startOfWeek", "-7d", "-1M", "+3d", "+2w", "-1y"} {
+	// From docs/03-architecture/06-filter-grammar.md, which lists the keywords and the
+	// offset forms. Spelled out here rather than read from the document, because a test that
+	// parses prose is a test that fails when somebody rewords a sentence.
+	for _, token := range []string{
+		"now", "today", "yesterday", "tomorrow", "startOfWeek", "startOfMonth", "startOfYear",
+		"-7d", "-1M", "+3d", "+2w", "-1y",
+	} {
 		for _, field := range relativeFields {
 			if err := parseRelativeClause(field, token); err != nil {
 				t.Errorf("the server refuses %q on %s, which the grammar spec lists as valid: %v",
