@@ -401,3 +401,45 @@ func accountOf(t *testing.T, h *harness, userID uuid.UUID) uuid.UUID {
 	}
 	return accountID
 }
+
+// A client whose cursor is ahead of the server is told to re-bootstrap, not ignored.
+//
+// This is the shape of a restore from backup: the workspace's version counter goes
+// backwards underneath clients that had already seen further. It is not the gap the
+// retention floor catches — that one is the client falling behind — and the floor check
+// cannot see it, because a cursor above the newest version is not below the oldest one.
+//
+// Left unhandled the failure is mute, which is what makes it worth a test of its own.
+// `catchUp` loops while `cursor < current`, which is already false, so it returns having
+// done nothing and logs nothing. The socket stays open, the client believes it is online
+// and current, and it shows the workspace as it was before the restore until the server's
+// counter climbs back past the cursor — days, on a real one. Every other failure in this
+// protocol announces itself.
+func TestSync_AClientAheadOfTheServerIsToldToResync(t *testing.T) {
+	h := newHarness(t)
+
+	// Far enough ahead that no amount of concurrent test traffic could reach it, so the
+	// test is asserting the rewind and not racing the fixture's own writes.
+	const ahead = 1_000_000
+
+	c := h.connect(t, "dev", ahead)
+
+	ready := c.next(5 * time.Second)
+	if ready["t"] != syncsrv.TypeReady {
+		t.Fatalf("expected ready first, so the client has a version to show progress against, got %v", ready)
+	}
+
+	// The resync must arrive on its own, without anything being written to provoke it.
+	// A client that has to wait for unrelated traffic before being told its replica is
+	// wrong is a client that shows stale data for as long as the workspace is quiet.
+	frame := c.next(5 * time.Second)
+	if frame["t"] != syncsrv.TypeResync {
+		t.Fatalf("a client resuming from a version the server has never reached must be told to "+
+			"re-bootstrap; got %v", frame)
+	}
+	if frame["reason"] != syncsrv.ReasonServerRewound {
+		t.Errorf("reason was %q, want %q — an operator reading this in a log should be looking "+
+			"at what happened to the database, not at how long somebody's laptop was shut",
+			frame["reason"], syncsrv.ReasonServerRewound)
+	}
+}

@@ -10,6 +10,28 @@
 {$POLARIS_DOMAIN:localhost} {
 	encode zstd gzip
 
+	# The bootstrap snapshot, which lives on the API despite its path.
+	#
+	# It must come before /sync* below: `handle` blocks are mutually exclusive and are
+	# matched in the order they appear here, so the broader pattern would swallow this one.
+	#
+	# The split is not arbitrary and it is not worth "tidying up". The socket carries deltas
+	# and is a long-lived hijacked connection; the bootstrap is a single large read out of
+	# Postgres, and it is served by the same process that serves every other read so that it
+	# shares one authorisation implementation with them. The paths are siblings because
+	# that is what they are to a client — first the snapshot, then the stream from the
+	# version it ended at — not because one process serves both.
+	#
+	# Getting this wrong produces a total failure that looks like a partial one: the socket
+	# connects, the client reports itself online, and no data ever arrives. /sync* used to
+	# send this to the sync process, whose mux has only /healthz and an exact-match /sync,
+	# so every self-hosted install using this file 404ed its bootstrap and showed an empty
+	# workspace. scripts/lint-routes.sh now compares this file against the routes the
+	# servers actually register.
+	handle /sync/bootstrap* {
+		reverse_proxy api:8088
+	}
+
 	# The sync socket. proxy_read_timeout has no Caddy equivalent because Caddy does not
 	# impose one on a hijacked connection — an idle WebSocket stays open, which is the
 	# behaviour this protocol needs and the one nginx has to be talked into.

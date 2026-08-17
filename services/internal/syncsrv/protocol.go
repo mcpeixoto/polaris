@@ -55,6 +55,12 @@ const (
 	ReasonSchemaChanged      = "schema_changed"
 	ReasonPermissionsChanged = "permissions_changed"
 	ReasonBufferOverflow     = "buffer_overflow"
+	// ReasonServerRewound is the client's cursor being ahead of the server's version:
+	// a restore from backup, or a failover to a replica that was behind. Distinct from
+	// gap_too_large because it is the server that moved, not the client, and an operator
+	// reading it in a log should be looking at what happened to the database rather than
+	// at how long somebody's laptop was shut.
+	ReasonServerRewound = "server_rewound"
 )
 
 // Hello is the first frame a client sends.
