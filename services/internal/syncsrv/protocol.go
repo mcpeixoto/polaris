@@ -10,24 +10,24 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/peixotolabs/polaris/services/internal/domain"
+
 	"github.com/google/uuid"
 )
 
-// ClientSchema is the shape version of the client's local store.
+// ClientSchema is the shape version of the client's local store, checked against the hello
+// frame before a socket is accepted.
 //
-// Bumped whenever the IndexedDB layout changes. On a mismatch the client drops its whole
-// database and re-bootstraps: cheap, obvious, and impossible to get subtly wrong, which
-// matters far more here than the one-off cost of a re-download.
+// It is an alias, not a value. The number is defined once, in domain.ClientSchemaVersion,
+// because the HTTP bootstrap sends it and this socket checks it and a client that gets two
+// different answers from the same server is in a state no error message can explain. Both
+// halves of that sentence have been true and disagreeing at the same time — see the comment
+// on domain.ClientSchemaVersion for what that cost — so the fix is that there is nothing
+// here to keep in step.
 //
-// It must equal CLIENT_SCHEMA in web/src/store/db.ts, and TestClientSchemaMatchesTheClient
-// asserts that it does. The two drifted once — the client was bumped to 2 to discard
-// replicas for the M1 entity types and this constant stayed at 1 — and the result was not a
-// degraded app but a dead one: every bootstrap failed, and the error the user saw told them
-// to reload, which cannot possibly fix a disagreement between two source constants.
-//
-// v2 added label, issueLabel, issueRelation, issueSubscription, notification, view,
-// viewPreference, favorite and issueTemplate to the replica.
-const ClientSchema = 2
+// TestClientSchemaMatchesTheClient pins it to CLIENT_SCHEMA in web/src/store/db.ts, which
+// is the one contract left that no compiler can hold.
+const ClientSchema = domain.ClientSchemaVersion
 
 // Message type tags. Kept as short strings because these are the highest-frequency
 // values on the wire.

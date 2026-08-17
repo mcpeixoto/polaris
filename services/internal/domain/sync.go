@@ -296,9 +296,30 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 	})
 }
 
-// ClientSchemaVersion is the shape version of the client's local store. Bumping it makes
-// every client drop its database and bootstrap again.
-const ClientSchemaVersion = 1
+// ClientSchemaVersion is the shape version of the client's local store, and the only
+// definition of it on this side of the wire.
+//
+// Bumping it makes every client drop its database and bootstrap again: cheap, obvious, and
+// impossible to get subtly wrong, which matters far more here than the one-off cost of a
+// re-download. It must equal CLIENT_SCHEMA in web/src/store/db.ts.
+//
+// It lives in this package rather than in internal/syncsrv because both of the two paths a
+// client can arrive by need it, and syncsrv imports domain: the HTTP bootstrap sends it in
+// the meta frame from StreamBootstrap above, and the WebSocket hello is checked against it
+// in syncsrv, whose ClientSchema is now an alias for this constant rather than a second
+// copy of the number.
+//
+// It was a second copy, and it drifted. The client went to 2 to discard replicas for the M1
+// entity types, syncsrv followed, and this one stayed at 1 — so the WebSocket agreed with
+// the client and the bootstrap that has to succeed before the socket is ever opened did
+// not. The failure is not a degraded app but a dead one, and the error it produces tells
+// the user to reload, which cannot fix a disagreement between two source constants. That is
+// the second time this exact drift happened; hence one constant, aliased, instead of a
+// third comment asking people to remember.
+//
+// v2 added label, issueLabel, issueRelation, issueSubscription, notification, view,
+// viewPreference, favorite and issueTemplate to the replica.
+const ClientSchemaVersion = 2
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //
