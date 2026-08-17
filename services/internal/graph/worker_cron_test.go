@@ -27,6 +27,15 @@ import (
 // is the point: it is the artefact that decides whether the job runs, and the alternative —
 // exporting the job table so a test can inspect it — would put a seam in the composition
 // root for the benefit of this one assertion.
+//
+// BOTH maps, and that is not tidiness. This walked `notInTheAPI` alone, while `FanOut` and
+// `DeliverNotificationDigests` — the only two entries whose excuse is a claim about the
+// worker — live in `serverSideOnly` in the sibling file, because they were exempt by accident
+// of their names rather than by argument. So the check passed on `PurgeExpiredIssues`, which
+// was scheduled, and never looked at `FanOut`, which was not: the notification engine had no
+// caller outside its own tests, `notification` stayed empty on every running system, and this
+// test reported that as green. A check that holds over the wrong set is worse than no check,
+// because the second one nobody trusts.
 func TestAPIParity_EveryWorkerCronExcuseIsActuallyScheduled(t *testing.T) {
 	const relative = "../../cmd/worker/main.go"
 
@@ -39,21 +48,23 @@ func TestAPIParity_EveryWorkerCronExcuseIsActuallyScheduled(t *testing.T) {
 	worker := string(source)
 
 	found := 0
-	for method, reason := range notInTheAPI {
-		if !strings.Contains(reason, "worker cron") {
-			continue
-		}
-		found++
+	for _, excuses := range []map[string]string{notInTheAPI, serverSideOnly} {
+		for method, reason := range excuses {
+			if !strings.Contains(reason, "worker cron") {
+				continue
+			}
+			found++
 
-		// `svc.<Method>(` is how every job in that table invokes the domain. Matching the
-		// call rather than the bare name means a method merely mentioned in a comment there
-		// does not satisfy this.
-		if !strings.Contains(worker, "svc."+method+"(") {
-			t.Errorf("%s is excused from the API as %q and %s never calls it.\n\n"+
-				"The method therefore runs nowhere: not from a mutation, because this map "+
-				"says it should not be, and not on a schedule, because nobody added it to the "+
-				"job table. Add the job, or change the reason to say what does call it.",
-				method, reason, relative)
+			// `svc.<Method>(` is how every job in that table invokes the domain. Matching the
+			// call rather than the bare name means a method merely mentioned in a comment
+			// there does not satisfy this.
+			if !strings.Contains(worker, "svc."+method+"(") {
+				t.Errorf("%s is excused from the API as %q and %s never calls it.\n\n"+
+					"The method therefore runs nowhere: not from a mutation, because that map "+
+					"says it should not be, and not on a schedule, because nobody added it to "+
+					"the job table. Add the job, or change the reason to say what does call it.",
+					method, reason, relative)
+			}
 		}
 	}
 

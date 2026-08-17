@@ -729,6 +729,44 @@ func (q *Queries) ListNotificationsForIssue(ctx context.Context, arg ListNotific
 	return items, nil
 }
 
+const listWorkspacesWithPendingNotifications = `-- name: ListWorkspacesWithPendingNotifications :many
+SELECT wv.workspace_id
+FROM workspace_version wv
+LEFT JOIN notification_cursor nc ON nc.workspace_id = wv.workspace_id
+WHERE wv.version > coalesce(nc.version, 0)
+`
+
+// ListWorkspacesWithPendingNotifications drives the fan-out job, which like the retention
+// sweep has no principal and therefore no workspace of its own to start from.
+//
+// Asking "where is there work" rather than iterating every workspace and discovering the
+// answer per row: this runs on a short interval, and on an install where nobody is typing
+// it has to cost one indexed comparison per workspace and no transaction at all.
+//
+// LEFT JOIN rather than a plain join, because a workspace has no cursor row until its first
+// pass writes one — and a workspace that has never been fanned out is precisely the one with
+// something waiting. Migration 000022 seeds a row for every workspace that existed before
+// the job did, so `coalesce` here covers only the workspaces created since.
+func (q *Queries) ListWorkspacesWithPendingNotifications(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listWorkspacesWithPendingNotifications)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var workspace_id uuid.UUID
+		if err := rows.Scan(&workspace_id); err != nil {
+			return nil, err
+		}
+		items = append(items, workspace_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :many
 UPDATE notification SET read_at = now()
 WHERE user_id = $1 AND read_at IS NULL AND deleted_at IS NULL
