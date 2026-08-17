@@ -1,0 +1,92 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+  cursor: pointer;
+}
+
+.root:has(.input:disabled) {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.control {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+/*
+ * The real checkbox, kept in the layout and made invisible rather than replaced. It stays
+ * the thing that is focused, checked, tabbed to, submitted with the form and read by a
+ * screen reader; the box below is only paint. Swapping in a div with role="checkbox" would
+ * mean reimplementing all of that, and getting the indeterminate state wrong.
+ */
+.input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-primary);
+  color: var(--accent-contrast);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+  pointer-events: none;
+}
+
+.input:hover + .box {
+  border-color: var(--accent);
+}
+
+.input:checked + .box,
+.input:indeterminate + .box {
+  border-color: var(--accent);
+  background-color: var(--accent);
+}
+
+.input:focus-visible + .box {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.mark {
+  opacity: 0;
+}
+
+.input:checked + .box .check {
+  opacity: 1;
+}
+
+/* After the checked rule: a tri-state control that is both checked and indeterminate shows
+ * the dash, because "some of these" is the more specific and more useful statement. */
+.input:indeterminate + .box .check {
+  opacity: 0;
+}
+
+.input:indeterminate + .box .dash {
+  opacity: 1;
+}
+
+.label {
+  min-width: 0;
+}

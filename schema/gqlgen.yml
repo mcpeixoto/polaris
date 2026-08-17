@@ -1,0 +1,52 @@
+# gqlgen generates its own transport models, and internal/graph/convert.go maps the domain
+# model onto them.
+#
+# The obvious alternative — binding the schema straight to internal/domain/model — was
+# tried and abandoned. GraphQL enums are uppercase while the database stores lowercase, and
+# the schema's nullability does not always line up with a Go pointer, so binding turns into
+# a running fight with generated code.
+#
+# The single-serialisation promise still holds where it does the work: change_log.payload,
+# the bootstrap stream and the client's IndexedDB rows are all literally model.*. GraphQL is
+# a transport on top. To stop the two drifting anyway, graph/schema_drift_test.go asserts
+# that every GraphQL type's field set matches its model struct's JSON field set, so a field
+# added to one and not the other fails CI rather than surfacing as a client bug.
+
+# Every path below is resolved from the working directory that `go tool gqlgen` runs in,
+# which is the Go module root (services/) — not from this file's directory. A glob that
+# matches nothing is silently treated as an empty schema rather than an error, so getting
+# this wrong produces a generated package containing only an empty Query type.
+schema:
+  - ../schema/schema.graphql
+
+exec:
+  package: generated
+  layout: single-file
+  filename: internal/graph/generated/generated.go
+
+model:
+  filename: internal/graph/generated/models_gen.go
+  package: generated
+
+resolver:
+  package: graph
+  layout: follow-schema
+  dir: internal/graph
+  filename_template: "{name}.resolvers.go"
+
+omit_slice_element_pointers: true
+omit_getters: true
+skip_validation: false
+
+models:
+  UUID:
+    model: github.com/peixotolabs/polaris/services/internal/graph/scalars.UUID
+  JSON:
+    model: github.com/peixotolabs/polaris/services/internal/graph/scalars.JSON
+  Time:
+    model: github.com/99designs/gqlgen/graphql.Time
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32

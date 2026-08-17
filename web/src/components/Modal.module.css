@@ -1,0 +1,98 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  /* Top-aligned, not centred. A create-issue dialog grows as the description is typed, and
+   * a centred box grows in both directions at once — the title field walks up the screen
+   * while the user is looking at it. */
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-16) var(--space-4) var(--space-8);
+  background-color: var(--bg-overlay);
+  /* The dialog can outgrow the viewport on a short window; the scrim is what scrolls, so
+   * the dialog never has to hide its own footer. */
+  overflow-y: auto;
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font-sans);
+}
+
+.dialog:focus {
+  /* The dialog takes focus only as the fallback when it holds nothing focusable, and a ring
+   * drawn around the entire box says "this is the control" about a container. The heading
+   * announcement is what tells the user where they are. */
+  outline: none;
+}
+
+/* In characters, not pixels: these widths exist to hold readable prose and a form, and a
+ * measure is what decides when a paragraph becomes hard to track back to the next line. */
+.sm {
+  max-width: 44ch;
+}
+
+.md {
+  max-width: 60ch;
+}
+
+.lg {
+  max-width: 88ch;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+}
+
+.headings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.description {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+.body {
+  padding: 0 var(--space-4) var(--space-4);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  background-color: var(--bg-secondary);
+  /* Matches the dialog's own corners: a square-cornered bar in a rounded box shows a sliver
+   * of the surface underneath at each bottom corner. */
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}

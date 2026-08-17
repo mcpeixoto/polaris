@@ -1,0 +1,61 @@
+appId: com.peixotolabs.polaris
+productName: Polaris
+copyright: Copyright © Peixoto Labs
+
+directories:
+  output: release
+  buildResources: assets
+
+files:
+  - dist/**/*
+  - "!**/*.map"
+
+# The renderer is the SAME web/dist the nginx image serves, copied in at package time
+# rather than built again here. Building it twice is how a desktop release ends up a
+# commit behind the web app with nobody noticing until a user reports the difference.
+extraResources:
+  - from: ../web/dist
+    to: renderer
+
+protocols:
+  - name: Polaris
+    schemes: [polaris]
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  # Hardened runtime plus a real entitlements file is what notarisation requires; without
+  # notarisation Gatekeeper refuses to open the app at all on a machine that did not build it.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: assets/entitlements.mac.plist
+  entitlementsInherit: assets/entitlements.mac.plist
+  notarize: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+  # Signing uses an HSM-backed OV or EV certificate. Since June 2023 a code-signing key
+  # may not live on disk, so this is a cloud-signing step in CI, not a local .pfx.
+  signtoolOptions:
+    publisherName: Peixoto Labs
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+linux:
+  target: [AppImage, deb]
+  category: Development
+
+publish:
+  provider: github
+  owner: peixotolabs
+  repo: polaris

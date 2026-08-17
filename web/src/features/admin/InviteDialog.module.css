@@ -1,0 +1,77 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/*
+ * The teams are a fieldset because they are one question with several answers, and a legend
+ * is the only thing that tells a screen reader which question a lone checkbox belongs to.
+ * The browser's default border and padding are removed; the grouping is semantic here, not
+ * decorative.
+ */
+.teams {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.hint {
+  margin: 0 0 var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * A column and not a wrapping row: team names vary in length, and a ragged grid of
+ * checkboxes has to be scanned rather than read down.
+ */
+.teamList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.detail {
+  margin: var(--space-3) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * Why a control is unavailable, in the same place the control is. Neutral rather than red:
+ * being out of seats is a fact about the plan, not a mistake the admin has made.
+ */
+.blocked {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * Takes --priority-urgent for the same reason Field.module.css does: the token layer has no
+ * --danger role, and that pair is the only red already tuned for both page colours.
+ */
+.error {
+  margin: var(--space-2) 0 0;
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

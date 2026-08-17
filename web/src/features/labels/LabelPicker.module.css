@@ -1,0 +1,25 @@
+/*
+ * The picker's only piece of its own styling: the colour dot in front of a label's name.
+ *
+ * A whole LabelChip would be wrong here — the row already carries the name, the tick column
+ * and the group heading, so a chip would say the name twice and put a pill inside a menu row
+ * that is only four pixels taller than it. The dot is the identity at full strength, which is
+ * the same bargain LabelChip makes; see its stylesheet for why the colour is never used as a
+ * background behind text.
+ */
+
+.swatch {
+  /*
+   * Declared as well as set inline, and the default is the point: a label whose colour
+   * failed to arrive gets a visible neutral rather than `transparent`, which is what an
+   * undeclared custom property resolves to. An invisible dot reads as a rendering bug
+   * rather than as missing data.
+   */
+  --label-color: var(--text-tertiary);
+
+  display: block;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background-color: var(--label-color);
+}

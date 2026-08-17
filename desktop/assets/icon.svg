@@ -1,0 +1,64 @@
+<!--
+  The Polaris mark.
+
+  Polaris is the north star: the fixed point you navigate by. The mark is that idea and
+  nothing else — a four-pointed star with concave sides, which is how a star reads at 16px
+  where a five-pointed one turns to mush.
+
+  Three constraints shaped it, and all three are about the sizes it actually appears at:
+
+    * It must survive 16px, because that is a favicon and a Windows taskbar. So: one shape,
+      no interior detail, and a stroke weight that never goes below a pixel.
+    * It must survive being masked. macOS Big Sur onwards, Android, and every OS since put
+      icons inside a shape they choose, so the mark sits well inside the safe area rather
+      than bleeding to the edge.
+    * It must read on both a light and a dark dock. Hence the deep ground rather than a
+      transparent one: a thin accent-coloured star alone would vanish against a light
+      wallpaper.
+
+  The colours are the product's own accent ramp from web/src/styles/tokens.css, so the icon
+  and the interface are the same blue rather than two blues nobody quite matched.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Top-left light, as every physical object is. Flat fills read as stickers. -->
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1d22"/>
+      <stop offset="1" stop-color="#0e1013"/>
+    </linearGradient>
+    <linearGradient id="star" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#7a83e6"/>
+      <stop offset="1" stop-color="#4b56ba"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.46" r="0.42">
+      <stop offset="0" stop-color="#5e6ad2" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#5e6ad2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 22.4% corner radius: the macOS squircle proportion, close enough that the icon does
+       not look like a different shape sitting next to system apps. -->
+  <rect width="1024" height="1024" rx="229" fill="url(#ground)"/>
+  <rect width="1024" height="1024" rx="229" fill="url(#glow)"/>
+
+  <!-- The star. Concave quadratic sides pulled to 42% of the radius: any tighter and the
+       points snap off at small sizes, any looser and it reads as a diamond. -->
+  <path fill="url(#star)"
+        d="M512 176
+           Q541 401 736 512
+           Q541 623 512 848
+           Q483 623 288 512
+           Q483 401 512 176 Z"/>
+
+  <!-- A single highlight on the upper limb, which is what stops the star reading as a flat
+       vector shape without adding anything that disappears at 16px. -->
+  <path fill="#ffffff" fill-opacity="0.22"
+        d="M512 176
+           Q541 401 736 512
+           Q560 452 512 176 Z"/>
+
+  <!-- The inner edge, a hairline lighter than the ground. Icons without one look pasted
+       onto the dock rather than lit by the same room. -->
+  <rect x="2" y="2" width="1020" height="1020" rx="228"
+        fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="4"/>
+</svg>

@@ -1,0 +1,69 @@
+/*
+ * The run of labels on an issue row.
+ *
+ * It lives inside a --row-height row whose title has already claimed the space, so the run
+ * is the thing that gives way: it never wraps, never grows the row, and collapses what does
+ * not fit into a count rather than letting a half-drawn chip run under the assignee.
+ */
+
+.list {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* Shrinks before the title does not: `0 1 auto` lets the run give up width, and the
+     overflow rule below is what turns that into a collapse rather than a clipped chip. */
+  flex: 0 1 auto;
+  min-width: 0;
+  /* The containing block for a chip taken out of flow — see .measured. Without it they
+     would be positioned against the page and the run would measure them at the wrong width. */
+  position: relative;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex: none;
+  min-width: 0;
+}
+
+/*
+ * A chip that did not fit.
+ *
+ * Still rendered, and that is the whole trick: the run has to know how wide a chip is in
+ * order to decide it does not fit, and an unrendered chip has no width to ask for. Out of
+ * flow so it costs the row nothing, and `visibility: hidden` rather than `display: none`
+ * because a display-none element measures zero — while also taking it out of the
+ * accessibility tree, so the count below is the only thing announced in its place.
+ */
+.measured {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/*
+ * The count. A neutral chip rather than a coloured one: it stands for labels of several
+ * different colours, and borrowing one of them would say something untrue about which.
+ */
+.more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: var(--space-6);
+  height: var(--control-height-xs);
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-full);
+  background-color: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  font-variant-numeric: tabular-nums;
+}

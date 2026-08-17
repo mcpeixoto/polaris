@@ -1,0 +1,99 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  /* Square, always. An icon control that is wider than it is tall reads as a button with a
+   * missing label rather than as a glyph you can press, and a toolbar of them stops
+   * lining up with the 32px row they sit in. */
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.md {
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+}
+
+.sm {
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+}
+
+.ghost:hover {
+  color: var(--text-primary);
+}
+
+.secondary {
+  background-color: var(--bg-tertiary);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.secondary:hover {
+  border-color: var(--border-default);
+}
+
+/* See Button.module.css for why destructive red is read off the ramp. Here it is the glyph
+ * rather than a fill, so it is the theme-aware pair: the icon is judged against the page. */
+.danger {
+  color: var(--color-red-500);
+}
+
+.button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
+  pointer-events: none;
+}
+
+.button:hover::after {
+  background-color: var(--bg-hover);
+}
+
+.button:active::after {
+  background-color: var(--bg-selected);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.button:disabled::after {
+  background-color: transparent;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.md .icon svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.sm .icon svg {
+  width: var(--space-3);
+  height: var(--space-3);
+}

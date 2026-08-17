@@ -1,0 +1,56 @@
+.spinner {
+  display: inline-block;
+  flex: none;
+  color: currentcolor;
+}
+
+.sm {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+.md {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  animation: spin calc(var(--duration-normal) * 4) linear infinite;
+}
+
+/* The ring behind the arc. Without it the arc reads as a fragment rather than as something
+ * going round, and at 12px that difference is the whole legibility of the thing.
+ */
+.track {
+  opacity: 0.22;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The one place where the token-level motion collapse is the wrong answer.
+ *
+ * tokens.css folds every duration to 1ms under this preference, which for a rotation means
+ * roughly a thousand revolutions a second — a strobe, i.e. precisely the thing the
+ * preference exists to prevent. So the spinner drops the motion entirely and states its
+ * business through the closed ring and its accessible name instead.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .svg {
+    animation: none;
+  }
+
+  .arc {
+    display: none;
+  }
+
+  .track {
+    opacity: 0.55;
+  }
+}

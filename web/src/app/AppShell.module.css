@@ -1,0 +1,125 @@
+/*
+ * A dense, two-pane shell. The sidebar is fixed-width and the main pane owns its own
+ * scrolling, so a long issue list never moves the navigation — losing your place in the
+ * sidebar every time you scroll a list is the thing that makes a tracker feel unsteady.
+ */
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  overflow-y: auto;
+}
+
+.workspace {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  /* Room for the macOS traffic lights, which the desktop shell draws over the app's own
+     chrome. Harmless in a browser tab. */
+  padding-top: var(--space-2);
+}
+
+.workspaceName {
+  font-weight: var(--font-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  flex: none;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.statusWarn {
+  color: var(--priority-medium);
+}
+
+.statusError {
+  color: var(--priority-urgent);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navItem:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.navItemActive {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+.teamKey {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.main {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}

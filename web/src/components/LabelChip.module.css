@@ -1,0 +1,105 @@
+/*
+ * --label-color is set inline from workspace data. Everything below is derived from it or
+ * from a token, so there is exactly one place the user's colour enters and no opportunity
+ * for the dot and the wash to disagree.
+ */
+
+.chip {
+  /*
+   * Declared here as well as set inline, and the default is the point: a chip rendered
+   * without a colour — a half-written call site, a label whose colour failed to load —
+   * gets a visible neutral rather than `transparent`, which is what an undeclared custom
+   * property resolves to. A label that renders as an invisible dot and an unwashed
+   * background looks like a rendering bug rather than like missing data.
+   */
+  --label-color: var(--text-tertiary);
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  max-width: 100%;
+  height: var(--control-height-sm);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+
+  /*
+   * A wash rather than a fill. At this percentage the label reads as its colour while the
+   * text stays on a surface the theme has already tuned for contrast — which is what lets
+   * an arbitrary user-chosen hex be safe in both themes without any luminance arithmetic.
+   */
+  background-color: color-mix(in srgb, var(--label-color) 14%, var(--bg-tertiary));
+  color: var(--text-secondary);
+  /* Just enough edge to survive on a hovered row, where the wash and the row background
+   * converge. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--label-color) 22%, transparent);
+}
+
+/*
+ * List density. Note that the dismiss control is never offered at this size — a compact
+ * chip appears on an issue row, where the whole row is the click target and an 18px
+ * button inside it is both unhittable and a way to delete a label while trying to open an
+ * issue. Removal lives on the detail view, where the chip is full size.
+ */
+.compact {
+  height: var(--control-height-xs);
+  padding-inline: var(--space-1);
+  gap: var(--space-1);
+}
+
+/* The identity, at full strength. The one place the chosen colour appears undiluted, which
+ * is why it can be small: an exact hue in a 6px dot is more recognisable than an
+ * approximate one across a whole chip. */
+.dot {
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background-color: var(--label-color);
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Present but quieter: the group qualifies the label, it is not the label. */
+.group {
+  color: var(--text-tertiary);
+}
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+  margin-inline-end: calc(var(--space-1) * -1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.remove svg {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+.remove:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-hover);
+}
+
+.remove:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}

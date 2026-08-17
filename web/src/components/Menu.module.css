@@ -1,0 +1,218 @@
+/*
+ * The menu surface is the only floating panel in the product that a keyboard user drives
+ * item by item, so every rule here answers one of two questions: can the active item be
+ * found without reading, and can the whole list be crossed without the pointer.
+ */
+
+.surface {
+  /* Fixed, not absolute. The menu is portalled to <body>, and an absolutely positioned
+   * portal child is placed against whichever ancestor last set a containing block — which
+   * for a portal is the document, until someone adds a transform somewhere and it silently
+   * is not. Viewport coordinates are what the component measured; fixed is what honours
+   * them. */
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  min-width: 18ch;
+  max-width: 40ch;
+  padding: var(--space-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-secondary);
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font-sans);
+}
+
+/*
+ * The gap between the trigger and the menu is a margin rather than arithmetic in the
+ * positioning code, so it stays a design token. The component sets the anchor point; these
+ * four rules move the panel onto the right side of it.
+ *
+ * Their names are the `placement` prop's own values, hyphens and all, so the component
+ * looks the class up rather than keeping a second table that can disagree with this one.
+ */
+.bottom-start {
+  margin-top: var(--space-1);
+}
+
+.bottom-end {
+  transform: translateX(-100%);
+  margin-top: var(--space-1);
+}
+
+.top-start {
+  transform: translateY(-100%);
+  margin-top: calc(var(--space-1) * -1);
+}
+
+.top-end {
+  transform: translate(-100%, -100%);
+  margin-top: calc(var(--space-1) * -1);
+}
+
+.filter {
+  display: flex;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-1);
+}
+
+/*
+ * The filter box is unboxed on purpose — no border, no focus ring. It is the only thing in
+ * the panel that can hold focus, so a ring around it would say nothing, while the panel's
+ * own shadow already says where the keyboard is. The ring the user needs is the one on the
+ * active item, below.
+ */
+.filterInput {
+  width: 100%;
+  min-width: 0;
+  height: var(--control-height-md);
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+}
+
+.filterInput:focus {
+  outline: none;
+}
+
+.filterInput::placeholder {
+  color: var(--text-tertiary);
+}
+
+.list {
+  /* Ten rows. Past that the list is a scroll, and a menu taller than a hand's worth of
+   * choices wants a filter rather than more height. */
+  max-height: calc(var(--control-height-md) * 10);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.list:focus {
+  /* The list only takes focus when there is no item to hold it — an empty filter result.
+   * A ring around an empty panel is noise. */
+  outline: none;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.heading {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-none);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.separator {
+  height: 1px;
+  margin: var(--space-1) 0;
+  background-color: var(--border-subtle);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+/*
+ * One highlight, two focus models. Without a filter the active item really is focused and
+ * this is what the ring would otherwise be drawn on; with a filter the focus is in the text
+ * box and this wash is the *only* thing saying which item Enter will choose. It has to read
+ * identically in both, or the same menu means two different things depending on whether it
+ * happens to have a filter.
+ */
+.active {
+  background-color: var(--bg-selected);
+}
+
+/* Deliberately not :focus-visible. Focus arrives here by arrow key or by the pointer that
+ * is already resting on the row, and in both cases the user is asking "what will Enter
+ * do" — a ring that appears for one and not the other answers it half the time. */
+.item:focus {
+  outline: none;
+}
+
+.item[aria-disabled='true'] {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.danger {
+  color: var(--priority-urgent);
+}
+
+/*
+ * The tick column is always present, even when nothing in the menu is selected. Reserving
+ * it means the labels sit on one edge whatever the current value is, so changing a status
+ * does not slide the whole list sideways under the pointer.
+ */
+.tick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-3);
+  color: var(--accent-text);
+}
+
+.tick svg {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hint {
+  flex: none;
+  margin-left: var(--space-4);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+/* Inside the panel the key chips sit on the raised grey the panel already uses, so they
+ * step to the neighbouring surface or they disappear. */
+.hint kbd {
+  background-color: var(--bg-tertiary);
+}
+
+.empty {
+  padding: var(--space-3) var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+  text-align: center;
+}

@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS invite;
+DROP TABLE IF EXISTS idempotency_key;

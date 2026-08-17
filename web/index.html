@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Polaris</title>
+    <meta name="color-scheme" content="light dark" />
+
+    <!--
+      One icon, generated from desktop/assets/icon.png by make-icon.py, so the tab, the
+      installed web app and the desktop build are the same mark rather than three that
+      drifted. The .ico carries 16/32/48 in one file, which is still what a browser reaches
+      for first and what avoids a <link> per size.
+    -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- The colour behind the icon while an installed app is starting. Matching the icon's
+         own ground is what stops a white flash on a dark desktop. -->
+    <meta name="theme-color" content="#0e1013" />
+    <script>
+      // Applied before the first paint so a dark-mode user never sees a white flash.
+      // Inline and tiny on purpose: any module-level alternative runs after the document
+      // has already painted.
+      try {
+        var t = localStorage.getItem('polaris.theme')
+        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,27 @@
+/*
+ * The consequence is the dialog's content, so it is set at reading size rather than as a
+ * caption. A warning printed smaller than the button that ignores it is a warning nobody
+ * reads.
+ */
+
+.consequence {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * Takes --priority-urgent for the same reason Field.module.css does: the token layer has no
+ * --danger role, and that pair is the only red already tuned for both page colours.
+ */
+.error {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

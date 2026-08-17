@@ -1,0 +1,32 @@
+# Everything the build context does not need.
+#
+# node_modules alone is hundreds of megabytes and would be re-sent to the daemon on every
+# build, then discarded — the image installs its own from the lockfile. A large context is
+# also why a "cached" build still takes thirty seconds.
+
+.git
+.github
+node_modules
+**/node_modules
+**/dist
+**/release
+desktop/dist
+web/dist
+services/bin
+
+# Never let a local secret reach a build context, from which it can end up in a layer.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+polaris.env
+
+# Not needed to build, and large.
+docs
+backups
+playwright-report
+test-results
+coverage
+**/*.md
+!README.md

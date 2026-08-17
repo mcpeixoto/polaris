@@ -1,0 +1,26 @@
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  /* A sequence is two gestures, not one chord, and the gap is what says so: `G I` with a
+   * whole space between the caps reads as "then", `GI` reads as a single key. */
+  gap: var(--space-1);
+  flex: none;
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-4);
+  height: var(--space-4);
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  /* The sans stack, not the mono one. These are not code; a monospaced ⌘ is wider than the
+   * glyph it stands for and drags the whole hint out of alignment with the label. */
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+}

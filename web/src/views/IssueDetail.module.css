@@ -1,0 +1,292 @@
+/*
+ * The issue, laid out as a document with a properties rail beside it.
+ *
+ * The reading column is capped rather than filling the window: a title and a paragraph of
+ * markdown set across 1600 pixels is unreadable, and the rail is where the eye goes for the
+ * facts anyway. On a narrow window the rail folds above the document, because the properties
+ * are what you came for on a phone and the description is what you scroll to.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.identifier {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+/*
+ * The way back to the team's list. A link rather than a button, and shaped to sit on the same
+ * line as the controls beside it without pretending to be one of them.
+ */
+.link {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.link:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: var(--space-8);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-6) var(--space-8);
+}
+
+@media (max-width: 900px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+    padding: var(--space-4);
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+  max-width: 72ch;
+}
+
+.titleForm {
+  display: flex;
+}
+
+/*
+ * The title is an input that does not look like one until it is being used. An issue title is
+ * edited about once in its life and read hundreds of times, so at rest it is a heading; the
+ * border and the surface arrive on focus, when the field has become a control.
+ */
+.title {
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.title:hover {
+  border-color: var(--border-subtle);
+}
+
+.title:focus-visible {
+  border-color: var(--border-focus);
+  background-color: var(--bg-primary);
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.description textarea {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.properties {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.property {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.propertyLabel {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.provenance {
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.activity,
+.comments {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-4);
+}
+
+.feed,
+.threads,
+.replies {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/*
+ * The feed is quieter than the conversation on purpose. "Ada changed status to In Progress"
+ * is context; a comment is somebody talking. Rendering them at the same weight makes a busy
+ * issue unreadable, because the machine writes far more rows than the people do.
+ */
+.event {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.eventText {
+  min-width: 0;
+}
+
+.eventWhen {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.threads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+/*
+ * One level of indentation, and one only. A reply to a reply is a conversation that has
+ * outgrown an issue; the rule sits here rather than in the component because the shape is
+ * what enforces it — there is nowhere for a third level to go.
+ */
+.replies {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  padding-left: var(--space-6);
+  border-left: 2px solid var(--border-subtle);
+}
+
+.comment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.commentHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.commentAuthor {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+/*
+ * Comments are markdown text, shown as written until the M2 editor lands. `pre-wrap` is what
+ * makes that honest: the paragraph breaks somebody typed are the paragraph breaks that get
+ * read, rather than being collapsed into one block by HTML's whitespace rules.
+ */
+.commentBody {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+.composerActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.quiet {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}

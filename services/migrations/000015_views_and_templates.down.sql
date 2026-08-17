@@ -1,0 +1,5 @@
+ALTER TABLE issue DROP COLUMN IF EXISTS template_id;
+DROP TABLE IF EXISTS issue_template;
+DROP TABLE IF EXISTS view_preference;
+DROP TABLE IF EXISTS favorite;
+DROP TABLE IF EXISTS view;

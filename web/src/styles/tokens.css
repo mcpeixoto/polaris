@@ -1,0 +1,419 @@
+/*
+ * Polaris design tokens.
+ *
+ * Custom themes are a product feature, not a preference toggle, so nothing in the UI is
+ * allowed to own a colour. Every value below is a custom property on :root, which makes a
+ * theme a list of declarations to overwrite at runtime — no rebuild, no stylesheet swap,
+ * no second copy of the component styles.
+ *
+ * The file has two halves and the split is the entire design:
+ *
+ *   primitives — the raw ramps and scales. Theme-independent. A custom theme may replace
+ *                them, but it does not have to.
+ *   semantics  — what a surface actually asks for: --bg-primary, --text-secondary,
+ *                --border-focus. Every one is a var() reference, never a literal, so a
+ *                theme switch redefines this list and nothing else.
+ *
+ * Components consume semantics only. A component that reaches for --color-neutral-700 has
+ * baked in a light-theme assumption and will be wrong the moment the theme changes; there
+ * is no way for it to be wrong if it asks for --text-secondary instead.
+ *
+ * Dark is what this kind of product is used in, so the dark values are the ones tuned
+ * first and the shipped default preference is 'system' — which, for this audience, lands
+ * in dark. See theme.ts for how the preference is resolved and applied.
+ */
+
+:root {
+  /* ================================================================== *
+   * PRIMITIVES
+   * ================================================================== */
+
+  /* --- Neutral ramp -------------------------------------------------
+   * Cooled slightly towards blue. A truly achromatic grey reads as dirty next to the
+   * indigo accent, and this interface is grey by roughly ninety per cent of its area, so
+   * the tint is not a detail.
+   *
+   * 950 exists outside the usual 50–900 run because the dark theme needs three separated
+   * surfaces below neutral-800 — page, panel, control — and ten stops only offer two.
+   */
+  --color-white: #ffffff;
+  --color-black: #05070a;
+
+  --color-neutral-50: #fafbfc;
+  --color-neutral-100: #eef0f2;
+  --color-neutral-200: #e1e4e9;
+  --color-neutral-300: #c9ced6;
+  --color-neutral-400: #9aa1ad;
+  --color-neutral-500: #767d89;
+  --color-neutral-600: #545a63;
+  --color-neutral-700: #3c414a;
+  --color-neutral-800: #282c33;
+  --color-neutral-900: #1a1d22;
+  --color-neutral-950: #0e1013;
+
+  /* --- Accent ramp ---------------------------------------------------
+   * Indigo. 500 is the brand value; the ramp ships whole even though the semantics below
+   * consume five of its stops, because a custom theme replaces the ramp and will reach
+   * for the stops this file did not anticipate.
+   */
+  --color-accent-50: #eef0fd;
+  --color-accent-100: #dce0fb;
+  --color-accent-200: #bcc3f6;
+  --color-accent-300: #97a1ef;
+  --color-accent-400: #7a83e6;
+  --color-accent-500: #5e6ad2;
+  --color-accent-600: #4b56ba;
+  --color-accent-700: #3c4599;
+  --color-accent-800: #2e3577;
+  --color-accent-900: #212650;
+
+  /* --- Translucent neutrals ------------------------------------------
+   * Hover, selection and scrims land on whatever surface happens to be underneath — the
+   * list, the sidebar, an open popover — and a solid grey can only ever match one of
+   * them. These are the same two values in both themes, because black and white do not
+   * move when the theme does.
+   *
+   * They are mixed from the anchors above rather than written as rgba() literals so that
+   * the ink in a scrim and the ink in a shadow cannot drift apart, and so that a theme
+   * warming --color-black warms every wash derived from it in one edit.
+   */
+  --color-white-a04: color-mix(in srgb, var(--color-white) 4%, transparent);
+  --color-white-a08: color-mix(in srgb, var(--color-white) 8%, transparent);
+  --color-black-a04: color-mix(in srgb, var(--color-black) 4%, transparent);
+  --color-black-a08: color-mix(in srgb, var(--color-black) 8%, transparent);
+  --color-black-a12: color-mix(in srgb, var(--color-black) 12%, transparent);
+  --color-black-a16: color-mix(in srgb, var(--color-black) 16%, transparent);
+  --color-black-a48: color-mix(in srgb, var(--color-black) 48%, transparent);
+  --color-black-a64: color-mix(in srgb, var(--color-black) 64%, transparent);
+
+  /* --- Functional hues ------------------------------------------------
+   * Priority and workflow state are the only two places in Polaris where hue carries
+   * meaning rather than decoration, so the palette stops at four hues and goes no
+   * further. 500 is each hue's anchor; 400 and 600 exist because a single value cannot
+   * clear 3:1 against both a white page and a near-black one, and these colours are load
+   * bearing — a priority icon nobody can see is a priority nobody sets.
+   */
+  --color-blue-400: #56b6d8;
+  --color-blue-500: #2f9bc0;
+  --color-blue-600: #21789b;
+
+  --color-amber-400: #f2c94c;
+  --color-amber-500: #d9a441;
+  --color-amber-600: #b3862f;
+
+  --color-orange-400: #ff9057;
+  --color-orange-500: #fc7840;
+  --color-orange-600: #e05a20;
+
+  --color-red-400: #f26d70;
+  --color-red-500: #e5484d;
+  --color-red-600: #cc3339;
+
+  /* --- Spacing -------------------------------------------------------
+   * 4px base. --space-0-5 earns its place because a 32px row cannot separate an icon
+   * from its label by a whole 4px without reading as loose.
+   */
+  --space-0: 0;
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* --- Density -------------------------------------------------------
+   * 32px is the issue row, and it is the number the rest of the scale answers to: a
+   * control taller than the row it lives in cannot live in the row.
+   */
+  --row-height: 32px;
+  /* Only for things that sit *inside* a control rather than beside it: a label chip on a
+   * 32px issue row has 22px of vertical space minus the row's own padding, and 18px is
+   * what is left. Nothing interactive is ever this size — 18px is below the target anybody
+   * can reliably hit — which is why it is not simply the bottom of the ladder. */
+  --control-height-xs: 18px;
+  --control-height-sm: 22px;
+  --control-height-md: 28px;
+  --control-height-lg: 32px;
+  --header-height: 40px;
+  --sidebar-width: 220px;
+
+  /* --- Radii ---------------------------------------------------------
+   * Small on purpose. A 32px row with an 8px corner reads as a card, and a screen full
+   * of cards is not a list you can scan.
+   */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  /* --- Layers --------------------------------------------------------
+   * Named, and the naming is the point. A raw integer in a component is a claim about
+   * every other component on screen, made without looking at any of them, and it is how
+   * a tooltip ends up behind the modal that opened it. Gaps of 100 leave room to insert
+   * a layer without renumbering the ones above it.
+   *
+   * The order encodes real containment: a dropdown opens inside a modal, a tooltip
+   * describes a control in either, and a toast has to survive both.
+   */
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  /* --- Typography ----------------------------------------------------
+   * System stack only. A webfont costs a network round trip before first paint, and this
+   * product is judged on the interval between pressing a key and seeing the result.
+   */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans',
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* 13px is the base, not 16px. The scale a marketing site uses puts about eleven issues
+   * on a laptop screen; this one puts twenty-two, and seeing the whole sprint without
+   * scrolling is most of what the product is for.
+   */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 15px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 22px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* --line-height-none is for single-line rows, where any leading at all pushes the text
+   * off the optical centre of a fixed-height row.
+   */
+  --line-height-none: 1;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+
+  /* --- Motion --------------------------------------------------------
+   * Nothing on the keyboard path may exceed --duration-fast. A shortcut that takes longer
+   * to answer than the next keystroke takes to arrive does not feel smooth, it feels
+   * broken, and the user out-types the interface.
+   */
+  --duration-instant: 50ms;
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* --- Focus ---------------------------------------------------------
+   * The ring's geometry is a token because it is the same ring everywhere: a keyboard
+   * user learns one shape and then trusts it.
+   */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* ================================================================== *
+   * SEMANTICS — light
+   *
+   * This is the layer a theme replaces. Everything below is a reference; if you find a
+   * literal here, it is a bug, because it is a value a custom theme cannot reach.
+   * ================================================================== */
+
+  /* color-scheme is not decoration: it is what makes the native scrollbars, the date
+   * picker and the canvas behind an over-scroll match the theme instead of flashing the
+   * opposite one.
+   */
+  color-scheme: light;
+
+  --bg-primary: var(--color-white);
+  --bg-secondary: var(--color-neutral-50);
+  --bg-tertiary: var(--color-neutral-100);
+  --bg-hover: var(--color-black-a04);
+  --bg-selected: var(--color-black-a08);
+  --bg-overlay: var(--color-black-a48);
+
+  --text-primary: var(--color-neutral-900);
+  --text-secondary: var(--color-neutral-700);
+  --text-tertiary: var(--color-neutral-600);
+  --text-inverse: var(--color-neutral-50);
+
+  --border-subtle: var(--color-neutral-200);
+  --border-default: var(--color-neutral-300);
+  --border-strong: var(--color-neutral-400);
+  --border-focus: var(--color-accent-500);
+
+  /* --accent is the fill; --accent-text is the accent used as text on a normal surface,
+   * and they cannot be the same value in both themes — accent-500 on the dark page falls
+   * under 4.5:1. --accent-contrast is the foreground laid on --accent, and it is white in
+   * both themes because the fill itself does not move between them.
+   */
+  --accent: var(--color-accent-500);
+  --accent-hover: var(--color-accent-600);
+  --accent-subtle: var(--color-accent-50);
+  --accent-text: var(--color-accent-600);
+  --accent-contrast: var(--color-white);
+
+  /* Priority escalates by warmth, from a grey that says nothing through to red. Every
+   * value clears 3:1 against the page, because the priority icon is frequently the only
+   * mark distinguishing two otherwise identical rows.
+   */
+  --priority-none: var(--color-neutral-500);
+  --priority-low: var(--color-blue-600);
+  --priority-medium: var(--color-amber-600);
+  --priority-high: var(--color-orange-600);
+  --priority-urgent: var(--color-red-600);
+
+  /* The six state categories are fixed by the product, so their colours are tokens rather
+   * than data: every list header, every status icon, every picker and every chart renders
+   * them, and a workspace that recolours a status must not be able to recolour the
+   * category.
+   *
+   * Backlog and unstarted are both grey because the icon's shape — dashed ring versus
+   * solid ring — is what separates them; the colour only says "not started". Canceled is
+   * the faintest of the three so that dead work recedes, and completed borrows the accent
+   * hue because done is the one state the eye should find without reading.
+   */
+  --state-triage: var(--color-orange-600);
+  --state-backlog: var(--color-neutral-600);
+  --state-unstarted: var(--color-neutral-700);
+  --state-started: var(--color-amber-600);
+  --state-completed: var(--color-accent-500);
+  --state-canceled: var(--color-neutral-500);
+
+  --shadow-sm: 0 1px 2px var(--color-black-a08);
+  --shadow-md: 0 4px 12px var(--color-black-a12), 0 1px 2px var(--color-black-a08);
+  --shadow-lg: 0 16px 48px var(--color-black-a16), 0 2px 8px var(--color-black-a08);
+}
+
+/* An explicit choice. This wins over the system preference in both directions: it is
+ * matched here for dark, and excluded from the system branch below for light.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-primary: var(--color-neutral-950);
+  --bg-secondary: var(--color-neutral-900);
+  --bg-tertiary: var(--color-neutral-800);
+  --bg-hover: var(--color-white-a04);
+  --bg-selected: var(--color-white-a08);
+  --bg-overlay: var(--color-black-a64);
+
+  --text-primary: var(--color-neutral-100);
+  --text-secondary: var(--color-neutral-400);
+  --text-tertiary: var(--color-neutral-500);
+  --text-inverse: var(--color-neutral-950);
+
+  --border-subtle: var(--color-neutral-800);
+  --border-default: var(--color-neutral-700);
+  --border-strong: var(--color-neutral-600);
+  --border-focus: var(--color-accent-400);
+
+  /* The accent wash is translucent here rather than a ramp stop, because in dark it has
+   * to sit convincingly on three different surface levels; a solid tint would only be
+   * right on one of them.
+   */
+  --accent: var(--color-accent-500);
+  --accent-hover: var(--color-accent-400);
+  --accent-subtle: color-mix(in srgb, var(--color-accent-500) 18%, transparent);
+  --accent-text: var(--color-accent-400);
+  --accent-contrast: var(--color-white);
+
+  --priority-none: var(--color-neutral-500);
+  --priority-low: var(--color-blue-400);
+  --priority-medium: var(--color-amber-400);
+  --priority-high: var(--color-orange-400);
+  --priority-urgent: var(--color-red-400);
+
+  --state-triage: var(--color-orange-400);
+  --state-backlog: var(--color-neutral-400);
+  --state-unstarted: var(--color-neutral-300);
+  --state-started: var(--color-amber-400);
+  --state-completed: var(--color-accent-400);
+  --state-canceled: var(--color-neutral-500);
+
+  /* Dark surfaces separate by edge, not by shadow — a blur over near-black is invisible.
+   * The hairline ring is the part that actually reads; the blur underneath it only stops
+   * the popover looking pasted on.
+   */
+  --shadow-sm: 0 1px 2px var(--color-black-a48);
+  --shadow-md: 0 0 0 1px var(--color-white-a08), 0 8px 24px var(--color-black-a64);
+  --shadow-lg: 0 0 0 1px var(--color-white-a08), 0 16px 48px var(--color-black-a64);
+}
+
+/* The system preference, honoured only when the user has not chosen for themselves.
+ *
+ * This block repeats the one above because CSS cannot share a declaration block with a
+ * media query, and resolving the preference in JavaScript instead would paint the wrong
+ * theme for a frame on every cold load — the one moment the product is being judged on
+ * how fast it appears. Both branches assign var() references only, so changing a colour
+ * is still a single edit in the primitives; keep the two lists identical.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg-primary: var(--color-neutral-950);
+    --bg-secondary: var(--color-neutral-900);
+    --bg-tertiary: var(--color-neutral-800);
+    --bg-hover: var(--color-white-a04);
+    --bg-selected: var(--color-white-a08);
+    --bg-overlay: var(--color-black-a64);
+
+    --text-primary: var(--color-neutral-100);
+    --text-secondary: var(--color-neutral-400);
+    --text-tertiary: var(--color-neutral-500);
+    --text-inverse: var(--color-neutral-950);
+
+    --border-subtle: var(--color-neutral-800);
+    --border-default: var(--color-neutral-700);
+    --border-strong: var(--color-neutral-600);
+    --border-focus: var(--color-accent-400);
+
+    --accent: var(--color-accent-500);
+    --accent-hover: var(--color-accent-400);
+    --accent-subtle: color-mix(in srgb, var(--color-accent-500) 18%, transparent);
+    --accent-text: var(--color-accent-400);
+    --accent-contrast: var(--color-white);
+
+    --priority-none: var(--color-neutral-500);
+    --priority-low: var(--color-blue-400);
+    --priority-medium: var(--color-amber-400);
+    --priority-high: var(--color-orange-400);
+    --priority-urgent: var(--color-red-400);
+
+    --state-triage: var(--color-orange-400);
+    --state-backlog: var(--color-neutral-400);
+    --state-unstarted: var(--color-neutral-300);
+    --state-started: var(--color-amber-400);
+    --state-completed: var(--color-accent-400);
+    --state-canceled: var(--color-neutral-500);
+
+    --shadow-sm: 0 1px 2px var(--color-black-a48);
+    --shadow-md: 0 0 0 1px var(--color-white-a08), 0 8px 24px var(--color-black-a64);
+    --shadow-lg: 0 0 0 1px var(--color-white-a08), 0 16px 48px var(--color-black-a64);
+  }
+}
+
+/* Motion is collapsed at the token, not per component, so that a transition written next
+ * year is covered without anyone remembering to cover it.
+ *
+ * 1ms rather than 0ms: a duration of zero makes the browser skip the transition
+ * entirely, and any code waiting on `transitionend` before unmounting a modal would then
+ * wait forever. 1ms is imperceptible and still fires.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 1ms;
+    --duration-fast: 1ms;
+    --duration-normal: 1ms;
+  }
+}

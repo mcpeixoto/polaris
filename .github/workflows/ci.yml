@@ -1,0 +1,178 @@
+name: CI
+
+# Fork PRs get no secrets. Everything below must pass without them — see
+# docs/06-product-model/03-open-source-operations.md.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go — vet, import-lint, test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.2-alpine
+        env:
+          POSTGRES_USER: polaris
+          POSTGRES_PASSWORD: polaris
+          POSTGRES_DB: polaris_test
+        options: >-
+          --health-cmd "pg_isready -U polaris"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+        ports: ["5432:5432"]
+      valkey:
+        image: valkey/valkey:8.0-alpine
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgres://polaris:polaris@localhost:5432/polaris_test?sslmode=disable
+      VALKEY_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/go.mod
+          cache-dependency-path: services/go.sum
+      - run: bash scripts/lint-imports.sh
+      - run: go vet ./...
+        working-directory: services
+      - run: go test ./... -race -count=1
+        working-directory: services
+
+  generated:
+    name: Generated code is not stale
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/go.mod
+          cache-dependency-path: services/go.sum
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: make generate
+      - name: Fail if regeneration changed anything
+        run: |
+          if ! git diff --quiet; then
+            echo "::error::Generated code is stale. Run 'make generate' and commit."
+            git diff --stat
+            exit 1
+          fi
+
+  web:
+    name: Web — typecheck, lint, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "desktop/src/**/*.{ts,cts}"
+      - run: pnpm -C web typecheck
+      - run: pnpm -C web lint
+      - run: pnpm -C web test -- --run
+
+  e2e:
+    name: End-to-end — the browser-only acceptance tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.2-alpine
+        env:
+          POSTGRES_USER: polaris
+          POSTGRES_PASSWORD: polaris
+          POSTGRES_DB: polaris
+        options: >-
+          --health-cmd "pg_isready -U polaris"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+        ports: ["5432:5432"]
+    env:
+      DATABASE_URL: postgres://polaris:polaris@localhost:5432/polaris?sslmode=disable
+      POLARIS_ENV: development
+      # Test-only, and obviously so. The real one lives in a root-owned file on the host.
+      POLARIS_JWT_SECRET: ci-only-secret-not-used-anywhere-real-000000
+      POLARIS_API_ADDR: 127.0.0.1:8088
+      POLARIS_SYNC_ADDR: 127.0.0.1:8089
+      POLARIS_PUBLIC_URL: http://localhost:5173
+      POLARIS_E2E_API: http://localhost:8088
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/go.mod
+          cache-dependency-path: services/go.sum
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -C web exec playwright install --with-deps chromium
+
+      - name: Migrate
+        run: go run ./cmd/polarisctl migrate up
+        working-directory: services
+
+      # api and sync are started as background processes rather than containers so a
+      # failure surfaces as a log in this job rather than in a container nobody inspects.
+      - name: Start the stack
+        run: |
+          go build -o /tmp/polaris-api ./cmd/api
+          go build -o /tmp/polaris-sync ./cmd/sync
+          /tmp/polaris-api  > /tmp/api.log  2>&1 &
+          /tmp/polaris-sync > /tmp/sync.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8088/healthz && break
+            sleep 1
+          done
+        working-directory: services
+
+      - run: pnpm -C web e2e
+
+      - name: Server logs on failure
+        if: failure()
+        run: tail -200 /tmp/api.log /tmp/sync.log
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7
+
+  keymap-discipline:
+    name: Keymap and design-token discipline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/lint-keymap.sh
+      - run: bash scripts/lint-tokens.sh
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

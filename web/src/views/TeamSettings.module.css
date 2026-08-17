@@ -1,0 +1,215 @@
+/*
+ * A settings page, which is the one place in this product where density is not the goal.
+ * These are decisions made rarely and undone with difficulty — a team key, the status new
+ * issues are born in — so the rows are taller than a list row and the explanation sits next
+ * to the control rather than in a tooltip.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* The way back. A link and not a button, so it behaves like the navigation it is. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.link:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-6) var(--space-8);
+  /* Settings are read as prose. Past about this width the eye loses the line, and the form
+     controls drift so far from their labels that the pairing stops being obvious. */
+  max-width: 76ch;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-6);
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.sectionHint {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.teamFields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.keyField input {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.category {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.categoryTitle {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.statusList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+}
+
+.statusName {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * The native colour input, shrunk to a swatch.
+ *
+ * It is deliberately the platform's control rather than a palette of chips: a status colour
+ * is *data* the team chooses — the one value in this interface that no theme may overrule —
+ * and a fixed palette would be this file deciding what colours a workspace is allowed. The
+ * native picker also comes with a keyboard path and an eyedropper that a chip grid would have
+ * to reimplement badly.
+ */
+.statusColor {
+  flex: none;
+  width: var(--control-height-lg);
+}
+
+.statusColor input[type='color'] {
+  width: 100%;
+  height: var(--control-height-md);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/*
+ * Keeps the two chevrons and the retire button on one vertical line down the list whether or
+ * not a row has a "Make default" button. A column that jitters row to row reads as broken
+ * alignment rather than as an absent control.
+ */
+.defaultSpacer {
+  flex: none;
+  width: var(--space-16);
+}
+
+.addStatus {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto;
+  gap: var(--space-3);
+  align-items: end;
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px dashed var(--border-subtle);
+}
+
+@media (max-width: 720px) {
+  .teamFields,
+  .addStatus {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .status {
+    flex-wrap: wrap;
+  }
+}
+
+/*
+ * Takes --priority-urgent for the same reason Field.module.css does: the token layer has no
+ * --danger role, and that pair is the only red already tuned for both page colours.
+ */
+.error {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

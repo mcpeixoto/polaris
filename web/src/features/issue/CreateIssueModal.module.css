@@ -1,0 +1,37 @@
+/*
+ * The create dialog's fields, in one column with the properties on a shelf beneath.
+ *
+ * Title and description are stacked full width because they are what the dialog is for and
+ * they are what the user is typing into; the four property selects sit two-up underneath,
+ * where they can be tabbed through without lengthening the path to the submit.
+ */
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/*
+ * auto-fit rather than a fixed pair of columns: at the dialog's small size, and on a phone,
+ * four selects side by side would each be too narrow to read a status name in, and the grid
+ * folds them to one column on its own rather than at a breakpoint this file would have to
+ * guess.
+ */
+.properties {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14ch, 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+
+/*
+ * A failure that belongs to the submit rather than to a field — the server refused, or the
+ * workspace has no team to put an issue in. It takes --priority-urgent for the same reason
+ * Field.module.css does: the token layer has no --danger role, and that pair is the only red
+ * already tuned for both themes.
+ */
+.error {
+  margin: 0;
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
