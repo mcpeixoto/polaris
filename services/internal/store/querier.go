@@ -419,6 +419,18 @@ type Querier interface {
 	//
 	ListDigestRecipients(ctx context.Context, pageSize int32) ([]ListDigestRecipientsRow, error)
 	ListFavorites(ctx context.Context, arg ListFavoritesParams) ([]Favorite, error)
+	// ListFavoritesForTarget is everybody's favourites pointing at one thing.
+	//
+	// It exists for the restore, and it is the counterpart to StreamFavoritesForBootstrap: the
+	// client drops a favourite whose target it forgets, so a deleted issue takes every star on
+	// it off every sidebar, and only a republication puts them back. Without it the replica that
+	// watched the undo is missing sidebar rows that a bootstrap taken a second later has.
+	//
+	// Not scoped to a user, unlike every other statement in this section, because the caller is
+	// not the owner — it is republishing on behalf of all of them, and each row goes out under
+	// its own owner's scope.
+	//
+	ListFavoritesForTarget(ctx context.Context, arg ListFavoritesForTargetParams) ([]Favorite, error)
 	ListIssueHistory(ctx context.Context, issueID uuid.UUID) ([]IssueHistory, error)
 	ListIssueLabels(ctx context.Context, issueID uuid.UUID) ([]IssueLabel, error)
 	// ListIssueLabelsForIssues is the same listing for a whole page of issues at once.
@@ -515,6 +527,20 @@ type Querier interface {
 	// sweep the table: the predicate is a comparison against now(), not a stored flag.
 	//
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
+	// ListNotificationsForIssue is every live inbox row about one issue, for every recipient.
+	//
+	// It exists for the restore, and it is the counterpart to StreamNotificationsForBootstrap
+	// above: a delete reaches clients as one change row for the issue and the client's cascade
+	// drops the notifications about it, so the restore owes them back or a replica that watched
+	// the undo ends up with an emptier inbox than one that bootstrapped a second later.
+	//
+	// Not scoped to a user, unlike everything else in this file, because the caller is not a
+	// recipient — it is republishing on behalf of all of them, and each row goes out under its
+	// own owner's scope. That is the same shape ListIssueSubscriptionsForIssues has for the same
+	// reason, and it is why this query returns user_id: the emitter needs it to address the
+	// change.
+	//
+	ListNotificationsForIssue(ctx context.Context, arg ListNotificationsForIssueParams) ([]Notification, error)
 	ListPendingInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
 	// ListReverseIssueRelations is the same links read from the far end: what blocks this
 	// issue, and what it is a duplicate of. Both listings are needed on the issue panel, which
@@ -715,11 +741,41 @@ type Querier interface {
 	//
 	SoftDeleteIssue(ctx context.Context, arg SoftDeleteIssueParams) error
 	SoftDeleteTeam(ctx context.Context, id uuid.UUID) error
-	// StreamCommentsForBootstrap ships the most recent comments only. Full history loads on
-	// demand when an issue is opened — see the bootstrap tiering table in
-	// docs/05-infrastructure/03-sync-engine.md.
+	// StreamCommentsForBootstrap ships EVERY live comment on every live issue the caller can
+	// see, paged by id.
+	//
+	// This comment used to say it shipped "the most recent comments only", with full history
+	// loaded on demand when an issue is opened, and pointed at the tiering table in
+	// docs/05-infrastructure/03-sync-engine.md. That was never implemented — there is no bound
+	// here beyond the page size, which is a cursor and not a limit. On a seeded ten-thousand
+	// issue workspace comments are the second-largest contributor to the snapshot, so the
+	// difference is not academic.
+	//
+	// Left unbounded rather than quietly capped, because capping it is a product decision with a
+	// client-side counterpart: the replica would hold a partial thread, and every screen that
+	// reads comments straight out of it would need to know when to go and ask for the rest. The
+	// honest state is an accurate comment and a known cost.
 	//
 	StreamCommentsForBootstrap(ctx context.Context, arg StreamCommentsForBootstrapParams) ([]Comment, error)
+	// StreamFavoritesForBootstrap ships the caller's own sidebar, minus the entries pointing at
+	// something this same snapshot does not carry.
+	//
+	// A favourite travels under its owner's user scope, so "yours" is the whole of the
+	// visibility rule — but it is not the whole of the predicate, because a favourite is a
+	// pointer with no foreign key and the client deletes one whose target it forgets
+	// (Store.forget in web/src/store/store.ts, the trailing favoriteTarget walk). Losing a team
+	// emits one revoke, for the team; the replica that watched it drops the team's issues, its
+	// labels, its views and every favourite pointing at any of them. A snapshot that shipped
+	// those favourites back would leave a bootstrapped replica holding sidebar rows that cannot
+	// be opened, renamed or removed, and that a replica which stayed online does not have.
+	//
+	// So each arm below is the membership test of the stream that ships that kind, and the four
+	// have to keep agreeing with StreamViewsForBootstrap, StreamLabelsForBootstrap,
+	// StreamIssuesForBootstrap and the team filter in StreamBootstrap itself. The team arm is
+	// the one that is not obviously the same: the snapshot ships archived teams (they are still
+	// yours to look at), so this does too, and only a deleted one is dropped.
+	//
+	StreamFavoritesForBootstrap(ctx context.Context, arg StreamFavoritesForBootstrapParams) ([]Favorite, error)
 	// StreamIssueLabelsForBootstrap joins the issue rather than trusting the denormalised
 	// team_id alone: bootstrap must not ship applications belonging to issues the snapshot
 	// itself excludes, or the client renders label chips on rows it does not hold.
@@ -731,11 +787,117 @@ type Querier interface {
 	// it as a chip it cannot resolve.
 	//
 	StreamIssueRelationsForBootstrap(ctx context.Context, arg StreamIssueRelationsForBootstrapParams) ([]IssueRelation, error)
+	// StreamIssueSubscriptionsForBootstrap feeds the initial snapshot with the caller's own
+	// subscriptions and nobody else's.
+	//
+	// That is the change scope, exactly: a subscription is emitted under the subscriber's user
+	// scope and under no team's, because who is watching what is nobody else's business — and a
+	// snapshot that shipped the whole watcher list would put one person's subscriptions in every
+	// teammate's replica, which is precisely what the emitter refuses to do.
+	//
+	// The issue is joined for the reason StreamIssueLabelsForBootstrap joins it: the snapshot
+	// must not carry rows hanging off issues it leaves out. A subscription is user-scoped, so
+	// nothing revokes it when its issue is archived — but the archive reaches clients as a delete
+	// for the issue and the client's cascade takes the subscription with it, so a snapshot that
+	// kept the row would disagree with every replica that watched it happen.
+	//
+	// Unsubscribed rows are shipped too. An explicit unsubscribe is a row rather than a missing
+	// one, and a replica without it renders the toggle as "not watching yet" and re-subscribes
+	// the user on the next comment — the four-minute unsubscribe button, arrived at from the
+	// replication side.
+	//
+	StreamIssueSubscriptionsForBootstrap(ctx context.Context, arg StreamIssueSubscriptionsForBootstrapParams) ([]IssueSubscription, error)
+	// StreamIssueTemplatesForBootstrap feeds the initial snapshot. The predicate is
+	// requireTemplateScope's, the same shape as the label stream's and for the same reason: a
+	// template with no team is offered in every create dialog and reaches every non-guest, and
+	// a team's template reaches that team's members. Those are the only two scopes a template
+	// change is ever emitted under.
+	//
+	// Archived templates are excluded — archiving emits a delete — even though issue.template_id
+	// may still point at one. That column answers "is this template still worth having" from the
+	// server side and is not something a replica renders.
+	//
+	StreamIssueTemplatesForBootstrap(ctx context.Context, arg StreamIssueTemplatesForBootstrapParams) ([]StreamIssueTemplatesForBootstrapRow, error)
 	// StreamIssuesForBootstrap feeds the initial snapshot. Ordered by id (UUIDv7, so
 	// effectively creation order) and keyset-paginated: OFFSET would degrade quadratically
 	// on a workspace with a hundred thousand issues, which is exactly where it matters.
 	//
 	StreamIssuesForBootstrap(ctx context.Context, arg StreamIssuesForBootstrapParams) ([]Issue, error)
+	// StreamLabelsForBootstrap feeds the initial snapshot, and its predicate is
+	// requireLabelScope's written out in SQL: a label with no team is workspace-scoped and
+	// reaches every non-guest, and a team's label reaches that team's members. Those are the
+	// two scopes every label change is emitted under, so the snapshot and the change stream
+	// hand the same principal the same rows.
+	//
+	// The guest arm is a parameter rather than a predicate on the caller's role, because the
+	// authority on it is authz.Visible: the caller passes what that function answered for a
+	// workspace scope instead of this statement growing a second opinion about who a guest is.
+	//
+	// Archived labels are excluded because archiving one emits a delete — every replica has
+	// already thrown its copy away, and shipping it here would put back a label the picker,
+	// the listings and the applications rule all agree is gone.
+	//
+	// Keyset-paginated by id like every other stream in the snapshot. A workspace's taxonomy
+	// is small today; the reason to page it anyway is that nothing about this statement then
+	// has to change on the workspace where it is not.
+	//
+	StreamLabelsForBootstrap(ctx context.Context, arg StreamLabelsForBootstrapParams) ([]StreamLabelsForBootstrapRow, error)
+	// StreamNotificationsForBootstrap ships the caller's inbox into the initial snapshot, and
+	// is the one stream in it with a ceiling.
+	//
+	// Volume is why. Every other table the snapshot walks is bounded by something a person
+	// maintains — a taxonomy, a sidebar, a backlog with archived work excluded — and this one is
+	// bounded by nothing: the fan-out writes a row per recipient per event, forever, so a
+	// two-year-old workspace's first load would carry the whole history of somebody's inbox
+	// before they could see a single issue. StreamCommentsForBootstrap states the same choice as
+	// a tier — the snapshot carries the recent end and the rest loads on demand — and this is
+	// that rule applied to the table that has no other end.
+	//
+	// The ceiling is the caller's page size and there is no cursor, deliberately: a statement
+	// that can never return more than the cap is already bounded, and a second page that cannot
+	// exist would be code with no caller. The number itself is domain.BootstrapNotificationLimit,
+	// which is where the product decision is written down.
+	//
+	// Newest first, which no other stream in the snapshot is. The cap has to keep the rows
+	// somebody would actually look at, and "the most recent N" is only expressible in the order
+	// the inbox renders in. Nothing else depends on the order: a notification is a leaf, so no
+	// client applying rows as they arrive can end up holding a dangling reference to one.
+	// created_at leads the sort so this stays on notification_inbox_idx; the id breaks ties,
+	// because rows written by one fan-out batch share a timestamp and an order that is not total
+	// is an order that silently drops rows at the cap boundary.
+	//
+	// Read and snoozed rows are both included. Marking read and snoozing are upserts on the
+	// change stream, so a replica that watched either happen still holds the row — the badge and
+	// the inbox are computed from it — and only a dismissal, which is emitted as a delete, takes
+	// it away.
+	//
+	// The join is on the issue and only on the issue, because that is what the client's cascade
+	// does: forgetting an issue forgets its notifications, and forgetting a comment does not.
+	//
+	StreamNotificationsForBootstrap(ctx context.Context, arg StreamNotificationsForBootstrapParams) ([]Notification, error)
+	// StreamViewPreferencesForBootstrap feeds the initial snapshot. A preference travels under
+	// its owner's user scope and under nothing else, so the whole visibility rule is "yours".
+	//
+	// Ordered by id rather than by view_key, which is what ListViewPreferences sorts on: the
+	// snapshot pages by id and a key order would need an offset to resume.
+	//
+	StreamViewPreferencesForBootstrap(ctx context.Context, arg StreamViewPreferencesForBootstrapParams) ([]ViewPreference, error)
+	// StreamViewsForBootstrap is ListViewsForUser as the snapshot needs it: keyset-paginated,
+	// and with the guest arm the listing above leaves to Go stated here instead.
+	//
+	// The three-way rule is scopeForView's — an owner makes the view personal, a team makes it
+	// the team's, and neither makes it the workspace's — so this and the change scope agree
+	// about who may see a view.
+	//
+	// The team clause applies to private views too, and that is not a mistake. A private view
+	// anchored to a team travels under its owner's scope, so nothing revokes it when the owner
+	// leaves that team — but the client drops a team's views along with the team when the
+	// revoke for the team itself arrives (Store.forget in web/src/store/store.ts, the team arm,
+	// which walks viewTeam without asking who owns the row). A snapshot that shipped it back
+	// would hand a bootstrapped replica a sidebar entry that a replica which watched the
+	// removal happen does not have.
+	//
+	StreamViewsForBootstrap(ctx context.Context, arg StreamViewsForBootstrapParams) ([]StreamViewsForBootstrapRow, error)
 	// TouchAPIKeyLastUsed rate-limits itself.
 	//
 	// The point of last_used_at is answering "is this key still in use before I revoke it",

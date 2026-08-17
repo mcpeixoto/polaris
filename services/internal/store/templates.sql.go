@@ -351,6 +351,92 @@ func (q *Queries) ListIssueTemplatesInWorkspace(ctx context.Context, workspaceID
 	return items, nil
 }
 
+const streamIssueTemplatesForBootstrap = `-- name: StreamIssueTemplatesForBootstrap :many
+SELECT id, workspace_id, team_id, name, description, title, body, properties,
+       position, created_by, archived_at, created_at, updated_at
+FROM issue_template
+WHERE workspace_id = $1
+  AND archived_at IS NULL
+  AND (team_id = ANY($2::uuid[])
+       OR (team_id IS NULL AND $3::boolean))
+  AND id > $4
+ORDER BY id
+LIMIT $5
+`
+
+type StreamIssueTemplatesForBootstrapParams struct {
+	WorkspaceID            uuid.UUID
+	TeamIds                []uuid.UUID
+	IncludeWorkspaceScoped bool
+	AfterID                uuid.UUID
+	PageSize               int32
+}
+
+type StreamIssueTemplatesForBootstrapRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	Name        string
+	Description *string
+	Title       string
+	Body        string
+	Properties  json.RawMessage
+	Position    string
+	CreatedBy   *uuid.UUID
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// StreamIssueTemplatesForBootstrap feeds the initial snapshot. The predicate is
+// requireTemplateScope's, the same shape as the label stream's and for the same reason: a
+// template with no team is offered in every create dialog and reaches every non-guest, and
+// a team's template reaches that team's members. Those are the only two scopes a template
+// change is ever emitted under.
+//
+// Archived templates are excluded — archiving emits a delete — even though issue.template_id
+// may still point at one. That column answers "is this template still worth having" from the
+// server side and is not something a replica renders.
+func (q *Queries) StreamIssueTemplatesForBootstrap(ctx context.Context, arg StreamIssueTemplatesForBootstrapParams) ([]StreamIssueTemplatesForBootstrapRow, error) {
+	rows, err := q.db.Query(ctx, streamIssueTemplatesForBootstrap,
+		arg.WorkspaceID,
+		arg.TeamIds,
+		arg.IncludeWorkspaceScoped,
+		arg.AfterID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []StreamIssueTemplatesForBootstrapRow{}
+	for rows.Next() {
+		var i StreamIssueTemplatesForBootstrapRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.Name,
+			&i.Description,
+			&i.Title,
+			&i.Body,
+			&i.Properties,
+			&i.Position,
+			&i.CreatedBy,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unarchiveIssueTemplate = `-- name: UnarchiveIssueTemplate :one
 UPDATE issue_template SET archived_at = NULL
 WHERE id = $1 AND archived_at IS NOT NULL

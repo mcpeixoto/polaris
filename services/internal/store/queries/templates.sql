@@ -35,6 +35,28 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND archived_at IS NULL
 ORDER BY position;
 
+-- StreamIssueTemplatesForBootstrap feeds the initial snapshot. The predicate is
+-- requireTemplateScope's, the same shape as the label stream's and for the same reason: a
+-- template with no team is offered in every create dialog and reaches every non-guest, and
+-- a team's template reaches that team's members. Those are the only two scopes a template
+-- change is ever emitted under.
+--
+-- Archived templates are excluded — archiving emits a delete — even though issue.template_id
+-- may still point at one. That column answers "is this template still worth having" from the
+-- server side and is not something a replica renders.
+--
+-- name: StreamIssueTemplatesForBootstrap :many
+SELECT id, workspace_id, team_id, name, description, title, body, properties,
+       position, created_by, archived_at, created_at, updated_at
+FROM issue_template
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND archived_at IS NULL
+  AND (team_id = ANY(sqlc.arg(team_ids)::uuid[])
+       OR (team_id IS NULL AND sqlc.arg(include_workspace_scoped)::boolean))
+  AND id > sqlc.arg(after_id)
+ORDER BY id
+LIMIT sqlc.arg(page_size);
+
 -- name: UpdateIssueTemplate :one
 UPDATE issue_template
 SET name        = COALESCE(sqlc.narg(name), name),

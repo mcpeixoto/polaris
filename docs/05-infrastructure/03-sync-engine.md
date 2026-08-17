@@ -134,7 +134,34 @@ Server, inside one `REPEATABLE READ` transaction:
 
 Gzip on. Chunked. The client writes into IndexedDB in batched transactions with a progress UI.
 
-**Scoping the snapshot is a product decision, not just a technical one.** Do not ship the entire history:
+### The invariant
+
+> A replica built by replaying the change stream from version N holds the same rows as a
+> replica built by bootstrapping at version N.
+
+Everything else this document promises is checkable only because that one is true, and when it breaks there is no error anywhere: two clients simply disagree about a workspace, and which one is right depends on when each last reloaded. It has two halves, and both fail silently.
+
+**The snapshot must not ship less than the stream would have sent.** It shipped nine of the sixteen replicated types for a milestone — `label`, `issueTemplate`, `issueSubscription`, `notification`, `view`, `viewPreference` and `favorite` reached a client on the change stream alone. A freshly bootstrapped replica therefore had no labels, no saved views, no favourites, no templates, no subscriptions and an empty inbox until an unrelated delta happened to carry one, which is worse than empty: it looks like data loss and then repairs itself for no visible reason. The sharpest case was `issueLabel` being streamed while `label` was not, so the replica held label applications pointing at labels it had never seen.
+
+**The snapshot must not ship more, either.** A snapshot carrying a row the hub would refuse to send is a way to read a private team's taxonomy, somebody's saved filters or somebody's inbox, with nothing on screen to suggest it happened. So every bootstrap query's predicate is the scope its `Emit` computes, restated in SQL against the principal's team set — not a filter in Go, and not a second opinion about who a guest is.
+
+`internal/domain/bootstrap_scope_test.go` runs both directions for several principals; `restore_stream_test.go` runs the first for a workspace that has been deleted and restored.
+
+### What the client's own cascade means for the snapshot
+
+A revoke is not enumerated. Losing a team emits **one** change row — for the team — because a team can hold sixty thousand issues, and the client deletes the team's contents locally (`Store.forget` in `web/src/store/store.ts`). A delete of an issue works the same way. That cascade is what keeps a delete cheap, and it is also a rule the snapshot has to obey from the other side: the bootstrap must leave out whatever a replica would have thrown away.
+
+| The client forgets | so the snapshot excludes |
+|---|---|
+| an issue → its comments, label applications, relations, **your subscription**, **notifications about it** | rows joined to an archived or deleted issue |
+| a team → its issues, statuses, memberships, labels, templates, **views** (private ones included) | rows outside the principal's team set |
+| anything → **favourites pointing at it** | favourites whose target this snapshot does not itself carry |
+
+The same table is why `RestoreIssue` republishes an issue's contents: the rows are still in Postgres — a soft delete is an `UPDATE` — but every replica dropped them, so the restore owes them back, notifications and favourites included.
+
+### Scoping the snapshot
+
+**A product decision, not just a technical one.** Do not ship the entire history:
 
 | Included at bootstrap | Loaded on demand |
 |---|---|
@@ -142,9 +169,14 @@ Gzip on. Chunked. The client writes into IndexedDB in batched transactions with 
 | Non-archived issues, their properties and relations | Comments beyond the most recent N per issue |
 | Recent comments + attachments for recent issues | Documents' full text (metadata only at boot) |
 | Customers and requests (unless guest) | Old activity history |
-| Your notifications | Insights results (always server-side) |
+| Your view preferences, favourites and subscriptions | Insights results (always server-side) |
+| Your **most recent 2,000** notifications | Inbox history past that |
+
+That last row is the only ceiling in the snapshot, and it is there because the inbox is the only table that grows forever: the fan-out writes a row per recipient per event and nothing removes one. Everything else is bounded by something a person maintains. 2,000 is the number the client already works to — `web/src/features/inbox` caps an open inbox at 2,000 rows — so the snapshot carries everything the product will ever render from it, and the badge, which is counted from the replica, still agrees with the server. The constant is `domain.BootstrapNotificationLimit`.
 
 A 100k-issue workspace at ~1.2 KB/issue is ~120 MB raw, ~15–25 MB gzipped — a slow but survivable first load. Beyond that, add a second tier: bootstrap only issues from the last N months plus everything referenced by your views, and lazily fetch the rest. Build the tiering hook now even if it's a no-op.
+
+Measured on the seeded 10k-issue workspace (`polarisctl seed --issues=10000`), populated with a workspace's worth of labels, applications, views, favourites, subscriptions and an inbox, one admin's snapshot is 21,170 rows / 11.2 MB raw / 1.3 MB gzipped, streamed in ~110 ms — against 19,026 rows / 10.3 MB / 1.2 MB and ~106 ms for the same workspace before the seven missing types were added. The snapshot is bounded by its issues and their comments; the types added here are a rounding error on it.
 
 ## Client store
 

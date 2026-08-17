@@ -37,16 +37,28 @@ import (
 // bootstraps a second one at the version the replay finished at, and compares them — so it
 // keeps being the right test when somebody changes how restore is implemented.
 
-// replayedTypes are the entity types this comparison covers.
+// replayedTypes are the entity types this comparison covers: every type this scene creates
+// through the domain layer, which is every type the snapshot carries except the five the
+// fixture writes.
 //
-// Not every type, and the gap is not this test's to close: StreamBootstrap ships workspaces,
-// users, teams, memberships, statuses, issues, label applications, relations and comments,
-// and nothing else. A workspace's labels, templates, views, favourites, view preferences,
-// subscriptions and notifications reach a client only on the change stream, so comparing them
-// here would fail on a pre-existing hole in the snapshot rather than on anything to do with
-// restore. Those four types below are exactly the ones a delete's cascade destroys AND the
-// bootstrap carries, which makes them the set where the two must agree.
-var replayedTypes = []string{"issue", "comment", "issueLabel", "issueRelation"}
+// It was four, and the reason was a hole rather than a choice: the snapshot shipped nine
+// types and only four of those were also destroyed by a delete's cascade, so a workspace's
+// labels, templates, views, favourites, preferences, subscriptions and notifications reached
+// a client on the change stream alone. Comparing them then would have failed on the missing
+// half of the bootstrap rather than on anything to do with restore. The snapshot now carries
+// all sixteen, so the comparison covers all sixteen — minus the five below, and that
+// exclusion is about the fixture rather than about the snapshot.
+//
+// workspace, user, team, teamMembership and workflowState are inserted by testutil.Fixture
+// straight into their tables, deliberately, so that a bug in the domain layer does not fail
+// every test in the package at once. Nothing emits a change row for them here, so a replay
+// cannot see them and comparing them would fail on the fixture. Every other type in this
+// file is created the way a person would create it.
+var replayedTypes = []string{
+	"label", "issueTemplate",
+	"issue", "issueLabel", "issueRelation", "comment", "issueSubscription",
+	"notification", "view", "viewPreference", "favorite",
+}
 
 func TestRestoreIssue_LeavesAReplayedReplicaHoldingWhatABootstrapWouldGive(t *testing.T) {
 	db := testutil.NewDB(t)
@@ -89,6 +101,67 @@ func TestRestoreIssue_LeavesAReplayedReplicaHoldingWhatABootstrapWouldGive(t *te
 		t.Fatalf("create relation: %v", err)
 	}
 
+	// The rest of what a workspace holds. Some of it hangs off the issue that is about to
+	// disappear and some of it does not, which is the point: the delete's cascade has to take
+	// exactly the first group, the restore has to give exactly the first group back, and the
+	// snapshot has to agree about both.
+	if _, _, err := svc.CreateIssueTemplate(ctx, p, domain.CreateIssueTemplateInput{
+		TeamID: &f.TeamID, Name: "Bug report",
+	}); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	teamView, _, err := svc.CreateView(ctx, p, domain.CreateViewInput{
+		TeamID: &f.TeamID, Name: "Open bugs",
+	})
+	if err != nil {
+		t.Fatalf("create the team's view: %v", err)
+	}
+	// A private view, which travels under its owner's scope rather than the team's and is
+	// therefore the one that catches a snapshot filtering views by team alone.
+	if _, _, err := svc.CreateView(ctx, p, domain.CreateViewInput{
+		Private: true, Name: "Mine",
+	}); err != nil {
+		t.Fatalf("create the private view: %v", err)
+	}
+	if _, _, err := svc.SetViewPreference(ctx, p, "my-issues",
+		json.RawMessage(`{"grouping":"status"}`)); err != nil {
+		t.Fatalf("set a view preference: %v", err)
+	}
+	// Three favourites: one pointing at the issue that is about to go, and two that must
+	// survive it. A favourite is a pointer with no foreign key, and the client deletes one
+	// whose target it forgets.
+	for _, fav := range []struct {
+		kind   string
+		target uuid.UUID
+	}{
+		{model.FavoriteIssue, subject.ID},
+		{model.FavoriteView, teamView.ID},
+		{model.FavoriteLabel, label.ID},
+	} {
+		if _, _, err := svc.AddFavorite(ctx, p, fav.kind, fav.target, nil); err != nil {
+			t.Fatalf("favourite the %s: %v", fav.kind, err)
+		}
+	}
+	// A subscription to the issue that survives, so that the type is still compared to
+	// something after the delete has taken the other one.
+	if _, _, err := svc.SetIssueSubscription(ctx, p, other.ID, true); err != nil {
+		t.Fatalf("subscribe to the far end: %v", err)
+	}
+
+	// Somebody else naming the caller in a comment, which is what puts a notification in the
+	// caller's inbox — the engine never notifies the actor, so nothing p does can produce one.
+	bobID := f.NewUser(t, "bob", "member", true)
+	bob := f.PrincipalFor(bobID, authz.RoleMember, f.TeamID)
+	if _, _, err := svc.CreateComment(ctx, bob, domain.CreateCommentInput{
+		IssueID: subject.ID,
+		Body:    fmt.Sprintf("@[dev](user:%s) this one is yours", f.UserID),
+	}); err != nil {
+		t.Fatalf("create the mention: %v", err)
+	}
+	if _, err := svc.FanOut(ctx, f.WorkspaceID); err != nil {
+		t.Fatalf("fan out: %v", err)
+	}
+
 	// The sequence a client watches: delete, then undo.
 	if _, err := svc.DeleteIssue(ctx, p, subject.ID); err != nil {
 		t.Fatalf("delete: %v", err)
@@ -115,15 +188,34 @@ func TestRestoreIssue_LeavesAReplayedReplicaHoldingWhatABootstrapWouldGive(t *te
 	}
 
 	// And the rows are actually there rather than both replicas being empty, which is the
-	// way a comparison like this passes for the wrong reason.
-	if len(online["comment"]) != 2 {
-		t.Errorf("the replayed replica holds %d comments, want 2", len(online["comment"]))
-	}
-	if len(online["issueLabel"]) != 1 {
-		t.Errorf("the replayed replica holds %d label applications, want 1", len(online["issueLabel"]))
-	}
-	if len(online["issueRelation"]) != 1 {
-		t.Errorf("the replayed replica holds %d relations, want 1", len(online["issueRelation"]))
+	// way a comparison like this passes for the wrong reason. Every type the comparison
+	// covers is counted, because a type that is empty on both sides is a type this test is
+	// silently not checking — which is exactly the state the seven new streams were shipped
+	// out of.
+	for _, want := range []struct {
+		entityType string
+		count      int
+	}{
+		{"label", 1},
+		{"issueTemplate", 1},
+		{"issue", 2},
+		{"issueLabel", 1},
+		{"issueRelation", 1},
+		// Two from the caller and one from the person who mentioned them.
+		{"comment", 3},
+		// The caller's own: the far issue they subscribed to by hand, and the one the
+		// mention subscribed them to.
+		{"issueSubscription", 2},
+		{"notification", 1},
+		{"view", 2},
+		{"viewPreference", 1},
+		{"favorite", 3},
+	} {
+		if got := len(online[want.entityType]); got != want.count {
+			t.Errorf("the replayed replica holds %d %s rows, want %d — a count of zero means "+
+				"the comparison above passed by comparing nothing",
+				got, want.entityType, want.count)
+		}
 	}
 }
 
@@ -133,8 +225,9 @@ func TestRestoreIssue_LeavesAReplayedReplicaHoldingWhatABootstrapWouldGive(t *te
 // The cascade below mirrors Store.forget in web/src/store/store.ts, and it has to: the whole
 // question this test asks is what a real client ends up holding, and a replay that kept a
 // deleted issue's comments would answer a question no client is asking. It is deliberately
-// only the issue arm of that switch — the team arm is exercised by the membership tests, and
-// modelling all of it here would be a second client rather than a test.
+// only the issue arm of that switch, plus the favourite walk that runs after every arm — the
+// team arm is exercised by the membership tests, and modelling all of it here would be a
+// second client rather than a test.
 func replayReplica(t *testing.T, ctx context.Context, svc *domain.Service, p *authz.Principal) map[string]map[uuid.UUID]bool {
 	t.Helper()
 
@@ -145,15 +238,28 @@ func replayReplica(t *testing.T, ctx context.Context, svc *domain.Service, p *au
 		}
 		rows[entityType][id] = true
 	}
-	drop := func(entityType string, id uuid.UUID) {
-		delete(rows[entityType], id)
-	}
 
 	// What each row belongs to, so the cascade can find it. A client keeps these as
 	// indexes; a test keeps them as maps.
 	commentIssue := map[uuid.UUID]uuid.UUID{}
 	labelIssue := map[uuid.UUID]uuid.UUID{}
 	relationEnds := map[uuid.UUID][2]uuid.UUID{}
+	subscriptionIssue := map[uuid.UUID]uuid.UUID{}
+	notificationIssue := map[uuid.UUID]uuid.UUID{}
+	favoriteTarget := map[uuid.UUID]uuid.UUID{}
+
+	// Forgetting anything also forgets the favourites pointing at it, which in the client is
+	// a walk at the end of every arm of the switch rather than part of any one of them: a
+	// favourite is a pointer with no foreign key, so one aimed at a row the replica no longer
+	// holds is a sidebar entry that cannot be opened, renamed or removed.
+	drop := func(entityType string, id uuid.UUID) {
+		delete(rows[entityType], id)
+		for favoriteID, target := range favoriteTarget {
+			if target == id {
+				delete(rows["favorite"], favoriteID)
+			}
+		}
+	}
 
 	var after int64
 	for {
@@ -185,6 +291,20 @@ func replayReplica(t *testing.T, ctx context.Context, svc *domain.Service, p *au
 					var row model.IssueRelation
 					decodePayload(t, c.Payload, &row)
 					relationEnds[c.EntityID] = [2]uuid.UUID{row.IssueID, row.RelatedIssueID}
+				case "issueSubscription":
+					var row model.IssueSubscription
+					decodePayload(t, c.Payload, &row)
+					subscriptionIssue[c.EntityID] = row.IssueID
+				case "notification":
+					var row model.Notification
+					decodePayload(t, c.Payload, &row)
+					if row.IssueID != nil {
+						notificationIssue[c.EntityID] = *row.IssueID
+					}
+				case "favorite":
+					var row model.Favorite
+					decodePayload(t, c.Payload, &row)
+					favoriteTarget[c.EntityID] = row.TargetID
 				}
 			case "delete", "revoke":
 				drop(c.EntityType, c.EntityID)
@@ -192,7 +312,8 @@ func replayReplica(t *testing.T, ctx context.Context, svc *domain.Service, p *au
 					continue
 				}
 				// The client's cascade: losing an issue takes its comments, its label
-				// applications and its links from both ends with it.
+				// applications, its links from both ends, the caller's subscription to it and
+				// every notification about it.
 				for id, issueID := range commentIssue {
 					if issueID == c.EntityID {
 						drop("comment", id)
@@ -206,6 +327,16 @@ func replayReplica(t *testing.T, ctx context.Context, svc *domain.Service, p *au
 				for id, ends := range relationEnds {
 					if ends[0] == c.EntityID || ends[1] == c.EntityID {
 						drop("issueRelation", id)
+					}
+				}
+				for id, issueID := range subscriptionIssue {
+					if issueID == c.EntityID {
+						drop("issueSubscription", id)
+					}
+				}
+				for id, issueID := range notificationIssue {
+					if issueID == c.EntityID {
+						drop("notification", id)
 					}
 				}
 			}
