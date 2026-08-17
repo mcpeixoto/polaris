@@ -205,6 +205,9 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
           <NavLink to="/settings/labels" className={navClass}>
             Labels
           </NavLink>
+          <NavLink to="/settings/templates" className={navClass}>
+            Templates
+          </NavLink>
           <NavLink to="/settings/api-keys" className={navClass}>
             API keys
           </NavLink>

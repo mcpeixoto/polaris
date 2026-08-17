@@ -1,0 +1,35 @@
+/*
+ * The two halves of a menu row.
+ *
+ * This file used to open with a local z-index override, because a menu opened from inside a
+ * dialog was painted underneath it: `Menu` portals to <body> at --z-dropdown, `Modal` portals
+ * to <body> at --z-modal, both fixed, and 200 is less than 400. That was not this component's
+ * problem to solve — it was true of every menu in the product, and the token file's own
+ * comment already claimed the opposite ("a dropdown opens inside a modal"). --z-dropdown now
+ * sits above --z-modal, so the override is gone and the next picker opened from a dialog
+ * works without discovering this again.
+ */
+
+/*
+ * A menu row is one line tall by design — `Menu.module.css` fixes it at --control-height-md
+ * so that a list can be crossed by eye at a constant rhythm — so the description trails the
+ * name on the same line rather than stacking under it. Stacking would need a taller row for
+ * every menu in the product or a second row height only this picker uses, and both are worse
+ * than a truncated sentence: the description exists to tell two similar templates apart,
+ * which its first few words already do, and the full text lives on the settings screen.
+ *
+ * Menu's own `.label` supplies the truncation, so nothing here has to.
+ */
+
+.name {
+  font-weight: var(--font-weight-medium);
+}
+
+/*
+ * Dimmer than the name and never bolder. The row is chosen by its name; the description is
+ * read only when two names are not enough to decide, and giving it equal weight would make
+ * every row in the list compete with itself.
+ */
+.description {
+  color: var(--text-tertiary);
+}

@@ -159,12 +159,24 @@
    *
    * The order encodes real containment: a dropdown opens inside a modal, a tooltip
    * describes a control in either, and a toast has to survive both.
+   *
+   * That sentence was here while the numbers said the opposite. `--z-dropdown` was 200 and
+   * `--z-modal` 400, and both `Menu` and `Modal` portal to `<body>` as `position: fixed`
+   * siblings — so a menu opened from inside a dialog was painted *underneath* it, behind
+   * the scrim. Not a subtle mis-layering: the menu was invisible, and the only reason
+   * nobody had hit it is that the create-issue modal uses native `<select>`s, a choice made
+   * for other reasons that happened to route around this one.
+   *
+   * A dropdown is always the most recent thing the user opened — it is transient, it is
+   * launched from a control, and it closes when attention moves — so there is no case where
+   * it should sit behind a surface that was already there. It goes above the modal, and
+   * below the toast and the tooltip, which have to survive it.
    */
   --z-base: 0;
   --z-sticky: 100;
-  --z-dropdown: 200;
   --z-overlay: 300;
   --z-modal: 400;
+  --z-dropdown: 450;
   --z-toast: 500;
   --z-tooltip: 600;
 

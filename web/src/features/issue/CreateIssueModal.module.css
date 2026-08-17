@@ -35,3 +35,38 @@
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
+
+/*
+ * The template control sits in the same grid as the four selects, so it has to look like one
+ * of them — but it is a button opening a filterable menu rather than a native <select>, and
+ * Field's label markup belongs to the inputs. This is the two lines of that: a label above a
+ * full-width control, matching the label metrics Field uses so the row does not sit a pixel
+ * off from its neighbours.
+ */
+.template {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.templateLabel {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/*
+ * What a template could not fill in here, and why.
+ *
+ * Secondary rather than an error, because nothing has gone wrong: a workspace template
+ * genuinely cannot carry a status, since a status belongs to one team. It is the difference
+ * between a warning and an explanation, and treating it as a failure would teach people to
+ * distrust workspace templates for doing exactly what they are for.
+ */
+.dropped {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
