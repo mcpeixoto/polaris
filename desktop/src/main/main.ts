@@ -227,7 +227,10 @@ function trackWindowState(win: BrowserWindow): void {
     // getNormalBounds is the un-maximised rectangle, which is what a restore needs; the
     // maximised one is the size of a screen the user may not have next time.
     const { x, y, width, height } = win.getNormalBounds();
-    writeSettings({ ...readSettings(), window: { x, y, width, height, maximized: win.isMaximized() } });
+    writeSettings({
+      ...readSettings(),
+      window: { x, y, width, height, maximized: win.isMaximized() },
+    });
   };
 
   const schedule = (): void => {
@@ -613,8 +616,7 @@ app.on('open-url', (event, url) => {
  * scheme, so a compromised or hostile server cannot get code into the renderer.
  */
 function contentSecurityPolicy(): string {
-  const api =
-    serverUrl === '' ? [] : [serverUrl, serverUrl.replace(/^http/, 'ws')];
+  const api = serverUrl === '' ? [] : [serverUrl, serverUrl.replace(/^http/, 'ws')];
 
   return [
     "default-src 'none'",
