@@ -1,0 +1,218 @@
+# Polaris — the default, self-contained deployment.
+#
+# This file is for somebody who cloned the repository onto their own machine and wants a
+# working install. It publishes ports and terminates TLS itself, so it needs nothing else
+# on the box.
+#
+# It is NOT how the hosted service runs. That uses docker-compose.fleet.yml as an
+# override, which removes the published ports and the reverse proxy because the fleet has
+# its own ingress. Keeping the public file self-contained is deliberate: a default compose
+# that only works inside one company's infrastructure is not open source in any useful sense.
+#
+#   cp .env.example .env      # then edit it — at minimum POLARIS_JWT_SECRET and the passwords
+#   docker compose up -d
+#
+name: polaris
+
+x-service-defaults: &defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  caddy:
+    <<: *defaults
+    image: caddy:2.8-alpine
+    container_name: polaris_proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - polaris_caddy_data:/data
+      - polaris_caddy_config:/config
+    environment:
+      POLARIS_DOMAIN: ${POLARIS_DOMAIN:-localhost}
+    depends_on:
+      web: { condition: service_started }
+      api: { condition: service_healthy }
+    networks: [frontend]
+    mem_limit: 128m
+
+  web:
+    <<: *defaults
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+    container_name: polaris_web
+    networks: [frontend]
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  api:
+    <<: *defaults
+    build: &backend_build
+      context: .
+      dockerfile: services/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+    container_name: polaris_api
+    command: ["/usr/local/bin/api"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/polaris?sslmode=disable
+      VALKEY_URL: redis://cache:6379/0
+    depends_on:
+      postgres: { condition: service_healthy }
+      cache: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    # frontend so the proxy can reach it; backend so it can reach the database. The
+    # database is NOT on frontend — nothing the proxy can route to should be able to
+    # reach Postgres directly.
+    networks: [frontend, backend]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/polarisctl", "help"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  sync:
+    <<: *defaults
+    build: *backend_build
+    container_name: polaris_sync
+    command: ["/usr/local/bin/sync"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@postgres:5432/polaris?sslmode=disable
+      VALKEY_URL: redis://cache:6379/0
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [frontend, backend]
+    mem_limit: 512m
+
+  worker:
+    <<: *defaults
+    build: *backend_build
+    container_name: polaris_worker
+    command: ["/usr/local/bin/worker"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@postgres:5432/polaris?sslmode=disable
+      VALKEY_URL: redis://cache:6379/0
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    # Backend only: the worker makes outbound calls, and nothing routes to it.
+    networks: [backend]
+    mem_limit: 512m
+
+  # Migrations run as their own one-shot container rather than on api startup, so that
+  # three replicas of api cannot race each other to migrate the same database.
+  migrate:
+    build: *backend_build
+    container_name: polaris_migrate
+    command: ["/usr/local/bin/polarisctl", "migrate", "up"]
+    environment:
+      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@postgres:5432/polaris?sslmode=disable
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backend]
+    restart: "no"
+
+  postgres:
+    <<: *defaults
+    image: postgres:17.2-alpine
+    container_name: polaris_db
+    environment:
+      POSTGRES_USER: polaris
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: polaris
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=en-US --encoding=UTF8"
+    volumes:
+      - polaris_pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks: [backend]
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polaris -d polaris"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Valkey rather than Redis: Redis 7.4+ is RSALv2/SSPL, which is not an OSI-approved
+  # licence and is untenable as a dependency of an AGPL project — some organisations
+  # refuse non-OSI dependencies outright. Valkey is the BSD-licensed fork and is
+  # protocol-compatible.
+  cache:
+    <<: *defaults
+    image: valkey/valkey:8.0-alpine
+    container_name: polaris_cache
+    command: ["valkey-server", "--save", "3600", "1", "--appendonly", "no"]
+    volumes:
+      - polaris_cache:/data
+    networks: [backend]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Object storage is optional. The default file driver writes to a volume, which is
+  # simpler and adequate for a single-box install; enable this profile when you want
+  # presigned direct uploads or plan to move to S3 later.
+  minio:
+    <<: *defaults
+    profiles: ["s3"]
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: polaris_files
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-polaris}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env when using the s3 profile}
+    volumes:
+      - polaris_minio:/data
+    networks: [backend]
+    mem_limit: 512m
+
+  # Search defaults to Postgres full-text, which costs nothing extra. Enable this profile
+  # when typo tolerance and ranking quality start mattering more than 512 MB of RAM.
+  meilisearch:
+    <<: *defaults
+    profiles: ["search"]
+    image: getmeili/meilisearch:v1.11
+    container_name: polaris_search
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY in .env when using the search profile}
+      MEILI_ENV: production
+    volumes:
+      - polaris_meili:/meili_data
+    networks: [backend]
+    mem_limit: 512m
+
+networks:
+  frontend:
+  backend:
+    # No route to the internet and no route from the proxy. Datastores live here alone
+    # with the services that legitimately talk to them.
+    internal: true
+
+volumes:
+  polaris_pgdata:
+  polaris_cache:
+  polaris_minio:
+  polaris_meili:
+  polaris_caddy_data:
+  polaris_caddy_config:

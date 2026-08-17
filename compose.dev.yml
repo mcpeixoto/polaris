@@ -1,0 +1,80 @@
+# Local development only. Publishes ports on purpose — this is not the VPS.
+# Production compose (docs/05-infrastructure/05-deployment-vps.md) never publishes ports.
+name: polaris-dev
+
+services:
+  postgres:
+    image: postgres:17.2-alpine
+    container_name: polaris_dev_db
+    environment:
+      POSTGRES_USER: polaris
+      POSTGRES_PASSWORD: polaris
+      POSTGRES_DB: polaris
+      # Deterministic collation so ORDER BY matches production regardless of host locale.
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=en-US --encoding=UTF8"
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - log_min_duration_statement=200ms
+    ports:
+      - "55432:5432"
+    volumes:
+      - polaris_dev_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polaris -d polaris"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:8.0-alpine
+    container_name: polaris_dev_cache
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: polaris_dev_files
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: polaris
+      MINIO_ROOT_PASSWORD: polarisdev
+    ports:
+      - "59000:9000"
+      - "59001:9001"
+    volumes:
+      - polaris_dev_minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    container_name: polaris_dev_search
+    environment:
+      MEILI_MASTER_KEY: polarisdevmasterkey
+      MEILI_ENV: development
+    ports:
+      - "57700:7700"
+    volumes:
+      - polaris_dev_meili:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  polaris_dev_pg:
+  polaris_dev_minio:
+  polaris_dev_meili:

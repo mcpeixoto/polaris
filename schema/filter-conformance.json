@@ -1,0 +1,503 @@
+{
+  "$comment": [
+    "The contract between internal/filter (compiles to SQL) and web/src/filter (evaluates",
+    "against the replica). Both test suites load this file; neither computes the expected",
+    "answer, so a change that makes both implementations agree on something wrong still",
+    "fails.",
+    "",
+    "Expected ids are compared as a SET, sorted ascending. Ordering is a display option and",
+    "is tested separately — mixing the two here would make an ordering change look like a",
+    "filter regression.",
+    "",
+    "evaluatedAt fixes the clock so relative dates ('-10d') are reproducible. Resolving them",
+    "at save time instead is the bug this pins: a view called 'Updated this week' that means",
+    "the week it was saved in.",
+    "",
+    "SHORT NAMES. Inside 'values' and 'expect', 'e1' or 'a11' is shorthand for the full id",
+    "  01900000-0000-7000-8000- + leftPad(name, 12, '0')",
+    "so 'e1' is ...-0000000000e1 and 'a11' is ...-000000000a11. Both loaders expand the same",
+    "way. Written out in full these arrays are unreadable, and an unreadable fixture is one",
+    "nobody checks when it disagrees with them.",
+    "",
+    "See docs/03-architecture/06-filter-grammar.md."
+  ],
+
+  "evaluatedAt": "2026-08-15T12:00:00Z",
+  "timezone": "Europe/Lisbon",
+
+  "workspace": {
+    "id": "01900000-0000-7000-8000-000000000001",
+    "name": "Conformance",
+    "urlKey": "conformance",
+    "plan": "free"
+  },
+
+  "users": [
+    { "id": "01900000-0000-7000-8000-0000000000a1", "name": "Ada", "role": "owner" },
+    { "id": "01900000-0000-7000-8000-0000000000a2", "name": "Grace", "role": "member" }
+  ],
+
+  "teams": [
+    { "id": "01900000-0000-7000-8000-0000000000b1", "key": "ENG", "name": "Engineering" },
+    { "id": "01900000-0000-7000-8000-0000000000b2", "key": "DES", "name": "Design" }
+  ],
+
+  "workflowStates": [
+    { "id": "01900000-0000-7000-8000-0000000000c1", "teamId": "01900000-0000-7000-8000-0000000000b1", "name": "Todo",  "category": "unstarted", "position": "a0", "isDefault": true },
+    { "id": "01900000-0000-7000-8000-0000000000c2", "teamId": "01900000-0000-7000-8000-0000000000b1", "name": "Doing", "category": "started",   "position": "a1", "isDefault": false },
+    { "id": "01900000-0000-7000-8000-0000000000c3", "teamId": "01900000-0000-7000-8000-0000000000b1", "name": "Done",  "category": "completed", "position": "a2", "isDefault": false },
+    { "id": "01900000-0000-7000-8000-0000000000c4", "teamId": "01900000-0000-7000-8000-0000000000b2", "name": "Todo",  "category": "unstarted", "position": "a0", "isDefault": true }
+  ],
+
+  "labels": [
+    { "id": "01900000-0000-7000-8000-0000000000d0", "name": "Priority",     "color": "#f00", "position": "a0", "isGroup": true },
+    { "id": "01900000-0000-7000-8000-0000000000d1", "name": "P0",           "color": "#f00", "position": "a0", "parentId": "01900000-0000-7000-8000-0000000000d0" },
+    { "id": "01900000-0000-7000-8000-0000000000d2", "name": "P1",           "color": "#fa0", "position": "a1", "parentId": "01900000-0000-7000-8000-0000000000d0" },
+    { "id": "01900000-0000-7000-8000-0000000000d3", "name": "bug",          "color": "#e11", "position": "a2" },
+    { "id": "01900000-0000-7000-8000-0000000000d4", "name": "needs-mockup", "color": "#0af", "position": "a0", "teamId": "01900000-0000-7000-8000-0000000000b2" }
+  ],
+
+  "issues": [
+    {
+      "id": "01900000-0000-7000-8000-0000000000e1",
+      "teamId": "01900000-0000-7000-8000-0000000000b1", "number": 1,
+      "title": "Fix the login redirect", "description": "Redirects to the wrong workspace.",
+      "stateId": "01900000-0000-7000-8000-0000000000c1",
+      "assigneeId": "01900000-0000-7000-8000-0000000000a1",
+      "creatorId": "01900000-0000-7000-8000-0000000000a1",
+      "priority": 1, "estimate": 3, "dueDate": "2026-09-01",
+      "sortOrder": "a0",
+      "labelIds": ["01900000-0000-7000-8000-0000000000d1", "01900000-0000-7000-8000-0000000000d3"],
+      "createdAt": "2026-08-01T09:00:00Z", "updatedAt": "2026-08-01T09:00:00Z"
+    },
+    {
+      "$comment": "Diacritics, and an unaccented search must find it.",
+      "id": "01900000-0000-7000-8000-0000000000e2",
+      "teamId": "01900000-0000-7000-8000-0000000000b1", "number": 2,
+      "title": "Ação de limpeza", "description": "",
+      "stateId": "01900000-0000-7000-8000-0000000000c2",
+      "assigneeId": "01900000-0000-7000-8000-0000000000a2",
+      "creatorId": "01900000-0000-7000-8000-0000000000a1",
+      "priority": 3,
+      "sortOrder": "a1",
+      "labelIds": ["01900000-0000-7000-8000-0000000000d2"],
+      "createdAt": "2026-08-05T09:00:00Z", "updatedAt": "2026-08-05T09:00:00Z"
+    },
+    {
+      "$comment": "Unassigned, which `assignee neq ada` must still return.",
+      "id": "01900000-0000-7000-8000-0000000000e3",
+      "teamId": "01900000-0000-7000-8000-0000000000b1", "number": 3,
+      "title": "Unassigned work", "description": "",
+      "stateId": "01900000-0000-7000-8000-0000000000c1",
+      "creatorId": "01900000-0000-7000-8000-0000000000a1",
+      "priority": 0, "estimate": 1,
+      "sortOrder": "a2",
+      "labelIds": [],
+      "createdAt": "2026-08-10T09:00:00Z", "updatedAt": "2026-08-10T09:00:00Z"
+    },
+    {
+      "$comment": "A completed sub-issue of e1.",
+      "id": "01900000-0000-7000-8000-0000000000e4",
+      "teamId": "01900000-0000-7000-8000-0000000000b1", "number": 4,
+      "title": "Child of ENG-1", "description": "",
+      "stateId": "01900000-0000-7000-8000-0000000000c3",
+      "assigneeId": "01900000-0000-7000-8000-0000000000a1",
+      "creatorId": "01900000-0000-7000-8000-0000000000a1",
+      "priority": 2,
+      "parentId": "01900000-0000-7000-8000-0000000000e1",
+      "sortOrder": "a3", "subIssueSortOrder": "a0",
+      "labelIds": ["01900000-0000-7000-8000-0000000000d3"],
+      "completedAt": "2026-08-13T09:00:00Z",
+      "createdAt": "2026-08-11T09:00:00Z", "updatedAt": "2026-08-13T09:00:00Z"
+    },
+    {
+      "$comment": "Another team, and the target of a blocks relation.",
+      "id": "01900000-0000-7000-8000-0000000000e5",
+      "teamId": "01900000-0000-7000-8000-0000000000b2", "number": 1,
+      "title": "Design the empty state", "description": "",
+      "stateId": "01900000-0000-7000-8000-0000000000c4",
+      "assigneeId": "01900000-0000-7000-8000-0000000000a2",
+      "creatorId": "01900000-0000-7000-8000-0000000000a2",
+      "priority": 4,
+      "sortOrder": "a4",
+      "labelIds": ["01900000-0000-7000-8000-0000000000d4"],
+      "createdAt": "2026-08-12T09:00:00Z", "updatedAt": "2026-08-12T09:00:00Z"
+    },
+    {
+      "$comment": "Archived. Excluded from every case that does not mention archived.",
+      "id": "01900000-0000-7000-8000-0000000000e6",
+      "teamId": "01900000-0000-7000-8000-0000000000b1", "number": 5,
+      "title": "Archived thing", "description": "",
+      "stateId": "01900000-0000-7000-8000-0000000000c3",
+      "assigneeId": "01900000-0000-7000-8000-0000000000a1",
+      "creatorId": "01900000-0000-7000-8000-0000000000a1",
+      "priority": 1,
+      "sortOrder": "a5",
+      "labelIds": [],
+      "archivedAt": "2026-08-04T09:00:00Z",
+      "createdAt": "2026-08-02T09:00:00Z", "updatedAt": "2026-08-04T09:00:00Z"
+    },
+    {
+      "$comment": "Soft-deleted, and inside the restore window.",
+      "id": "01900000-0000-7000-8000-0000000000e7",
+      "teamId": "01900000-0000-7000-8000-0000000000b1", "number": 6,
+      "title": "Deleted thing", "description": "",
+      "stateId": "01900000-0000-7000-8000-0000000000c1",
+      "creatorId": "01900000-0000-7000-8000-0000000000a1",
+      "priority": 1,
+      "sortOrder": "a6",
+      "labelIds": [],
+      "deletedAt": "2026-08-14T09:00:00Z",
+      "createdAt": "2026-08-03T09:00:00Z", "updatedAt": "2026-08-14T09:00:00Z"
+    }
+  ],
+
+  "relations": [
+    {
+      "id": "01900000-0000-7000-8000-0000000000f1",
+      "issueId": "01900000-0000-7000-8000-0000000000e1",
+      "relatedIssueId": "01900000-0000-7000-8000-0000000000e5",
+      "type": "blocks"
+    }
+  ],
+
+  "subscriptions": [
+    {
+      "id": "01900000-0000-7000-8000-000000000a11",
+      "issueId": "01900000-0000-7000-8000-0000000000e2",
+      "userId": "01900000-0000-7000-8000-0000000000a1",
+      "reason": "commented", "unsubscribed": false
+    },
+    {
+      "$comment": "Unsubscribed. `subscriber eq grace` must not return this issue.",
+      "id": "01900000-0000-7000-8000-000000000a12",
+      "issueId": "01900000-0000-7000-8000-0000000000e1",
+      "userId": "01900000-0000-7000-8000-0000000000a2",
+      "reason": "assigned", "unsubscribed": true
+    }
+  ],
+
+  "cases": [
+    {
+      "name": "the column default matches everything live",
+      "filter": {},
+      "expect": ["e1", "e2", "e3", "e4", "e5"]
+    },
+    {
+      "name": "an AND over nothing is vacuously true",
+      "filter": { "conj": "and", "nodes": [] },
+      "expect": ["e1", "e2", "e3", "e4", "e5"]
+    },
+    {
+      "name": "assignee eq",
+      "filter": { "field": "assignee", "op": "eq", "values": ["a1"] },
+      "expect": ["e1", "e4"]
+    },
+    {
+      "name": "assignee neq includes the unassigned — SQL's three-valued logic drops them",
+      "filter": { "field": "assignee", "op": "neq", "values": ["a1"] },
+      "expect": ["e2", "e3", "e5"]
+    },
+    {
+      "name": "assignee isNull",
+      "filter": { "field": "assignee", "op": "isNull" },
+      "expect": ["e3"]
+    },
+    {
+      "name": "assignee isNotNull",
+      "filter": { "field": "assignee", "op": "isNotNull" },
+      "expect": ["e1", "e2", "e4", "e5"]
+    },
+    {
+      "name": "priority in",
+      "filter": { "field": "priority", "op": "in", "values": ["1", "2"] },
+      "expect": ["e1", "e4"]
+    },
+    {
+      "name": "an empty in-list matches nothing, it is not a skipped clause",
+      "filter": { "field": "priority", "op": "in", "values": [] },
+      "expect": []
+    },
+    {
+      "name": "an empty notIn-list matches everything",
+      "filter": { "field": "priority", "op": "notIn", "values": [] },
+      "expect": ["e1", "e2", "e3", "e4", "e5"]
+    },
+    {
+      "name": "label in — any of the issue's labels matching is enough",
+      "filter": { "field": "label", "op": "in", "values": ["d3"] },
+      "expect": ["e1", "e4"]
+    },
+    {
+      "name": "label notIn means has no label from this set, not has some other label",
+      "filter": { "field": "label", "op": "notIn", "values": ["d3"] },
+      "expect": ["e2", "e3", "e5"]
+    },
+    {
+      "name": "label in across scopes",
+      "filter": { "field": "label", "op": "in", "values": ["d1", "d4"] },
+      "expect": ["e1", "e5"]
+    },
+    {
+      "name": "an issue with no labels at all matches notIn",
+      "filter": { "field": "label", "op": "notIn", "values": ["d1", "d2", "d3", "d4"] },
+      "expect": ["e3"]
+    },
+    {
+      "name": "contains folds diacritics — someone typing without an accent wants the same issue",
+      "filter": { "field": "title", "op": "contains", "values": ["acao"] },
+      "expect": ["e2"]
+    },
+    {
+      "name": "contains folds case",
+      "filter": { "field": "title", "op": "contains", "values": ["AÇÃO"] },
+      "expect": ["e2"]
+    },
+    {
+      "name": "contains matches a substring anywhere",
+      "filter": { "field": "title", "op": "contains", "values": ["the"] },
+      "expect": ["e1", "e5"]
+    },
+    {
+      "name": "notContains",
+      "filter": { "field": "title", "op": "notContains", "values": ["the"] },
+      "expect": ["e2", "e3", "e4"]
+    },
+    {
+      "name": "description is searchable too",
+      "filter": { "field": "description", "op": "contains", "values": ["workspace"] },
+      "expect": ["e1"]
+    },
+    {
+      "name": "stateCategory survives a team renaming its statuses",
+      "filter": { "field": "stateCategory", "op": "eq", "values": ["completed"] },
+      "expect": ["e4"]
+    },
+    {
+      "name": "stateCategory in",
+      "filter": { "field": "stateCategory", "op": "in", "values": ["unstarted", "started"] },
+      "expect": ["e1", "e2", "e3", "e5"]
+    },
+    {
+      "name": "state eq",
+      "filter": { "field": "state", "op": "eq", "values": ["c1"] },
+      "expect": ["e1", "e3"]
+    },
+    {
+      "name": "estimate isNull",
+      "filter": { "field": "estimate", "op": "isNull" },
+      "expect": ["e2", "e4", "e5"]
+    },
+    {
+      "name": "estimate gte",
+      "filter": { "field": "estimate", "op": "gte", "values": ["2"] },
+      "expect": ["e1"]
+    },
+    {
+      "name": "estimate lt does not include the unestimated",
+      "filter": { "field": "estimate", "op": "lt", "values": ["3"] },
+      "expect": ["e3"]
+    },
+    {
+      "name": "dueDate lte",
+      "filter": { "field": "dueDate", "op": "lte", "values": ["2026-09-01"] },
+      "expect": ["e1"]
+    },
+    {
+      "name": "dueDate isNull",
+      "filter": { "field": "dueDate", "op": "isNull" },
+      "expect": ["e2", "e3", "e4", "e5"]
+    },
+    {
+      "name": "parent eq",
+      "filter": { "field": "parent", "op": "eq", "values": ["e1"] },
+      "expect": ["e4"]
+    },
+    {
+      "name": "parent isNull is how a view hides sub-issues",
+      "filter": { "field": "parent", "op": "isNull" },
+      "expect": ["e1", "e2", "e3", "e5"]
+    },
+    {
+      "name": "blockedBy traverses the relation from the blocked end",
+      "filter": { "field": "blockedBy", "op": "in", "values": ["e1"] },
+      "expect": ["e5"]
+    },
+    {
+      "name": "blocking traverses it from the other end, off the same row",
+      "filter": { "field": "blocking", "op": "in", "values": ["e5"] },
+      "expect": ["e1"]
+    },
+    {
+      "name": "subscriber",
+      "filter": { "field": "subscriber", "op": "eq", "values": ["a1"] },
+      "expect": ["e2"]
+    },
+    {
+      "name": "an unsubscribed row does not count as subscribed",
+      "filter": { "field": "subscriber", "op": "eq", "values": ["a2"] },
+      "expect": []
+    },
+    {
+      "name": "team eq",
+      "filter": { "field": "team", "op": "eq", "values": ["b1"] },
+      "expect": ["e1", "e2", "e3", "e4"]
+    },
+    {
+      "name": "creator eq",
+      "filter": { "field": "creator", "op": "eq", "values": ["a1"] },
+      "expect": ["e1", "e2", "e3", "e4"]
+    },
+    {
+      "name": "an archived clause turns off the default exclusion",
+      "filter": { "field": "archived", "op": "eq", "values": ["true"] },
+      "expect": ["e6"]
+    },
+    {
+      "name": "archived false is the default, stated",
+      "filter": { "field": "archived", "op": "eq", "values": ["false"] },
+      "expect": ["e1", "e2", "e3", "e4", "e5"]
+    },
+    {
+      "name": "deleted issues are reachable only by asking",
+      "filter": { "field": "deleted", "op": "eq", "values": ["true"] },
+      "expect": ["e7"]
+    },
+    {
+      "name": "AND",
+      "filter": {
+        "conj": "and",
+        "nodes": [
+          { "field": "assignee", "op": "eq", "values": ["a1"] },
+          { "field": "priority", "op": "eq", "values": ["1"] }
+        ]
+      },
+      "expect": ["e1"]
+    },
+    {
+      "name": "OR",
+      "filter": {
+        "conj": "or",
+        "nodes": [
+          { "field": "priority", "op": "eq", "values": ["1"] },
+          { "field": "priority", "op": "eq", "values": ["4"] }
+        ]
+      },
+      "expect": ["e1", "e5"]
+    },
+    {
+      "name": "a nested group",
+      "filter": {
+        "conj": "and",
+        "nodes": [
+          {
+            "conj": "or",
+            "nodes": [
+              { "field": "assignee", "op": "eq", "values": ["a1"] },
+              { "field": "assignee", "op": "eq", "values": ["a2"] }
+            ]
+          },
+          { "field": "stateCategory", "op": "neq", "values": ["completed"] }
+        ]
+      },
+      "expect": ["e1", "e2", "e5"]
+    },
+    {
+      "name": "an OR cannot resurrect deleted issues into a view that never asked",
+      "filter": {
+        "conj": "or",
+        "nodes": [
+          { "field": "priority", "op": "eq", "values": ["1"] },
+          { "field": "assignee", "op": "isNull" }
+        ]
+      },
+      "expect": ["e1", "e3"]
+    },
+    {
+      "name": "four clauses, the shape the performance budget is written against",
+      "filter": {
+        "conj": "and",
+        "nodes": [
+          { "field": "team", "op": "eq", "values": ["b1"] },
+          { "field": "stateCategory", "op": "in", "values": ["unstarted", "started"] },
+          { "field": "priority", "op": "notIn", "values": ["0"] },
+          { "field": "label", "op": "in", "values": ["d1", "d2", "d3"] }
+        ]
+      },
+      "expect": ["e1", "e2"]
+    },
+    {
+      "name": "a relative date resolves at evaluation time, not at save time",
+      "filter": { "field": "createdAt", "op": "gte", "values": ["-10d"] },
+      "expect": ["e2", "e3", "e4", "e5"]
+    },
+    {
+      "name": "an absolute timestamp comparison",
+      "filter": { "field": "createdAt", "op": "lt", "values": ["2026-08-06T00:00:00Z"] },
+      "expect": ["e1", "e2"]
+    },
+    {
+      "name": "completedAt is null for everything still open",
+      "filter": { "field": "completedAt", "op": "isNotNull" },
+      "expect": ["e4"]
+    }
+  ],
+
+  "$errorsComment": [
+    "These must be REJECTED, not silently ignored. An ignored clause widens the result set,",
+    "and a filter that quietly matches more than it says is the exact bug that makes people",
+    "stop trusting filters."
+  ],
+  "errors": [
+    {
+      "name": "an unknown field",
+      "filter": { "field": "sprint", "op": "eq", "values": ["x"] },
+      "message": "unknown field"
+    },
+    {
+      "name": "an operator the field's type does not support",
+      "filter": { "field": "priority", "op": "contains", "values": ["1"] },
+      "message": "operator"
+    },
+    {
+      "name": "isNull carrying values",
+      "filter": { "field": "assignee", "op": "isNull", "values": ["a1"] },
+      "message": "values"
+    },
+    {
+      "name": "eq without values",
+      "filter": { "field": "assignee", "op": "eq" },
+      "message": "values"
+    },
+    {
+      "name": "eq with more than one value",
+      "filter": { "field": "assignee", "op": "eq", "values": ["a1", "a2"] },
+      "message": "values"
+    },
+    {
+      "name": "a conjunction that is neither and nor or",
+      "filter": { "conj": "xor", "nodes": [] },
+      "message": "conjunction"
+    },
+    {
+      "name": "a node that is neither a clause nor a group",
+      "filter": { "wat": true },
+      "message": "clause"
+    },
+    {
+      "name": "a value that is not a uuid where one is required",
+      "filter": { "field": "assignee", "op": "eq", "values": ["not-a-uuid"] },
+      "message": "uuid"
+    },
+    {
+      "name": "a value that is not a number where one is required",
+      "filter": { "field": "priority", "op": "eq", "values": ["high"] },
+      "message": "number"
+    },
+    {
+      "name": "an unrecognised state category",
+      "filter": { "field": "stateCategory", "op": "eq", "values": ["frozen"] },
+      "message": "category"
+    }
+  ]
+}

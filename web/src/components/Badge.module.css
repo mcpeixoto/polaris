@@ -1,0 +1,70 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  height: var(--control-height-sm);
+  padding-inline: var(--space-2);
+  /* The one place in the product that is fully round. Everything else is squared off so a
+   * list stays a list; a pill is how the eye tells "this is a label on the row" from "this
+   * is the row". */
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.icon svg {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+/*
+ * Every tone is a tint of its own foreground rather than a second token, so a badge sits
+ * convincingly on the page, on a hovered row and inside a menu — three different surfaces
+ * that a solid background colour can only match one of.
+ *
+ * The foregrounds come from the semantic pairs that are already tuned for both themes.
+ * That is deliberate and it is the same bargain Field makes for its error text: a raw ramp
+ * stop is one value, and one value cannot clear its contrast target against both a white
+ * page and a near-black one. The coupling it creates — a theme that recolours priority
+ * recolours these badges too — is the honest one, because a theme that has moved its reds
+ * has said what it thinks red means here.
+ *
+ * There is no green in this palette, on purpose (see tokens.css: hue carries meaning in
+ * exactly two places, and a fifth hue would dilute both). `success` therefore takes the
+ * blue pair — the palette's only cool functional hue — and the accent stays with `accent`,
+ * so "this is ours" and "this went well" remain two different marks.
+ */
+.neutral {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.accent {
+  background-color: var(--accent-subtle);
+  color: var(--accent-text);
+}
+
+.success {
+  background-color: color-mix(in srgb, var(--priority-low) 16%, transparent);
+  color: var(--priority-low);
+}
+
+.warning {
+  background-color: color-mix(in srgb, var(--priority-medium) 18%, transparent);
+  color: var(--priority-medium);
+}
+
+.danger {
+  background-color: color-mix(in srgb, var(--priority-urgent) 16%, transparent);
+  color: var(--priority-urgent);
+}

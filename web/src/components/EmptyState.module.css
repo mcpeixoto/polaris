@@ -1,0 +1,48 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  /* Generous, and only vertically. An empty state is the one moment this interface stops
+   * being dense: the pane is empty anyway, and crowding the message into the top-left
+   * corner makes it read as a stray label rather than as the answer. */
+  padding: var(--space-16) var(--space-6);
+  text-align: center;
+  font-family: var(--font-sans);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-2);
+  color: var(--text-tertiary);
+}
+
+.icon svg {
+  width: var(--space-8);
+  height: var(--space-8);
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.description {
+  /* A measure, not a width. Centred text is hard to track back to the next line, so the
+   * line length is kept well under the page's. */
+  max-width: 48ch;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+.action {
+  margin-top: var(--space-2);
+}

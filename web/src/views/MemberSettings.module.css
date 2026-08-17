@@ -1,0 +1,237 @@
+/*
+ * Members, invitations and seats.
+ *
+ * A settings page rather than a list view, so the density rules relax: these are decisions
+ * made rarely, some of them irreversible, and a row that is one pixel from its neighbour is
+ * a row somebody suspends by accident.
+ *
+ * The member table is a real <table>, not a grid of divs. Every row is the same five facts
+ * about a different person, which is what a table is for — and it gives row and column
+ * headers to a screen reader for free, which a div grid has to reconstruct with ARIA and
+ * usually gets wrong.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-6) var(--space-8);
+  max-width: 92ch;
+}
+
+.section,
+.seats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-6);
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.sectionHint {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * The seat ceiling, when it has been reached.
+ *
+ * Takes the urgent pair rather than a --danger role, which the token layer does not have —
+ * the same bargain Field.module.css makes, and for the same reason: that pair is the only
+ * red already tuned against both page colours.
+ */
+.blocked {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-medium) 14%, transparent);
+  color: var(--priority-medium);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.error {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/* --- pending invitations --------------------------------------------------- */
+
+.invites {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.invite {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--row-height);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+}
+
+.inviteEmail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inviteExpiry {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+/* --- the member table ------------------------------------------------------ */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+/*
+ * The caption is the table's accessible name and is deliberately not hidden.
+ *
+ * "Six members, five seats used" is the sentence somebody reads before they act, and it is
+ * the same sentence a screen reader announces on entering the table. Hiding it visually
+ * would leave two audiences with different information about the same page.
+ */
+.caption {
+  padding-bottom: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  text-align: start;
+}
+
+.table th,
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.table thead th {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.person {
+  font-weight: var(--font-weight-normal);
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.secondary {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+/*
+ * A suspended member is dimmed rather than removed. They still hold a seat, their issues
+ * still carry their name, and a row that vanished would make "where did Ada go" a support
+ * question rather than a visible state.
+ */
+.suspendedRow {
+  color: var(--text-tertiary);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.footnote {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * Available to a screen reader, absent from the page.
+ *
+ * `display: none` would remove it from the accessibility tree as well, which is the whole
+ * thing this class exists not to do — the actions column needs a header that a table
+ * navigator can announce and a sighted reader does not need to see.
+ */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

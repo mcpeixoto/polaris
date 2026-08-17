@@ -1,0 +1,210 @@
+/*
+ * The list is the densest surface in the product and the one people look at all day, so
+ * every rule here is spending pixels it has to justify.
+ *
+ * The row is --row-height and nothing in it is allowed to be taller, which is what lets
+ * twenty-two issues fit on a laptop screen instead of eleven. Separation comes from the
+ * group headings and from a single hairline, not from padding between rows: whitespace
+ * between list items reads as "these are cards" and a screen of cards cannot be scanned.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  /* min-height:0 rather than height:100%: this is a flex child of the shell's main pane, and
+     without it the scroller below grows to its content and the whole pane scrolls instead. */
+  flex: 1;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/*
+ * A navigation link in a bar of buttons. It takes the row's height and the button's padding
+ * so the header reads as one row of controls, and keeps a link's underline-on-hover so it is
+ * still obviously a link rather than a button wearing different clothes.
+ */
+.link {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.link:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.selectionCount {
+  margin-right: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* The list is a scroll trap on purpose: a flick that reaches the end must not start
+     scrolling the page behind it, which on a trackpad is how you lose your place. */
+  overscroll-behavior: contain;
+}
+
+/*
+ * The list only takes focus so that a screen reader has somewhere to announce the active
+ * row from — the keys themselves are handled by the registry at the window. A visible ring
+ * around the whole pane would say "you are here" about a region the user never left, so the
+ * cursor row's own mark is what carries it.
+ */
+.scroller:focus {
+  outline: none;
+}
+
+.sizer {
+  position: relative;
+  width: 100%;
+}
+
+/*
+ * Absolute, and positioned only by transform. The virtualiser owns the vertical position of
+ * every slot; anything else setting `top` here would fight it on every frame of a scroll.
+ */
+.slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding-inline: var(--space-4);
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.groupName {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.groupCount {
+  color: var(--text-tertiary);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--row-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+  cursor: pointer;
+  user-select: none;
+}
+
+.row:hover {
+  background-color: var(--bg-hover);
+}
+
+/*
+ * Selection and the cursor are two different facts and are drawn as two different marks: a
+ * wash says "this is in the set the toolbar acts on", the leading bar says "this is where
+ * the keyboard is". They occur together constantly, and a design that used one mark for both
+ * makes shift-select impossible to follow.
+ */
+.selected,
+.selected:hover {
+  background-color: var(--bg-selected);
+}
+
+.active {
+  /* An inset border rather than an outline: it must not change the row's height, and it has
+     to sit inside the hairline the row already has. */
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.identifier {
+  flex: none;
+  min-width: 8ch;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.rowTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Unassigned keeps the avatar's footprint rather than collapsing, so the titles above and
+ * below it end at the same place. A column that jitters by twenty pixels every few rows is
+ * visible as noise long before anyone works out what is causing it.
+ */
+.unassigned {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.empty {
+  flex: 1;
+}

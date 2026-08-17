@@ -1,0 +1,13 @@
+packages:
+  - web
+  - desktop
+
+# esbuild ships a platform binary and needs its postinstall to run; Vite will not start
+# without it. Declared explicitly because pnpm 10+ blocks build scripts by default, and
+# the failure it produces otherwise ("cannot find esbuild binary") does not point here.
+allowBuilds:
+  # Electron's postinstall downloads the platform binary. Without it `electron .` fails
+  # with "Electron failed to install correctly", which reads like a corrupt install rather
+  # than a blocked build script.
+  electron: true
+  esbuild: true

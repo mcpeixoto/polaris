@@ -1,0 +1,169 @@
+/*
+ * Polaris reset.
+ *
+ * Minimal by intent. This is a dense application UI, not a document, so the browser's
+ * document defaults — heading sizes, list markers, form controls that refuse to inherit a
+ * font — are all wrong here, and deleting them once is cheaper than overriding them in
+ * every component that meets one.
+ *
+ * Nothing in this file styles a component. Everything in it removes an assumption.
+ */
+
+/* Imported here rather than left to the entry point so that the reset can never load
+ * without the tokens it consumes: a var() with no definition resolves to nothing, and the
+ * failure mode is transparent text on a transparent page.
+ */
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  /* Safari on iOS enlarges text on rotation unless told not to, which silently breaks a
+   * layout built on a 13px base and a 32px row.
+   */
+  -webkit-text-size-adjust: 100%;
+
+  /* Scrollbar-width and -color inherit, so declaring them once at the root covers every
+   * scroll container in the app. Worth doing: the platform default on Windows and Linux
+   * is a 17px gutter, which is half the width of an assignee avatar.
+   */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  /* dvh follows the mobile URL bar as it collapses; the vh line before it is what older
+   * engines fall back to, and dropping it leaves them with no height at all.
+   */
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* The application mount point. Making it a stacking context means the layer scale in
+ * tokens.css is resolved against one root rather than against whatever the first parent
+ * with a transform happened to establish — and anything portalled to document.body, such
+ * as a toast, composes above the whole app instead of interleaving with its insides.
+ */
+:where(#root) {
+  height: 100%;
+  isolation: isolate;
+}
+
+/* Headings are structure here, not size. An issue title is an h1 for a screen reader and
+ * 13px for everyone else, and that is the correct outcome in an application.
+ */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* Issue titles and comment bodies routinely contain URLs, branch names and stack frames
+ * with no break opportunity in them, and one of those must not widen the whole column.
+ */
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
+/* Only lists that are still announced as lists lose their markers: stripping list-style
+ * from every ul silently removes them from the accessibility tree in Safari.
+ */
+ul[role='list'],
+ol[role='list'] {
+  padding: 0;
+  list-style: none;
+}
+
+/* Form controls opt out of font inheritance by default, which is how a keyboard-driven
+ * app ends up with a command palette input rendering in 13.33px Arial.
+ */
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* Horizontal resize would let a comment box push the issue detail column wider than its
+ * container; vertical is the only axis that makes sense in a fixed-width panel.
+ */
+textarea {
+  resize: vertical;
+}
+
+/* Replaced elements are inline by default, which leaves a phantom descender gap under
+ * every avatar and status icon in a 32px row.
+ */
+img,
+svg,
+video,
+canvas,
+picture {
+  display: block;
+  max-width: 100%;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* The focus ring is restyled here, never removed.
+ *
+ * Polaris is driven from the keyboard first, so a user arrowing a list or holding Tab has
+ * nothing but this ring telling them what the next keystroke will act on. The usual
+ * excuse for `outline: none` is that the ring appears on mouse clicks — :focus-visible
+ * already solves that, which leaves no remaining reason to take it away.
+ */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Smooth scrolling is the one motion the token scale cannot reach, because it is a
+ * behaviour rather than a duration.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

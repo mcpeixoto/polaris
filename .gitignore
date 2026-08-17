@@ -1,0 +1,48 @@
+# build output
+dist/
+build/
+out/
+node_modules/
+*.tsbuildinfo
+services/bin/
+# Compiled Go binaries land beside their package when `go build` is run without -o. They are
+# 15 MB each, they are rebuilt in a second, and git history cannot forget a blob.
+services/polarisctl
+services/api
+services/sync
+services/worker
+web/dist/
+desktop/dist/
+sdk/dist/
+# Packaged installers. A single macOS dmg is ~95 MB and the unpacked app is several hundred;
+# committing one turns every future clone into a download of it, permanently, because git
+# history cannot forget a blob.
+desktop/release/
+
+# env / secrets — nothing resembling a secret may ever be committed
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!**/testdata/*.key
+polaris.env
+
+# tooling
+.DS_Store
+coverage/
+*.out
+*.test
+.vite/
+playwright-report/
+test-results/
+.turbo/
+
+# local data
+tmp/
+.data/
+
+# Fleet-specific deployment override. Contains our ingress hostnames and network names,
+# which must never appear in the public repository — see
+# docs/06-product-model/03-open-source-operations.md.
+docker-compose.fleet.yml

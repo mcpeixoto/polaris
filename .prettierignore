@@ -1,0 +1,18 @@
+# Generated. Reformatting it produces a diff on every `make generate`, which then makes
+# the "generated code is not stale" CI job fail for a reason that has nothing to do with
+# the schema.
+web/src/gql/generated
+services/internal/graph/generated
+pnpm-lock.yaml
+
+# The prose in docs/ is hand-wrapped so that diffs stay readable — a paragraph edited in
+# the middle should not reflow the twelve lines after it. Prettier's markdown printer
+# rewraps everything and destroys that.
+docs
+*.md
+
+# Not ours.
+node_modules
+dist
+release
+LICENSE

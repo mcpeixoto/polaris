@@ -1,0 +1,25 @@
+{
+  "name": "@polaris/desktop",
+  "private": true,
+  "version": "0.0.0",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "npm run build:electron && electron .",
+    "build:electron": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json",
+    "build": "npm run build:electron && electron-builder --publish never",
+    "release": "npm run build:electron && electron-builder --publish always",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"desktop has no unit tests; it is covered by the Playwright electron suite\" && exit 0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  }
+}

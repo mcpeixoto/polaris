@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "skipLibCheck": true,
+
+    // A sandboxed preload script must be CommonJS — the sandbox has no ESM loader. This
+    // package is "type": "module", so a plain .js output there would be read as ESM and
+    // fail at load with an opaque error. Naming the source .cts makes tsc emit .cjs,
+    // which is unambiguous regardless of the package type.
+    "module": "CommonJS",
+    "moduleResolution": "node"
+  },
+  "include": ["src/preload/**/*"]
+}

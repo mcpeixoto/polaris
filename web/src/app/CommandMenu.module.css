@@ -1,0 +1,103 @@
+/*
+ * The command menu sits high on the screen rather than centred: it is opened with the
+ * hands already on the keyboard and read top-down, and centring it means the eye travels
+ * further on every single invocation of the most-used surface in the product.
+ */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  background: var(--bg-overlay);
+}
+
+.panel {
+  width: min(640px, calc(100vw - var(--space-8)));
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.input {
+  flex: none;
+  padding: var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.results {
+  flex: 1;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+/*
+ * Driven by data-active rather than :hover. The active row is chosen by the arrow keys as
+ * often as by the mouse, and a :hover rule would fight the keyboard whenever the pointer
+ * happens to be resting over the list.
+ */
+.item[data-active='true'] {
+  background: var(--bg-selected);
+}
+
+.group {
+  flex: none;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keys {
+  flex: none;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+.empty {
+  padding: var(--space-4);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}

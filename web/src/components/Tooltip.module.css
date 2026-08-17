@@ -1,0 +1,54 @@
+.tooltip {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 44ch;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-tertiary);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  /* A tooltip must never be a click target. It is painted over the thing the pointer is
+   * heading for, and swallowing that click would make the interface feel broken in exactly
+   * the moment the user was told what the control does. */
+  pointer-events: none;
+}
+
+/*
+ * The offset from the trigger is a margin rather than arithmetic in the positioning code,
+ * so the gap stays a design token. The component sets the anchor point; the translate below
+ * moves the box onto the correct side of it.
+ */
+.top {
+  transform: translate(-50%, -100%);
+  margin-top: calc(var(--space-2) * -1);
+}
+
+.bottom {
+  transform: translate(-50%, 0);
+  margin-top: var(--space-2);
+}
+
+.left {
+  transform: translate(-100%, -50%);
+  margin-left: calc(var(--space-2) * -1);
+}
+
+.right {
+  transform: translate(0, -50%);
+  margin-left: var(--space-2);
+}
+
+/* The key hint's own chip surface is the app's raised grey, which is the tooltip's surface
+ * too — so inside a tooltip it has to step to the neighbouring one or it disappears. */
+.keys kbd {
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+}

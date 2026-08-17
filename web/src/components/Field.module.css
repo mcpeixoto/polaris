@@ -1,0 +1,85 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.label {
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+}
+
+/* Hidden from the page, not from the accessibility tree. `display: none` and
+ * `visibility: hidden` would take the label out of both, which is the one thing a label
+ * must never be — a dense toolbar drops the visible label, never the name.
+ */
+.hiddenLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/*
+ * The control surface, composed by Input, Textarea and Select rather than described three
+ * times. Two descriptions of one box is how a form ends up with two focus treatments, and
+ * a form whose fields disagree about what "focused" looks like reads as broken.
+ *
+ * It sets no `display` and no padding on purpose: a one-line box, a growing textarea and a
+ * native select need different insides, and composition puts both class names on the
+ * element, where two rules of equal weight would then be settled by stylesheet order.
+ */
+.control {
+  min-width: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+/* :focus-within, because the ring belongs to the box while the focus belongs to the input
+ * inside it. Unlike a button this fires for pointer users too, which is correct — a text
+ * field the pointer clicked into really is focused, and it is about to receive typing. */
+.control:focus-within {
+  border-color: var(--border-focus);
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Declared after the focus rule and at equal weight, so a field that is both invalid and
+ * focused keeps its red edge and still shows the ring. */
+.control.controlInvalid {
+  border-color: var(--priority-urgent);
+}
+
+.message {
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+}
+
+/*
+ * The token layer has no --danger role, and this is the only red in it that follows the
+ * theme: --color-red-500 and --color-red-600 are ramp stops, and each of them fails its
+ * contrast target against one of the two page colours. --priority-urgent is the pair,
+ * already tuned light and dark, and the coupling it creates is the right one — a theme
+ * that recolours urgency has said what it thinks red means here.
+ *
+ * A solid red *fill* is a different problem and takes the ramp directly; see Button.
+ */
+.error {
+  color: var(--priority-urgent);
+}

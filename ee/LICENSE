@@ -1,0 +1,40 @@
+Polaris Enterprise Edition licence
+==================================
+
+The contents of the `ee/` directory are NOT covered by the AGPL-3.0-only licence that
+governs the rest of this repository (see ../LICENSE). They are made available under the
+following terms.
+
+1. Source availability
+
+   The source is published so that it can be read, audited and modified by licensees. It
+   is not free or open-source software, and the OSI definition does not apply to it.
+
+2. Grant
+
+   Subject to a current commercial subscription from Peixoto Labs, you may use, modify and
+   run this code in production, for your own organisation, on any number of machines
+   covered by that subscription.
+
+   Without a current subscription you may read this code, and you may run it for
+   development, evaluation and testing. You may not run it in production.
+
+3. Restrictions
+
+   You may not remove or circumvent the licence checks. You may not offer this code, or a
+   derivative of it, to third parties as a hosted or managed service.
+
+4. Contributions
+
+   Contributions to `ee/` require the Contributor Licence Agreement in CONTRIBUTING.md,
+   which assigns the rights needed to relicense them commercially. This is the mechanism
+   that makes dual licensing possible; contributions to the AGPL core do not need it.
+
+5. No warranty
+
+   Provided "as is", without warranty of any kind. To the maximum extent permitted by law,
+   Peixoto Labs is not liable for any claim, damage or other liability arising from its
+   use.
+
+Everything outside `ee/` is AGPL-3.0-only. If a file's placement is ambiguous, the
+directory it lives in decides — and a file that would be ambiguous belongs in the core.

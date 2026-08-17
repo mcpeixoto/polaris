@@ -1,0 +1,44 @@
+.ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.sm {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+.ring svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  /* Rounded so a single completed sub-issue out of twelve is a visible tick rather than a
+   * hairline nobody notices. */
+  stroke-linecap: round;
+}
+
+.track {
+  stroke: var(--border-default);
+  stroke-width: 2;
+}
+
+/*
+ * The accent, not a status colour. Progress is not good news or bad news — a parent at 20%
+ * is not failing — and colouring it green-to-red would make a normal early state look like
+ * an alarm on every board.
+ */
+.fill {
+  stroke: var(--accent);
+  stroke-width: 2;
+  transition: stroke-dasharray var(--duration-fast) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition: none;
+  }
+}

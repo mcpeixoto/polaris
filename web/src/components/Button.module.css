@@ -1,0 +1,152 @@
+/*
+ * Buttons are rare in this product. The keyboard is the primary interface and most
+ * commands are reached from the command menu or a shortcut, so the four variants below
+ * exist to answer four questions — "what does Enter do here", "what else can I do",
+ * "this is a control, not text", "this one destroys something" — and nothing else.
+ */
+
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+/* :focus-visible, never :focus. A ring drawn on a mouse click teaches keyboard users to
+ * distrust the ring, and this interface asks them to trust it constantly.
+ */
+.button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.md {
+  height: var(--control-height-md);
+  padding-inline: var(--space-3);
+  font-size: var(--font-size-md);
+}
+
+.sm {
+  height: var(--control-height-sm);
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.primary {
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.secondary {
+  background-color: var(--bg-tertiary);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.secondary:hover {
+  border-color: var(--border-default);
+}
+
+.ghost {
+  background-color: transparent;
+  color: var(--text-secondary);
+}
+
+.ghost:hover {
+  color: var(--text-primary);
+}
+
+/*
+ * Destructive red comes off the ramp rather than off a semantic token, because there is no
+ * semantic for it: the palette's only reds are --priority-urgent and --state-triage, and a
+ * delete button is not an urgent issue — binding them would mean a theme that recolours
+ * priority silently recolours destruction with it.
+ *
+ * 600 specifically, in both themes. The fill is read against its own white foreground and
+ * not against the page, so it does not need the theme-aware stop; it needs the one stop
+ * that clears 4.5:1 with white, and that is 600.
+ */
+.danger {
+  background-color: var(--color-red-600);
+  color: var(--color-white);
+}
+
+.danger:hover {
+  background-color: var(--color-red-500);
+}
+
+/* The hover and press washes are translucent so one pair of rules covers every variant:
+ * they land on the accent fill, the grey fill and the transparent ghost alike, which a
+ * solid hover colour cannot do without a fourth value per variant.
+ */
+.button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
+  pointer-events: none;
+}
+
+.button:hover::after {
+  background-color: var(--bg-hover);
+}
+
+.button:active::after {
+  background-color: var(--bg-selected);
+}
+
+.button:disabled,
+.button[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.button:disabled::after,
+.button[aria-disabled='true']::after {
+  background-color: transparent;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+/* Hidden rather than unmounted while loading: the label is what gives the button its
+ * width, and a button that shrinks when you press it moves everything next to it.
+ */
+.loading .label,
+.loading .icon {
+  visibility: hidden;
+}
+
+.spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

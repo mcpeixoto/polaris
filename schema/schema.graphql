@@ -1,0 +1,1135 @@
+"""
+Polaris GraphQL API — the single backend interface.
+
+This schema is the contract. The web app, the desktop app, the published SDK, every
+integration and every agent speak it, and there is no second, private API behind it. That
+constraint is deliberate and load-bearing: the moment the product's own client can reach
+something the public API cannot, the two drift and every integration inherits a permanent
+second-class experience.
+
+The practical consequence: adding a field is a schema change, not a resolver change. That
+friction is the mechanism, not an accident of the tooling.
+"""
+
+scalar Time
+scalar UUID
+scalar JSON
+
+# ---------------------------------------------------------------- enums
+
+"""
+The six status categories are fixed by the product. Teams create, rename and reorder
+statuses *within* a category; they cannot invent categories, because cycle completion,
+project progress, insights, triage semantics and the git integrations all branch on them.
+"""
+enum StateCategory {
+  TRIAGE
+  BACKLOG
+  UNSTARTED
+  STARTED
+  COMPLETED
+  CANCELED
+  """System-managed. Reached by marking an issue as a duplicate, never assigned directly."""
+  DUPLICATE
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+"""Humans sign in; agents are installed. Both appear as users so that assignee, mention and actor keep one foreign key target."""
+enum UserKind {
+  HUMAN
+  APP
+}
+
+enum TeamRole {
+  OWNER
+  MEMBER
+}
+
+"""Who caused a change. All four exist from the first release because the activity feed, webhooks, the audit log and filters all expose them."""
+enum ActorType {
+  USER
+  APP_USER
+  INTEGRATION
+  SYSTEM
+}
+
+"""
+How a team renders estimates. The issue stores the number either way, so a team can change
+scale without rewriting a single issue.
+"""
+enum EstimateScale {
+  """The team does not estimate. Hides the control rather than leaving it empty."""
+  NONE
+  EXPONENTIAL
+  FIBONACCI
+  LINEAR
+  TSHIRT
+}
+
+"""
+Which subsystem set an issue's due date, and therefore whether a human may edit it. SLAs
+arrive later and will also want to set one; the two are mutually exclusive.
+"""
+enum DueDateSource {
+  MANUAL
+  SLA
+}
+
+"""
+`BLOCKS` is the only direction stored. "Blocked by" is the same row read from the other
+end — storing both would allow two rows that disagree, which is a state no user can
+explain or repair. `RELATED` is symmetric and stored with the smaller id first.
+"""
+enum RelationType {
+  BLOCKS
+  RELATED
+  DUPLICATE
+}
+
+"""Why somebody is subscribed, so the inbox can say why rather than leaving them to guess."""
+enum SubscriptionReason {
+  CREATED
+  ASSIGNED
+  MENTIONED
+  COMMENTED
+  SUBSCRIBED
+  MANUAL
+}
+
+enum NotificationType {
+  ISSUE_ASSIGNED
+  ISSUE_STATUS_CHANGED
+  ISSUE_PRIORITY_RAISED
+  ISSUE_DUE
+  ISSUE_BLOCKED
+  COMMENT
+  MENTION
+  SUB_ISSUE_COMPLETED
+}
+
+enum FavoriteKind {
+  VIEW
+  TEAM
+  ISSUE
+  LABEL
+}
+
+# ---------------------------------------------------------------- types
+
+type Actor {
+  type: ActorType!
+  id: UUID
+}
+
+type Workspace {
+  id: UUID!
+  name: String!
+  """The address segment: /<urlKey>/issue/ENG-1."""
+  urlKey: String!
+  logoUrl: String
+  plan: String!
+  planExpiresAt: Time
+  """
+  Set when a paid plan has lapsed. Reads keep working and writes needing a paid feature do
+  not — locking people out of their own data over a failed card is not a business model.
+  """
+  planLapsedAt: Time
+  """Overrides the plan's default seat count. Null means whatever the plan says."""
+  seatLimit: Int
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+
+  teams: [Team!]!
+  users: [User!]!
+  labels: [Label!]!
+  """What this workspace's plan permits, resolved by one service rather than scattered plan checks."""
+  entitlements: Entitlements!
+}
+
+"""
+The answer to "may this workspace do X", in one place.
+
+Gating touches dozens of features, and the alternative — an `if plan ==` at each of them —
+is unmaintainable and, worse, is written the day gating ships and never audited again.
+The feature matrix itself lives in Go rather than the database, because which plan may use
+which feature changes with a release, not with data.
+"""
+type Entitlements {
+  plan: String!
+  """Null means unlimited."""
+  seatLimit: Int
+  seatsUsed: Int!
+  teamLimit: Int
+  """How far back the change stream is queryable, in days."""
+  historyDays: Int
+  privateTeams: Boolean!
+  customViews: Boolean!
+  apiKeys: Boolean!
+  sso: Boolean!
+  auditLog: Boolean!
+  """Set while a paid plan is lapsed: reads work, gated writes do not."""
+  lapsed: Boolean!
+}
+
+type User {
+  id: UUID!
+  workspaceId: UUID!
+  name: String!
+  displayName: String!
+  avatarUrl: String
+  timezone: String!
+  role: UserRole!
+  status: UserStatus!
+  kind: UserKind!
+  """Populated only for the viewer themselves and for admins."""
+  email: String
+  lastSeenAt: Time
+  """
+  Per-channel, per-type delivery toggles. Opaque on purpose: read whole at delivery time
+  and never filtered on, so a field per toggle would be a schema change every time a
+  notification type is added.
+  """
+  notificationPrefs: JSON
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type Team {
+  id: UUID!
+  workspaceId: UUID!
+  """The identifier prefix: ENG in ENG-123."""
+  key: String!
+  name: String!
+  description: String
+  icon: String
+  color: String
+  timezone: String!
+  parentTeamId: UUID
+  private: Boolean!
+
+  estimateScale: EstimateScale!
+  """Whether 0 is offered. For some teams a zero estimate is always a mistake, and offering it invites one."""
+  estimateAllowZero: Boolean!
+  """Extends the scale's top end."""
+  estimateExtended: Boolean!
+
+  createdAt: Time!
+  updatedAt: Time!
+  retiredAt: Time
+  archivedAt: Time
+
+  states: [WorkflowState!]!
+  members: [TeamMembership!]!
+  issues: [Issue!]!
+  labels: [Label!]!
+  templates: [IssueTemplate!]!
+}
+
+type TeamMembership {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  userId: UUID!
+  role: TeamRole!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type WorkflowState {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  name: String!
+  description: String
+  color: String!
+  category: StateCategory!
+  """Fractional index. Ordering within a category; never compared across categories."""
+  position: String!
+  isDefault: Boolean!
+  isSystem: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type Issue {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  number: Int!
+  """
+  Derived from the team key and number, never stored. The team key is mutable, and a
+  stored identifier would mean rewriting every issue in a team to fix a typo in its key.
+  """
+  identifier: String!
+  title: String!
+  description: String!
+  stateId: UUID!
+  assigneeId: UUID
+  creatorId: UUID
+  """0 none, 1 urgent, 2 high, 3 medium, 4 low. A fixed scale."""
+  priority: Int!
+  """Fractional index. Manual order is workspace-global, not per-user and not per-view."""
+  sortOrder: String!
+
+  """The raw point value. Null is unestimated, which is not zero."""
+  estimate: Int
+  """
+  A calendar day, `2006-01-02`. Not a timestamp: a due date is a day in the team's
+  timezone, and as an instant it becomes due on the previous day for everybody west of
+  whoever set it.
+  """
+  dueDate: String
+  dueDateSource: DueDateSource!
+
+  parentId: UUID
+  """Order among siblings, independent of sortOrder — a checklist's order is not the backlog's."""
+  subIssueSortOrder: String
+  """Which template made this issue, for the question "is this template still worth having"."""
+  templateId: UUID
+
+  startedAt: Time
+  completedAt: Time
+  canceledAt: Time
+  archivedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+
+  state: WorkflowState!
+  team: Team!
+  assignee: User
+  creator: User
+  comments: [Comment!]!
+  history: [IssueHistoryEntry!]!
+
+  labels: [Label!]!
+  parent: Issue
+  children: [Issue!]!
+  """Rolled up from the children. Zero children means null, not zero per cent."""
+  progress: IssueProgress
+  """Relations where this issue is the subject."""
+  relations: [IssueRelation!]!
+  """Issues that block this one — the same rows read from the other end."""
+  blockedBy: [IssueRelation!]!
+  subscribers: [IssueSubscription!]!
+}
+
+"""Sub-issue completion, rolled up. Counts direct children only; a deep tree would make a list view walk the whole graph per row."""
+type IssueProgress {
+  total: Int!
+  completed: Int!
+  canceled: Int!
+  """completed / (total - canceled), rounded, 0–100. Cancelled work is not incomplete work."""
+  percent: Int!
+}
+
+"""
+Both a label and a group of labels: a group is a label with `isGroup` set.
+
+One entity rather than two tables means one picker, one permission rule and one place
+where scoping is decided. A group has exactly the fields a label has.
+"""
+type Label {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the label belongs to the whole workspace."""
+  teamId: UUID
+  """The group this label sits in. Nesting is one level."""
+  parentId: UUID
+  """
+  Declared, not derived from "has children" — a group you have just created has no
+  children yet, and under that definition would stay applicable until somebody added one.
+  """
+  isGroup: Boolean!
+  name: String!
+  description: String
+  color: String!
+  position: String!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+"""
+One label applied to one issue, as an entity in its own right.
+
+That is the whole point. Labels are the first *set* the sync engine carries, and a set
+written as a whole loses writes: two people adding different labels a second apart both
+send the full new set and the second overwrites the first. As individual rows an add is an
+upsert of one row and a remove is a delete of one, so both survive with no merge logic.
+"""
+type IssueLabel {
+  id: UUID!
+  workspaceId: UUID!
+  issueId: UUID!
+  labelId: UUID!
+  teamId: UUID!
+  groupId: UUID
+  createdBy: UUID
+  createdAt: Time!
+  label: Label!
+}
+
+type IssueRelation {
+  id: UUID!
+  workspaceId: UUID!
+  issueId: UUID!
+  relatedIssueId: UUID!
+  type: RelationType!
+  teamId: UUID!
+  relatedTeamId: UUID!
+  createdBy: UUID
+  createdAt: Time!
+  issue: Issue!
+  relatedIssue: Issue!
+}
+
+type IssueSubscription {
+  id: UUID!
+  workspaceId: UUID!
+  issueId: UUID!
+  userId: UUID!
+  reason: SubscriptionReason!
+  """
+  An explicit unsubscribe is a flag, not a missing row. Deleting the row would mean the
+  next comment re-subscribes you, so unsubscribe would work for about four minutes.
+  """
+  unsubscribed: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
+One inbox row, derived from a change_log row.
+
+That derivation is the commitment: "what happened" already has a definition, and
+re-deriving it from entities produces a second one that disagrees within a month.
+"""
+type Notification {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  type: NotificationType!
+  issueId: UUID
+  commentId: UUID
+  actor: Actor!
+  """Traces this row back to the exact mutation that produced it."""
+  changeVersion: Int!
+  """
+  The coalescing key, and the reason a bulk update of two hundred issues produces one
+  inbox row per person rather than two hundred.
+  """
+  groupKey: String!
+  """How many events collapsed into this row."""
+  count: Int!
+  payload: JSON
+  readAt: Time
+  snoozedUntil: Time
+  createdAt: Time!
+  updatedAt: Time!
+  issue: Issue
+}
+
+"""A saved filter plus how to display it."""
+type View {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the view spans the workspace."""
+  teamId: UUID
+  """Null means shared. Set means it is that person's private view."""
+  ownerId: UUID
+  name: String!
+  description: String
+  icon: String
+  color: String
+  """
+  The filter AST.
+
+  Deliberately not a typed GraphQL tree. The grammar has exactly one definition — the
+  compiler in internal/filter — and a parallel set of GraphQL input and output types would
+  be a second one, which is the precise failure this milestone set out to avoid: a filter
+  meaning one thing in a view and another in search. The compiler validates at the
+  boundary and rejects anything it does not recognise.
+  """
+  filter: JSON!
+  """Grouping, ordering, layout, and which properties are shown."""
+  display: JSON!
+  position: String!
+  createdBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+"""
+Display options for the views that have no row of their own — Team issues, My issues and
+the rest. On the server rather than in localStorage because the grouping you chose has to
+follow you to your other machine.
+"""
+type ViewPreference {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  viewKey: String!
+  display: JSON!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type Favorite {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  kind: FavoriteKind!
+  targetId: UUID!
+  position: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type IssueTemplate {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the template is offered in every team."""
+  teamId: UUID
+  name: String!
+  description: String
+  title: String!
+  body: String!
+  """Keys are the same names createIssue takes."""
+  properties: JSON!
+  position: String!
+  createdBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+"""
+A personal API key. Acts as its owner — never more.
+
+A key that could do more than the person who made it is a privilege-escalation path, and
+one that outlives their account is an access path nobody reviews. Scopes narrow; they
+never widen.
+"""
+type ApiKey {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  name: String!
+  """The leading characters, so a listing can identify a key without being a credential itself."""
+  prefix: String!
+  scopes: [String!]!
+  lastUsedAt: Time
+  expiresAt: Time
+  revokedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""The one and only time the token exists outside the caller's own storage."""
+type ApiKeyCreated {
+  apiKey: ApiKey!
+  """Shown once. Not recoverable — only its SHA-256 is stored."""
+  token: String!
+}
+
+type SearchResults {
+  issues: [Issue!]!
+  comments: [Comment!]!
+  """Total matches before the limit, so the UI can say "showing 25 of 400"."""
+  issueCount: Int!
+}
+
+type Comment {
+  id: UUID!
+  workspaceId: UUID!
+  issueId: UUID!
+  parentId: UUID
+  body: String!
+  actor: Actor!
+  editedAt: Time
+  resolvedAt: Time
+  resolvedBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
+The activity feed. Distinct from the change log that drives sync: this one is curated,
+permanent, and folds a run of edits by one person into a single entry.
+"""
+type IssueHistoryEntry {
+  id: UUID!
+  issueId: UUID!
+  actor: Actor!
+  kind: String!
+  fromValue: JSON
+  toValue: JSON
+  createdAt: Time!
+}
+
+"""What the client needs on boot, before it opens the sync socket."""
+type Viewer {
+  user: User!
+  workspace: Workspace!
+  """Every workspace this account belongs to, for the switcher."""
+  workspaces: [Workspace!]!
+  """The sync watermark at the time of this response."""
+  syncVersion: Int!
+}
+
+# ---------------------------------------------------------------- mutation payloads
+
+"""
+Every mutation returns the sync version its write landed at, so an optimistic client can
+tell whether the delta it just received is ahead of or behind its own change without
+guessing from timestamps.
+"""
+interface MutationResult {
+  version: Int!
+}
+
+type IssuePayload implements MutationResult {
+  version: Int!
+  issue: Issue!
+}
+
+type CommentPayload implements MutationResult {
+  version: Int!
+  comment: Comment!
+}
+
+type TeamPayload implements MutationResult {
+  version: Int!
+  team: Team!
+}
+
+type WorkflowStatePayload implements MutationResult {
+  version: Int!
+  state: WorkflowState!
+}
+
+type UserPayload implements MutationResult {
+  version: Int!
+  user: User!
+}
+
+type WorkspacePayload implements MutationResult {
+  version: Int!
+  workspace: Workspace!
+}
+
+type TeamMembershipPayload implements MutationResult {
+  version: Int!
+  membership: TeamMembership!
+}
+
+type DeletePayload implements MutationResult {
+  version: Int!
+  id: UUID!
+}
+
+type LabelPayload implements MutationResult {
+  version: Int!
+  label: Label!
+}
+
+type IssueLabelPayload implements MutationResult {
+  version: Int!
+  issueLabel: IssueLabel!
+}
+
+type IssueRelationPayload implements MutationResult {
+  version: Int!
+  relation: IssueRelation!
+}
+
+type SubscriptionPayload implements MutationResult {
+  version: Int!
+  subscription: IssueSubscription!
+}
+
+type NotificationPayload implements MutationResult {
+  version: Int!
+  notification: Notification!
+}
+
+"""Marking a whole inbox read is one mutation, not one per row — which is also what stops it minting one sync version per notification."""
+type NotificationsPayload implements MutationResult {
+  version: Int!
+  notifications: [Notification!]!
+}
+
+type ViewPayload implements MutationResult {
+  version: Int!
+  view: View!
+}
+
+type ViewPreferencePayload implements MutationResult {
+  version: Int!
+  preference: ViewPreference!
+}
+
+type FavoritePayload implements MutationResult {
+  version: Int!
+  favorite: Favorite!
+}
+
+type IssueTemplatePayload implements MutationResult {
+  version: Int!
+  template: IssueTemplate!
+}
+
+type ApiKeyPayload implements MutationResult {
+  version: Int!
+  created: ApiKeyCreated!
+}
+
+"""
+A bulk update returns the issues it changed and the single version the whole batch landed
+at, because it emits one version block rather than one per issue.
+"""
+type BulkIssuePayload implements MutationResult {
+  version: Int!
+  issues: [Issue!]!
+  """Ids the caller asked for but that were skipped, with why — a partial success the caller can act on rather than a silent one."""
+  skipped: [BulkSkip!]!
+}
+
+type BulkSkip {
+  id: UUID!
+  reason: String!
+}
+
+"""
+Creating an invitation, and the one-time token that goes in the email.
+
+Deliberately not a `MutationResult`: an invite is not a replicated entity, so there is no
+sync version for it to land at, and inventing one would be a number no client could use.
+The token behaves exactly like an API key's — it exists in this response and nowhere else,
+because only its SHA-256 is stored, so a database leak does not hand out workspace access.
+"""
+type InvitePayload {
+  id: UUID!
+  email: String!
+  role: UserRole!
+  expiresAt: Time!
+  """Shown once. Put it in the invitation link; it is not recoverable afterwards."""
+  token: String!
+}
+
+type Invite {
+  id: UUID!
+  workspaceId: UUID!
+  email: String!
+  role: UserRole!
+  invitedBy: UUID
+  teamIds: [UUID!]!
+  acceptedAt: Time
+  revokedAt: Time
+  expiresAt: Time!
+  createdAt: Time!
+}
+
+# ---------------------------------------------------------------- inputs
+
+input CreateIssueInput {
+  """
+  The issue's id, minted by the client.
+
+  Optional, and supplying it is what makes an offline create honest. The server allocates
+  the *number* — that needs a row-locked counter and no client can predict it — but the id
+  does not have to be server-chosen, and when it is, an optimistic create has to show a
+  stand-in row and swap it for the real one when the response arrives. Offline the
+  response comes minutes later, as a delta, while the stand-in is still on screen: two
+  rows for one issue. With a client-minted id the stand-in *is* the issue and the swap
+  disappears.
+
+  Validated as a v7 uuid and rejected if already used. A client can therefore choose its
+  own ids, which matters less than it sounds: it can already choose the content.
+  """
+  id: UUID
+  teamId: UUID!
+  title: String!
+  description: String
+  stateId: UUID
+  assigneeId: UUID
+  priority: Int
+  estimate: Int
+  """A calendar day, `2006-01-02`."""
+  dueDate: String
+  parentId: UUID
+  labelIds: [UUID!]
+  templateId: UUID
+  """Place the new issue directly below this one. Omit to append."""
+  afterIssueId: UUID
+}
+
+input UpdateIssueInput {
+  id: UUID!
+  title: String
+  description: String
+  stateId: UUID
+  priority: Int
+  assigneeId: UUID
+  """
+  Explicitly unassign. Needed because a null assigneeId is indistinguishable from
+  "leave it alone" in a partial update.
+  """
+  clearAssignee: Boolean
+  estimate: Int
+  """Same reason as clearAssignee: null means "leave it alone"."""
+  clearEstimate: Boolean
+  dueDate: String
+  clearDueDate: Boolean
+  parentId: UUID
+  clearParent: Boolean
+  afterIssueId: UUID
+  moveToTop: Boolean
+  """Place among a parent's children. Only meaningful when the issue has a parent."""
+  afterSiblingId: UUID
+}
+
+"""
+A bulk edit applies one change to many issues in one transaction and one version block.
+
+Separate from updateIssue rather than a variadic version of it, because the two differ in
+what they may do: bulk edit sets one property across a selection and never reorders, which
+is what lets it be one statement and one notification per subscriber instead of N.
+"""
+input BulkUpdateIssuesInput {
+  ids: [UUID!]!
+  stateId: UUID
+  assigneeId: UUID
+  clearAssignee: Boolean
+  priority: Int
+  estimate: Int
+  clearEstimate: Boolean
+  dueDate: String
+  clearDueDate: Boolean
+  addLabelIds: [UUID!]
+  removeLabelIds: [UUID!]
+}
+
+input CreateLabelInput {
+  """Null makes it a workspace label, visible to every team."""
+  teamId: UUID
+  """The group to put it in. A group's scope must match the label's."""
+  parentId: UUID
+  """A group is a container and cannot itself be applied to an issue."""
+  isGroup: Boolean
+  name: String!
+  description: String
+  color: String
+  afterLabelId: UUID
+}
+
+input UpdateLabelInput {
+  id: UUID!
+  name: String
+  description: String
+  color: String
+  parentId: UUID
+  clearParent: Boolean
+  afterLabelId: UUID
+}
+
+input CreateViewInput {
+  teamId: UUID
+  """True keeps the view private to its creator."""
+  private: Boolean
+  name: String!
+  description: String
+  icon: String
+  color: String
+  filter: JSON!
+  display: JSON
+}
+
+input UpdateViewInput {
+  id: UUID!
+  name: String
+  description: String
+  icon: String
+  color: String
+  filter: JSON
+  display: JSON
+  afterViewId: UUID
+}
+
+input CreateIssueTemplateInput {
+  teamId: UUID
+  name: String!
+  description: String
+  title: String
+  body: String
+  properties: JSON
+}
+
+input UpdateIssueTemplateInput {
+  id: UUID!
+  name: String
+  description: String
+  title: String
+  body: String
+  properties: JSON
+}
+
+input UpdateTeamEstimatesInput {
+  teamId: UUID!
+  scale: EstimateScale!
+  allowZero: Boolean
+  extended: Boolean
+}
+
+input InviteInput {
+  email: String!
+  role: UserRole
+  teamIds: [UUID!]
+}
+
+input CreateApiKeyInput {
+  name: String!
+  """Empty means everything the owner can do. Narrowing only."""
+  scopes: [String!]
+  expiresAt: Time
+}
+
+"""
+What to search, and where.
+
+`query` goes through the same tokeniser as the index. `filter` is the same AST the views
+use, so a search and a saved view with identical filters return identical ids — which is
+one of this milestone's acceptance tests, and the reason there is one compiler.
+"""
+input SearchInput {
+  query: String!
+  filter: JSON
+  teamId: UUID
+  first: Int
+  includeArchived: Boolean
+}
+
+input CreateTeamInput {
+  key: String!
+  name: String!
+  description: String
+  icon: String
+  color: String
+  timezone: String
+  private: Boolean
+}
+
+input UpdateTeamInput {
+  id: UUID!
+  key: String
+  name: String
+  description: String
+  icon: String
+  color: String
+  timezone: String
+  private: Boolean
+}
+
+input CreateWorkflowStateInput {
+  teamId: UUID!
+  name: String!
+  category: StateCategory!
+  color: String
+  description: String
+  afterStateId: UUID
+}
+
+input UpdateWorkflowStateInput {
+  id: UUID!
+  name: String
+  description: String
+  color: String
+  afterStateId: UUID
+  makeDefault: Boolean
+}
+
+input CreateCommentInput {
+  issueId: UUID!
+  body: String!
+  parentId: UUID
+}
+
+input UpdateProfileInput {
+  name: String
+  displayName: String
+  avatarUrl: String
+  timezone: String
+}
+
+input UpdateWorkspaceInput {
+  name: String
+  logoUrl: String
+}
+
+# ---------------------------------------------------------------- root
+
+type Query {
+  """Everything the client needs to render its shell."""
+  viewer: Viewer!
+
+  workspace: Workspace!
+  teams: [Team!]!
+  team(id: UUID!): Team
+  teamByKey(key: String!): Team
+
+  users: [User!]!
+  user(id: UUID!): User
+
+  issue(id: UUID!): Issue
+  issueByIdentifier(identifier: String!): Issue
+  issues(teamId: UUID!): [Issue!]!
+
+  workflowStates(teamId: UUID!): [WorkflowState!]!
+  comments(issueId: UUID!): [Comment!]!
+  issueHistory(issueId: UUID!): [IssueHistoryEntry!]!
+
+  """Every label the caller can see: workspace labels plus those of their teams."""
+  labels: [Label!]!
+  label(id: UUID!): Label
+
+  """Saved views the caller can see: shared ones in scope, plus their own private ones."""
+  views: [View!]!
+  view(id: UUID!): View
+  viewPreferences: [ViewPreference!]!
+
+  favorites: [Favorite!]!
+
+  issueTemplates(teamId: UUID): [IssueTemplate!]!
+  issueTemplate(id: UUID!): IssueTemplate
+
+  """The caller's inbox. Snoozed rows are excluded until they wake unless includeSnoozed."""
+  notifications(includeRead: Boolean, includeSnoozed: Boolean, first: Int): [Notification!]!
+  unreadNotificationCount: Int!
+
+  """Issues assigned to the caller, across every team they can see."""
+  myIssues(includeCompleted: Boolean): [Issue!]!
+
+  search(input: SearchInput!): SearchResults!
+
+  """The caller's own keys. Never anybody else's, and never the tokens."""
+  apiKeys: [ApiKey!]!
+
+  """Pending invitations. Admins only."""
+  invites: [Invite!]!
+
+  """
+  Issues deleted within the restore window, so a mistaken delete is recoverable without a
+  support ticket.
+  """
+  deletedIssues: [Issue!]!
+}
+
+"""
+Mutations carry an idempotency key so a client can retry a dropped response from its
+offline outbox without applying the write twice. The server records (clientId, opId) for
+24 hours and replays the original result.
+"""
+directive @idempotent on FIELD_DEFINITION
+
+type Mutation {
+  createIssue(input: CreateIssueInput!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  updateIssue(input: UpdateIssueInput!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  archiveIssue(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  deleteIssue(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createComment(input: CreateCommentInput!, clientId: UUID, opId: UUID): CommentPayload! @idempotent
+  updateComment(id: UUID!, body: String!, clientId: UUID, opId: UUID): CommentPayload! @idempotent
+  resolveComment(id: UUID!, resolved: Boolean!, clientId: UUID, opId: UUID): CommentPayload! @idempotent
+  deleteComment(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createTeam(input: CreateTeamInput!): TeamPayload!
+  updateTeam(input: UpdateTeamInput!): TeamPayload!
+  addTeamMember(teamId: UUID!, userId: UUID!, role: TeamRole): TeamMembershipPayload!
+  removeTeamMember(teamId: UUID!, userId: UUID!): DeletePayload!
+
+  createWorkflowState(input: CreateWorkflowStateInput!): WorkflowStatePayload!
+  updateWorkflowState(input: UpdateWorkflowStateInput!): WorkflowStatePayload!
+  archiveWorkflowState(id: UUID!): DeletePayload!
+
+  updateProfile(input: UpdateProfileInput!): UserPayload!
+  setUserRole(userId: UUID!, role: UserRole!): UserPayload!
+  suspendUser(userId: UUID!, suspended: Boolean!): UserPayload!
+  removeUser(userId: UUID!): DeletePayload!
+  updateNotificationPrefs(prefs: JSON!): UserPayload!
+
+  updateWorkspace(input: UpdateWorkspaceInput!): WorkspacePayload!
+
+  # ---- issues, continued
+
+  bulkUpdateIssues(input: BulkUpdateIssuesInput!, clientId: UUID, opId: UUID): BulkIssuePayload! @idempotent
+  """Restores a soft-deleted issue with its comments and relations, within the window."""
+  restoreIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+
+  updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
+
+  # ---- labels
+
+  createLabel(input: CreateLabelInput!, clientId: UUID, opId: UUID): LabelPayload! @idempotent
+  updateLabel(input: UpdateLabelInput!, clientId: UUID, opId: UUID): LabelPayload! @idempotent
+  archiveLabel(id: UUID!): DeletePayload!
+
+  """
+  Adds one label. Not "set the labels": a whole-set write means two people adding
+  different labels a second apart produce one winner and one silently lost edit.
+  """
+  addIssueLabel(issueId: UUID!, labelId: UUID!, clientId: UUID, opId: UUID): IssueLabelPayload! @idempotent
+  removeIssueLabel(issueId: UUID!, labelId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  # ---- relations
+
+  createIssueRelation(issueId: UUID!, relatedIssueId: UUID!, type: RelationType!, clientId: UUID, opId: UUID): IssueRelationPayload! @idempotent
+  deleteIssueRelation(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  # ---- subscriptions and the inbox
+
+  setIssueSubscription(issueId: UUID!, subscribed: Boolean!): SubscriptionPayload!
+  markNotificationRead(id: UUID!, read: Boolean!): NotificationPayload!
+  markAllNotificationsRead: NotificationsPayload!
+  snoozeNotification(id: UUID!, until: Time): NotificationPayload!
+  deleteNotification(id: UUID!): DeletePayload!
+
+  # ---- views, preferences and favourites
+
+  createView(input: CreateViewInput!): ViewPayload!
+  updateView(input: UpdateViewInput!): ViewPayload!
+  deleteView(id: UUID!): DeletePayload!
+  setViewPreference(viewKey: String!, display: JSON!): ViewPreferencePayload!
+
+  addFavorite(kind: FavoriteKind!, targetId: UUID!, afterFavoriteId: UUID): FavoritePayload!
+  removeFavorite(kind: FavoriteKind!, targetId: UUID!): DeletePayload!
+
+  # ---- templates
+
+  createIssueTemplate(input: CreateIssueTemplateInput!): IssueTemplatePayload!
+  updateIssueTemplate(input: UpdateIssueTemplateInput!): IssueTemplatePayload!
+  archiveIssueTemplate(id: UUID!): DeletePayload!
+
+  # ---- administration
+
+  inviteToWorkspace(input: InviteInput!): InvitePayload!
+  revokeInvite(id: UUID!): DeletePayload!
+
+  """Returns the token exactly once. It is not recoverable afterwards."""
+  createApiKey(input: CreateApiKeyInput!): ApiKeyPayload!
+  revokeApiKey(id: UUID!): DeletePayload!
+}

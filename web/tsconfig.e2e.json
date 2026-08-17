@@ -1,0 +1,25 @@
+{
+  // Playwright tests run in Node, not in the bundle.
+  //
+  // A separate config rather than adding `e2e` to tsconfig.json, because that would put
+  // @types/node on the application's global scope — and the first time somebody reaches
+  // for `process.env` in a component, it would typecheck and then fail at runtime in the
+  // browser with a message that points nowhere.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["e2e", "playwright.config.ts"]
+}

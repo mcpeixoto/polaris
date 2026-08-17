@@ -1,0 +1,47 @@
+# WHAT THIS DOES NOT CHECK.
+#
+# `sqlc generate` succeeding is not the same as the queries being valid. It resolves column
+# types where it can and passes through what it cannot, so a reference to a column that does
+# not exist — in a WHERE clause, in an ORDER BY — generates cleanly, compiles cleanly, and
+# fails at runtime with "column does not exist". That happened here: a stored `search_vector`
+# column was removed and every query using it kept generating for another two commits.
+#
+# The guard is integration tests that actually execute the queries against a migrated
+# database (internal/testutil). A query with no test that runs it has not been checked by
+# anything, whatever the build says.
+
+version: "2"
+sql:
+  - engine: postgresql
+    schema: migrations
+    queries: internal/store/queries
+    gen:
+      go:
+        package: store
+        out: internal/store
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        emit_prepared_queries: false
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        # No SELECT * anywhere: column drift would silently change sync payload shapes.
+        query_parameter_limit: 1
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+              pointer: true
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+          - db_type: "timestamptz"
+            nullable: true
+            go_type:
+              type: "time.Time"
+              pointer: true
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"

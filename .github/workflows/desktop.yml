@@ -1,0 +1,128 @@
+# Desktop builds: macOS, Windows and Linux.
+#
+# Split from ci.yml because it is a different kind of job. CI runs on every push and has to
+# be fast; this downloads a hundred megabytes of Electron per platform, runs three OS
+# runners, and is only interesting when a release is being cut or when somebody has touched
+# the shell.
+#
+# Each platform builds on its own runner rather than cross-compiling. electron-builder *can*
+# produce a Windows installer from Linux with wine, and the result is the kind of artefact
+# that works until the day it does not — an unsigned NSIS built through an emulation layer
+# is not what you want to discover is broken from a user's bug report. The macOS build has
+# no choice in the matter: codesign and notarytool only exist on macOS.
+
+name: Desktop
+
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'web/**'
+      - '.github/workflows/desktop.yml'
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to attach artefacts to a release
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing must not cancel the others: knowing that Windows is broken and
+      # macOS is fine is most of the diagnosis.
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-14
+            target: --mac
+          - name: Windows
+            os: windows-2022
+            target: --win
+          - name: Linux
+            os: ubuntu-24.04
+            target: --linux
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The renderer is built ONCE and copied into every package, rather than each platform
+      # building its own. Building it three times invites three different bundles from one
+      # commit — and the desktop app being a build behind the web app is exactly the drift
+      # the shared-bundle design exists to prevent.
+      - name: Build the renderer
+        run: pnpm --filter @polaris/web build
+
+      - name: Build the Electron shell
+        run: pnpm --filter @polaris/desktop build:electron
+
+      # Icons are generated from one source rather than committed as three binaries that
+      # can disagree. Pillow is the only thing this needs; see desktop/assets/make-icon.py
+      # for why it is not an SVG rasterised at build time.
+      - name: Generate icons
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check pillow
+          python3 desktop/assets/make-icon.py
+          python3 desktop/assets/make-tray.py
+
+      - name: Package (unsigned)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        working-directory: desktop
+        # A pull request gets an unsigned build, because signing certificates are not
+        # available to forks and a workflow that fails for every outside contributor is one
+        # that gets ignored. It still proves the thing that usually breaks: that the package
+        # assembles and the renderer lands where the main process looks for it.
+        run: pnpm exec electron-builder ${{ matrix.target }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Package and sign
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        working-directory: desktop
+        run: pnpm exec electron-builder ${{ matrix.target }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS: a Developer ID certificate, and an App Store Connect key for notarisation.
+          # Without notarisation Gatekeeper refuses to open the app at all on any machine
+          # that did not build it — an unnotarised .dmg is not a release, it is a demo.
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_PATH }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # Windows: since June 2023 a code-signing key may not sit on disk, so this is
+          # cloud signing against an HSM rather than a .pfx in a secret.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: polaris-${{ matrix.name }}
+          # The unpacked directory is deliberately excluded: it is several hundred megabytes
+          # of Electron per platform and nobody downloads it from a CI run.
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/*.exe
+            desktop/release/*.AppImage
+            desktop/release/*.deb
+            desktop/release/latest*.yml
+          if-no-files-found: error
+          retention-days: 14

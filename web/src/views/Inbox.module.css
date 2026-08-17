@@ -1,0 +1,162 @@
+/*
+ * The inbox is a list, so it obeys the list rules: 32px rows, no cards, no shadows. What is
+ * different from the issue list is that a row here has a *read* state, and that state is
+ * carried by weight and by one dot rather than by a background wash — a page of highlighted
+ * rows is a page with no shape to it.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.count {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * Sticky, because the answer to "when did this happen" has to stay on screen while the day
+ * it heads is being read. It is the one piece of chrome in the list and is quiet enough to
+ * disappear when it is not being looked for.
+ */
+.day {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--bg-primary);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--space-3) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  height: var(--row-height);
+  padding-inline: var(--space-4);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.row:hover {
+  background-color: var(--bg-hover);
+}
+
+/*
+ * The cursor, not the selection. It is drawn with an inset ring rather than a background so
+ * it stays legible on a hovered row, which a background alone does not.
+ */
+.active {
+  background-color: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+/* The unread mark. Reserved space whether or not it is drawn, so marking a row read does
+   not shift the text beside it. */
+.dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background-color: transparent;
+}
+
+.unread .dot {
+  background-color: var(--accent);
+}
+
+.text {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--text-secondary);
+}
+
+.unread .text {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.actor {
+  flex: none;
+  font-weight: var(--font-weight-medium);
+}
+
+.event {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "and 199 others". Quieter than the event, because it is a magnitude rather than a fact. */
+.tail {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.when {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.snoozed {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.empty {
+  padding: var(--space-12) var(--space-4);
+}

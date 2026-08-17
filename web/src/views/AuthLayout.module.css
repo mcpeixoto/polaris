@@ -1,0 +1,100 @@
+/*
+ * The signed-out frame: one card, centred, on the page colour.
+ *
+ * These screens are the only ones in the product that are not dense. There is exactly one
+ * thing to do on each of them, the person doing it is usually new, and the density that makes
+ * the issue list good makes a sign-in form look like a configuration panel.
+ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: 100dvh;
+  padding: var(--space-6);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 400px;
+  padding: var(--space-8);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.wordmark {
+  margin: 0;
+  color: var(--accent-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.subtitle {
+  margin: calc(var(--space-3) * -1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Fields that belong together on one line — a workspace name and its address, a team's name
+   and its key — fold to one column where there is no room for two. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+@media (max-width: 420px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.footer {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.footer a {
+  color: var(--accent-text);
+}
+
+/*
+ * Takes --priority-urgent for the same reason Field.module.css does: the token layer has no
+ * --danger role, and that pair is the only red already tuned for both page colours.
+ */
+.error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

@@ -1,0 +1,46 @@
+.box {
+  composes: control from './Field.module.css';
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-lg);
+  padding-inline: var(--space-2);
+}
+
+.invalid {
+  composes: controlInvalid from './Field.module.css';
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: var(--line-height-none);
+}
+
+/* The ring is drawn by the box around this input, not by the input itself; leaving both in
+ * place gives a doubled outline on every focused field. */
+.input:focus {
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.input:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.affix {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--text-tertiary);
+}
