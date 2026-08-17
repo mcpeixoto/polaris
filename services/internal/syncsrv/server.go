@@ -159,6 +159,26 @@ func (s *Server) handshake(ctx context.Context, conn *websocket.Conn) (*Session,
 		session.requestResync(ReasonGapTooLarge)
 	}
 
+	// A cursor ahead of the server is not a gap, it is a rewind: the workspace's version
+	// counter has gone backwards underneath a client that had already seen further. A
+	// restore from backup does it, and so does a failover to a replica that was behind.
+	//
+	// Checked because the floor check above cannot see it. Without this the client is not
+	// refused and not caught up — it is silently ignored: catchUp's loop condition is
+	// `cursor < current`, which is already false, so it returns having done nothing and
+	// says nothing. The socket stays open, the client reports itself online, and it shows
+	// the state it had before the restore until the server's counter climbs back past it,
+	// which after a real restore can be days. Every other failure in this protocol is loud;
+	// this one was mute.
+	//
+	// Resync rather than an error: the client's replica is genuinely wrong now and a
+	// bootstrap is the only thing that fixes it. The operator's other half of this is in
+	// the restore runbook — bump the version counter past any cursor a client could be
+	// holding — which turns this from a per-client repair into one that happens once.
+	if hello.Resume > current {
+		session.requestResync(ReasonServerRewound)
+	}
+
 	return session, nil
 }
 

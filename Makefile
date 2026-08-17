@@ -125,7 +125,7 @@ fmt-check: ## Fail if anything is unformatted
 	@npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "desktop/src/**/*.{ts,cts}"
 
 .PHONY: lint
-lint: lint-go lint-imports lint-keymap lint-tokens lint-web ## All linters
+lint: lint-go lint-imports lint-keymap lint-routes lint-tokens lint-web ## All linters
 
 .PHONY: lint-go
 lint-go:
@@ -138,6 +138,10 @@ lint-imports: ## Enforce the package rule: only domain/ may import store/
 .PHONY: lint-keymap
 lint-keymap: ## Enforce that keyboard handling lives in the keymap registry
 	@bash scripts/lint-keymap.sh
+
+.PHONY: lint-routes
+lint-routes: ## Enforce that the reverse proxy routes each path to the server that registers it
+	@bash scripts/lint-routes.sh
 
 .PHONY: lint-tokens
 lint-tokens: ## Enforce that colours come from the design tokens, and that every token exists
