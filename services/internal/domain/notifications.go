@@ -547,7 +547,8 @@ func (c *fanOutCache) unsubscribedFrom(ctx context.Context, issueID uuid.UUID, u
 // Everything else in there — channels, digest cadence, product communications — belongs to
 // whoever delivers, not to whoever decides, so this reads loosely and ignores what it does
 // not recognise. A strict decoder would make adding a preference a change to the
-// notification engine.
+// notification engine. The delivery half of the bag — emailDigest, emailPerNotification — is
+// documented on emailPrefs in digest.go, which is the code that reads it.
 //
 // A bag that will not parse mutes nothing. Failing the other way would silently stop
 // delivering to that user, and nobody reports a notification that never arrived — where an

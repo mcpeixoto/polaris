@@ -4,6 +4,7 @@ package platform
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
@@ -53,7 +54,37 @@ type Config struct {
 	DBMaxConnLifetime time.Duration `envconfig:"POLARIS_DB_MAX_CONN_LIFETIME" default:"1h"`
 
 	ShutdownGrace time.Duration `envconfig:"POLARIS_SHUTDOWN_GRACE" default:"20s"`
+
+	// Outbound mail, and it is optional.
+	//
+	// SMTPHost empty is not a misconfiguration, it is the default state of a self-hosted
+	// install and a supported one: the product runs, the inbox works, and the digest job says
+	// so once at startup and then does nothing. Requiring a relay before anything works is
+	// named in docs/05-infrastructure/10-self-host-and-cloud.md as the most common way
+	// self-host onboarding fails, and nothing in M1 is worth reintroducing it for.
+	//
+	// SMTPUsername and SMTPPassword are optional too — a relay listening on 127.0.0.1 that
+	// accepts anything from the machine it runs on is the ordinary self-hosted setup. When
+	// they are set, the client refuses to send them over a connection the relay has not
+	// offered to encrypt.
+	SMTPHost     string `envconfig:"POLARIS_SMTP_HOST"`
+	SMTPPort     int    `envconfig:"POLARIS_SMTP_PORT" default:"587"`
+	SMTPUsername string `envconfig:"POLARIS_SMTP_USERNAME"`
+	SMTPPassword string `envconfig:"POLARIS_SMTP_PASSWORD"`
+	// SMTPTimeout bounds one delivery, dialling to QUIT.
+	SMTPTimeout time.Duration `envconfig:"POLARIS_SMTP_TIMEOUT" default:"30s"`
+
+	// MailFrom is the envelope sender and the From header. Its domain is also the EHLO name
+	// and the Message-ID's domain, and it is what SPF and DKIM are checked against, so it has
+	// to be a domain this install is allowed to send as — a mismatch here is the difference
+	// between the inbox and the spam folder.
+	MailFrom     string `envconfig:"POLARIS_MAIL_FROM" default:"polaris@localhost"`
+	MailFromName string `envconfig:"POLARIS_MAIL_FROM_NAME" default:"Polaris"`
 }
+
+// MailEnabled reports whether a relay is configured. A process with no mail must start
+// normally and say so once, rather than failing a job every hour.
+func (c Config) MailEnabled() bool { return strings.TrimSpace(c.SMTPHost) != "" }
 
 // LoadConfig reads the environment. Call it once, at process start.
 func LoadConfig() (Config, error) {

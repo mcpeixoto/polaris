@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/peixotolabs/polaris/services/internal/domain"
+	"github.com/peixotolabs/polaris/services/internal/mailer"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
@@ -46,6 +47,23 @@ func run() error {
 	defer db.Close()
 
 	svc := domain.NewService(db)
+
+	// Mail is optional, and this is the one line an install with no relay ever sees about it.
+	//
+	// The alternative — registering the job unconditionally and letting it discover on every
+	// tick that it cannot send — turns a supported configuration into an hourly warning, and
+	// an hourly warning that is expected is one that trains everybody to ignore the log.
+	mail, err := mailer.New(mailer.Config{
+		Host:     cfg.SMTPHost,
+		Port:     cfg.SMTPPort,
+		Username: cfg.SMTPUsername,
+		Password: cfg.SMTPPassword,
+		From:     mailer.Address{Name: cfg.MailFromName, Email: cfg.MailFrom},
+		Timeout:  cfg.SMTPTimeout,
+	})
+	if err != nil {
+		return err
+	}
 
 	jobs := []job{
 		{
@@ -92,6 +110,54 @@ func run() error {
 				return err
 			},
 		},
+	}
+
+	if cfg.MailEnabled() {
+		jobs = append(jobs, job{
+			// Hourly, and the interval is the cadence's resolution rather than the cadence.
+			//
+			// Each recipient's own preference decides whether they are due — daily by default,
+			// hourly or weekly if they asked, one message per notification if they asked for
+			// that — so this period only bounds how late a digest can be. An hour is small
+			// enough that "hourly" means hourly and that a per-notification email arrives while
+			// the thing it is about is still current, and large enough that a self-hosted
+			// install is not opening an SMTP connection every few minutes to discover there is
+			// nothing to send. Anything shorter buys a resolution nobody asked for; anything
+			// longer makes the shortest cadence a lie.
+			//
+			// atBoot is deliberately off, unlike the partition job, which needs it because a
+			// process starting on the 1st must not wait six hours to find out that this month
+			// has nowhere to write. Nothing is at stake here in the first hour: a digest is by
+			// definition not urgent, and the claim would make a boot pass safe in any case.
+			// What a boot pass would do is move people's digests. Each recipient's next one is
+			// due a fixed interval after their last, so a pass at deploy time re-anchors that
+			// interval to the deploy — and a fleet that ships at 16:00 on a Tuesday quietly
+			// walks everybody's morning digest into the afternoon, permanently, for a reason
+			// nobody would ever connect to a release.
+			name:  "deliver notification digests",
+			every: time.Hour,
+			run: func(ctx context.Context) error {
+				n, err := svc.DeliverNotificationDigests(ctx, mail, domain.DigestOptions{
+					BaseURL: cfg.PublicURL,
+					Tick:    time.Hour,
+				})
+				if n > 0 {
+					// A count, never an address. The log is shipped somewhere with a much
+					// wider audience than any of these mailboxes has.
+					log.Info("sent notification digests", "messages", n)
+				}
+				return err
+			},
+			// Not critical. A relay being down, an address bouncing or a certificate expiring
+			// are all real and all recoverable by themselves on the next pass, and none of them
+			// is the class of problem — the disk filling, a partition missing — that the error
+			// level in this process is reserved for. Paging somebody at 03:00 because Postmark
+			// had a bad minute is how an on-call rotation learns to mute the channel.
+			critical: false,
+		})
+	} else {
+		log.Info("email delivery is not configured; notification digests will not be sent",
+			"hint", "set POLARIS_SMTP_HOST to enable them")
 	}
 
 	for _, j := range jobs {
