@@ -1,0 +1,264 @@
+/*
+ * Search is a list screen, so it obeys the list rules the issue list sets: --row-height
+ * rows, a hairline between them, no cards and no shadows. What it adds is a header that
+ * holds a text field rather than a title, and two sections instead of one list.
+ *
+ * The one genuinely new mark is the highlight. It is drawn as a tinted background rather
+ * than as bold, because bold changes the width of the word and a row full of matched terms
+ * would jitter as the query is typed — and because the rows already use weight to say
+ * "this is the title" and "this is the identifier".
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  /* min-height:0 rather than height:100%: this is a flex child of the shell's main pane, and
+     without it the scroller below grows to its content and the whole pane scrolls instead. */
+  flex: 1;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/*
+ * The field takes the width it can get, up to a measure. A search box spanning a 27-inch
+ * display is a line of text nobody can read the end of without moving their head, and the
+ * results underneath it are the thing that wants the width.
+ */
+.box {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 42rem;
+}
+
+/* The search glyph needs no rule of its own: Input's own affix slot already lays it out and
+   tints it, and a second opinion here would be one more place to keep in step. */
+
+.spacer {
+  flex: 1;
+}
+
+/*
+ * The summary line: what is on screen, out of what. Tabular figures so the number does not
+ * shuffle sideways as it changes with each keystroke.
+ */
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* A scroll trap on purpose: a flick that reaches the end must not start scrolling the
+     page behind it, which on a trackpad is how you lose your place. */
+  overscroll-behavior: contain;
+}
+
+/*
+ * The list only takes focus so a screen reader has somewhere to announce the active row
+ * from — the keys themselves are handled by the registry at the window. A ring around the
+ * whole pane would say "you are here" about a region the user never left, so the cursor
+ * row's own mark carries it instead.
+ */
+.list:focus {
+  outline: none;
+}
+
+/*
+ * Sticky, because "am I looking at issues or at comments" has to stay answerable while the
+ * section it heads is being read.
+ */
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  height: 36px;
+  padding-inline: var(--space-4);
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.sectionName {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.sectionCount {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--row-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.row:hover {
+  background-color: var(--bg-hover);
+}
+
+/*
+ * The cursor, drawn as an inset bar rather than an outline so it does not change the row's
+ * height and stays legible on a hovered row, which a background alone does not.
+ */
+.active {
+  background-color: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.identifier {
+  flex: none;
+  min-width: 8ch;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Labels are allowed to take space from the title but never to push the assignee off the
+ * row, which is why they shrink and the avatar does not.
+ */
+.labels {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/*
+ * Unassigned keeps the avatar's footprint rather than collapsing, so the titles above and
+ * below end at the same place. A column that jitters every few rows is visible as noise long
+ * before anyone works out what is causing it.
+ */
+.unassigned {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+/*
+ * A comment row is two lines, so it is the one row on this screen that is taller than
+ * --row-height. It has to be: an excerpt on one line ellipsised at the width of an issue
+ * title would cut before the matched word about half the time, and the excerpt exists
+ * precisely to show that word in its sentence.
+ */
+.commentRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: stretch;
+  height: auto;
+  padding-block: var(--space-2);
+}
+
+.commentMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.commentIssue {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  color: var(--text-secondary);
+  line-height: var(--line-height-tight);
+}
+
+/*
+ * The matched words. A tint plus the ordinary text colour, rather than the browser's default
+ * mark, which is a fixed yellow that ignores the theme entirely and is unreadable on a dark
+ * page.
+ */
+.mark {
+  border-radius: var(--radius-sm);
+  padding-inline: 1px;
+  background-color: var(--accent-subtle);
+  color: var(--accent-text);
+  font-weight: var(--font-weight-medium);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) var(--space-4);
+}
+
+/*
+ * The failure. It sits above the results rather than replacing them, because the previous
+ * answer is still the best thing on the screen and throwing it away punishes the user for
+ * the network's problem.
+ */
+.failure {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.empty {
+  padding: var(--space-12) var(--space-4);
+}
