@@ -10,6 +10,11 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 
+import { toFilterParam } from '~/filter';
+import { useViewerId } from '~/hooks/useViewer';
+import { useLiveQuery } from '~/hooks/useLiveQuery';
+import type { Favorite, Store, UUID, View } from '~/store';
+
 import { useQuery, useSyncStatus } from './context';
 import { useActions } from './keymap';
 import { CommandMenu } from './CommandMenu';
@@ -41,6 +46,18 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
     ['team'],
   );
   const workspace = useQuery((store) => [...store.workspaces.values()][0], ['workspace']);
+
+  const viewerId = useViewerId();
+  const favorites = useLiveQuery(
+    (store) => (viewerId === null ? [] : favoriteLinks(store, viewerId)),
+    ['favorite', 'view', 'team', 'issue', 'label'],
+    [viewerId],
+  );
+  const views = useLiveQuery(
+    (store) => (viewerId === null ? [] : visibleViews(store, viewerId)),
+    ['view'],
+    [viewerId],
+  );
 
   const closeAll = useCallback(() => {
     setCommandOpen(false);
@@ -102,6 +119,23 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
         group: 'Navigation',
         run: () => navigate('/settings/members'),
       },
+      {
+        id: 'nav.search',
+        title: 'Search',
+        // Global, and the search screen binds the same key in `list` to focus its own box.
+        // That is not a conflict — a context binding shadows the global one — and it is the
+        // behaviour people expect from this key: press it anywhere to get to search, press
+        // it there to get back to the box.
+        keys: ['/'],
+        group: 'Navigation',
+        run: () => navigate('/search'),
+      },
+      {
+        id: 'nav.trash',
+        title: 'Go to trash',
+        group: 'Navigation',
+        run: () => navigate('/settings/trash'),
+      },
     ],
     [navigate, closeAll],
   );
@@ -121,7 +155,24 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
           <NavLink to="/inbox" className={navClass}>
             Inbox
           </NavLink>
+          <NavLink to="/search" className={navClass}>
+            Search
+          </NavLink>
         </div>
+
+        {favorites.length > 0 && (
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Favourites</h2>
+            {favorites.map((favorite) => (
+              <NavLink key={favorite.id} to={favorite.to} className={navClass}>
+                {favorite.prefix !== null && (
+                  <span className={styles.teamKey}>{favorite.prefix}</span>
+                )}
+                {favorite.label}
+              </NavLink>
+            ))}
+          </div>
+        )}
 
         <div className={styles.section}>
           <h2 className={styles.sectionTitle}>Teams</h2>
@@ -133,6 +184,17 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
           ))}
         </div>
 
+        {views.length > 0 && (
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Views</h2>
+            {views.map((view) => (
+              <NavLink key={view.id} to={viewPath(view)} className={navClass}>
+                {view.name}
+              </NavLink>
+            ))}
+          </div>
+        )}
+
         <div className={styles.spacer} />
 
         <div className={styles.section}>
@@ -142,6 +204,12 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
           </NavLink>
           <NavLink to="/settings/labels" className={navClass}>
             Labels
+          </NavLink>
+          <NavLink to="/settings/api-keys" className={navClass}>
+            API keys
+          </NavLink>
+          <NavLink to="/settings/trash" className={navClass}>
+            Trash
           </NavLink>
         </div>
       </nav>
@@ -160,6 +228,108 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
 // out, not render the literal "undefined" into the DOM.
 function navClass({ isActive }: { isActive: boolean }): string {
   return [styles.navItem, isActive ? styles.navItemActive : null].filter(Boolean).join(' ');
+}
+
+/**
+ * Where a saved view lives.
+ *
+ * Its own route rather than a team's list with a query string, because a view is a thing
+ * somebody named and can be shared as itself — and because a workspace-scoped view spans
+ * every team and so has no team list to hang off. `SavedView` seeds the URL from the saved
+ * filter on arrival, which is what keeps "the URL is the state" true for these too.
+ */
+function viewPath(view: View): string {
+  return `/view/${view.id}`;
+}
+
+interface FavoriteLink {
+  readonly id: UUID;
+  readonly to: string;
+  readonly label: string;
+  /** The team key, for an issue or a team. Null for anything without one. */
+  readonly prefix: string | null;
+}
+
+/**
+ * The viewer's favourites, resolved to links.
+ *
+ * A favourite whose target is not in the replica is dropped rather than rendered as a row
+ * with a blank name: the entity may have been deleted, or may be in a team this person has
+ * since left, and either way a sidebar entry that goes nowhere is worse than one fewer entry.
+ * The server's own delta removes the row soon enough.
+ */
+function favoriteLinks(store: Store, userId: UUID): readonly FavoriteLink[] {
+  const links: FavoriteLink[] = [];
+
+  const ordered = [...store.favorites.values()]
+    .filter((favorite) => favorite.userId === userId)
+    .sort((a, b) => a.position.localeCompare(b.position));
+
+  for (const favorite of ordered) {
+    const link = favoriteLink(store, favorite);
+    if (link !== null) links.push(link);
+  }
+  return links;
+}
+
+function favoriteLink(store: Store, favorite: Favorite): FavoriteLink | null {
+  switch (favorite.kind) {
+    case 'view': {
+      const view = store.get('view', favorite.targetId);
+      return view === undefined
+        ? null
+        : { id: favorite.id, to: viewPath(view), label: view.name, prefix: null };
+    }
+    case 'team': {
+      const team = store.get('team', favorite.targetId);
+      return team === undefined
+        ? null
+        : { id: favorite.id, to: `/team/${team.key}`, label: team.name, prefix: team.key };
+    }
+    case 'issue': {
+      const issue = store.get('issue', favorite.targetId);
+      if (issue === undefined) return null;
+      const identifier = store.identifierOf(issue);
+      return {
+        id: favorite.id,
+        to: `/issue/${identifier}`,
+        label: issue.title,
+        prefix: identifier,
+      };
+    }
+    case 'label': {
+      const label = store.get('label', favorite.targetId);
+      if (label === undefined) return null;
+      // A favourited label is a filter, not a screen, so it links to the one place that can
+      // render "every issue carrying this label" across teams.
+      const filter = toFilterParam({
+        conj: 'and',
+        nodes: [{ field: 'label', op: 'in', values: [label.id] }],
+      });
+      return {
+        id: favorite.id,
+        to: `/search?filter=${encodeURIComponent(filter)}`,
+        label: label.name,
+        prefix: null,
+      };
+    }
+  }
+}
+
+/**
+ * The saved views this person can see, in the order they are displayed.
+ *
+ * Shared views in scope plus their own private ones — the same rule the server's `views`
+ * query applies, restated here because the replica holds whatever the stream delivered and a
+ * sidebar must not show a view somebody else made private. Archived views are excluded.
+ */
+function visibleViews(store: Store, userId: UUID): readonly View[] {
+  return [...store.views.values()]
+    .filter(
+      (view) =>
+        view.archivedAt === undefined && (view.ownerId === undefined || view.ownerId === userId),
+    )
+    .sort((a, b) => a.position.localeCompare(b.position) || a.name.localeCompare(b.name));
 }
 
 /**

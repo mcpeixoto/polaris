@@ -38,20 +38,32 @@ import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
 import { Avatar, Badge, Button, EmptyState, PriorityIcon, StateIcon, Tooltip } from '~/components';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import { Board } from '~/features/view/ui/Board';
+import { DisplayMenu } from '~/features/view/ui/DisplayMenu';
+import { FilterBar } from '~/features/view/ui/FilterBar';
+import { useView, type ViewGroup } from '~/features/view/ui/useView';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useSelection } from '~/hooks/useSelection';
-import type { StateCategory, Store, UUID } from '~/store';
+import { browserTimezone } from '~/features/locale';
+import { EMPTY_FILTER, isFilterGroup, type FilterNode } from '~/filter';
+import type { Issue, StateCategory, Store, UUID } from '~/store';
 import styles from './IssueList.module.css';
 
-/** A status heading. Carries its own summary so the row needs nothing from the store. */
+/**
+ * A group heading.
+ *
+ * It carries the group's *name* rather than a resolved status, because the grouping is a
+ * display option now and only one of its seven values is a status. `stateId` is set for that
+ * one, and is what lets the heading keep its icon without every other grouping pretending to
+ * have one.
+ */
 interface HeaderRow {
   readonly kind: 'header';
   readonly key: string;
   readonly name: string;
-  readonly category: StateCategory;
-  readonly color: string | undefined;
   readonly count: number;
+  readonly stateId: UUID | undefined;
 }
 
 /** One issue, by id and nothing else. Everything drawn in it is read by the row itself. */
@@ -79,6 +91,18 @@ export type IssueListSource =
       readonly userId: UUID;
       /** Completed work is off by default: "my issues" means the ones still asking for something. */
       readonly includeCompleted?: boolean | undefined;
+    }
+  | {
+      /**
+       * A saved view.
+       *
+       * The view supplies the heading and the scope; the filter itself is *not* read from it
+       * here. `SavedView` seeds the URL from the saved filter on arrival and this screen then
+       * reads the URL like every other one — so a saved view can be refined in the filter bar,
+       * shared as the refined link, and saved back, all without a second code path.
+       */
+      readonly kind: 'view';
+      readonly viewId: UUID;
     };
 
 export interface IssueListProps {
@@ -88,7 +112,15 @@ export interface IssueListProps {
   readonly heading?: string | undefined;
 }
 
-interface ListView {
+/**
+ * What the list is over, resolved from the route.
+ *
+ * Separate from the view because it changes for different reasons and at a different rate: a
+ * team's name and timezone move when somebody edits the team, not when an issue is dragged.
+ * Keeping them apart means renaming a team does not re-run the filter over five thousand
+ * issues, and moving an issue does not re-resolve the team.
+ */
+interface ListScope {
   /**
    * The heading, or null when the source does not exist.
    *
@@ -100,13 +132,18 @@ interface ListView {
   readonly heading: string | null;
   /** Set only for a team's list, which is the only one with team settings to link to. */
   readonly team: { readonly id: UUID; readonly key: string; readonly name: string } | null;
-  readonly rows: readonly ListRow[];
+  /**
+   * The zone the view reckons relative dates in.
+   *
+   * The team's, not the reader's, so two people looking at one board agree about what is
+   * overdue. A list with no team — one person's work across teams — has no single answer, so
+   * it falls back to the reader's own zone and says as much by doing nothing clever.
+   */
+  readonly timezone: string;
 }
 
 /** The default, and a module constant so an inline object does not defeat the query cache. */
 const TEAM_SOURCE: IssueListSource = { kind: 'team' };
-
-const NO_VIEW: ListView = { heading: null, team: null, rows: [] };
 
 /**
  * The virtualiser's opening guess at a row's height, in pixels.
@@ -145,15 +182,38 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   // The source is part of the query's identity, so a change of assignee re-runs the
   // selector. Serialised rather than passed by reference because a caller writing the
   // object inline creates a new one every render, and the query would never be reused.
-  const sourceKey = source.kind === 'team' ? `team:${teamKey}` : `assignee:${source.userId}`;
+  const sourceKey =
+    source.kind === 'team'
+      ? `team:${teamKey}`
+      : source.kind === 'assignee'
+        ? `assignee:${source.userId}`
+        : `view:${source.viewId}`;
+  const includeCompleted = source.kind === 'assignee' && source.includeCompleted === true;
 
-  const view = useLiveQuery(
-    (store) => buildView(store, source, teamKey, heading),
-    ['issue', 'team', 'workflowState'],
-    [sourceKey, heading, source.kind === 'assignee' ? source.includeCompleted : false],
+  const scope = useLiveQuery(
+    (store) => scopeOf(store, source, teamKey, heading),
+    // `view` too, because a saved view supplies the heading and the team a view-sourced list
+    // is scoped to — renaming the view has to move this heading.
+    ['team', 'view'],
+    [sourceKey, heading],
   );
 
-  const rows = view.rows;
+  /**
+   * The filter, the display options and the issues that fall out of them.
+   *
+   * All of it held in the URL — which is a product requirement rather than an implementation
+   * choice, because a filtered list has to be a link somebody can paste into a chat. The
+   * screen contributes only the *corpus*: which issues were ever candidates. Everything after
+   * that is `useView`, and is the same code the board and the saved views run.
+   */
+  const view = useView({
+    issues: (store) => corpusOf(store, source, scope.team?.id, includeCompleted),
+    inputs: [sourceKey, scope.team?.id ?? '', includeCompleted],
+    timezone: scope.timezone,
+  });
+
+  const groups = view.groups;
+  const rows = useMemo(() => rowsOf(groups), [groups]);
 
   // Derived outside the selector on purpose: the store compares a subscription's result
   // structurally, and a Map has no enumerable own properties — two different maps would
@@ -203,6 +263,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const status = useMenuTrigger();
   const assignee = useMenuTrigger();
   const priority = useMenuTrigger();
+  const display = useMenuTrigger();
 
   /**
    * What a command acts on: the selection when there is one, the cursor row otherwise.
@@ -415,7 +476,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     [selection, cursorId],
   );
 
-  if (view.heading === null) {
+  if (scope.heading === null) {
     return (
       <div className={styles.screen}>
         <EmptyState
@@ -426,7 +487,12 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     );
   }
 
-  const team = view.team;
+  const team = scope.team;
+  // An empty list means two different things and deserves two different answers: a team with
+  // no work yet wants a create button, and a filter that matches nothing wants a way back.
+  // Telling somebody their team is empty when they have just typed four clauses is the kind
+  // of wrong that makes people distrust the filter rather than fix it.
+  const filtered = !isEmptyFilter(view.filter);
   const picking = status.open || assignee.open || priority.open;
   const shared = picking ? sharedProperties(engine.store, targets) : NOTHING_SHARED;
   const canAct = targets.length > 0;
@@ -452,9 +518,15 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <h1 className={styles.title}>{view.heading}</h1>
-        <Badge>{ids.length === 1 ? '1 issue' : `${ids.length} issues`}</Badge>
+        <h1 className={styles.title}>{scope.heading}</h1>
+        {/* The view's own count, not the row count: grouping by label puts an issue in a
+            group per label it carries, on purpose, so summing the groups would report more
+            issues than exist. */}
+        <Badge>{view.count === 1 ? '1 issue' : `${view.count} issues`}</Badge>
         <div className={styles.spacer} />
+        <Button {...display.props} variant="ghost">
+          Display
+        </Button>
         {/* Only a team has settings to link to. A person's list spans every team they can
             reach, so there is no single one this could point at — and guessing would send
             them to a team they happened to have an issue in. */}
@@ -466,6 +538,22 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
           </Link>
         )}
       </header>
+
+      <FilterBar
+        filter={view.filter}
+        onChange={view.setFilter}
+        teamId={team?.id}
+        error={view.error}
+        timezone={scope.timezone}
+      />
+
+      <DisplayMenu
+        display={view.display}
+        onChange={view.setDisplay}
+        open={display.open}
+        onClose={display.hide}
+        trigger={display.ref}
+      />
 
       {/* A group and not `role="toolbar"`. A toolbar promises arrow-key navigation between
           its controls, which would mean a roving tabindex and a local key handler — and the
@@ -542,16 +630,38 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       {rows.length === 0 ? (
         <EmptyState
           className={styles.empty}
-          title="No issues in this team yet"
-          description="Everything the team is working on will live here."
-          action={
-            <Button
-              variant="primary"
-              onClick={() => registry.invoke('issue.create', { source: 'menu', context })}
-            >
-              Create an issue
-            </Button>
+          title={filtered ? 'Nothing matches this filter' : 'No issues in this team yet'}
+          description={
+            filtered
+              ? 'Every issue here is excluded by a clause in the filter bar above.'
+              : 'Everything the team is working on will live here.'
           }
+          action={
+            filtered ? (
+              <Button variant="secondary" onClick={() => view.setFilter(EMPTY_FILTER)}>
+                Clear the filter
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={() => registry.invoke('issue.create', { source: 'menu', context })}
+              >
+                Create an issue
+              </Button>
+            )
+          }
+        />
+      ) : view.display.layout === 'board' ? (
+        <Board
+          groups={groups}
+          display={view.display}
+          selected={selection.ids}
+          cursorId={cursorId}
+          label={`${scope.heading} issues`}
+          onOpen={onOpenRow}
+          onFocus={onFocusRow}
+          onToggle={onToggleRow}
+          onExtend={onExtendRow}
         />
       ) : (
         <div
@@ -559,7 +669,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
           className={styles.scroller}
           role="listbox"
           aria-multiselectable="true"
-          aria-label={`${view.heading} issues`}
+          aria-label={`${scope.heading} issues`}
           aria-activedescendant={
             cursorId !== null && cursorRendered ? rowDomId(cursorId) : undefined
           }
@@ -608,9 +718,19 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
  * for the rest — a pattern that reads as a stutter rather than as structure.
  */
 function GroupHeader({ row }: { row: HeaderRow }) {
+  // Resolved here rather than carried on the row, because only one of the seven groupings has
+  // a status to draw and the row type should not pretend otherwise. Cheap: the virtualiser
+  // keeps a handful of headers mounted at a time, and the subscription wakes only for a
+  // status change.
+  const state = useLiveQuery(
+    (store) => (row.stateId === undefined ? null : (store.workflowStates.get(row.stateId) ?? null)),
+    ['workflowState'],
+    [row.stateId ?? ''],
+  );
+
   return (
     <div className={styles.group} aria-hidden="true">
-      <StateIcon category={row.category} color={row.color} decorative />
+      {state !== null && <StateIcon category={state.category} color={state.color} decorative />}
       <span className={styles.groupName}>{row.name}</span>
       <span className={styles.groupCount}>{row.count}</span>
     </div>
@@ -714,81 +834,133 @@ function rowDomId(id: UUID): string {
 }
 
 /**
- * Flattens the store's grouped answer into the rows the virtualiser counts.
+ * Whether the filter is the one that matches everything.
  *
- * Group headings keep the product's own order — workflow order for statuses — regardless of
- * how the issues inside them are sorted; that decision lives in the store's query and is
- * only rendered here.
+ * A group with no nodes, at any depth — because that is what the bar leaves behind when the
+ * last chip is removed, and what a URL with no `filter` param parses to. Anything else counts
+ * as filtered even if it happens to match every issue, since the question being asked is "did
+ * the user narrow this", not "did the narrowing change the answer".
  */
-function buildView(
+function isEmptyFilter(node: FilterNode): boolean {
+  if (!isFilterGroup(node)) return false;
+  return (node.nodes ?? []).every(isEmptyFilter);
+}
+
+/** The team and the heading this list is for, or the null heading that means "no such team". */
+function scopeOf(
   store: Store,
   source: IssueListSource,
   teamKey: string,
   heading: string | undefined,
-): ListView {
+): ListScope {
   // Assignee first, because it is the case with no team: an issue assigned to somebody can
   // be in any team they can reach, which is exactly why the settings link and the team name
   // are absent from this list rather than guessed at.
   if (source.kind === 'assignee') {
-    const { groups } = store.query({
-      filter: { assigneeIds: [source.userId] },
-      groupBy: 'state',
-      sortBy: 'sortOrder',
-    });
+    return { heading: heading ?? 'My Issues', team: null, timezone: browserTimezone() };
+  }
+
+  if (source.kind === 'view') {
+    const view = store.views.get(source.viewId);
+    if (view === undefined) return { heading: null, team: null, timezone: browserTimezone() };
+    const team = view.teamId === undefined ? undefined : store.teams.get(view.teamId);
     return {
-      heading: heading ?? 'My Issues',
+      heading: view.name,
+      // No settings link even for a team-scoped view: the screen is the view, and a link to
+      // the team's settings from it points somewhere the heading did not promise.
       team: null,
-      rows: rowsOf(store, groups, source.includeCompleted !== true),
+      timezone: team?.timezone ?? browserTimezone(),
     };
   }
 
   const team = [...store.teams.values()].find((candidate) => candidate.key === teamKey);
-  if (team === undefined) return NO_VIEW;
-
-  const { groups } = store.query({
-    filter: { teamIds: [team.id] },
-    groupBy: 'state',
-    sortBy: 'sortOrder',
-  });
+  if (team === undefined) {
+    return { heading: null, team: null, timezone: browserTimezone() };
+  }
 
   return {
     heading: team.name,
     team: { id: team.id, key: team.key, name: team.name },
-    rows: rowsOf(store, groups, false),
+    timezone: team.timezone,
   };
 }
 
 /**
- * Flattens grouped ids into the header-and-issue rows the virtualiser walks.
+ * The issues that were ever candidates, before the filter says anything.
+ *
+ * A generator over the live index rather than an array, because `useView` runs this on every
+ * keystroke and building a five-thousand-element array per character would spend the whole
+ * filter budget on garbage before a single clause ran.
+ *
+ * Completed work is excluded from a person's list at the *corpus* level rather than through
+ * the `showCompleted` display option. That is a scope decision and not a display one: "my
+ * issues" means the ones still asking something of me, and a display toggle that could pull
+ * every issue I have ever finished into that list would be answering a different question
+ * from the one the screen's name asks. A team's list has no such restriction — an empty
+ * "Done" column on a team board is information.
+ */
+function* corpusOf(
+  store: Store,
+  source: IssueListSource,
+  teamId: UUID | undefined,
+  includeCompleted: boolean,
+): Generator<Issue> {
+  const ids = corpusIdsOf(store, source, teamId);
+  if (ids === null) return;
+
+  for (const id of ids) {
+    const issue = store.issues.get(id);
+    if (issue === undefined) continue;
+    if (source.kind === 'assignee' && !includeCompleted) {
+      const category = store.workflowStates.get(issue.stateId)?.category;
+      if (category === 'completed' || category === 'canceled') continue;
+    }
+    yield issue;
+  }
+}
+
+/**
+ * Which index a source draws from.
+ *
+ * `active()` for a workspace-scoped saved view, which is the only source that spans every
+ * team: archived issues are excluded there for the same reason they are excluded everywhere
+ * — a filter that has to remember to say `archived is false` is one that will sometimes
+ * forget, and the grammar turns that default off only when a clause mentions it.
+ */
+function corpusIdsOf(
+  store: Store,
+  source: IssueListSource,
+  teamId: UUID | undefined,
+): ReadonlySet<UUID> | null {
+  if (source.kind === 'assignee') return store.index.byAssignee(source.userId);
+  if (source.kind === 'view') {
+    const view = store.views.get(source.viewId);
+    if (view === undefined) return null;
+    return view.teamId === undefined ? store.index.active() : store.index.byTeam(view.teamId);
+  }
+  return teamId === undefined ? null : store.index.byTeam(teamId);
+}
+
+/**
+ * Flattens the view's groups into the header-and-issue rows the virtualiser walks.
  *
  * Flat rather than nested because a virtualiser measures and positions one list: real
  * `role="group"` nesting would mean either giving up virtualisation or lying to the
  * accessibility tree about a structure that is not in the DOM.
+ *
+ * Reads nothing from the store. The grouping already decided both the order of the groups
+ * and their names, and re-resolving a status here to reproduce a label the group is carrying
+ * would be a second, divergent answer to a question already settled.
  */
-function rowsOf(
-  store: Store,
-  groups: ReturnType<Store['query']>['groups'],
-  hideCompleted: boolean,
-): ListRow[] {
+function rowsOf(groups: readonly ViewGroup[]): ListRow[] {
   const rows: ListRow[] = [];
   for (const group of groups) {
-    const state = typeof group.key === 'string' ? store.get('workflowState', group.key) : undefined;
-
-    // Dropped entirely rather than shown empty, and only for this source. A team's board
-    // keeps its empty columns because their absence is information — "nothing is in
-    // review". A person's list is not a board, and a "Done" heading over nothing is a row
-    // of chrome between them and their actual work.
-    if (hideCompleted && (state?.category === 'completed' || state?.category === 'canceled')) {
-      continue;
-    }
-
     rows.push({
       kind: 'header',
-      key: `header-${String(group.key)}`,
-      name: state?.name ?? 'No status',
-      category: state?.category ?? 'backlog',
-      color: state?.color,
+      key: `header-${group.key}`,
+      name: group.label === '' ? 'All issues' : group.label,
       count: group.ids.length,
+      stateId: group.stateId,
     });
     for (const id of group.ids) rows.push({ kind: 'issue', key: id, id });
   }
