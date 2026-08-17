@@ -1,5 +1,6 @@
 import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from 'idb';
 
+import { clearJournal } from './journal';
 import type { OutboxRecord } from './outbox';
 import {
   ENTITY_TYPES,
@@ -348,6 +349,17 @@ export async function dropDatabase(
   clientSchema: number = CLIENT_SCHEMA,
 ): Promise<void> {
   await deleteDB(databaseName(workspaceId, clientSchema));
+  // The write-ahead journal goes with it. It lives outside IndexedDB precisely so that
+  // deleting the replica cannot take it — which is what it is for during a session and
+  // exactly wrong here: on sign-out, or when this installation is pointed at a different
+  // server, a surviving entry is a mutation replayed against a workspace the person may no
+  // longer be in, on a server that never issued it.
+  //
+  // Not keyed by schema version, unlike the database name, and deliberately: a journalled
+  // entry is a GraphQL operation, which a client-side schema bump does not invalidate. A
+  // user whose replica was rebuilt by an upgrade should still not lose the edit they made
+  // just before it.
+  clearJournal(workspaceId);
 }
 
 /**

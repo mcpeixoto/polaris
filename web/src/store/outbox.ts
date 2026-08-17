@@ -1,4 +1,5 @@
 import type { PolarisDB } from './db';
+import { drainJournal, journalForget, journalWrite } from './journal';
 import type { Entity, EntityType, Timestamp, UUID } from './types';
 
 /**
@@ -141,6 +142,17 @@ export class Outbox {
     // reorder the user's own edits against each other.
     stored.sort((a, b) => (a.opId < b.opId ? -1 : a.opId > b.opId ? 1 : 0));
     for (const record of stored) outbox.records.set(record.opId, record);
+
+    // Then whatever the journal is still holding: writes whose IndexedDB transaction was
+    // aborted by the teardown that ended the last session. They are promoted to the durable
+    // queue here, in creation order, and they sort ahead of nothing — a journalled write is
+    // by definition the last thing that happened, and `records` is a Map, so re-inserting an
+    // opId that IndexedDB already had keeps its original position.
+    for (const entry of drainJournal(db.workspaceId)) {
+      if (outbox.records.has(entry.opId)) continue;
+      await db.putOutbox(entry);
+      outbox.records.set(entry.opId, entry);
+    }
     return outbox;
   }
 
@@ -168,6 +180,17 @@ export class Outbox {
    * The write is awaited rather than fired and forgotten: returning early would mean the
    * caller sends a mutation that the queue does not yet know about, and a crash in that
    * window loses the op with no trace that it ever existed.
+   *
+   * The journal line before it covers the `await` itself, which is the part awaiting cannot.
+   * An IndexedDB transaction is abandoned when the document is discarded, so a tab closed
+   * mid-commit loses the op exactly as an in-memory queue would — the durability starts when
+   * the transaction lands, not when it is requested. `journalWrite` is synchronous, and it
+   * runs before the first `await` in this function, so it has committed by the time control
+   * can leave. See ./journal.ts for why `localStorage`, and why it holds nothing else.
+   *
+   * The ordering of the three lines is the whole mechanism and none of them may be moved:
+   * record, commit, forget. Forgetting before the commit reopens the window; forgetting
+   * later leaves an entry recovered on the next boot, which is harmless and is not free.
    */
   async append(input: OutboxAppend): Promise<OutboxRecord> {
     const record: OutboxRecord = {
@@ -178,8 +201,10 @@ export class Outbox {
       attempts: 0,
       createdAt: new Date().toISOString(),
     };
+    if (this.db) journalWrite(this.db.workspaceId, record);
     await this.db?.putOutbox(record);
     this.records.set(record.opId, record);
+    if (this.db) journalForget(this.db.workspaceId, record.opId);
     return record;
   }
 
