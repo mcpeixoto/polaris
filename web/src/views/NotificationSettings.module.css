@@ -1,0 +1,105 @@
+/*
+ * A settings screen, so it reads as prose with controls in it rather than as a dense list.
+ * The issue list's 32px rhythm is for scanning hundreds of rows; there are two sections here
+ * and every one of them is read once, carefully, by somebody deciding something.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  /* A flex child of the shell's main pane. Without this the scroller below grows to its
+     content and the whole pane scrolls instead of the body. */
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-6) var(--space-4);
+  /* Measured rather than full-width: a paragraph explaining what a switch does is unreadable
+     across a 27-inch monitor, and every one of these sections is a sentence before it is a
+     control. */
+  max-width: 68ch;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.sectionNote {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.field {
+  max-width: 28ch;
+}
+
+/*
+ * Attached to the switch above it, not floating below it. The negative offset closes the
+ * section's gap so the sentence reads as part of the control rather than as the next thing.
+ */
+.warning {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.types {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.type {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/*
+ * Indented to the checkbox's label rather than to its box, so the hint reads as belonging to
+ * the words next to it. The value is the control width plus its gap, which is the one
+ * measurement in this file that is arithmetic about another component.
+ */
+.typeHint {
+  padding-inline-start: calc(var(--control-height-sm) + var(--space-2));
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

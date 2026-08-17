@@ -16,6 +16,8 @@
  * in the client, so the row changes on the keystroke and the request follows.
  */
 
+import { USER_FIELDS } from '~/gql/operations';
+
 /**
  * Every field of a notification, matching the shape the delta stream carries.
  *
@@ -132,6 +134,28 @@ export const DELETE_NOTIFICATION = /* GraphQL */ `
     deleteNotification(id: $id) {
       version
       id
+    }
+  }
+`;
+
+/**
+ * Writes the whole preferences bag.
+ *
+ * Whole rather than per-key, which is the API's shape: `updateNotificationPrefs(prefs: JSON!)`
+ * replaces what is stored. The screen therefore has to send everything it knows, including
+ * keys it does not render — a client built before a preference existed must not delete that
+ * preference by saving the ones it does understand. See `NotificationPrefs` in the store's
+ * types for the bag, and services/internal/domain/notification_prefs.go for the one Go
+ * definition of it.
+ */
+export const UPDATE_NOTIFICATION_PREFS = /* GraphQL */ `
+  ${USER_FIELDS}
+  mutation UpdateNotificationPrefs($prefs: JSON!) {
+    updateNotificationPrefs(prefs: $prefs) {
+      version
+      user {
+        ...UserFields
+      }
     }
   }
 `;
