@@ -529,15 +529,35 @@ func toBulkSkips(skips []domain.BulkSkip) []generated.BulkSkip {
 	return out
 }
 
-func toIssues(issues []model.Issue) []generated.Issue {
+func toIssues(issues []model.Issue) ([]generated.Issue, error) {
 	out := make([]generated.Issue, 0, len(issues))
 	for _, i := range issues {
-		out = append(out, toIssue(i))
+		g, err := toIssue(i)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, g)
 	}
-	return out
+	return out, nil
 }
 
 // ------------------------------------------------------------------------------- estimates
+
+func toEstimateScale(v string) (generated.EstimateScale, error) {
+	switch v {
+	case model.EstimateScaleNone:
+		return generated.EstimateScaleNone, nil
+	case model.EstimateScaleExponential:
+		return generated.EstimateScaleExponential, nil
+	case model.EstimateScaleFibonacci:
+		return generated.EstimateScaleFibonacci, nil
+	case model.EstimateScaleLinear:
+		return generated.EstimateScaleLinear, nil
+	case model.EstimateScaleTShirt:
+		return generated.EstimateScaleTshirt, nil
+	}
+	return "", platform.Internal(fmt.Errorf("unknown estimate scale %q", v))
+}
 
 func fromEstimateScale(s generated.EstimateScale) (string, error) {
 	switch s {
@@ -566,4 +586,33 @@ func toDate(s *string) *model.Date {
 	}
 	d := model.Date(*s)
 	return &d
+}
+
+// fromDate is the way back out. model.Date is already the wire format — a calendar day
+// written 2006-01-02, never a timestamp — so this widens the type and nothing else.
+func fromDate(d *model.Date) *string {
+	if d == nil {
+		return nil
+	}
+	s := string(*d)
+	return &s
+}
+
+// ------------------------------------------------------------------------------ due dates
+
+// toDueDateSource maps the column's value onto the schema's enum.
+//
+// Closed, like every other enum conversion here, and this one earns it twice over. The
+// schema declares `dueDateSource: DueDateSource!`, the column is NOT NULL DEFAULT 'manual',
+// and the Go zero value is the empty string — so a conversion that fell through would put a
+// value outside the enum on a non-null field, which gqlgen marshals happily and every
+// generated client rejects at the point where it is hardest to trace back to here.
+func toDueDateSource(v string) (generated.DueDateSource, error) {
+	switch v {
+	case model.DueDateManual:
+		return generated.DueDateSourceManual, nil
+	case model.DueDateSLA:
+		return generated.DueDateSourceSLA, nil
+	}
+	return "", platform.Internal(fmt.Errorf("unknown due date source %q", v))
 }

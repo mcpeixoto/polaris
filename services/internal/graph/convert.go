@@ -62,9 +62,13 @@ func toUser(u model.User) (generated.User, error) {
 		Kind:        kind,
 		Email:       u.Email,
 		LastSeenAt:  u.LastSeenAt,
-		CreatedAt:   u.CreatedAt,
-		UpdatedAt:   u.UpdatedAt,
-		ArchivedAt:  u.ArchivedAt,
+		// Passed through as stored, and nil stays nil. `{}` would be wrong here in a way it
+		// is not for a view's filter: an empty bag of toggles is not the same statement as
+		// "this account has never chosen", and the delivery rules read the difference.
+		NotificationPrefs: u.NotificationPrefs,
+		CreatedAt:         u.CreatedAt,
+		UpdatedAt:         u.UpdatedAt,
+		ArchivedAt:        u.ArchivedAt,
 	}, nil
 }
 
@@ -80,7 +84,11 @@ func toUsers(users []model.User) ([]generated.User, error) {
 	return out, nil
 }
 
-func toTeam(t model.Team) generated.Team {
+func toTeam(t model.Team) (generated.Team, error) {
+	scale, err := toEstimateScale(t.EstimateScale)
+	if err != nil {
+		return generated.Team{}, err
+	}
 	return generated.Team{
 		ID:           t.ID,
 		WorkspaceID:  t.WorkspaceID,
@@ -92,11 +100,17 @@ func toTeam(t model.Team) generated.Team {
 		Timezone:     t.Timezone,
 		ParentTeamID: t.ParentTeamID,
 		Private:      t.Private,
-		CreatedAt:    t.CreatedAt,
-		UpdatedAt:    t.UpdatedAt,
-		RetiredAt:    t.RetiredAt,
-		ArchivedAt:   t.ArchivedAt,
-	}
+		// The estimate settings live on the team and the number lives on the issue. A client
+		// that received the numbers without the scale would render 3 as "3 points" for a
+		// team on t-shirt sizes, which is the one thing the split exists to prevent.
+		EstimateScale:     scale,
+		EstimateAllowZero: t.EstimateAllowZero,
+		EstimateExtended:  t.EstimateExtended,
+		CreatedAt:         t.CreatedAt,
+		UpdatedAt:         t.UpdatedAt,
+		RetiredAt:         t.RetiredAt,
+		ArchivedAt:        t.ArchivedAt,
+	}, nil
 }
 
 func toMembership(m model.TeamMembership) (generated.TeamMembership, error) {
@@ -152,7 +166,16 @@ func toWorkflowStates(states []model.WorkflowState) ([]generated.WorkflowState, 
 // toIssue copies the identifier rather than rebuilding it. It is derived from the team key
 // and the number in exactly one place — model.Identifier — and recomputing it here would
 // be a second implementation of a format the client also derives locally.
-func toIssue(i model.Issue) generated.Issue {
+//
+// It returns an error only because dueDateSource is an enum. Every other field here is a
+// copy, and the one that is not is the one that would otherwise reach a client as the empty
+// string for a field the schema declares non-null — which gqlgen serialises without
+// complaint, because a Go zero value is a perfectly good string.
+func toIssue(i model.Issue) (generated.Issue, error) {
+	source, err := toDueDateSource(i.DueDateSource)
+	if err != nil {
+		return generated.Issue{}, err
+	}
 	return generated.Issue{
 		ID:          i.ID,
 		WorkspaceID: i.WorkspaceID,
@@ -166,13 +189,21 @@ func toIssue(i model.Issue) generated.Issue {
 		CreatorID:   i.CreatorID,
 		Priority:    i.Priority,
 		SortOrder:   i.SortOrder,
+
+		Estimate:          i.Estimate,
+		DueDate:           fromDate(i.DueDate),
+		DueDateSource:     source,
+		ParentID:          i.ParentID,
+		SubIssueSortOrder: i.SubIssueSortOrder,
+		TemplateID:        i.TemplateID,
+
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,
 		CanceledAt:  i.CanceledAt,
 		ArchivedAt:  i.ArchivedAt,
 		CreatedAt:   i.CreatedAt,
 		UpdatedAt:   i.UpdatedAt,
-	}
+	}, nil
 }
 
 func toComment(c model.Comment) (generated.Comment, error) {

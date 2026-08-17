@@ -34,6 +34,22 @@ FROM issue_label
 WHERE issue_id = $1
 ORDER BY created_at;
 
+-- ListIssueLabelsForIssues is the same listing for a whole page of issues at once.
+--
+-- Label chips are drawn on every row of a filtered list, so this is the one collection on
+-- an issue that a list view genuinely asks for — reading it per issue would be the N+1 that
+-- hurts most, on the screen people spend their day in. The denormalised team_id carries the
+-- visibility rule, exactly as it does for the bootstrap stream, so a caller cannot learn
+-- which labels sit on an issue in a team they are not in by naming its id.
+--
+-- name: ListIssueLabelsForIssues :many
+SELECT id, workspace_id, issue_id, label_id, team_id, group_id, created_by, created_at
+FROM issue_label
+WHERE issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND team_id = ANY(sqlc.arg(team_ids)::uuid[])
+ORDER BY issue_id, created_at;
+
 -- StreamIssueLabelsForBootstrap joins the issue rather than trusting the denormalised
 -- team_id alone: bootstrap must not ship applications belonging to issues the snapshot
 -- itself excludes, or the client renders label chips on rows it does not hold.

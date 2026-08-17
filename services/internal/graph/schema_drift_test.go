@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
 	"github.com/peixotolabs/polaris/services/internal/graph/generated"
 )
@@ -70,6 +72,137 @@ func TestSchemaDrift_DetectorNamesTheOffendingField(t *testing.T) {
 	}
 }
 
+// The test above proves the two shapes agree. It cannot prove that anything carries a value
+// from one to the other, and that is exactly the failure it missed: toIssue copied eighteen
+// fields and skipped six, toTeam skipped the whole estimate configuration, toUser skipped the
+// notification preferences. Every one of those was a field both sides declared, both sides
+// agreed about, and nothing filled in — so the drift check passed while the API returned null
+// for values the database plainly held.
+//
+// This closes that. It fills a model struct with values that are all distinguishable from the
+// zero value, runs the converter, and insists that every field the two shapes share came out
+// non-zero. A converter that forgets a field leaves the zero value there, and a zero value is
+// what a client receives as null — or, for a non-null enum, as the empty string, which is not
+// a member of it and which gqlgen serialises without a word of complaint.
+//
+// No database and no fixtures: the converters are pure, and the point of this test is to fail
+// in the second it takes to compile rather than in the minute it takes to reach Postgres.
+func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T) {
+	cases := []struct {
+		name    string
+		model   any
+		convert func(any) (any, error)
+	}{
+		{"Issue", model.Issue{}, func(v any) (any, error) { return toIssue(v.(model.Issue)) }},
+		{"Team", model.Team{}, func(v any) (any, error) { return toTeam(v.(model.Team)) }},
+		{"User", model.User{}, func(v any) (any, error) { return toUser(v.(model.User)) }},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			filled := reflect.New(reflect.TypeOf(c.model)).Elem()
+			fillNonZero(t, filled, "")
+
+			converted, err := c.convert(filled.Interface())
+			if err != nil {
+				t.Fatalf("converting a fully populated model.%s failed: %v\n"+
+					"Every value it holds is a legal one; if an enum conversion refused, enumValues needs the field.",
+					c.name, err)
+			}
+
+			stored := jsonFields(reflect.TypeOf(c.model))
+			wire := reflect.ValueOf(converted)
+			for i := range wire.NumField() {
+				name, skip := jsonName(wire.Type().Field(i))
+				if skip {
+					continue
+				}
+				if _, shared := stored[name]; !shared {
+					// A relation the GraphQL type adds and the stored row does not carry.
+					// Filled by loaders.go, not here.
+					continue
+				}
+				if wire.Field(i).IsZero() {
+					t.Errorf("to%s does not copy %q.\n"+
+						"model.%s carries it and GraphQL %s declares it, so the sync stream and the schema both "+
+						"promise it — and the converter between them returns the zero value, which reaches a client "+
+						"as null.", c.name, name, c.name, c.name)
+				}
+			}
+		})
+	}
+}
+
+// enumValues are the fields whose value has to be a member of a closed set, because the
+// converters refuse anything else — which is deliberate, and covered by their own tests. Any
+// old string would make this test fail for the wrong reason.
+var enumValues = map[string]string{
+	"dueDateSource": model.DueDateManual,
+	"estimateScale": model.EstimateScaleFibonacci,
+	"role":          string(authz.RoleMember),
+	"status":        "active",
+	"kind":          "human",
+}
+
+// fillNonZero writes a distinguishable value into every field of v, recursively.
+//
+// Distinguishable rather than realistic: nothing here asserts on the values, only on whether
+// they survived, so what each one needs to be is "not what a forgotten field would leave
+// behind". name is the JSON name of the field being filled, and is the only reason this
+// knows a due date source from a description.
+func fillNonZero(t *testing.T, v reflect.Value, name string) {
+	t.Helper()
+
+	switch v.Type() {
+	case reflect.TypeOf(uuid.UUID{}):
+		v.Set(reflect.ValueOf(uuid.Must(uuid.NewV7())))
+		return
+	case reflect.TypeOf(time.Time{}):
+		v.Set(reflect.ValueOf(time.Now().UTC()))
+		return
+	case reflect.TypeOf(json.RawMessage{}):
+		v.Set(reflect.ValueOf(json.RawMessage(`{"filled":true}`)))
+		return
+	}
+
+	switch v.Kind() {
+	case reflect.Pointer:
+		p := reflect.New(v.Type().Elem())
+		fillNonZero(t, p.Elem(), name)
+		v.Set(p)
+	case reflect.String:
+		if enum, ok := enumValues[name]; ok {
+			v.SetString(enum)
+			return
+		}
+		v.SetString("filled")
+	case reflect.Bool:
+		v.SetBool(true)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		v.SetInt(7)
+	case reflect.Slice:
+		elem := reflect.New(v.Type().Elem()).Elem()
+		fillNonZero(t, elem, name)
+		v.Set(reflect.Append(reflect.MakeSlice(v.Type(), 0, 1), elem))
+	case reflect.Struct:
+		for i := range v.NumField() {
+			f := v.Type().Field(i)
+			if !f.IsExported() {
+				continue
+			}
+			fieldName, skip := jsonName(f)
+			if skip {
+				continue
+			}
+			fillNonZero(t, v.Field(i), fieldName)
+		}
+	default:
+		// A kind nothing in these structs uses yet. Failing beats filling nothing and
+		// reporting a pass for a field this never touched.
+		t.Fatalf("fillNonZero does not know how to populate %s (field %q); teach it before adding one", v.Kind(), name)
+	}
+}
+
 func driftProblems(stored, exposed reflect.Type) []string {
 	var problems []string
 	exposedFields := jsonFields(exposed)
@@ -101,19 +234,30 @@ func jsonFields(t reflect.Type) map[string]reflect.Type {
 		if !f.IsExported() {
 			continue
 		}
-		name := f.Name
-		if tag, ok := f.Tag.Lookup("json"); ok {
-			tagName, _, _ := strings.Cut(tag, ",")
-			if tagName == "-" {
-				continue
-			}
-			if tagName != "" {
-				name = tagName
-			}
+		name, skip := jsonName(f)
+		if skip {
+			continue
 		}
 		out[name] = f.Type
 	}
 	return out
+}
+
+// jsonName is the name one field reaches a client under, and whether it reaches one at all.
+func jsonName(f reflect.StructField) (name string, skip bool) {
+	name = f.Name
+	tag, ok := f.Tag.Lookup("json")
+	if !ok {
+		return name, false
+	}
+	tagName, _, _ := strings.Cut(tag, ",")
+	if tagName == "-" {
+		return "", true
+	}
+	if tagName != "" {
+		name = tagName
+	}
+	return name, false
 }
 
 // compatibleKinds asks whether the two sides serialise to the same JSON shape.

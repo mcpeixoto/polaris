@@ -330,6 +330,29 @@ FROM issue_subscription
 WHERE issue_id = $1 AND unsubscribed = false
 ORDER BY created_at;
 
+-- ListIssueSubscriptionsForIssues is the watcher list the issue panel renders, for a whole
+-- page of issues at once.
+--
+-- Unsubscribed rows are returned, unlike ListIssueSubscribers above, and the difference is
+-- the caller: the fan-out wants people who still want to hear, while a reader wants to know
+-- whether *they* are watching — and an explicit unsubscribe is a row, not an absence, so
+-- dropping it would render the toggle as "not subscribed yet" and re-subscribe them on the
+-- next comment.
+--
+-- The join is what enforces visibility: issue_subscription carries no team_id of its own,
+-- and without it naming an id would reveal who watches an issue in a team the caller is not
+-- in.
+--
+-- name: ListIssueSubscriptionsForIssues :many
+SELECT s.id, s.workspace_id, s.issue_id, s.user_id, s.reason, s.unsubscribed,
+       s.created_at, s.updated_at
+FROM issue_subscription s
+JOIN issue i ON i.id = s.issue_id
+WHERE s.issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+  AND s.workspace_id = sqlc.arg(workspace_id)
+  AND i.team_id = ANY(sqlc.arg(team_ids)::uuid[])
+ORDER BY s.issue_id, s.created_at;
+
 -- name: ListIssueSubscriptionsForUser :many
 SELECT id, workspace_id, issue_id, user_id, reason, unsubscribed, created_at, updated_at
 FROM issue_subscription

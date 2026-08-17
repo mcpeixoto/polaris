@@ -444,7 +444,15 @@ func TestExecutedQuery_ResolvesTheRelationsItNamesAndPresentsItsErrors(t *testin
 func (h *harness) execute(t *testing.T, query string, variables map[string]any) map[string]any {
 	t.Helper()
 
-	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: h.Resolver}))
+	// Directives included, which is not a detail: gqlgen refuses to execute a field carrying
+	// an unimplemented directive, so an executor built without them can run queries and no
+	// mutation at all — every one of the retryable ones is marked @idempotent. Leaving them
+	// out would make this helper quietly unable to exercise the half of the API most worth
+	// exercising through it.
+	srv := handler.New(generated.NewExecutableSchema(generated.Config{
+		Resolvers:  h.Resolver,
+		Directives: Directives(),
+	}))
 	srv.AddTransport(transport.POST{})
 	srv.SetQueryCache(lru.New[*ast.QueryDocument](16))
 	srv.SetErrorPresenter(PresentError)

@@ -602,8 +602,21 @@ func (s *Service) IssueProgress(
 	if err != nil {
 		return nil, platform.Internal(err)
 	}
+	return rollUpProgress(children), nil
+}
+
+// rollUpProgress is the arithmetic behind the progress bar, shared by the single-issue call
+// above and the batched SubIssuesFor.
+//
+// One implementation, deliberately: the cancelled-work rule below is the kind of thing that
+// gets re-derived slightly differently the second time somebody writes it, and two progress
+// bars on one screen disagreeing about the same parent is a bug nobody can reproduce on
+// demand.
+func rollUpProgress(children []store.Issue) *model.IssueProgress {
 	if len(children) == 0 {
-		return nil, nil
+		// No children is "this is not a parent", which is a different statement from nought
+		// per cent complete — hence nil, and a nullable field on the wire.
+		return nil
 	}
 
 	progress := model.IssueProgress{Total: len(children)}
@@ -625,10 +638,10 @@ func (s *Service) IssueProgress(
 		// Every child was cancelled. There is no outstanding work, so the parent is done —
 		// nought would leave a bar that nothing the user can do will ever move.
 		progress.Percent = 100
-		return &progress, nil
+		return &progress
 	}
 	// Integer rounding, to keep this free of a float that would render as 66.66666666666667
 	// the one time somebody logs it.
 	progress.Percent = (progress.Completed*100 + remaining/2) / remaining
-	return &progress, nil
+	return &progress
 }

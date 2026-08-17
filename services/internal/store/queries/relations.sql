@@ -46,6 +46,34 @@ FROM issue_relation
 WHERE related_issue_id = $1
 ORDER BY created_at;
 
+-- The two listings above, for a whole page of issues at once. Both are here for the same
+-- reason ListIssueLabelsForIssues is: the API hydrates a list of issues in one pass, and a
+-- per-issue query there is a query per visible row.
+--
+-- Visibility is "a member of either team", the same rule relationScope writes onto the
+-- change row, because a link is a fact about two issues and hiding it from one side would
+-- leave the two teams disagreeing about whether it exists.
+--
+-- name: ListIssueRelationsForIssues :many
+SELECT id, workspace_id, issue_id, related_issue_id, type, team_id, related_team_id,
+       created_by, created_at
+FROM issue_relation
+WHERE issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND (team_id = ANY(sqlc.arg(team_ids)::uuid[])
+       OR related_team_id = ANY(sqlc.arg(team_ids)::uuid[]))
+ORDER BY issue_id, created_at;
+
+-- name: ListReverseIssueRelationsForIssues :many
+SELECT id, workspace_id, issue_id, related_issue_id, type, team_id, related_team_id,
+       created_by, created_at
+FROM issue_relation
+WHERE related_issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND (team_id = ANY(sqlc.arg(team_ids)::uuid[])
+       OR related_team_id = ANY(sqlc.arg(team_ids)::uuid[]))
+ORDER BY related_issue_id, created_at;
+
 -- StreamIssueRelationsForBootstrap ships a relation when the caller can see either end,
 -- which is the same rule the hub applies to a live change. Both issues are joined so a
 -- relation pointing at an archived or deleted issue is left out: the client would render

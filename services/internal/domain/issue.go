@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -48,6 +49,19 @@ type CreateIssueInput struct {
 	// ParentID makes the new issue a sub-issue. Cross-team is allowed on purpose: a
 	// platform task under a product feature is the normal case.
 	ParentID *uuid.UUID
+
+	// LabelIDs are applied in the same transaction as the insert, each as its own row and
+	// its own change. Applying them afterwards would leave a window in which the issue
+	// exists without the labels it was filed under — long enough for the change stream to
+	// broadcast the bare issue, and permanent if the second call never happens.
+	LabelIDs []uuid.UUID
+
+	// TemplateID records which template the issue was filed from. It is provenance, not
+	// content: the client fills the title, body and properties from the template before it
+	// sends this, because those are edits the user can still make in the dialog, and a
+	// server that applied them again would overwrite whatever they typed. What this
+	// answers is "is this template still worth having", which nothing else can.
+	TemplateID *uuid.UUID
 
 	// No clear flags here, unlike UpdateIssueInput. There is nothing to clear on an issue
 	// that does not exist yet, and offering the flags would invite a caller to send them.
@@ -125,11 +139,17 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		return model.Issue{}, 0, err
 	}
 
+	labelIDs := dedupe(in.LabelIDs)
+
 	var out model.Issue
 	var version int64
 	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		team, err := s.requireTeamAccess(ctx, q, p, in.TeamID, authz.ActionIssueCreate)
 		if err != nil {
+			return err
+		}
+
+		if err := s.validateTemplate(ctx, q, p, in.TeamID, in.TemplateID); err != nil {
 			return err
 		}
 
@@ -188,6 +208,7 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			Estimate:          estimate,
 			ParentID:          in.ParentID,
 			SubIssueSortOrder: siblingOrder,
+			TemplateID:        in.TemplateID,
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -208,6 +229,16 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			return err
 		}
 
+		// Each label is its own row, its own change and its own version, so the version this
+		// call reports is the last one it minted. A client waiting on it has therefore seen
+		// the labels too, which is the point: reporting the issue's version would let the
+		// client settle its optimistic state while its label chips were still in flight.
+		for _, labelID := range labelIDs {
+			if _, version, err = s.applyIssueLabel(ctx, q, p, id, in.TeamID, team.Private, labelID); err != nil {
+				return err
+			}
+		}
+
 		// You watch what you filed, what you were handed, and what names you.
 		if err := s.SubscribeOnAction(ctx, q, p, id, p.UserID, model.SubscribedCreated); err != nil {
 			return err
@@ -226,7 +257,69 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		return s.em.History(ctx, q, p.WorkspaceID, p.Actor(), row.CreatedAt,
 			HistoryEntry{IssueID: id, Kind: "created"})
 	})
-	return out, version, err
+	if err != nil {
+		// A one-per-group rejection cannot be phrased inside the transaction that raised it
+		// — see errLabelGroupConflict — so it comes out of InTx unexplained and is named
+		// here, the same way AddIssueLabel names it.
+		var conflict errLabelGroupConflict
+		if errors.As(err, &conflict) {
+			return model.Issue{}, 0, s.explainGroupConflict(ctx, conflict)
+		}
+		return model.Issue{}, 0, err
+	}
+	return out, version, nil
+}
+
+// dedupe keeps the caller's order and drops repeats.
+//
+// A repeated label id would otherwise apply twice: the second write is an upsert that
+// returns the same row, so it emits a second change for an entity that did not change, and
+// every connected client re-renders a chip it already has.
+func dedupe(ids []uuid.UUID) []uuid.UUID {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	out := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+// validateTemplate refuses a template the caller cannot use for this team.
+//
+// A workspace template (no team of its own) is offered everywhere; a team's template is
+// offered only in that team. Storing an id that fails that rule would leave the issue
+// pointing at a template its team's create dialog never shows, and the "is this template
+// still worth having" count it exists to answer would include filings the template could
+// not have produced.
+//
+// The answer to an unreachable template is a validation error on the field rather than a
+// not-found, because templateId is an input to filing an issue, not the thing being
+// addressed — and it is the same message whether the id is wrong or the template belongs to
+// a team the caller cannot see, so it cannot be used to probe for either.
+func (s *Service) validateTemplate(
+	ctx context.Context, q *store.Queries, p *authz.Principal, teamID uuid.UUID, templateID *uuid.UUID,
+) error {
+	if templateID == nil {
+		return nil
+	}
+	row, err := s.requireTemplateAccess(ctx, q, p, *templateID)
+	if err != nil {
+		if platform.CodeOf(err) == platform.CodeNotFound {
+			return platform.Validation("templateId", "no such template")
+		}
+		return err
+	}
+	if row.TeamID != nil && *row.TeamID != teamID {
+		return platform.Validation("templateId", "that template belongs to another team")
+	}
+	return nil
 }
 
 type UpdateIssueInput struct {
@@ -261,6 +354,15 @@ type UpdateIssueInput struct {
 
 	AfterIssueID *uuid.UUID
 	MoveToTop    bool
+
+	// AfterSiblingID places the issue directly below one of its parent's other children.
+	//
+	// A separate field from AfterIssueID because the two orders are separate sequences: a
+	// parent's checklist has an order that has nothing to do with where its children sit in
+	// their teams' backlogs, and one issue can be moved in either without touching the
+	// other. Sending both in one call is legitimate — dragging a sub-issue up a checklist
+	// while it also moves in the backlog — and each is applied to its own column.
+	AfterSiblingID *uuid.UUID
 }
 
 // UpdateIssue applies a partial update, derives the category timestamps, and records both
@@ -296,6 +398,13 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 	}
 	if in.ParentID != nil && in.ClearParent {
 		return model.Issue{}, 0, platform.Validation("parentId", "cannot set and clear the parent in one call")
+	}
+	if in.AfterSiblingID != nil && in.ClearParent {
+		// A place among siblings the issue is about to stop having. Refusing says which of
+		// the two the caller has to drop; applying one and ignoring the other would leave
+		// them unable to tell which happened.
+		return model.Issue{}, 0, platform.Validation("afterSiblingId",
+			"cannot place an issue among its siblings while removing its parent")
 	}
 	estimate, err := validateEstimate(in.Estimate)
 	if err != nil {
@@ -451,6 +560,26 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			}
 			siblingOrder = &pos
 		}
+		// An explicit place among siblings overrides the append that a re-parent just minted,
+		// which is what makes "drag this issue into that parent, third from the top" one call
+		// rather than two — and the resolution is here rather than in the caller because
+		// applying both in sequence would emit two changes for one gesture.
+		if in.AfterSiblingID != nil {
+			parentID := before.ParentID
+			if in.ParentID != nil {
+				parentID = in.ParentID
+			}
+			if parentID == nil {
+				return platform.Validation("afterSiblingId",
+					"that issue has no parent, so it has no siblings to be placed among")
+			}
+			pos, err := s.siblingPosition(ctx, q, p, *parentID, *in.AfterSiblingID)
+			if err != nil {
+				return err
+			}
+			siblingOrder = &pos
+		}
+
 		if in.ParentID != nil || in.ClearParent {
 			var to *uuid.UUID
 			if !in.ClearParent {
@@ -533,6 +662,9 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 		// happens not to notify on is a list nobody can trust for anything else.
 		if sortOrder != nil {
 			changed = append(changed, notify.FieldSortOrder)
+		}
+		if siblingOrder != nil {
+			changed = append(changed, notify.FieldSubIssueSortOrder)
 		}
 
 		if version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
@@ -847,6 +979,68 @@ func (s *Service) reorderPosition(
 		return "", platform.Internal(err)
 	}
 	return pos, nil
+}
+
+// siblingPosition mints the key that puts an issue directly below one of its siblings.
+//
+// reorderPosition's twin, and separate from it because the two sequences are separate: a
+// parent's children are ordered among themselves, in a list scoped to that parent, while
+// sort_order orders a status column across a whole team. Reusing the one for the other would
+// mint a key from neighbours in a list the issue is not in.
+//
+// The anchor has to be a child of the same parent, and saying so is not pedantry: an anchor
+// from another parent's checklist would produce a key that sorts correctly against rows this
+// issue will never be beside, which lands it in an order nobody chose and that no amount of
+// dragging will explain.
+func (s *Service) siblingPosition(
+	ctx context.Context, q *store.Queries, p *authz.Principal, parentID, afterID uuid.UUID,
+) (string, error) {
+	anchor, err := q.GetIssue(ctx, afterID)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return "", platform.Validation("afterSiblingId", "no such issue")
+		}
+		return "", platform.Internal(err)
+	}
+	// The same not-found-shaped answer an unreachable issue gets everywhere else: the reader
+	// already holds the parent, but the anchor may be in a team they cannot see, and an
+	// error that distinguished the two would confirm it exists.
+	if anchor.WorkspaceID != p.WorkspaceID || !authz.CanRelateIssues(p, anchor.TeamID, anchor.TeamID) {
+		return "", platform.Validation("afterSiblingId", "no such issue")
+	}
+	if anchor.ParentID == nil || *anchor.ParentID != parentID {
+		return "", platform.Validation("afterSiblingId", "that issue is not a sub-issue of the same parent")
+	}
+	if anchor.SubIssueSortOrder == nil {
+		// Every child gets a key when it is attached, so a sibling without one is a row that
+		// predates the column or was written around this package. There is nothing to
+		// compute a position from, and guessing one would silently reorder the list.
+		return "", platform.Internal(errNoSiblingOrder{anchor.ID})
+	}
+
+	next, err := q.GetSubIssueSortOrderAfter(ctx, store.GetSubIssueSortOrderAfterParams{
+		ParentID:          &parentID,
+		SubIssueSortOrder: anchor.SubIssueSortOrder,
+	})
+	if err != nil && !store.IsNotFound(err) {
+		return "", platform.Internal(err)
+	}
+	upper := ""
+	if err == nil && next != nil {
+		upper = *next
+	}
+
+	pos, err := fractional.Between(*anchor.SubIssueSortOrder, upper)
+	if err != nil {
+		return "", platform.Internal(err)
+	}
+	return pos, nil
+}
+
+type errNoSiblingOrder struct{ issueID uuid.UUID }
+
+func (e errNoSiblingOrder) Error() string {
+	return "issue " + e.issueID.String() + " is a sub-issue with no sub_issue_sort_order"
 }
 
 // validateEstimate narrows a point value to the smallint the column holds.
