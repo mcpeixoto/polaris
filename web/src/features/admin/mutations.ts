@@ -1,50 +1,30 @@
 /**
  * The administration writes.
  *
- * Two of them do not go through `engine.mutate`, and that is the most important thing in
- * this file. Creating an invitation and creating an API key each return a token that exists
- * in that one response and nowhere else — the server stores only its SHA-256 — and the
- * outbox replays a mutation by re-sending its variables and *discarding* the result. A
- * queued create-key that succeeds an hour later would therefore mint a credential nobody can
- * ever read, which is not an offline nicety, it is a key with no token and a revoke button.
- * So both are plain `gql` calls: they succeed now, in front of the person who asked, or they
- * fail now and can be asked for again.
+ * Creating an invitation does not go through `engine.mutate`, and that is the most important
+ * thing in this file. It returns a token that exists in that one response and nowhere else —
+ * the server stores only its SHA-256 — and the outbox replays a mutation by re-sending its
+ * variables and *discarding* the result. A queued invite that succeeded an hour later would
+ * therefore mint a credential nobody can ever read, which is not an offline inconvenience,
+ * it is an invitation with no link. So it is a plain `gql` call: it succeeds now, in front of
+ * the person who asked, or it fails now and can be asked for again. `features/apikeys` makes
+ * the same trade for the same reason, and says so there.
  *
- * Revoking a key or an invitation is a plain call for a quieter version of the same reason.
- * Neither entity is replicated — see the note on `apiKey` in store/types — so there is no
- * optimistic patch for the outbox to protect, and a revoke sitting silently in a queue is
- * worse than a failure the admin can see and retry: the whole point of pressing it is that
- * the credential stops working.
+ * Revoking an invitation is a plain call for a quieter version of the same reason. The entity
+ * is not replicated, so there is no optimistic patch for the outbox to protect, and a revoke
+ * sitting silently in a queue is worse than a failure the admin can see and retry: the whole
+ * point of pressing it is that the credential stops working.
  *
  * Removing a member is the opposite case and goes through the engine as usual: the user row
  * *is* replicated, the server answers with an upsert of the archived row, and the optimistic
  * patch is what takes the person out of the directory on the click rather than on the reply.
  */
 
+import { fromWire, toWire } from '~/gql/enums';
 import { ApiError, gql } from '~/sync/api';
 import type { Issue, Store, User, UUID } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
-import {
-  CREATE_API_KEY,
-  INVITE_TO_WORKSPACE,
-  REMOVE_USER,
-  RESTORE_ISSUE,
-  REVOKE_API_KEY,
-  REVOKE_INVITE,
-} from './operations';
-
-/** A key as a listing may hold it: metadata, and never the token. */
-export interface ApiKeySummary {
-  readonly id: UUID;
-  readonly userId: UUID;
-  readonly name: string;
-  readonly prefix: string;
-  readonly scopes: readonly string[];
-  readonly lastUsedAt: string | null;
-  readonly expiresAt: string | null;
-  readonly revokedAt: string | null;
-  readonly createdAt: string;
-}
+import { INVITE_TO_WORKSPACE, REMOVE_USER, RESTORE_ISSUE, REVOKE_INVITE } from './operations';
 
 export interface InviteSummary {
   readonly id: UUID;
@@ -77,23 +57,11 @@ export interface CreatedInvite {
   readonly token: string;
 }
 
-export interface CreatedApiKey {
-  readonly key: ApiKeySummary;
-  readonly token: string;
-}
-
-export interface NewApiKey {
-  readonly name: string;
-  readonly scopes: readonly string[];
-  /** RFC 3339, or absent for a key that does not expire. */
-  readonly expiresAt?: string | undefined;
-}
-
 export async function inviteToWorkspace(input: NewInvite): Promise<CreatedInvite> {
   const data = await gql<{ inviteToWorkspace: CreatedInvite }>(INVITE_TO_WORKSPACE, {
     input: {
       email: input.email,
-      role: input.role.toUpperCase(),
+      role: toWire(input.role),
       // Always sent, even empty: the field is a list of teams to join, and omitting it and
       // sending none are the same request.
       teamIds: [...input.teamIds],
@@ -104,25 +72,6 @@ export async function inviteToWorkspace(input: NewInvite): Promise<CreatedInvite
 
 export async function revokeInvite(id: UUID): Promise<void> {
   await gql(REVOKE_INVITE, { id });
-}
-
-export async function createApiKey(input: NewApiKey): Promise<CreatedApiKey> {
-  const data = await gql<{ createApiKey: { created: { token: string; apiKey: ApiKeySummary } } }>(
-    CREATE_API_KEY,
-    {
-      input: {
-        name: input.name,
-        scopes: [...input.scopes],
-        ...(input.expiresAt === undefined ? null : { expiresAt: input.expiresAt }),
-      },
-    },
-  );
-  const created = data.createApiKey.created;
-  return { key: created.apiKey, token: created.token };
-}
-
-export async function revokeApiKey(id: UUID): Promise<void> {
-  await gql(REVOKE_API_KEY, { id });
 }
 
 /**
@@ -168,7 +117,11 @@ export async function restoreIssue(engine: SyncEngine, id: UUID): Promise<Issue>
     mutation: RESTORE_ISSUE,
     variables: { id },
   });
-  return data.restoreIssue.issue;
+  // Converted even though nothing here writes it to the store, because a caller that renders
+  // the returned issue would otherwise be the one place in the app reading `"MANUAL"` — and
+  // the next caller to put it in the store would reintroduce the bug rather than inherit the
+  // fix. See web/src/gql/enums.ts.
+  return fromWire('issue', data.restoreIssue.issue);
 }
 
 /**

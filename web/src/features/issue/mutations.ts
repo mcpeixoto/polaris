@@ -20,6 +20,7 @@
  * M0 has no toast host to say more than that.
  */
 
+import { fromWire, toWire } from '~/gql/enums';
 import {
   ARCHIVE_ISSUE,
   CREATE_COMMENT,
@@ -32,6 +33,7 @@ import {
   uuidv7,
   type Comment,
   type DateOnly,
+  type EntityOf,
   type EntityPatch,
   type Issue,
   type IssueRelation,
@@ -423,7 +425,9 @@ export async function createRelation(engine: SyncEngine, input: NewRelation): Pr
   try {
     const data = await engine.mutate<{ createIssueRelation: { relation: IssueRelation } }>({
       mutation: CREATE_ISSUE_RELATION,
-      variables: { issueId, relatedIssueId, type: input.type },
+      // `toWire`: the argument is declared `RelationType!`, and a GraphQL enum value is
+      // case-sensitive, so `"blocks"` is not `BLOCKS` and the server rejects it outright.
+      variables: { issueId, relatedIssueId, type: toWire(input.type) },
       optimistic: [{ type: 'issueRelation', id: provisional.id, before: null, after: provisional }],
     });
     adopt(store, 'issueRelation', provisional.id, data.createIssueRelation.relation);
@@ -561,8 +565,14 @@ function swap<T extends 'issue' | 'comment'>(
   store: Store,
   type: T,
   provisional: { id: UUID },
-  real: Issue | Comment,
+  wire: Issue | Comment,
 ): void {
+  // `fromWire` because this row came back over GraphQL, where enumerated values are spelled
+  // in upper case, while everything already in the store came off the sync stream in the
+  // database's spelling. Writing the response through unconverted puts `"MANUAL"` where every
+  // reader compares against `'manual'` — a value that is present, plausible and equal to
+  // nothing. See web/src/gql/enums.ts.
+  const real = fromWire(type, wire as EntityOf<T>);
   const existing = store.get(type, real.id) ?? null;
   const patch: EntityPatch[] = [{ type, id: real.id, before: existing, after: real }];
   if (real.id !== provisional.id) {
@@ -579,12 +589,17 @@ function swap<T extends 'issue' | 'comment'>(
  * issue and a user — rather than by an id the client could have chosen, so there is nothing
  * to unify beyond the shape.
  */
-function adopt(
+function adopt<T extends 'issueRelation' | 'issueSubscription'>(
   store: Store,
-  type: 'issueRelation' | 'issueSubscription',
+  type: T,
   provisionalId: UUID,
-  real: IssueRelation | IssueSubscription,
+  wire: IssueRelation | IssueSubscription,
 ): void {
+  // See `swap`: both of these carry an enum — a relation's `type`, a subscription's `reason`
+  // — and both were being written into the store as `"BLOCKS"` and `"SUBSCRIBED"`. The
+  // relation created in this session was then invisible to the panel that lists relations
+  // until a reload re-bootstrapped it from the stream in the right spelling.
+  const real = fromWire(type, wire as EntityOf<T>);
   const patch: EntityPatch[] = [
     { type, id: real.id, before: store.get(type, real.id) ?? null, after: real },
   ];

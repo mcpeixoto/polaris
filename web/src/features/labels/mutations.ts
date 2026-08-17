@@ -28,6 +28,7 @@
  * mutations, which is the one console line the M0 shell can offer.
  */
 
+import { fromWire } from '~/gql/enums';
 import {
   uuidv7,
   type EntityPatch,
@@ -308,7 +309,12 @@ function applicationOf(store: Store, issueId: UUID, labelId: UUID): IssueLabel |
  * and a chip that disappears for a frame on its way to being replaced by itself is the exact
  * flicker an optimistic add is supposed to prevent.
  */
-function swapApplication(store: Store, provisionalId: UUID, real: IssueLabel): void {
+function swapApplication(store: Store, provisionalId: UUID, wire: IssueLabel): void {
+  // Neither of these two entities carries an enumerated field today, so `fromWire` returns
+  // its argument untouched. It is here anyway, so that "a response goes through fromWire
+  // before it reaches the store" is a rule with no exceptions to remember — the exceptions
+  // are what let `"BLOCKS"` into the store in the first place. See web/src/gql/enums.ts.
+  const real = fromWire('issueLabel', wire);
   const patch: EntityPatch[] = [
     {
       type: 'issueLabel',
@@ -324,7 +330,8 @@ function swapApplication(store: Store, provisionalId: UUID, real: IssueLabel): v
 }
 
 /** The same swap for a created label. See `swapApplication`. */
-function swapLabel(store: Store, provisionalId: UUID, real: Label): void {
+function swapLabel(store: Store, provisionalId: UUID, wire: Label): void {
+  const real = fromWire('label', wire);
   const patch: EntityPatch[] = [
     { type: 'label', id: real.id, before: store.get('label', real.id) ?? null, after: real },
   ];
