@@ -578,6 +578,19 @@ type Querier interface {
 	ListWorkflowStatesForTeam(ctx context.Context, teamID uuid.UUID) ([]WorkflowState, error)
 	ListWorkflowStatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]WorkflowState, error)
 	ListWorkspacesForAccount(ctx context.Context, accountID *uuid.UUID) ([]ListWorkspacesForAccountRow, error)
+	// ListWorkspacesWithPendingNotifications drives the fan-out job, which like the retention
+	// sweep has no principal and therefore no workspace of its own to start from.
+	//
+	// Asking "where is there work" rather than iterating every workspace and discovering the
+	// answer per row: this runs on a short interval, and on an install where nobody is typing
+	// it has to cost one indexed comparison per workspace and no transaction at all.
+	//
+	// LEFT JOIN rather than a plain join, because a workspace has no cursor row until its first
+	// pass writes one — and a workspace that has never been fanned out is precisely the one with
+	// something waiting. Migration 000022 seeds a row for every workspace that existed before
+	// the job did, so `coalesce` here covers only the workspaces created since.
+	//
+	ListWorkspacesWithPendingNotifications(ctx context.Context) ([]uuid.UUID, error)
 	// ListWorkspacesWithPurgeableIssues drives the retention sweep, which has no principal and
 	// therefore no workspace of its own. Distinct rather than a join over workspace, because
 	// the answer wanted is "where is there work to do", and most workspaces have none.

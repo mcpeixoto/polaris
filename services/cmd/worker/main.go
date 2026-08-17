@@ -67,6 +67,51 @@ func run() error {
 
 	jobs := []job{
 		{
+			// The notification engine. Reads what every workspace has committed since its
+			// watermark and derives the inbox rows.
+			//
+			// This job did not exist, and the effect was total: `domain.FanOut` had no caller
+			// outside its own tests, so `notification` stayed empty on every running system
+			// forever. The Inbox screen, the unread badge and every toggle on
+			// /settings/notifications were inert, and nothing said so — the engine compiles,
+			// its tests pass and its documentation is accurate whether or not anybody runs it.
+			//
+			// **This interval is the inbox's latency.** Every other job here has a maintenance
+			// cadence, where the difference between an hour and a day is a matter of table
+			// size; this one is how long after being assigned an issue somebody hears about
+			// it, in a product where every other change reaches their screen in milliseconds.
+			// Five seconds is short enough to read as "quick" rather than as "later" and long
+			// enough that an idle install is doing one indexed comparison per workspace per
+			// tick and opening no transaction — ListWorkspacesWithPendingNotifications answers
+			// "nothing to do" without touching change_log.
+			//
+			// The honest next step is not a smaller number: it is triggering off the same
+			// `polaris_sync` NOTIFY the hub already listens to, which would make this the
+			// safety net rather than the mechanism. That needs the worker to hold a
+			// session-mode connection the way cmd/sync does (see POLARIS_LISTEN_DATABASE_URL),
+			// which is operational surface a self-hoster behind pgbouncer has to configure —
+			// so it is a deliberate second step and not a thing to slip in here.
+			//
+			// atBoot, unlike the digest: a process that has just restarted is the one most
+			// likely to have missed something, and unlike a digest there is no per-recipient
+			// schedule for a boot pass to re-anchor.
+			name:   "fan out notifications",
+			every:  5 * time.Second,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.FanOutAll(ctx)
+				if err == nil && n > 0 {
+					log.Debug("delivered notifications", "rows", n)
+				}
+				return err
+			},
+			// Not critical. A single bad pass is retried five seconds later with the cursor
+			// where it was, and FanOutAll already logs the workspace that failed. Escalating
+			// this to error level would put a page behind the most frequent job in the
+			// process, which is how the level stops meaning anything.
+			critical: false,
+		},
+		{
 			name:     "ensure change_log partitions",
 			every:    6 * time.Hour,
 			atBoot:   true,

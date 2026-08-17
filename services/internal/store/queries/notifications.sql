@@ -207,6 +207,24 @@ VALUES (sqlc.arg(workspace_id), sqlc.arg(version))
 ON CONFLICT (workspace_id) DO UPDATE SET version = EXCLUDED.version
 WHERE EXCLUDED.version > notification_cursor.version;
 
+-- ListWorkspacesWithPendingNotifications drives the fan-out job, which like the retention
+-- sweep has no principal and therefore no workspace of its own to start from.
+--
+-- Asking "where is there work" rather than iterating every workspace and discovering the
+-- answer per row: this runs on a short interval, and on an install where nobody is typing
+-- it has to cost one indexed comparison per workspace and no transaction at all.
+--
+-- LEFT JOIN rather than a plain join, because a workspace has no cursor row until its first
+-- pass writes one — and a workspace that has never been fanned out is precisely the one with
+-- something waiting. Migration 000022 seeds a row for every workspace that existed before
+-- the job did, so `coalesce` here covers only the workspaces created since.
+--
+-- name: ListWorkspacesWithPendingNotifications :many
+SELECT wv.workspace_id
+FROM workspace_version wv
+LEFT JOIN notification_cursor nc ON nc.workspace_id = wv.workspace_id
+WHERE wv.version > coalesce(nc.version, 0);
+
 -- ---------------------------------------------------------------------------------------
 -- Email delivery.
 --

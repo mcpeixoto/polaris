@@ -196,6 +196,43 @@ func (s *Service) FanOut(ctx context.Context, workspaceID uuid.UUID) (int, error
 	return delivered, nil
 }
 
+// FanOutAll runs one pass for every workspace that has changes it has not seen, and returns
+// the total delivered. This is what the worker schedules; FanOut on its own is the unit.
+//
+// It exists because FanOut takes a workspace and the job has none — the same shape as
+// PurgeExpiredIssues, and for the same reason. Until this, nothing called FanOut outside its
+// own tests: six jobs were registered in cmd/worker and none was this one, so on a live
+// system `notification` stayed empty forever and the inbox, the unread badge and every
+// toggle on the preferences screen were inert. The engine was complete, tested, documented
+// and never invoked.
+//
+// One pass per workspace per call, not a loop to exhaustion. FanOut is capped at
+// fanOutPageSize changes, so a workspace with a real backlog is drained across several
+// calls — which is what the driving query is for, and what keeps a single tick from holding
+// one workspace's version lock while every other workspace waits its turn.
+//
+// A workspace that fails is logged and skipped rather than returned: this runs unattended on
+// a short interval, and one workspace's bad row must not stop everybody else's inbox. The
+// next pass picks it up, because the cursor did not move.
+func (s *Service) FanOutAll(ctx context.Context) (int, error) {
+	workspaces, err := s.db.Queries().ListWorkspacesWithPendingNotifications(ctx)
+	if err != nil {
+		return 0, platform.Internal(err)
+	}
+
+	total := 0
+	for _, workspaceID := range workspaces {
+		delivered, err := s.FanOut(ctx, workspaceID)
+		if err != nil {
+			platform.Log(ctx).Error("notification fan-out failed for a workspace",
+				"workspace", workspaceID, "error", err)
+			continue
+		}
+		total += delivered
+	}
+	return total, nil
+}
+
 // deliveriesFor turns one change row into inbox rows, by gathering what the rules need and
 // asking internal/notify.
 //

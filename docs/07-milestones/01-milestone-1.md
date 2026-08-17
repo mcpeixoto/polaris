@@ -109,6 +109,23 @@ An unsubscribe is a flag, not a deleted row. Deleting instead would let the next
 auto-subscribe the user again, so unsubscribe would be a button that works for about four
 minutes.
 
+Deriving is a **worker job on a five-second tick**, and that interval is the inbox's
+latency — the one number here that a user can feel. `FanOut` takes a workspace, so
+`FanOutAll` is what the worker schedules: it asks which workspaces have changes above their
+cursor and runs one bounded pass for each, which keeps an idle install at one indexed
+comparison per workspace per tick and a busy one from holding a single workspace's version
+lock while the others wait.
+
+The honest next step is not a shorter interval but triggering off the same `polaris_sync`
+`NOTIFY` the hub already listens to, which would demote the tick to a safety net. That needs
+the worker to hold a session-mode connection the way `cmd/sync` does, which is operational
+surface a self-hoster behind pgbouncer has to configure — so it is a deliberate second step.
+
+Migration 000022 seeds a cursor for every workspace that predates the job. Without it the
+first pass would derive an inbox row for every assignment, mention and comment in a
+workspace's entire history and deliver them all at once, dated today — which is not a
+backlog, it is a reason to stop opening the inbox.
+
 ### The filter AST is a JSON scalar, deliberately
 
 A typed GraphQL input and output tree would be a *second* definition of the grammar

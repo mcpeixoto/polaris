@@ -57,7 +57,13 @@ var readPrefixes = []string{
 // worker cron that has to be argued for and a worker cron that is skipped silently are the
 // same amount of code and a very different amount of review.
 var serverSideOnly = map[string]string{
-	"FanOut":                     "worker cron: derives inbox rows from change_log",
+	// FanOutAll is the scheduled thing and FanOut is its unit, so the "worker cron" excuse
+	// belongs to the one the job table actually names. Spelling both as worker crons would
+	// make TestAPIParity_EveryWorkerCronExcuseIsActuallyScheduled demand a job for a method
+	// that correctly has none — and teaching that test to accept "something nearby is
+	// scheduled" is how it stops meaning anything.
+	"FanOutAll":                  "worker cron: derives inbox rows from change_log",
+	"FanOut":                     "internal: one workspace's pass, called by FanOutAll",
 	"DeliverNotificationDigests": "worker cron: sends the digest mail",
 	"SubscribeOnAction":          "internal: called by the write paths that auto-subscribe",
 	"AuthenticateApiKey":         "auth middleware: exchanging a token for a principal is not a mutation a caller performs",
