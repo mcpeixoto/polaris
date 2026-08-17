@@ -1,5 +1,16 @@
 # Two deployment modes: self-host and cloud
 
+> **Status.** This document describes the intended design, and some of it is not built. As of
+> milestone 1 there is no object store, no separate search service, no metrics endpoint and no
+> job queue: attachments are unimplemented, search is Postgres full-text and trigram in the
+> main database, nothing serves `/metrics`, and the worker is a ticker running idempotent jobs
+> rather than a queue. `services/internal/platform/config.go` is the authority on what is
+> configurable and [`11-self-hosting.md`](11-self-hosting.md) on what actually runs.
+>
+> Kept as a design document rather than trimmed to today's code, because the reasoning is
+> still the plan. But a reader could not previously tell the two apart, and the failure that
+> produces is somebody filing a bug against a subsystem nobody has written.
+
 The repo is public, so `docker-compose.yml` must work for a stranger on a bare VPS. The fleet-specific arrangement (NPM, `webnet`, `<Prefix>_<role>`, root-owned env files) is **an override**, not the default. This revises `05-deployment-vps.md`, which assumed fleet-only.
 
 ## The three files
