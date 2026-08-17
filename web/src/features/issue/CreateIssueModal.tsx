@@ -36,6 +36,10 @@ import { useViewerId } from '~/hooks/useViewer';
 import { CATEGORY_ORDER, type StateCategory, type UUID, type WorkflowState } from '~/store';
 import { ApiError } from '~/sync/api';
 import { createIssue } from './mutations';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
+import { templateDefaults, type TemplateDefaults } from '~/features/templates/mutations';
+import { TemplatePicker } from '~/features/templates/TemplatePicker';
+import type { IssueTemplate } from '~/store';
 import styles from './CreateIssueModal.module.css';
 
 export interface CreateIssueModalProps {
@@ -83,6 +87,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState<UUID>(UNASSIGNED);
   const [priority, setPriority] = useState(0);
+  const [template, setTemplate] = useState<TemplateDefaults | null>(null);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -103,6 +108,39 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
     if (chosenTeam !== null && teams.some((team) => team.id === chosenTeam)) return chosenTeam;
     return teams.find((team) => team.key === fromPath)?.id ?? teams[0]?.id ?? '';
   }, [chosenTeam, teams, fromPath]);
+
+  const templateMenu = useMenuTrigger();
+
+  const templateName = useLiveQuery(
+    (store) =>
+      template === null ? null : (store.issueTemplates.get(template.templateId)?.name ?? null),
+    ['issueTemplate'],
+    [template?.templateId ?? ''],
+  );
+
+  /**
+   * Applies a template's prefill to the form.
+   *
+   * Into the *form's* state rather than straight into a create, because a template is a
+   * starting point and not a submission: the whole value of prefilling is that the filer then
+   * edits it. Title and body are only overwritten when the template actually supplies them,
+   * so choosing a template after typing does not silently discard what was typed.
+   */
+  const applyTemplate = (chosen: IssueTemplate | null) => {
+    if (chosen === null) {
+      setTemplate(null);
+      return;
+    }
+    const defaults = templateDefaults(engine.store, chosen, teamId);
+    setTemplate(defaults);
+    if (defaults.title !== '') setTitle(defaults.title);
+    if (defaults.description !== '') setDescription(defaults.description);
+    // `chosenState` and not the derived `stateId`: the derived value is recomputed from the
+    // team, and writing it there would be overwritten on the next render.
+    if (defaults.stateId !== undefined) setChosenState(defaults.stateId);
+    setAssigneeId(defaults.assigneeId ?? UNASSIGNED);
+    setPriority(defaults.priority ?? 0);
+  };
 
   const states = useLiveQuery(
     (store) =>
@@ -160,6 +198,17 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         stateId: stateId === '' ? undefined : stateId,
         assigneeId: assigneeId === UNASSIGNED ? undefined : assigneeId,
         priority,
+        // The template's own contributions, carried on the create rather than applied
+        // afterwards: three follow-up writes for one filed issue would be three versions on
+        // the stream and three frames in which the issue is not yet what the template says
+        // it is.
+        ...(template === null
+          ? null
+          : {
+              templateId: template.templateId,
+              ...(template.estimate === undefined ? null : { estimate: template.estimate }),
+              ...(template.labelIds.length === 0 ? null : { labelIds: template.labelIds }),
+            }),
         creatorId: viewerId ?? undefined,
       });
       // Closed without waiting for anything else: the issue is already in the list, and the
@@ -251,6 +300,12 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
             onChange={(event) => {
               setChosenTeam(event.target.value);
               setChosenState(null);
+              // The offering is team-scoped, so a template chosen for one team is not a
+              // template in another. Cleared rather than re-resolved: the prefilled title and
+              // description are the filer's text now, and silently rewriting what they are
+              // looking at because they corrected the team is worse than losing a template
+              // they can pick again.
+              setTemplate(null);
             }}
           >
             {teams.map((team) => (
@@ -300,6 +355,20 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
               </option>
             ))}
           </Select>
+
+          <div className={styles.template}>
+            <span className={styles.templateLabel} id={`${formId}-template`}>
+              Template
+            </span>
+            <Button
+              {...templateMenu.props}
+              fullWidth
+              aria-describedby={`${formId}-template`}
+              disabled={teamId === ''}
+            >
+              {templateName ?? 'No template'}
+            </Button>
+          </div>
         </div>
 
         {saveError === null ? null : (
@@ -307,7 +376,27 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
             {saveError}
           </p>
         )}
+        {/*
+          Said out loud, because the alternative is silence about a decision the product made
+          on the filer's behalf. A workspace template cannot carry a status — a status belongs
+          to one team — so applying one to a team that has statuses drops it, and somebody who
+          watched a field not fill in deserves to know it was not a bug.
+        */}
+        {template !== null && template.dropped.length > 0 && (
+          <p className={styles.dropped} role="status">
+            {`This template does not set ${listOf(template.dropped)} for this team.`}
+          </p>
+        )}
       </form>
+
+      <TemplatePicker
+        open={templateMenu.open}
+        onClose={templateMenu.hide}
+        trigger={templateMenu.ref}
+        teamId={teamId}
+        value={template?.templateId ?? null}
+        onSelect={applyTemplate}
+      />
     </Modal>
   );
 }
@@ -336,4 +425,15 @@ function groupByCategory(states: readonly StateOption[]): [StateCategory, StateO
     else groups.push([state.category, [state]]);
   }
   return groups;
+}
+
+/**
+ * "status", "status and assignee", "status, assignee and one label".
+ *
+ * A comma-separated list reads as a machine's output; this sentence is shown to somebody who
+ * has just watched a field not fill in, and it should read like an explanation.
+ */
+function listOf(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1] ?? ''}`;
 }

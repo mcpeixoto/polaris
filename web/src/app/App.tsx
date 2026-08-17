@@ -24,6 +24,7 @@ import { MemberSettings } from '~/views/MemberSettings';
 import { MyIssues } from '~/views/MyIssues';
 import { SavedView } from '~/views/SavedView';
 import { Search } from '~/views/Search';
+import { Templates } from '~/views/Templates';
 import { SignIn } from '~/views/SignIn';
 import { SignUp } from '~/views/SignUp';
 import { TeamSettings } from '~/views/TeamSettings';
@@ -80,6 +81,7 @@ export function App() {
               <Route path="/issue/:identifier" element={<IssueDetail />} />
               <Route path="/settings/members" element={<MemberSettings />} />
               <Route path="/settings/labels" element={<LabelSettings />} />
+              <Route path="/settings/templates" element={<Templates />} />
               <Route path="/settings/api-keys" element={<ApiKeys />} />
               <Route path="/settings/trash" element={<Trash />} />
               {/* Unknown paths go somewhere useful rather than to a dead end. A stale

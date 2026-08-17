@@ -37,6 +37,7 @@ import {
   type EntityOf,
   type EntityPatch,
   type Issue,
+  type IssueLabel,
   type IssueRelation,
   type IssueSubscription,
   type RelationType,
@@ -70,6 +71,27 @@ export interface NewIssue {
   readonly stateId?: UUID | undefined;
   readonly assigneeId?: UUID | undefined;
   readonly priority?: number | undefined;
+  readonly estimate?: number | undefined;
+  /** A calendar day, `2006-01-02`. */
+  readonly dueDate?: DateOnly | undefined;
+  /** Makes the new issue a child of this one. Cross-team is allowed. */
+  readonly parentId?: UUID | undefined;
+  /**
+   * Labels to apply on creation.
+   *
+   * Sent with the create rather than as N `addIssueLabel` calls afterwards, because a
+   * template that prefills three labels should not produce four writes and four versions —
+   * and because an issue that exists for a moment without the labels that define it is
+   * briefly in a state no filter would find.
+   */
+  readonly labelIds?: readonly UUID[] | undefined;
+  /**
+   * The template this issue came from.
+   *
+   * Recorded so that "is this template still worth having" is a question the data can
+   * answer. It is the only reason `issue.template_id` exists, and nothing was sending it.
+   */
+  readonly templateId?: UUID | undefined;
   /** The viewer, when it is known. Only used by the optimistic row. */
   readonly creatorId?: UUID | undefined;
 }
@@ -117,16 +139,39 @@ export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<
     creatorId: input.creatorId,
     priority: input.priority ?? 0,
     sortOrder: lastSortOrderIn(store, state),
+    ...(input.estimate === undefined ? null : { estimate: input.estimate }),
+    ...(input.dueDate === undefined ? null : { dueDate: input.dueDate }),
+    ...(input.parentId === undefined ? null : { parentId: input.parentId }),
+    ...(input.templateId === undefined ? null : { templateId: input.templateId }),
     dueDateSource: 'manual',
     createdAt: now,
     updatedAt: now,
   };
 
+  // The labels the create carries, as the rows the replica holds them as.
+  //
+  // Written in the same patch as the issue rather than left for the server's delta, so the
+  // chips are on the row in the frame the issue appears in. Their ids are provisional — the
+  // server mints an `issue_label` id per application — and the delta replaces them, which is
+  // the same trade `addLabel` makes and is invisible for the same reason.
+  const applications: EntityPatch[] = (input.labelIds ?? []).map((labelId) => {
+    const application: IssueLabel = {
+      id: uuidv7(),
+      workspaceId: store.workspaceId,
+      issueId: id,
+      labelId,
+      teamId: input.teamId,
+      groupId: store.get('label', labelId)?.parentId,
+      createdAt: now,
+    };
+    return { type: 'issueLabel', id: application.id, before: null, after: application };
+  });
+
   try {
     const data = await engine.mutate<{ createIssue: { issue: Issue } }>({
       mutation: CREATE_ISSUE,
       variables: { input: createInputOf(input, state, id) },
-      optimistic: [{ type: 'issue', id, before: null, after: provisional }],
+      optimistic: [{ type: 'issue', id, before: null, after: provisional }, ...applications],
     });
     // Same id, so this is an upsert rather than a swap: the number and identifier settle
     // in place and the row never leaves the list.
@@ -743,6 +788,16 @@ function createInputOf(input: NewIssue, stateId: UUID, id: UUID): Record<string,
     ...(stateId === '' ? null : { stateId }),
     ...(input.assigneeId === undefined ? null : { assigneeId: input.assigneeId }),
     ...(input.priority === undefined ? null : { priority: input.priority }),
+    ...(input.estimate === undefined ? null : { estimate: input.estimate }),
+    ...(input.dueDate === undefined ? null : { dueDate: input.dueDate }),
+    ...(input.parentId === undefined ? null : { parentId: input.parentId }),
+    // Omitted when empty rather than sent as `[]`. They mean the same thing to the server,
+    // but a variable that is present only when it carries something keeps the request legible
+    // in a log and in the network tab.
+    ...(input.labelIds === undefined || input.labelIds.length === 0
+      ? null
+      : { labelIds: [...input.labelIds] }),
+    ...(input.templateId === undefined ? null : { templateId: input.templateId }),
   };
 }
 
