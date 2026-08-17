@@ -42,6 +42,14 @@ type Querier interface {
 	// rewind the watermark, and everything between the two positions is delivered twice.
 	//
 	AdvanceNotificationCursor(ctx context.Context, arg AdvanceNotificationCursorParams) error
+	// AdvanceNotificationEmailCursor records that a digest reached the relay.
+	//
+	// Written after the send and not before, so the cost of a crash is a pass that finds nothing
+	// to do rather than a person who hears nothing for a day. The guard makes it monotonic for
+	// the same reason AdvanceNotificationCursor's does: two workers racing must not be able to
+	// move a watermark backwards.
+	//
+	AdvanceNotificationEmailCursor(ctx context.Context, arg AdvanceNotificationEmailCursorParams) error
 	// AllocateIssueNumber takes a row lock on the team for the rest of the transaction.
 	//
 	// Deliberately not a sequence: sequences are non-transactional, so a rolled-back issue
@@ -119,6 +127,30 @@ type Querier interface {
 	// answer.
 	//
 	ClaimIdempotencyKey(ctx context.Context, arg ClaimIdempotencyKeyParams) (int64, error)
+	// ClaimNotificationsForEmail takes ownership of one person's pending notifications and
+	// returns them with what the message has to say about each.
+	//
+	// One statement, and that is the point: the rows it describes are the rows it has just
+	// claimed. Reading first and marking afterwards would leave a window in which a second
+	// worker, or the same worker after a restart, reads the same rows and sends the same digest
+	// again — and an email, unlike an inbox row, cannot be folded into the one already there.
+	// The inner SELECT ... FOR UPDATE takes the locks in created_at order and the UPDATE
+	// re-checks emailed_at IS NULL under them, so a concurrent claim either waits and then
+	// matches nothing or is the one that matched: there is no interleaving in which both
+	// believe they own a row.
+	//
+	// The limit is a page and not a nicety. Somebody returning from three weeks off has an inbox
+	// of hundreds, and a digest that lists all of them is not read by anybody; the rest stay
+	// unclaimed and are the next pass's digest, which is also the honest thing to do with news
+	// that old.
+	//
+	// The joins are LEFT and coalesced. A notification whose issue has been deleted still has to
+	// be describable — the row is in somebody's inbox — and coalescing in SQL rather than
+	// leaving it to sqlc's nullability inference is deliberate: it does not infer nullability
+	// through an outer join, so an uncoalesced i.title would generate as a plain string and fail
+	// at scan time, at runtime, on the one row nobody has in their test fixture.
+	//
+	ClaimNotificationsForEmail(ctx context.Context, arg ClaimNotificationsForEmailParams) ([]ClaimNotificationsForEmailRow, error)
 	// ClearDefaultWorkflowState must run immediately before setting a new default, in the
 	// same transaction: workflow_state_team_default_key is a partial unique index, so doing
 	// it the other way round fails.
@@ -323,6 +355,52 @@ type Querier interface {
 	// by sort_order, because the only question being asked here is "what did I just lose".
 	//
 	ListDeletedIssues(ctx context.Context, arg ListDeletedIssuesParams) ([]Issue, error)
+	// ---------------------------------------------------------------------------------------
+	// Email delivery.
+	//
+	// Three statements, in the order the job runs them: find who has something waiting, claim
+	// it, and record that the message went out. The claim is the interesting one — see
+	// migration 000019 for why at-most-once is the right choice here and repeat-rather-than-lose
+	// is the right one for the fan-out.
+	// ListDigestRecipients is one row per person with unread, unsent notifications waiting.
+	//
+	// Grouped in SQL rather than in Go because the alternative is reading every pending
+	// notification in the install to bucket them by recipient, which is the whole table on the
+	// morning after a busy day. What the job needs per person is a count, an address and enough
+	// to decide whether they are due; the notifications themselves are read by the claim, one
+	// recipient at a time, and only for the ones that turn out to be due.
+	//
+	// The preferences bag comes back whole and is read in Go, the same way the fan-out reads it:
+	// cadence lives in jsonb precisely so that adding a delivery channel is not a migration, and
+	// a jsonb predicate for every cadence here would put half of that decision in SQL and half in
+	// Go.
+	//
+	// With one exception, which is about the page rather than about the preference. Somebody who
+	// has switched email off keeps their pending notifications forever — they are never claimed,
+	// because nothing is ever sent — so without this clause they hold a slot in every page of
+	// every pass, and an install where five hundred people have switched email off would never
+	// reach the five hundred and first person, who has not. The Go side still checks the cadence
+	// and is still the authority on it; this excludes only the one value that means "never", and
+	// only when per-notification email has not been asked for instead.
+	//
+	// Who is excluded, and why. An archived or suspended person no longer works here and their
+	// inbox is not their problem; an app user is an integration's identity and has no mailbox at
+	// all — the FK to account is NULL for them, so the inner join drops them anyway, and the
+	// explicit predicate says so rather than leaving it as a side effect somebody could "fix".
+	// A deleted account is somebody who asked to be forgotten, and continuing to mail them is
+	// the single most visible way to fail that request.
+	//
+	// Not excluded: an unverified address. Nothing in the product sets email_verified_at yet —
+	// there was no mail to verify with until this feature — so gating on it would make the
+	// digest a feature that silently never sends. Every address reached here was typed into an
+	// invitation by a workspace admin. Verification is the correct gate to add the day the
+	// verification mail itself exists, and this comment is where the next person should look.
+	//
+	// last_sent_at coalesces to epoch rather than coming back NULL: "never" and "long ago" are
+	// the same answer to the only question asked of it, and a pointer here would be a nil check
+	// at every call site that means nothing.
+	//
+	ListDigestRecipients(ctx context.Context, pageSize int32) ([]ListDigestRecipientsRow, error)
 	ListFavorites(ctx context.Context, arg ListFavoritesParams) ([]Favorite, error)
 	ListIssueHistory(ctx context.Context, issueID uuid.UUID) ([]IssueHistory, error)
 	ListIssueLabels(ctx context.Context, issueID uuid.UUID) ([]IssueLabel, error)
@@ -436,6 +514,18 @@ type Querier interface {
 	// then read an empty result and believe the write succeeded.
 	//
 	ReleaseIdempotencyKey(ctx context.Context, arg ReleaseIdempotencyKeyParams) error
+	// ReleaseNotificationEmailClaim puts rows back when the relay refused the message.
+	//
+	// Claiming before sending is what makes a duplicate impossible; releasing on a refusal is
+	// what keeps that from also making an outage permanent. Without it, a relay that is down for
+	// an hour would silently swallow every digest due in that hour — the rows would be marked
+	// sent and never appear in another one.
+	//
+	// Guarded on the exact claim timestamp rather than on IS NOT NULL, so it can only ever undo
+	// the claim this pass made. A blanket clear would be a statement capable of resurrecting
+	// somebody else's delivery, sitting in the error path where it is least likely to be tested.
+	//
+	ReleaseNotificationEmailClaim(ctx context.Context, arg ReleaseNotificationEmailClaimParams) (int64, error)
 	// Returns the removed row because the caller knows the target, not the id the change
 	// stream needs.
 	//

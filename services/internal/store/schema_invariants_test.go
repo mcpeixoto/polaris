@@ -266,6 +266,88 @@ func TestNotificationSchemaInvariants(t *testing.T) {
 	}})
 }
 
+// Email delivery, and the one claim migration 000019 makes about the database: that a
+// notification can be taken for a message at most once, without any counter in any process.
+//
+// It is the mirror image of the invariant above. The fan-out is idempotent because a second
+// pass *conflicts* — repeating is free, since two inbox rows fold into one. Email has no
+// fold: a second copy of a digest is in somebody's mailbox forever. So delivery is idempotent
+// because a second pass *matches nothing*, and these cases are the difference stated as SQL.
+func TestNotificationEmailSchemaInvariants(t *testing.T) {
+	t.Parallel()
+
+	const (
+		pending   = "'00000000-0000-7000-8000-000000000085'"
+		claimedAt = "'2026-01-01 09:00:00+00'"
+		laterAt   = "'2026-06-01 09:00:00+00'"
+		neverAt   = "'2020-01-01 00:00:00+00'"
+		ghost     = "'00000000-0000-7000-8000-0000000000ff'"
+	)
+
+	run(t, []schemaCase{{
+		name: "a notification arrives unclaimed",
+		sql: `INSERT INTO notification (id, workspace_id, user_id, type, change_version, group_key, actor_type)
+		      VALUES (` + pending + `, ` + ws + `, ` + userAda + `, 'issue_assigned', 9, 'v9', 'system')`,
+	}, {
+		name: "...and is therefore what a delivery pass would pick up",
+		sql:  `SELECT 1/count(*) FROM notification WHERE id = ` + pending + ` AND emailed_at IS NULL`,
+	}, {
+		// The claim. Not a read followed by a mark: one conditional update, which is what
+		// makes the set a pass describes in an email exactly the set it owns.
+		name: "claiming it is one conditional update",
+		sql: `UPDATE notification SET emailed_at = ` + claimedAt + `
+		      WHERE id = ` + pending + ` AND emailed_at IS NULL`,
+	}, {
+		name: "a second pass runs the identical statement",
+		sql: `UPDATE notification SET emailed_at = ` + laterAt + `
+		      WHERE id = ` + pending + ` AND emailed_at IS NULL`,
+	}, {
+		// ...and changes nothing, which is the whole of the at-most-once guarantee. If this
+		// row now carried the later timestamp, a restarted worker would have sent a second
+		// copy of a digest that is already in somebody's mailbox.
+		name: "...and matches nothing, so nobody is emailed twice",
+		sql:  `SELECT 1/count(*) FROM notification WHERE id = ` + pending + ` AND emailed_at = ` + claimedAt,
+	}, {
+		// The release path, which is what keeps a relay outage from swallowing a digest
+		// permanently. It is guarded on the exact claim so that it can only ever undo the
+		// claim its own pass made.
+		name: "releasing a claim that was not yours does nothing",
+		sql: `UPDATE notification SET emailed_at = NULL
+		      WHERE id = ` + pending + ` AND emailed_at = ` + neverAt,
+	}, {
+		name: "...so the row is still claimed",
+		sql:  `SELECT 1/count(*) FROM notification WHERE id = ` + pending + ` AND emailed_at = ` + claimedAt,
+	}, {
+		name: "releasing your own claim puts the notification back",
+		sql: `UPDATE notification SET emailed_at = NULL
+		      WHERE id = ` + pending + ` AND emailed_at = ` + claimedAt,
+	}, {
+		name: "...and it is pending again",
+		sql:  `SELECT 1/count(*) FROM notification WHERE id = ` + pending + ` AND emailed_at IS NULL`,
+	}, {
+		name:    "a delivery watermark belongs to somebody",
+		sql:     `INSERT INTO notification_email_cursor (user_id, last_sent_at) VALUES (` + ghost + `, now())`,
+		wantErr: "notification_email_cursor_user_id_fkey",
+	}, {
+		name: "one watermark per person",
+		sql:  `INSERT INTO notification_email_cursor (user_id, last_sent_at) VALUES (` + userAda + `, now())`,
+	}, {
+		name:    "...and only one",
+		sql:     `INSERT INTO notification_email_cursor (user_id, last_sent_at) VALUES (` + userAda + `, now())`,
+		wantErr: "notification_email_cursor_pkey",
+	}, {
+		// Somebody removed from the workspace stops being mailed by the same act that removes
+		// them, rather than by a job that has to remember to.
+		name: "a watermark goes when the person does",
+		sql:  `DELETE FROM "user" WHERE id = ` + userAda,
+	}, {
+		name: "...leaving none behind",
+		sql: `SELECT 1/count(*) FROM (
+		        SELECT 1 WHERE (SELECT count(*) FROM notification_email_cursor WHERE user_id = ` + userAda + `) = 0
+		      ) t`,
+	}})
+}
+
 func TestSearchVector(t *testing.T) {
 	t.Parallel()
 	vector := `issue_search_vector(title, description)`

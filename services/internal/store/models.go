@@ -274,12 +274,18 @@ type Notification struct {
 	DeletedAt     *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	EmailedAt     *time.Time
 }
 
 type NotificationCursor struct {
 	WorkspaceID uuid.UUID
 	Version     int64
 	UpdatedAt   time.Time
+}
+
+type NotificationEmailCursor struct {
+	UserID     uuid.UUID
+	LastSentAt time.Time
 }
 
 type Team struct {
