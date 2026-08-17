@@ -10,7 +10,14 @@
  * that cannot find something by role has found one.
  */
 
-import { clearLocalReplica, createIssueViaApi, expect, signIn, test } from './fixtures';
+import {
+  clearLocalReplica,
+  createIssueViaApi,
+  expect,
+  openTeamList,
+  signIn,
+  test,
+} from './fixtures';
 
 test.describe('sync engine', () => {
   // Acceptance test 1.
@@ -26,8 +33,8 @@ test.describe('sync engine', () => {
     await signIn(alicePage, workspace.account);
     await signIn(bobPage, workspace.account);
 
-    await alicePage.goto(`/team/${workspace.teamKey}`);
-    await bobPage.goto(`/team/${workspace.teamKey}`);
+    await openTeamList(alicePage, workspace.teamKey);
+    await openTeamList(bobPage, workspace.teamKey);
 
     const title = `Written by Alice ${Date.now()}`;
 
@@ -55,7 +62,7 @@ test.describe('sync engine', () => {
 
     await createIssueViaApi(workspace, 'Survives eviction');
     await signIn(page, workspace.account);
-    await page.goto(`/team/${workspace.teamKey}`);
+    await openTeamList(page, workspace.teamKey);
     await expect(page.getByText('Survives eviction')).toBeVisible();
 
     const before = await page.getByRole('listitem').allInnerTexts();
@@ -83,7 +90,7 @@ test.describe('sync engine', () => {
 
     await createIssueViaApi(workspace, 'Across a schema bump');
     await signIn(page, workspace.account);
-    await page.goto(`/team/${workspace.teamKey}`);
+    await openTeamList(page, workspace.teamKey);
     await expect(page.getByText('Across a schema bump')).toBeVisible();
 
     // Rewrite the stored meta to claim an older schema, which is what a client that had
@@ -158,10 +165,15 @@ test.describe('sync engine', () => {
     await page.getByRole('menuitem', { name: /urgent/i }).click();
     await expect(priorityControl).toContainText(/urgent/i);
 
-    // Targeted by role, not by text: the workspace name in this very test contains the
-    // word "offline", and a text match would find both. The indicator is a live region so
-    // that the answer to "did my work save?" reaches a screen-reader user too.
-    const syncStatus = page.getByRole('status');
+    // Targeted by role AND name, not by text: the workspace name in this very test contains
+    // the word "offline", so a text match would find both — and `role=status` alone matches
+    // two regions, because the undo toast is mounted empty and permanently so that an
+    // announcement put into it is actually announced. The indicator carries a fixed
+    // `aria-label` for exactly this reason: its own text is the value, and reads
+    // "Syncing 1" or "Reconnecting" depending on which of the two the network took away
+    // first. Being a live region at all is what puts "did my work save?" within reach of a
+    // screen-reader user.
+    const syncStatus = page.getByRole('status', { name: 'Sync status' });
     await expect(syncStatus).toBeVisible();
 
     await context.setOffline(false);

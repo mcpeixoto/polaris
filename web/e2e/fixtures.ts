@@ -40,7 +40,22 @@ async function post<T>(path: string, body: unknown, token?: string): Promise<T> 
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    throw new Error(`${path} → ${res.status}: ${await res.text()}`);
+    const text = await res.text();
+    // Named rather than left as a bare 403, because it is the one failure here that is a
+    // deployment question and not a bug. POLARIS_REGISTRATION_MODE defaults to `invite`, and
+    // under it exactly two people may register: somebody holding an invitation, and the very
+    // first account on an empty install. This fixture needs one account per test, so a server
+    // started on the default refuses every test after the first — with a message about
+    // invitations that reads like an application fault rather than a missing variable.
+    if (res.status === 403 && text.includes('invite-only')) {
+      throw new Error(
+        `${path} → 403: this server is invite-only.\n` +
+          '  The suite creates an account per test, so the API under test has to be started ' +
+          'with POLARIS_REGISTRATION_MODE=open.\n' +
+          `  Raw: ${text}`,
+      );
+    }
+    throw new Error(`${path} → ${res.status}: ${text}`);
   }
   return (await res.json()) as T;
 }
@@ -141,6 +156,49 @@ export async function createIssueViaApi(
   return data.createIssue.issue;
 }
 
+/**
+ * Invites somebody, and hands back the token the link carries.
+ *
+ * The token is returned exactly once, by this mutation, and is not recoverable from anywhere
+ * afterwards — which is the product's rule and not a limitation of the fixture. A test that
+ * wants to follow an invitation has to hold what this returns.
+ */
+export async function inviteToWorkspace(
+  ws: SeededWorkspace,
+  email: string,
+  role: 'ADMIN' | 'MEMBER' | 'GUEST' = 'MEMBER',
+): Promise<{ id: string; token: string }> {
+  const data = await graphql<{ inviteToWorkspace: { id: string; token: string } }>(
+    `
+      mutation ($i: InviteInput!) {
+        inviteToWorkspace(input: $i) {
+          id
+          token
+        }
+      }
+    `,
+    { i: { email, role, teamIds: [ws.teamId] } },
+    ws.account.accessToken,
+    ws.workspaceId,
+  );
+  return data.inviteToWorkspace;
+}
+
+/** An address nobody else in the run will use. */
+export function uniqueEmail(label: string): string {
+  const nonce = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+  return `e2e+${label}-${nonce}@polaris.test`;
+}
+
+/** Registers an account with no invitation — the open-signup path. */
+export async function registerAccount(email: string): Promise<Account> {
+  const body = await post<{ accessToken: string; accountId: string }>('/auth/register', {
+    email,
+    password: PASSWORD,
+  });
+  return { email, password: PASSWORD, accessToken: body.accessToken, accountId: body.accountId };
+}
+
 /** Signs a browser context in by driving the real form, not by injecting a token. */
 export async function signIn(page: Page, account: Account): Promise<void> {
   await page.goto('/');
@@ -150,6 +208,22 @@ export async function signIn(page: Page, account: Account): Promise<void> {
   // The shell is rendered once the replica is open; waiting for it rather than for a URL
   // means the assertion that follows is not racing the bootstrap.
   await page.getByRole('navigation', { name: /workspace/i }).waitFor();
+}
+
+/**
+ * Opens a team's issue list and waits for it to be a list.
+ *
+ * `page.goto` resolves on `load`, which for this client is the moment the module graph has
+ * finished downloading and several frames before the replica is open, the route has
+ * rendered and the keymap has registered `C`. A test that navigates and immediately presses
+ * a key is therefore racing the boot, and loses often enough to be a mystery: the keystroke
+ * lands on a document with no handler for it, the dialogue never opens, and the failure
+ * names the dialogue rather than the race. Waiting for the listbox is waiting for the thing
+ * every one of these tests then acts on.
+ */
+export async function openTeamList(page: Page, teamKey: string): Promise<void> {
+  await page.goto(`/team/${teamKey}`);
+  await page.getByRole('listbox', { name: /issues/i }).waitFor();
 }
 
 /**
