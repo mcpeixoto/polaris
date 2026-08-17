@@ -125,7 +125,7 @@ fmt-check: ## Fail if anything is unformatted
 	@npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "desktop/src/**/*.{ts,cts}"
 
 .PHONY: lint
-lint: lint-go lint-compose lint-imports lint-keymap lint-routes lint-tokens lint-web ## All linters
+lint: lint-go lint-compose lint-desktop lint-imports lint-keymap lint-routes lint-tokens lint-web ## All linters
 
 .PHONY: lint-go
 lint-go:
@@ -134,6 +134,10 @@ lint-go:
 .PHONY: lint-compose
 lint-compose: ## Enforce that an opt-in compose service cannot break commands for people who did not enable it
 	@bash scripts/lint-compose.sh
+
+.PHONY: lint-desktop
+lint-desktop: ## Enforce that a desktop artefact shipping two architectures names which one it is
+	@bash scripts/lint-desktop.sh
 
 .PHONY: lint-imports
 lint-imports: ## Enforce the package rule: only domain/ may import store/

@@ -39,6 +39,29 @@ mac:
       arch: [arm64, x64]
     - target: zip
       arch: [arm64, x64]
+  # Every macOS artefact names its architecture. The default template does not: it
+  # interpolates `-${arch}` for arm64 and NOTHING for x64, so a release page offers
+  # `Polaris-0.0.0-arm64.dmg` beside `Polaris-0.0.0.dmg` — and the unlabelled one reads as
+  # the ordinary download while the labelled one reads as a variant for people who need it.
+  # It is exactly backwards: the plain name is the Intel build.
+  #
+  # An Apple Silicon user who takes that download gets an app that runs under Rosetta, and
+  # since macOS 26 the system says so on launch — a "not optimised for your Mac, ask the
+  # developer to update it" banner over an app whose native build was sitting next to it on
+  # the page. That is the bug this line fixes, and it is a naming bug, not a build one.
+  #
+  # The word `arm64` in the filename is load-bearing beyond the shelf. electron-updater
+  # picks a macOS update by substring: MacUpdater.filterFilesForArch prefers files whose URL
+  # contains "arm64" on Apple Silicon and excludes them everywhere else — there is no
+  # metadata behind it. So an arm64 artefact must keep `arm64` in its name, and an x64 one
+  # must not acquire it. `${arch}` satisfies both; a prettier scheme ("apple-silicon") would
+  # silently downgrade every Mac to the Intel build on its next update.
+  #
+  # Not a universal binary, deliberately: `arch: [universal]` would make one download that is
+  # impossible to get wrong, at the cost of shipping both slices to everybody — roughly
+  # double, ~190MB — when the updater already picks correctly on its own. The ambiguity was
+  # in the label, so the label is what changed.
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
   # Hardened runtime plus a real entitlements file is what notarisation requires; without
   # notarisation Gatekeeper refuses to open the app at all on a machine that did not build it.
   hardenedRuntime: true
@@ -80,6 +103,14 @@ nsis:
 linux:
   target: [AppImage, deb]
   category: Development
+
+# The same unlabelled-x64 problem the mac block describes, in the one Linux target that has
+# it. A .deb always carries its architecture — Debian's own naming requires it, and
+# electron-builder's default (`${name}_${version}_${arch}.deb`) already obeys that, so it is
+# left alone. An AppImage does not: the default drops the arch for x64 and keeps it for
+# arm64, so the plain file is the one that will not run on an arm64 machine.
+appImage:
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
 
 # The update feed, and the destination of `--publish always`.
 #

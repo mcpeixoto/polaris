@@ -18,12 +18,12 @@
     "test": "echo \"desktop has no unit tests; the smoke script drives the packaged app instead\" && exit 0"
   },
   "devDependencies": {
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.7.2",
-    "@types/node": "^22.10.2"
+    "@types/node": "^24.11.0"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.8.9"
   }
 }

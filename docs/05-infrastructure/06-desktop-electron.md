@@ -170,7 +170,13 @@ publish:
   releaseType: release
 ```
 
-Ship **arm64 and x64** for macOS separately rather than a universal binary — half the download size, and the fleet already distinguishes Apple Silicon from Intel.
+Ship **arm64 and x64** for macOS separately rather than a universal binary — half the download size, and the updater picks the right one on its own.
+
+Shipping them separately makes the **filename** part of the contract, so `artifactName` is set explicitly rather than left to the default. The default interpolates `-arm64` for Apple Silicon and *nothing* for Intel, which puts `Polaris-<version>.dmg` beside `Polaris-<version>-arm64.dmg` — and the plain name, the one that reads as the ordinary download, is the Intel build. An Apple Silicon user who takes it gets an app under Rosetta and, since macOS 26, a system banner saying the app is not optimised for their Mac and should be updated by its developer. Nothing was wrong with the build; the label was.
+
+The word `arm64` in the name is also load-bearing at update time. `electron-updater` chooses a macOS update by substring — `MacUpdater.filterFilesForArch` prefers files whose URL contains `arm64` on Apple Silicon and excludes them everywhere else, with no metadata behind it. An arm64 artefact must keep `arm64` in its name and an x64 one must never acquire it, which `${arch}` gets right and a friendlier scheme ("apple-silicon") would get silently, permanently wrong.
+
+The same asymmetry exists in the Linux AppImage and is fixed the same way. It does not exist for the `.deb`, whose default name already carries the architecture because Debian requires it, nor for Windows: NSIS packs both architectures into one installer, so a name without an architecture is the accurate one there.
 
 ## Testing
 
