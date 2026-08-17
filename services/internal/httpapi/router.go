@@ -22,6 +22,11 @@ type Deps struct {
 
 	// Sync is the WebSocket hub handler. Nil in the api process, which does not serve it.
 	Sync http.Handler
+
+	// Limits carries the per-caller budgets. Passed in rather than built here because the
+	// GraphQL handler needs the same instance: the complexity budget is charged from inside
+	// gqlgen, and two limiters would each see half the traffic. Nil means no limiting.
+	Limits *Limits
 }
 
 // NewRouter builds the HTTP surface.
@@ -40,6 +45,7 @@ func NewRouter(d Deps) http.Handler {
 		// Secure cookies everywhere except plain-HTTP local development, where the
 		// browser would silently drop them and sign-in would appear to do nothing.
 		secure: !d.Config.IsDevelopment(),
+		limits: d.Limits,
 	}
 
 	// --- health -----------------------------------------------------------------
@@ -47,6 +53,11 @@ func NewRouter(d Deps) http.Handler {
 	// Checked before any authentication so a container healthcheck works, and kept free
 	// of database access so that "is the process alive" and "is the database reachable"
 	// stay separable during an incident.
+	//
+	// Neither carries a rate limit, deliberately. A probe that gets a 429 is a probe that
+	// reports the process unhealthy and gets it restarted, which is a self-inflicted outage
+	// caused by the thing that was supposed to prevent one — and the endpoints are a string
+	// literal and a Ping, so there is nothing here worth protecting.
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte("ok"))
@@ -64,26 +75,37 @@ func NewRouter(d Deps) http.Handler {
 	})
 
 	// --- auth -------------------------------------------------------------------
-	mux.HandleFunc("POST /auth/register", auth.register)
-	mux.HandleFunc("POST /auth/login", auth.login)
-	mux.HandleFunc("POST /auth/refresh", auth.refresh)
-	mux.HandleFunc("POST /auth/logout", auth.logout)
+	//
+	// Every one of these is reachable without a token, so every one of them carries the
+	// per-address budget. register and login additionally charge a much tighter per-account
+	// budget from inside the handler, where the address being attacked is known — see
+	// Limits.LoginAttempt.
+	mux.Handle("POST /auth/register", d.Limits.Anonymous(http.HandlerFunc(auth.register)))
+	mux.Handle("POST /auth/login", d.Limits.Anonymous(http.HandlerFunc(auth.login)))
+	mux.Handle("POST /auth/refresh", d.Limits.Anonymous(http.HandlerFunc(auth.refresh)))
+	mux.Handle("POST /auth/logout", d.Limits.Anonymous(http.HandlerFunc(auth.logout)))
 	mux.Handle("GET /auth/workspaces", RequireAuth(http.HandlerFunc(auth.workspaces)))
 	mux.Handle("POST /auth/workspaces", RequireAuth(http.HandlerFunc(auth.createWorkspace)))
 	mux.Handle("POST /auth/invites/accept", RequireAuth(http.HandlerFunc(auth.acceptInvite)))
 
 	// --- the API ----------------------------------------------------------------
+	//
+	// The limiter is inside RequireAuth, so an unauthenticated POST is refused before it can
+	// spend anybody's budget and everything that gets past it has a caller to charge. The
+	// development-only GET has no such guard and falls back to the source address, which is
+	// the right answer for a playground.
 	if d.GraphQL != nil {
-		mux.Handle("POST /graphql", RequireAuth(d.GraphQL))
+		mux.Handle("POST /graphql", RequireAuth(d.Limits.GraphQL(d.GraphQL)))
 		// GET is allowed so that the SDK and integrations can use persisted queries and
 		// so a browser can hit the playground in development.
 		if d.Config.IsDevelopment() {
-			mux.Handle("GET /graphql", d.GraphQL)
+			mux.Handle("GET /graphql", d.Limits.GraphQL(d.GraphQL))
 		}
 	}
 
 	// --- sync -------------------------------------------------------------------
-	mux.Handle("GET /sync/bootstrap", RequireWorkspace(&bootstrapHandler{svc: d.Service}))
+	mux.Handle("GET /sync/bootstrap",
+		RequireWorkspace(d.Limits.Bootstrap(&bootstrapHandler{svc: d.Service})))
 	if d.Sync != nil {
 		// The socket authenticates itself with a hello frame rather than a header,
 		// because browsers cannot set headers on a WebSocket handshake.

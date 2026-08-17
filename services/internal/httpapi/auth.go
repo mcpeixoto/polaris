@@ -25,6 +25,9 @@ type authHandlers struct {
 	tokens    *Tokens
 	publicURL string
 	secure    bool
+
+	// limits carries the per-account sign-in budget. Nil when rate limiting is off.
+	limits *Limits
 }
 
 type registerRequest struct {
@@ -46,6 +49,13 @@ func (h *authHandlers) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Registration shares the sign-in budget, keyed the same way. Repeated attempts to
+	// register an address that already exists is account enumeration wearing a different
+	// hat, and it deserves the same wall as guessing that account's password.
+	if !h.limits.LoginAttempt(w, r, req.Email) {
+		return
+	}
+
 	accountID, session, err := h.svc.Register(r.Context(), domain.RegisterInput{
 		Email:     req.Email,
 		Password:  req.Password,
@@ -63,6 +73,12 @@ func (h *authHandlers) login(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := decodeJSON(w, r, &req); err != nil {
 		writeError(w, r, err)
+		return
+	}
+
+	// Charged before the password is ever looked at, so the budget is spent identically
+	// whether the account exists, the password was right, or neither.
+	if !h.limits.LoginAttempt(w, r, req.Email) {
 		return
 	}
 
