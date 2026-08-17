@@ -24,6 +24,12 @@ export const ISSUE_FIELDS = /* GraphQL */ `
     creatorId
     priority
     sortOrder
+    estimate
+    dueDate
+    dueDateSource
+    parentId
+    subIssueSortOrder
+    templateId
     startedAt
     completedAt
     canceledAt
@@ -45,6 +51,9 @@ export const TEAM_FIELDS = /* GraphQL */ `
     timezone
     parentTeamId
     private
+    estimateScale
+    estimateAllowZero
+    estimateExtended
     createdAt
     updatedAt
     retiredAt
@@ -82,6 +91,7 @@ export const USER_FIELDS = /* GraphQL */ `
     status
     kind
     email
+    notificationPrefs
     lastSeenAt
     createdAt
     updatedAt

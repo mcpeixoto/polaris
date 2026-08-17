@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit && tsc --noEmit -p tsconfig.e2e.json",
     "lint": "eslint src --max-warnings 0",
-    "test": "vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "e2e": "playwright test",
     "codegen": "graphql-codegen --config codegen.ts"
   },
