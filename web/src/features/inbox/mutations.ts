@@ -18,8 +18,9 @@ import {
   MARK_ALL_NOTIFICATIONS_READ,
   MARK_NOTIFICATION_READ,
   SNOOZE_NOTIFICATION,
+  UPDATE_NOTIFICATION_PREFS,
 } from './operations';
-import type { EntityPatch, Notification, Store, UUID } from '~/store';
+import type { EntityPatch, Notification, NotificationPrefs, Store, User, UUID } from '~/store';
 import { gql } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -188,4 +189,35 @@ function withoutReadAt(row: Notification, updatedAt: string): Notification {
 function withoutSnooze(row: Notification, updatedAt: string): Notification {
   const { snoozedUntil: _snoozedUntil, ...rest } = row;
   return { ...rest, updatedAt };
+}
+
+/**
+ * Writes the notification preferences bag.
+ *
+ * The whole bag every time, because that is the mutation's shape: `updateNotificationPrefs`
+ * replaces what is stored rather than merging into it. So this takes the bag as the caller
+ * currently believes it to be and applies a patch over it — which is what keeps a client
+ * built before some future preference existed from deleting that preference every time
+ * somebody changes their digest cadence.
+ *
+ * Optimistic like everything else. A preference is written as a side effect of moving a
+ * control the user is already looking at, and a switch that waits for a round trip before it
+ * moves is a switch people press twice.
+ */
+export async function updateNotificationPrefs(
+  engine: SyncEngine,
+  userId: UUID,
+  patch: NotificationPrefs,
+): Promise<void> {
+  const before = engine.store.get('user', userId);
+  if (before === undefined) return;
+
+  const prefs: NotificationPrefs = { ...before.notificationPrefs, ...patch };
+  const after: User = { ...before, notificationPrefs: prefs, updatedAt: new Date().toISOString() };
+
+  await engine.mutate({
+    mutation: UPDATE_NOTIFICATION_PREFS,
+    variables: { prefs },
+    optimistic: [{ type: 'user', id: userId, before, after }],
+  });
 }

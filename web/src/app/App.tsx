@@ -22,6 +22,7 @@ import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
 import { MemberSettings } from '~/views/MemberSettings';
 import { MyIssues } from '~/views/MyIssues';
+import { NotificationSettings } from '~/views/NotificationSettings';
 import { SavedView } from '~/views/SavedView';
 import { Search } from '~/views/Search';
 import { Templates } from '~/views/Templates';
@@ -81,6 +82,7 @@ export function App() {
               <Route path="/issue/:identifier" element={<IssueDetail />} />
               <Route path="/settings/members" element={<MemberSettings />} />
               <Route path="/settings/labels" element={<LabelSettings />} />
+              <Route path="/settings/notifications" element={<NotificationSettings />} />
               <Route path="/settings/templates" element={<Templates />} />
               <Route path="/settings/api-keys" element={<ApiKeys />} />
               <Route path="/settings/trash" element={<Trash />} />
