@@ -94,6 +94,27 @@ WHERE r.workspace_id = sqlc.arg(workspace_id)
 ORDER BY r.id
 LIMIT sqlc.arg(page_size);
 
+-- ListLiveIssueRelationsForIssue is both directions at once, filtered exactly the way the
+-- bootstrap stream filters.
+--
+-- It exists for the restore, which has to put back on the change stream what the delete's
+-- cascade took off every replica. "Exactly the way the bootstrap filters" is the whole
+-- requirement: a client that applied the delete and then the restore has to end up holding
+-- the same rows as one that bootstrapped afterwards, so this predicate and
+-- StreamIssueRelationsForBootstrap's must agree — a relation whose far end is archived or
+-- deleted is in neither, or the two replicas disagree about a chip nobody can open.
+--
+-- name: ListLiveIssueRelationsForIssue :many
+SELECT r.id, r.workspace_id, r.issue_id, r.related_issue_id, r.type, r.team_id,
+       r.related_team_id, r.created_by, r.created_at
+FROM issue_relation r
+JOIN issue a ON a.id = r.issue_id
+JOIN issue b ON b.id = r.related_issue_id
+WHERE (r.issue_id = sqlc.arg(issue_id) OR r.related_issue_id = sqlc.arg(issue_id))
+  AND a.archived_at IS NULL AND a.deleted_at IS NULL
+  AND b.archived_at IS NULL AND b.deleted_at IS NULL
+ORDER BY r.id;
+
 -- CountBlockingIssues is the "this cannot start yet" badge: how many open issues block
 -- this one. A completed or cancelled blocker no longer blocks anything, so the count is
 -- taken over issues that are still in flight rather than over relations.

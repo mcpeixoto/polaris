@@ -200,16 +200,23 @@ func (s *Service) UpdateLabel(ctx context.Context, p *authz.Principal, in Update
 	return out, version, err
 }
 
-// ArchiveLabel retires a label. There is no unarchive: an archived label is gone from every
-// picker, every list and every client, which is why the change it emits is a delete.
+// ArchiveLabel retires a label, or brings one back.
 //
-// It refuses while the label is still applied, exactly as ArchiveWorkflowState refuses while
-// issues still sit in a status, and for the same reason. The two alternatives are worse:
-// deleting the applications throws away something a person chose issue by issue, and keeping
-// them leaves every client holding issue_label rows whose label it has just been told to
-// forget — a chip with no name on it. CountIssuesWithLabel exists so the confirmation dialog
-// can say how much work removing it first would be.
-func (s *Service) ArchiveLabel(ctx context.Context, p *authz.Principal, id uuid.UUID) (int64, error) {
+// An archived label is gone from every picker, every list and every client, which is why
+// archiving emits a delete and un-archiving emits an upsert carrying the whole row: the
+// clients threw their copy away and the payload is the only thing that can give it back.
+//
+// Archiving refuses while the label is still applied, exactly as ArchiveWorkflowState
+// refuses while issues still sit in a status, and for the same reason. The two alternatives
+// are worse: deleting the applications throws away something a person chose issue by issue,
+// and keeping them leaves every client holding issue_label rows whose label it has just been
+// told to forget — a chip with no name on it. CountIssuesWithLabel exists so the
+// confirmation dialog can say how much work removing it first would be.
+func (s *Service) ArchiveLabel(ctx context.Context, p *authz.Principal, id uuid.UUID, archived bool) (int64, error) {
+	if !archived {
+		return s.unarchiveLabel(ctx, p, id)
+	}
+
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		existing, err := s.loadLabel(ctx, q, p, id)
@@ -256,6 +263,86 @@ func (s *Service) ArchiveLabel(ctx context.Context, p *authz.Principal, id uuid.
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "label", EntityID: id, Op: OpDelete,
 			TeamID: existing.TeamID, Scope: scope,
+		})
+		return err
+	})
+	return version, err
+}
+
+// unarchiveLabel is the way back, and the one rule it adds is about the group.
+//
+// A label lives inside a group or at the root, and archiving a group is refused while it
+// still holds labels — so a group can only be archived once it is empty, and the labels that
+// were in it were archived first. Un-archiving one of those without the group would put it
+// back in the picker under a heading that has been archived: a chip filed under a group
+// nothing can resolve, which is exactly the state the archive rule exists to prevent,
+// reached from the other side. So it is refused, with the order to do it in.
+//
+// The refusal is deliberate rather than a cascade. Un-archiving the group as a side effect
+// would restore a heading somebody retired without asking them, and un-archiving the label
+// to the root would quietly change which group it belongs to — a taxonomy edit disguised as
+// an undo.
+func (s *Service) unarchiveLabel(ctx context.Context, p *authz.Principal, id uuid.UUID) (int64, error) {
+	var version int64
+	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		existing, err := q.GetArchivedLabel(ctx, id)
+		if err != nil {
+			if store.IsNotFound(err) {
+				// No such label, another workspace's, or one that is not archived at all.
+				// One answer for all three, the same way loadLabel gives one answer for a
+				// missing label and an archived one.
+				return platform.NotFound("label")
+			}
+			return platform.Internal(err)
+		}
+		if existing.WorkspaceID != p.WorkspaceID {
+			return platform.NotFound("label")
+		}
+		scope, err := s.requireLabelScope(ctx, q, p, existing.TeamID)
+		if err != nil {
+			return err
+		}
+
+		if existing.ParentID != nil {
+			// GetLabel rather than loadLabel, because an archived group is exactly what this
+			// is looking for and loadLabel is the reader that treats one as gone. A missing
+			// row is an internal error rather than a not-found: parent_id is ON DELETE SET
+			// NULL, so a label still pointing at a group is a label whose group exists.
+			parent, err := q.GetLabel(ctx, *existing.ParentID)
+			if err != nil {
+				return platform.Internal(err)
+			}
+			if parent.ArchivedAt != nil {
+				return platform.Conflict(fmt.Sprintf(
+					"the group %q is archived; restore it before restoring the labels inside it", parent.Name))
+			}
+		}
+
+		row, err := q.UnarchiveLabel(ctx, id)
+		if err != nil {
+			if store.IsNotFound(err) {
+				// Restored between the read above and here.
+				return platform.NotFound("label")
+			}
+			if store.IsUniqueViolation(err, "label_scope_name_key") {
+				// The unique index is partial on archived_at, so archiving released the
+				// name and somebody has taken it since. Naming it is the difference between
+				// an error the user can act on and one that reads as a broken button.
+				where := "this workspace"
+				if existing.TeamID != nil {
+					where = "this team"
+				}
+				return platform.Validation("id", fmt.Sprintf(
+					"a label called %q already exists in %s; rename it before restoring this one",
+					existing.Name, where))
+			}
+			return platform.Internal(err)
+		}
+
+		out := toLabel(row)
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "label", EntityID: id, Op: OpUpsert,
+			TeamID: out.TeamID, Scope: scope, Payload: out,
 		})
 		return err
 	})
@@ -754,6 +841,7 @@ func (s *Service) explainGroupConflict(ctx context.Context, c errLabelGroupConfl
 // serialisation that quietly disagrees with this one.
 type labelRow interface {
 	store.CreateLabelRow | store.GetLabelRow | store.UpdateLabelRow | store.ArchiveLabelRow |
+		store.UnarchiveLabelRow | store.GetArchivedLabelRow |
 		store.ListLabelsInWorkspaceRow | store.ListLabelsForTeamRow | store.ListLabelsInGroupRow
 }
 

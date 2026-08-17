@@ -434,6 +434,29 @@ func workflowStateName(
 const IssueRestoreWindow = 30 * 24 * time.Hour
 
 // RestoreIssue brings a soft-deleted issue back, inside the recovery window.
+//
+// It republishes the issue's contents as well as the issue, and that is the interesting
+// part. A soft delete is an UPDATE, so Postgres never dropped a single comment, label,
+// relation or subscription — but the delete reached every client as one change row for the
+// issue, and the client's own cascade (Store.forget in web/src/store/store.ts) then threw
+// away everything hanging off it. That cascade is right and is what keeps a delete cheap:
+// re-sending a delete per comment would be enormous. The consequence is that the restore
+// owes those rows back. Sending only the issue leaves a replica that applied every change
+// from version N in a different state from one that bootstrapped at version N — the issue
+// present with an empty thread and no links — which is the one invariant the change stream
+// exists to hold, and it fails silently in both directions until somebody re-bootstraps.
+//
+// The trade is volume: an issue with five hundred comments restores into five hundred and
+// one change rows, in one version block, under the workspace's version lock. That is
+// accepted rather than overlooked. A restore is a rare, deliberate act on one issue, the
+// rows are small, and the alternative — a "resync this issue" hint the client would have to
+// act on — is a second protocol for a case the existing one already expresses.
+//
+// Each republished row carries its own scope, taken from the same place its original write
+// took it: comments and applications are team-scoped, relations carry both ends, and a
+// subscription is scoped to the one person it belongs to. Anything else and the rows arrive
+// at the wrong replicas, which for a subscription would mean handing a team a list of who is
+// watching what.
 func (s *Service) RestoreIssue(
 	ctx context.Context, p *authz.Principal, id uuid.UUID,
 ) (model.Issue, int64, error) {
@@ -473,22 +496,132 @@ func (s *Service) RestoreIssue(
 			// the description, and tell the whole thread about a comment written last week.
 			ChangedFields: []string{notify.FieldDeleted},
 		}
+		changes := []Change{change}
+
 		if row.ArchivedAt != nil {
 			// It was archived before it was deleted, and archived issues are never cached
 			// by a client. Upserting it would put a row into every replica that the next
 			// bootstrap would then drop again, which reads as an issue appearing and
-			// vanishing for no reason. A delete leaves the replicas where they already are.
-			change.Op = OpDelete
-			change.Payload = nil
+			// vanishing for no reason. A delete leaves the replicas where they already are,
+			// and it is what a bootstrap taken a moment later agrees with, because the
+			// snapshot excludes archived issues.
+			//
+			// The contents are not republished for the same reason: they would be rows
+			// pointing at an issue no replica holds, and the bootstrap's own joins exclude
+			// every one of them while the issue is archived.
+			changes[0].Op = OpDelete
+			changes[0].Payload = nil
+		} else {
+			contents, err := restoredIssueContents(ctx, q, p.WorkspaceID, row, team.Private)
+			if err != nil {
+				return err
+			}
+			changes = append(changes, contents...)
 		}
 
-		if version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), change); err != nil {
+		if version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...); err != nil {
 			return err
 		}
 		return s.em.History(ctx, q, p.WorkspaceID, p.Actor(), row.CreatedAt,
 			HistoryEntry{IssueID: id, Kind: "restored"})
 	})
 	return out, version, err
+}
+
+// restoredIssueContents is everything a replica threw away when the issue's delete arrived,
+// as the changes that put it back.
+//
+// The four collections are exactly the four the client's cascade removes for an issue, and
+// each is read with the same predicate the bootstrap uses for it, so a replica that applies
+// these lands on the same rows a snapshot taken immediately afterwards would contain. That
+// agreement is the whole point, and it is why the relations come from a query with the
+// bootstrap's joins rather than from the two plain listings the issue panel uses: those
+// return links whose far end is archived or deleted, which the snapshot leaves out.
+//
+// Notifications are not here, and neither are favourites. Both are dropped by the same
+// client cascade, and neither is carried by the bootstrap at all — so republishing them
+// would not close a divergence, it would create one in the other direction. See the report
+// on that gap rather than treating this list as the complete set.
+func restoredIssueContents(
+	ctx context.Context, q *store.Queries, workspaceID uuid.UUID, issue store.Issue, private bool,
+) ([]Change, error) {
+	scope := authz.TeamScope(issue.TeamID, private)
+	teamID := issue.TeamID
+	var changes []Change
+
+	// Every one of these carries notify.FieldDeleted, and that is load-bearing rather than
+	// tidy. The notification engine reads ChangedFields to decide what a change means, and
+	// both of the readings it would otherwise take here are wrong:
+	//
+	//   - an EMPTY list means "created". A republished comment would then tell the whole
+	//     thread that something was said, and a republished relation would tell everybody
+	//     watching the far issue that it has just been blocked — for a comment written and
+	//     a link made weeks ago.
+	//   - notify.FieldBody, the honest-looking choice for a comment, re-fires every mention
+	//     in it. Restoring an issue with a long thread would notify everybody named anywhere
+	//     in it, and they would have no way to tell why.
+	//
+	// FieldDeleted is true of all of them: the deletion is the only thing that moved, and it
+	// moved back. No rule in internal/notify matches it for any of these entity types, so
+	// the rows reach the replicas and nobody's inbox.
+	restored := []string{notify.FieldDeleted}
+
+	comments, err := q.ListCommentsForIssue(ctx, issue.ID)
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, c := range comments {
+		changes = append(changes, Change{
+			EntityType: "comment", EntityID: c.ID, Op: OpUpsert, TeamID: &teamID,
+			Scope: scope, Payload: toComment(c), ChangedFields: restored,
+		})
+	}
+
+	applications, err := q.ListIssueLabels(ctx, issue.ID)
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, a := range applications {
+		changes = append(changes, Change{
+			EntityType: "issueLabel", EntityID: a.ID, Op: OpUpsert, TeamID: &teamID,
+			Scope: scope, Payload: toIssueLabel(a), ChangedFields: restored,
+		})
+	}
+
+	relations, err := q.ListLiveIssueRelationsForIssue(ctx, issue.ID)
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, r := range relations {
+		changes = append(changes, Change{
+			EntityType: "issueRelation", EntityID: r.ID, Op: OpUpsert,
+			// No single team owns a link, so the team key stays unset and the scope names
+			// both ends — the same shape CreateIssueRelation writes, and the reason the two
+			// team ids are denormalised onto the row.
+			TeamID: nil, Scope: relationScope(r.TeamID, r.RelatedTeamID),
+			Payload: toIssueRelation(r), ChangedFields: restored,
+		})
+	}
+
+	subscriptions, err := q.ListIssueSubscriptionsForIssues(ctx, store.ListIssueSubscriptionsForIssuesParams{
+		IssueIds:    []uuid.UUID{issue.ID},
+		WorkspaceID: workspaceID,
+		TeamIds:     []uuid.UUID{issue.TeamID},
+	})
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, sub := range subscriptions {
+		changes = append(changes, Change{
+			EntityType: "issueSubscription", EntityID: sub.ID, Op: OpUpsert,
+			// One person's row and nobody else's. A team scope here would put everybody's
+			// watch list in every teammate's replica.
+			Scope: authz.UserScope(sub.UserID), Payload: toIssueSubscription(sub),
+			ChangedFields: restored,
+		})
+	}
+
+	return changes, nil
 }
 
 // ListDeletedIssues is the recycle bin: what this caller could still bring back.
@@ -523,6 +656,191 @@ func (s *Service) ListDeletedIssues(ctx context.Context, p *authz.Principal) ([]
 		out = append(out, toIssue(r, keys[r.TeamID]))
 	}
 	return out, nil
+}
+
+// maxPurgeBatch bounds how many issues one purge destroys.
+//
+// Every purged issue becomes a change_log row inside the caller's transaction, and minting
+// versions takes a row lock on the workspace for the whole block — so an unbounded "empty
+// trash" on a workspace that has deleted forty thousand issues would hold every other writer
+// in that workspace behind one statement. Five hundred is a fraction of a second of lock and
+// still empties a normal workspace's trash in one call; the caller is told what is left.
+const maxPurgeBatch = 500
+
+// PurgeDeletedIssues empties the trash. Admins only, and there is no way back.
+//
+// THE BLAST RADIUS, stated plainly because nothing else in this package has one like it.
+// This is the only hard DELETE of an issue in the product. Every row that references a
+// purged issue goes with it by foreign key: its comments, its labels, its relations read
+// from either end, its subscriptions, its whole activity feed, and any inbox rows pointing
+// at it. Sub-issues survive — issue.parent_id is ON DELETE SET NULL — but they are orphaned,
+// and afterwards nothing anywhere records which parent they had. There is no second trash
+// behind this one and no restore; the row exists only in a database backup, if there is one.
+//
+// It is admin-only for that reason and not because the data is sensitive. Every other
+// destructive action in the product is reversible for thirty days, so the permission that
+// gates them is the permission to make a recoverable mistake. This one is different in kind.
+//
+// What it publishes, and why it is not nothing. Each purged issue emits the same OpDelete
+// its soft delete emitted. Strictly, no replica can still be holding the row: the soft delete
+// published a delete to the same scope, the bootstrap has excluded deleted issues since it
+// was written, and a client that was offline through the whole window either reads that
+// delete out of change_log or is below the oldest retained version and re-bootstraps —
+// IssueRestoreWindow and ChangeLogRetention are the same constant precisely so that those are
+// the only two cases. The delete is emitted anyway because a write that reaches no reader is
+// still a write, and change_log is where the audit log, the webhook feed and every other
+// derived record come from; a hard delete that appeared in none of them would be the one
+// mutation in the product with no trace. The cascaded children need no rows of their own:
+// the client's own cascade dropped them when the issue delete arrived — see Store.forget in
+// web/src/store/store.ts — so re-listing them here would be thousands of change rows telling
+// every replica to forget what it has already forgotten.
+//
+// before purges only what was deleted at or before that instant, which is what makes the
+// unattended retention sweep expressible as the same call. Nil means now: empty it all.
+func (s *Service) PurgeDeletedIssues(
+	ctx context.Context, p *authz.Principal, before *time.Time,
+) ([]uuid.UUID, int, int64, error) {
+	if !authz.Can(p, authz.ActionIssuePurge) {
+		return nil, 0, 0, platform.Forbidden("only admins can empty the trash")
+	}
+
+	cutoff := time.Now()
+	if before != nil {
+		cutoff = *before
+	}
+
+	var (
+		purged    []uuid.UUID
+		remaining int
+		version   int64
+	)
+	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		ids, changes, err := purgeBatch(ctx, q, p.WorkspaceID, cutoff)
+		if err != nil {
+			return err
+		}
+		purged = ids
+
+		left, err := q.CountIssuesToPurge(ctx, store.CountIssuesToPurgeParams{
+			WorkspaceID: p.WorkspaceID, DeletedBefore: &cutoff,
+		})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		remaining = int(left)
+
+		if len(changes) == 0 {
+			// An already-empty trash mints no version. The watermark says "nothing on the
+			// stream moved", which is exactly true — see syncWatermark.
+			version, err = syncWatermark(ctx, q, p.WorkspaceID)
+			return err
+		}
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...)
+		return err
+	})
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return purged, remaining, version, nil
+}
+
+// PurgeExpiredIssues is the retention sweep: the same purge, unattended, across every
+// workspace with anything past the window. Run daily.
+//
+// It exists because DeleteIssue promises a thirty-day recovery window and IssueRestoreWindow
+// says the purge job hard-deletes on that schedule — and until this, nothing did. A trash
+// that is only ever emptied by hand is one that fills up: a workspace's soft-deleted rows sit
+// in the same table every list query scans, the partial indexes carry them forever, and a
+// promise made in a doc comment that no code keeps is worse than no promise.
+//
+// The cutoff is IssueRestoreWindow ago, not a parameter. A sweep that could be told to purge
+// something still inside the window would be a way to defeat the guarantee the window is,
+// and there is no caller who should be able to.
+//
+// One transaction per workspace, one bounded batch each, and it returns how many it took.
+// Bounded per pass rather than looping to exhaustion so that a first run against a workspace
+// with years of accumulated deletions is many short transactions across many nights instead
+// of one that holds the version lock for minutes.
+func (s *Service) PurgeExpiredIssues(ctx context.Context) (int, error) {
+	cutoff := time.Now().Add(-IssueRestoreWindow)
+
+	workspaces, err := s.db.Queries().ListWorkspacesWithPurgeableIssues(ctx, &cutoff)
+	if err != nil {
+		return 0, platform.Internal(err)
+	}
+
+	total := 0
+	for _, workspaceID := range workspaces {
+		err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+			ids, changes, err := purgeBatch(ctx, q, workspaceID, cutoff)
+			if err != nil {
+				return err
+			}
+			if len(changes) == 0 {
+				return nil
+			}
+			// A system actor, because nobody instructed this. Attributing a scheduled
+			// deletion to whoever happened to delete the issue thirty days ago would put
+			// their name on a decision the calendar made.
+			if _, err := s.em.Emit(ctx, q, workspaceID, authz.SystemActor(), changes...); err != nil {
+				return err
+			}
+			total += len(ids)
+			return nil
+		})
+		if err != nil {
+			// One workspace's failure must not stop the sweep for the rest: the job runs
+			// unattended and the next pass picks up whatever this one left.
+			platform.Log(ctx).Error("retention sweep failed for a workspace",
+				"workspace", workspaceID, "error", err)
+		}
+	}
+	return total, nil
+}
+
+// purgeBatch is the shared half: destroy up to maxPurgeBatch rows and describe what went.
+//
+// The change rows carry the issue's own team scope, resolved from the workspace's teams
+// rather than from the issue — which no longer exists by the time this runs, and that is the
+// point of Change.TeamID being denormalised in the first place.
+func purgeBatch(
+	ctx context.Context, q *store.Queries, workspaceID uuid.UUID, cutoff time.Time,
+) ([]uuid.UUID, []Change, error) {
+	rows, err := q.PurgeDeletedIssues(ctx, store.PurgeDeletedIssuesParams{
+		WorkspaceID:   workspaceID,
+		DeletedBefore: &cutoff,
+		PageSize:      maxPurgeBatch,
+	})
+	if err != nil {
+		return nil, nil, platform.Internal(err)
+	}
+	if len(rows) == 0 {
+		return nil, nil, nil
+	}
+
+	teams, err := q.ListTeamsInWorkspace(ctx, workspaceID)
+	if err != nil {
+		return nil, nil, platform.Internal(err)
+	}
+	private := make(map[uuid.UUID]bool, len(teams))
+	for _, t := range teams {
+		private[t.ID] = t.Private
+	}
+
+	ids := make([]uuid.UUID, 0, len(rows))
+	changes := make([]Change, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+		changes = append(changes, Change{
+			EntityType: "issue", EntityID: r.ID, Op: OpDelete, TeamID: &r.TeamID,
+			Scope: authz.TeamScope(r.TeamID, private[r.TeamID]),
+			// The same field the soft delete named. Left empty it would read as a create,
+			// and the notification engine would be told every field on a row that no longer
+			// exists is new.
+			ChangedFields: []string{notify.FieldDeleted},
+		})
+	}
+	return ids, changes, nil
 }
 
 type UpdateTeamEstimatesInput struct {

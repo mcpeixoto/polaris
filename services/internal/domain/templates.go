@@ -170,18 +170,24 @@ func (s *Service) UpdateIssueTemplate(
 	return out, version, err
 }
 
-// ArchiveIssueTemplate retires a template. There is no delete: issue.template_id points at
-// this row, and the question that column exists to answer — is this template still worth
-// having — needs the template to still be there after somebody retires it.
+// ArchiveIssueTemplate retires a template, or brings one back. There is no delete:
+// issue.template_id points at this row, and the question that column exists to answer — is
+// this template still worth having — needs the template to still be there after somebody
+// retires it.
 //
 // The change is an OpDelete all the same. A retired template must not go on being offered
-// in the create dialog, and the client's copy is what that dialog reads.
+// in the create dialog, and the client's copy is what that dialog reads. Un-archiving is
+// therefore an upsert carrying the whole row, because that copy is gone.
+//
+// Nothing else stands in the way of the return trip. A template has no group to be filed
+// under and no unique index on its name, so unlike a label or a status it cannot come back
+// to find its place taken.
 func (s *Service) ArchiveIssueTemplate(
-	ctx context.Context, p *authz.Principal, id uuid.UUID,
+	ctx context.Context, p *authz.Principal, id uuid.UUID, archived bool,
 ) (uuid.UUID, int64, error) {
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
-		before, err := s.requireTemplateAccess(ctx, q, p, id)
+		before, err := s.loadTemplateForArchive(ctx, q, p, id, archived)
 		if err != nil {
 			return err
 		}
@@ -190,20 +196,59 @@ func (s *Service) ArchiveIssueTemplate(
 			return err
 		}
 
-		if _, err := q.ArchiveIssueTemplate(ctx, id); err != nil {
-			if store.IsNotFound(err) {
-				return platform.NotFound("template")
-			}
-			return platform.Internal(err)
-		}
-
-		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+		change := Change{
 			EntityType: "issueTemplate", EntityID: id, Op: OpDelete,
 			TeamID: scopeTeamID(scope, before.TeamID), Scope: scope,
-		})
+		}
+		if archived {
+			if _, err := q.ArchiveIssueTemplate(ctx, id); err != nil {
+				if store.IsNotFound(err) {
+					return platform.NotFound("template")
+				}
+				return platform.Internal(err)
+			}
+		} else {
+			row, err := q.UnarchiveIssueTemplate(ctx, id)
+			if err != nil {
+				if store.IsNotFound(err) {
+					// Restored between the read above and here.
+					return platform.NotFound("template")
+				}
+				return platform.Internal(err)
+			}
+			change.Op = OpUpsert
+			change.Payload = toIssueTemplate(store.GetIssueTemplateRow(row))
+		}
+
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), change)
 		return err
 	})
 	return id, version, err
+}
+
+// loadTemplateForArchive reads the row in whichever state the caller is about to change.
+//
+// requireTemplateAccess deliberately treats an archived template as missing — it is absent
+// from every listing and every replica — so the way back needs the mirror of it. Both give
+// the same not-found answer for a row in the wrong state, which is what stops either
+// direction being a way to ask whether a template exists.
+func (s *Service) loadTemplateForArchive(
+	ctx context.Context, q *store.Queries, p *authz.Principal, id uuid.UUID, archived bool,
+) (store.GetIssueTemplateRow, error) {
+	if archived {
+		return s.requireTemplateAccess(ctx, q, p, id)
+	}
+	row, err := q.GetIssueTemplate(ctx, id)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return store.GetIssueTemplateRow{}, platform.NotFound("template")
+		}
+		return store.GetIssueTemplateRow{}, platform.Internal(err)
+	}
+	if row.WorkspaceID != p.WorkspaceID || row.ArchivedAt == nil {
+		return store.GetIssueTemplateRow{}, platform.NotFound("template")
+	}
+	return row, nil
 }
 
 // ListIssueTemplates returns what the create dialog may offer.

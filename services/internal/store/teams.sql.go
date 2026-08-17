@@ -340,6 +340,56 @@ func (q *Queries) ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]Team
 	return items, nil
 }
 
+const listTeamMembershipsForTeams = `-- name: ListTeamMembershipsForTeams :many
+SELECT id, workspace_id, team_id, user_id, role, created_at, updated_at
+FROM team_membership
+WHERE workspace_id = $1
+  AND team_id = ANY($2::uuid[])
+ORDER BY team_id, created_at
+`
+
+type ListTeamMembershipsForTeamsParams struct {
+	WorkspaceID uuid.UUID
+	TeamIds     []uuid.UUID
+}
+
+// ListTeamMembershipsForTeams is ListTeamMembers for a page of teams: what Team.members
+// resolves from, for every team in one answer rather than one query per team.
+//
+// team_ids is the reader's own visible set and never the set of teams they asked about.
+// The bootstrap ships exactly the memberships of the teams the reader belongs to, so a
+// listing here that reached further would let the API answer a question the sync stream
+// refuses — who is in a team you are not in — which is the leak the visibility predicate
+// exists to prevent. Enforced in the statement rather than filtered afterwards in Go, like
+// every other batched read, so the rows never leave the database in the first place.
+func (q *Queries) ListTeamMembershipsForTeams(ctx context.Context, arg ListTeamMembershipsForTeamsParams) ([]TeamMembership, error) {
+	rows, err := q.db.Query(ctx, listTeamMembershipsForTeams, arg.WorkspaceID, arg.TeamIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TeamMembership{}
+	for rows.Next() {
+		var i TeamMembership
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.UserID,
+			&i.Role,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTeamsInWorkspace = `-- name: ListTeamsInWorkspace :many
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,

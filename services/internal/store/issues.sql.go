@@ -44,7 +44,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 `
 
 type BulkUpdateIssuesParams struct {
@@ -126,6 +126,7 @@ func (q *Queries) BulkUpdateIssues(ctx context.Context, arg BulkUpdateIssuesPara
 			&i.ParentID,
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
+			&i.DeletedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -144,6 +145,27 @@ WHERE workspace_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 
 func (q *Queries) CountIssuesInWorkspace(ctx context.Context, workspaceID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countIssuesInWorkspace, workspaceID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countIssuesToPurge = `-- name: CountIssuesToPurge :one
+SELECT count(*) FROM issue
+WHERE workspace_id = $1
+  AND deleted_at IS NOT NULL
+  AND deleted_at <= $2
+`
+
+type CountIssuesToPurgeParams struct {
+	WorkspaceID   uuid.UUID
+	DeletedBefore *time.Time
+}
+
+// CountIssuesToPurge is what is left after a batch, so the caller can say whether the trash
+// is empty rather than leaving them to call again and find out.
+func (q *Queries) CountIssuesToPurge(ctx context.Context, arg CountIssuesToPurgeParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countIssuesToPurge, arg.WorkspaceID, arg.DeletedBefore)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -171,7 +193,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 `
 
 type CreateIssueParams struct {
@@ -252,6 +274,7 @@ func (q *Queries) CreateIssue(ctx context.Context, arg CreateIssueParams) (Issue
 		&i.ParentID,
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
+		&i.DeletedBy,
 	)
 	return i, err
 }
@@ -261,7 +284,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -294,6 +317,7 @@ func (q *Queries) GetIssue(ctx context.Context, id uuid.UUID) (Issue, error) {
 		&i.ParentID,
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
+		&i.DeletedBy,
 	)
 	return i, err
 }
@@ -303,7 +327,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE team_id = $1 AND number = $2 AND deleted_at IS NULL
 `
@@ -341,6 +365,7 @@ func (q *Queries) GetIssueByTeamAndNumber(ctx context.Context, arg GetIssueByTea
 		&i.ParentID,
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
+		&i.DeletedBy,
 	)
 	return i, err
 }
@@ -371,7 +396,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE
@@ -408,6 +433,7 @@ func (q *Queries) GetIssueForUpdate(ctx context.Context, id uuid.UUID) (Issue, e
 		&i.ParentID,
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
+		&i.DeletedBy,
 	)
 	return i, err
 }
@@ -520,7 +546,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE parent_id = $1 AND deleted_at IS NULL
 ORDER BY sub_issue_sort_order, id
@@ -567,6 +593,7 @@ func (q *Queries) ListChildIssues(ctx context.Context, parentID *uuid.UUID) ([]I
 			&i.ParentID,
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
+			&i.DeletedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -583,7 +610,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE parent_id = ANY($1::uuid[])
   AND workspace_id = $2
@@ -639,6 +666,7 @@ func (q *Queries) ListChildIssuesForParents(ctx context.Context, arg ListChildIs
 			&i.ParentID,
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
+			&i.DeletedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -655,7 +683,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE workspace_id = $1
   AND team_id = ANY($2::uuid[])
@@ -706,6 +734,7 @@ func (q *Queries) ListDeletedIssues(ctx context.Context, arg ListDeletedIssuesPa
 			&i.ParentID,
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
+			&i.DeletedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -722,7 +751,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE id = ANY($1::uuid[])
   AND workspace_id = $2
@@ -779,6 +808,7 @@ func (q *Queries) ListIssuesByIDs(ctx context.Context, arg ListIssuesByIDsParams
 			&i.ParentID,
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
+			&i.DeletedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -795,7 +825,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE team_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 ORDER BY sort_order
@@ -835,6 +865,7 @@ func (q *Queries) ListIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]Is
 			&i.ParentID,
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
+			&i.DeletedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -851,7 +882,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE workspace_id = $1
   AND assignee_id = $2
@@ -914,6 +945,7 @@ func (q *Queries) ListMyIssues(ctx context.Context, arg ListMyIssuesParams) ([]I
 			&i.ParentID,
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
+			&i.DeletedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -925,14 +957,105 @@ func (q *Queries) ListMyIssues(ctx context.Context, arg ListMyIssuesParams) ([]I
 	return items, nil
 }
 
+const listWorkspacesWithPurgeableIssues = `-- name: ListWorkspacesWithPurgeableIssues :many
+SELECT DISTINCT workspace_id FROM issue
+WHERE deleted_at IS NOT NULL AND deleted_at <= $1
+`
+
+// ListWorkspacesWithPurgeableIssues drives the retention sweep, which has no principal and
+// therefore no workspace of its own. Distinct rather than a join over workspace, because
+// the answer wanted is "where is there work to do", and most workspaces have none.
+func (q *Queries) ListWorkspacesWithPurgeableIssues(ctx context.Context, deletedBefore *time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listWorkspacesWithPurgeableIssues, deletedBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var workspace_id uuid.UUID
+		if err := rows.Scan(&workspace_id); err != nil {
+			return nil, err
+		}
+		items = append(items, workspace_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const purgeDeletedIssues = `-- name: PurgeDeletedIssues :many
+WITH doomed AS (
+  SELECT d.id FROM issue d
+  WHERE d.workspace_id = $1
+    AND d.deleted_at IS NOT NULL
+    AND d.deleted_at <= $2
+  ORDER BY d.deleted_at
+  LIMIT $3
+  FOR UPDATE
+)
+DELETE FROM issue i WHERE i.id IN (SELECT doomed.id FROM doomed)
+RETURNING i.id, i.team_id
+`
+
+type PurgeDeletedIssuesParams struct {
+	WorkspaceID   uuid.UUID
+	DeletedBefore *time.Time
+	PageSize      int32
+}
+
+type PurgeDeletedIssuesRow struct {
+	ID     uuid.UUID
+	TeamID uuid.UUID
+}
+
+// PurgeDeletedIssues hard-deletes a bounded batch of trashed issues and is the only
+// statement in the product that removes an issue row.
+//
+// Everything that references the issue goes with it, by foreign key: comment,
+// issue_history, issue_label, issue_relation from both ends, issue_subscription and
+// notification are all ON DELETE CASCADE. Sub-issues are the exception — issue.parent_id is
+// ON DELETE SET NULL — so a child of a purged parent survives, orphaned, which is the same
+// choice the client's own cascade makes for the same reason: a cross-team sub-issue belongs
+// to a team that has lost nothing.
+//
+// One statement rather than a SELECT followed by a DELETE. The window between the two would
+// be a window in which somebody restores an issue from the trash screen and has it hard
+// deleted anyway — the one mistake this table has no way back from. FOR UPDATE inside the
+// CTE is what makes the choice of victims and their removal the same instant.
+//
+// The limit is not a nicety. Every returned id becomes a change_log row inside the caller's
+// transaction, and the version counter is a workspace-wide row lock, so an unbounded purge
+// of a large trash would hold every other writer in the workspace behind it.
+func (q *Queries) PurgeDeletedIssues(ctx context.Context, arg PurgeDeletedIssuesParams) ([]PurgeDeletedIssuesRow, error) {
+	rows, err := q.db.Query(ctx, purgeDeletedIssues, arg.WorkspaceID, arg.DeletedBefore, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PurgeDeletedIssuesRow{}
+	for rows.Next() {
+		var i PurgeDeletedIssuesRow
+		if err := rows.Scan(&i.ID, &i.TeamID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const restoreIssue = `-- name: RestoreIssue :one
-UPDATE issue SET deleted_at = NULL
+UPDATE issue SET deleted_at = NULL, deleted_by = NULL
 WHERE id = $1 AND deleted_at IS NOT NULL AND deleted_at > $2
 RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 `
 
 type RestoreIssueParams struct {
@@ -946,6 +1069,10 @@ type RestoreIssueParams struct {
 //
 // The window is a parameter rather than a literal: how long a delete stays undoable is a
 // product decision, and burying "30 days" in a query means changing it is a migration.
+//
+// deleted_by is cleared alongside deleted_at. Leaving it set would make a live issue carry
+// the name of somebody who deleted it once and was overruled, which is a fact the activity
+// feed already holds and this column would then contradict on the next delete.
 func (q *Queries) RestoreIssue(ctx context.Context, arg RestoreIssueParams) (Issue, error) {
 	row := q.db.QueryRow(ctx, restoreIssue, arg.ID, arg.DeletedAfter)
 	var i Issue
@@ -974,16 +1101,28 @@ func (q *Queries) RestoreIssue(ctx context.Context, arg RestoreIssueParams) (Iss
 		&i.ParentID,
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
+		&i.DeletedBy,
 	)
 	return i, err
 }
 
 const softDeleteIssue = `-- name: SoftDeleteIssue :exec
-UPDATE issue SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL
+UPDATE issue SET deleted_at = now(), deleted_by = $1
+WHERE id = $2 AND deleted_at IS NULL
 `
 
-func (q *Queries) SoftDeleteIssue(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, softDeleteIssue, id)
+type SoftDeleteIssueParams struct {
+	DeletedBy *uuid.UUID
+	ID        uuid.UUID
+}
+
+// SoftDeleteIssue records who as well as when.
+//
+// deleted_by is nullable and a caller may pass nothing, which is what the retention sweep
+// and any future automation want: a deletion nobody instructed has no person to name, and a
+// guessed one would be worse than a blank on the trash screen.
+func (q *Queries) SoftDeleteIssue(ctx context.Context, arg SoftDeleteIssueParams) error {
+	_, err := q.db.Exec(ctx, softDeleteIssue, arg.DeletedBy, arg.ID)
 	return err
 }
 
@@ -992,7 +1131,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 FROM issue
 WHERE workspace_id = $1
   AND team_id = ANY($2::uuid[])
@@ -1052,6 +1191,7 @@ func (q *Queries) StreamIssuesForBootstrap(ctx context.Context, arg StreamIssues
 			&i.ParentID,
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
+			&i.DeletedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -1108,7 +1248,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
 `
 
 type UpdateIssueParams struct {
@@ -1187,6 +1327,7 @@ func (q *Queries) UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue
 		&i.ParentID,
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
+		&i.DeletedBy,
 	)
 	return i, err
 }

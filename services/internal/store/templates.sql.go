@@ -351,6 +351,52 @@ func (q *Queries) ListIssueTemplatesInWorkspace(ctx context.Context, workspaceID
 	return items, nil
 }
 
+const unarchiveIssueTemplate = `-- name: UnarchiveIssueTemplate :one
+UPDATE issue_template SET archived_at = NULL
+WHERE id = $1 AND archived_at IS NOT NULL
+RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+          position, created_by, archived_at, created_at, updated_at
+`
+
+type UnarchiveIssueTemplateRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	Name        string
+	Description *string
+	Title       string
+	Body        string
+	Properties  json.RawMessage
+	Position    string
+	CreatedBy   *uuid.UUID
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// UnarchiveIssueTemplate returns the row for the reason UnarchiveLabel does: the archive
+// reached every client as a delete, so only a payload can put it back.
+func (q *Queries) UnarchiveIssueTemplate(ctx context.Context, id uuid.UUID) (UnarchiveIssueTemplateRow, error) {
+	row := q.db.QueryRow(ctx, unarchiveIssueTemplate, id)
+	var i UnarchiveIssueTemplateRow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.TeamID,
+		&i.Name,
+		&i.Description,
+		&i.Title,
+		&i.Body,
+		&i.Properties,
+		&i.Position,
+		&i.CreatedBy,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateIssueTemplate = `-- name: UpdateIssueTemplate :one
 UPDATE issue_template
 SET name        = COALESCE($1, name),

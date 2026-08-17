@@ -769,7 +769,15 @@ func (s *Service) DeleteIssue(ctx context.Context, p *authz.Principal, id uuid.U
 		if err != nil {
 			return err
 		}
-		if err := q.SoftDeleteIssue(ctx, id); err != nil {
+		// Who did it, on the row rather than only in the activity feed. The feed holds it
+		// too, but the trash lists issues whose feed it does not fetch — answering "who
+		// deleted this" from history would be a query per row of a screen somebody opens in
+		// a mild panic. The column takes a user id and every principal is one, agents
+		// included: an installed app is a user row precisely so that actor, assignee and
+		// mention keep one foreign key target.
+		if err := q.SoftDeleteIssue(ctx, store.SoftDeleteIssueParams{
+			ID: id, DeletedBy: &p.UserID,
+		}); err != nil {
 			return platform.Internal(err)
 		}
 

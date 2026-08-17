@@ -131,8 +131,12 @@ func toIssue(i store.Issue, teamKey string) model.Issue {
 		CompletedAt: i.CompletedAt,
 		CanceledAt:  i.CanceledAt,
 		ArchivedAt:  i.ArchivedAt,
-		CreatedAt:   i.CreatedAt,
-		UpdatedAt:   i.UpdatedAt,
+		// Both nil on every live issue, so they cost nothing on the sync stream — the only
+		// caller that sees them set is the trash listing. See model.Issue.
+		DeletedAt: i.DeletedAt,
+		DeletedBy: i.DeletedBy,
+		CreatedAt: i.CreatedAt,
+		UpdatedAt: i.UpdatedAt,
 	}
 
 	// The two below widen out of the database's shapes rather than being copied across.

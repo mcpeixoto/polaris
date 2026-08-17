@@ -261,10 +261,19 @@ func (s *Service) UpdateWorkflowState(ctx context.Context, p *authz.Principal, i
 	return out, version, err
 }
 
-// ArchiveWorkflowState retires a status. It refuses while issues still sit in it: the
-// alternative is either orphaning those issues or silently moving them somewhere the user
-// did not choose, and both are worse than an error message.
-func (s *Service) ArchiveWorkflowState(ctx context.Context, p *authz.Principal, id uuid.UUID) (int64, error) {
+// ArchiveWorkflowState retires a status, or brings one back.
+//
+// Archiving refuses while issues still sit in the status: the alternative is either
+// orphaning those issues or silently moving them somewhere the user did not choose, and both
+// are worse than an error message.
+//
+// Un-archiving exists because the alternative to it is not "create the status again". A
+// board column, a saved view's filter and every issue that ever sat in this status name it
+// by id, so a replacement with the same name is a different row that none of them point at —
+// which makes a mistaken archive permanent in a way nothing on screen explains. The change
+// is an upsert carrying the row, because archiving reached every client as a delete and the
+// payload is the only thing that can put the column back.
+func (s *Service) ArchiveWorkflowState(ctx context.Context, p *authz.Principal, id uuid.UUID, archived bool) (int64, error) {
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		existing, err := q.GetWorkflowState(ctx, id)
@@ -281,29 +290,59 @@ func (s *Service) ArchiveWorkflowState(ctx context.Context, p *authz.Principal, 
 		if existing.IsSystem {
 			return platform.Validation("id", "the Duplicate status is managed by the system")
 		}
-		if existing.IsDefault {
-			return platform.Validation("id", "set another status as the default before archiving this one")
+		// Which state the row is in decides which direction is even available, and a row
+		// already in the requested state answers not-found rather than succeeding: reporting
+		// a version this call did not mint would tell a client its write landed somewhere on
+		// the stream that nothing was written to.
+		if archived == (existing.ArchivedAt != nil) {
+			return platform.NotFound("status")
 		}
 
-		count, err := q.CountIssuesInWorkflowState(ctx, id)
-		if err != nil {
-			return platform.Internal(err)
-		}
-		if count > 0 {
-			return platform.Conflict(fmt.Sprintf("%d issues still use this status; move them first", count))
-		}
-
-		if err := q.ArchiveWorkflowState(ctx, id); err != nil {
-			return platform.Internal(err)
-		}
-
-		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+		change := Change{
 			EntityType: "workflowState",
 			EntityID:   id,
 			Op:         OpDelete,
 			TeamID:     &existing.TeamID,
 			Scope:      authz.TeamScope(existing.TeamID, team.Private),
-		})
+		}
+
+		if archived {
+			if existing.IsDefault {
+				return platform.Validation("id", "set another status as the default before archiving this one")
+			}
+			count, err := q.CountIssuesInWorkflowState(ctx, id)
+			if err != nil {
+				return platform.Internal(err)
+			}
+			if count > 0 {
+				return platform.Conflict(fmt.Sprintf("%d issues still use this status; move them first", count))
+			}
+			if err := q.ArchiveWorkflowState(ctx, id); err != nil {
+				return platform.Internal(err)
+			}
+		} else {
+			row, err := q.UnarchiveWorkflowState(ctx, id)
+			if err != nil {
+				if store.IsNotFound(err) {
+					return platform.NotFound("status")
+				}
+				if store.IsUniqueViolation(err, "workflow_state_team_name_key") {
+					// The index is partial on archived_at, so archiving released the name
+					// and the team has since reused it. Two statuses called "In Review" in
+					// one workflow is not a workflow, and the person who took the name is
+					// the one who can free it.
+					return platform.Validation("id", fmt.Sprintf(
+						"this team already has a status called %q; rename it before restoring this one", existing.Name))
+				}
+				return platform.Internal(err)
+			}
+			// Restored where it was: position is untouched by archiving, so the status
+			// returns to its own place in its category rather than to the end of it.
+			change.Op = OpUpsert
+			change.Payload = toWorkflowState(row)
+		}
+
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), change)
 		return err
 	})
 	return version, err

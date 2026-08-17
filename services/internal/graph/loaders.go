@@ -68,6 +68,12 @@ type labelIndex struct {
 	byID map[uuid.UUID]model.Label
 }
 
+// membershipIndex is every membership the reader can see, grouped by team. Keyed by team
+// rather than flat because that is the only question anything asks of it.
+type membershipIndex struct {
+	byTeam map[uuid.UUID][]model.TeamMembership
+}
+
 // Loaders holds one request's memoised reads.
 //
 // Request-scoped and never shared between requests. Everything in here came back from a
@@ -76,9 +82,10 @@ type labelIndex struct {
 type Loaders struct {
 	svc *domain.Service
 
-	users  batch[userIndex]
-	teams  batch[teamIndex]
-	labels batch[labelIndex]
+	users       batch[userIndex]
+	teams       batch[teamIndex]
+	labels      batch[labelIndex]
+	memberships batch[membershipIndex]
 
 	// mu guards the states map only. The fetches themselves run outside it, so a slow
 	// query for one team does not hold up another.
@@ -169,6 +176,29 @@ func (l *Loaders) allLabels(ctx context.Context, p *authz.Principal) (labelIndex
 	})
 }
 
+// allMemberships reads who is in each of the reader's teams, once.
+//
+// A workspace-wide read like the directory and the teams, and it belongs in that set rather
+// than in a per-team batch for a reason the shape of the callers decides: hydrateTeam is
+// invoked once per team from three different places, one of them a loop over the distinct
+// teams of an issue list. A batch keyed on the ids of one call would still be a query per
+// team there. Memoised across the whole request it is one query however many teams the
+// operation touches, which is the property the field needs — `teams { members { userId } }`
+// on a fifty-team workspace costs the same as asking one team.
+//
+// It is bounded for the same reason the directory is: a person is in a handful of teams and
+// a team has as many members as the workspace has people, so this is one small read and not
+// a growth curve.
+func (l *Loaders) allMemberships(ctx context.Context, p *authz.Principal) (membershipIndex, error) {
+	return l.memberships.load(func() (membershipIndex, error) {
+		byTeam, err := l.svc.ListTeamMemberships(ctx, p)
+		if err != nil {
+			return membershipIndex{}, err
+		}
+		return membershipIndex{byTeam: byTeam}, nil
+	})
+}
+
 // statesFor reads one team's workflow, once per team per request. A status list is a
 // handful of rows and every issue in the team shares it, so this is the query that turns
 // "one status lookup per issue" into "one per team".
@@ -209,7 +239,7 @@ func (l *Loaders) statesFor(ctx context.Context, p *authz.Principal, teamID uuid
 // unserialisable one, and it is served from a workspace-wide list like the rest.
 var referenceFields = map[string]bool{
 	"state": true, "team": true, "assignee": true, "creator": true,
-	"states": true, "teams": true, "users": true, "label": true,
+	"states": true, "teams": true, "users": true, "label": true, "members": true,
 }
 
 // selection is the part of the query below the field being resolved.
@@ -417,13 +447,17 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 
 	// Comments and history are one query per issue, so they are fetched only when named.
 	// A list view never asks for them; an issue detail asks for both and pays for two.
-	if sel.has("comments") {
+	if child, ok := sel.child("comments", "Comment"); ok {
 		for k, i := range issues {
 			comments, err := r.Svc.ListComments(ctx, p, i.ID)
 			if err != nil {
 				return nil, err
 			}
-			if out[k].Comments, err = toComments(comments); err != nil {
+			// Through the comment hydrator rather than the bare converter, so that
+			// `comments { issue { … } }` resolves rather than returning null on a non-null
+			// field. It costs nothing unless the query names it: the issue is the one being
+			// hydrated here, so the batched read finds it in the same set.
+			if out[k].Comments, err = r.hydrateComments(ctx, p, child, comments); err != nil {
 				return nil, err
 			}
 		}
@@ -604,6 +638,87 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 	return out, nil
 }
 
+// hydrateComment fills in the issue one comment sits on.
+func (r *Resolver) hydrateComment(
+	ctx context.Context, p *authz.Principal, sel selection, comment model.Comment,
+) (generated.Comment, error) {
+	out, err := r.hydrateComments(ctx, p, sel, []model.Comment{comment})
+	if err != nil {
+		return generated.Comment{}, err
+	}
+	return out[0], nil
+}
+
+// hydrateComments fills in the issue each comment sits on, for the whole list at once.
+//
+// `issue` is not a reference field and is fetched only when a query names it, because it is
+// a whole issue and not a lookup into a workspace-wide list — an issue detail panel already
+// holds the issue its comments belong to and would be asking for a copy of it per comment.
+// The one caller that genuinely needs it is search, where a comment hit has no other way
+// home; without the field a client renders "in ENG-142" by fetching each hit's issue by id.
+//
+// Two reads for the whole page whatever its length: the distinct issues in one batched call,
+// then those issues hydrated as one batch of their own, so a query asking for
+// `comments { issue { team { name } } }` resolves the teams once between them rather than
+// once per comment. Comments cluster heavily onto few issues, which is why the ids are
+// deduplicated before the read rather than after it.
+func (r *Resolver) hydrateComments(
+	ctx context.Context, p *authz.Principal, sel selection, comments []model.Comment,
+) ([]generated.Comment, error) {
+	out, err := toComments(comments)
+	if err != nil {
+		return nil, err
+	}
+	child, ok := sel.child("issue", "Issue")
+	if !ok || len(out) == 0 {
+		return out, nil
+	}
+
+	ids := make([]uuid.UUID, 0, len(comments))
+	seen := make(map[uuid.UUID]struct{}, len(comments))
+	for _, c := range comments {
+		if _, dup := seen[c.IssueID]; dup {
+			continue
+		}
+		seen[c.IssueID] = struct{}{}
+		ids = append(ids, c.IssueID)
+	}
+
+	issues, err := r.Svc.IssuesByID(ctx, p, ids)
+	if err != nil {
+		return nil, err
+	}
+	flat := make([]model.Issue, 0, len(ids))
+	for _, id := range ids {
+		if issue, found := issues[id]; found {
+			flat = append(flat, issue)
+		}
+	}
+	hydrated, err := r.hydrateIssues(ctx, p, child, flat)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uuid.UUID]*generated.Issue, len(hydrated))
+	for k := range hydrated {
+		byID[hydrated[k].ID] = &hydrated[k]
+	}
+
+	for k, c := range comments {
+		g, found := byID[c.IssueID]
+		if !found {
+			// The schema declares `issue: Issue!`, and every path that can hand a caller a
+			// comment has already read the issue to decide they may see it — the listings
+			// join through it and search filters on it. A miss is therefore a broken
+			// invariant, not a permission answer, and saying so beats marshalling a null
+			// into a non-null after the response is already half written.
+			return nil, platform.Internal(
+				fmt.Errorf("comment %s is on issue %s, which the reader cannot see", c.ID, c.IssueID))
+		}
+		out[k].Issue = g
+	}
+	return out, nil
+}
+
 // hydrateIssueLabel fills in the label an application points at.
 //
 // The schema declares it `label: Label!`, so leaving it nil is not a null field — it is a
@@ -635,16 +750,37 @@ func (r *Resolver) hydrateIssueLabel(
 	return out, nil
 }
 
-// hydrateTeam fills a team's statuses and, when asked, its issues, labels and templates.
-//
-// Team.members is not filled. The domain layer exposes no membership listing and a
-// resolver may not go around it to the database; membership rows reach a client on the
-// bootstrap snapshot and then on the change stream, which is where a local-first client
-// reads them from in any case.
+// hydrateTeam fills a team's statuses and members and, when asked, its issues, labels and
+// templates.
 func (r *Resolver) hydrateTeam(ctx context.Context, p *authz.Principal, sel selection, team model.Team) (generated.Team, error) {
 	out, err := toTeam(team)
 	if err != nil {
 		return generated.Team{}, err
+	}
+
+	// Members come from the one memoised read of the reader's own teams, so a query naming
+	// this field on every team in the workspace costs a single query rather than one per
+	// team — see allMemberships.
+	//
+	// A team outside the reader's visible set resolves to an empty list rather than to its
+	// roster — which is the same answer their replica holds, because the bootstrap ships
+	// memberships for exactly that set. The empty slice is minted here rather than in the
+	// domain layer because the schema is what declares the field non-null, and a nil slice
+	// marshals to null.
+	if sel.has("members") {
+		memberships, err := r.loaders(ctx).allMemberships(ctx, p)
+		if err != nil {
+			return generated.Team{}, err
+		}
+		rows := memberships.byTeam[team.ID]
+		out.Members = make([]generated.TeamMembership, 0, len(rows))
+		for _, m := range rows {
+			g, err := toMembership(m)
+			if err != nil {
+				return generated.Team{}, err
+			}
+			out.Members = append(out.Members, g)
+		}
 	}
 
 	if sel.has("states") {

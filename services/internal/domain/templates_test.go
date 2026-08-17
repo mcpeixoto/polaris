@@ -250,7 +250,7 @@ func TestArchiveIssueTemplate_StopsBeingOfferedAndTellsClientsToForgetIt(t *test
 		t.Fatalf("create template: %v", err)
 	}
 
-	id, _, err := svc.ArchiveIssueTemplate(ctx, admin, template.ID)
+	id, _, err := svc.ArchiveIssueTemplate(ctx, admin, template.ID, true)
 	if err != nil {
 		t.Fatalf("archive template: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestArchiveIssueTemplate_StopsBeingOfferedAndTellsClientsToForgetIt(t *test
 	}
 
 	// A second archive, and any edit, must not resurrect it.
-	if _, _, err := svc.ArchiveIssueTemplate(ctx, admin, template.ID); platform.CodeOf(err) != platform.CodeNotFound {
+	if _, _, err := svc.ArchiveIssueTemplate(ctx, admin, template.ID, true); platform.CodeOf(err) != platform.CodeNotFound {
 		t.Fatalf("archiving twice gave %v, want NOT_FOUND", err)
 	}
 	name := "Back from the dead"

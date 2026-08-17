@@ -139,6 +139,53 @@ func (q *Queries) CreateLabel(ctx context.Context, arg CreateLabelParams) (Creat
 	return i, err
 }
 
+const getArchivedLabel = `-- name: GetArchivedLabel :one
+SELECT id, workspace_id, team_id, parent_id, is_group, name, description, color,
+       position, archived_at, created_at, updated_at
+FROM label
+WHERE id = $1 AND archived_at IS NOT NULL
+`
+
+type GetArchivedLabelRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	ParentID    *uuid.UUID
+	IsGroup     bool
+	Name        string
+	Description *string
+	Color       string
+	Position    string
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// GetArchivedLabel reads a label the ordinary path treats as gone.
+//
+// Only the unarchive uses it. loadLabel refuses an archived row on purpose — it is absent
+// from every picker, every listing and every replica — and widening that would put the row
+// back in reach of the reads that are meant not to see it.
+func (q *Queries) GetArchivedLabel(ctx context.Context, id uuid.UUID) (GetArchivedLabelRow, error) {
+	row := q.db.QueryRow(ctx, getArchivedLabel, id)
+	var i GetArchivedLabelRow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.TeamID,
+		&i.ParentID,
+		&i.IsGroup,
+		&i.Name,
+		&i.Description,
+		&i.Color,
+		&i.Position,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getLabel = `-- name: GetLabel :one
 SELECT id, workspace_id, team_id, parent_id, is_group, name, description, color,
        position, archived_at, created_at, updated_at
@@ -430,6 +477,56 @@ func (q *Queries) ListLabelsInWorkspace(ctx context.Context, workspaceID uuid.UU
 		return nil, err
 	}
 	return items, nil
+}
+
+const unarchiveLabel = `-- name: UnarchiveLabel :one
+UPDATE label SET archived_at = NULL
+WHERE id = $1 AND archived_at IS NOT NULL
+RETURNING id, workspace_id, team_id, parent_id, is_group, name, description, color,
+          position, archived_at, created_at, updated_at
+`
+
+type UnarchiveLabelRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	ParentID    *uuid.UUID
+	IsGroup     bool
+	Name        string
+	Description *string
+	Color       string
+	Position    string
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// UnarchiveLabel is the way back, and it returns the row because putting a label back is an
+// upsert on the sync stream — every client dropped it when the archive arrived as a delete,
+// so the payload is the only thing that can restore it.
+//
+// label_scope_name_key is partial on archived_at IS NULL, so archiving a label frees its
+// name and somebody may since have taken it. This statement lets the unique violation
+// happen rather than checking first: the check would be a read the index re-does anyway,
+// and between the two somebody can still take the name.
+func (q *Queries) UnarchiveLabel(ctx context.Context, id uuid.UUID) (UnarchiveLabelRow, error) {
+	row := q.db.QueryRow(ctx, unarchiveLabel, id)
+	var i UnarchiveLabelRow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.TeamID,
+		&i.ParentID,
+		&i.IsGroup,
+		&i.Name,
+		&i.Description,
+		&i.Color,
+		&i.Position,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateLabel = `-- name: UpdateLabel :one

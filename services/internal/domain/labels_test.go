@@ -493,13 +493,13 @@ func TestArchiveLabel_RefusesWhileStillInUse(t *testing.T) {
 		t.Fatalf("apply: %v", err)
 	}
 
-	if _, err := svc.ArchiveLabel(ctx, p, priority.ID); err == nil {
+	if _, err := svc.ArchiveLabel(ctx, p, priority.ID, true); err == nil {
 		t.Fatal("a group holding labels was archived")
 	} else if code := platform.CodeOf(err); code != platform.CodeConflict {
 		t.Fatalf("got code %s (%v), want CONFLICT", code, err)
 	}
 
-	_, err := svc.ArchiveLabel(ctx, p, p0.ID)
+	_, err := svc.ArchiveLabel(ctx, p, p0.ID, true)
 	if err == nil {
 		t.Fatal("a label still applied to an issue was archived")
 	}
@@ -513,7 +513,7 @@ func TestArchiveLabel_RefusesWhileStillInUse(t *testing.T) {
 	if _, _, err := svc.RemoveIssueLabel(ctx, p, issue, p0.ID); err != nil {
 		t.Fatalf("remove: %v", err)
 	}
-	version, err := svc.ArchiveLabel(ctx, p, p0.ID)
+	version, err := svc.ArchiveLabel(ctx, p, p0.ID, true)
 	if err != nil {
 		t.Fatalf("archive after the last application went away: %v", err)
 	}

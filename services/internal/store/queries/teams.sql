@@ -104,6 +104,23 @@ FROM team_membership
 WHERE team_id = $1
 ORDER BY created_at;
 
+-- ListTeamMembershipsForTeams is ListTeamMembers for a page of teams: what Team.members
+-- resolves from, for every team in one answer rather than one query per team.
+--
+-- team_ids is the reader's own visible set and never the set of teams they asked about.
+-- The bootstrap ships exactly the memberships of the teams the reader belongs to, so a
+-- listing here that reached further would let the API answer a question the sync stream
+-- refuses — who is in a team you are not in — which is the leak the visibility predicate
+-- exists to prevent. Enforced in the statement rather than filtered afterwards in Go, like
+-- every other batched read, so the rows never leave the database in the first place.
+--
+-- name: ListTeamMembershipsForTeams :many
+SELECT id, workspace_id, team_id, user_id, role, created_at, updated_at
+FROM team_membership
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND team_id = ANY(sqlc.arg(team_ids)::uuid[])
+ORDER BY team_id, created_at;
+
 -- ListTeamIDsForUser resolves a session's visibility set. Called on every socket connect
 -- and on every permission change, so it must stay an index-only scan on
 -- team_membership_user_idx.

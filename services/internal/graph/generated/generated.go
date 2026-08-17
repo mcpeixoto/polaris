@@ -86,6 +86,7 @@ type ComplexityRoot struct {
 		CreatedAt   func(childComplexity int) int
 		EditedAt    func(childComplexity int) int
 		ID          func(childComplexity int) int
+		Issue       func(childComplexity int) int
 		IssueID     func(childComplexity int) int
 		ParentID    func(childComplexity int) int
 		ResolvedAt  func(childComplexity int) int
@@ -167,6 +168,8 @@ type ComplexityRoot struct {
 		CreatedAt         func(childComplexity int) int
 		Creator           func(childComplexity int) int
 		CreatorID         func(childComplexity int) int
+		DeletedAt         func(childComplexity int) int
+		DeletedBy         func(childComplexity int) int
 		Description       func(childComplexity int) int
 		DueDate           func(childComplexity int) int
 		DueDateSource     func(childComplexity int) int
@@ -310,9 +313,9 @@ type ComplexityRoot struct {
 		AddIssueLabel            func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddTeamMember            func(childComplexity int, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) int
 		ArchiveIssue             func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
-		ArchiveIssueTemplate     func(childComplexity int, id uuid.UUID) int
-		ArchiveLabel             func(childComplexity int, id uuid.UUID) int
-		ArchiveWorkflowState     func(childComplexity int, id uuid.UUID) int
+		ArchiveIssueTemplate     func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveLabel             func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveWorkflowState     func(childComplexity int, id uuid.UUID, archived bool) int
 		BulkUpdateIssues         func(childComplexity int, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateAPIKey             func(childComplexity int, input CreateAPIKeyInput) int
 		CreateComment            func(childComplexity int, input CreateCommentInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -331,6 +334,7 @@ type ComplexityRoot struct {
 		InviteToWorkspace        func(childComplexity int, input InviteInput) int
 		MarkAllNotificationsRead func(childComplexity int) int
 		MarkNotificationRead     func(childComplexity int, id uuid.UUID, read bool) int
+		PurgeDeletedIssues       func(childComplexity int, before *time.Time) int
 		RemoveFavorite           func(childComplexity int, kind FavoriteKind, targetID uuid.UUID) int
 		RemoveIssueLabel         func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveTeamMember         func(childComplexity int, teamID uuid.UUID, userID uuid.UUID) int
@@ -384,6 +388,12 @@ type ComplexityRoot struct {
 	NotificationsPayload struct {
 		Notifications func(childComplexity int) int
 		Version       func(childComplexity int) int
+	}
+
+	PurgePayload struct {
+		Ids       func(childComplexity int) int
+		Remaining func(childComplexity int) int
+		Version   func(childComplexity int) int
 	}
 
 	Query struct {
@@ -605,7 +615,7 @@ type MutationResolver interface {
 	RemoveTeamMember(ctx context.Context, teamID uuid.UUID, userID uuid.UUID) (*DeletePayload, error)
 	CreateWorkflowState(ctx context.Context, input CreateWorkflowStateInput) (*WorkflowStatePayload, error)
 	UpdateWorkflowState(ctx context.Context, input UpdateWorkflowStateInput) (*WorkflowStatePayload, error)
-	ArchiveWorkflowState(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	ArchiveWorkflowState(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
 	UpdateProfile(ctx context.Context, input UpdateProfileInput) (*UserPayload, error)
 	SetUserRole(ctx context.Context, userID uuid.UUID, role UserRole) (*UserPayload, error)
 	SuspendUser(ctx context.Context, userID uuid.UUID, suspended bool) (*UserPayload, error)
@@ -614,10 +624,11 @@ type MutationResolver interface {
 	UpdateWorkspace(ctx context.Context, input UpdateWorkspaceInput) (*WorkspacePayload, error)
 	BulkUpdateIssues(ctx context.Context, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) (*BulkIssuePayload, error)
 	RestoreIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
+	PurgeDeletedIssues(ctx context.Context, before *time.Time) (*PurgePayload, error)
 	UpdateTeamEstimates(ctx context.Context, input UpdateTeamEstimatesInput) (*TeamPayload, error)
 	CreateLabel(ctx context.Context, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	UpdateLabel(ctx context.Context, input UpdateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
-	ArchiveLabel(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	ArchiveLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
 	AddIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssueLabelPayload, error)
 	RemoveIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateIssueRelation(ctx context.Context, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) (*IssueRelationPayload, error)
@@ -635,7 +646,7 @@ type MutationResolver interface {
 	RemoveFavorite(ctx context.Context, kind FavoriteKind, targetID uuid.UUID) (*DeletePayload, error)
 	CreateIssueTemplate(ctx context.Context, input CreateIssueTemplateInput) (*IssueTemplatePayload, error)
 	UpdateIssueTemplate(ctx context.Context, input UpdateIssueTemplateInput) (*IssueTemplatePayload, error)
-	ArchiveIssueTemplate(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	ArchiveIssueTemplate(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
 	InviteToWorkspace(ctx context.Context, input InviteInput) (*InvitePayload, error)
 	RevokeInvite(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 	CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (*APIKeyPayload, error)
@@ -858,6 +869,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Comment.ID(childComplexity), true
+	case "Comment.issue":
+		if e.ComplexityRoot.Comment.Issue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Comment.Issue(childComplexity), true
 	case "Comment.issueId":
 		if e.ComplexityRoot.Comment.IssueID == nil {
 			break
@@ -1208,6 +1225,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Issue.CreatorID(childComplexity), true
+	case "Issue.deletedAt":
+		if e.ComplexityRoot.Issue.DeletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Issue.DeletedAt(childComplexity), true
+	case "Issue.deletedBy":
+		if e.ComplexityRoot.Issue.DeletedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Issue.DeletedBy(childComplexity), true
 	case "Issue.description":
 		if e.ComplexityRoot.Issue.Description == nil {
 			break
@@ -1875,7 +1904,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.ArchiveIssueTemplate(childComplexity, args["id"].(uuid.UUID)), true
+		return e.ComplexityRoot.Mutation.ArchiveIssueTemplate(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
 	case "Mutation.archiveLabel":
 		if e.ComplexityRoot.Mutation.ArchiveLabel == nil {
 			break
@@ -1886,7 +1915,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.ArchiveLabel(childComplexity, args["id"].(uuid.UUID)), true
+		return e.ComplexityRoot.Mutation.ArchiveLabel(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
 	case "Mutation.archiveWorkflowState":
 		if e.ComplexityRoot.Mutation.ArchiveWorkflowState == nil {
 			break
@@ -1897,7 +1926,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.ArchiveWorkflowState(childComplexity, args["id"].(uuid.UUID)), true
+		return e.ComplexityRoot.Mutation.ArchiveWorkflowState(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
 	case "Mutation.bulkUpdateIssues":
 		if e.ComplexityRoot.Mutation.BulkUpdateIssues == nil {
 			break
@@ -2091,6 +2120,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MarkNotificationRead(childComplexity, args["id"].(uuid.UUID), args["read"].(bool)), true
+	case "Mutation.purgeDeletedIssues":
+		if e.ComplexityRoot.Mutation.PurgeDeletedIssues == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_purgeDeletedIssues_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.PurgeDeletedIssues(childComplexity, args["before"].(*time.Time)), true
 	case "Mutation.removeFavorite":
 		if e.ComplexityRoot.Mutation.RemoveFavorite == nil {
 			break
@@ -2478,6 +2518,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.NotificationsPayload.Version(childComplexity), true
+
+	case "PurgePayload.ids":
+		if e.ComplexityRoot.PurgePayload.Ids == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PurgePayload.Ids(childComplexity), true
+	case "PurgePayload.remaining":
+		if e.ComplexityRoot.PurgePayload.Remaining == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PurgePayload.Remaining(childComplexity), true
+	case "PurgePayload.version":
+		if e.ComplexityRoot.PurgePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PurgePayload.Version(childComplexity), true
 
 	case "Query.apiKeys":
 		if e.ComplexityRoot.Query.APIKeys == nil {
@@ -3858,6 +3917,18 @@ type Issue {
   completedAt: Time
   canceledAt: Time
   archivedAt: Time
+  """
+  When the issue was moved to the trash. Only ever set on a row ` + "`" + `deletedIssues` + "`" + ` returned:
+  every other read in the product filters deleted rows out, and the sync stream carries a
+  delete rather than the row, so a client holding an issue with this set is holding
+  something it should already have dropped.
+  """
+  deletedAt: Time
+  """
+  Who moved it there. Null for a deletion that predates the column, and for one performed
+  by the retention sweep rather than by a person.
+  """
+  deletedBy: UUID
   createdAt: Time!
   updatedAt: Time!
 
@@ -4119,6 +4190,16 @@ type Comment {
   resolvedBy: UUID
   createdAt: Time!
   updatedAt: Time!
+  """
+  The issue this comment is on.
+
+  Non-null, and it can be: a comment is only ever returned to somebody who can already read
+  its issue — every listing joins through it — so a resolvable comment with an unresolvable
+  issue is a broken invariant rather than a permission answer. It exists because a search
+  result is a comment with no way home: without this a client has to fetch the issue by id
+  to render "in ENG-142", which is a second round trip per hit.
+  """
+  issue: Issue!
 }
 
 """
@@ -4194,6 +4275,28 @@ type TeamMembershipPayload implements MutationResult {
 type DeletePayload implements MutationResult {
   version: Int!
   id: UUID!
+}
+
+"""
+What a purge destroyed.
+
+A list of ids rather than a single one, and no entities: after this response the rows named
+here do not exist in any table, so there is nothing left to return and nothing any client
+can do with the ids except confirm what it already dropped.
+"""
+type PurgePayload implements MutationResult {
+  version: Int!
+  """The issues that no longer exist. Empty when the trash was already empty."""
+  ids: [UUID!]!
+  """
+  How many rows were eligible and were left for the next call.
+
+  A purge is bounded per call so that emptying a large trash cannot mint tens of thousands
+  of sync versions inside one transaction and stall every other writer in the workspace
+  behind the version lock. Zero means the trash is now empty; anything else means call it
+  again.
+  """
+  remaining: Int!
 }
 
 type LabelPayload implements MutationResult {
@@ -4474,6 +4577,18 @@ input SearchInput {
   filter: JSON
   teamId: UUID
   first: Int
+  """
+  Widens the search to archived issues.
+
+  It does not survive a filter that says nothing about archiving. The grammar hides archived
+  and deleted issues unless a clause names them, that default is part of what a filter means,
+  and the client's evaluator applies the same one — so the two are combined and the stricter
+  wins. To search archived issues with a filter, say ` + "`" + `archived` + "`" + ` in the filter. Anything else
+  would make one filter mean two things depending on where it was used.
+
+  Deleted issues are never returned by search at all, whatever either says: the trash is its
+  own query, with its own window.
+  """
   includeArchived: Boolean
 }
 
@@ -4617,7 +4732,12 @@ type Mutation {
 
   createWorkflowState(input: CreateWorkflowStateInput!): WorkflowStatePayload!
   updateWorkflowState(input: UpdateWorkflowStateInput!): WorkflowStatePayload!
-  archiveWorkflowState(id: UUID!): DeletePayload!
+  """
+  Retires a status, or brings one back. ` + "`" + `archived: false` + "`" + ` is the way back; without it the
+  only way to undo a mistaken archive is to create a new status, which is a different row
+  that no filter or saved view already points at.
+  """
+  archiveWorkflowState(id: UUID!, archived: Boolean!): DeletePayload!
 
   updateProfile(input: UpdateProfileInput!): UserPayload!
   setUserRole(userId: UUID!, role: UserRole!): UserPayload!
@@ -4633,13 +4753,35 @@ type Mutation {
   """Restores a soft-deleted issue with its comments and relations, within the window."""
   restoreIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
 
+  """
+  Empties the trash. Admins only, and irreversible.
+
+  This is a hard DELETE, and the blast radius is everything hanging off each issue: its
+  comments, its labels, its relations from both ends and its whole activity feed all go with
+  it, by foreign-key cascade. Sub-issues are not deleted — ` + "`" + `issue.parent_id` + "`" + ` is
+  ON DELETE SET NULL — but they are orphaned, and nothing afterwards records which parent
+  they had. There is no restore, no trash behind the trash, and no version of the row left
+  anywhere but a database backup.
+
+  ` + "`" + `before` + "`" + ` purges only what was deleted before that instant, which is what makes an
+  unattended retention sweep expressible; omit it to empty the trash completely.
+  """
+  purgeDeletedIssues(before: Time): PurgePayload!
+
   updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
 
   # ---- labels
 
   createLabel(input: CreateLabelInput!, clientId: UUID, opId: UUID): LabelPayload! @idempotent
   updateLabel(input: UpdateLabelInput!, clientId: UUID, opId: UUID): LabelPayload! @idempotent
-  archiveLabel(id: UUID!): DeletePayload!
+  """
+  Retires a label, or brings one back.
+
+  Un-archiving is refused while the group the label sits in is still archived: the label
+  would reappear in the picker under a heading nothing can resolve, which is the same state
+  archiving a non-empty group is refused to prevent, reached from the other side.
+  """
+  archiveLabel(id: UUID!, archived: Boolean!): DeletePayload!
 
   """
   Adds one label. Not "set the labels": a whole-set write means two people adding
@@ -4675,7 +4817,8 @@ type Mutation {
 
   createIssueTemplate(input: CreateIssueTemplateInput!): IssueTemplatePayload!
   updateIssueTemplate(input: UpdateIssueTemplateInput!): IssueTemplatePayload!
-  archiveIssueTemplate(id: UUID!): DeletePayload!
+  """Retires a template, or brings one back."""
+  archiveIssueTemplate(id: UUID!, archived: Boolean!): DeletePayload!
 
   # ---- administration
 
@@ -4798,6 +4941,8 @@ func (ec *executionContext) childFields_Comment(ctx context.Context, field graph
 		return ec.fieldContext_Comment_createdAt(ctx, field)
 	case "updatedAt":
 		return ec.fieldContext_Comment_updatedAt(ctx, field)
+	case "issue":
+		return ec.fieldContext_Comment_issue(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Comment", field.Name)
 }
@@ -4970,6 +5115,10 @@ func (ec *executionContext) childFields_Issue(ctx context.Context, field graphql
 		return ec.fieldContext_Issue_canceledAt(ctx, field)
 	case "archivedAt":
 		return ec.fieldContext_Issue_archivedAt(ctx, field)
+	case "deletedAt":
+		return ec.fieldContext_Issue_deletedAt(ctx, field)
+	case "deletedBy":
+		return ec.fieldContext_Issue_deletedBy(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Issue_createdAt(ctx, field)
 	case "updatedAt":
@@ -5280,6 +5429,18 @@ func (ec *executionContext) childFields_NotificationsPayload(ctx context.Context
 		return ec.fieldContext_NotificationsPayload_notifications(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type NotificationsPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_PurgePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_PurgePayload_version(ctx, field)
+	case "ids":
+		return ec.fieldContext_PurgePayload_ids(ctx, field)
+	case "remaining":
+		return ec.fieldContext_PurgePayload_remaining(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PurgePayload", field.Name)
 }
 
 func (ec *executionContext) childFields_SearchResults(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -5843,6 +6004,14 @@ func (ec *executionContext) field_Mutation_archiveIssueTemplate_args(ctx context
 		return nil, err
 	}
 	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
 	return args, nil
 }
 
@@ -5895,6 +6064,14 @@ func (ec *executionContext) field_Mutation_archiveLabel_args(ctx context.Context
 		return nil, err
 	}
 	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
 	return args, nil
 }
 
@@ -5909,6 +6086,14 @@ func (ec *executionContext) field_Mutation_archiveWorkflowState_args(ctx context
 		return nil, err
 	}
 	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
 	return args, nil
 }
 
@@ -6299,6 +6484,20 @@ func (ec *executionContext) field_Mutation_markNotificationRead_args(ctx context
 		return nil, err
 	}
 	args["read"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_purgeDeletedIssues_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "before",
+		func(ctx context.Context, v any) (*time.Time, error) {
+			return ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["before"] = arg0
 	return args, nil
 }
 
@@ -7932,6 +8131,38 @@ func (ec *executionContext) fieldContext_Comment_updatedAt(_ context.Context, fi
 	return graphql.NewScalarFieldContext("Comment", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _Comment_issue(ctx context.Context, field graphql.CollectedField, obj *Comment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Comment_issue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Issue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Issue) graphql.Marshaler {
+			return ec.marshalNIssue2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssue(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Comment_issue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Comment",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Issue(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CommentPayload_version(ctx context.Context, field graphql.CollectedField, obj *CommentPayload) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9374,6 +9605,52 @@ func (ec *executionContext) _Issue_archivedAt(ctx context.Context, field graphql
 }
 func (ec *executionContext) fieldContext_Issue_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Issue_deletedAt(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Issue_deletedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeletedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Issue_deletedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Issue_deletedBy(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Issue_deletedBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeletedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Issue_deletedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type UUID does not have child fields"))
 }
 
 func (ec *executionContext) _Issue_createdAt(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
@@ -12351,7 +12628,7 @@ func (ec *executionContext) _Mutation_archiveWorkflowState(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ArchiveWorkflowState(ctx, fc.Args["id"].(uuid.UUID))
+			return ec.Resolvers.Mutation().ArchiveWorkflowState(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
@@ -12763,6 +13040,50 @@ func (ec *executionContext) fieldContext_Mutation_restoreIssue(ctx context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_purgeDeletedIssues(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_purgeDeletedIssues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().PurgeDeletedIssues(ctx, fc.Args["before"].(*time.Time))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *PurgePayload) graphql.Marshaler {
+			return ec.marshalNPurgePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPurgePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_purgeDeletedIssues(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PurgePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_purgeDeletedIssues_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_updateTeamEstimates(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -12931,7 +13252,7 @@ func (ec *executionContext) _Mutation_archiveLabel(ctx context.Context, field gr
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ArchiveLabel(ctx, fc.Args["id"].(uuid.UUID))
+			return ec.Resolvers.Mutation().ArchiveLabel(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
@@ -13763,7 +14084,7 @@ func (ec *executionContext) _Mutation_archiveIssueTemplate(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ArchiveIssueTemplate(ctx, fc.Args["id"].(uuid.UUID))
+			return ec.Resolvers.Mutation().ArchiveIssueTemplate(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
@@ -14467,6 +14788,75 @@ func (ec *executionContext) fieldContext_NotificationsPayload_notifications(_ co
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _PurgePayload_version(ctx context.Context, field graphql.CollectedField, obj *PurgePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PurgePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PurgePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PurgePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PurgePayload_ids(ctx context.Context, field graphql.CollectedField, obj *PurgePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PurgePayload_ids(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Ids, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2ᚕgithubᚗcomᚋgoogleᚋuuidᚐUUIDᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PurgePayload_ids(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PurgePayload", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _PurgePayload_remaining(ctx context.Context, field graphql.CollectedField, obj *PurgePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PurgePayload_remaining(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Remaining, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PurgePayload_remaining(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PurgePayload", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _Query_viewer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -21027,6 +21417,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._SubscriptionPayload(ctx, sel, obj)
+	case PurgePayload:
+		return ec._PurgePayload(ctx, sel, &obj)
+	case *PurgePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._PurgePayload(ctx, sel, obj)
 	case NotificationsPayload:
 		return ec._NotificationsPayload(ctx, sel, &obj)
 	case *NotificationsPayload:
@@ -21496,6 +21893,11 @@ func (ec *executionContext) _Comment(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Comment_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "issue":
+			out.Values[i] = ec._Comment_issue(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -22070,6 +22472,16 @@ func (ec *executionContext) _Issue(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "archivedAt":
 			out.Values[i] = ec._Issue_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "deletedAt":
+			out.Values[i] = ec._Issue_deletedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "deletedBy":
+			out.Values[i] = ec._Issue_deletedBy(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -23116,6 +23528,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "purgeDeletedIssues":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_purgeDeletedIssues(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updateTeamEstimates":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateTeamEstimates(ctx, field)
@@ -23494,6 +23913,54 @@ func (ec *executionContext) _NotificationsPayload(ctx context.Context, sel ast.S
 			}
 		case "notifications":
 			out.Values[i] = ec._NotificationsPayload_notifications(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var purgePayloadImplementors = []string{"PurgePayload", "MutationResult"}
+
+func (ec *executionContext) _PurgePayload(ctx context.Context, sel ast.SelectionSet, obj *PurgePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, purgePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PurgePayload")
+		case "version":
+			out.Values[i] = ec._PurgePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ids":
+			out.Values[i] = ec._PurgePayload_ids(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "remaining":
+			out.Values[i] = ec._PurgePayload_remaining(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -26431,6 +26898,20 @@ func (ec *executionContext) marshalNNotificationsPayload2ᚖgithubᚗcomᚋpeixo
 		return graphql.Null
 	}
 	return ec._NotificationsPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPurgePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPurgePayload(ctx context.Context, sel ast.SelectionSet, v PurgePayload) graphql.Marshaler {
+	return ec._PurgePayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPurgePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPurgePayload(ctx context.Context, sel ast.SelectionSet, v *PurgePayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PurgePayload(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNRelationType2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRelationType(ctx context.Context, v any) (RelationType, error) {

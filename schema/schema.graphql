@@ -305,6 +305,18 @@ type Issue {
   completedAt: Time
   canceledAt: Time
   archivedAt: Time
+  """
+  When the issue was moved to the trash. Only ever set on a row `deletedIssues` returned:
+  every other read in the product filters deleted rows out, and the sync stream carries a
+  delete rather than the row, so a client holding an issue with this set is holding
+  something it should already have dropped.
+  """
+  deletedAt: Time
+  """
+  Who moved it there. Null for a deletion that predates the column, and for one performed
+  by the retention sweep rather than by a person.
+  """
+  deletedBy: UUID
   createdAt: Time!
   updatedAt: Time!
 
@@ -566,6 +578,16 @@ type Comment {
   resolvedBy: UUID
   createdAt: Time!
   updatedAt: Time!
+  """
+  The issue this comment is on.
+
+  Non-null, and it can be: a comment is only ever returned to somebody who can already read
+  its issue — every listing joins through it — so a resolvable comment with an unresolvable
+  issue is a broken invariant rather than a permission answer. It exists because a search
+  result is a comment with no way home: without this a client has to fetch the issue by id
+  to render "in ENG-142", which is a second round trip per hit.
+  """
+  issue: Issue!
 }
 
 """
@@ -641,6 +663,28 @@ type TeamMembershipPayload implements MutationResult {
 type DeletePayload implements MutationResult {
   version: Int!
   id: UUID!
+}
+
+"""
+What a purge destroyed.
+
+A list of ids rather than a single one, and no entities: after this response the rows named
+here do not exist in any table, so there is nothing left to return and nothing any client
+can do with the ids except confirm what it already dropped.
+"""
+type PurgePayload implements MutationResult {
+  version: Int!
+  """The issues that no longer exist. Empty when the trash was already empty."""
+  ids: [UUID!]!
+  """
+  How many rows were eligible and were left for the next call.
+
+  A purge is bounded per call so that emptying a large trash cannot mint tens of thousands
+  of sync versions inside one transaction and stall every other writer in the workspace
+  behind the version lock. Zero means the trash is now empty; anything else means call it
+  again.
+  """
+  remaining: Int!
 }
 
 type LabelPayload implements MutationResult {
@@ -921,6 +965,18 @@ input SearchInput {
   filter: JSON
   teamId: UUID
   first: Int
+  """
+  Widens the search to archived issues.
+
+  It does not survive a filter that says nothing about archiving. The grammar hides archived
+  and deleted issues unless a clause names them, that default is part of what a filter means,
+  and the client's evaluator applies the same one — so the two are combined and the stricter
+  wins. To search archived issues with a filter, say `archived` in the filter. Anything else
+  would make one filter mean two things depending on where it was used.
+
+  Deleted issues are never returned by search at all, whatever either says: the trash is its
+  own query, with its own window.
+  """
   includeArchived: Boolean
 }
 
@@ -1064,7 +1120,12 @@ type Mutation {
 
   createWorkflowState(input: CreateWorkflowStateInput!): WorkflowStatePayload!
   updateWorkflowState(input: UpdateWorkflowStateInput!): WorkflowStatePayload!
-  archiveWorkflowState(id: UUID!): DeletePayload!
+  """
+  Retires a status, or brings one back. `archived: false` is the way back; without it the
+  only way to undo a mistaken archive is to create a new status, which is a different row
+  that no filter or saved view already points at.
+  """
+  archiveWorkflowState(id: UUID!, archived: Boolean!): DeletePayload!
 
   updateProfile(input: UpdateProfileInput!): UserPayload!
   setUserRole(userId: UUID!, role: UserRole!): UserPayload!
@@ -1080,13 +1141,35 @@ type Mutation {
   """Restores a soft-deleted issue with its comments and relations, within the window."""
   restoreIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
 
+  """
+  Empties the trash. Admins only, and irreversible.
+
+  This is a hard DELETE, and the blast radius is everything hanging off each issue: its
+  comments, its labels, its relations from both ends and its whole activity feed all go with
+  it, by foreign-key cascade. Sub-issues are not deleted — `issue.parent_id` is
+  ON DELETE SET NULL — but they are orphaned, and nothing afterwards records which parent
+  they had. There is no restore, no trash behind the trash, and no version of the row left
+  anywhere but a database backup.
+
+  `before` purges only what was deleted before that instant, which is what makes an
+  unattended retention sweep expressible; omit it to empty the trash completely.
+  """
+  purgeDeletedIssues(before: Time): PurgePayload!
+
   updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
 
   # ---- labels
 
   createLabel(input: CreateLabelInput!, clientId: UUID, opId: UUID): LabelPayload! @idempotent
   updateLabel(input: UpdateLabelInput!, clientId: UUID, opId: UUID): LabelPayload! @idempotent
-  archiveLabel(id: UUID!): DeletePayload!
+  """
+  Retires a label, or brings one back.
+
+  Un-archiving is refused while the group the label sits in is still archived: the label
+  would reappear in the picker under a heading nothing can resolve, which is the same state
+  archiving a non-empty group is refused to prevent, reached from the other side.
+  """
+  archiveLabel(id: UUID!, archived: Boolean!): DeletePayload!
 
   """
   Adds one label. Not "set the labels": a whole-set write means two people adding
@@ -1122,7 +1205,8 @@ type Mutation {
 
   createIssueTemplate(input: CreateIssueTemplateInput!): IssueTemplatePayload!
   updateIssueTemplate(input: UpdateIssueTemplateInput!): IssueTemplatePayload!
-  archiveIssueTemplate(id: UUID!): DeletePayload!
+  """Retires a template, or brings one back."""
+  archiveIssueTemplate(id: UUID!, archived: Boolean!): DeletePayload!
 
   # ---- administration
 

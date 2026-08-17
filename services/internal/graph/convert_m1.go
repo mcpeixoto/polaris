@@ -529,17 +529,13 @@ func toBulkSkips(skips []domain.BulkSkip) []generated.BulkSkip {
 	return out
 }
 
-func toIssues(issues []model.Issue) ([]generated.Issue, error) {
-	out := make([]generated.Issue, 0, len(issues))
-	for _, i := range issues {
-		g, err := toIssue(i)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, g)
-	}
-	return out, nil
-}
+// There is deliberately no toIssues here, and there was one until it was deleted.
+//
+// It had no caller anywhere: every list of issues in the API goes through
+// Resolver.hydrateIssues, which converts and then fills in the relations the query asked
+// for. A bare converter beside it is an invitation to return issues with a null `state` and
+// a null `team` — both non-null in the schema — from whichever call site reaches for the
+// shorter name.
 
 // ------------------------------------------------------------------------------- estimates
 

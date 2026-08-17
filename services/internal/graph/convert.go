@@ -201,6 +201,8 @@ func toIssue(i model.Issue) (generated.Issue, error) {
 		CompletedAt: i.CompletedAt,
 		CanceledAt:  i.CanceledAt,
 		ArchivedAt:  i.ArchivedAt,
+		DeletedAt:   i.DeletedAt,
+		DeletedBy:   i.DeletedBy,
 		CreatedAt:   i.CreatedAt,
 		UpdatedAt:   i.UpdatedAt,
 	}, nil

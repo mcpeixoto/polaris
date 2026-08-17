@@ -57,6 +57,15 @@ WHERE id = $1 AND archived_at IS NULL
 RETURNING id, workspace_id, team_id, name, description, title, body, properties,
           position, created_by, archived_at, created_at, updated_at;
 
+-- UnarchiveIssueTemplate returns the row for the reason UnarchiveLabel does: the archive
+-- reached every client as a delete, so only a payload can put it back.
+--
+-- name: UnarchiveIssueTemplate :one
+UPDATE issue_template SET archived_at = NULL
+WHERE id = $1 AND archived_at IS NOT NULL
+RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+          position, created_by, archived_at, created_at, updated_at;
+
 -- name: GetIssueTemplatePositionAfter :one
 SELECT position FROM issue_template
 WHERE workspace_id = sqlc.arg(workspace_id)

@@ -167,16 +167,15 @@ type Querier interface {
 	// taken over issues that are still in flight rather than over relations.
 	//
 	CountBlockingIssues(ctx context.Context, relatedIssueID uuid.UUID) (int64, error)
-	// CountIssueSearchMatches is the total before the limit, so the UI can say "showing 25 of
-	// 400". Its predicate must stay identical to SearchIssues' — a count that disagrees with
-	// the list it labels is worse than no count at all.
-	//
-	CountIssueSearchMatches(ctx context.Context, arg CountIssueSearchMatchesParams) (int64, error)
 	// CountIssuesFromTemplate is the only reason issue.template_id exists.
 	//
 	CountIssuesFromTemplate(ctx context.Context, templateID *uuid.UUID) (int64, error)
 	CountIssuesInWorkflowState(ctx context.Context, stateID uuid.UUID) (int64, error)
 	CountIssuesInWorkspace(ctx context.Context, workspaceID uuid.UUID) (int64, error)
+	// CountIssuesToPurge is what is left after a batch, so the caller can say whether the trash
+	// is empty rather than leaving them to call again and find out.
+	//
+	CountIssuesToPurge(ctx context.Context, arg CountIssuesToPurgeParams) (int64, error)
 	// CountIssuesWithLabel answers "is this label worth keeping" before an archive, and is the
 	// number the confirmation dialog shows. Counted through the issue so an archived or
 	// deleted issue does not inflate it.
@@ -265,6 +264,13 @@ type Querier interface {
 	GetAPIKeyByTokenHash(ctx context.Context, tokenHash []byte) (GetAPIKeyByTokenHashRow, error)
 	GetAccount(ctx context.Context, id uuid.UUID) (Account, error)
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
+	// GetArchivedLabel reads a label the ordinary path treats as gone.
+	//
+	// Only the unarchive uses it. loadLabel refuses an archived row on purpose — it is absent
+	// from every picker, every listing and every replica — and widening that would put the row
+	// back in reach of the reads that are meant not to see it.
+	//
+	GetArchivedLabel(ctx context.Context, id uuid.UUID) (GetArchivedLabelRow, error)
 	GetComment(ctx context.Context, id uuid.UUID) (Comment, error)
 	GetDefaultWorkflowStateForTeam(ctx context.Context, teamID uuid.UUID) (WorkflowState, error)
 	GetFavoritePositionAfter(ctx context.Context, arg GetFavoritePositionAfterParams) (string, error)
@@ -482,6 +488,17 @@ type Querier interface {
 	// scope_key sorts workspace labels (the all-zero sentinel) ahead of every team's, so a
 	// single pass over this result renders the picker's sections in order.
 	ListLabelsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListLabelsInWorkspaceRow, error)
+	// ListLiveIssueRelationsForIssue is both directions at once, filtered exactly the way the
+	// bootstrap stream filters.
+	//
+	// It exists for the restore, which has to put back on the change stream what the delete's
+	// cascade took off every replica. "Exactly the way the bootstrap filters" is the whole
+	// requirement: a client that applied the delete and then the restore has to end up holding
+	// the same rows as one that bootstrapped afterwards, so this predicate and
+	// StreamIssueRelationsForBootstrap's must agree — a relation whose far end is archived or
+	// deleted is in neither, or the two replicas disagree about a chip nobody can open.
+	//
+	ListLiveIssueRelationsForIssue(ctx context.Context, issueID uuid.UUID) ([]IssueRelation, error)
 	ListMembershipsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]TeamMembership, error)
 	// ListMyIssues is everything assigned to the caller across every team they can see.
 	//
@@ -512,6 +529,17 @@ type Querier interface {
 	//
 	ListTeamIDsForUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]TeamMembership, error)
+	// ListTeamMembershipsForTeams is ListTeamMembers for a page of teams: what Team.members
+	// resolves from, for every team in one answer rather than one query per team.
+	//
+	// team_ids is the reader's own visible set and never the set of teams they asked about.
+	// The bootstrap ships exactly the memberships of the teams the reader belongs to, so a
+	// listing here that reached further would let the API answer a question the sync stream
+	// refuses — who is in a team you are not in — which is the leak the visibility predicate
+	// exists to prevent. Enforced in the statement rather than filtered afterwards in Go, like
+	// every other batched read, so the rows never leave the database in the first place.
+	//
+	ListTeamMembershipsForTeams(ctx context.Context, arg ListTeamMembershipsForTeamsParams) ([]TeamMembership, error)
 	ListTeamsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Team, error)
 	ListUsersInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]User, error)
 	ListViewPreferences(ctx context.Context, arg ListViewPreferencesParams) ([]ViewPreference, error)
@@ -524,6 +552,11 @@ type Querier interface {
 	ListWorkflowStatesForTeam(ctx context.Context, teamID uuid.UUID) ([]WorkflowState, error)
 	ListWorkflowStatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]WorkflowState, error)
 	ListWorkspacesForAccount(ctx context.Context, accountID *uuid.UUID) ([]ListWorkspacesForAccountRow, error)
+	// ListWorkspacesWithPurgeableIssues drives the retention sweep, which has no principal and
+	// therefore no workspace of its own. Distinct rather than a join over workspace, because
+	// the answer wanted is "where is there work to do", and most workspaces have none.
+	//
+	ListWorkspacesWithPurgeableIssues(ctx context.Context, deletedBefore *time.Time) ([]uuid.UUID, error)
 	MarkAccountLogin(ctx context.Context, id uuid.UUID) error
 	// One statement for the whole inbox, and one version block for the sync stream. Marking a
 	// thousand rows read one at a time would mint a thousand versions and hold the workspace's
@@ -553,6 +586,26 @@ type Querier interface {
 	//
 	OldestRetainedVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	PruneChangeLogBefore(ctx context.Context, before time.Time) (int64, error)
+	// PurgeDeletedIssues hard-deletes a bounded batch of trashed issues and is the only
+	// statement in the product that removes an issue row.
+	//
+	// Everything that references the issue goes with it, by foreign key: comment,
+	// issue_history, issue_label, issue_relation from both ends, issue_subscription and
+	// notification are all ON DELETE CASCADE. Sub-issues are the exception — issue.parent_id is
+	// ON DELETE SET NULL — so a child of a purged parent survives, orphaned, which is the same
+	// choice the client's own cascade makes for the same reason: a cross-team sub-issue belongs
+	// to a team that has lost nothing.
+	//
+	// One statement rather than a SELECT followed by a DELETE. The window between the two would
+	// be a window in which somebody restores an issue from the trash screen and has it hard
+	// deleted anyway — the one mistake this table has no way back from. FOR UPDATE inside the
+	// CTE is what makes the choice of victims and their removal the same instant.
+	//
+	// The limit is not a nicety. Every returned id becomes a change_log row inside the caller's
+	// transaction, and the version counter is a workspace-wide row lock, so an unbounded purge
+	// of a large trash would hold every other writer in the workspace behind it.
+	//
+	PurgeDeletedIssues(ctx context.Context, arg PurgeDeletedIssuesParams) ([]PurgeDeletedIssuesRow, error)
 	// ReadChangesSince is the sync hub's only read path, and the notification engine's. The
 	// predicate maps exactly onto change_log_workspace_version_idx, and the LIMIT is what makes
 	// the "gap too large -> resync" branch decidable: if the caller gets a full page it asks
@@ -609,6 +662,10 @@ type Querier interface {
 	// The window is a parameter rather than a literal: how long a delete stays undoable is a
 	// product decision, and burying "30 days" in a query means changing it is a migration.
 	//
+	// deleted_by is cleared alongside deleted_at. Leaving it set would make a live issue carry
+	// the name of somebody who deleted it once and was overruled, which is a fact the activity
+	// feed already holds and this column would then contradict on the next delete.
+	//
 	RestoreIssue(ctx context.Context, arg RestoreIssueParams) (Issue, error)
 	// Scoped by user_id as well as id: a key acts as its owner, so only its owner may retire
 	// it, and the rule is expressed where it cannot be skipped.
@@ -636,45 +693,6 @@ type Querier interface {
 	//
 	RevokePendingInvitesForEmail(ctx context.Context, arg RevokePendingInvitesForEmailParams) error
 	RevokeSession(ctx context.Context, id uuid.UUID) error
-	// Comments carry no team of their own, so visibility comes from the issue they hang off —
-	// which is also what stops a comment on an archived issue surfacing a thread the issue
-	// list has already hidden.
-	//
-	SearchComments(ctx context.Context, arg SearchCommentsParams) ([]Comment, error)
-	// Full-text search over issues and comments.
-	//
-	// `query` is a tsquery *expression*, not what the user typed. Building it — splitting into
-	// tokens, dropping the operators, and appending the `:*` on the final token that makes
-	// prefix search work — is the domain's job, because to_tsquery raises a syntax error on raw
-	// input like "a & " and a search box that 500s on a trailing space is worse than one that
-	// returns nothing.
-	//
-	// The FOLDING, though, is not the domain's job, and that is deliberate: search_fold wraps
-	// the query here so that lowercasing and unaccenting have exactly one definition, the same
-	// one the index was built with. Folding in Go instead would be a third implementation
-	// beside the SQL and the TypeScript, and the failure mode of the three disagreeing is that
-	// searching "acao" finds nothing while filtering title-contains-"acao" finds the issue.
-	// search_fold passes `&` and `:*` through untouched, so it can be applied to the whole
-	// expression rather than token by token.
-	//
-	// The dictionary is 'simple' here for the same reason it is 'simple'
-	// issue_search_vector: an English stemmer mangles exactly the domain terms a multilingual
-	// workspace searches for.
-	//
-	// The vector is a function call rather than a stored column, and every reference here must
-	// spell it identically to the expression the GIN index was built on or the planner will not
-	// use the index — a seq scan over the workspace, which is the difference between 8 ms and
-	// 800 ms. See migration 000017 for why it is a function at all.
-	//
-	// Ranking is ts_rank_cd then updated_at DESC. ts_rank_cd rewards proximity, which is what
-	// separates an issue whose title is the phrase from one that mentions both words nine
-	// paragraphs apart; recency breaks the ties, of which there are many because titles are
-	// short and the index weights them all 'A'.
-	//
-	// Visibility is two separate filters and they are not interchangeable. team_ids is the
-	// caller's visible set and is never optional. filter_team_id is the user narrowing their
-	// own search, and narrows within that set.
-	SearchIssues(ctx context.Context, arg SearchIssuesParams) ([]Issue, error)
 	SetAccountPassword(ctx context.Context, arg SetAccountPasswordParams) error
 	SetCommentResolution(ctx context.Context, arg SetCommentResolutionParams) (Comment, error)
 	SetDefaultWorkflowState(ctx context.Context, id uuid.UUID) error
@@ -689,7 +707,13 @@ type Querier interface {
 	//
 	SnoozeNotification(ctx context.Context, arg SnoozeNotificationParams) (Notification, error)
 	SoftDeleteComment(ctx context.Context, id uuid.UUID) error
-	SoftDeleteIssue(ctx context.Context, id uuid.UUID) error
+	// SoftDeleteIssue records who as well as when.
+	//
+	// deleted_by is nullable and a caller may pass nothing, which is what the retention sweep
+	// and any future automation want: a deletion nobody instructed has no person to name, and a
+	// guessed one would be worse than a blank on the trash screen.
+	//
+	SoftDeleteIssue(ctx context.Context, arg SoftDeleteIssueParams) error
 	SoftDeleteTeam(ctx context.Context, id uuid.UUID) error
 	// StreamCommentsForBootstrap ships the most recent comments only. Full history loads on
 	// demand when an issue is opened — see the bootstrap tiering table in
@@ -724,6 +748,29 @@ type Querier interface {
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error
 	UnarchiveIssue(ctx context.Context, id uuid.UUID) error
+	// UnarchiveIssueTemplate returns the row for the reason UnarchiveLabel does: the archive
+	// reached every client as a delete, so only a payload can put it back.
+	//
+	UnarchiveIssueTemplate(ctx context.Context, id uuid.UUID) (UnarchiveIssueTemplateRow, error)
+	// UnarchiveLabel is the way back, and it returns the row because putting a label back is an
+	// upsert on the sync stream — every client dropped it when the archive arrived as a delete,
+	// so the payload is the only thing that can restore it.
+	//
+	// label_scope_name_key is partial on archived_at IS NULL, so archiving a label frees its
+	// name and somebody may since have taken it. This statement lets the unique violation
+	// happen rather than checking first: the check would be a read the index re-does anyway,
+	// and between the two somebody can still take the name.
+	//
+	UnarchiveLabel(ctx context.Context, id uuid.UUID) (UnarchiveLabelRow, error)
+	// UnarchiveWorkflowState returns the row: the archive reached every client as a delete, so
+	// putting the status back is an upsert and needs the payload.
+	//
+	// workflow_state_team_name_key is partial on archived_at IS NULL, so the name this status
+	// held was released when it was archived and the team may have reused it. The violation is
+	// allowed to happen and translated above, rather than pre-checked — a check would be a read
+	// the index performs again a moment later, and it would still be racing.
+	//
+	UnarchiveWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowState, error)
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
 	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error

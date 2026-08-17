@@ -159,7 +159,7 @@ func (r *mutationResolver) CreateComment(ctx context.Context, input generated.Cr
 		return nil, PresentError(ctx, err)
 	}
 
-	out, err := toComment(comment)
+	out, err := r.hydrateComment(ctx, p, selectionFor(ctx, "CommentPayload").childOrNone("comment", "Comment"), comment)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -182,7 +182,7 @@ func (r *mutationResolver) UpdateComment(ctx context.Context, id uuid.UUID, body
 		return nil, PresentError(ctx, err)
 	}
 
-	out, err := toComment(comment)
+	out, err := r.hydrateComment(ctx, p, selectionFor(ctx, "CommentPayload").childOrNone("comment", "Comment"), comment)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -205,7 +205,7 @@ func (r *mutationResolver) ResolveComment(ctx context.Context, id uuid.UUID, res
 		return nil, PresentError(ctx, err)
 	}
 
-	out, err := toComment(comment)
+	out, err := r.hydrateComment(ctx, p, selectionFor(ctx, "CommentPayload").childOrNone("comment", "Comment"), comment)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -382,16 +382,19 @@ func (r *mutationResolver) UpdateWorkflowState(ctx context.Context, input genera
 }
 
 // ArchiveWorkflowState is the resolver for the archiveWorkflowState field.
-func (r *mutationResolver) ArchiveWorkflowState(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+func (r *mutationResolver) ArchiveWorkflowState(ctx context.Context, id uuid.UUID, archived bool) (*generated.DeletePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
 
-	version, err := r.Svc.ArchiveWorkflowState(ctx, p, id)
+	version, err := r.Svc.ArchiveWorkflowState(ctx, p, id, archived)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
+	// A delete payload in both directions, exactly as archiveIssue returns one: the row
+	// itself travels on the change stream, and handing the client a status it is about to
+	// receive anyway invites two sources of truth for the same column.
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
@@ -581,6 +584,30 @@ func (r *mutationResolver) RestoreIssue(ctx context.Context, id uuid.UUID, clien
 	return &generated.IssuePayload{Version: int(version), Issue: &out}, nil
 }
 
+// PurgeDeletedIssues is the resolver for the purgeDeletedIssues field.
+func (r *mutationResolver) PurgeDeletedIssues(ctx context.Context, before *time.Time) (*generated.PurgePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	// Deliberately not wrapped in idempotent(), unlike the other destructive issue
+	// mutations. An idempotency record replays the original answer, and replaying a purge's
+	// answer would report ids as destroyed by a call that destroyed nothing — while a purge
+	// genuinely re-run destroys whatever is in the trash now, which is a different set. The
+	// operation is safe to repeat for the opposite reason to the others: there is nothing
+	// left to destroy twice.
+	ids, remaining, version, err := r.Svc.PurgeDeletedIssues(ctx, p, before)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	// Non-null list on the wire: an empty trash answers `[]`, never null.
+	if ids == nil {
+		ids = []uuid.UUID{}
+	}
+	return &generated.PurgePayload{Version: int(version), Ids: ids, Remaining: remaining}, nil
+}
+
 // UpdateTeamEstimates is the resolver for the updateTeamEstimates field.
 func (r *mutationResolver) UpdateTeamEstimates(ctx context.Context, input generated.UpdateTeamEstimatesInput) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)
@@ -664,13 +691,13 @@ func (r *mutationResolver) UpdateLabel(ctx context.Context, input generated.Upda
 }
 
 // ArchiveLabel is the resolver for the archiveLabel field.
-func (r *mutationResolver) ArchiveLabel(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+func (r *mutationResolver) ArchiveLabel(ctx context.Context, id uuid.UUID, archived bool) (*generated.DeletePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
 
-	version, err := r.Svc.ArchiveLabel(ctx, p, id)
+	version, err := r.Svc.ArchiveLabel(ctx, p, id, archived)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -1025,17 +1052,17 @@ func (r *mutationResolver) UpdateIssueTemplate(ctx context.Context, input genera
 }
 
 // ArchiveIssueTemplate is the resolver for the archiveIssueTemplate field.
-func (r *mutationResolver) ArchiveIssueTemplate(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+func (r *mutationResolver) ArchiveIssueTemplate(ctx context.Context, id uuid.UUID, archived bool) (*generated.DeletePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
 
-	archived, version, err := r.Svc.ArchiveIssueTemplate(ctx, p, id)
+	templateID, version, err := r.Svc.ArchiveIssueTemplate(ctx, p, id, archived)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	return &generated.DeletePayload{Version: int(version), ID: archived}, nil
+	return &generated.DeletePayload{Version: int(version), ID: templateID}, nil
 }
 
 // InviteToWorkspace is the resolver for the inviteToWorkspace field.
@@ -1450,7 +1477,7 @@ func (r *queryResolver) Comments(ctx context.Context, issueID uuid.UUID) ([]gene
 		return nil, PresentError(ctx, err)
 	}
 
-	out, err := toComments(comments)
+	out, err := r.hydrateComments(ctx, p, selectionFor(ctx, "Comment"), comments)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -1665,7 +1692,7 @@ func (r *queryResolver) Search(ctx context.Context, input generated.SearchInput)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	comments, err := toComments(results.Comments)
+	comments, err := r.hydrateComments(ctx, p, selectionFor(ctx, "SearchResults").childOrNone("comments", "Comment"), results.Comments)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
