@@ -136,9 +136,56 @@ describe('fromWire', () => {
     expect(fromWire('issue', issue)).toEqual({ id: 'i1', title: 'A' });
   });
 
-  it('returns the same object when the entity has no enum fields', () => {
+  it('returns the same object when there is nothing to convert', () => {
     const label = { id: 'l1', name: 'Bug' } as never;
     expect(fromWire('label', label)).toBe(label);
+  });
+
+  /**
+   * The regression that made an issue disappear from the list it was created in.
+   *
+   * GraphQL spells absence `null`; the store spells it by not having the key, and
+   * `compileFilter` gates every list on `archivedAt === undefined`. A `null` written through
+   * therefore reads as archived — half the time, because the socket delta for the same row
+   * carries the stream's spelling and whichever landed second won.
+   */
+  it('drops a null field rather than storing it as a present value', () => {
+    const issue = {
+      id: 'i1',
+      title: 'A',
+      archivedAt: null,
+      parentId: null,
+      assigneeId: null,
+    } as never;
+    const converted = fromWire('issue', issue) as unknown as Record<string, unknown>;
+    expect('archivedAt' in converted).toBe(false);
+    expect('parentId' in converted).toBe(false);
+    expect('assigneeId' in converted).toBe(false);
+    expect(converted['title']).toBe('A');
+  });
+
+  it('drops a null inside an embedded object it understands', () => {
+    const comment = { id: 'c1', actor: { type: 'SYSTEM', id: null } } as never;
+    const actor = (fromWire('comment', comment) as unknown as Record<string, unknown>)['actor'];
+    expect(actor).toEqual({ type: 'system' });
+  });
+
+  /**
+   * `payload`, `filter` and `display` are `JSON` scalars in the schema: documents belonging
+   * to somebody else's shape, where a `null` may be a value rather than an absence.
+   */
+  it('leaves an opaque JSON scalar exactly as it arrived', () => {
+    const payload = { from: null, to: 'done' };
+    const notification = { id: 'n1', type: 'ISSUE_STATUS_CHANGED', payload } as never;
+    const converted = fromWire('notification', notification) as unknown as Record<string, unknown>;
+    expect(converted['type']).toBe('issue_status_changed');
+    expect(converted['payload']).toEqual({ from: null, to: 'done' });
+  });
+
+  it('does not mutate the object it was given when it strips a null', () => {
+    const issue = { id: 'i1', archivedAt: null };
+    fromWire('issue', issue as never);
+    expect(issue.archivedAt).toBeNull();
   });
 });
 
