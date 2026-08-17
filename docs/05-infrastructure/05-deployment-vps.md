@@ -274,8 +274,12 @@ S3_SECRET_KEY=
 # Search
 MEILI_MASTER_KEY=
 # Email
-SMTP_URL=                   # relay, e.g. smtp://AKIA...:...@email-smtp.eu-west-1.amazonaws.com:587
-MAIL_FROM=notifications@polaris.peixotolabs.com
+POLARIS_SMTP_HOST=          # relay, e.g. email-smtp.eu-west-1.amazonaws.com — empty disables email entirely
+POLARIS_SMTP_PORT=587
+POLARIS_SMTP_USERNAME=
+POLARIS_SMTP_PASSWORD=
+POLARIS_MAIL_FROM=notifications@polaris.peixotolabs.com
+POLARIS_MAIL_FROM_NAME=Polaris
 INBOUND_MAIL_SECRET=        # verifies the inbound-parse webhook
 # Integrations (per provider, added as they ship)
 GITHUB_APP_ID=

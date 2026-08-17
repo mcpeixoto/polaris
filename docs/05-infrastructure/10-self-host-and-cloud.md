@@ -93,7 +93,7 @@ Two interfaces already exist in the design; self-host makes them load-bearing.
 |---|---|---|---|
 | Files | `filesystem` (a volume) | `s3` (MinIO → R2 later) | `internal/files` |
 | Search | `postgres` (FTS + trigram) | `meilisearch` | `internal/search` |
-| Mail | `smtp` (BYO) or `log` | relay | `internal/mail` |
+| Mail | `smtp` (BYO) or none | relay | `internal/mailer` |
 | AI | BYO provider key | credits + managed keys | `internal/ai` |
 
 A default install must run in **~1.5 GB RAM** — Postgres, Valkey, three Go processes, nginx. That is what makes "I put it on a €5 box" true, and that story is most of your adoption.

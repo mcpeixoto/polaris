@@ -67,23 +67,50 @@ export class SetIndex<K> {
 }
 
 /**
- * Folds a string into its comparison form: diacritics stripped, case flattened,
- * whitespace collapsed.
+ * Folds a string the way the database does: diacritics stripped, case flattened, and
+ * nothing else.
  *
- * Search and title ordering both run on this rather than on the raw title, so that
- * typing `resume` finds "Résumé" and so that sorting can use `<` instead of an
- * `Intl.Collator`. The collator is the correct answer linguistically and the wrong one
- * here: a collator comparison costs roughly fifty times a string comparison, and sorting
- * five thousand titles is sixty thousand comparisons — the frame budget, spent on
- * ordering alone.
+ * This is `search_fold` from migration 000017 — `lower(unaccent(x))` — restated in
+ * TypeScript. It is restated rather than shared because there is no way to share it: one
+ * runs in Postgres and one runs in a browser. That makes it a contract between two
+ * languages with no compiler holding it together, which is why the whitespace cases in
+ * schema/filter-conformance.json exist, and why they record the server's answer rather
+ * than either implementation's.
+ *
+ * Use this wherever the client answers a question the server also answers — `contains` in
+ * a filter, the highlight ranges on a search result. Use `fold` below for the questions
+ * only the client asks.
+ *
+ * One honest caveat: Postgres strips diacritics by a rules file, and NFD-plus-combining-
+ * mark-strip is not byte-identical to it across all of Unicode. They agree on Latin, which
+ * is what `unaccent.rules` actually covers; a script where they disagree is one where
+ * Postgres was not folding either.
  */
-export function fold(text: string): string {
+export function foldExact(text: string): string {
   return text
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+    .toLowerCase();
+}
+
+/**
+ * Folds a string into its *display* comparison form: `foldExact`, and then whitespace
+ * collapsed and the ends trimmed.
+ *
+ * Title ordering and the local trigram index both run on this rather than on the raw
+ * title, so that sorting can use `<` instead of an `Intl.Collator`. The collator is the
+ * correct answer linguistically and the wrong one here: a collator comparison costs
+ * roughly fifty times a string comparison, and sorting five thousand titles is sixty
+ * thousand comparisons \u2014 the frame budget, spent on ordering alone.
+ *
+ * The collapse is right for both of those and wrong for anything the server also answers,
+ * because it rewrites the string: `"login  redirect"` and `"login redirect"` become one
+ * query here and stay two in SQL. `contains` used to fold with this and matched rows the
+ * API then declined to return \u2014 a filter that worked on screen and returned nothing from
+ * a digest. Reach for `foldExact` there.
+ */
+export function fold(text: string): string {
+  return foldExact(text).replace(/\s+/g, ' ').trim();
 }
 
 /** The trigram length. Three is the point where postings stay selective without the map exploding. */
