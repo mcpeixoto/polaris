@@ -239,6 +239,22 @@ func (s *Service) ListApiKeys(ctx context.Context, p *authz.Principal) ([]model.
 // revoked one, an expired one, and a key whose owner has been suspended or removed are all
 // "invalid API key": distinguishing them tells somebody probing with a stolen key whether
 // it is worth trying again on Monday.
+// IsAPIKeyToken reports whether a bearer token is a Polaris API key rather than a session
+// JWT.
+//
+// The HTTP layer has to know before it can choose an authenticator, and it must choose
+// rather than try both: running Tokens.Parse on a key and then falling through on failure
+// would answer "invalid or expired token" to a revoked key — which sends its holder to the
+// refresh flow for a credential that has no refresh flow — and would make every malformed
+// token cost a database read.
+//
+// A prefix rather than a length or a shape check, for the reason the prefix exists at all:
+// it is what makes a leaked key recognisable to a secret scanner, and reusing it here means
+// there is one answer to "is this a key" instead of two that can disagree.
+func IsAPIKeyToken(token string) bool {
+	return strings.HasPrefix(token, apiKeyTokenPrefix)
+}
+
 func (s *Service) AuthenticateApiKey(ctx context.Context, token string) (*authz.Principal, error) {
 	invalid := func() error { return platform.Unauthorized("invalid API key") }
 

@@ -107,6 +107,39 @@ func Authenticate(tokens *Tokens, svc *domain.Service) func(http.Handler) http.H
 				return
 			}
 
+			// An API key is a bearer token too, and it is the credential every integration,
+			// script and agent uses. Without this branch a `plk_` key reaches Tokens.Parse,
+			// fails to be a JWT, and is answered "invalid or expired token" — which sends its
+			// holder to a refresh flow that API keys do not have, to fix a key that was
+			// perfectly valid. The whole API-key feature authenticated nothing.
+			//
+			// Chosen by prefix rather than by trying both, because falling through from a
+			// failed Parse would give a revoked key that same misleading answer, and would put
+			// a database read behind every malformed token.
+			if domain.IsAPIKeyToken(token) {
+				principal, err := svc.AuthenticateApiKey(r.Context(), token)
+				if err != nil {
+					writeError(w, r, err)
+					return
+				}
+
+				// A key carries its own workspace, so the header is optional here — but when
+				// it is present and names a different one, that is refused rather than
+				// ignored. A caller who asked for workspace B and silently got answers about
+				// workspace A has been given the wrong data with no way to notice.
+				if ws := workspaceFromRequest(r); ws != uuid.Nil && ws != principal.WorkspaceID {
+					writeError(w, r, platform.Unauthorized("this API key does not belong to that workspace"))
+					return
+				}
+
+				ctx := WithAccount(r.Context(), principal.AccountID)
+				ctx = authz.WithPrincipal(ctx, principal)
+				ctx = platform.WithLogger(ctx, platform.Log(ctx).With(
+					"workspace", principal.WorkspaceID, "user", principal.UserID, "auth", "api_key"))
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			claims, err := tokens.Parse(token)
 			if err != nil {
 				// An expired token is the normal case, not an attack: the client
