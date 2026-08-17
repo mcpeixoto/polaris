@@ -10,4 +10,14 @@ allowBuilds:
   # with "Electron failed to install correctly", which reads like a corrupt install rather
   # than a blocked build script.
   electron: true
+  # Denied rather than left unanswered, because an unanswered entry fails `pnpm install`
+  # outright — and that failure then blocks every `pnpm run` in the workspace, which reads
+  # as a broken lockfile rather than a question waiting for an answer.
+  #
+  # It arrived with electron-builder 26, which depends on electron-builder-squirrel-windows
+  # unconditionally. Its postinstall downloads the Squirrel.Windows binaries. Polaris ships
+  # NSIS on Windows (see the `win` target in desktop/electron-builder.yml), so nothing here
+  # will ever invoke Squirrel, and running the script would spend a download per install on
+  # a code path with no caller.
+  electron-winstaller: false
   esbuild: true

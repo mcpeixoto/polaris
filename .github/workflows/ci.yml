@@ -176,6 +176,10 @@ jobs:
       # A `:?` guard in an opt-in compose service. Compose interpolates every service before
       # it picks profiles, so one of those broke `docker compose up` for everybody.
       - run: bash scripts/lint-compose.sh
+      # Desktop artefacts that ship two architectures under one name. electron-builder's
+      # default leaves the x64 build unlabelled, so the plain filename is the Intel one —
+      # and macOS 26 tells whoever downloads it that the app needs updating.
+      - run: bash scripts/lint-desktop.sh
 
   secrets:
     name: Secret scan
