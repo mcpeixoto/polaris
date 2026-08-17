@@ -70,10 +70,8 @@ services:
     env_file: [.env]
     environment:
       DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/polaris?sslmode=disable
-      VALKEY_URL: redis://cache:6379/0
     depends_on:
       postgres: { condition: service_healthy }
-      cache: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
     # frontend so the proxy can reach it; backend so it can reach the database. The
     # database is NOT on frontend — nothing the proxy can route to should be able to
@@ -95,7 +93,6 @@ services:
     env_file: [.env]
     environment:
       DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@postgres:5432/polaris?sslmode=disable
-      VALKEY_URL: redis://cache:6379/0
     depends_on:
       postgres: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
@@ -110,7 +107,6 @@ services:
     env_file: [.env]
     environment:
       DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@postgres:5432/polaris?sslmode=disable
-      VALKEY_URL: redis://cache:6379/0
     depends_on:
       postgres: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
@@ -155,8 +151,16 @@ services:
   # licence and is untenable as a dependency of an AGPL project — some organisations
   # refuse non-OSI dependencies outright. Valkey is the BSD-licensed fork and is
   # protocol-compatible.
+  # Not started by default, and nothing in this build talks to it.
+  #
+  # Behind a profile rather than deleted because it is where the rate limiter's counters go
+  # when there is more than one API process to share them between — see the comment at the
+  # top of internal/ratelimit, which explains why they are in memory today. Until then this
+  # is 256 MB reserved and a `depends_on: service_healthy` gate on a dependency nothing
+  # reads, on a product whose whole claim is that it runs on a small box.
   cache:
     <<: *defaults
+    profiles: ["cache"]
     image: valkey/valkey:8.0-alpine
     container_name: polaris_cache
     command: ["valkey-server", "--save", "3600", "1", "--appendonly", "no"]
@@ -173,6 +177,16 @@ services:
   # Object storage is optional. The default file driver writes to a volume, which is
   # simpler and adequate for a single-box install; enable this profile when you want
   # presigned direct uploads or plan to move to S3 later.
+  #
+  # The password below is `:-` and not `:?` deliberately. Compose interpolates the WHOLE
+  # file before it works out which profiles are active, so a `:?` on an opt-in service
+  # fires for everybody: `docker compose up` — with no profile, wanting none of this —
+  # failed with "set S3_SECRET_KEY in .env", and so did `ps`, `logs` and `config`. The
+  # default self-hosted install could not be started at all.
+  #
+  # Empty is still safe, and safe at the right moment: MinIO refuses to boot with a root
+  # password under eight characters, so enabling the profile without setting one fails
+  # loudly when the service starts, which is when it is somebody's problem.
   minio:
     <<: *defaults
     profiles: ["s3"]
@@ -181,7 +195,7 @@ services:
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY:-polaris}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env when using the s3 profile}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-}
     volumes:
       - polaris_minio:/data
     networks: [backend]
@@ -189,13 +203,18 @@ services:
 
   # Search defaults to Postgres full-text, which costs nothing extra. Enable this profile
   # when typo tolerance and ranking quality start mattering more than 512 MB of RAM.
+  #
+  # `:-` rather than `:?` for the same reason as minio above. Meilisearch in production mode
+  # refuses to start without a master key of its own accord, so the enforcement is still
+  # there — it just no longer breaks every compose command for people who never asked for a
+  # search engine.
   meilisearch:
     <<: *defaults
     profiles: ["search"]
     image: getmeili/meilisearch:v1.11
     container_name: polaris_search
     environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY in .env when using the search profile}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-}
       MEILI_ENV: production
     volumes:
       - polaris_meili:/meili_data
