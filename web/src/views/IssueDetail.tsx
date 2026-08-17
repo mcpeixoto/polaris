@@ -33,9 +33,13 @@ import {
   Textarea,
   Tooltip,
 } from '~/components';
+// Directly rather than through the barrel, as ApiKeys and MemberSettings do: the index
+// exports the primitives a screen composes with, and this is an assembled dialogue.
+import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
 import {
   archiveIssues,
+  deleteIssues,
   postComment,
   report,
   updateIssue,
@@ -45,6 +49,8 @@ import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/p
 import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
 import { Relations, SubIssues } from '~/features/issue/relations';
 import { browserTimezone } from '~/features/locale';
+import { restoreIssue } from '~/features/trash/mutations';
+import { offerUndo } from '~/features/undo/UndoToast';
 import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -149,8 +155,13 @@ export function IssueDetail() {
     pickAssignee: () => {},
     pickPriority: () => {},
     archive: () => {},
+    askDelete: () => {},
     submitComment: () => {},
   });
+
+  // Whether the confirmation is up. Held here rather than inside a component of its own so
+  // that the command-menu entry and the button open the same one.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useKeyContext('detail');
 
@@ -189,6 +200,22 @@ export function IssueDetail() {
         run: () => commands.current.archive(),
       },
       {
+        /**
+         * Deliberately unbound.
+         *
+         * Every other action on this screen is one letter away, which is right for things
+         * that can be undone by pressing the same letter again. This one takes the issue off
+         * everybody's screen, and a single keystroke for that — next to `s`, `a`, `p` and `e`
+         * — is a mis-hit away from an issue nobody can find. It is in the command menu, where
+         * reaching it takes a deliberate sentence, and behind a button that says what it does.
+         */
+        id: 'issueDetail.delete',
+        title: 'Delete issue',
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.askDelete(),
+      },
+      {
         id: 'issueDetail.comment',
         title: 'Post comment',
         keys: ['mod+Enter'],
@@ -224,6 +251,32 @@ export function IssueDetail() {
     // looking at a "no such issue" page they caused. The team's list is where they were.
     void navigate(`/team/${issue.teamKey}`);
   };
+  commands.current.askDelete = () => setConfirmingDelete(true);
+
+  /**
+   * Deletes the issue, and says how to get it back.
+   *
+   * The pairing is the one `deleteIssues` and `restoreIssue` are both written for and that
+   * nothing in the client had: `deleteIssues` had no call site at all, so an issue could not
+   * be deleted from the product, and the trash screen — with its thirty-day retention notice
+   * and its Restore button — was a recovery route for something nothing could do.
+   *
+   * The undo offer is raised here rather than inside the mutation because the label is the
+   * user's words for what just happened, and only this screen knows the identifier. Leaving
+   * this page first is the same reasoning as `archive`: the row has left the replica, so
+   * staying would show a "no such issue" page the user caused. The toast is mounted above the
+   * router precisely so it survives that navigation.
+   */
+  const confirmDelete = () => {
+    const { id, identifier, teamKey } = issue;
+    setConfirmingDelete(false);
+    deleteIssues(engine, [id]).catch(report);
+    offerUndo({
+      label: `Deleted ${identifier}`,
+      undo: () => restoreIssue(engine, id),
+    });
+    void navigate(`/team/${teamKey}`);
+  };
 
   return (
     <div className={styles.screen}>
@@ -238,7 +291,21 @@ export function IssueDetail() {
         <Tooltip label="Archive issue" keys="e">
           <Button onClick={() => commands.current.archive()}>Archive</Button>
         </Tooltip>
+        {/* Not `danger`: a delete here is recoverable for thirty days and offers an undo the
+            moment it happens, and painting it red would say the same thing as revoking a
+            credential. The confirmation is where the weight belongs. */}
+        <Button onClick={() => commands.current.askDelete()}>Delete</Button>
       </header>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title={`Delete ${issue.identifier}?`}
+        consequence={`${issue.identifier} leaves every list and board, for everybody. It keeps its comments and its links, and it can be restored from Trash for the next 30 days — after that it is gone for good.`}
+        confirmLabel={`Delete ${issue.identifier}`}
+        destructive
+        onConfirm={confirmDelete}
+        onClose={() => setConfirmingDelete(false)}
+      />
 
       <div className={styles.body}>
         <div className={styles.main}>
@@ -426,6 +493,7 @@ interface DetailCommands {
   pickAssignee(): void;
   pickPriority(): void;
   archive(): void;
+  askDelete(): void;
   submitComment(): void;
 }
 

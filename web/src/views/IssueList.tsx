@@ -477,11 +477,26 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   );
 
   if (scope.heading === null) {
+    /*
+     * Two sources can fail to resolve, and they are not the same miss.
+     *
+     * `scopeOf` returns a null heading both for a team key nothing matches and for a saved
+     * view this replica does not hold — and this said "No such team. Nothing in this
+     * workspace has the key ." for the second, with an empty key, because a view-sourced
+     * list has no `teamKey` in its route to interpolate. A link to a view in a team you are
+     * not in is a normal thing to be sent, and answering it with a sentence about a team,
+     * missing the noun, reads as a broken page rather than as a permission.
+     */
+    const missingView = source.kind === 'view';
     return (
       <div className={styles.screen}>
         <EmptyState
-          title="No such team"
-          description={`Nothing in this workspace has the key ${teamKey}.`}
+          title={missingView ? 'No such view' : 'No such team'}
+          description={
+            missingView
+              ? 'This view has been deleted, or it belongs to a team you are not in. Ask whoever sent you the link to add you to it.'
+              : `Nothing in this workspace has the key ${teamKey}.`
+          }
         />
       </div>
     );

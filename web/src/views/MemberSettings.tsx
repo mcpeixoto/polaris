@@ -544,12 +544,23 @@ function MemberRow({ member, isViewer, onRole, onSuspend, onRemove }: MemberRowP
             {member.protectedBy === null ? null : <Badge tone="warning">Last owner</Badge>}
           </span>
           <span className={styles.secondary}>
-            {/* Absent for everyone but the viewer and the admins — the API does not hand a
-                member the whole workspace's address book. */}
+            {/*
+              What is known about this person, and nothing that is merely absent.
+
+              The address is absent for everyone but the viewer and the admins — the API does
+              not hand a member the whole workspace's address book — and it is absent from the
+              replicated `user` payload altogether today, along with `lastSeenAt`: see
+              `toUser` in services/internal/domain/convert.go, which streams neither.
+
+              So the missing rung mattered. This read `email ?? (lastSeenAt === null ? 'Has
+              not signed in yet' : …)`, and with both fields unreplicated that second arm was
+              the only one anything ever reached — every row in the table said "Has not signed
+              in yet", including the viewer's own, badged "You", while they were reading it.
+              A `null` here means this replica has not been told, which is not the same fact
+              and is not one worth printing.
+            */}
             {member.email ??
-              (member.lastSeenAt === null
-                ? 'Has not signed in yet'
-                : `Last seen ${when(member.lastSeenAt)}`)}
+              (member.lastSeenAt === null ? null : `Last seen ${when(member.lastSeenAt)}`)}
           </span>
         </span>
       </th>

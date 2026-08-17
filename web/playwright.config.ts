@@ -3,12 +3,20 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * End-to-end configuration.
  *
- * These tests exist for the four M0 acceptance criteria that cannot be asserted anywhere
- * else, because they are about the browser itself: that a client which loses its
- * IndexedDB rebuilds an identical replica, that a schema bump drops the store without
- * asking, and that two real browser contexts see each other's writes. Everything provable
- * below the browser is already a Go or Vitest test, and is not repeated here — an e2e
- * suite that re-tests the domain layer is slow, flaky, and tells you less.
+ * These tests exist for the acceptance criteria that cannot be asserted anywhere else,
+ * because they are about the browser itself: that a client which loses its IndexedDB
+ * rebuilds an identical replica, that a schema bump drops the store without asking, that two
+ * real browser contexts see each other's writes, and that somebody following an invitation
+ * link on a browser that has never seen Polaris ends up inside the workspace. Everything
+ * provable below the browser is already a Go or Vitest test, and is not repeated here — an
+ * e2e suite that re-tests the domain layer is slow, flaky, and tells you less.
+ *
+ * **The API under test has to allow open registration.** Every test gets its own account, and
+ * `POLARIS_REGISTRATION_MODE` defaults to `invite`, under which exactly two people may
+ * register: somebody holding an invitation, and the very first account on an empty install.
+ * So start the server with `POLARIS_REGISTRATION_MODE=open`, as .github/workflows/ci.yml
+ * does. The fixture says so by name when the server refuses, rather than letting a 403 about
+ * invitations look like a product bug.
  */
 export default defineConfig({
   testDir: './e2e',

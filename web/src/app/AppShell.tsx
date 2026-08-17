@@ -361,12 +361,24 @@ function visibleViews(store: Store, userId: UUID): readonly View[] {
  * has at a moment when something has gone wrong, and a status that only exists visually
  * answers it for some people and not others — a screen-reader user has no way to discover
  * that their last three edits are sitting in a queue.
+ *
+ * It is a *named* live region, and the name is fixed. There are two `role="status"` regions
+ * in the shell — the undo toast is the other, mounted empty and permanently so that an
+ * announcement inserted into it is actually announced — so "the status region" identifies
+ * neither of them on its own. Naming it from its own text would not help: the text is the
+ * value, reading "Reconnecting" one moment and "Syncing 3" the next, so a name taken from it
+ * stops matching exactly when somebody wants to look at it. The label says which region this
+ * is; the contents say what it currently reports.
  */
 function ConnectionIndicator() {
   const status = useSyncStatus();
   // `polite`, not `assertive`: reconnecting is worth knowing and not worth interrupting
   // whatever the user is reading to say.
-  const live = { role: 'status' as const, 'aria-live': 'polite' as const };
+  const live = {
+    role: 'status' as const,
+    'aria-live': 'polite' as const,
+    'aria-label': 'Sync status',
+  };
 
   if (status.phase === 'bootstrapping') {
     return (
