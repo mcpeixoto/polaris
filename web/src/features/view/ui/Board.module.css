@@ -1,0 +1,250 @@
+/*
+ * The board is the one place in the product where cards are correct.
+ *
+ * The list's rule — no cards, no shadows, a hairline between rows — exists because a column
+ * of cards cannot be scanned. Here the card *is* the unit being dragged and dropped, and it
+ * has to look liftable: it carries its own border and its own background so that picking it
+ * up and putting it somewhere else is an operation the eye can follow. Everything else is
+ * still the list's vocabulary, at the list's density.
+ *
+ * Columns are fixed-width and the board scrolls sideways. Flexible columns would mean every
+ * column narrowing as a team adds a status, and the width at which a title stops being
+ * readable arrives long before anybody notices what caused it.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  /* min-height:0 rather than height:100%: this is a flex child of the shell's main pane, and
+     without it the columns below grow to their content and the whole pane scrolls instead. */
+  flex: 1;
+  min-height: 0;
+}
+
+.empty {
+  flex: 1;
+}
+
+/*
+ * Why the cards will not lift. It sits above the columns rather than inside one, because it
+ * is true of the whole board, and it is quiet enough not to be a warning: nothing is wrong,
+ * this grouping simply is not one a drop can express.
+ */
+.notice {
+  flex: none;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.board {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+  /* A flick that reaches the last column must not start scrolling the page behind it, which
+     on a trackpad is how you lose your place. */
+  overscroll-behavior-x: contain;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  /* Fixed: neither growing into the space a short board leaves nor shrinking as columns are
+     added. A board's columns are landmarks, and landmarks do not move. */
+  flex: 0 0 18rem;
+  min-height: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-secondary);
+}
+
+/* The column under the pointer during a drag. The whole column lights up rather than a gap
+   between two cards: a drop sets a property, so where in the column the card lands is not a
+   choice the drop is making, and drawing an insertion point would promise one. */
+.over {
+  border-color: var(--accent);
+  background-color: var(--accent-subtle);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  height: var(--control-height-md);
+  padding-inline: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scroller {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/*
+ * The column takes focus so a screen reader has somewhere to announce the active card from —
+ * the keys themselves are handled by the registry at the window. A ring around the whole
+ * column would say "you are here" about a region the user never left, so the cursor card's
+ * own mark carries it.
+ */
+.scroller:focus {
+  outline: none;
+}
+
+.blank {
+  margin: 0;
+  padding: var(--space-4) var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.sizer {
+  position: relative;
+  width: 100%;
+}
+
+/*
+ * Absolute, and positioned only by transform. The virtualiser owns the vertical position of
+ * every slot; anything else setting `top` here would fight it on every frame of a scroll.
+ */
+.slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding-bottom: var(--space-2);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+  user-select: none;
+}
+
+.card:hover {
+  background-color: var(--bg-hover);
+}
+
+/*
+ * Selection and the cursor are two different facts, drawn as two different marks — a wash
+ * says "this is in the set the toolbar acts on", the leading bar says "this is where the
+ * keyboard is". They occur together constantly, and one mark for both makes a shift-select
+ * impossible to follow.
+ */
+.selected,
+.selected:hover {
+  background-color: var(--bg-selected);
+}
+
+.active {
+  /* Inset rather than an outline: it must not change the card's size, and it has to sit
+     inside the border the card already has. */
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* The card being dragged stays in place and fades. Removing it would reflow the column the
+   pointer is dragging out of, which moves the drop targets under the cursor mid-gesture. */
+.dragging {
+  opacity: 0.4;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.identifier {
+  flex: none;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/*
+ * Unassigned keeps the avatar's footprint rather than collapsing, so the cards in a column
+ * all end at the same place. A column edge that jitters by twenty pixels every few cards
+ * reads as noise long before anybody works out what is causing it.
+ */
+.unassigned {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+/*
+ * Two lines and then an ellipsis. A card that grows to fit its title turns a column into a
+ * page of paragraphs, and the virtualiser's estimate — which is what keeps a five-thousand
+ * issue board smooth — only stays close if a card's height is bounded.
+ */
+.title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.estimate {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.due {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+/* Overdue is the one fact on a card that is worth interrupting a scan for, and it says so in
+   words as well — "Yesterday" is already the text; the colour only makes it findable. */
+.overdue {
+  color: var(--priority-urgent);
+}
