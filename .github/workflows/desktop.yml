@@ -61,6 +61,23 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # electron-builder takes the version from package.json and nowhere else. Without this
+      # the tag `v0.4.0` ships `Polaris-0.0.0.dmg` and a `latest-mac.yml` that says 0.0.0 —
+      # so every installed copy compares its own 0.0.0 against a published 0.0.0, finds no
+      # update, and the release reaches nobody who already had the app.
+      - name: Stamp the version from the tag
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        working-directory: desktop
+        run: |
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            pkg.version = process.argv[1].replace(/^v/, "");
+            fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+            console.log("packaging version", pkg.version);
+          ' "$GITHUB_REF_NAME"
+
       # The renderer is built ONCE and copied into every package, rather than each platform
       # building its own. Building it three times invites three different bundles from one
       # commit — and the desktop app being a build behind the web app is exactly the drift
@@ -74,9 +91,15 @@ jobs:
       # Icons are generated from one source rather than committed as three binaries that
       # can disagree. Pillow is the only thing this needs; see desktop/assets/make-icon.py
       # for why it is not an SVG rasterised at build time.
+      #
+      # The retry is for PEP 668: a distribution-managed Python refuses `pip install` into
+      # its own site-packages, and the runner image that grows that behaviour would otherwise
+      # break this step on a day nobody touched it.
       - name: Generate icons
+        shell: bash
         run: |
-          python3 -m pip install --quiet --disable-pip-version-check pillow
+          python3 -m pip install --quiet --disable-pip-version-check pillow \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages pillow
           python3 desktop/assets/make-icon.py
           python3 desktop/assets/make-tray.py
 
@@ -107,9 +130,32 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           # Windows: since June 2023 a code-signing key may not sit on disk, so this is
           # cloud signing against an HSM rather than a .pfx in a secret.
+          #
+          # These three are credentials, not configuration, and on their own they sign
+          # nothing: electron-builder only reaches for Azure Trusted Signing when
+          # `win.azureSignOptions` names an endpoint, an account and a certificate profile.
+          # Until that block exists in electron-builder.yml this step logs "no signing info
+          # identified, signing is skipped" and produces an unsigned installer under a step
+          # called "Package and sign". Verified by running the same build locally.
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      # The step that separates "it compiled" from "it is an application".
+      #
+      # An Electron shell fails in a way a build cannot see: the main process is ESM, half
+      # its dependencies are CommonJS, and when that interop breaks it breaks at link time —
+      # no window, no log, no non-zero exit, just a modal dialog on a machine with nobody in
+      # front of it. Everything else here would still be green. So this launches the artefact
+      # and asserts that React mounted something.
+      #
+      # Not on Linux: the runner cannot give Chromium a working sandbox without
+      # --no-sandbox, and a smoke test that disables the sandbox is asserting the wrong
+      # thing. macOS and Windows are the platforms the product ships anyway.
+      - name: Smoke-test the packaged app
+        if: ${{ matrix.name != 'Linux' }}
+        working-directory: desktop
+        run: node scripts/smoke.mjs
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4

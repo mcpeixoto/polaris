@@ -1,5 +1,8 @@
 {
   "name": "@polaris/desktop",
+  "productName": "Polaris",
+  "description": "Polaris — the issue tracker for people who live in it.",
+  "author": "Peixoto Labs",
   "private": true,
   "version": "0.0.0",
   "license": "AGPL-3.0-only",
@@ -10,8 +13,9 @@
     "build:electron": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json",
     "build": "npm run build:electron && electron-builder --publish never",
     "release": "npm run build:electron && electron-builder --publish always",
-    "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"desktop has no unit tests; it is covered by the Playwright electron suite\" && exit 0"
+    "smoke": "node scripts/smoke.mjs",
+    "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.preload.json --noEmit",
+    "test": "echo \"desktop has no unit tests; the smoke script drives the packaged app instead\" && exit 0"
   },
   "devDependencies": {
     "electron": "^33.2.1",
