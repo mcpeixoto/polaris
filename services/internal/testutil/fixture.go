@@ -54,16 +54,26 @@ func NewFixture(t *testing.T, db *store.DB) *Fixture {
 
 	err := db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		if _, err := q.CreateAccount(ctx, store.CreateAccountParams{
-			ID:    f.AccountID,
-			Email: fmt.Sprintf("dev+%s@example.com", f.AccountID.String()[:8]),
+			ID: f.AccountID,
+			// The whole id, not a prefix of it.
+			//
+			// It was the first eight characters, which in a UUIDv7 are the top 32 bits of a
+			// millisecond timestamp — so they only change about once a minute, and two
+			// fixtures built against the same database inside that window collided on
+			// account_email_lower_key. The failure is a unique-violation from a helper
+			// nobody suspects, in a test that is about something else entirely, and it goes
+			// away when you run the test on its own.
+			Email: fmt.Sprintf("dev+%s@example.com", f.AccountID),
 		}); err != nil {
 			return fmt.Errorf("account: %w", err)
 		}
 
 		if _, err := q.CreateWorkspace(ctx, store.CreateWorkspaceParams{
-			ID:       f.WorkspaceID,
-			Name:     "Acme",
-			UrlKey:   "acme-" + f.WorkspaceID.String()[:8],
+			ID:   f.WorkspaceID,
+			Name: "Acme",
+			// Whole id, for the same reason as the account email above: the first eight
+			// characters of a UUIDv7 are a timestamp that barely moves.
+			UrlKey:   "acme-" + f.WorkspaceID.String(),
 			Plan:     "free",
 			Settings: json.RawMessage(`{}`),
 		}); err != nil {
@@ -225,7 +235,7 @@ func (f *Fixture) NewUser(t *testing.T, displayName, role string, joinTeam bool)
 	err := f.DB.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		if _, err := q.CreateAccount(ctx, store.CreateAccountParams{
 			ID:    accountID,
-			Email: fmt.Sprintf("%s+%s@example.com", displayName, accountID.String()[:8]),
+			Email: fmt.Sprintf("%s+%s@example.com", displayName, accountID),
 		}); err != nil {
 			return err
 		}
