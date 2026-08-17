@@ -30,17 +30,63 @@ type RegisterInput struct {
 	Password  string
 	UserAgent string
 	IP        *netip.Addr
+
+	// InviteToken is the invitation this registration redeems, if any.
+	//
+	// It travels ON the register call rather than being exchanged first, and the account
+	// and the membership are created in ONE transaction. The alternative — register, then
+	// POST /auth/invites/accept — is two round trips that can half-fail, and the half is
+	// not hypothetical: the invited person ends up holding an account on a server that
+	// admits nobody, belonging to no workspace, with an invitation that may since have
+	// been revoked or expired. There is no screen for that state and no way out of it
+	// except an admin noticing. Here there is no such state to land in: either the account
+	// exists and is a member, or nothing happened.
+	InviteToken string
+
+	// DisplayName is the name the invited person takes in the workspace they are joining.
+	// Ignored when no invitation is being redeemed, because there is no workspace yet to
+	// have a name in.
+	DisplayName string
+
+	// AllowOpenSignup mirrors POLARIS_REGISTRATION_MODE=open.
+	//
+	// Passed in rather than read from config here, because domain.Service is constructed
+	// with a database and nothing else and this package has no opinion about environment
+	// variables. The direction of the flag matters more than its home: false means the
+	// closed server, so a caller that forgets to set it gets the safe behaviour rather
+	// than the open one.
+	AllowOpenSignup bool
 }
 
-// Register creates an account. It does NOT create a workspace: the caller decides
-// whether the new account is starting one or accepting an invitation to an existing one,
-// and conflating the two produces an orphan workspace for every invited user.
+// Register creates an account, and — when an invitation is redeemed — its workspace
+// membership, in one transaction.
+//
+// It does NOT create a workspace. The caller decides whether the new account is starting
+// one or accepting an invitation to an existing one, and conflating the two produces an
+// orphan workspace for every invited user.
+//
+// Who is admitted is decided by admitRegistration; see the comment there for the policy and
+// for why a refusal says what it says.
 func (s *Service) Register(ctx context.Context, in RegisterInput) (uuid.UUID, Session, error) {
 	email, err := normaliseEmail(in.Email)
 	if err != nil {
 		return uuid.Nil, Session{}, err
 	}
 	if err := validatePasswordStrength(in.Password); err != nil {
+		return uuid.Nil, Session{}, err
+	}
+
+	// Admission is checked BEFORE the password is hashed, and that ordering is the point.
+	// argon2id allocates 64 MiB per hash (see internal/auth/password.go, and the memory
+	// budget in docs/05-infrastructure/11-self-hosting.md, which names a burst of sign-ins
+	// as what OOM-kills the api process). Hashing first would let anybody who can reach the
+	// endpoint make the process allocate that much before finding out they were never
+	// allowed to register — on a server whose whole policy is that they are not. One
+	// indexed read is the cheaper way to say no.
+	//
+	// This call is an optimisation and not the authority: nothing it observes is held, so
+	// the transaction below asks again with the lock in hand.
+	if _, err := s.admitRegistration(ctx, s.db.Pool(), email, in, false); err != nil {
 		return uuid.Nil, Session{}, err
 	}
 
@@ -53,7 +99,24 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (uuid.UUID, Se
 		accountID uuid.UUID
 		session   Session
 	)
-	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+	// The transaction is opened here rather than through db.InTx because the first-account
+	// check needs the transaction itself and not just its query set — see claimFirstAccount.
+	// Everything else about it is InTx's contract: rollback on any error, and no half-made
+	// account without the membership that made it admissible.
+	err = func() error {
+		tx, err := s.db.Pool().Begin(ctx)
+		if err != nil {
+			return platform.Internal(err)
+		}
+		// Safe unconditionally: a rollback after a successful commit is a no-op.
+		defer func() { _ = tx.Rollback(ctx) }()
+		q := store.New(tx)
+
+		inv, err := s.admitRegistration(ctx, tx, email, in, true)
+		if err != nil {
+			return err
+		}
+
 		id, err := uuid.NewV7()
 		if err != nil {
 			return platform.Internal(err)
@@ -73,10 +136,172 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (uuid.UUID, Se
 		}
 		accountID = acct.ID
 
-		session, err = s.issueSession(ctx, q, acct.ID, in.UserAgent, in.IP)
-		return err
-	})
-	return accountID, session, err
+		if inv != nil {
+			// Same transaction as the account. An error here takes the account with it,
+			// which is the whole reason the token travels on this call.
+			if _, err := s.applyInvite(ctx, q, *inv, acct.ID, email, in.DisplayName); err != nil {
+				return err
+			}
+		}
+
+		if session, err = s.issueSession(ctx, q, acct.ID, in.UserAgent, in.IP); err != nil {
+			return err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return platform.Internal(err)
+		}
+		return nil
+	}()
+	if err != nil {
+		return uuid.Nil, Session{}, err
+	}
+	return accountID, session, nil
+}
+
+// --- who may register ------------------------------------------------------------
+//
+// POST /auth/register used to accept anybody who could reach it, which for a product people
+// run on their own boxes with the port exposed is an abuse report in week one. README states
+// the intended policy — "invite-only beta first, no open signup until per-workspace quotas
+// and abuse controls are proven" — and this is where it is enforced.
+//
+// Exactly two people may register on a default install:
+//
+//  1. Somebody holding a valid, pending, unexpired invitation. Naively closing registration
+//     would break invitations completely, because POST /auth/invites/accept is behind
+//     RequireAuth and reads the account from the request context — an invited person must
+//     already HAVE an account before they can accept anything. So the invitation is what
+//     buys the account, on the same call.
+//
+//  2. The very first account on an install that has none, so a self-hoster can bootstrap
+//     without hand-editing the database. There is no CLI for it: polarisctl has five
+//     commands and none of them makes an account.
+//
+// Plus POLARIS_REGISTRATION_MODE=open, off by default.
+
+// registrationClosed is what a caller who supplied no invitation is told.
+//
+// It reveals one thing — that this install already has an account — and it cannot avoid
+// revealing it, because on an install that does NOT have one the same request succeeds. That
+// is inherent to having a bootstrap rule at all, and it is why the self-hosting document
+// tells operators to create their account before the box is reachable.
+func registrationClosed() error {
+	return platform.Forbidden(
+		"this server is invite-only — ask an admin to send you an invitation link")
+}
+
+// invitationUnusable is what EVERY failed invitation is told, without exception.
+//
+// A token that never existed, one that was revoked, one that expired, one already accepted,
+// and one presented with the wrong email address all produce this exact string. The
+// alternative is an oracle: "no invitation for this address" and "that invitation expired"
+// each answer a question an attacker holding a leaked or guessed link would like answered.
+// This is the same reasoning RevokeInvite states for its NOT_FOUND being deliberately
+// indistinguishable across three causes.
+//
+// The refusal is distinct from registrationClosed above, and that is not a leak: the two are
+// told apart by whether the caller supplied a token, which the caller already knows. It buys
+// an actionable message — "the link is stale, and it has to be the address it was sent to" —
+// for nothing.
+func invitationUnusable() error {
+	return platform.Forbidden(
+		"this invitation cannot be used — ask for a new one, and sign up with the address it was sent to")
+}
+
+// bootstrapLockKey namespaces the advisory lock the first-account check runs under.
+//
+// An arbitrary constant; advisory locks share one 64-bit space per database, so the only
+// requirement is that nothing else in this schema picks the same number. testutil's template
+// lock is the other one in the tree, and it is taken against the maintenance database rather
+// than this one.
+const bootstrapLockKey int64 = 0x504f4c41524953 // "POLARIS"
+
+// admitRegistration decides whether this caller may create an account at all, and returns
+// the invitation being redeemed, or nil.
+//
+// Called twice per registration, against different handles. Once on the pool before the
+// password is hashed, where it is only an optimisation, and once inside the transaction —
+// with lock set — where it is the authority. Writing it once rather than twice is deliberate:
+// two checks that must agree, in two places, is how one of them ends up not being updated.
+func (s *Service) admitRegistration(
+	ctx context.Context, db store.DBTX, email string, in RegisterInput, lock bool,
+) (*store.Invite, error) {
+	q := store.New(db)
+
+	switch {
+	case in.InviteToken != "":
+		// Checked even when open signup is on. Somebody who followed an invitation link
+		// meant to join that workspace, and quietly handing them a bare account on a bad
+		// token strands them outside it with no error and no way to notice.
+		inv, err := resolveInvite(ctx, q, in.InviteToken, email)
+		if err != nil {
+			// Everything that is not a database failure becomes the one refusal. An internal
+			// error passes through unchanged, for the reason AuthenticateApiKey gives:
+			// answering "your invitation is bad" to a database outage sends whoever is
+			// holding the pager to the wrong system.
+			if platform.CodeOf(err) == platform.CodeInternal {
+				return nil, err
+			}
+			return nil, invitationUnusable()
+		}
+		return &inv, nil
+
+	case in.AllowOpenSignup:
+		return nil, nil
+
+	default:
+		return nil, claimFirstAccount(ctx, db, lock)
+	}
+}
+
+// claimFirstAccount admits the bootstrap registration on an install that has no accounts.
+//
+// # The race
+//
+// Two people hitting a brand-new instance at the same moment must not both become the first
+// account, and "unlikely to lose" is not the same as safe. A plain count-then-insert loses
+// this race by construction: at READ COMMITTED neither transaction can see the other's
+// uncommitted row, so both count zero and both commit. `INSERT ... WHERE NOT EXISTS` loses it
+// the same way, for the same reason — the subquery reads a snapshot taken before the other
+// insert existed.
+//
+// So the check runs under a transaction-scoped advisory lock. Every bootstrap attempt queues
+// on the same key; the winner's INSERT is committed, and therefore visible, before the lock
+// is released, so the next attempt reads a non-empty table and is refused. Transaction-scoped
+// rather than session-scoped because the release is then the commit or the rollback itself:
+// there is no unlock statement to be skipped by an early return, a panic or a dropped
+// connection, and a leaked lock here would wedge registration on the install permanently.
+//
+// The lock is taken only on this path. An invited registration and an open-signup one never
+// touch it, so the ordinary case pays nothing.
+//
+// # Deleted accounts
+//
+// The existence check counts EVERY account row, including soft-deleted ones — no
+// `deleted_at IS NULL`, unlike every other query against this table. An install whose only
+// account was deleted is not a fresh install: it is somebody's server with their data still
+// in it, and re-opening the front door because the owner deleted their own login would hand
+// the next stranger a workspace full of somebody else's issues. The door closes once and
+// stays closed.
+func claimFirstAccount(ctx context.Context, db store.DBTX, lock bool) error {
+	if lock {
+		if _, err := db.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, bootstrapLockKey); err != nil {
+			return platform.Internal(err)
+		}
+	}
+
+	// Raw SQL rather than a generated query, and it is the one place in this package that
+	// does that. The lock statement has no sqlc equivalent at all, and adding `CountAccounts`
+	// to internal/store/queries would not remove the need for it — see the note in the
+	// report accompanying this change.
+	var exists bool
+	if err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM account)`).Scan(&exists); err != nil {
+		return platform.Internal(err)
+	}
+	if exists {
+		return registrationClosed()
+	}
+	return nil
 }
 
 type LoginInput struct {
@@ -333,98 +558,136 @@ func (s *Service) InviteToWorkspace(ctx context.Context, p *authz.Principal, in 
 }
 
 // AcceptInvite turns an invitation into workspace membership for an existing account.
+//
+// This is the second workspace and onwards. The first one arrives through Register, which
+// redeems the invitation on the same call that creates the account — an invited person has
+// no account yet, and this endpoint is behind RequireAuth. Both paths share resolveInvite
+// and applyInvite so there is one definition of what redeeming an invitation does.
 func (s *Service) AcceptInvite(ctx context.Context, accountID uuid.UUID, token, displayName string) (model.User, uuid.UUID, error) {
-	hash := auth.HashToken(token)
-
 	var (
 		user        model.User
 		workspaceID uuid.UUID
 	)
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
-		inv, err := q.GetInviteByTokenHash(ctx, hash)
-		if err != nil {
-			if store.IsNotFound(err) {
-				return platform.Validation("token", "this invitation is no longer valid")
-			}
-			return platform.Internal(err)
-		}
-		workspaceID = inv.WorkspaceID
-
 		acct, err := q.GetAccount(ctx, accountID)
 		if err != nil {
 			return platform.Internal(err)
 		}
-		// The invitation is to a specific address. Letting any signed-in account redeem a
-		// leaked link would make a forwarded email a workspace entry point.
-		if !strings.EqualFold(acct.Email, inv.Email) {
-			return platform.Forbidden("this invitation was sent to a different email address")
-		}
 
-		// Already a member: accept idempotently rather than erroring, because the common
-		// cause is somebody clicking the link twice.
-		if existing, err := q.GetUserByAccountAndWorkspace(ctx, store.GetUserByAccountAndWorkspaceParams{
-			AccountID: &accountID, WorkspaceID: inv.WorkspaceID,
-		}); err == nil {
-			user = toUser(existing)
-			return q.AcceptInvite(ctx, store.AcceptInviteParams{ID: inv.ID, AcceptedBy: &existing.ID})
-		} else if !store.IsNotFound(err) {
-			return platform.Internal(err)
-		}
-
-		if displayName == "" {
-			displayName = strings.SplitN(acct.Email, "@", 2)[0]
-		}
-		userID, err := uuid.NewV7()
+		// The distinct messages resolveInvite produces are kept here, unlike on the register
+		// path which collapses them. This caller is already signed in and already holds the
+		// token, so "that was sent to a different address" tells them nothing they could not
+		// work out — and it is the one message that gets somebody who is signed in as the
+		// wrong account to the right remedy instead of asking for a new invitation.
+		inv, err := resolveInvite(ctx, q, token, acct.Email)
 		if err != nil {
-			return platform.Internal(err)
+			return err
 		}
-		row, err := q.CreateUser(ctx, store.CreateUserParams{
-			ID:          userID,
-			WorkspaceID: inv.WorkspaceID,
-			AccountID:   &accountID,
-			Name:        displayName,
-			DisplayName: displayName,
-			Timezone:    "UTC",
-			Role:        inv.Role,
-			Kind:        "human",
-		})
-		if err != nil {
-			return platform.Internal(err)
-		}
-		user = toUser(row)
+		workspaceID = inv.WorkspaceID
 
-		changes := []Change{{
-			EntityType: "user", EntityID: userID, Op: OpUpsert,
-			Scope: authz.WorkspaceScope(), Payload: user,
-		}}
-		for _, teamID := range inv.TeamIds {
-			team, err := q.GetTeam(ctx, teamID)
-			if err != nil {
-				// A team deleted between invitation and acceptance is not a reason to
-				// refuse the invitation.
-				if store.IsNotFound(err) {
-					continue
-				}
-				return platform.Internal(err)
-			}
-			m, err := s.addMember(ctx, q, inv.WorkspaceID, teamID, userID, "member")
-			if err != nil {
-				return err
-			}
-			changes = append(changes, Change{
-				EntityType: "teamMembership", EntityID: m.ID, Op: OpUpsert, TeamID: &teamID,
-				Scope: authz.TeamScope(teamID, team.Private), Payload: m,
-			})
-		}
-
-		if err := q.AcceptInvite(ctx, store.AcceptInviteParams{ID: inv.ID, AcceptedBy: &userID}); err != nil {
-			return platform.Internal(err)
-		}
-
-		_, err = s.em.Emit(ctx, q, inv.WorkspaceID, authz.UserActor(userID), changes...)
+		user, err = s.applyInvite(ctx, q, inv, accountID, acct.Email, displayName)
 		return err
 	})
 	return user, workspaceID, err
+}
+
+// resolveInvite finds the invitation a token names and checks it belongs to this address.
+//
+// Looked up BY hash rather than fetched and compared, for the reason AuthenticateApiKey
+// states in domain/apikeys.go: invite_token_hash_key makes this one indexed read and the
+// comparison happens inside the index over a full-entropy digest, so no candidate row ever
+// reaches Go and there is no byte-by-byte comparison whose duration could reveal how much of
+// a guessed token was right. Pending, unrevoked and unexpired are filtered by the query
+// itself, so no caller can forget one of the three.
+func resolveInvite(ctx context.Context, q *store.Queries, token, accountEmail string) (store.Invite, error) {
+	inv, err := q.GetInviteByTokenHash(ctx, auth.HashToken(token))
+	if err != nil {
+		if store.IsNotFound(err) {
+			return store.Invite{}, platform.Validation("token", "this invitation is no longer valid")
+		}
+		return store.Invite{}, platform.Internal(err)
+	}
+	// The invitation is to a specific address. Letting any account redeem a leaked link
+	// would make a forwarded email a workspace entry point.
+	if !strings.EqualFold(accountEmail, inv.Email) {
+		return store.Invite{}, platform.Forbidden("this invitation was sent to a different email address")
+	}
+	return inv, nil
+}
+
+// applyInvite creates the workspace membership an invitation grants, inside the caller's
+// transaction. It assumes resolveInvite has already vouched for the invitation.
+func (s *Service) applyInvite(
+	ctx context.Context, q *store.Queries, inv store.Invite,
+	accountID uuid.UUID, accountEmail, displayName string,
+) (model.User, error) {
+	// Already a member: accept idempotently rather than erroring, because the common
+	// cause is somebody clicking the link twice.
+	if existing, err := q.GetUserByAccountAndWorkspace(ctx, store.GetUserByAccountAndWorkspaceParams{
+		AccountID: &accountID, WorkspaceID: inv.WorkspaceID,
+	}); err == nil {
+		if err := q.AcceptInvite(ctx, store.AcceptInviteParams{ID: inv.ID, AcceptedBy: &existing.ID}); err != nil {
+			return model.User{}, platform.Internal(err)
+		}
+		return toUser(existing), nil
+	} else if !store.IsNotFound(err) {
+		return model.User{}, platform.Internal(err)
+	}
+
+	if displayName == "" {
+		displayName = strings.SplitN(accountEmail, "@", 2)[0]
+	}
+	userID, err := uuid.NewV7()
+	if err != nil {
+		return model.User{}, platform.Internal(err)
+	}
+	row, err := q.CreateUser(ctx, store.CreateUserParams{
+		ID:          userID,
+		WorkspaceID: inv.WorkspaceID,
+		AccountID:   &accountID,
+		Name:        displayName,
+		DisplayName: displayName,
+		Timezone:    "UTC",
+		Role:        inv.Role,
+		Kind:        "human",
+	})
+	if err != nil {
+		return model.User{}, platform.Internal(err)
+	}
+	user := toUser(row)
+
+	changes := []Change{{
+		EntityType: "user", EntityID: userID, Op: OpUpsert,
+		Scope: authz.WorkspaceScope(), Payload: user,
+	}}
+	for _, teamID := range inv.TeamIds {
+		team, err := q.GetTeam(ctx, teamID)
+		if err != nil {
+			// A team deleted between invitation and acceptance is not a reason to
+			// refuse the invitation.
+			if store.IsNotFound(err) {
+				continue
+			}
+			return model.User{}, platform.Internal(err)
+		}
+		m, err := s.addMember(ctx, q, inv.WorkspaceID, teamID, userID, "member")
+		if err != nil {
+			return model.User{}, err
+		}
+		changes = append(changes, Change{
+			EntityType: "teamMembership", EntityID: m.ID, Op: OpUpsert, TeamID: &teamID,
+			Scope: authz.TeamScope(teamID, team.Private), Payload: m,
+		})
+	}
+
+	if err := q.AcceptInvite(ctx, store.AcceptInviteParams{ID: inv.ID, AcceptedBy: &userID}); err != nil {
+		return model.User{}, platform.Internal(err)
+	}
+
+	if _, err := s.em.Emit(ctx, q, inv.WorkspaceID, authz.UserActor(userID), changes...); err != nil {
+		return model.User{}, err
+	}
+	return user, nil
 }
 
 // RevokeInvite and ListInvites live in admin.go, beside the other operations an admin

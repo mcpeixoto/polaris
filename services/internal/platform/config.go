@@ -37,6 +37,28 @@ type Config struct {
 	DatabaseURL string `envconfig:"DATABASE_URL" required:"true"`
 	ValkeyURL   string `envconfig:"VALKEY_URL" default:"redis://localhost:56379/0"`
 
+	// Who may create an account on this install. See RegistrationInvite below for the
+	// vocabulary and RegistrationOpenSignup for what each value means.
+	//
+	// A string rather than a bool because "open signup: false" says nothing about how the
+	// people who ARE allowed get in, and the answer — an invitation, or being the very first
+	// account — is the whole of the policy. An operator reading `POLARIS_REGISTRATION_MODE=invite`
+	// in their env file knows what their server does; one reading `POLARIS_OPEN_SIGNUP=false`
+	// has to come and read this file.
+	RegistrationMode string `envconfig:"POLARIS_REGISTRATION_MODE" default:"invite"`
+
+	// DefaultPlan is the entitlement plan a newly created workspace starts on.
+	//
+	// Self-hosted, because this repository is the self-hosted product and the cloud is the
+	// deployment that knows it is special. The cloud sets "free" here and moves workspaces
+	// with billing; a self-hoster should never meet a seat cap, which is what the README
+	// promises and what the comment on PlanSelfHosted in internal/entitlement insists on.
+	//
+	// It was hardcoded to "free" in the workspace create path, so every install — including
+	// every self-hosted one — was provisioning workspaces on a five-seat, two-team,
+	// ninety-day plan.
+	DefaultPlan string `envconfig:"POLARIS_DEFAULT_PLAN" default:"self_hosted"`
+
 	// Signing key for access tokens. Refresh tokens are opaque and stored, so rotating
 	// this invalidates access tokens only — sessions survive.
 	JWTSecret       string        `envconfig:"POLARIS_JWT_SECRET" required:"true"`
@@ -128,9 +150,36 @@ type Config struct {
 	RateLimitMaxCallers int `envconfig:"POLARIS_RATE_LIMIT_MAX_CALLERS" default:"100000"`
 }
 
+// Registration modes.
+//
+// Two, and the default is the closed one. README states the product's policy — "invite-only
+// beta first, no open signup until per-workspace quotas and abuse controls are proven" — and
+// a default that contradicted it would mean every self-hoster who never read this file is
+// running the configuration the project says is not ready.
+const (
+	// RegistrationInvite admits exactly two people: somebody holding a valid, pending,
+	// unexpired invitation, and the very first account on an install that has none. Nobody
+	// else, whatever they send.
+	RegistrationInvite = "invite"
+
+	// RegistrationOpen admits anybody who can reach the endpoint, rate-limited and nothing
+	// more. This is the escape hatch for an operator who genuinely wants a public server —
+	// a community instance, a demo — and who has read what that means. Invitations keep
+	// working; this only removes the requirement to hold one.
+	RegistrationOpen = "open"
+)
+
 // MailEnabled reports whether a relay is configured. A process with no mail must start
 // normally and say so once, rather than failing a job every hour.
 func (c Config) MailEnabled() bool { return strings.TrimSpace(c.SMTPHost) != "" }
+
+// OpenSignupAllowed reports whether anybody may create an account.
+//
+// Phrased as the permissive question so that the zero value of Config — and of anything
+// derived from it that forgot to copy this across — answers "no". A misconfiguration that
+// fails towards a closed server is a support ticket; one that fails towards an open server
+// is the abuse report this whole mechanism exists to prevent.
+func (c Config) OpenSignupAllowed() bool { return c.RegistrationMode == RegistrationOpen }
 
 // LoadConfig reads the environment. Call it once, at process start.
 func LoadConfig() (Config, error) {
@@ -141,6 +190,27 @@ func LoadConfig() (Config, error) {
 	if c.IsProduction() && len(c.JWTSecret) < 32 {
 		return Config{}, fmt.Errorf("POLARIS_JWT_SECRET must be at least 32 bytes in production")
 	}
+
+	// Normalised, then checked, then refused. Accepting "Open" as open is not laxness — it
+	// is a spelling, and an operator who capitalised it meant it. A value that is neither,
+	// though, must stop the process: silently falling back to the safe default would leave
+	// somebody who typed POLARIS_REGISTRATION_MODE=public certain they had opened their
+	// server, and the only evidence to the contrary is a refusal their users see and they
+	// do not.
+	c.RegistrationMode = strings.ToLower(strings.TrimSpace(c.RegistrationMode))
+	switch c.RegistrationMode {
+	case RegistrationInvite, RegistrationOpen:
+	default:
+		return Config{}, fmt.Errorf(
+			"POLARIS_REGISTRATION_MODE must be %q or %q, not %q",
+			RegistrationInvite, RegistrationOpen, c.RegistrationMode)
+	}
+	// Normalised here and checked in cmd/api, which is the only layer allowed to know what
+	// a plan is: internal/entitlement imports this package, so validating it here would be
+	// an import cycle. The composition root knows both and is where the process decides
+	// whether it is willing to start.
+	c.DefaultPlan = strings.ToLower(strings.TrimSpace(c.DefaultPlan))
+
 	return c, nil
 }
 

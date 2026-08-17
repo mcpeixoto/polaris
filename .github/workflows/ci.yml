@@ -114,6 +114,18 @@ jobs:
       POLARIS_SYNC_ADDR: 127.0.0.1:8089
       POLARIS_PUBLIC_URL: http://localhost:5173
       POLARIS_E2E_API: http://localhost:8088
+      # The suite creates an account per test, and the default — `invite` — admits exactly
+      # two people: somebody holding an invitation, and the very first account on an empty
+      # install. Without this the first test to run would take the founder slot and every
+      # other one would fail on `POST /auth/register` with a 403 about invitations, which
+      # reads like an application fault rather than a missing variable.
+      #
+      # The gate itself is not skipped by setting this. It is covered where it can be
+      # covered honestly: services/internal/httpapi/register_gate_test.go for the refusal,
+      # and web/e2e/invite.spec.ts for the way in, which is the same code path in either
+      # mode — an invitation is redeemed on the register call whether or not open signup is
+      # allowed.
+      POLARIS_REGISTRATION_MODE: open
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

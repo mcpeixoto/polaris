@@ -155,6 +155,8 @@ which is not true of every system.
 | `POLARIS_ENV` | `development` | **Set this to `production`.** Development mode enables GraphQL introspection and a playground handler, accepts `GET /graphql`, and — most importantly — issues session cookies *without* the `Secure` flag. Introspection hands an attacker a complete map of the API surface; the schema is published in the repository anyway, which serves integration authors better |
 | `POLARIS_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `POLARIS_PUBLIC_URL` | `http://localhost:5173` | The absolute URL users reach you on. Used to build links in digest emails, and its host is the allowlist the WebSocket handshake is checked against. Wrong value: every socket handshake is rejected and the app never goes live, while HTTP keeps working — a confusing failure worth checking first |
+| `POLARIS_REGISTRATION_MODE` | `invite` | Who may create an account: `invite` or `open`. Any other value and the process refuses to start. `invite` admits somebody holding a valid invitation, plus the very first account on an empty install; `open` admits anybody. See *Create the first account* |
+| `POLARIS_DEFAULT_PLAN` | `self_hosted` | The entitlement plan a new workspace starts on: `free`, `pro`, `enterprise` or `self_hosted`. Any other value and the process refuses to start. `self_hosted` is unlimited on seats, teams and history; the other three exist for a hosted deployment where the plan comes from billing. You almost certainly want the default |
 | `POLARIS_ALLOWED_ORIGINS` | empty | Extra cross-origin callers, comma separated. **Empty is correct for almost every install**: the web client is served from the same origin and needs no CORS at all, and the packaged desktop app's own scheme is allowed unconditionally. Every entry here is echoed back with `Access-Control-Allow-Credentials`, so anything you list can act as your users with their own cookies. It is a list of origins you control |
 | `POLARIS_API_ADDR` | `:8088` | Bind address for `api` |
 | `POLARIS_SYNC_ADDR` | `:8089` | Bind address for `sync` |
@@ -278,46 +280,106 @@ migrations, then services is the order that produces readable logs.
 
 ### 4. Create the first account
 
-Registration is a plain endpoint:
+**Registration is invite-only by default, and the first account is how you get in.**
+`POST /auth/register` admits exactly two people on a default install:
+
+1. Somebody holding a valid, pending, unexpired invitation.
+2. The **very first** account, on an install whose `account` table is empty.
+
+That second rule is yours to use, once:
 
 ```bash
 curl -X POST https://polaris.example.invalid/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"email":"you@example.invalid","password":"..."}'
+  -d '{"email":"you@example.invalid","password":"a passphrase, at least 10 characters"}'
 ```
 
 or just use the sign-up form. Then create a workspace, which any authenticated account may
-do.
+do. From that moment the endpoint refuses everybody who does not hold an invitation:
 
-**Read this before you point DNS at the box.** There is no invite-only mode, no email
-verification and no setup wizard in this build. `POST /auth/register` accepts anybody who can
-reach it, rate-limited and nothing more, and any account that exists can create its own
-workspace on your install. The `email_verified_at` column exists and nothing sets it.
+```json
+{"error":{"code":"FORBIDDEN","message":"this server is invite-only — ask an admin to send you an invitation link"}}
+```
 
-If your Polaris is reachable from the internet, the registration endpoint is too. Until an
-allowlist exists in the product, put one in front of it — restrict `POST /auth/register` at
-the reverse proxy to your office range or a VPN, or run the whole thing behind an
-authenticating proxy and open it up once your colleagues have accounts. This is the single
-most important line in this document.
+**Do this before you point DNS at the box.** The window between starting the API and
+creating your account is the one moment a stranger could take the install, because on an
+empty database their registration is as valid as yours. It is a small window and it is under
+your control: bring the stack up, register, and only then publish the hostname. If the box
+was already reachable, check that the account you are signed in as is the one you made —
+`SELECT email, created_at FROM account ORDER BY created_at` is the whole audit.
 
-### 5. Set the workspace plan
+Two people racing that window cannot both win: the check runs under a transaction-scoped
+advisory lock, so the second attempt reads a table that already has a row in it and is
+refused. And **deleting the first account does not reopen the door** — the check counts every
+account row including soft-deleted ones, because an install whose owner deleted their own
+login is not a fresh install, it is your server with your issues still in it.
 
-The `workspace.plan` column defaults to `'free'`, and the free row in the entitlement matrix
-reports a limit of five seats and two teams. Nothing enforces those limits today — the
-functions that would (`CanAddSeat`, `CanAddTeam`) are written but not called — so a sixth
-person can still join. What you get instead is a UI and an API that report a seat limit that
-does not apply to you, which is confusing rather than harmful, and which will become harmful
-the day enforcement is wired up.
+### Inviting everybody else
 
-Set it correctly once, per workspace:
+An admin invites from the members screen, which mints a link containing a single-use token.
+The invited person follows it and registers in one step: the token travels **on** the
+registration call, so they do not need an account first, and the account and the workspace
+membership are created in the same transaction. There is no state where somebody has one and
+not the other.
+
+Every refused invitation says the same thing, whatever was wrong with it:
+
+```json
+{"error":{"code":"FORBIDDEN","message":"this invitation cannot be used — ask for a new one, and sign up with the address it was sent to"}}
+```
+
+A token that never existed, one that was revoked, one that expired after its 14 days, one
+already accepted, and one presented with a different email address are deliberately
+indistinguishable. If you are supporting somebody who sees it, the useful questions are "is
+the link the most recent one" and "are you signing up with the exact address it was sent to";
+the server will not tell you which of the two it was, on purpose.
+
+Invitations do not require a mail relay. With `POLARIS_SMTP_HOST` empty the admin copies the
+link out of the members screen and sends it however they like.
+
+### If you want an open server anyway
+
+```
+POLARIS_REGISTRATION_MODE=open
+```
+
+Anybody who can reach the endpoint gets an account, rate-limited and nothing more, and any
+account can create its own workspace on your install. This is a real supported setting for a
+community or demo instance, and it is off by default because it is the configuration `README`
+says is not ready: there are no per-workspace quotas and no abuse controls behind it yet. If
+you set it on a box the internet can reach, put an allowlist in front of `POST /auth/register`
+at the reverse proxy, or accept that you are running a public signup form.
+
+### What is still not here
+
+**There is no email verification.** The `email_verified_at` column exists and nothing ever
+sets it. Invite-only registration makes this much less interesting than it was — the address
+was chosen by an admin, and the invitation only redeems for that address — but on an install
+running `open` mode, an address in the account table is a string somebody typed and nothing
+more.
+
+There is no setup wizard, and no CLI that creates an account: `polarisctl` has five commands
+and none of them is this. The first-account rule is deliberately the only way in.
+
+### 5. Check the workspace plan
+
+Nothing to do, unless you changed `POLARIS_DEFAULT_PLAN`. A workspace created by this build
+starts on `self_hosted`: unlimited seats, unlimited teams, unlimited history. That is what
+the README means by "self-host free and unlimited on seats", and it is the default precisely
+so that nobody has to find this section.
+
+It reports `false` for SSO and the audit log, correctly — that code is excluded from the
+community build by a `//go:build ee` tag, so it is absent from the binary rather than present
+and disabled.
+
+If you are reading this because a workspace of yours says it has a five-seat limit, it was
+created by an earlier build. Until recently the create path wrote `'free'` — a hosted-tier
+plan — for everybody, including self-hosted installs. Nothing enforced those caps, so the
+effect was a settings screen quoting a limit that did not apply; the fix is one statement:
 
 ```sql
 UPDATE workspace SET plan = 'self_hosted' WHERE url_key = 'your-workspace';
 ```
-
-`self_hosted` is unlimited on seats, teams and history. It reports `false` for SSO and the
-audit log, correctly: that code is excluded from the community build by a `//go:build ee`
-tag, so it is absent from the binary rather than present and disabled.
 
 ### 6. Check it came up
 
@@ -694,7 +756,9 @@ exist:
 - **A job queue.** The worker is a set of interval loops in one process. There is no queue to
   monitor and no queued work to lose on restart.
 - **Metrics, tracing, `polarisctl backup`, `polarisctl doctor`, `polarisctl reindex`, a setup
-  wizard, an `/admin/system` diagnostics page, email verification, invite-only signup.**
+  wizard, an `/admin/system` diagnostics page, email verification.**
+
+Invite-only signup *is* here, and is the default — see *Create the first account* above.
 
 `polarisctl` has exactly five commands: `migrate up|down|status`, `partitions ensure`,
 `prune change-log`, `seed`, and `help`. `polarisctl help` lists them, and it is the honest

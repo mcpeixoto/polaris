@@ -49,13 +49,31 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
     setBusy(true);
     setError(null);
     try {
-      if (!signedIn) {
-        const credentials: [string, string] = [email.trim(), password];
-        if (mode === 'register') await auth.register(...credentials);
-        else await auth.login(...credentials);
+      const name = displayName.trim() === '' ? undefined : displayName.trim();
+
+      // Registering redeems the invitation; it does not merely precede it.
+      //
+      // `POST /auth/register` takes the token and creates the account AND the membership in
+      // one transaction, which is the only arrangement with no half-state to land in: the
+      // two-call version left a refused registration holding a token, or an account on a
+      // server that admits nobody, belonging to no workspace, with an invitation that may
+      // since have expired — and there is no screen for that.
+      //
+      // So this branch must NOT call `acceptInvite` afterwards. The membership is already
+      // there and the token is already spent, so the second call can only fail, and it would
+      // fail with "this invitation cannot be used" on a join that had in fact just worked.
+      if (!signedIn && mode === 'register') {
+        await auth.register(email.trim(), password, { inviteToken: token, displayName: name });
+        onAccepted();
+        return;
       }
-      const name = displayName.trim();
-      await auth.acceptInvite(token, name === '' ? undefined : name);
+
+      // The other two paths still accept explicitly. Somebody who already has an account —
+      // whether they were signed in when they followed the link, or have just signed in on
+      // this form — is joining a second workspace, and there is no registration to fold the
+      // membership into.
+      if (!signedIn) await auth.login(email.trim(), password);
+      await auth.acceptInvite(token, name);
       onAccepted();
     } catch (failure) {
       setBusy(false);

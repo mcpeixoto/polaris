@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/peixotolabs/polaris/services/internal/domain"
+	"github.com/peixotolabs/polaris/services/internal/entitlement"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 )
 
@@ -45,7 +46,11 @@ func NewRouter(d Deps) http.Handler {
 		// Secure cookies everywhere except plain-HTTP local development, where the
 		// browser would silently drop them and sign-in would appear to do nothing.
 		secure: !d.Config.IsDevelopment(),
-		limits: d.Limits,
+		// Asked as the permissive question, so that anything other than an explicit
+		// POLARIS_REGISTRATION_MODE=open leaves the server invite-only.
+		openSignup:  d.Config.OpenSignupAllowed(),
+		defaultPlan: entitlement.Plan(d.Config.DefaultPlan),
+		limits:      d.Limits,
 	}
 
 	// --- health -----------------------------------------------------------------
@@ -80,6 +85,11 @@ func NewRouter(d Deps) http.Handler {
 	// per-address budget. register and login additionally charge a much tighter per-account
 	// budget from inside the handler, where the address being attacked is known — see
 	// Limits.LoginAttempt.
+	//
+	// register is reachable without a token but is not open: on a default install it admits
+	// only somebody holding a valid invitation, or the very first account on an install that
+	// has none. See the admission notes in internal/domain/account.go. The limiter still runs
+	// first, so being refused costs the same budget as being let in.
 	mux.Handle("POST /auth/register", d.Limits.Anonymous(http.HandlerFunc(auth.register)))
 	mux.Handle("POST /auth/login", d.Limits.Anonymous(http.HandlerFunc(auth.login)))
 	mux.Handle("POST /auth/refresh", d.Limits.Anonymous(http.HandlerFunc(auth.refresh)))

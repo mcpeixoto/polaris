@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,6 +22,7 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 
 	"github.com/peixotolabs/polaris/services/internal/domain"
+	"github.com/peixotolabs/polaris/services/internal/entitlement"
 	"github.com/peixotolabs/polaris/services/internal/graph"
 	"github.com/peixotolabs/polaris/services/internal/graph/generated"
 	"github.com/peixotolabs/polaris/services/internal/httpapi"
@@ -44,6 +46,16 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	// Checked here rather than in platform, which cannot import entitlement without a
+	// cycle, and rather than at the first signup, which on a fresh install is the worst
+	// moment to discover a typo. A process that refuses to start is a much louder signal
+	// than one that provisions everybody onto a plan the operator did not choose.
+	if !entitlement.Plan(cfg.DefaultPlan).Valid() {
+		return fmt.Errorf("POLARIS_DEFAULT_PLAN must be one of %v, not %q",
+			entitlement.AllPlans, cfg.DefaultPlan)
+	}
+
 	log := platform.NewLogger(cfg).With("service", "api", "revision", revision)
 	ctx := platform.WithLogger(context.Background(), log)
 

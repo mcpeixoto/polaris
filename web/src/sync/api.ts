@@ -132,15 +132,44 @@ async function parseError(res: Response): Promise<ApiError> {
   return new ApiError(code, message, field);
 }
 
+/** What a registration may carry besides the credentials. */
+export interface RegisterOptions {
+  /**
+   * The invitation this registration redeems.
+   *
+   * On a default install it is what admits the caller at all: `POLARIS_REGISTRATION_MODE`
+   * is `invite`, and registration without a token is refused for everybody except the very
+   * first account on an empty server.
+   *
+   * It travels ON the register call rather than being exchanged first, and the server
+   * creates the account and the workspace membership in one transaction. That is why the
+   * caller must NOT follow this with `acceptInvite`: the membership already exists, and the
+   * token has been spent.
+   */
+  readonly inviteToken?: string | undefined;
+  /** The name the invited person takes in the workspace. Ignored without an invitation. */
+  readonly displayName?: string | undefined;
+}
+
 /** Auth endpoints. These are the only calls that work without an access token. */
 export const auth = {
-  async register(email: string, password: string) {
+  async register(email: string, password: string, opts: RegisterOptions = {}) {
     return post<{
       accessToken: string;
       expiresIn: number;
       accountId: string;
       workspaces: Workspace[];
-    }>('/auth/register', { email, password }).then((body) => {
+    }>('/auth/register', {
+      email,
+      password,
+      // Spread rather than passed as `inviteToken: opts.inviteToken`: the handler decodes
+      // with DisallowUnknownFields, and while `JSON.stringify` does drop an `undefined`
+      // value, writing the keys unconditionally is one refactor away from sending `null` —
+      // which is a present field of the wrong type and a 400 on the one call somebody makes
+      // once, from an email link, with no obvious way to retry.
+      ...(opts.inviteToken === undefined ? null : { inviteToken: opts.inviteToken }),
+      ...(opts.displayName === undefined ? null : { displayName: opts.displayName }),
+    }).then((body) => {
       storeSession(body);
       return body;
     });
