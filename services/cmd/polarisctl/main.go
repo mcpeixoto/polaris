@@ -38,6 +38,8 @@ func run(args []string) error {
 		return partitionsCmd(args[1:])
 	case "prune":
 		return pruneCmd(args[1:])
+	case "health":
+		return healthCmd(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -56,6 +58,7 @@ func usage() {
   partitions ensure          create change_log partitions for the coming months
   prune change-log           delete change rows past the retention window
   seed --scale small|large   generate a realistic workspace
+  health [--addr host:port]  exit 0 if that process is serving; for HEALTHCHECK
 
 Flags:
   --database URL   defaults to $DATABASE_URL

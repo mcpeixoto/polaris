@@ -53,7 +53,13 @@ services:
     networks: [frontend]
     mem_limit: 64m
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      # 127.0.0.1, not localhost. In this image /etc/hosts maps `localhost` to ::1 ONLY,
+      # and nginx here is `listen 8080;` — IPv4. So wget resolved to IPv6, got connection
+      # refused, and the container reported unhealthy forever while serving every request
+      # correctly. A healthcheck that is permanently red is worse than none: it is the one
+      # signal `depends_on: service_healthy` and every dashboard reads, and once it is
+      # known-wrong everybody learns to ignore the colour.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -79,7 +85,15 @@ services:
     networks: [frontend, backend]
     mem_limit: 512m
     healthcheck:
-      test: ["CMD", "/usr/local/bin/polarisctl", "help"]
+      # An actual request to the API, not `polarisctl help`.
+      #
+      # The images are distroless — no shell, no curl, no wget — so a HEALTHCHECK can only
+      # run a binary this repository ships, and `help` was the one that needed no
+      # arguments. It proves the filesystem is intact and the binary links. It does not
+      # prove the API is serving: one that had never bound its port, or was answering 500
+      # to everything, reported healthy — and `depends_on: {condition: service_healthy}`
+      # believes that answer, as does every dashboard on the host.
+      test: ["CMD", "/usr/local/bin/polarisctl", "health", "--addr", "127.0.0.1:8088"]
       interval: 30s
       timeout: 5s
       retries: 3
