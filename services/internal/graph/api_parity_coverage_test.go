@@ -149,7 +149,6 @@ func TestAPIParity_TheVerbListDoesNotSilentlySkipWrites(t *testing.T) {
 	// by hand. Every one of these is exposed today; none is checked by the parity test.
 	known := map[string]bool{
 		"BulkUpdateIssues":         true,
-		"RestoreIssue":             true,
 		"MarkNotificationRead":     true,
 		"MarkAllNotificationsRead": true,
 		"SnoozeNotification":       true,

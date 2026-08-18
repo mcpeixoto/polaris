@@ -35,6 +35,15 @@ const (
 	labelDesOnly  = "'00000000-0000-7000-8000-0000000000d3'"
 
 	userAda = "'00000000-0000-7000-8000-000000000091'"
+
+	projStatusPlanned = "'00000000-0000-7000-8000-0000000000e0'"
+	projStatusStarted = "'00000000-0000-7000-8000-0000000000e1'"
+	projID            = "'00000000-0000-7000-8000-0000000000e2'"
+	projID2           = "'00000000-0000-7000-8000-0000000000e6'"
+	projTeamID        = "'00000000-0000-7000-8000-0000000000e3'"
+	milestoneID       = "'00000000-0000-7000-8000-0000000000e4'"
+	milestoneOther    = "'00000000-0000-7000-8000-0000000000e7'"
+	projMemberID      = "'00000000-0000-7000-8000-0000000000e5'"
 )
 
 // fixture is the smallest workspace that can exercise cross-team and grouped-label rules:
@@ -410,6 +419,118 @@ func TestSearchFoldingIsConsistent(t *testing.T) {
 		name: "search_fold is immutable, which is what lets it be indexed",
 		sql: `SELECT 1/count(*) FROM pg_proc
 		      WHERE proname = 'search_fold' AND provolatile = 'i'`,
+	}})
+}
+
+// Projects: one per issue, membership as rows, a milestone implying its project, dates
+// rather than instants, and a status that no amount of issue completion will move.
+func TestProjectSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "an issue carries at most one project as a column, not a join table",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'issue' AND column_name = 'project_id'`,
+	}, {
+		name: "there is no issue_project set table — two projects on one issue is unrepresentable",
+		sql: `SELECT 1 / CASE WHEN EXISTS (
+		        SELECT 1 FROM information_schema.tables
+		        WHERE table_schema = 'public' AND table_name IN ('issue_project', 'issue_projects')
+		      ) THEN 0 ELSE 1 END`,
+	}, {
+		name: "start and target dates are calendar days, not instants",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'project'
+		        AND column_name = 'start_date' AND data_type = 'date'`,
+	}, {
+		name: "a deleted project is a row with deleted_at, so it can come back for 30 days",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'project' AND column_name = 'deleted_at'`,
+	}, {
+		name: "a project status belongs to a known category",
+		sql: `INSERT INTO project_status (id, workspace_id, name, color, category, position)
+		      VALUES ('00000000-0000-7000-8000-0000000000ef', ` + ws + `, 'Maybe', '#888', 'in_progress', 'z0')`,
+		wantErr: "project_status_category_check",
+	}, {
+		name: "seed a planned status the rest of these cases hang off",
+		sql: `INSERT INTO project_status (id, workspace_id, name, color, category, position, is_default)
+		      VALUES (` + projStatusPlanned + `, ` + ws + `, 'Planned', '#5e6ad2', 'planned', 'a0', true)`,
+	}, {
+		name: "and a started status, so a later case can prove completing issues does not promote it",
+		sql: `INSERT INTO project_status (id, workspace_id, name, color, category, position)
+		      VALUES (` + projStatusStarted + `, ` + ws + `, 'In Progress', '#f2c94c', 'started', 'a1')`,
+	}, {
+		name: "a project needs a name",
+		sql: `INSERT INTO project (id, workspace_id, name, status_id, sort_order)
+		      VALUES ('00000000-0000-7000-8000-0000000000ee', ` + ws + `, '  ', ` + projStatusPlanned + `, 'a0')`,
+		wantErr: "project_name_not_blank",
+	}, {
+		name: "a timeframe without a day is not a timeframe",
+		sql: `INSERT INTO project (id, workspace_id, name, status_id, sort_order, start_date_granularity)
+		      VALUES ('00000000-0000-7000-8000-0000000000ed', ` + ws + `, 'Q3', ` + projStatusPlanned + `, 'a0', 'quarter')`,
+		wantErr: "project_start_granularity_check",
+	}, {
+		name: "seed the project",
+		sql: `INSERT INTO project (id, workspace_id, name, status_id, sort_order)
+		      VALUES (` + projID + `, ` + ws + `, 'Ship search', ` + projStatusPlanned + `, 'a0')`,
+	}, {
+		name: "adding a team is a row, so two people adding different teams both survive",
+		sql: `INSERT INTO project_team (id, workspace_id, project_id, team_id)
+		      VALUES (` + projTeamID + `, ` + ws + `, ` + projID + `, ` + engID + `)`,
+	}, {
+		name: "the same team twice is the same membership, not a second row",
+		sql: `INSERT INTO project_team (id, workspace_id, project_id, team_id)
+		      VALUES ('00000000-0000-7000-8000-0000000000ec', ` + ws + `, ` + projID + `, ` + engID + `)`,
+		wantErr: "project_team_key",
+	}, {
+		name: "a second team is a second row",
+		sql: `INSERT INTO project_team (id, workspace_id, project_id, team_id)
+		      VALUES ('00000000-0000-7000-8000-0000000000eb', ` + ws + `, ` + projID + `, ` + desID + `)`,
+	}, {
+		name: "a member is a row too",
+		sql: `INSERT INTO project_member (id, workspace_id, project_id, user_id)
+		      VALUES (` + projMemberID + `, ` + ws + `, ` + projID + `, ` + userAda + `)`,
+	}, {
+		name: "the same member twice is refused",
+		sql: `INSERT INTO project_member (id, workspace_id, project_id, user_id)
+		      VALUES ('00000000-0000-7000-8000-0000000000ea', ` + ws + `, ` + projID + `, ` + userAda + `)`,
+		wantErr: "project_member_key",
+	}, {
+		name: "a milestone belongs to a project",
+		sql: `INSERT INTO project_milestone (id, workspace_id, project_id, name, sort_order)
+		      VALUES (` + milestoneID + `, ` + ws + `, ` + projID + `, 'Beta', 'a0')`,
+	}, {
+		name: "seed a second project so a milestone cannot be borrowed",
+		sql: `INSERT INTO project (id, workspace_id, name, status_id, sort_order)
+		      VALUES (` + projID2 + `, ` + ws + `, 'Other', ` + projStatusPlanned + `, 'a1')`,
+	}, {
+		name: "and a milestone on it",
+		sql: `INSERT INTO project_milestone (id, workspace_id, project_id, name, sort_order)
+		      VALUES (` + milestoneOther + `, ` + ws + `, ` + projID2 + `, 'Theirs', 'a0')`,
+	}, {
+		name: "an issue may sit in the project",
+		sql: `UPDATE issue SET project_id = ` + projID + ` WHERE id = ` + engIssue,
+	}, {
+		name: "a milestone without its project is refused",
+		sql: `UPDATE issue SET project_id = NULL, project_milestone_id = ` + milestoneID +
+			` WHERE id = ` + engIssue,
+		wantErr: "a milestone requires a project",
+	}, {
+		name: "a milestone from another project is refused",
+		sql: `UPDATE issue SET project_id = ` + projID + `, project_milestone_id = ` + milestoneOther +
+			` WHERE id = ` + engIssue,
+		wantErr: "does not belong to project",
+	}, {
+		name: "the matching milestone is accepted",
+		sql: `UPDATE issue SET project_id = ` + projID + `, project_milestone_id = ` + milestoneID +
+			` WHERE id = ` + engIssue,
+	}, {
+		name: "completing the issue",
+		sql:  `UPDATE issue SET completed_at = now() WHERE id = ` + engIssue,
+	}, {
+		// Completing every issue must not promote the project. Status is always manual.
+		name: "leaves the project in Planned — status is never derived from issues",
+		sql: `SELECT 1/count(*) FROM project
+		      WHERE id = ` + projID + ` AND status_id = ` + projStatusPlanned,
 	}})
 }
 

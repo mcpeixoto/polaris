@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useState, type ReactNode } from 'react';
-import { NavLink, useNavigate } from 'react-router';
+import { NavLink, useLocation, useNavigate } from 'react-router';
 
 import { toFilterParam } from '~/filter';
 import { useViewerId } from '~/hooks/useViewer';
@@ -33,13 +33,24 @@ export interface AppShellProps {
    * happen to walk the graph.
    */
   renderCreateIssue?: (props: { onClose: () => void }) => ReactNode;
+  /**
+   * Same split as create-issue: the action is global (command menu from any screen) and
+   * the modal lives with the rest of the project UI. `C` stays create-issue.
+   */
+  renderCreateProject?: (props: { onClose: () => void }) => ReactNode;
 }
 
-export function AppShell({ children, renderCreateIssue }: AppShellProps) {
+export function AppShell({ children, renderCreateIssue, renderCreateProject }: AppShellProps) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [commandOpen, setCommandOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const onProjects =
+    pathname === '/projects' ||
+    pathname.startsWith('/project/') ||
+    /\/team\/[^/]+\/projects(?:\/|$)/.test(pathname);
 
   const teams = useQuery(
     (store) => [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key)),
@@ -63,6 +74,7 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
     setCommandOpen(false);
     setHelpOpen(false);
     setCreateOpen(false);
+    setCreateProjectOpen(false);
   }, []);
 
   useActions(
@@ -99,6 +111,12 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
         run: () => setCreateOpen(true),
       },
       {
+        id: 'project.create',
+        title: 'Create project',
+        group: 'Projects',
+        run: () => setCreateProjectOpen(true),
+      },
+      {
         id: 'nav.myIssues',
         title: 'Go to My Issues',
         keys: ['g m'],
@@ -129,6 +147,13 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
         keys: ['/'],
         group: 'Navigation',
         run: () => navigate('/search'),
+      },
+      {
+        id: 'nav.projects',
+        title: 'Go to Projects',
+        keys: ['g p'],
+        group: 'Navigation',
+        run: () => navigate('/projects'),
       },
       {
         id: 'nav.trash',
@@ -163,6 +188,10 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
           <NavLink to="/search" className={navClass}>
             <NavGlyph name="search" />
             <span className={styles.navLabel}>Search</span>
+          </NavLink>
+          <NavLink to="/projects" className={() => navClass({ isActive: onProjects })}>
+            <NavGlyph name="project" />
+            <span className={styles.navLabel}>Projects</span>
           </NavLink>
         </div>
 
@@ -238,6 +267,7 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
       <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
       <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
       {createOpen && renderCreateIssue?.({ onClose: () => setCreateOpen(false) })}
+      {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
     </div>
   );
 }
@@ -253,6 +283,7 @@ type NavGlyphName =
   | 'issues'
   | 'inbox'
   | 'search'
+  | 'project'
   | 'view'
   | 'members'
   | 'labels'
@@ -299,13 +330,20 @@ function glyphPath(name: NavGlyphName) {
           <path d="M2.5 8.5h2.6l.8 1.8h4.2l.8-1.8h2.6V12a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 2.5 12V8.5Z" {...stroke} />
         </>
       );
-    case 'search':
-      return (
-        <>
-          <circle cx="7" cy="7" r="3.75" {...stroke} />
-          <path d="m10.2 10.2 3 3" {...stroke} />
-        </>
-      );
+      case 'search':
+        return (
+          <>
+            <circle cx="7" cy="7" r="3.75" {...stroke} />
+            <path d="m10.2 10.2 3 3" {...stroke} />
+          </>
+        );
+      case 'project':
+        return (
+          <>
+            <path d="M8 2.5 13.5 6v4L8 13.5 2.5 10V6L8 2.5Z" {...stroke} />
+            <path d="M8 8v5.5M2.5 6 8 8l5.5-2" {...stroke} />
+          </>
+        );
     case 'view':
       return (
         <>

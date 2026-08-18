@@ -196,6 +196,8 @@ func toIssue(i model.Issue) (generated.Issue, error) {
 		ParentID:          i.ParentID,
 		SubIssueSortOrder: i.SubIssueSortOrder,
 		TemplateID:        i.TemplateID,
+		ProjectID:         i.ProjectID,
+		ProjectMilestoneID: i.ProjectMilestoneID,
 
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,

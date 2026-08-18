@@ -50,6 +50,8 @@ const MIRRORED: Readonly<Record<string, string>> = {
   SubscriptionReason: 'SubscriptionReason',
   NotificationType: 'NotificationType',
   FavoriteKind: 'FavoriteKind',
+  ProjectStatusCategory: 'ProjectStatusCategory',
+  TimeframeGranularity: 'TimeframeGranularity',
 };
 
 describe('the enum spellings on the two sides of the API', () => {

@@ -158,6 +158,35 @@ func NewFixture(t *testing.T, db *store.DB) *Fixture {
 				return fmt.Errorf("state %s: %w", s.name, err)
 			}
 		}
+
+		// The same five project statuses CreateWorkspace seeds, so a fixture can create a
+		// project without inventing a status the rest of the workspace has never seen.
+		projectStatuses := []struct {
+			name      string
+			category  string
+			position  string
+			color     string
+			isDefault bool
+		}{
+			{"Backlog", "backlog", "a0", "#bec2c8", true},
+			{"Planned", "planned", "a1", "#e2e2e2", false},
+			{"In Progress", "started", "a2", "#f2c94c", false},
+			{"Completed", "completed", "a3", "#5e6ad2", false},
+			{"Canceled", "canceled", "a4", "#95a2b3", false},
+		}
+		for _, s := range projectStatuses {
+			if _, err := q.CreateProjectStatus(ctx, store.CreateProjectStatusParams{
+				ID:          uuid.Must(uuid.NewV7()),
+				WorkspaceID: f.WorkspaceID,
+				Name:        s.name,
+				Color:       &s.color,
+				Category:    s.category,
+				Position:    s.position,
+				IsDefault:   s.isDefault,
+			}); err != nil {
+				return fmt.Errorf("project status %s: %w", s.name, err)
+			}
+		}
 		return nil
 	})
 	if err != nil {

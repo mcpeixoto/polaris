@@ -80,6 +80,11 @@ type CreateIssueInput struct {
 	// already choose any content it likes — and the alternative costs a reconciliation
 	// path that only runs in the case hardest to test.
 	ID *uuid.UUID
+
+	// ProjectID places the issue in a project. An issue belongs to at most one.
+	ProjectID *uuid.UUID
+	// ProjectMilestoneID requires the issue to also be in that milestone's project.
+	ProjectMilestoneID *uuid.UUID
 }
 
 // issueIDFor returns the id a new issue should take, honouring a client's choice.
@@ -209,6 +214,8 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			ParentID:          in.ParentID,
 			SubIssueSortOrder: siblingOrder,
 			TemplateID:        in.TemplateID,
+			ProjectID:         in.ProjectID,
+			ProjectMilestoneID: in.ProjectMilestoneID,
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -363,6 +370,11 @@ type UpdateIssueInput struct {
 	// other. Sending both in one call is legitimate — dragging a sub-issue up a checklist
 	// while it also moves in the backlog — and each is applied to its own column.
 	AfterSiblingID *uuid.UUID
+
+	ProjectID      *uuid.UUID
+	ClearProject   bool
+	ProjectMilestoneID *uuid.UUID
+	ClearMilestone bool
 }
 
 // UpdateIssue applies a partial update, derives the category timestamps, and records both
@@ -398,6 +410,12 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 	}
 	if in.ParentID != nil && in.ClearParent {
 		return model.Issue{}, 0, platform.Validation("parentId", "cannot set and clear the parent in one call")
+	}
+	if in.ProjectID != nil && in.ClearProject {
+		return model.Issue{}, 0, platform.Validation("projectId", "cannot set and clear the project in one call")
+	}
+	if in.ProjectMilestoneID != nil && in.ClearMilestone {
+		return model.Issue{}, 0, platform.Validation("projectMilestoneId", "cannot set and clear the milestone in one call")
 	}
 	if in.AfterSiblingID != nil && in.ClearParent {
 		// A place among siblings the issue is about to stop having. Refusing says which of
@@ -646,6 +664,10 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			ParentID:          in.ParentID,
 			ClearParent:       in.ClearParent,
 			SubIssueSortOrder: siblingOrder,
+			ProjectID:         in.ProjectID,
+			ClearProject:      in.ClearProject,
+			ProjectMilestoneID: in.ProjectMilestoneID,
+			ClearMilestone:    in.ClearMilestone,
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -1133,11 +1155,16 @@ func (s *Service) resolveParent(
 // issue onto one of its own descendants needs to be told that, not handed a uuid. Every
 // other failure of these statements is a bug on this side and stays internal.
 func mapParentTriggerError(err error) error {
-	if store.IsRaisedException(err) {
-		return platform.Validation("parentId",
-			"that issue is below this one already, so it cannot also be its parent")
+	if !store.IsRaisedException(err) {
+		return platform.Internal(err)
 	}
-	return platform.Internal(err)
+	msg := err.Error()
+	if strings.Contains(msg, "milestone requires a project") || strings.Contains(msg, "does not belong to project") {
+		return platform.Validation("projectMilestoneId",
+			"a milestone has to belong to the issue's project")
+	}
+	return platform.Validation("parentId",
+		"that issue is below this one already, so it cannot also be its parent")
 }
 
 // The three comparisons below exist so the activity feed records a change only when there

@@ -32,37 +32,47 @@ SET state_id     = COALESCE($1, state_id),
                         ELSE COALESCE($6, estimate) END,
     due_date     = CASE WHEN $7::boolean THEN NULL
                         ELSE COALESCE($8, due_date) END,
-    started_at   = CASE WHEN $9::boolean
-                        THEN COALESCE(started_at, $10) ELSE started_at END,
-    completed_at = CASE WHEN $9::boolean THEN $11 ELSE completed_at END,
-    canceled_at  = CASE WHEN $9::boolean THEN $12  ELSE canceled_at  END
-WHERE id = ANY($13::uuid[])
-  AND workspace_id = $14
-  AND team_id = ANY($15::uuid[])
+    project_id   = CASE WHEN $9::boolean THEN NULL
+                        ELSE COALESCE($10, project_id) END,
+    project_milestone_id = CASE
+        WHEN $9::boolean OR $11::boolean THEN NULL
+        ELSE COALESCE($12, project_milestone_id) END,
+    started_at   = CASE WHEN $13::boolean
+                        THEN COALESCE(started_at, $14) ELSE started_at END,
+    completed_at = CASE WHEN $13::boolean THEN $15 ELSE completed_at END,
+    canceled_at  = CASE WHEN $13::boolean THEN $16  ELSE canceled_at  END
+WHERE id = ANY($17::uuid[])
+  AND workspace_id = $18
+  AND team_id = ANY($19::uuid[])
   AND deleted_at IS NULL
 RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 `
 
 type BulkUpdateIssuesParams struct {
-	StateID       *uuid.UUID
-	Priority      *int16
-	ClearAssignee bool
-	AssigneeID    *uuid.UUID
-	ClearEstimate bool
-	Estimate      *int16
-	ClearDueDate  bool
-	DueDate       pgtype.Date
-	SetTimestamps bool
-	StartedAt     *time.Time
-	CompletedAt   *time.Time
-	CanceledAt    *time.Time
-	Ids           []uuid.UUID
-	WorkspaceID   uuid.UUID
-	TeamIds       []uuid.UUID
+	StateID            *uuid.UUID
+	Priority           *int16
+	ClearAssignee      bool
+	AssigneeID         *uuid.UUID
+	ClearEstimate      bool
+	Estimate           *int16
+	ClearDueDate       bool
+	DueDate            pgtype.Date
+	ClearProject       bool
+	ProjectID          *uuid.UUID
+	ClearMilestone     bool
+	ProjectMilestoneID *uuid.UUID
+	SetTimestamps      bool
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	Ids                []uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamIds            []uuid.UUID
 }
 
 // BulkUpdateIssues is the bulk-edit path: one property set across a selection, in one
@@ -86,6 +96,10 @@ func (q *Queries) BulkUpdateIssues(ctx context.Context, arg BulkUpdateIssuesPara
 		arg.Estimate,
 		arg.ClearDueDate,
 		arg.DueDate,
+		arg.ClearProject,
+		arg.ProjectID,
+		arg.ClearMilestone,
+		arg.ProjectMilestoneID,
 		arg.SetTimestamps,
 		arg.StartedAt,
 		arg.CompletedAt,
@@ -127,6 +141,8 @@ func (q *Queries) BulkUpdateIssues(ctx context.Context, arg BulkUpdateIssuesPara
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
 			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
 		); err != nil {
 			return nil, err
 		}
@@ -177,7 +193,7 @@ INSERT INTO issue (id, workspace_id, team_id, number, title, description,
                    state_id, assignee_id, creator_id, priority, sort_order,
                    started_at, completed_at, canceled_at,
                    estimate, due_date, due_date_source, parent_id, sub_issue_sort_order,
-                   template_id)
+                   template_id, project_id, project_milestone_id)
 VALUES ($1, $2, $3, $4,
         $5, $6, $7,
         $8, $9, $10,
@@ -188,35 +204,39 @@ VALUES ($1, $2, $3, $4,
         -- the only honest default: a date an SLA owns is a fact only the SLA subsystem
         -- knows, and guessing it here would make that date look human-editable.
         COALESCE($17::text, 'manual'),
-        $18, $19, $20)
+        $18, $19, $20,
+        $21, $22)
 RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 `
 
 type CreateIssueParams struct {
-	ID                uuid.UUID
-	WorkspaceID       uuid.UUID
-	TeamID            uuid.UUID
-	Number            int64
-	Title             string
-	Description       string
-	StateID           uuid.UUID
-	AssigneeID        *uuid.UUID
-	CreatorID         *uuid.UUID
-	Priority          int16
-	SortOrder         string
-	StartedAt         *time.Time
-	CompletedAt       *time.Time
-	CanceledAt        *time.Time
-	Estimate          *int16
-	DueDate           pgtype.Date
-	DueDateSource     *string
-	ParentID          *uuid.UUID
-	SubIssueSortOrder *string
-	TemplateID        *uuid.UUID
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamID             uuid.UUID
+	Number             int64
+	Title              string
+	Description        string
+	StateID            uuid.UUID
+	AssigneeID         *uuid.UUID
+	CreatorID          *uuid.UUID
+	Priority           int16
+	SortOrder          string
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	Estimate           *int16
+	DueDate            pgtype.Date
+	DueDateSource      *string
+	ParentID           *uuid.UUID
+	SubIssueSortOrder  *string
+	TemplateID         *uuid.UUID
+	ProjectID          *uuid.UUID
+	ProjectMilestoneID *uuid.UUID
 }
 
 // Every list below is the issue table's columns, in the table's own order, minus
@@ -247,6 +267,8 @@ func (q *Queries) CreateIssue(ctx context.Context, arg CreateIssueParams) (Issue
 		arg.ParentID,
 		arg.SubIssueSortOrder,
 		arg.TemplateID,
+		arg.ProjectID,
+		arg.ProjectMilestoneID,
 	)
 	var i Issue
 	err := row.Scan(
@@ -275,6 +297,8 @@ func (q *Queries) CreateIssue(ctx context.Context, arg CreateIssueParams) (Issue
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
 		&i.DeletedBy,
+		&i.ProjectID,
+		&i.ProjectMilestoneID,
 	)
 	return i, err
 }
@@ -284,7 +308,8 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -318,6 +343,8 @@ func (q *Queries) GetIssue(ctx context.Context, id uuid.UUID) (Issue, error) {
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
 		&i.DeletedBy,
+		&i.ProjectID,
+		&i.ProjectMilestoneID,
 	)
 	return i, err
 }
@@ -327,7 +354,8 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 FROM issue
 WHERE team_id = $1 AND number = $2 AND deleted_at IS NULL
 `
@@ -366,6 +394,8 @@ func (q *Queries) GetIssueByTeamAndNumber(ctx context.Context, arg GetIssueByTea
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
 		&i.DeletedBy,
+		&i.ProjectID,
+		&i.ProjectMilestoneID,
 	)
 	return i, err
 }
@@ -396,7 +426,8 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE
@@ -434,6 +465,8 @@ func (q *Queries) GetIssueForUpdate(ctx context.Context, id uuid.UUID) (Issue, e
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
 		&i.DeletedBy,
+		&i.ProjectID,
+		&i.ProjectMilestoneID,
 	)
 	return i, err
 }
@@ -546,7 +579,8 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 FROM issue
 WHERE parent_id = $1 AND deleted_at IS NULL
 ORDER BY sub_issue_sort_order, id
@@ -594,6 +628,8 @@ func (q *Queries) ListChildIssues(ctx context.Context, parentID *uuid.UUID) ([]I
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
 			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
 		); err != nil {
 			return nil, err
 		}
@@ -610,7 +646,8 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 FROM issue
 WHERE parent_id = ANY($1::uuid[])
   AND workspace_id = $2
@@ -667,6 +704,8 @@ func (q *Queries) ListChildIssuesForParents(ctx context.Context, arg ListChildIs
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
 			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
 		); err != nil {
 			return nil, err
 		}
@@ -683,7 +722,8 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 FROM issue
 WHERE workspace_id = $1
   AND team_id = ANY($2::uuid[])
@@ -735,6 +775,8 @@ func (q *Queries) ListDeletedIssues(ctx context.Context, arg ListDeletedIssuesPa
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
 			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
 		); err != nil {
 			return nil, err
 		}
@@ -751,7 +793,8 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 FROM issue
 WHERE id = ANY($1::uuid[])
   AND workspace_id = $2
@@ -809,6 +852,70 @@ func (q *Queries) ListIssuesByIDs(ctx context.Context, arg ListIssuesByIDsParams
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
 			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listIssuesForProject = `-- name: ListIssuesForProject :many
+SELECT id, workspace_id, team_id, number, title, description, state_id,
+       assignee_id, creator_id, priority, sort_order,
+       started_at, completed_at, canceled_at,
+       archived_at, deleted_at, created_at, updated_at,
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
+FROM issue
+WHERE project_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
+ORDER BY sort_order
+`
+
+// ListIssuesForProject is the project's Issues tab. Live issues only; archived and
+// deleted stay off the board the same way they stay off a team list.
+func (q *Queries) ListIssuesForProject(ctx context.Context, projectID *uuid.UUID) ([]Issue, error) {
+	rows, err := q.db.Query(ctx, listIssuesForProject, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Issue{}
+	for rows.Next() {
+		var i Issue
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.Number,
+			&i.Title,
+			&i.Description,
+			&i.StateID,
+			&i.AssigneeID,
+			&i.CreatorID,
+			&i.Priority,
+			&i.SortOrder,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CanceledAt,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Estimate,
+			&i.DueDate,
+			&i.DueDateSource,
+			&i.ParentID,
+			&i.SubIssueSortOrder,
+			&i.TemplateID,
+			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
 		); err != nil {
 			return nil, err
 		}
@@ -825,7 +932,8 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 FROM issue
 WHERE team_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 ORDER BY sort_order
@@ -866,6 +974,8 @@ func (q *Queries) ListIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]Is
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
 			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
 		); err != nil {
 			return nil, err
 		}
@@ -882,7 +992,8 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 FROM issue
 WHERE workspace_id = $1
   AND assignee_id = $2
@@ -946,6 +1057,8 @@ func (q *Queries) ListMyIssues(ctx context.Context, arg ListMyIssuesParams) ([]I
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
 			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
 		); err != nil {
 			return nil, err
 		}
@@ -1055,7 +1168,8 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 `
 
 type RestoreIssueParams struct {
@@ -1102,6 +1216,8 @@ func (q *Queries) RestoreIssue(ctx context.Context, arg RestoreIssueParams) (Iss
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
 		&i.DeletedBy,
+		&i.ProjectID,
+		&i.ProjectMilestoneID,
 	)
 	return i, err
 }
@@ -1131,7 +1247,8 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        assignee_id, creator_id, priority, sort_order,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
-       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 FROM issue
 WHERE workspace_id = $1
   AND team_id = ANY($2::uuid[])
@@ -1192,6 +1309,8 @@ func (q *Queries) StreamIssuesForBootstrap(ctx context.Context, arg StreamIssues
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
 			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
 		); err != nil {
 			return nil, err
 		}
@@ -1238,42 +1357,55 @@ SET title            = COALESCE($1, title),
     -- the issue is re-parented to the same issue by an undo, it lands back where it was.
     parent_id    = CASE WHEN $16::boolean THEN NULL
                         ELSE COALESCE($17, parent_id) END,
+    -- Project is three-state for the same reason as parent. Clearing it also drops the
+    -- milestone: a milestone without a project is refused by the trigger, and leaving it
+    -- set would make the next write fail for a reason the caller cannot see.
+    project_id = CASE WHEN $18::boolean THEN NULL
+                      ELSE COALESCE($19, project_id) END,
+    project_milestone_id = CASE
+        WHEN $18::boolean OR $20::boolean THEN NULL
+        ELSE COALESCE($21, project_milestone_id) END,
     -- Category timestamps are set by the domain layer, which knows the transition rules
     -- (started_at is never cleared once set, because insights read it).
-    started_at   = CASE WHEN $18::boolean THEN $19   ELSE started_at   END,
-    completed_at = CASE WHEN $18::boolean THEN $20 ELSE completed_at END,
-    canceled_at  = CASE WHEN $18::boolean THEN $21  ELSE canceled_at  END
-WHERE id = $22 AND deleted_at IS NULL
+    started_at   = CASE WHEN $22::boolean THEN $23   ELSE started_at   END,
+    completed_at = CASE WHEN $22::boolean THEN $24 ELSE completed_at END,
+    canceled_at  = CASE WHEN $22::boolean THEN $25  ELSE canceled_at  END
+WHERE id = $26 AND deleted_at IS NULL
 RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
-          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id
 `
 
 type UpdateIssueParams struct {
-	Title             *string
-	Description       *string
-	StateID           *uuid.UUID
-	Priority          *int16
-	SortOrder         *string
-	TeamID            *uuid.UUID
-	Number            *int64
-	DueDateSource     *string
-	SubIssueSortOrder *string
-	ClearAssignee     bool
-	AssigneeID        *uuid.UUID
-	ClearEstimate     bool
-	Estimate          *int16
-	ClearDueDate      bool
-	DueDate           pgtype.Date
-	ClearParent       bool
-	ParentID          *uuid.UUID
-	SetTimestamps     bool
-	StartedAt         *time.Time
-	CompletedAt       *time.Time
-	CanceledAt        *time.Time
-	ID                uuid.UUID
+	Title              *string
+	Description        *string
+	StateID            *uuid.UUID
+	Priority           *int16
+	SortOrder          *string
+	TeamID             *uuid.UUID
+	Number             *int64
+	DueDateSource      *string
+	SubIssueSortOrder  *string
+	ClearAssignee      bool
+	AssigneeID         *uuid.UUID
+	ClearEstimate      bool
+	Estimate           *int16
+	ClearDueDate       bool
+	DueDate            pgtype.Date
+	ClearParent        bool
+	ParentID           *uuid.UUID
+	ClearProject       bool
+	ProjectID          *uuid.UUID
+	ClearMilestone     bool
+	ProjectMilestoneID *uuid.UUID
+	SetTimestamps      bool
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	ID                 uuid.UUID
 }
 
 func (q *Queries) UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue, error) {
@@ -1295,6 +1427,10 @@ func (q *Queries) UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue
 		arg.DueDate,
 		arg.ClearParent,
 		arg.ParentID,
+		arg.ClearProject,
+		arg.ProjectID,
+		arg.ClearMilestone,
+		arg.ProjectMilestoneID,
 		arg.SetTimestamps,
 		arg.StartedAt,
 		arg.CompletedAt,
@@ -1328,6 +1464,8 @@ func (q *Queries) UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue
 		&i.SubIssueSortOrder,
 		&i.TemplateID,
 		&i.DeletedBy,
+		&i.ProjectID,
+		&i.ProjectMilestoneID,
 	)
 	return i, err
 }

@@ -28,6 +28,11 @@ import {
   type IssueTemplate,
   type Label,
   type Notification,
+  type Project,
+  type ProjectMember,
+  type ProjectMilestone,
+  type ProjectStatus,
+  type ProjectTeam,
   type Team,
   type TeamMembership,
   type Timestamp,
@@ -131,6 +136,11 @@ export class Store {
     workflowState: new Map(),
     label: new Map(),
     issueTemplate: new Map(),
+    projectStatus: new Map(),
+    project: new Map(),
+    projectTeam: new Map(),
+    projectMember: new Map(),
+    projectMilestone: new Map(),
     issue: new Map(),
     issueLabel: new Map(),
     issueRelation: new Map(),
@@ -173,6 +183,9 @@ export class Store {
    */
   private readonly subscriberUsers = new SetIndex<UUID>();
   private readonly favoriteTarget = new SetIndex<UUID>();
+  private readonly projectTeamOf = new SetIndex<UUID>();
+  private readonly projectMemberOf = new SetIndex<UUID>();
+  private readonly projectMilestoneOf = new SetIndex<UUID>();
   /** Keyed by user and view key together; see `preferenceKey`. */
   private readonly preferenceKeys = new Map<string, UUID>();
 
@@ -259,6 +272,26 @@ export class Store {
     return this.tables.issueTemplate as ReadonlyMap<UUID, IssueTemplate>;
   }
 
+  get projectStatuses(): ReadonlyMap<UUID, ProjectStatus> {
+    return this.tables.projectStatus as ReadonlyMap<UUID, ProjectStatus>;
+  }
+
+  get projects(): ReadonlyMap<UUID, Project> {
+    return this.tables.project as ReadonlyMap<UUID, Project>;
+  }
+
+  get projectTeams(): ReadonlyMap<UUID, ProjectTeam> {
+    return this.tables.projectTeam as ReadonlyMap<UUID, ProjectTeam>;
+  }
+
+  get projectMembers(): ReadonlyMap<UUID, ProjectMember> {
+    return this.tables.projectMember as ReadonlyMap<UUID, ProjectMember>;
+  }
+
+  get projectMilestones(): ReadonlyMap<UUID, ProjectMilestone> {
+    return this.tables.projectMilestone as ReadonlyMap<UUID, ProjectMilestone>;
+  }
+
   get issueLabels(): ReadonlyMap<UUID, IssueLabel> {
     return this.tables.issueLabel as ReadonlyMap<UUID, IssueLabel>;
   }
@@ -320,6 +353,18 @@ export class Store {
 
   issueIdsWithLabel(labelId: UUID): ReadonlySet<UUID> {
     return this.labelIndex.issueIdsWith(labelId);
+  }
+
+  projectTeamIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectTeamOf.get(projectId);
+  }
+
+  projectMemberIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectMemberOf.get(projectId);
+  }
+
+  projectMilestoneIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectMilestoneOf.get(projectId);
   }
 
   /** `issueLabel` rows, when the application itself is needed rather than the label. */
@@ -621,6 +666,9 @@ export class Store {
     this.subscriptionUser.clear();
     this.subscriberUsers.clear();
     this.favoriteTarget.clear();
+    this.projectTeamOf.clear();
+    this.projectMemberOf.clear();
+    this.projectMilestoneOf.clear();
     this.preferenceKeys.clear();
     this.currentVersion = 0;
     this.bootstrappedAt = null;
@@ -682,6 +730,17 @@ export class Store {
         }
         for (const viewId of [...this.viewTeam.get(id)]) {
           this.forget('view', viewId, deletes, touched);
+        }
+        break;
+      case 'project':
+        for (const rowId of [...this.projectTeamOf.get(id)]) {
+          this.forget('projectTeam', rowId, deletes, touched);
+        }
+        for (const rowId of [...this.projectMemberOf.get(id)]) {
+          this.forget('projectMember', rowId, deletes, touched);
+        }
+        for (const rowId of [...this.projectMilestoneOf.get(id)]) {
+          this.forget('projectMilestone', rowId, deletes, touched);
         }
         break;
       case 'issue':
@@ -847,6 +906,23 @@ export class Store {
         this.favoriteTarget.add(row.targetId, row.id);
         break;
       }
+      case 'projectTeam':
+        this.fileByProject(this.projectTeamOf, previous as ProjectTeam | undefined, next as ProjectTeam);
+        break;
+      case 'projectMember':
+        this.fileByProject(
+          this.projectMemberOf,
+          previous as ProjectMember | undefined,
+          next as ProjectMember,
+        );
+        break;
+      case 'projectMilestone':
+        this.fileByProject(
+          this.projectMilestoneOf,
+          previous as ProjectMilestone | undefined,
+          next as ProjectMilestone,
+        );
+        break;
       default:
         break;
     }
@@ -908,6 +984,15 @@ export class Store {
         this.favoriteTarget.remove(row.targetId, row.id);
         break;
       }
+      case 'projectTeam':
+        this.unfileByProject(this.projectTeamOf, entity as ProjectTeam);
+        break;
+      case 'projectMember':
+        this.unfileByProject(this.projectMemberOf, entity as ProjectMember);
+        break;
+      case 'projectMilestone':
+        this.unfileByProject(this.projectMilestoneOf, entity as ProjectMilestone);
+        break;
       default:
         break;
     }
@@ -931,6 +1016,21 @@ export class Store {
 
   private unfileByTeam(index: SetIndex<UUID>, entity: TeamScoped): void {
     if (entity.teamId !== undefined) index.remove(entity.teamId, entity.id);
+  }
+
+  private fileByProject(
+    index: SetIndex<UUID>,
+    previous: ProjectScoped | undefined,
+    next: ProjectScoped,
+  ): void {
+    if (previous !== undefined && previous.projectId !== next.projectId) {
+      index.remove(previous.projectId, previous.id);
+    }
+    index.add(next.projectId, next.id);
+  }
+
+  private unfileByProject(index: SetIndex<UUID>, entity: ProjectScoped): void {
+    index.remove(entity.projectId, entity.id);
   }
 
   /**
@@ -969,6 +1069,12 @@ export class Store {
 interface TeamScoped {
   readonly id: UUID;
   readonly teamId?: UUID;
+}
+
+/** Teams, members and milestones of a project: each names the project it belongs to. */
+interface ProjectScoped {
+  readonly id: UUID;
+  readonly projectId: UUID;
 }
 
 /**

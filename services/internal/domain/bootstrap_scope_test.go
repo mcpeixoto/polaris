@@ -115,6 +115,18 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	s.workspaceTemplate = template("Incident", nil)
 	s.privateTemplate = template("Design review", &design.ID)
 
+	project, _, err := svc.CreateProject(ctx, s.alice, domain.CreateProjectInput{
+		Name: "Shipping", TeamIDs: []uuid.UUID{f.TeamID}, MemberIDs: []uuid.UUID{s.alice.UserID},
+	})
+	if err != nil {
+		t.Fatalf("create the open project: %v", err)
+	}
+	if _, _, err := svc.CreateProjectMilestone(ctx, s.alice, domain.CreateProjectMilestoneInput{
+		ProjectID: project.ID, Name: "Beta",
+	}); err != nil {
+		t.Fatalf("create the milestone: %v", err)
+	}
+
 	view := func(in domain.CreateViewInput) uuid.UUID {
 		row, _, err := svc.CreateView(ctx, s.alice, in)
 		if err != nil {

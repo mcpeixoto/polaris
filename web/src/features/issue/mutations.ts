@@ -62,6 +62,8 @@ export interface IssueFields {
   readonly priority?: number | undefined;
   /** `null` unassigns. There is no id that means "nobody", so the two cases are separate. */
   readonly assigneeId?: UUID | null | undefined;
+  /** `null` removes the issue from its project. */
+  readonly projectId?: UUID | null | undefined;
 }
 
 export interface NewIssue {
@@ -92,6 +94,8 @@ export interface NewIssue {
    * answer. It is the only reason `issue.template_id` exists, and nothing was sending it.
    */
   readonly templateId?: UUID | undefined;
+  readonly projectId?: UUID | undefined;
+  readonly projectMilestoneId?: UUID | undefined;
   /** The viewer, when it is known. Only used by the optimistic row. */
   readonly creatorId?: UUID | undefined;
 }
@@ -143,6 +147,7 @@ export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<
     ...(input.dueDate === undefined ? null : { dueDate: input.dueDate }),
     ...(input.parentId === undefined ? null : { parentId: input.parentId }),
     ...(input.templateId === undefined ? null : { templateId: input.templateId }),
+    ...(input.projectId === undefined ? null : { projectId: input.projectId }),
     dueDateSource: 'manual',
     createdAt: now,
     updatedAt: now,
@@ -219,6 +224,9 @@ export async function updateIssue(
     ...(fields.assigneeId === undefined
       ? null
       : { assigneeId: fields.assigneeId === null ? undefined : fields.assigneeId }),
+    ...(fields.projectId === undefined
+      ? null
+      : { projectId: fields.projectId === null ? undefined : fields.projectId }),
     updatedAt: new Date().toISOString(),
   };
   if (sameIssue(before, after)) return;
@@ -798,6 +806,8 @@ function createInputOf(input: NewIssue, stateId: UUID, id: UUID): Record<string,
       ? null
       : { labelIds: [...input.labelIds] }),
     ...(input.templateId === undefined ? null : { templateId: input.templateId }),
+    ...(input.projectId === undefined ? null : { projectId: input.projectId }),
+    ...(input.projectMilestoneId === undefined ? null : { projectMilestoneId: input.projectMilestoneId }),
   };
 }
 
@@ -819,6 +829,11 @@ function updateInputOf(fields: IssueFields): Record<string, unknown> {
       : fields.assigneeId === null
         ? { clearAssignee: true }
         : { assigneeId: fields.assigneeId }),
+    ...(fields.projectId === undefined
+      ? null
+      : fields.projectId === null
+        ? { clearProject: true }
+        : { projectId: fields.projectId }),
   };
 }
 
@@ -856,6 +871,7 @@ function sameIssue(before: Issue, after: Issue): boolean {
     before.description === after.description &&
     before.stateId === after.stateId &&
     before.priority === after.priority &&
-    before.assigneeId === after.assigneeId
+    before.assigneeId === after.assigneeId &&
+    before.projectId === after.projectId
   );
 }

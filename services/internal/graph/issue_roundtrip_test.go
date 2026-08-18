@@ -76,6 +76,7 @@ func TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI(t *testing.T) {
 					id workspaceId teamId number identifier
 					title description stateId assigneeId creatorId priority sortOrder
 					estimate dueDate dueDateSource parentId subIssueSortOrder templateId
+					projectId projectMilestoneId
 					startedAt completedAt canceledAt archivedAt createdAt updatedAt
 					labels { id }
 				}
@@ -180,6 +181,9 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 
 	bug, regression := h.newLabel(t, "bug"), h.newLabel(t, "regression")
 
+	onCreate, milestoneOnCreate := h.newProject(t, "On create")
+	onUpdate, milestoneOnUpdate := h.newProject(t, "On update")
+
 	// A client-minted v7, because that is the whole point of the id field: an offline create
 	// names its own issue so the row on screen is the row the server writes.
 	chosen := uuid.Must(uuid.NewV7())
@@ -261,6 +265,20 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 			afterCreate: bug.String() + "," + regression.String(),
 			render:      renderLabelIDs,
 		},
+		{
+			input: "projectId", output: "projectId",
+			create:      func(in *generated.CreateIssueInput) { in.ProjectID = &onCreate },
+			update:      func(in *generated.UpdateIssueInput) { in.ProjectID = &onUpdate },
+			clear:       func(in *generated.UpdateIssueInput) { in.ClearProject = ptr(true) },
+			afterCreate: onCreate.String(), afterUpdate: onUpdate.String(), afterClear: "<nil>",
+		},
+		{
+			input: "projectMilestoneId", output: "projectMilestoneId",
+			create:      func(in *generated.CreateIssueInput) { in.ProjectMilestoneID = &milestoneOnCreate },
+			update:      func(in *generated.UpdateIssueInput) { in.ProjectMilestoneID = &milestoneOnUpdate },
+			clear:       func(in *generated.UpdateIssueInput) { in.ClearMilestone = ptr(true) },
+			afterCreate: milestoneOnCreate.String(), afterUpdate: milestoneOnUpdate.String(), afterClear: "<nil>",
+		},
 	}
 
 	create := generated.CreateIssueInput{}
@@ -305,6 +323,34 @@ func (h *harness) newLabel(t *testing.T, name string) uuid.UUID {
 	return payload.Label.ID
 }
 
+// newProject makes a project on the fixture's team and a milestone inside it, so the
+// issue round trip can file into one project and then move to another without violating
+// "a milestone belongs to the issue's project".
+func (h *harness) newProject(t *testing.T, name string) (projectID, milestoneID uuid.UUID) {
+	t.Helper()
+	project, err := h.Mutation().CreateProject(h.ctx, generated.CreateProjectInput{
+		Name:    name,
+		TeamIds: []uuid.UUID{h.f.TeamID},
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("create project %q: %v", name, err)
+	}
+	if project.Project == nil {
+		t.Fatalf("create project %q returned no project", name)
+	}
+	milestone, err := h.Mutation().CreateProjectMilestone(h.ctx, generated.CreateProjectMilestoneInput{
+		ProjectID: project.Project.ID,
+		Name:      name + " milestone",
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("create milestone for %q: %v", name, err)
+	}
+	if milestone.Milestone == nil {
+		t.Fatalf("create milestone for %q returned no milestone", name)
+	}
+	return project.Project.ID, milestone.Milestone.ID
+}
+
 func renderLabelIDs(v any) string {
 	rows, _ := v.([]any)
 	ids := make([]string, 0, len(rows))
@@ -340,6 +386,8 @@ var coveredElsewhere = map[string]string{
 	"clearEstimate": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearDueDate":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearParent":   "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearProject":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearMilestone": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 }
 
 func TestIssueRoundTrip_TheTableCoversEveryInputField(t *testing.T) {

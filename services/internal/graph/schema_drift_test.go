@@ -39,6 +39,11 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"WorkflowState", model.WorkflowState{}, generated.WorkflowState{}},
 		{"Comment", model.Comment{}, generated.Comment{}},
 		{"Workspace", model.Workspace{}, generated.Workspace{}},
+		{"Project", model.Project{}, generated.Project{}},
+		{"ProjectStatus", model.ProjectStatus{}, generated.ProjectStatus{}},
+		{"ProjectTeam", model.ProjectTeam{}, generated.ProjectTeam{}},
+		{"ProjectMember", model.ProjectMember{}, generated.ProjectMember{}},
+		{"ProjectMilestone", model.ProjectMilestone{}, generated.ProjectMilestone{}},
 	}
 
 	for _, pair := range pairs {
@@ -96,6 +101,11 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 		{"Issue", model.Issue{}, func(v any) (any, error) { return toIssue(v.(model.Issue)) }},
 		{"Team", model.Team{}, func(v any) (any, error) { return toTeam(v.(model.Team)) }},
 		{"User", model.User{}, func(v any) (any, error) { return toUser(v.(model.User)) }},
+		{"Project", model.Project{}, func(v any) (any, error) { return toProject(v.(model.Project)) }},
+		{"ProjectStatus", model.ProjectStatus{}, func(v any) (any, error) { return toProjectStatus(v.(model.ProjectStatus)) }},
+		{"ProjectTeam", model.ProjectTeam{}, func(v any) (any, error) { return toProjectTeam(v.(model.ProjectTeam)), nil }},
+		{"ProjectMember", model.ProjectMember{}, func(v any) (any, error) { return toProjectMember(v.(model.ProjectMember)), nil }},
+		{"ProjectMilestone", model.ProjectMilestone{}, func(v any) (any, error) { return toProjectMilestone(v.(model.ProjectMilestone)), nil }},
 	}
 
 	for _, c := range cases {
@@ -137,11 +147,14 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 // converters refuse anything else — which is deliberate, and covered by their own tests. Any
 // old string would make this test fail for the wrong reason.
 var enumValues = map[string]string{
-	"dueDateSource": model.DueDateManual,
-	"estimateScale": model.EstimateScaleFibonacci,
-	"role":          string(authz.RoleMember),
-	"status":        "active",
-	"kind":          "human",
+	"dueDateSource":          model.DueDateManual,
+	"estimateScale":          model.EstimateScaleFibonacci,
+	"role":                   string(authz.RoleMember),
+	"status":                 "active",
+	"kind":                   "human",
+	"category":               model.ProjectCategoryStarted,
+	"startDateGranularity":   model.GranularityQuarter,
+	"targetDateGranularity":  model.GranularityQuarter,
 }
 
 // fillNonZero writes a distinguishable value into every field of v, recursively.

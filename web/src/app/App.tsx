@@ -23,6 +23,8 @@ import { IssueList } from '~/views/IssueList';
 import { MemberSettings } from '~/views/MemberSettings';
 import { MyIssues } from '~/views/MyIssues';
 import { NotificationSettings } from '~/views/NotificationSettings';
+import { ProjectDetail } from '~/views/ProjectDetail';
+import { Projects } from '~/views/Projects';
 import { SavedView } from '~/views/SavedView';
 import { Search } from '~/views/Search';
 import { Templates } from '~/views/Templates';
@@ -31,6 +33,7 @@ import { SignUp } from '~/views/SignUp';
 import { TeamSettings } from '~/views/TeamSettings';
 import { Trash } from '~/views/Trash';
 import { CreateIssueModal } from '~/features/issue/CreateIssueModal';
+import { CreateProjectModal } from '~/features/projects/CreateProjectModal';
 
 import { useQuery } from './context';
 import { AppShell } from './AppShell';
@@ -70,16 +73,22 @@ export function App() {
           )}
         >
           <DeepLinks />
-          <AppShell renderCreateIssue={({ onClose }) => <CreateIssueModal onClose={onClose} />}>
+          <AppShell
+            renderCreateIssue={({ onClose }) => <CreateIssueModal onClose={onClose} />}
+            renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
+          >
             <Routes>
               <Route path="/" element={<FirstTeam />} />
               <Route path="/my-issues" element={<MyIssues />} />
               <Route path="/inbox" element={<Inbox />} />
               <Route path="/search" element={<Search />} />
+              <Route path="/projects" element={<Projects />} />
               <Route path="/view/:viewId" element={<SavedView />} />
               <Route path="/team/:teamKey" element={<IssueList />} />
+              <Route path="/team/:teamKey/projects" element={<Projects />} />
               <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
               <Route path="/issue/:identifier" element={<IssueDetail />} />
+              <Route path="/project/:projectId" element={<ProjectDetail />} />
               <Route path="/settings/members" element={<MemberSettings />} />
               <Route path="/settings/labels" element={<LabelSettings />} />
               <Route path="/settings/notifications" element={<NotificationSettings />} />

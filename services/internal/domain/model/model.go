@@ -185,6 +185,11 @@ type Issue struct {
 	// question "is this template still worth having", which nothing else can answer.
 	TemplateID *uuid.UUID `json:"templateId,omitempty"`
 
+	// At most one project, as a column rather than a join: two projects on one issue is
+	// a state the schema cannot represent. A milestone implies its project.
+	ProjectID          *uuid.UUID `json:"projectId,omitempty"`
+	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
+
 	StartedAt   *time.Time `json:"startedAt,omitempty"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 	CanceledAt  *time.Time `json:"canceledAt,omitempty"`
@@ -560,3 +565,99 @@ func itoa(n int64) string {
 	}
 	return string(buf[i:])
 }
+
+// ProjectStatusCategory values. `started` is what the UI calls In Progress — the same
+// word the issue workflow already uses, so progress rollups branch on one vocabulary.
+const (
+	ProjectCategoryBacklog   = "backlog"
+	ProjectCategoryPlanned   = "planned"
+	ProjectCategoryStarted   = "started"
+	ProjectCategoryCompleted = "completed"
+	ProjectCategoryCanceled  = "canceled"
+)
+
+// TimeframeGranularity is how coarsely a project date is meant. A date without one is
+// just a day; "Q3" is a date in that quarter plus this flag, never an instant.
+const (
+	GranularityDay     = "day"
+	GranularityMonth   = "month"
+	GranularityQuarter = "quarter"
+	GranularityHalf    = "half"
+	GranularityYear    = "year"
+)
+
+// ProjectStatus is a workspace-defined status a project may sit in.
+type ProjectStatus struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	Color       string     `json:"color"`
+	Category    string     `json:"category"`
+	Position    string     `json:"position"`
+	IsDefault   bool       `json:"isDefault"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+}
+
+// Project is a unit of work with a clear outcome. It spans teams; each issue still
+// belongs to exactly one team and to at most one project.
+type Project struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	Name        string     `json:"name"`
+	Summary     *string    `json:"summary,omitempty"`
+	Description string     `json:"description"`
+	Icon        *string    `json:"icon,omitempty"`
+	Color       string     `json:"color"`
+	StatusID    uuid.UUID  `json:"statusId"`
+	Priority    int        `json:"priority"`
+	LeadID      *uuid.UUID `json:"leadId,omitempty"`
+	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	SortOrder   string     `json:"sortOrder"`
+
+	StartDate              *Date   `json:"startDate,omitempty"`
+	StartDateGranularity   *string `json:"startDateGranularity,omitempty"`
+	TargetDate             *Date   `json:"targetDate,omitempty"`
+	TargetDateGranularity  *string `json:"targetDateGranularity,omitempty"`
+
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt  *time.Time `json:"deletedAt,omitempty"`
+	DeletedBy  *uuid.UUID `json:"deletedBy,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+}
+
+// ProjectTeam is one team on one project, as its own entity — the labels lesson.
+type ProjectTeam struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ProjectID   uuid.UUID `json:"projectId"`
+	TeamID      uuid.UUID `json:"teamId"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// ProjectMember is one person on one project, as its own entity for the same reason.
+type ProjectMember struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ProjectID   uuid.UUID `json:"projectId"`
+	UserID      uuid.UUID `json:"userId"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// ProjectMilestone is an ordered checkpoint inside one project. It cannot be shared.
+type ProjectMilestone struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ProjectID   uuid.UUID  `json:"projectId"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	TargetDate  *Date      `json:"targetDate,omitempty"`
+	SortOrder   string     `json:"sortOrder"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+}
+

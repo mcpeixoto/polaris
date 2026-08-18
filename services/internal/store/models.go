@@ -152,31 +152,33 @@ type Invite struct {
 }
 
 type Issue struct {
-	ID                uuid.UUID
-	WorkspaceID       uuid.UUID
-	TeamID            uuid.UUID
-	Number            int64
-	Title             string
-	Description       string
-	StateID           uuid.UUID
-	AssigneeID        *uuid.UUID
-	CreatorID         *uuid.UUID
-	Priority          int16
-	SortOrder         string
-	StartedAt         *time.Time
-	CompletedAt       *time.Time
-	CanceledAt        *time.Time
-	ArchivedAt        *time.Time
-	DeletedAt         *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	Estimate          *int16
-	DueDate           pgtype.Date
-	DueDateSource     string
-	ParentID          *uuid.UUID
-	SubIssueSortOrder *string
-	TemplateID        *uuid.UUID
-	DeletedBy         *uuid.UUID
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamID             uuid.UUID
+	Number             int64
+	Title              string
+	Description        string
+	StateID            uuid.UUID
+	AssigneeID         *uuid.UUID
+	CreatorID          *uuid.UUID
+	Priority           int16
+	SortOrder          string
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	ArchivedAt         *time.Time
+	DeletedAt          *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Estimate           *int16
+	DueDate            pgtype.Date
+	DueDateSource      string
+	ParentID           *uuid.UUID
+	SubIssueSortOrder  *string
+	TemplateID         *uuid.UUID
+	DeletedBy          *uuid.UUID
+	ProjectID          *uuid.UUID
+	ProjectMilestoneID *uuid.UUID
 }
 
 type IssueHistory struct {
@@ -288,6 +290,73 @@ type NotificationCursor struct {
 type NotificationEmailCursor struct {
 	UserID     uuid.UUID
 	LastSentAt time.Time
+}
+
+type Project struct {
+	ID                    uuid.UUID
+	WorkspaceID           uuid.UUID
+	Name                  string
+	Summary               *string
+	Description           string
+	Icon                  *string
+	Color                 string
+	StatusID              uuid.UUID
+	Priority              int16
+	LeadID                *uuid.UUID
+	CreatorID             *uuid.UUID
+	SortOrder             string
+	StartDate             pgtype.Date
+	StartDateGranularity  *string
+	TargetDate            pgtype.Date
+	TargetDateGranularity *string
+	ArchivedAt            *time.Time
+	DeletedAt             *time.Time
+	DeletedBy             *uuid.UUID
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
+type ProjectMember struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ProjectID   uuid.UUID
+	UserID      uuid.UUID
+	CreatedAt   time.Time
+}
+
+type ProjectMilestone struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ProjectID   uuid.UUID
+	Name        string
+	Description *string
+	TargetDate  pgtype.Date
+	SortOrder   string
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type ProjectStatus struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Name        string
+	Description *string
+	Color       string
+	Category    string
+	Position    string
+	IsDefault   bool
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type ProjectTeam struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ProjectID   uuid.UUID
+	TeamID      uuid.UUID
+	CreatedAt   time.Time
 }
 
 type Team struct {

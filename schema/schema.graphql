@@ -301,6 +301,11 @@ type Issue {
   """Which template made this issue, for the question "is this template still worth having"."""
   templateId: UUID
 
+  """At most one project. Two projects on one issue is unrepresentable."""
+  projectId: UUID
+  """A milestone implies its project."""
+  projectMilestoneId: UUID
+
   startedAt: Time
   completedAt: Time
   canceledAt: Time
@@ -337,6 +342,8 @@ type Issue {
   """Issues that block this one — the same rows read from the other end."""
   blockedBy: [IssueRelation!]!
   subscribers: [IssueSubscription!]!
+  project: Project
+  projectMilestone: ProjectMilestone
 }
 
 """Sub-issue completion, rolled up. Counts direct children only; a deep tree would make a list view walk the whole graph per row."""
@@ -738,6 +745,192 @@ type IssueTemplatePayload implements MutationResult {
   template: IssueTemplate!
 }
 
+enum ProjectStatusCategory {
+  BACKLOG
+  PLANNED
+  STARTED
+  COMPLETED
+  CANCELED
+}
+
+enum TimeframeGranularity {
+  DAY
+  MONTH
+  QUARTER
+  HALF
+  YEAR
+}
+
+type ProjectStatus {
+  id: UUID!
+  workspaceId: UUID!
+  name: String!
+  description: String
+  color: String!
+  category: ProjectStatusCategory!
+  position: String!
+  isDefault: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type Project {
+  id: UUID!
+  workspaceId: UUID!
+  name: String!
+  summary: String
+  description: String!
+  icon: String
+  color: String!
+  statusId: UUID!
+  priority: Int!
+  leadId: UUID
+  creatorId: UUID
+  sortOrder: String!
+  startDate: String
+  startDateGranularity: TimeframeGranularity
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+  archivedAt: Time
+  deletedAt: Time
+  deletedBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+
+  status: ProjectStatus!
+  lead: User
+  creator: User
+  teams: [ProjectTeam!]!
+  members: [ProjectMember!]!
+  milestones: [ProjectMilestone!]!
+}
+
+type ProjectTeam {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  teamId: UUID!
+  createdAt: Time!
+  team: Team!
+}
+
+type ProjectMember {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  userId: UUID!
+  createdAt: Time!
+  user: User!
+}
+
+type ProjectMilestone {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  name: String!
+  description: String
+  targetDate: String
+  sortOrder: String!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type ProjectPayload implements MutationResult {
+  version: Int!
+  project: Project!
+}
+
+type ProjectStatusPayload implements MutationResult {
+  version: Int!
+  status: ProjectStatus!
+}
+
+type ProjectTeamPayload implements MutationResult {
+  version: Int!
+  projectTeam: ProjectTeam!
+}
+
+type ProjectMemberPayload implements MutationResult {
+  version: Int!
+  projectMember: ProjectMember!
+}
+
+type ProjectMilestonePayload implements MutationResult {
+  version: Int!
+  milestone: ProjectMilestone!
+}
+
+input CreateProjectInput {
+  name: String!
+  summary: String
+  description: String
+  icon: String
+  color: String
+  statusId: UUID
+  priority: Int
+  leadId: UUID
+  """At least one. A project with no team is invisible to everyone."""
+  teamIds: [UUID!]!
+  memberIds: [UUID!]
+  startDate: String
+  startDateGranularity: TimeframeGranularity
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+}
+
+input UpdateProjectInput {
+  id: UUID!
+  name: String
+  summary: String
+  description: String
+  icon: String
+  color: String
+  statusId: UUID
+  priority: Int
+  leadId: UUID
+  clearLead: Boolean
+  startDate: String
+  startDateGranularity: TimeframeGranularity
+  clearStart: Boolean
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+  clearTarget: Boolean
+}
+
+input CreateProjectMilestoneInput {
+  projectId: UUID!
+  name: String!
+  description: String
+  targetDate: String
+}
+
+input UpdateProjectMilestoneInput {
+  id: UUID!
+  name: String
+  description: String
+  targetDate: String
+  clearTarget: Boolean
+}
+
+input CreateProjectStatusInput {
+  name: String!
+  description: String
+  color: String
+  category: ProjectStatusCategory!
+  isDefault: Boolean
+}
+
+input UpdateProjectStatusInput {
+  id: UUID!
+  name: String
+  description: String
+  color: String
+  category: ProjectStatusCategory
+  isDefault: Boolean
+}
+
 type ApiKeyPayload implements MutationResult {
   version: Int!
   created: ApiKeyCreated!
@@ -821,6 +1014,8 @@ input CreateIssueInput {
   templateId: UUID
   """Place the new issue directly below this one. Omit to append."""
   afterIssueId: UUID
+  projectId: UUID
+  projectMilestoneId: UUID
 }
 
 input UpdateIssueInput {
@@ -846,6 +1041,10 @@ input UpdateIssueInput {
   moveToTop: Boolean
   """Place among a parent's children. Only meaningful when the issue has a parent."""
   afterSiblingId: UUID
+  projectId: UUID
+  clearProject: Boolean
+  projectMilestoneId: UUID
+  clearMilestone: Boolean
 }
 
 """
@@ -1073,6 +1272,10 @@ type Query {
   issueTemplates(teamId: UUID): [IssueTemplate!]!
   issueTemplate(id: UUID!): IssueTemplate
 
+  projects: [Project!]!
+  project(id: UUID!): Project
+  projectStatuses: [ProjectStatus!]!
+
   """The caller's inbox. Snoozed rows are excluded until they wake unless includeSnoozed."""
   notifications(includeRead: Boolean, includeSnoozed: Boolean, first: Int): [Notification!]!
   unreadNotificationCount: Int!
@@ -1207,6 +1410,26 @@ type Mutation {
   updateIssueTemplate(input: UpdateIssueTemplateInput!): IssueTemplatePayload!
   """Retires a template, or brings one back."""
   archiveIssueTemplate(id: UUID!, archived: Boolean!): DeletePayload!
+
+  # ---- projects
+
+  createProject(input: CreateProjectInput!, clientId: UUID, opId: UUID): ProjectPayload! @idempotent
+  updateProject(input: UpdateProjectInput!, clientId: UUID, opId: UUID): ProjectPayload! @idempotent
+  deleteProject(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  restoreProject(id: UUID!, clientId: UUID, opId: UUID): ProjectPayload! @idempotent
+
+  addProjectTeam(projectId: UUID!, teamId: UUID!, clientId: UUID, opId: UUID): ProjectTeamPayload! @idempotent
+  removeProjectTeam(projectId: UUID!, teamId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  addProjectMember(projectId: UUID!, userId: UUID!, clientId: UUID, opId: UUID): ProjectMemberPayload! @idempotent
+  removeProjectMember(projectId: UUID!, userId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createProjectMilestone(input: CreateProjectMilestoneInput!, clientId: UUID, opId: UUID): ProjectMilestonePayload! @idempotent
+  updateProjectMilestone(input: UpdateProjectMilestoneInput!, clientId: UUID, opId: UUID): ProjectMilestonePayload! @idempotent
+  deleteProjectMilestone(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createProjectStatus(input: CreateProjectStatusInput!): ProjectStatusPayload!
+  updateProjectStatus(input: UpdateProjectStatusInput!): ProjectStatusPayload!
+  archiveProjectStatus(id: UUID!, archived: Boolean!): DeletePayload!
 
   # ---- administration
 

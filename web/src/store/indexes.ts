@@ -152,6 +152,7 @@ export class IssueIndex {
   private readonly unassigned = new Set<UUID>();
   private readonly priority = new SetIndex<number>();
   private readonly parent = new SetIndex<UUID>();
+  private readonly project = new SetIndex<UUID>();
   /**
    * Issues with no parent. Kept apart from `parent` for the same reason `unassigned` is
    * kept apart from `assignee`, and because it is the corpus an issue list actually
@@ -185,6 +186,7 @@ export class IssueIndex {
     this.priority.add(issue.priority, issue.id);
     if (issue.parentId === undefined) this.rootIssues.add(issue.id);
     else this.parent.add(issue.parentId, issue.id);
+    if (issue.projectId !== undefined) this.project.add(issue.projectId, issue.id);
     this.updated.set(issue.id, epochOf(issue.updatedAt));
     this.indexTitle(issue.id, issue.title);
     this.orderStale = true;
@@ -229,6 +231,10 @@ export class IssueIndex {
       if (next.parentId === undefined) this.rootIssues.add(id);
       else this.parent.add(next.parentId, id);
     }
+    if (previous.projectId !== next.projectId) {
+      if (previous.projectId !== undefined) this.project.remove(previous.projectId, id);
+      if (next.projectId !== undefined) this.project.add(next.projectId, id);
+    }
     if (previous.archivedAt !== next.archivedAt) {
       if (next.archivedAt === undefined) this.live.add(id);
       else this.live.delete(id);
@@ -254,6 +260,7 @@ export class IssueIndex {
     this.priority.remove(issue.priority, id);
     if (issue.parentId === undefined) this.rootIssues.delete(id);
     else this.parent.remove(issue.parentId, id);
+    if (issue.projectId !== undefined) this.project.remove(issue.projectId, id);
     this.updated.delete(id);
     this.unindexTitle(id);
     this.orderStale = true;
@@ -279,6 +286,7 @@ export class IssueIndex {
     this.unassigned.clear();
     this.priority.clear();
     this.parent.clear();
+    this.project.clear();
     this.rootIssues.clear();
     this.updated.clear();
     this.folded.clear();
@@ -322,6 +330,11 @@ export class IssueIndex {
    */
   byParent(parentId: UUID | null): ReadonlySet<UUID> {
     return parentId === null ? this.rootIssues : this.parent.get(parentId);
+  }
+
+  /** Issues in one project. An issue with no project is in no bucket here. */
+  byProject(projectId: UUID): ReadonlySet<UUID> {
+    return this.project.get(projectId);
   }
 
   /** Epoch milliseconds, for comparators that must not re-parse a timestamp per comparison. */

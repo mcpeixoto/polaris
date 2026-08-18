@@ -7,13 +7,16 @@
  * around that — focus lands in the title field, every other field is reachable with Tab and
  * operable with the arrow keys, and nothing waits on the network before closing.
  *
- * The properties are native `<Select>`s rather than the Menu-based pickers the list and the
- * detail view use, and that is a deliberate split rather than an inconsistency. In those
- * places changing a status is a *command* — it has a shortcut, it acts on a selection, it
- * wants a filter. Here it is a form field being filled in on the way to a submit, where the
- * platform's own control is better at everything that matters: it tabs, it types ahead, it
- * opens as a wheel on a phone, and it needs no focus trap of its own inside a dialog that
- * already has one.
+ * Team, status, assignee and priority are native `<Select>`s rather than the Menu-based
+ * pickers the list and the detail view use, and that is a deliberate split rather than an
+ * inconsistency. In those places changing a status is a *command* — it has a shortcut, it
+ * acts on a selection, it wants a filter. Here it is a form field being filled in on the
+ * way to a submit, where the platform's own control is better at everything that matters:
+ * it tabs, it types ahead, it opens as a wheel on a phone, and it needs no focus trap of
+ * its own inside a dialog that already has one.
+ *
+ * Project (and template) stay Menu pickers: ranking and typeahead are the whole point of
+ * those lists, and a native select cannot do either.
  */
 
 import { useId, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -39,6 +42,7 @@ import { createIssue } from './mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { templateDefaults, type TemplateDefaults } from '~/features/templates/mutations';
 import { TemplatePicker } from '~/features/templates/TemplatePicker';
+import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import type { IssueTemplate } from '~/store';
 import styles from './CreateIssueModal.module.css';
 
@@ -87,6 +91,8 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState<UUID>(UNASSIGNED);
   const [priority, setPriority] = useState(0);
+  // `undefined` means inherit from `/project/:id`; `null` means the filer cleared it.
+  const [projectId, setProjectId] = useState<UUID | null | undefined>(undefined);
   const [template, setTemplate] = useState<TemplateDefaults | null>(null);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -96,6 +102,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   // mounted by the shell, above the route that knows which team is on screen, so `useParams`
   // here would answer for a route that has not matched.
   const fromPath = useTeamKeyInPath();
+  const fromProjectPath = useProjectIdInPath();
 
   /**
    * The team the issue will belong to.
@@ -109,13 +116,23 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
     return teams.find((team) => team.key === fromPath)?.id ?? teams[0]?.id ?? '';
   }, [chosenTeam, teams, fromPath]);
 
+  const resolvedProjectId = projectId === undefined ? fromProjectPath : projectId;
+
   const templateMenu = useMenuTrigger();
+  const projectMenu = useMenuTrigger();
 
   const templateName = useLiveQuery(
     (store) =>
       template === null ? null : (store.issueTemplates.get(template.templateId)?.name ?? null),
     ['issueTemplate'],
     [template?.templateId ?? ''],
+  );
+
+  const projectName = useLiveQuery(
+    (store) =>
+      resolvedProjectId === null ? null : (store.projects.get(resolvedProjectId)?.name ?? null),
+    ['project'],
+    [resolvedProjectId ?? ''],
   );
 
   /**
@@ -198,6 +215,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         stateId: stateId === '' ? undefined : stateId,
         assigneeId: assigneeId === UNASSIGNED ? undefined : assigneeId,
         priority,
+        ...(resolvedProjectId === null ? null : { projectId: resolvedProjectId }),
         // The template's own contributions, carried on the create rather than applied
         // afterwards: three follow-up writes for one filed issue would be three versions on
         // the stream and three frames in which the issue is not yet what the template says
@@ -365,6 +383,20 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
           </Select>
 
           <div className={styles.template}>
+            <span className={styles.templateLabel} id={`${formId}-project`}>
+              Project
+            </span>
+            <Button
+              {...projectMenu.props}
+              variant="ghost"
+              fullWidth
+              aria-describedby={`${formId}-project`}
+            >
+              {projectName ?? 'No project'}
+            </Button>
+          </div>
+
+          <div className={styles.template}>
             <span className={styles.templateLabel} id={`${formId}-template`}>
               Template
             </span>
@@ -398,6 +430,14 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         )}
       </form>
 
+      <ProjectPicker
+        open={projectMenu.open}
+        onClose={projectMenu.hide}
+        trigger={projectMenu.ref}
+        teamIds={teamId === '' ? [] : [teamId]}
+        value={resolvedProjectId}
+        onSelect={setProjectId}
+      />
       <TemplatePicker
         open={templateMenu.open}
         onClose={templateMenu.hide}
@@ -413,6 +453,11 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
 function useTeamKeyInPath(): string | null {
   const { pathname } = useLocation();
   return useMemo(() => /^\/team\/([^/]+)/.exec(pathname)?.[1] ?? null, [pathname]);
+}
+
+function useProjectIdInPath(): UUID | null {
+  const { pathname } = useLocation();
+  return useMemo(() => /^\/project\/([^/]+)/.exec(pathname)?.[1] ?? null, [pathname]);
 }
 
 /**

@@ -254,6 +254,8 @@ export interface Issue {
   /** Order among siblings. A checklist's order has nothing to do with the backlog's. */
   readonly subIssueSortOrder?: string;
   readonly templateId?: UUID;
+  readonly projectId?: UUID;
+  readonly projectMilestoneId?: UUID;
   readonly startedAt?: Timestamp;
   readonly completedAt?: Timestamp;
   readonly canceledAt?: Timestamp;
@@ -506,6 +508,78 @@ export interface TemplateProperties {
   readonly labelIds?: readonly UUID[];
 }
 
+export type ProjectStatusCategory =
+  'backlog' | 'planned' | 'started' | 'completed' | 'canceled';
+
+export type TimeframeGranularity = 'day' | 'month' | 'quarter' | 'half' | 'year';
+
+export interface ProjectStatus {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly name: string;
+  readonly description?: string;
+  readonly color: string;
+  readonly category: ProjectStatusCategory;
+  readonly position: string;
+  readonly isDefault: boolean;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+export interface Project {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly name: string;
+  readonly summary?: string;
+  readonly description: string;
+  readonly icon?: string;
+  readonly color: string;
+  readonly statusId: UUID;
+  readonly priority: number;
+  readonly leadId?: UUID;
+  readonly creatorId?: UUID;
+  readonly sortOrder: string;
+  readonly startDate?: DateOnly;
+  readonly startDateGranularity?: TimeframeGranularity;
+  readonly targetDate?: DateOnly;
+  readonly targetDateGranularity?: TimeframeGranularity;
+  readonly archivedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+  readonly deletedBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+export interface ProjectTeam {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly teamId: UUID;
+  readonly createdAt: Timestamp;
+}
+
+export interface ProjectMember {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly userId: UUID;
+  readonly createdAt: Timestamp;
+}
+
+export interface ProjectMilestone {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly name: string;
+  readonly description?: string;
+  readonly targetDate?: DateOnly;
+  readonly sortOrder: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
 /**
  * The entity types the client replicates, keyed by the exact string the server puts in
  * `change_log.entity_type` and in each bootstrap line. These strings are the protocol —
@@ -523,6 +597,11 @@ export interface EntityByType {
   workflowState: WorkflowState;
   label: Label;
   issueTemplate: IssueTemplate;
+  projectStatus: ProjectStatus;
+  project: Project;
+  projectTeam: ProjectTeam;
+  projectMember: ProjectMember;
+  projectMilestone: ProjectMilestone;
   issue: Issue;
   issueLabel: IssueLabel;
   issueRelation: IssueRelation;
@@ -553,6 +632,12 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   // Before issues: an issue may carry a labelId or a templateId.
   'label',
   'issueTemplate',
+  // Before issues: an issue may name a project and a milestone.
+  'projectStatus',
+  'project',
+  'projectTeam',
+  'projectMember',
+  'projectMilestone',
   'issue',
   // After issues, because each names one.
   'issueLabel',

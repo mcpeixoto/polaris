@@ -126,6 +126,8 @@ func toIssue(i store.Issue, teamKey string) model.Issue {
 		ParentID:          i.ParentID,
 		SubIssueSortOrder: i.SubIssueSortOrder,
 		TemplateID:        i.TemplateID,
+		ProjectID:         i.ProjectID,
+		ProjectMilestoneID: i.ProjectMilestoneID,
 
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/peixotolabs/polaris/services/internal/authz"
@@ -216,6 +217,24 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 		TeamID: &f.TeamID, Name: "Bug report",
 	}); err != nil {
 		t.Fatalf("issueTemplate: %v", err)
+	}
+
+	if _, _, err := svc.CreateProjectStatus(ctx, p, domain.CreateProjectStatusInput{
+		Name: "Paused", Category: model.ProjectCategoryPlanned,
+	}); err != nil {
+		t.Fatalf("projectStatus: %v", err)
+	}
+
+	project, _, err := svc.CreateProject(ctx, p, domain.CreateProjectInput{
+		Name: "Scoped", TeamIDs: []uuid.UUID{f.TeamID}, MemberIDs: []uuid.UUID{p.UserID},
+	})
+	if err != nil {
+		t.Fatalf("project: %v", err)
+	}
+	if _, _, err := svc.CreateProjectMilestone(ctx, p, domain.CreateProjectMilestoneInput{
+		ProjectID: project.ID, Name: "Beta",
+	}); err != nil {
+		t.Fatalf("projectMilestone: %v", err)
 	}
 
 	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{

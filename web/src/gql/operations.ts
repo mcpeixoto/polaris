@@ -30,6 +30,8 @@ export const ISSUE_FIELDS = /* GraphQL */ `
     parentId
     subIssueSortOrder
     templateId
+    projectId
+    projectMilestoneId
     startedAt
     completedAt
     canceledAt
