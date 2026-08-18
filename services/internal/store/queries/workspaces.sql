@@ -69,6 +69,25 @@ RETURNING version;
 -- name: GetWorkspaceVersion :one
 SELECT version FROM workspace_version WHERE workspace_id = $1;
 
+-- CountWorkspacesForAccount bounds how many one account may create.
+--
+-- The same predicates as ListWorkspacesForAccount, and they have to stay the same: a cap
+-- counted differently from the switcher is a cap somebody hits with a screen in front of
+-- them showing fewer workspaces than the number they were refused at.
+--
+-- Membership, not authorship, because `workspace` records no creator. Being invited to
+-- somebody else's workspace therefore spends a slot, which is the conservative direction
+-- and the one that matches what the number is protecting: how many workspaces this account
+-- can cause the server to keep bootstrapping, syncing and fanning out for.
+--
+-- name: CountWorkspacesForAccount :one
+SELECT count(*) FROM workspace w
+JOIN "user" u ON u.workspace_id = w.id
+WHERE u.account_id = $1
+  AND u.archived_at IS NULL
+  AND u.status = 'active'
+  AND w.deleted_at IS NULL;
+
 -- name: ListWorkspacesForAccount :many
 SELECT w.id, w.name, w.url_key, w.logo_url, w.settings, w.plan,
        w.archived_at, w.deleted_at, w.created_at, w.updated_at,

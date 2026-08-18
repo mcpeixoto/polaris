@@ -208,6 +208,18 @@ type Querier interface {
 	// invitations each see one seat free and the workspace ends up one over its limit.
 	//
 	CountWorkspaceSeats(ctx context.Context, workspaceID uuid.UUID) (int64, error)
+	// CountWorkspacesForAccount bounds how many one account may create.
+	//
+	// The same predicates as ListWorkspacesForAccount, and they have to stay the same: a cap
+	// counted differently from the switcher is a cap somebody hits with a screen in front of
+	// them showing fewer workspaces than the number they were refused at.
+	//
+	// Membership, not authorship, because `workspace` records no creator. Being invited to
+	// somebody else's workspace therefore spends a slot, which is the conservative direction
+	// and the one that matches what the number is protecting: how many workspaces this account
+	// can cause the server to keep bootstrapping, syncing and fanning out for.
+	//
+	CountWorkspacesForAccount(ctx context.Context, accountID *uuid.UUID) (int64, error)
 	// token_hash appears in exactly one place below: the WHERE clause that authenticates a
 	// request. It is in no RETURNING and no SELECT list, so it never reaches a Go struct that
 	// could be logged, serialised into a payload, or returned by an API that grows a field

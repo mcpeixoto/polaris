@@ -28,6 +28,34 @@
 }
 
 /*
+ * The screen's heading, hidden from the page and not from the accessibility tree.
+ *
+ * Every other screen in the product carries a visible <h1> — Trash, API keys, Templates,
+ * Inbox, the settings screens — and this one had no heading at all. A screen with no h1 is
+ * one a screen-reader user cannot orient in: the heading list, which is how many people
+ * navigate, simply skips it, and "where am I" is answered by a search box whose own label is
+ * also hidden.
+ *
+ * Hidden rather than shown because the design here is deliberate and this is not an excuse
+ * to change it: the search field is the whole screen, it is focused on arrival, and a title
+ * above it would push the one thing the user came for down the page. The same recipe as
+ * Field.module.css's .hiddenLabel, and it is copied rather than shared for the reason that
+ * file gives — `display: none` and `visibility: hidden` remove it from both trees, which is
+ * the one thing a heading must never be.
+ */
+.screenTitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/*
  * The field takes the width it can get, up to a measure. A search box spanning a 27-inch
  * display is a line of text nobody can read the end of without moving their head, and the
  * results underneath it are the thing that wants the width.

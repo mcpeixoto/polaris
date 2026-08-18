@@ -32,6 +32,12 @@ type CreateWorkspaceInput struct {
 	FirstTeamKey  string
 	FirstTeamName string
 
+	// MaxPerAccount bounds how many workspaces this account may belong to. Zero means
+	// unlimited, which is what a caller that has no opinion gets — the composition root
+	// passes the configured number, and a test that is not about the cap need not know it
+	// exists.
+	MaxPerAccount int
+
 	// Plan the workspace is created on. Empty means self-hosted.
 	//
 	// It is an input rather than a constant because the answer depends on which product
@@ -110,6 +116,26 @@ func (s *Service) CreateWorkspace(ctx context.Context, in CreateWorkspaceInput) 
 
 	var out CreateWorkspaceResult
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		// The ceiling, checked inside the transaction so it cannot be raced past by two
+		// requests that both read the count before either wrote a row.
+		//
+		// There was no restriction here at all: POST /auth/workspaces needed a session and
+		// nothing else, and every workspace is one the sync hub, the bootstrap endpoint and
+		// the fan-out job carry from then on. This is a resource bound and not a statement
+		// about who deserves a workspace — see the comment on MaxWorkspacesPerAccount for
+		// why the product question is left to the operator.
+		if in.MaxPerAccount > 0 {
+			existing, err := q.CountWorkspacesForAccount(ctx, &in.AccountID)
+			if err != nil {
+				return platform.Internal(err)
+			}
+			if int(existing) >= in.MaxPerAccount {
+				return platform.Validation("name", fmt.Sprintf(
+					"this account is already in %d workspaces, which is the limit on this server",
+					existing))
+			}
+		}
+
 		wsID, err := uuid.NewV7()
 		if err != nil {
 			return platform.Internal(err)

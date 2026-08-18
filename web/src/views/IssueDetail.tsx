@@ -280,6 +280,12 @@ export function IssueDetail() {
 
   return (
     <div className={styles.screen}>
+      {/* Both the identifier and the title, because either alone answers half of "which
+          issue am I looking at" — the identifier is what people say to each other and the
+          title is what it is about. */}
+      <h1 className={styles.screenTitle}>
+        {issue.identifier} {issue.title}
+      </h1>
       <header className={styles.header}>
         {/* A link and not a button: it goes somewhere, so it should be announced as a link,
             open in a new tab on a middle click, and be copyable from a context menu. */}

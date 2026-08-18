@@ -656,6 +656,20 @@ func restoredIssueContents(
 	if err != nil {
 		return nil, platform.Internal(err)
 	}
+	// Not filtered by who can still see the issue, and that is not an oversight.
+	//
+	// It was raised as one: a favourite republished to somebody who has since left the
+	// issue's team lands in a replica that does not hold the issue. What arrives there is an
+	// id and a kind — no title, no description, nothing about the issue at all — and
+	// `favoriteLinks` in web/src/app/AppShell.tsx drops a favourite whose target is not in
+	// the replica rather than rendering a row with a blank name, naming this exact case in
+	// its own comment. The same is true of the subscription above: it carries a user id, an
+	// issue id and a flag, and nothing renders it outside a screen that needs the issue.
+	//
+	// Filtering here would mean resolving each recipient's team membership inside the
+	// restore transaction to suppress a row that is already inert, and getting it wrong in
+	// the other direction — dropping a favourite from somebody who CAN see the issue — would
+	// silently lose a star nobody could explain.
 	for _, fav := range favorites {
 		changes = append(changes, Change{
 			// Only the issue kind: a favourite is dropped when the replica forgets the row it

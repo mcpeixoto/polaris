@@ -47,6 +47,24 @@ type Config struct {
 	// has to come and read this file.
 	RegistrationMode string `envconfig:"POLARIS_REGISTRATION_MODE" default:"invite"`
 
+	// MaxWorkspacesPerAccount bounds how many workspaces one account may belong to.
+	//
+	// POST /auth/workspaces was reachable by any authenticated account with no restriction of
+	// any kind — not a role check, not a rate limit, not a count. Each call seeds a team,
+	// five workflow states, a version row, a notification cursor and a handful of change
+	// rows, and every workspace that exists is one more the sync hub, the bootstrap endpoint
+	// and the fan-out job carry forever. A single account could sit in a loop and grow the
+	// database without ever doing anything a rate limiter on writes would notice.
+	//
+	// A count rather than a policy about WHO may create one, deliberately. Who should be
+	// allowed is a product question with different answers for a self-hosted box, a community
+	// instance and the cloud, and inventing one here would be a decision nobody asked for. A
+	// ceiling is not a decision: twenty is far above anything a person does by hand and far
+	// below anything that hurts, and an operator who disagrees sets the number.
+	//
+	// 0 means unlimited, for the operator who genuinely wants that and has said so.
+	MaxWorkspacesPerAccount int `envconfig:"POLARIS_MAX_WORKSPACES_PER_ACCOUNT" default:"20"`
+
 	// DefaultPlan is the entitlement plan a newly created workspace starts on.
 	//
 	// Self-hosted, because this repository is the self-hosted product and the cloud is the
