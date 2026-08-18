@@ -119,10 +119,9 @@
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  height: 36px;
+  height: 28px;
   padding-inline: var(--space-4);
-  background-color: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-subtle);
+  background-color: var(--bg-primary);
   font-size: var(--font-size-sm);
 }
 
@@ -142,7 +141,6 @@
   gap: var(--space-2);
   height: var(--row-height);
   padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
   color: var(--text-primary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-none);

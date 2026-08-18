@@ -35,7 +35,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
-import { Avatar, Badge, Button, EmptyState, PriorityIcon, StateIcon, Tooltip } from '~/components';
+import { Avatar, Badge, Button, EmptyState, LabelChip, PriorityIcon, StateIcon, Tooltip } from '~/components';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { Board } from '~/features/view/ui/Board';
@@ -649,7 +649,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
           description={
             filtered
               ? 'Every issue here is excluded by a clause in the filter bar above.'
-              : 'Everything the team is working on will live here.'
+              : 'Press C to file the first one. It will land here the moment you save.'
           }
           action={
             filtered ? (
@@ -788,6 +788,13 @@ const IssueRow = memo(function IssueRow({
       const state = store.workflowStates.get(found.stateId);
       const assignee =
         found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
+      const labels: { id: UUID; name: string; color: string }[] = [];
+      for (const labelId of store.labelIdsFor(found.id)) {
+        const label = store.get('label', labelId);
+        if (label === undefined) continue;
+        labels.push({ id: label.id, name: label.name, color: label.color });
+      }
+      labels.sort((a, b) => a.name.localeCompare(b.name));
       return {
         identifier: store.identifierOf(found),
         title: found.title,
@@ -798,9 +805,10 @@ const IssueRow = memo(function IssueRow({
         assigneeId: assignee?.id ?? null,
         assigneeName: assignee?.displayName ?? null,
         assigneeAvatar: assignee?.avatarUrl ?? null,
+        labels,
       };
     },
-    ['issue', 'team', 'user', 'workflowState'],
+    ['issue', 'team', 'user', 'workflowState', 'label', 'issueLabel'],
     [id],
   );
 
@@ -825,20 +833,33 @@ const IssueRow = memo(function IssueRow({
         else onOpen(issue.identifier);
       }}
     >
-      <PriorityIcon priority={issue.priority} decorative />
+      <StateIcon
+        category={issue.stateCategory}
+        color={issue.stateColor}
+        label={issue.stateName}
+      />
       <span className={styles.identifier}>{issue.identifier}</span>
-      <StateIcon category={issue.stateCategory} color={issue.stateColor} label={issue.stateName} />
       <span className={styles.rowTitle}>{issue.title}</span>
-      {issue.assigneeName === null ? (
-        <span className={styles.unassigned} aria-label="Unassigned" role="img" />
-      ) : (
-        <Avatar
-          name={issue.assigneeName}
-          src={issue.assigneeAvatar}
-          size="xs"
-          colorKey={issue.assigneeId ?? issue.assigneeName}
-        />
+      {issue.labels.length > 0 && (
+        <span className={styles.labels}>
+          {issue.labels.slice(0, 3).map((label) => (
+            <LabelChip key={label.id} name={label.name} color={label.color} compact />
+          ))}
+        </span>
       )}
+      <span className={styles.meta}>
+        <PriorityIcon priority={issue.priority} decorative />
+        {issue.assigneeName === null ? (
+          <span className={styles.unassigned} aria-label="Unassigned" role="img" />
+        ) : (
+          <Avatar
+            name={issue.assigneeName}
+            src={issue.assigneeAvatar}
+            size="xs"
+            colorKey={issue.assigneeId ?? issue.assigneeName}
+          />
+        )}
+      </span>
     </div>
   );
 });

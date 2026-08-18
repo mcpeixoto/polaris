@@ -78,8 +78,11 @@
    * warming --color-black warms every wash derived from it in one edit.
    */
   --color-white-a04: color-mix(in srgb, var(--color-white) 4%, transparent);
+  --color-white-a06: color-mix(in srgb, var(--color-white) 6%, transparent);
   --color-white-a08: color-mix(in srgb, var(--color-white) 8%, transparent);
+  --color-white-a12: color-mix(in srgb, var(--color-white) 12%, transparent);
   --color-black-a04: color-mix(in srgb, var(--color-black) 4%, transparent);
+  --color-black-a06: color-mix(in srgb, var(--color-black) 6%, transparent);
   --color-black-a08: color-mix(in srgb, var(--color-black) 8%, transparent);
   --color-black-a12: color-mix(in srgb, var(--color-black) 12%, transparent);
   --color-black-a16: color-mix(in srgb, var(--color-black) 16%, transparent);
@@ -139,8 +142,8 @@
   --control-height-sm: 22px;
   --control-height-md: 28px;
   --control-height-lg: 32px;
-  --header-height: 40px;
-  --sidebar-width: 220px;
+  --header-height: 44px;
+  --sidebar-width: 232px;
 
   /* --- Radii ---------------------------------------------------------
    * Small on purpose. A 32px row with an 8px corner reads as a card, and a screen full
@@ -185,8 +188,8 @@
    * product is judged on the interval between pressing a key and seeing the result.
    */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans',
-    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    'SF Pro Text', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   --font-mono:
     ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
@@ -231,7 +234,7 @@
    * user learns one shape and then trusts it.
    */
   --focus-ring-width: 2px;
-  --focus-ring-offset: 2px;
+  --focus-ring-offset: 1px;
 
   /* ================================================================== *
    * SEMANTICS — light
@@ -249,6 +252,8 @@
   --bg-primary: var(--color-white);
   --bg-secondary: var(--color-neutral-50);
   --bg-tertiary: var(--color-neutral-100);
+  --bg-sidebar: var(--color-neutral-50);
+  --bg-elevated: var(--color-white);
   --bg-hover: var(--color-black-a04);
   --bg-selected: var(--color-black-a08);
   --bg-overlay: var(--color-black-a48);
@@ -315,8 +320,10 @@
   --bg-primary: var(--color-neutral-950);
   --bg-secondary: var(--color-neutral-900);
   --bg-tertiary: var(--color-neutral-800);
-  --bg-hover: var(--color-white-a04);
-  --bg-selected: var(--color-white-a08);
+  --bg-sidebar: var(--color-neutral-950);
+  --bg-elevated: var(--color-neutral-900);
+  --bg-hover: var(--color-white-a06);
+  --bg-selected: var(--color-white-a12);
   --bg-overlay: var(--color-black-a64);
 
   --text-primary: var(--color-neutral-100);
@@ -376,8 +383,10 @@
     --bg-primary: var(--color-neutral-950);
     --bg-secondary: var(--color-neutral-900);
     --bg-tertiary: var(--color-neutral-800);
-    --bg-hover: var(--color-white-a04);
-    --bg-selected: var(--color-white-a08);
+    --bg-sidebar: var(--color-neutral-950);
+    --bg-elevated: var(--color-neutral-900);
+    --bg-hover: var(--color-white-a06);
+    --bg-selected: var(--color-white-a12);
     --bg-overlay: var(--color-black-a64);
 
     --text-primary: var(--color-neutral-100);

@@ -274,9 +274,11 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         <Input
           ref={titleRef}
           label="Title"
+          hideLabel
+          surface="plain"
           value={title}
           error={titleError ?? undefined}
-          placeholder="Something that needs doing"
+          placeholder="Issue title"
           autoComplete="off"
           onChange={(event) => {
             setTitle(event.target.value);
@@ -286,16 +288,19 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
 
         <Textarea
           label="Description"
+          hideLabel
+          surface="plain"
           value={description}
           minRows={3}
           maxRows={12}
-          hint="Markdown. The rich editor arrives in M2."
+          placeholder="Add a description…"
           onChange={(event) => setDescription(event.target.value)}
         />
 
         <div className={styles.properties}>
           <Select
             label="Team"
+            hideLabel
             value={teamId}
             onChange={(event) => {
               setChosenTeam(event.target.value);
@@ -317,6 +322,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
 
           <Select
             label="Status"
+            hideLabel
             value={stateId}
             onChange={(event) => setChosenState(event.target.value)}
           >
@@ -333,6 +339,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
 
           <Select
             label="Assignee"
+            hideLabel
             value={assigneeId}
             onChange={(event) => setAssigneeId(event.target.value)}
           >
@@ -346,6 +353,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
 
           <Select
             label="Priority"
+            hideLabel
             value={String(priority)}
             onChange={(event) => setPriority(Number(event.target.value))}
           >
@@ -362,6 +370,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
             </span>
             <Button
               {...templateMenu.props}
+              variant="ghost"
               fullWidth
               aria-describedby={`${formId}-template`}
               disabled={teamId === ''}

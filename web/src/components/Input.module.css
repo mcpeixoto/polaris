@@ -3,8 +3,21 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: var(--control-height-lg);
+  height: var(--control-height-md);
   padding-inline: var(--space-2);
+}
+
+.plain {
+  border-color: transparent;
+  background-color: transparent;
+  height: auto;
+  min-height: var(--control-height-lg);
+  padding-inline: 0;
+}
+
+.plain:focus-within {
+  border-color: transparent;
+  outline: none;
 }
 
 .invalid {
