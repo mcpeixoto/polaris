@@ -32,6 +32,12 @@ type authHandlers struct {
 	// refusing strangers rather than towards admitting them.
 	openSignup bool
 
+	// maxWorkspaces bounds how many workspaces one account may belong to. Zero is unlimited,
+	// which is also what a zero authHandlers carries — the permissive direction, unlike
+	// openSignup above, because a bound that silently became "one" would lock every existing
+	// account out of creating anything and read as a broken deployment rather than a policy.
+	maxWorkspaces int
+
 	// defaultPlan is the entitlement plan a workspace created here starts on. Empty means
 	// self-hosted, which is what domain.CreateWorkspace assumes when it is given nothing —
 	// so a wiring mistake gives somebody the unlimited plan rather than silently capping
@@ -195,6 +201,7 @@ func (h *authHandlers) createWorkspace(w http.ResponseWriter, r *http.Request) {
 		FirstTeamKey:    req.FirstTeamKey,
 		FirstTeamName:   req.FirstTeamName,
 		Plan:            h.defaultPlan,
+		MaxPerAccount:   h.maxWorkspaces,
 	})
 	if err != nil {
 		writeError(w, r, err)

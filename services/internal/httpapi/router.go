@@ -48,9 +48,10 @@ func NewRouter(d Deps) http.Handler {
 		secure: !d.Config.IsDevelopment(),
 		// Asked as the permissive question, so that anything other than an explicit
 		// POLARIS_REGISTRATION_MODE=open leaves the server invite-only.
-		openSignup:  d.Config.OpenSignupAllowed(),
-		defaultPlan: entitlement.Plan(d.Config.DefaultPlan),
-		limits:      d.Limits,
+		openSignup:    d.Config.OpenSignupAllowed(),
+		defaultPlan:   entitlement.Plan(d.Config.DefaultPlan),
+		maxWorkspaces: d.Config.MaxWorkspacesPerAccount,
+		limits:        d.Limits,
 	}
 
 	// --- health -----------------------------------------------------------------

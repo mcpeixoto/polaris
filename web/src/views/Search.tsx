@@ -374,6 +374,7 @@ export function Search() {
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
+        <h1 className={styles.screenTitle}>Search</h1>
         <Input
           ref={boxRef}
           className={styles.box}

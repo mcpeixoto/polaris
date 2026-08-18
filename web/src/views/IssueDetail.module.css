@@ -14,6 +14,31 @@
   min-height: 0;
 }
 
+/*
+ * The screen's heading, hidden from the page and not from the accessibility tree.
+ *
+ * This screen's title is an editable textarea, which is right — renaming an issue should be
+ * typing in it, not opening a dialog — and it means the screen had no heading at all.
+ * Somebody navigating by headings arrived here and found nothing saying which issue they
+ * were looking at.
+ *
+ * A visible <h1> would be a second copy of the title sitting above the first, so it is
+ * hidden the way Search.module.css's .screenTitle is, and for the same reason: `display:
+ * none` and `visibility: hidden` take an element out of both trees, which is the one thing a
+ * heading must never be.
+ */
+.screenTitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 .header {
   display: flex;
   align-items: center;
