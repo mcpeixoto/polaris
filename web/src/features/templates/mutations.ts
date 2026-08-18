@@ -215,7 +215,10 @@ export async function archiveTemplate(engine: SyncEngine, templateId: UUID): Pro
 
   await engine.mutate({
     mutation: ARCHIVE_ISSUE_TEMPLATE,
-    variables: { id: templateId },
+    // See archiveLabel: `archived` is required and was omitted here too, so this was
+    // rejected at validation on every call and the optimistic patch below was reverted a
+    // moment later by a failure nobody could read.
+    variables: { id: templateId, archived: true },
     optimistic: [{ type: 'issueTemplate', id: templateId, before, after: null }],
   });
 }

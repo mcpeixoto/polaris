@@ -76,8 +76,8 @@ export const UPDATE_LABEL = /* GraphQL */ `
  * the user what to clear first.
  */
 export const ARCHIVE_LABEL = /* GraphQL */ `
-  mutation ArchiveLabel($id: UUID!) {
-    archiveLabel(id: $id) {
+  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {
+    archiveLabel(id: $id, archived: $archived) {
       version
       id
     }

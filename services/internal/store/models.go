@@ -14,9 +14,10 @@ import (
 )
 
 type Account struct {
-	ID              uuid.UUID
-	Email           string
-	PasswordHash    *string
+	ID           uuid.UUID
+	Email        string
+	PasswordHash *string
+	// RESERVED, NEVER WRITTEN. No email-verification flow exists yet, so this is NULL for every account and NULL does not mean "unverified" — it means "unknown". Do not filter on it until something sets it.
 	EmailVerifiedAt *time.Time
 	DeletedAt       *time.Time
 	LastLoginAt     *time.Time

@@ -18,13 +18,13 @@ type Documents = {
     "\n  query Invites {\n    invites {\n      id\n      email\n      role\n      invitedBy\n      teamIds\n      expiresAt\n      createdAt\n    }\n  }\n": typeof types.InvitesDocument,
     "\n  mutation InviteToWorkspace($input: InviteInput!) {\n    inviteToWorkspace(input: $input) {\n      id\n      email\n      role\n      expiresAt\n      token\n    }\n  }\n": typeof types.InviteToWorkspaceDocument,
     "\n  mutation RevokeInvite($id: UUID!) {\n    revokeInvite(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.RevokeInviteDocument,
+    "\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveUserDocument,
+    "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n": typeof types.DeletedIssuesDocument,
+    "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": typeof types.RestoreIssueDocument,
     "\n  fragment ApiKeyFields on ApiKey {\n    id\n    userId\n    name\n    prefix\n    scopes\n    lastUsedAt\n    expiresAt\n    revokedAt\n    createdAt\n  }\n": typeof types.ApiKeyFieldsFragmentDoc,
     "\n  \n  query ApiKeys {\n    apiKeys {\n      ...ApiKeyFields\n    }\n  }\n": typeof types.ApiKeysDocument,
     "\n  \n  mutation CreateApiKey($input: CreateApiKeyInput!) {\n    createApiKey(input: $input) {\n      version\n      created {\n        token\n        apiKey {\n          ...ApiKeyFields\n        }\n      }\n    }\n  }\n": typeof types.CreateApiKeyDocument,
     "\n  mutation RevokeApiKey($id: UUID!) {\n    revokeApiKey(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.RevokeApiKeyDocument,
-    "\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveUserDocument,
-    "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n": typeof types.DeletedIssuesDocument,
-    "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": typeof types.RestoreIssueDocument,
     "\n  fragment NotificationFields on Notification {\n    id\n    workspaceId\n    userId\n    type\n    issueId\n    commentId\n    actor {\n      type\n      id\n    }\n    changeVersion\n    groupKey\n    count\n    payload\n    readAt\n    snoozedUntil\n    createdAt\n    updatedAt\n  }\n": typeof types.NotificationFieldsFragmentDoc,
     "\n  \n  query Inbox($first: Int!) {\n    notifications(includeRead: true, includeSnoozed: true, first: $first) {\n      ...NotificationFields\n    }\n  }\n": typeof types.InboxDocument,
     "\n  query UnreadNotificationCount {\n    unreadNotificationCount\n  }\n": typeof types.UnreadNotificationCountDocument,
@@ -32,6 +32,7 @@ type Documents = {
     "\n  \n  mutation MarkAllNotificationsRead {\n    markAllNotificationsRead {\n      version\n      notifications {\n        ...NotificationFields\n      }\n    }\n  }\n": typeof types.MarkAllNotificationsReadDocument,
     "\n  \n  mutation SnoozeNotification($id: UUID!, $until: Time) {\n    snoozeNotification(id: $id, until: $until) {\n      version\n      notification {\n        ...NotificationFields\n      }\n    }\n  }\n": typeof types.SnoozeNotificationDocument,
     "\n  mutation DeleteNotification($id: UUID!) {\n    deleteNotification(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteNotificationDocument,
+    "\n  \n  mutation UpdateNotificationPrefs($prefs: JSON!) {\n    updateNotificationPrefs(prefs: $prefs) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.UpdateNotificationPrefsDocument,
     "\n  fragment SubIssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    estimate\n    dueDate\n    dueDateSource\n    parentId\n    subIssueSortOrder\n    templateId\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n": typeof types.SubIssueFieldsFragmentDoc,
     "\n  fragment RelationFields on IssueRelation {\n    id\n    workspaceId\n    issueId\n    relatedIssueId\n    type\n    teamId\n    relatedTeamId\n    createdBy\n    createdAt\n  }\n": typeof types.RelationFieldsFragmentDoc,
     "\n  fragment SubscriptionFields on IssueSubscription {\n    id\n    workspaceId\n    issueId\n    userId\n    reason\n    unsubscribed\n    createdAt\n    updatedAt\n  }\n": typeof types.SubscriptionFieldsFragmentDoc,
@@ -43,13 +44,27 @@ type Documents = {
     "\n  fragment IssueLabelFields on IssueLabel {\n    id\n    workspaceId\n    issueId\n    labelId\n    teamId\n    groupId\n    createdBy\n    createdAt\n  }\n": typeof types.IssueLabelFieldsFragmentDoc,
     "\n  \n  mutation CreateLabel($input: CreateLabelInput!, $clientId: UUID, $opId: UUID) {\n    createLabel(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n": typeof types.CreateLabelDocument,
     "\n  \n  mutation UpdateLabel($input: UpdateLabelInput!, $clientId: UUID, $opId: UUID) {\n    updateLabel(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n": typeof types.UpdateLabelDocument,
-    "\n  mutation ArchiveLabel($id: UUID!) {\n    archiveLabel(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveLabelDocument,
+    "\n  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {\n    archiveLabel(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveLabelDocument,
     "\n  \n  mutation AddIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    addIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      issueLabel {\n        ...IssueLabelFields\n      }\n    }\n  }\n": typeof types.AddIssueLabelDocument,
     "\n  mutation RemoveIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    removeIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveIssueLabelDocument,
-    "\n  fragment IssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n": typeof types.IssueFieldsFragmentDoc,
-    "\n  fragment TeamFields on Team {\n    id\n    workspaceId\n    key\n    name\n    description\n    icon\n    color\n    timezone\n    parentTeamId\n    private\n    createdAt\n    updatedAt\n    retiredAt\n    archivedAt\n  }\n": typeof types.TeamFieldsFragmentDoc,
+    "\n  query Search($input: SearchInput!) {\n    search(input: $input) {\n      issueCount\n      issues {\n        id\n        identifier\n        title\n        priority\n        state {\n          id\n          name\n          category\n          color\n        }\n        assignee {\n          id\n          displayName\n          avatarUrl\n        }\n      }\n      comments {\n        id\n        issueId\n        body\n        createdAt\n      }\n    }\n  }\n": typeof types.SearchDocument,
+    "\n  fragment IssueTemplateFields on IssueTemplate {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    title\n    body\n    properties\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.IssueTemplateFieldsFragmentDoc,
+    "\n  \n  mutation CreateIssueTemplate($input: CreateIssueTemplateInput!) {\n    createIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": typeof types.CreateIssueTemplateDocument,
+    "\n  \n  mutation UpdateIssueTemplate($input: UpdateIssueTemplateInput!) {\n    updateIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": typeof types.UpdateIssueTemplateDocument,
+    "\n  mutation ArchiveIssueTemplate($id: UUID!, $archived: Boolean!) {\n    archiveIssueTemplate(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveIssueTemplateDocument,
+    "\n  fragment ViewFields on View {\n    id\n    workspaceId\n    teamId\n    ownerId\n    name\n    description\n    icon\n    color\n    filter\n    display\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.ViewFieldsFragmentDoc,
+    "\n  fragment ViewPreferenceFields on ViewPreference {\n    id\n    workspaceId\n    userId\n    viewKey\n    display\n    createdAt\n    updatedAt\n  }\n": typeof types.ViewPreferenceFieldsFragmentDoc,
+    "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    position\n    createdAt\n    updatedAt\n  }\n": typeof types.FavoriteFieldsFragmentDoc,
+    "\n  \n  mutation CreateView($input: CreateViewInput!) {\n    createView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n": typeof types.CreateViewDocument,
+    "\n  \n  mutation UpdateView($input: UpdateViewInput!) {\n    updateView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n": typeof types.UpdateViewDocument,
+    "\n  mutation DeleteView($id: UUID!) {\n    deleteView(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteViewDocument,
+    "\n  \n  mutation SetViewPreference($viewKey: String!, $display: JSON!) {\n    setViewPreference(viewKey: $viewKey, display: $display) {\n      version\n      preference {\n        ...ViewPreferenceFields\n      }\n    }\n  }\n": typeof types.SetViewPreferenceDocument,
+    "\n  \n  mutation AddFavorite($kind: FavoriteKind!, $targetId: UUID!, $afterFavoriteId: UUID) {\n    addFavorite(kind: $kind, targetId: $targetId, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": typeof types.AddFavoriteDocument,
+    "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveFavoriteDocument,
+    "\n  fragment IssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    estimate\n    dueDate\n    dueDateSource\n    parentId\n    subIssueSortOrder\n    templateId\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n": typeof types.IssueFieldsFragmentDoc,
+    "\n  fragment TeamFields on Team {\n    id\n    workspaceId\n    key\n    name\n    description\n    icon\n    color\n    timezone\n    parentTeamId\n    private\n    estimateScale\n    estimateAllowZero\n    estimateExtended\n    createdAt\n    updatedAt\n    retiredAt\n    archivedAt\n  }\n": typeof types.TeamFieldsFragmentDoc,
     "\n  fragment StateFields on WorkflowState {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    color\n    category\n    position\n    isDefault\n    isSystem\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.StateFieldsFragmentDoc,
-    "\n  fragment UserFields on User {\n    id\n    workspaceId\n    name\n    displayName\n    avatarUrl\n    timezone\n    role\n    status\n    kind\n    email\n    lastSeenAt\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.UserFieldsFragmentDoc,
+    "\n  fragment UserFields on User {\n    id\n    workspaceId\n    name\n    displayName\n    avatarUrl\n    timezone\n    role\n    status\n    kind\n    email\n    notificationPrefs\n    lastSeenAt\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.UserFieldsFragmentDoc,
     "\n  fragment CommentFields on Comment {\n    id\n    workspaceId\n    issueId\n    parentId\n    body\n    actor {\n      type\n      id\n    }\n    editedAt\n    resolvedAt\n    resolvedBy\n    createdAt\n    updatedAt\n  }\n": typeof types.CommentFieldsFragmentDoc,
     "\n  \n  query Viewer {\n    viewer {\n      syncVersion\n      user {\n        ...UserFields\n      }\n      workspace {\n        id\n        name\n        urlKey\n        logoUrl\n        plan\n        createdAt\n        updatedAt\n      }\n      workspaces {\n        id\n        name\n        urlKey\n        logoUrl\n        plan\n        createdAt\n        updatedAt\n      }\n    }\n  }\n": typeof types.ViewerDocument,
     "\n  \n  query IssueDetail($id: UUID!) {\n    comments(issueId: $id) {\n      ...CommentFields\n    }\n    issueHistory(issueId: $id) {\n      id\n      issueId\n      kind\n      fromValue\n      toValue\n      createdAt\n      actor {\n        type\n        id\n      }\n    }\n  }\n": typeof types.IssueDetailDocument,
@@ -64,7 +79,7 @@ type Documents = {
     "\n  \n  mutation UpdateTeam($input: UpdateTeamInput!) {\n    updateTeam(input: $input) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": typeof types.UpdateTeamDocument,
     "\n  \n  mutation CreateWorkflowState($input: CreateWorkflowStateInput!) {\n    createWorkflowState(input: $input) {\n      version\n      state {\n        ...StateFields\n      }\n    }\n  }\n": typeof types.CreateWorkflowStateDocument,
     "\n  \n  mutation UpdateWorkflowState($input: UpdateWorkflowStateInput!) {\n    updateWorkflowState(input: $input) {\n      version\n      state {\n        ...StateFields\n      }\n    }\n  }\n": typeof types.UpdateWorkflowStateDocument,
-    "\n  mutation ArchiveWorkflowState($id: UUID!) {\n    archiveWorkflowState(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveWorkflowStateDocument,
+    "\n  mutation ArchiveWorkflowState($id: UUID!, $archived: Boolean!) {\n    archiveWorkflowState(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveWorkflowStateDocument,
     "\n  \n  mutation SetUserRole($userId: UUID!, $role: UserRole!) {\n    setUserRole(userId: $userId, role: $role) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.SetUserRoleDocument,
     "\n  \n  mutation SuspendUser($userId: UUID!, $suspended: Boolean!) {\n    suspendUser(userId: $userId, suspended: $suspended) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.SuspendUserDocument,
     "\n  \n  mutation UpdateProfile($input: UpdateProfileInput!) {\n    updateProfile(input: $input) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.UpdateProfileDocument,
@@ -74,13 +89,13 @@ const documents: Documents = {
     "\n  query Invites {\n    invites {\n      id\n      email\n      role\n      invitedBy\n      teamIds\n      expiresAt\n      createdAt\n    }\n  }\n": types.InvitesDocument,
     "\n  mutation InviteToWorkspace($input: InviteInput!) {\n    inviteToWorkspace(input: $input) {\n      id\n      email\n      role\n      expiresAt\n      token\n    }\n  }\n": types.InviteToWorkspaceDocument,
     "\n  mutation RevokeInvite($id: UUID!) {\n    revokeInvite(id: $id) {\n      version\n      id\n    }\n  }\n": types.RevokeInviteDocument,
+    "\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n": types.RemoveUserDocument,
+    "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n": types.DeletedIssuesDocument,
+    "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": types.RestoreIssueDocument,
     "\n  fragment ApiKeyFields on ApiKey {\n    id\n    userId\n    name\n    prefix\n    scopes\n    lastUsedAt\n    expiresAt\n    revokedAt\n    createdAt\n  }\n": types.ApiKeyFieldsFragmentDoc,
     "\n  \n  query ApiKeys {\n    apiKeys {\n      ...ApiKeyFields\n    }\n  }\n": types.ApiKeysDocument,
     "\n  \n  mutation CreateApiKey($input: CreateApiKeyInput!) {\n    createApiKey(input: $input) {\n      version\n      created {\n        token\n        apiKey {\n          ...ApiKeyFields\n        }\n      }\n    }\n  }\n": types.CreateApiKeyDocument,
     "\n  mutation RevokeApiKey($id: UUID!) {\n    revokeApiKey(id: $id) {\n      version\n      id\n    }\n  }\n": types.RevokeApiKeyDocument,
-    "\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n": types.RemoveUserDocument,
-    "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n": types.DeletedIssuesDocument,
-    "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": types.RestoreIssueDocument,
     "\n  fragment NotificationFields on Notification {\n    id\n    workspaceId\n    userId\n    type\n    issueId\n    commentId\n    actor {\n      type\n      id\n    }\n    changeVersion\n    groupKey\n    count\n    payload\n    readAt\n    snoozedUntil\n    createdAt\n    updatedAt\n  }\n": types.NotificationFieldsFragmentDoc,
     "\n  \n  query Inbox($first: Int!) {\n    notifications(includeRead: true, includeSnoozed: true, first: $first) {\n      ...NotificationFields\n    }\n  }\n": types.InboxDocument,
     "\n  query UnreadNotificationCount {\n    unreadNotificationCount\n  }\n": types.UnreadNotificationCountDocument,
@@ -88,6 +103,7 @@ const documents: Documents = {
     "\n  \n  mutation MarkAllNotificationsRead {\n    markAllNotificationsRead {\n      version\n      notifications {\n        ...NotificationFields\n      }\n    }\n  }\n": types.MarkAllNotificationsReadDocument,
     "\n  \n  mutation SnoozeNotification($id: UUID!, $until: Time) {\n    snoozeNotification(id: $id, until: $until) {\n      version\n      notification {\n        ...NotificationFields\n      }\n    }\n  }\n": types.SnoozeNotificationDocument,
     "\n  mutation DeleteNotification($id: UUID!) {\n    deleteNotification(id: $id) {\n      version\n      id\n    }\n  }\n": types.DeleteNotificationDocument,
+    "\n  \n  mutation UpdateNotificationPrefs($prefs: JSON!) {\n    updateNotificationPrefs(prefs: $prefs) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": types.UpdateNotificationPrefsDocument,
     "\n  fragment SubIssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    estimate\n    dueDate\n    dueDateSource\n    parentId\n    subIssueSortOrder\n    templateId\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n": types.SubIssueFieldsFragmentDoc,
     "\n  fragment RelationFields on IssueRelation {\n    id\n    workspaceId\n    issueId\n    relatedIssueId\n    type\n    teamId\n    relatedTeamId\n    createdBy\n    createdAt\n  }\n": types.RelationFieldsFragmentDoc,
     "\n  fragment SubscriptionFields on IssueSubscription {\n    id\n    workspaceId\n    issueId\n    userId\n    reason\n    unsubscribed\n    createdAt\n    updatedAt\n  }\n": types.SubscriptionFieldsFragmentDoc,
@@ -99,13 +115,27 @@ const documents: Documents = {
     "\n  fragment IssueLabelFields on IssueLabel {\n    id\n    workspaceId\n    issueId\n    labelId\n    teamId\n    groupId\n    createdBy\n    createdAt\n  }\n": types.IssueLabelFieldsFragmentDoc,
     "\n  \n  mutation CreateLabel($input: CreateLabelInput!, $clientId: UUID, $opId: UUID) {\n    createLabel(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n": types.CreateLabelDocument,
     "\n  \n  mutation UpdateLabel($input: UpdateLabelInput!, $clientId: UUID, $opId: UUID) {\n    updateLabel(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n": types.UpdateLabelDocument,
-    "\n  mutation ArchiveLabel($id: UUID!) {\n    archiveLabel(id: $id) {\n      version\n      id\n    }\n  }\n": types.ArchiveLabelDocument,
+    "\n  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {\n    archiveLabel(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": types.ArchiveLabelDocument,
     "\n  \n  mutation AddIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    addIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      issueLabel {\n        ...IssueLabelFields\n      }\n    }\n  }\n": types.AddIssueLabelDocument,
     "\n  mutation RemoveIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    removeIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.RemoveIssueLabelDocument,
-    "\n  fragment IssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n": types.IssueFieldsFragmentDoc,
-    "\n  fragment TeamFields on Team {\n    id\n    workspaceId\n    key\n    name\n    description\n    icon\n    color\n    timezone\n    parentTeamId\n    private\n    createdAt\n    updatedAt\n    retiredAt\n    archivedAt\n  }\n": types.TeamFieldsFragmentDoc,
+    "\n  query Search($input: SearchInput!) {\n    search(input: $input) {\n      issueCount\n      issues {\n        id\n        identifier\n        title\n        priority\n        state {\n          id\n          name\n          category\n          color\n        }\n        assignee {\n          id\n          displayName\n          avatarUrl\n        }\n      }\n      comments {\n        id\n        issueId\n        body\n        createdAt\n      }\n    }\n  }\n": types.SearchDocument,
+    "\n  fragment IssueTemplateFields on IssueTemplate {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    title\n    body\n    properties\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.IssueTemplateFieldsFragmentDoc,
+    "\n  \n  mutation CreateIssueTemplate($input: CreateIssueTemplateInput!) {\n    createIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": types.CreateIssueTemplateDocument,
+    "\n  \n  mutation UpdateIssueTemplate($input: UpdateIssueTemplateInput!) {\n    updateIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": types.UpdateIssueTemplateDocument,
+    "\n  mutation ArchiveIssueTemplate($id: UUID!, $archived: Boolean!) {\n    archiveIssueTemplate(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": types.ArchiveIssueTemplateDocument,
+    "\n  fragment ViewFields on View {\n    id\n    workspaceId\n    teamId\n    ownerId\n    name\n    description\n    icon\n    color\n    filter\n    display\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.ViewFieldsFragmentDoc,
+    "\n  fragment ViewPreferenceFields on ViewPreference {\n    id\n    workspaceId\n    userId\n    viewKey\n    display\n    createdAt\n    updatedAt\n  }\n": types.ViewPreferenceFieldsFragmentDoc,
+    "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    position\n    createdAt\n    updatedAt\n  }\n": types.FavoriteFieldsFragmentDoc,
+    "\n  \n  mutation CreateView($input: CreateViewInput!) {\n    createView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n": types.CreateViewDocument,
+    "\n  \n  mutation UpdateView($input: UpdateViewInput!) {\n    updateView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n": types.UpdateViewDocument,
+    "\n  mutation DeleteView($id: UUID!) {\n    deleteView(id: $id) {\n      version\n      id\n    }\n  }\n": types.DeleteViewDocument,
+    "\n  \n  mutation SetViewPreference($viewKey: String!, $display: JSON!) {\n    setViewPreference(viewKey: $viewKey, display: $display) {\n      version\n      preference {\n        ...ViewPreferenceFields\n      }\n    }\n  }\n": types.SetViewPreferenceDocument,
+    "\n  \n  mutation AddFavorite($kind: FavoriteKind!, $targetId: UUID!, $afterFavoriteId: UUID) {\n    addFavorite(kind: $kind, targetId: $targetId, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": types.AddFavoriteDocument,
+    "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n": types.RemoveFavoriteDocument,
+    "\n  fragment IssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    estimate\n    dueDate\n    dueDateSource\n    parentId\n    subIssueSortOrder\n    templateId\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n": types.IssueFieldsFragmentDoc,
+    "\n  fragment TeamFields on Team {\n    id\n    workspaceId\n    key\n    name\n    description\n    icon\n    color\n    timezone\n    parentTeamId\n    private\n    estimateScale\n    estimateAllowZero\n    estimateExtended\n    createdAt\n    updatedAt\n    retiredAt\n    archivedAt\n  }\n": types.TeamFieldsFragmentDoc,
     "\n  fragment StateFields on WorkflowState {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    color\n    category\n    position\n    isDefault\n    isSystem\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.StateFieldsFragmentDoc,
-    "\n  fragment UserFields on User {\n    id\n    workspaceId\n    name\n    displayName\n    avatarUrl\n    timezone\n    role\n    status\n    kind\n    email\n    lastSeenAt\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.UserFieldsFragmentDoc,
+    "\n  fragment UserFields on User {\n    id\n    workspaceId\n    name\n    displayName\n    avatarUrl\n    timezone\n    role\n    status\n    kind\n    email\n    notificationPrefs\n    lastSeenAt\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.UserFieldsFragmentDoc,
     "\n  fragment CommentFields on Comment {\n    id\n    workspaceId\n    issueId\n    parentId\n    body\n    actor {\n      type\n      id\n    }\n    editedAt\n    resolvedAt\n    resolvedBy\n    createdAt\n    updatedAt\n  }\n": types.CommentFieldsFragmentDoc,
     "\n  \n  query Viewer {\n    viewer {\n      syncVersion\n      user {\n        ...UserFields\n      }\n      workspace {\n        id\n        name\n        urlKey\n        logoUrl\n        plan\n        createdAt\n        updatedAt\n      }\n      workspaces {\n        id\n        name\n        urlKey\n        logoUrl\n        plan\n        createdAt\n        updatedAt\n      }\n    }\n  }\n": types.ViewerDocument,
     "\n  \n  query IssueDetail($id: UUID!) {\n    comments(issueId: $id) {\n      ...CommentFields\n    }\n    issueHistory(issueId: $id) {\n      id\n      issueId\n      kind\n      fromValue\n      toValue\n      createdAt\n      actor {\n        type\n        id\n      }\n    }\n  }\n": types.IssueDetailDocument,
@@ -120,7 +150,7 @@ const documents: Documents = {
     "\n  \n  mutation UpdateTeam($input: UpdateTeamInput!) {\n    updateTeam(input: $input) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": types.UpdateTeamDocument,
     "\n  \n  mutation CreateWorkflowState($input: CreateWorkflowStateInput!) {\n    createWorkflowState(input: $input) {\n      version\n      state {\n        ...StateFields\n      }\n    }\n  }\n": types.CreateWorkflowStateDocument,
     "\n  \n  mutation UpdateWorkflowState($input: UpdateWorkflowStateInput!) {\n    updateWorkflowState(input: $input) {\n      version\n      state {\n        ...StateFields\n      }\n    }\n  }\n": types.UpdateWorkflowStateDocument,
-    "\n  mutation ArchiveWorkflowState($id: UUID!) {\n    archiveWorkflowState(id: $id) {\n      version\n      id\n    }\n  }\n": types.ArchiveWorkflowStateDocument,
+    "\n  mutation ArchiveWorkflowState($id: UUID!, $archived: Boolean!) {\n    archiveWorkflowState(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": types.ArchiveWorkflowStateDocument,
     "\n  \n  mutation SetUserRole($userId: UUID!, $role: UserRole!) {\n    setUserRole(userId: $userId, role: $role) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": types.SetUserRoleDocument,
     "\n  \n  mutation SuspendUser($userId: UUID!, $suspended: Boolean!) {\n    suspendUser(userId: $userId, suspended: $suspended) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": types.SuspendUserDocument,
     "\n  \n  mutation UpdateProfile($input: UpdateProfileInput!) {\n    updateProfile(input: $input) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": types.UpdateProfileDocument,
@@ -159,6 +189,18 @@ export function graphql(source: "\n  mutation RevokeInvite($id: UUID!) {\n    re
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
+export function graphql(source: "\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n"): (typeof documents)["\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
 export function graphql(source: "\n  fragment ApiKeyFields on ApiKey {\n    id\n    userId\n    name\n    prefix\n    scopes\n    lastUsedAt\n    expiresAt\n    revokedAt\n    createdAt\n  }\n"): (typeof documents)["\n  fragment ApiKeyFields on ApiKey {\n    id\n    userId\n    name\n    prefix\n    scopes\n    lastUsedAt\n    expiresAt\n    revokedAt\n    createdAt\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
@@ -172,18 +214,6 @@ export function graphql(source: "\n  \n  mutation CreateApiKey($input: CreateApi
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RevokeApiKey($id: UUID!) {\n    revokeApiKey(id: $id) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RevokeApiKey($id: UUID!) {\n    revokeApiKey(id: $id) {\n      version\n      id\n    }\n  }\n"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n"): (typeof documents)["\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -212,6 +242,10 @@ export function graphql(source: "\n  \n  mutation SnoozeNotification($id: UUID!,
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation DeleteNotification($id: UUID!) {\n    deleteNotification(id: $id) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteNotification($id: UUID!) {\n    deleteNotification(id: $id) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateNotificationPrefs($prefs: JSON!) {\n    updateNotificationPrefs(prefs: $prefs) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateNotificationPrefs($prefs: JSON!) {\n    updateNotificationPrefs(prefs: $prefs) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -259,7 +293,7 @@ export function graphql(source: "\n  \n  mutation UpdateLabel($input: UpdateLabe
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation ArchiveLabel($id: UUID!) {\n    archiveLabel(id: $id) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ArchiveLabel($id: UUID!) {\n    archiveLabel(id: $id) {\n      version\n      id\n    }\n  }\n"];
+export function graphql(source: "\n  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {\n    archiveLabel(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {\n    archiveLabel(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -271,11 +305,67 @@ export function graphql(source: "\n  mutation RemoveIssueLabel($issueId: UUID!, 
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  fragment IssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment IssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n"];
+export function graphql(source: "\n  query Search($input: SearchInput!) {\n    search(input: $input) {\n      issueCount\n      issues {\n        id\n        identifier\n        title\n        priority\n        state {\n          id\n          name\n          category\n          color\n        }\n        assignee {\n          id\n          displayName\n          avatarUrl\n        }\n      }\n      comments {\n        id\n        issueId\n        body\n        createdAt\n      }\n    }\n  }\n"): (typeof documents)["\n  query Search($input: SearchInput!) {\n    search(input: $input) {\n      issueCount\n      issues {\n        id\n        identifier\n        title\n        priority\n        state {\n          id\n          name\n          category\n          color\n        }\n        assignee {\n          id\n          displayName\n          avatarUrl\n        }\n      }\n      comments {\n        id\n        issueId\n        body\n        createdAt\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  fragment TeamFields on Team {\n    id\n    workspaceId\n    key\n    name\n    description\n    icon\n    color\n    timezone\n    parentTeamId\n    private\n    createdAt\n    updatedAt\n    retiredAt\n    archivedAt\n  }\n"): (typeof documents)["\n  fragment TeamFields on Team {\n    id\n    workspaceId\n    key\n    name\n    description\n    icon\n    color\n    timezone\n    parentTeamId\n    private\n    createdAt\n    updatedAt\n    retiredAt\n    archivedAt\n  }\n"];
+export function graphql(source: "\n  fragment IssueTemplateFields on IssueTemplate {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    title\n    body\n    properties\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n"): (typeof documents)["\n  fragment IssueTemplateFields on IssueTemplate {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    title\n    body\n    properties\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateIssueTemplate($input: CreateIssueTemplateInput!) {\n    createIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateIssueTemplate($input: CreateIssueTemplateInput!) {\n    createIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateIssueTemplate($input: UpdateIssueTemplateInput!) {\n    updateIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateIssueTemplate($input: UpdateIssueTemplateInput!) {\n    updateIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation ArchiveIssueTemplate($id: UUID!, $archived: Boolean!) {\n    archiveIssueTemplate(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ArchiveIssueTemplate($id: UUID!, $archived: Boolean!) {\n    archiveIssueTemplate(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment ViewFields on View {\n    id\n    workspaceId\n    teamId\n    ownerId\n    name\n    description\n    icon\n    color\n    filter\n    display\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n"): (typeof documents)["\n  fragment ViewFields on View {\n    id\n    workspaceId\n    teamId\n    ownerId\n    name\n    description\n    icon\n    color\n    filter\n    display\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment ViewPreferenceFields on ViewPreference {\n    id\n    workspaceId\n    userId\n    viewKey\n    display\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment ViewPreferenceFields on ViewPreference {\n    id\n    workspaceId\n    userId\n    viewKey\n    display\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    position\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    position\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateView($input: CreateViewInput!) {\n    createView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateView($input: CreateViewInput!) {\n    createView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateView($input: UpdateViewInput!) {\n    updateView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateView($input: UpdateViewInput!) {\n    updateView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteView($id: UUID!) {\n    deleteView(id: $id) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteView($id: UUID!) {\n    deleteView(id: $id) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation SetViewPreference($viewKey: String!, $display: JSON!) {\n    setViewPreference(viewKey: $viewKey, display: $display) {\n      version\n      preference {\n        ...ViewPreferenceFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation SetViewPreference($viewKey: String!, $display: JSON!) {\n    setViewPreference(viewKey: $viewKey, display: $display) {\n      version\n      preference {\n        ...ViewPreferenceFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation AddFavorite($kind: FavoriteKind!, $targetId: UUID!, $afterFavoriteId: UUID) {\n    addFavorite(kind: $kind, targetId: $targetId, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation AddFavorite($kind: FavoriteKind!, $targetId: UUID!, $afterFavoriteId: UUID) {\n    addFavorite(kind: $kind, targetId: $targetId, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment IssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    estimate\n    dueDate\n    dueDateSource\n    parentId\n    subIssueSortOrder\n    templateId\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment IssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    estimate\n    dueDate\n    dueDateSource\n    parentId\n    subIssueSortOrder\n    templateId\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment TeamFields on Team {\n    id\n    workspaceId\n    key\n    name\n    description\n    icon\n    color\n    timezone\n    parentTeamId\n    private\n    estimateScale\n    estimateAllowZero\n    estimateExtended\n    createdAt\n    updatedAt\n    retiredAt\n    archivedAt\n  }\n"): (typeof documents)["\n  fragment TeamFields on Team {\n    id\n    workspaceId\n    key\n    name\n    description\n    icon\n    color\n    timezone\n    parentTeamId\n    private\n    estimateScale\n    estimateAllowZero\n    estimateExtended\n    createdAt\n    updatedAt\n    retiredAt\n    archivedAt\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -283,7 +373,7 @@ export function graphql(source: "\n  fragment StateFields on WorkflowState {\n  
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  fragment UserFields on User {\n    id\n    workspaceId\n    name\n    displayName\n    avatarUrl\n    timezone\n    role\n    status\n    kind\n    email\n    lastSeenAt\n    createdAt\n    updatedAt\n    archivedAt\n  }\n"): (typeof documents)["\n  fragment UserFields on User {\n    id\n    workspaceId\n    name\n    displayName\n    avatarUrl\n    timezone\n    role\n    status\n    kind\n    email\n    lastSeenAt\n    createdAt\n    updatedAt\n    archivedAt\n  }\n"];
+export function graphql(source: "\n  fragment UserFields on User {\n    id\n    workspaceId\n    name\n    displayName\n    avatarUrl\n    timezone\n    role\n    status\n    kind\n    email\n    notificationPrefs\n    lastSeenAt\n    createdAt\n    updatedAt\n    archivedAt\n  }\n"): (typeof documents)["\n  fragment UserFields on User {\n    id\n    workspaceId\n    name\n    displayName\n    avatarUrl\n    timezone\n    role\n    status\n    kind\n    email\n    notificationPrefs\n    lastSeenAt\n    createdAt\n    updatedAt\n    archivedAt\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -343,7 +433,7 @@ export function graphql(source: "\n  \n  mutation UpdateWorkflowState($input: Up
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation ArchiveWorkflowState($id: UUID!) {\n    archiveWorkflowState(id: $id) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ArchiveWorkflowState($id: UUID!) {\n    archiveWorkflowState(id: $id) {\n      version\n      id\n    }\n  }\n"];
+export function graphql(source: "\n  mutation ArchiveWorkflowState($id: UUID!, $archived: Boolean!) {\n    archiveWorkflowState(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ArchiveWorkflowState($id: UUID!, $archived: Boolean!) {\n    archiveWorkflowState(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

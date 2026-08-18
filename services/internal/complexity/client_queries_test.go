@@ -2,6 +2,7 @@ package complexity_test
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -28,19 +29,10 @@ import (
 // A cross-language pin, like syncsrv/schema_pin_test.go: two files in two languages that
 // have to agree, with no compiler between them.
 func TestEveryClientOperationFitsUnderTheCeiling(t *testing.T) {
-	const relative = "../../../web/src/gql/operations.ts"
-
-	source, err := os.ReadFile(filepath.Clean(relative))
-	if err != nil {
-		// Fatal, not skipped. A skip is silent on the day somebody moves the file, which is
-		// exactly when this stops holding.
-		t.Fatalf("cannot read the client's operations at %s: %v", relative, err)
-	}
-
-	documents := extractDocuments(string(source))
+	documents := allClientDocuments(t)
 	if len(documents) == 0 {
-		t.Fatal("found no GraphQL documents in the client's operations file; the extraction " +
-			"below has stopped matching how they are written")
+		t.Fatal("found no GraphQL documents anywhere under web/src; the extraction below has " +
+			"stopped matching how they are written")
 	}
 
 	schema := generated.NewExecutableSchema(generated.Config{}).Schema()
@@ -77,6 +69,62 @@ func TestEveryClientOperationFitsUnderTheCeiling(t *testing.T) {
 }
 
 var documentPattern = regexp.MustCompile("(?s)export const (\\w+) = /\\* GraphQL \\*/ `(.*?)`;")
+
+// allClientDocuments collects every tagged template under web/src, from every file.
+//
+// Every file, and that is the whole lesson of how this test was written. It read
+// `src/gql/operations.ts` alone, because that is where the shared documents live — and three
+// mutations in the product omitted a required `archived: Boolean!` argument, of which this
+// found exactly one. The other two were in `src/features/labels/` and
+// `src/features/templates/`, beside the code that sends them, which is where a feature's
+// documents are supposed to go. A check that covers one directory of three reports two
+// thirds of a defect as absent.
+//
+// Fragments are pooled across files before anything is validated, because an operation in a
+// feature directory routinely spreads a fragment declared in the shared one.
+func allClientDocuments(t *testing.T) map[string]string {
+	t.Helper()
+
+	const root = "../../../web/src"
+	documents := map[string]string{}
+	files := 0
+
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".test.ts") {
+			return nil
+		}
+		source, err := os.ReadFile(filepath.Clean(path))
+		if err != nil {
+			return err
+		}
+		found := extractDocuments(string(source))
+		if len(found) > 0 {
+			files++
+		}
+		for name, body := range found {
+			if existing, clash := documents[name]; clash && existing != body {
+				t.Errorf("two different GraphQL documents are both exported as %s; the "+
+					"fragment pool below cannot tell them apart", name)
+			}
+			documents[name] = body
+		}
+		return nil
+	})
+	if err != nil {
+		// Fatal, not skipped. A skip is silent on the day somebody moves the client, which
+		// is exactly when this stops holding.
+		t.Fatalf("cannot walk %s: %v", root, err)
+	}
+	if files < 2 {
+		t.Fatalf("found GraphQL documents in %d file(s). They live in at least three — the "+
+			"shared ones and one per feature that sends its own — so this is reading a "+
+			"fraction of the client and reporting on all of it", files)
+	}
+	return documents
+}
 
 // extractDocuments pulls every tagged template out of the client's operations file.
 //

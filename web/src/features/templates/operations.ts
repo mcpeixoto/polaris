@@ -83,8 +83,8 @@ export const UPDATE_ISSUE_TEMPLATE = /* GraphQL */ `
  * nothing on this side can show it again afterwards. See the note in `archiveTemplate`.
  */
 export const ARCHIVE_ISSUE_TEMPLATE = /* GraphQL */ `
-  mutation ArchiveIssueTemplate($id: UUID!) {
-    archiveIssueTemplate(id: $id) {
+  mutation ArchiveIssueTemplate($id: UUID!, $archived: Boolean!) {
+    archiveIssueTemplate(id: $id, archived: $archived) {
       version
       id
     }
