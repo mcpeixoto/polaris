@@ -366,6 +366,88 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		// Projects before issues: an issue may name a project and a milestone.
+		// Admins receive every project, including those on private teams they are not in;
+		// everybody else receives the ones whose teams they belong to.
+		projectTeamIDs := teamIDs
+		if p.Role.IsAdmin() {
+			all := make([]uuid.UUID, 0, len(teams))
+			for _, t := range teams {
+				all = append(all, t.ID)
+			}
+			projectTeamIDs = all
+		}
+
+		if err := streamPages(ctx, w, "projectStatus",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectStatus, error) {
+				return q.StreamProjectStatusesForBootstrap(ctx, store.StreamProjectStatusesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(s store.ProjectStatus) (uuid.UUID, any) { return s.ID, toProjectStatus(s) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "project",
+			func(ctx context.Context, after uuid.UUID) ([]store.Project, error) {
+				return q.StreamProjectsForBootstrap(ctx, store.StreamProjectsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(row store.Project) (uuid.UUID, any) { return row.ID, toProject(row) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectTeam",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectTeam, error) {
+				return q.StreamProjectTeamsForBootstrap(ctx, store.StreamProjectTeamsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(t store.ProjectTeam) (uuid.UUID, any) { return t.ID, toProjectTeam(t) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectMember",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectMember, error) {
+				return q.StreamProjectMembersForBootstrap(ctx, store.StreamProjectMembersForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(m store.ProjectMember) (uuid.UUID, any) { return m.ID, toProjectMember(m) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectMilestone",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectMilestone, error) {
+				return q.StreamProjectMilestonesForBootstrap(ctx, store.StreamProjectMilestonesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(m store.ProjectMilestone) (uuid.UUID, any) { return m.ID, toProjectMilestone(m) },
+		); err != nil {
+			return err
+		}
+
 		// Everything hanging off an issue. Guarded on the caller having a team at all: with
 		// none, every one of these statements is a scan that can only return nothing.
 		//
@@ -572,7 +654,9 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // sidebar, an empty inbox and label applications naming labels it has never seen, and it
 // stays that way until some unrelated delta happens to carry each row. Discarding it is the
 // only thing that fixes it, which is exactly what this constant is for.
-const ClientSchemaVersion = 3
+// v4 adds projectStatus, project, projectTeam, projectMember and projectMilestone, and
+// issue.projectId / issue.projectMilestoneId.
+const ClientSchemaVersion = 4
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

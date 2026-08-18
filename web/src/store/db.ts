@@ -16,6 +16,11 @@ import {
   type IssueTemplate,
   type Label,
   type Notification,
+  type Project,
+  type ProjectMember,
+  type ProjectMilestone,
+  type ProjectStatus,
+  type ProjectTeam,
   type Team,
   type TeamMembership,
   type Timestamp,
@@ -55,8 +60,11 @@ import {
  * Views sidebar, an empty inbox, and label applications naming labels it has never seen.
  * That does not converge — nothing re-sends a row that was never sent — so the replica has
  * to be thrown away, which is what a bump does.
+ *
+ * v4 adds projects, their statuses, teams, members and milestones, and the two columns
+ * on an issue that point at them.
  */
-export const CLIENT_SCHEMA = 3;
+export const CLIENT_SCHEMA = 4;
 
 /**
  * One database per workspace per schema version.
@@ -133,6 +141,11 @@ interface PolarisSchema extends DBSchema {
   workflowState: { key: UUID; value: WorkflowState };
   label: { key: UUID; value: Label };
   issueTemplate: { key: UUID; value: IssueTemplate };
+  projectStatus: { key: UUID; value: ProjectStatus };
+  project: { key: UUID; value: Project };
+  projectTeam: { key: UUID; value: ProjectTeam };
+  projectMember: { key: UUID; value: ProjectMember };
+  projectMilestone: { key: UUID; value: ProjectMilestone };
   issue: { key: UUID; value: Issue };
   issueLabel: { key: UUID; value: IssueLabel };
   issueRelation: { key: UUID; value: IssueRelation };

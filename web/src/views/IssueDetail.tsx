@@ -46,6 +46,7 @@ import {
   updateIssueProperties,
 } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
 import { Relations, SubIssues } from '~/features/issue/relations';
 import { browserTimezone } from '~/features/locale';
@@ -125,9 +126,14 @@ export function IssueDetail() {
         timezone: team?.timezone ?? browserTimezone(),
         estimatesEnabled: team !== undefined && estimatesEnabled(team),
         estimateLabel: team === undefined ? null : issueEstimateLabel(found.estimate, team),
+        projectId: found.projectId ?? null,
+        projectName:
+          found.projectId === undefined
+            ? null
+            : (store.projects.get(found.projectId)?.name ?? 'Unknown project'),
       };
     },
-    ['issue', 'team', 'user', 'workflowState'],
+    ['issue', 'team', 'user', 'workflowState', 'project'],
     [issueId],
   );
 
@@ -149,11 +155,13 @@ export function IssueDetail() {
   const priority = useMenuTrigger();
   const estimate = useMenuTrigger();
   const due = useMenuTrigger();
+  const project = useMenuTrigger();
 
   const commands = useRef<DetailCommands>({
     pickStatus: () => {},
     pickAssignee: () => {},
     pickPriority: () => {},
+    pickProject: () => {},
     archive: () => {},
     askDelete: () => {},
     submitComment: () => {},
@@ -190,6 +198,14 @@ export function IssueDetail() {
         when: 'detail',
         group: 'Issues',
         run: () => commands.current.pickPriority(),
+      },
+      {
+        id: 'issueDetail.project',
+        title: 'Set project',
+        keys: ['shift+p'],
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.pickProject(),
       },
       {
         id: 'issueDetail.archive',
@@ -245,6 +261,7 @@ export function IssueDetail() {
   commands.current.pickStatus = status.show;
   commands.current.pickAssignee = assignee.show;
   commands.current.pickPriority = priority.show;
+  commands.current.pickProject = project.show;
   commands.current.archive = () => {
     archiveIssues(engine, [issue.id]).catch(report);
     // Archiving drops the issue from the replica, so staying here would leave the user
@@ -452,6 +469,21 @@ export function IssueDetail() {
             </Button>
           </div>
 
+          <div className={styles.property}>
+            <span className={styles.propertyLabel} id={`${issue.id}-project-label`}>
+              Project
+            </span>
+            <Button
+              {...project.props}
+              variant="ghost"
+              fullWidth
+              className={styles.propertyTrigger}
+              aria-describedby={`${issue.id}-project-label`}
+            >
+              {issue.projectName ?? 'No project'}
+            </Button>
+          </div>
+
           <p className={styles.provenance}>
             {issue.creatorName === null ? 'Created' : `Created by ${issue.creatorName}`}{' '}
             <time dateTime={issue.createdAt} title={exact(issue.createdAt)}>
@@ -486,6 +518,15 @@ export function IssueDetail() {
         placement="bottom-end"
         onSelect={(level) => updateIssue(engine, issue.id, { priority: level }).catch(report)}
       />
+      <ProjectPicker
+        open={project.open}
+        onClose={project.hide}
+        trigger={project.ref}
+        teamIds={[issue.teamId]}
+        value={issue.projectId}
+        placement="bottom-end"
+        onSelect={(projectId) => updateIssue(engine, issue.id, { projectId }).catch(report)}
+      />
       <EstimatePicker
         open={estimate.open}
         onClose={estimate.hide}
@@ -516,6 +557,7 @@ interface DetailCommands {
   pickStatus(): void;
   pickAssignee(): void;
   pickPriority(): void;
+  pickProject(): void;
   archive(): void;
   askDelete(): void;
   submitComment(): void;

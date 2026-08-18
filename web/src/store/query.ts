@@ -58,6 +58,8 @@ export interface IssueFilter {
   readonly labelIds?: readonly UUID[] | undefined;
   /** `null` selects issues with no parent — the top level of a nested list. */
   readonly parentIds?: readonly (UUID | null)[] | undefined;
+  /** Issues in these projects. An issue with no project matches none of them. */
+  readonly projectIds?: readonly UUID[] | undefined;
   /** Substring of the title, accent- and case-insensitive. */
   readonly text?: string | undefined;
   /**
@@ -182,6 +184,9 @@ function select(source: IssueSource, filter: IssueFilter | undefined): ReadonlyS
     }
     if (filter.parentIds !== undefined && filter.parentIds.length > 0) {
       dimensions.push(union(filter.parentIds.map((id) => index.byParent(id))));
+    }
+    if (filter.projectIds !== undefined && filter.projectIds.length > 0) {
+      dimensions.push(union(filter.projectIds.map((id) => index.byProject(id))));
     }
     if (filter.text !== undefined && fold(filter.text) !== '') {
       dimensions.push(index.search(filter.text));

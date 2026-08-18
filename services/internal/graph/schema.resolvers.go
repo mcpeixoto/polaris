@@ -26,19 +26,21 @@ func (r *mutationResolver) CreateIssue(ctx context.Context, input generated.Crea
 	}
 
 	in := domain.CreateIssueInput{
-		ID:           input.ID,
-		TeamID:       input.TeamID,
-		Title:        input.Title,
-		Description:  deref(input.Description),
-		StateID:      input.StateID,
-		AssigneeID:   input.AssigneeID,
-		Priority:     deref(input.Priority),
-		AfterIssueID: input.AfterIssueID,
-		Estimate:     input.Estimate,
-		DueDate:      toDate(input.DueDate),
-		ParentID:     input.ParentID,
-		LabelIDs:     input.LabelIds,
-		TemplateID:   input.TemplateID,
+		ID:                 input.ID,
+		TeamID:             input.TeamID,
+		Title:              input.Title,
+		Description:        deref(input.Description),
+		StateID:            input.StateID,
+		AssigneeID:         input.AssigneeID,
+		Priority:           deref(input.Priority),
+		AfterIssueID:       input.AfterIssueID,
+		Estimate:           input.Estimate,
+		DueDate:            toDate(input.DueDate),
+		ParentID:           input.ParentID,
+		LabelIDs:           input.LabelIds,
+		TemplateID:         input.TemplateID,
+		ProjectID:          input.ProjectID,
+		ProjectMilestoneID: input.ProjectMilestoneID,
 	}
 	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.Issue, int64, error) {
@@ -74,16 +76,20 @@ func (r *mutationResolver) UpdateIssue(ctx context.Context, input generated.Upda
 		// pairing runs through estimate, due date and parent below — each one has to be
 		// carried across whole, value and clear flag together, or setting it does nothing
 		// and reports success.
-		ClearAssignee:  deref(input.ClearAssignee),
-		Estimate:       input.Estimate,
-		ClearEstimate:  deref(input.ClearEstimate),
-		DueDate:        toDate(input.DueDate),
-		ClearDueDate:   deref(input.ClearDueDate),
-		ParentID:       input.ParentID,
-		ClearParent:    deref(input.ClearParent),
-		AfterIssueID:   input.AfterIssueID,
-		MoveToTop:      deref(input.MoveToTop),
-		AfterSiblingID: input.AfterSiblingID,
+		ClearAssignee:      deref(input.ClearAssignee),
+		Estimate:           input.Estimate,
+		ClearEstimate:      deref(input.ClearEstimate),
+		DueDate:            toDate(input.DueDate),
+		ClearDueDate:       deref(input.ClearDueDate),
+		ParentID:           input.ParentID,
+		ClearParent:        deref(input.ClearParent),
+		AfterIssueID:       input.AfterIssueID,
+		MoveToTop:          deref(input.MoveToTop),
+		AfterSiblingID:     input.AfterSiblingID,
+		ProjectID:          input.ProjectID,
+		ClearProject:       deref(input.ClearProject),
+		ProjectMilestoneID: input.ProjectMilestoneID,
+		ClearMilestone:     deref(input.ClearMilestone),
 	}
 	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.Issue, int64, error) {
@@ -1065,6 +1071,284 @@ func (r *mutationResolver) ArchiveIssueTemplate(ctx context.Context, id uuid.UUI
 	return &generated.DeletePayload{Version: int(version), ID: templateID}, nil
 }
 
+// CreateProject is the resolver for the createProject field.
+func (r *mutationResolver) CreateProject(ctx context.Context, input generated.CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromCreateProjectInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	project, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Project, int64, error) {
+			return r.Svc.CreateProject(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateProject(ctx, p, project)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.ProjectPayload{Version: int(version), Project: &out}, nil
+}
+
+// UpdateProject is the resolver for the updateProject field.
+func (r *mutationResolver) UpdateProject(ctx context.Context, input generated.UpdateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromUpdateProjectInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	project, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Project, int64, error) {
+			return r.Svc.UpdateProject(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateProject(ctx, p, project)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.ProjectPayload{Version: int(version), Project: &out}, nil
+}
+
+// DeleteProject is the resolver for the deleteProject field.
+func (r *mutationResolver) DeleteProject(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteProject(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// RestoreProject is the resolver for the restoreProject field.
+func (r *mutationResolver) RestoreProject(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	project, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (model.Project, int64, error) {
+			return r.Svc.RestoreProject(ctx, p, id)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateProject(ctx, p, project)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.ProjectPayload{Version: int(version), Project: &out}, nil
+}
+
+// AddProjectTeam is the resolver for the addProjectTeam field.
+func (r *mutationResolver) AddProjectTeam(ctx context.Context, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectTeamPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	link, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"projectId": projectID, "teamId": teamID},
+		func(ctx context.Context) (model.ProjectTeam, int64, error) {
+			return r.Svc.AddProjectTeam(ctx, p, projectID, teamID)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateProjectTeam(ctx, p, link)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.ProjectTeamPayload{Version: int(version), ProjectTeam: &out}, nil
+}
+
+// RemoveProjectTeam is the resolver for the removeProjectTeam field.
+func (r *mutationResolver) RemoveProjectTeam(ctx context.Context, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"projectId": projectID, "teamId": teamID},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.RemoveProjectTeam(ctx, p, projectID, teamID)
+			return deletedEntity{ID: teamID}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: teamID}, nil
+}
+
+// AddProjectMember is the resolver for the addProjectMember field.
+func (r *mutationResolver) AddProjectMember(ctx context.Context, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectMemberPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	member, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"projectId": projectID, "userId": userID},
+		func(ctx context.Context) (model.ProjectMember, int64, error) {
+			return r.Svc.AddProjectMember(ctx, p, projectID, userID)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateProjectMember(ctx, p, member)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.ProjectMemberPayload{Version: int(version), ProjectMember: &out}, nil
+}
+
+// RemoveProjectMember is the resolver for the removeProjectMember field.
+func (r *mutationResolver) RemoveProjectMember(ctx context.Context, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"projectId": projectID, "userId": userID},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.RemoveProjectMember(ctx, p, projectID, userID)
+			return deletedEntity{ID: userID}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: userID}, nil
+}
+
+// CreateProjectMilestone is the resolver for the createProjectMilestone field.
+func (r *mutationResolver) CreateProjectMilestone(ctx context.Context, input generated.CreateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectMilestonePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.CreateProjectMilestoneInput{
+		ProjectID:   input.ProjectID,
+		Name:        input.Name,
+		Description: input.Description,
+		TargetDate:  toDate(input.TargetDate),
+	}
+	milestone, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.ProjectMilestone, int64, error) {
+			return r.Svc.CreateProjectMilestone(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectMilestone(milestone)
+	return &generated.ProjectMilestonePayload{Version: int(version), Milestone: &out}, nil
+}
+
+// UpdateProjectMilestone is the resolver for the updateProjectMilestone field.
+func (r *mutationResolver) UpdateProjectMilestone(ctx context.Context, input generated.UpdateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectMilestonePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.UpdateProjectMilestoneInput{
+		ID:          input.ID,
+		Name:        input.Name,
+		Description: input.Description,
+		TargetDate:  toDate(input.TargetDate),
+		ClearTarget: deref(input.ClearTarget),
+	}
+	milestone, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.ProjectMilestone, int64, error) {
+			return r.Svc.UpdateProjectMilestone(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectMilestone(milestone)
+	return &generated.ProjectMilestonePayload{Version: int(version), Milestone: &out}, nil
+}
+
+// DeleteProjectMilestone is the resolver for the deleteProjectMilestone field.
+func (r *mutationResolver) DeleteProjectMilestone(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteProjectMilestone(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// CreateProjectStatus is the resolver for the createProjectStatus field.
+func (r *mutationResolver) CreateProjectStatus(ctx context.Context, input generated.CreateProjectStatusInput) (*generated.ProjectStatusPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromCreateProjectStatusInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	status, version, err := r.Svc.CreateProjectStatus(ctx, p, in)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toProjectStatus(status)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.ProjectStatusPayload{Version: int(version), Status: &out}, nil
+}
+
+// UpdateProjectStatus is the resolver for the updateProjectStatus field.
+func (r *mutationResolver) UpdateProjectStatus(ctx context.Context, input generated.UpdateProjectStatusInput) (*generated.ProjectStatusPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromUpdateProjectStatusInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	status, version, err := r.Svc.UpdateProjectStatus(ctx, p, in)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toProjectStatus(status)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.ProjectStatusPayload{Version: int(version), Status: &out}, nil
+}
+
+// ArchiveProjectStatus is the resolver for the archiveProjectStatus field.
+func (r *mutationResolver) ArchiveProjectStatus(ctx context.Context, id uuid.UUID, archived bool) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	version, err := r.Svc.ArchiveProjectStatus(ctx, p, id, archived)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // InviteToWorkspace is the resolver for the inviteToWorkspace field.
 func (r *mutationResolver) InviteToWorkspace(ctx context.Context, input generated.InviteInput) (*generated.InvitePayload, error) {
 	p, err := principalFrom(ctx)
@@ -1620,6 +1904,49 @@ func (r *queryResolver) IssueTemplate(ctx context.Context, id uuid.UUID) (*gener
 	}
 	out := toIssueTemplate(template)
 	return &out, nil
+}
+
+// Projects is the resolver for the projects field.
+func (r *queryResolver) Projects(ctx context.Context) ([]generated.Project, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	projects, err := r.Svc.ListProjects(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return r.hydrateProjects(ctx, p, projects)
+}
+
+// Project is the resolver for the project field.
+func (r *queryResolver) Project(ctx context.Context, id uuid.UUID) (*generated.Project, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	project, err := r.Svc.GetProject(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateProject(ctx, p, project)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &out, nil
+}
+
+// ProjectStatuses is the resolver for the projectStatuses field.
+func (r *queryResolver) ProjectStatuses(ctx context.Context) ([]generated.ProjectStatus, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	statuses, err := r.Svc.ListProjectStatuses(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toProjectStatuses(statuses)
 }
 
 // Notifications is the resolver for the notifications field.

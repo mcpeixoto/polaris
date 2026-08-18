@@ -204,6 +204,11 @@ func (s *Service) CreateWorkspace(ctx context.Context, in CreateWorkspaceInput) 
 			return err
 		}
 
+		projectStatuses, err := seedProjectStatuses(ctx, q, wsID)
+		if err != nil {
+			return err
+		}
+
 		membership, err := s.addMember(ctx, q, wsID, teamID, userID, "owner")
 		if err != nil {
 			return err
@@ -225,6 +230,12 @@ func (s *Service) CreateWorkspace(ctx context.Context, in CreateWorkspaceInput) 
 			changes = append(changes, Change{
 				EntityType: "workflowState", EntityID: st.ID, Op: OpUpsert, TeamID: &teamID,
 				Scope: authz.TeamScope(teamID, false), Payload: st,
+			})
+		}
+		for _, st := range projectStatuses {
+			changes = append(changes, Change{
+				EntityType: "projectStatus", EntityID: st.ID, Op: OpUpsert,
+				Scope: authz.WorkspaceScope(), Payload: st,
 			})
 		}
 		changes = append(changes, Change{
