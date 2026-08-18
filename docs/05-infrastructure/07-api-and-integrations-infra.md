@@ -4,7 +4,7 @@ The product requirement is API parity: **one GraphQL API serves the web client, 
 
 ## Serving GraphQL
 
-`gqlgen` behind `Polaris_api`, at `POST /graphql`.
+`gqlgen` behind `api`, at `POST /graphql`.
 
 | Concern | Implementation |
 |---|---|
@@ -33,11 +33,11 @@ Redis counters, leaky bucket, keyed by actor:
 
 Headers on every response: `X-RateLimit-Requests-{Limit,Remaining,Reset}`, `X-RateLimit-Complexity-{Limit,Remaining,Reset}`, plus `X-RateLimit-Endpoint-*` for the endpoints that carry their own tighter limits. Over-limit returns **HTTP 400** with `extensions.code = RATELIMITED` — matching the documented behaviour, however odd 400 looks.
 
-Per-IP limiting is meaningless without `REQUIRE_CLOUDFLARE=true` and trusting `CF-Connecting-IP` only from Cloudflare ranges — the same pattern the MealMind proxy uses. `/healthz` is evaluated before that gate so container healthchecks keep working.
+Per-IP limiting is meaningless unless the forwarded-address header is trusted only from the proxy's own ranges: anything else is a header the caller sets, and an attacker who can set it mints a fresh bucket per request. `/healthz` is evaluated before that gate so container healthchecks keep working.
 
 ## OAuth server
 
-Endpoints on `Polaris_api`: `/oauth/authorize`, `/oauth/token`, `/oauth/revoke`.
+Endpoints on `api`: `/oauth/authorize`, `/oauth/token`, `/oauth/revoke`.
 
 Implementation notes that matter operationally:
 - **Refresh-token grace period of 30 minutes.** Store `(token, replaced_by, replayable_until)`; a client that loses the response can replay and get the same new pair. This removes an entire class of "integration randomly logged out" support tickets.
@@ -50,7 +50,7 @@ Store tokens hashed (`sha256` + pepper), never in plaintext — a database dump 
 
 ## Inbound webhooks
 
-`POST /webhooks/{github,gitlab,slack,sentry,ci,email,...}` on `Polaris_api`.
+`POST /webhooks/{github,gitlab,slack,sentry,ci,email,...}` on `api`.
 
 The contract for every provider is identical:
 
@@ -64,7 +64,7 @@ The contract for every provider is identical:
 
 **Never process inline.** GitHub retries aggressively on slow responses, and a slow integration handler must never occupy a request slot that a user's mutation needs.
 
-`client_max_body_size 25m` on the `/webhooks` NPM location — email intake carries attachments, and the product spec's 25 MB limit is what the parser enforces.
+Raise the proxy's request-body limit to 25 MB on `/webhooks` — email intake carries attachments, and 25 MB is what the parser enforces.
 
 ## Outbound webhooks
 
@@ -119,7 +119,7 @@ Two directions, both off-box.
 - Verify `INBOUND_MAIL_SECRET`.
 - Enforce 25 MB attachment and 250 KB body limits at the edge.
 - Strip quoted reply history before creating the comment (the synced-thread behaviour the spec describes).
-- Address scheme: `<team-or-template-token>@in.polaris.peixotolabs.com`, tokens random and revocable — anyone who learns the address can file issues.
+- Address scheme: `<team-or-template-token>@in.<your-host>`, tokens random and revocable — anyone who learns the address can file issues.
 
 **Do not run Postfix on the VPS.** An MTA next to the product database, on a box with twenty other tenants, is not worth the €10/month saved.
 
@@ -132,7 +132,7 @@ Two directions, both off-box.
 
 ## MCP server
 
-Runs as an extra route on `Polaris_api` (not a separate container until it earns one): Streamable HTTP at `/mcp`, read-only variant at `/mcp/readonly`.
+Runs as an extra route on `api` (not a separate container until it earns one): Streamable HTTP at `/mcp`, read-only variant at `/mcp/readonly`.
 
 - OAuth 2.1 with dynamic client registration — a distinct code path from the main OAuth server, sharing token storage.
 - Read-only enforcement at the **token scope** level, not just by hiding tools. A `read`-scoped token must be incapable of reaching a write resolver.

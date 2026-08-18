@@ -683,13 +683,11 @@ exists.
 `/healthz` is excluded from the request log, because a container runtime polling it every few
 seconds would otherwise be most of your log volume.
 
-**The worker has no HTTP endpoint at all.** It opens no listener. Any healthcheck you have
-seen that points at a worker port — including the one in
-`docs/05-infrastructure/05-deployment-vps.md`, which references a `polarisctl health`
-subcommand that does not exist — is checking nothing. Check the worker two other ways:
+**The worker has no HTTP endpoint at all.** It opens no listener, so any healthcheck
+pointing at a worker port is checking nothing. Check it two other ways:
 
-1. It logs `worker started` with a job count at boot. Four jobs with no relay configured,
-   five with one.
+1. It logs `worker started` with a job count at boot. Six jobs with no relay configured,
+   seven with one.
 2. Its most important job leaves a trace in the database. See below.
 
 ### What to actually watch

@@ -1,24 +1,31 @@
 # Polaris
 
-**Polaris** is a working name for a clone of [Linear](https://linear.app) — an issue tracker and product-development platform for software teams.
+**Polaris** is a keyboard-first, local-first issue tracker for software teams. It is
+self-hosted, AGPL-licensed, and built so that the fast path never touches the network: every
+filter, sort and grouping runs against a local replica of your workspace, and the server's
+job is to keep that replica true.
 
-The repository contains two things: a **complete functional scope** — every feature Linear ships, how those features depend on each other, what the data model has to look like, what the integrations do, what the API surface is — and the **implementation of Milestone 0**, the slice that makes it a usable issue tracker.
+The repository holds a **complete functional scope** — the features, how they depend on each
+other, what the data model has to look like, what the integrations do, what the API surface
+is — and the implementation of it, currently through **Milestone 1**.
 
 ## What runs today
 
-The backend is complete and tested end to end; the web client's data layer is complete and the screens are in progress.
+Backend and web client are both complete through Milestone 1 and tested end to end, in the browser as well as in unit tests. The desktop shell packages and runs on macOS, Windows and Linux.
 
 | Working | |
 |---|---|
-| Schema | 11 migrations, 16 tables, monthly-partitioned change log, UUIDv7 |
+| Schema | 23 migrations, 34 tables, monthly-partitioned change log, UUIDv7 |
 | Sync engine | Gapless per-workspace versions, NDJSON bootstrap, WebSocket hub, resume, revoke, backpressure |
-| API | GraphQL over the whole domain, complexity-limited, one contract in `schema/schema.graphql` |
+| API | GraphQL over the whole domain, one contract in `schema/schema.graphql`, complexity scored by the published model |
 | Auth | Argon2id, rotating refresh tokens, HttpOnly cookies, invitations |
 | Client store | IndexedDB replica, in-memory indexes, durable outbox, optimistic mutations |
 | Keyboard | One registry; the command menu and help overlay are views over it |
 | Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |
+| Desktop | Electron shell for macOS, Windows and Linux; per-architecture builds, auto-update, deep links |
+| Notifications | Inbox, unread badge, subscriptions, coalescing fan-out, digest email |
 
-Measured, not asserted: filter/group/sort over **5,000 issues in 0.42 ms** against a 50 ms budget; a full workspace snapshot in **24 ms / 20 KB gzipped**; commit-to-delta under 100 ms locally.
+Measured, not asserted: filter/group/sort with four active clauses over **5,000 issues in 0.2 ms** against a 50 ms budget; a full workspace snapshot in **24 ms / 20 KB gzipped**; commit-to-delta under 100 ms locally.
 
 ```bash
 make up          # postgres + valkey
@@ -27,16 +34,25 @@ make seed        # a realistic workspace
 make api         # and, in other terminals: make sync, make web
 ```
 
-See [`docs/07-milestones/00-milestone-0.md`](docs/07-milestones/00-milestone-0.md) for the scope freeze and the fifteen acceptance tests that define done.
+See [`docs/07-milestones/00-milestone-0.md`](docs/07-milestones/00-milestone-0.md) and [`01-milestone-1.md`](docs/07-milestones/01-milestone-1.md) for the scope freezes and the acceptance tests that define done. Each of the M1 ten names the test that proves it, and `services/internal/acceptance/m1_test.go` fails if one loses its proof.
 
-## Source of truth
+## Where the requirements came from
 
-Everything here was derived from Linear's public documentation, crawled and read in full on **2026-08-14**:
+The functional scope in `docs/01-features/` was written by reading the **public product
+documentation of [Linear](https://linear.app)** in full on **2026-08-14** — 138 pages of
+product docs and the developer/platform pages — and writing down what an issue tracker of
+that class has to do.
 
-- `https://linear.app/docs` — 138 pages (all pages listed in `linear.app/sitemap.xml` under `/docs/`)
-- `https://linear.app/developers` — the API/platform pages (GraphQL, pagination, filtering, rate limiting, webhooks, OAuth, agents, attachments, customers, SDK)
+That provenance is stated rather than hidden because it is what makes those documents
+trustworthy: where a behaviour is recorded there, it is a behaviour somebody documented, and
+where the docs were silent and a design decision was needed it is marked **[INFERRED]** or
+**[OPEN]**. Knowing which is which is the whole value of the exercise.
 
-Where a behaviour is stated in the docs, it is recorded here as fact. Where the docs are silent and a design decision is required for a clone, it is marked **[INFERRED]** or **[OPEN]**. Nothing here was reverse-engineered from the running product, and no Linear source code, assets, or trademarks are included.
+Polaris is its own product and makes its own decisions — see `docs/05-infrastructure/` for
+where they diverge, starting with a sync engine and a permission model that are nobody's but
+ours. Nothing was reverse-engineered from a running product, and no Linear source code,
+assets, icons, copy or documentation text is included. See [`NOTICE`](NOTICE) and
+[`TRADEMARK.md`](TRADEMARK.md).
 
 ## How to read this
 
@@ -89,4 +105,4 @@ Rough count of what a faithful clone has to ship:
 - **5 clients** (web, macOS, Windows, iOS, Android) sharing one sync engine
 - **1 public GraphQL API** that is the same API the product itself uses — this is an architectural constraint, not a bolt-on
 
-See [`docs/04-scope/02-build-phases.md`](docs/04-scope/02-build-phases.md) for what a sane sequencing looks like, and [`docs/04-scope/04-risks-and-non-goals.md`](docs/04-scope/04-risks-and-non-goals.md) for the parts that are much harder than they look (the sync engine, the command menu, keyboard-first UX, and the perf budget that Linear's whole brand rests on).
+See [`docs/04-scope/02-build-phases.md`](docs/04-scope/02-build-phases.md) for what a sane sequencing looks like, and [`docs/04-scope/04-risks-and-non-goals.md`](docs/04-scope/04-risks-and-non-goals.md) for the parts that are much harder than they look — the sync engine, the command menu, keyboard-first UX, and the performance budget that a product like this lives or dies by.

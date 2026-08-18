@@ -46,3 +46,9 @@ tmp/
 # which must never appear in the public repository — see
 # docs/06-product-model/03-open-source-operations.md.
 docker-compose.fleet.yml
+
+# Deployment notes for the maintainer's own hosting: proxy host names, container naming
+# conventions, the automated-deploy timer, the registry entry. None of it is a fact about
+# Polaris and all of it is a fact about one machine, so it is kept beside its published
+# sibling (docs/05-infrastructure/05-deployment.md) and out of the tree.
+*.private.md
