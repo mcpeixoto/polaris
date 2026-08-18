@@ -8,29 +8,39 @@
 | Frontend | **TypeScript + React + Vite**, one build shared by web and desktop |
 | Desktop | **Electron** for Windows + macOS (one Chromium everywhere) |
 | Sync | **Custom delta sync over WebSocket**, server-authoritative, local-first client store |
-| Hosting | **The existing VPS**, Docker Compose, following the house standard in `/root/SERVER_INFRA.md` |
+| Hosting | **Docker Compose.** The repository ships a self-contained stack; running behind a reverse proxy somebody already operates is an override |
 | API parity | One GraphQL API serves web, desktop, the public SDK, and every integration — no private backdoor API |
 
 The last row is the load-bearing constraint. Everything else can be swapped later; that one cannot.
 
-> **Two deployment modes.** The repository is public and AGPL-licensed, so the default
-> `docker-compose.yml` must work for a stranger on a bare VPS. Everything below describes
-> **our cloud deployment** on the existing fleet, applied as an override. See
-> `10-self-host-and-cloud.md` for the public default and how the two differ.
+> **Two deployment shapes.** The default `docker-compose.yml` in this repository is
+> self-contained — its own Caddy, published ports — because it has to work for a stranger who
+> has just cloned it. Running behind a reverse proxy that already owns `:80` and `:443` is an
+> override, not a different product. See `10-self-host-and-cloud.md` for how the two differ
+> and `05-deployment.md` for the rules an override has to keep.
 
-## Fleet conventions this inherits
+## Operational conventions
 
-Polaris is a tenant on a box that already runs ~20 first-party sites. It follows the same rules as `MealMindApp`, `Almanac`, `Montra`, and `Avaliar` — deviations are marked **[differs]** with a reason.
+These are stated because getting one wrong produces a failure that looks like something
+else, not because they are unusual.
 
-- **No `ports:` anywhere.** Nginx Proxy Manager is the only thing bound to `:80/:443`; it reaches containers by name over the shared external `webnet` network.
-- **`<Prefix>_<role>` container names** — `Polaris_api`, `Polaris_sync`, `Polaris_worker`, `Polaris_db`, …
-- **Secrets in a root-owned 600 file outside the repo** — `/root/.config/polaris/polaris.env`, injected via `env_file:`, never committed, never baked into an image.
-- **Every service gets** `mem_limit`, a `healthcheck`, capped `logging` (json-file, 10m × 3), `restart: unless-stopped`, a `org.opencontainers.image.revision` label, a non-root uid/gid 10001, and pinned base-image patch tags.
-- **Datastores are not on `webnet`.** A second internal network carries app ↔ database. Nothing NPM can route to should be able to reach Postgres.
-- **`./app.sh start|stop|restart|status|logs [service]`** for local bring-up and emergencies.
-- **Deploy is publishing a release**: `git tag vX.Y.Z && git push --tags`, picked up by `admin-deploy.timer` with health-check and auto-rollback. Plus an entry in `/root/AdminPanel/registry.yml`.
-- **`REQUIRE_CLOUDFLARE=true`** on anything public, with `/healthz` checked *before* that gate so container healthchecks still work.
-- **Nightly backups** to `/srv/polaris/backups`, 30-day retention. **[differs]** plus offsite, because this database is the product.
+- **Publish ports, or join a proxy network — never both.** Behind an existing proxy Polaris
+  publishes nothing and is reached by container name on a shared network. Publishing anyway
+  puts the app on a high port without the proxy's TLS, rate limits or access log, and
+  nothing says so.
+- **Datastores are not on the ingress network.** A second, internal network carries
+  app ↔ database. Nothing the proxy can route to should be able to reach Postgres.
+- **Secrets come from a root-owned `600` file outside the repository**, injected via
+  `env_file:` — never committed, never baked into an image, never on a command line where
+  `ps` can read it.
+- **Every service gets** `mem_limit`, a `healthcheck`, capped `logging` (json-file, 10m × 3),
+  `restart: unless-stopped`, an `org.opencontainers.image.revision` label, a non-root
+  uid/gid 10001, and pinned base-image patch tags. An unbounded container takes the machine
+  down with it rather than dying alone.
+- **Deploy is publishing a release**: `git tag vX.Y.Z && git push --tags`. Migrations run to
+  completion under an advisory lock before any new code starts, and a failed one aborts the
+  deploy. See `05-deployment.md`.
+- **Backups are nightly, with offsite copies**, because this database is the product.
 
 ## System diagram
 
@@ -43,21 +53,21 @@ flowchart TB
         AGENT[Agents / MCP clients]
     end
 
-    CF[Cloudflare<br/>*.peixotolabs.com, proxied]
-    NPM[Nginx Proxy Manager<br/>only listener on :80/:443]
+    CF[CDN / DNS<br/>optional]
+    NPM[Reverse proxy<br/>only listener on :80/:443]
 
-    subgraph webnet [network: webnet]
-        WEBC[Polaris_web<br/>nginx, static bundle]
-        API[Polaris_api<br/>GraphQL, OAuth, webhooks in]
-        SYNC[Polaris_sync<br/>WebSocket hub]
+    subgraph edge [network: edge]
+        WEBC[web<br/>nginx, static bundle]
+        API[api<br/>GraphQL, OAuth, webhooks in]
+        SYNC[sync<br/>WebSocket hub]
     end
 
-    subgraph internal [network: polaris_internal - not routable from NPM]
-        PG[(Polaris_db<br/>PostgreSQL 17)]
-        REDIS[(Polaris_cache<br/>Valkey)]
-        FILES[(Polaris_files<br/>MinIO, S3 API)]
-        SEARCH[(Polaris_search<br/>Meilisearch)]
-        WORKER[Polaris_worker<br/>jobs, cron, webhook delivery]
+    subgraph internal [network: internal - not routable from the proxy]
+        PG[(db<br/>PostgreSQL 17)]
+        REDIS[(cache<br/>Valkey)]
+        FILES[(files<br/>MinIO, S3 API)]
+        SEARCH[(search<br/>Meilisearch)]
+        WORKER[worker<br/>jobs, cron, webhook delivery]
     end
 
     subgraph ext [Off-box]
@@ -77,42 +87,45 @@ flowchart TB
     FILES -.replication.-> BAK
 ```
 
-`Polaris_worker` sits on the internal network only — it makes outbound calls but nothing routes to it.
+The worker sits on the internal network only — it makes outbound calls and nothing routes to it.
 
 ## Services
 
-| Container | Role | Port | Public host | mem_limit (start) |
+| Service | Role | Port | Reachable from outside | mem_limit (start) |
 |---|---|---|---|---|
-| `Polaris_web` | nginx serving the built SPA + immutable assets | 8080 | `polaris.peixotolabs.com` | 64m |
-| `Polaris_api` | GraphQL, OAuth 2.0, inbound webhooks, file signing, bootstrap snapshot | 8088 | same host, custom locations | 512m |
-| `Polaris_sync` | WebSocket hub, delta fan-out, presence | 8089 | same host, `/sync` | 512m |
-| `Polaris_worker` | webhook delivery, cron, integrations, indexing, email, exports, imports | — | none | 512m |
-| `Polaris_db` | PostgreSQL 17 | 5432 | none | 2g |
-| `Polaris_cache` | Valkey: pub/sub, job queue, rate limits, presence | 6379 | none | 256m |
-| `Polaris_files` | MinIO (S3 API, cloud only — self-host defaults to a filesystem driver) for attachments, avatars, exports | 9000 | none | 512m |
-| `Polaris_search` | Meilisearch index | 7700 | none | 512m |
+| `web` | nginx serving the built SPA + immutable assets | 8080 | the site root | 64m |
+| `api` | GraphQL, OAuth 2.0, inbound webhooks, file signing, bootstrap snapshot | 8088 | same host, specific paths | 512m |
+| `sync` | WebSocket hub, delta fan-out, presence | 8089 | same host, `/sync` | 512m |
+| `worker` | webhook delivery, cron, integrations, indexing, email, exports, imports | — | no | 512m |
+| `db` | PostgreSQL 17 | 5432 | no | 2g |
+| `cache` | Valkey: pub/sub, job queue, rate limits, presence | 6379 | no | 256m |
+| `files` | MinIO (S3 API; the default is a filesystem driver) for attachments, avatars, exports | 9000 | no | 512m |
+| `search` | Meilisearch index | 7700 | no | 512m |
 
 **Total starting budget ≈ 5 GB.** Check the box has it before starting — see `09-scaling-and-cost.md` for the lean profile (Postgres FTS instead of Meilisearch, a bind-mounted volume instead of MinIO) that fits in ~3 GB.
 
-## Routing: one origin, NPM custom locations
+## Routing: one origin
 
-Everything lives under **one hostname** so the browser sees one origin — no CORS for first-party clients, cookies work everywhere, and the desktop app points at a single base URL.
-
-NPM Proxy Host `polaris.peixotolabs.com` → `http://Polaris_web:8080`, plus **Custom Locations**:
+Everything lives under **one hostname** so the browser sees one origin — no CORS for
+first-party clients, cookies work everywhere, and the desktop app points at a single base
+URL. The repository's Caddyfile is the reference implementation of the table below;
+`scripts/lint-routes.sh` checks it against the paths the servers actually register, because
+a proxy that sends one path to the wrong process produces a healthy-looking install with an
+empty workspace.
 
 | Location | Forward to | Notes |
 |---|---|---|
-| `/graphql` | `Polaris_api:8088` | POST; introspection only in dev |
-| `/sync` | `Polaris_sync:8089` | **Websockets Support toggle ON** in NPM, and raise `proxy_read_timeout` to 3600s in the location's Advanced tab, or idle sockets die every 60s |
-| `/sync/bootstrap` | `Polaris_api:8088` | Streaming snapshot, long response |
-| `/oauth/` | `Polaris_api:8088` | authorize, token, revoke |
-| `/webhooks/` | `Polaris_api:8088` | Inbound from GitHub/GitLab/Slack/Sentry/CI/email |
-| `/files/` | `Polaris_api:8088` | Auth check → 302 to a presigned MinIO URL |
-| `/` (default) | `Polaris_web:8080` | SPA fallback |
+| `/graphql` | `api:8088` | POST; introspection only in development |
+| `/sync` | `sync:8089` | Needs WebSocket upgrade and a read timeout of an hour, or idle sockets die every 60s |
+| `/sync/bootstrap` | `api:8088` | Streaming snapshot, long response. **Must be matched before `/sync`** |
+| `/oauth/` | `api:8088` | authorize, token, revoke |
+| `/webhooks/` | `api:8088` | Inbound from GitHub/GitLab/Slack/Sentry/CI/email |
+| `/files/` | `api:8088` | Auth check → 302 to a presigned object-store URL |
+| `/` (default) | `web:8080` | SPA fallback |
 
-Cert: reuse the existing `*.peixotolabs.com` wildcard (NPM cert id 1). DNS: covered by the Cloudflare wildcard, no new record. `admin` stays reserved by the fleet.
-
-**Cloudflare caveat for `/sync`:** the orange-cloud proxy supports WebSockets, but idle connections are cut at ~100s. The client must send a ping every ~30s regardless; that's in the protocol anyway (`03-sync-engine.md`).
+**If a CDN sits in front**, check its idle-connection limit for `/sync` — most cut a quiet
+WebSocket at around 100 seconds. The client pings every 30 seconds regardless, which is in
+the protocol for this reason (`03-sync-engine.md`).
 
 ## Request paths
 

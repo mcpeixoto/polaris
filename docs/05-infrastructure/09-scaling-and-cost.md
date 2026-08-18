@@ -37,7 +37,7 @@ flowchart LR
 
 ### Phase B — separate the database (first real split)
 **Trigger:** Postgres consistently >50% of a core, or the noisy-neighbour risk from twenty other tenants becomes unacceptable.
-**Move:** `Polaris_db` + `Polaris_pgbouncer` to a dedicated VPS with private networking.
+**Move:** `db` + `pgbouncer` to a dedicated VPS with private networking.
 **Work:** change `DATABASE_URL`, put both boxes on a private network, enable TLS between them. Everything else is unchanged — this is why `workspace_id` is on every table and why nothing assumes a local socket.
 
 ### Phase C — replicate the app tier
@@ -86,7 +86,7 @@ Freemium note: every free workspace is your cost. The quota and abuse controls i
 
 | Item | Cost |
 |---|---|
-| Apple Developer Program | €99/yr (already held — Team H874DPF6H5) |
+| Apple Developer Program | €99/yr |
 | Windows code-signing cert (OV, HSM-backed) | €200–400/yr |
 | Windows EV cert (better SmartScreen) | €300–600/yr |
 | GitHub Actions (macOS runners for signing) | free tier usually enough; macOS minutes bill 10× |

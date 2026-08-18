@@ -38,7 +38,7 @@ Polaris holds every customer's roadmap, private-team discussions, customer reven
 
 ### Network
 - Datastores on `polaris_internal` only. Nothing NPM can route to may reach Postgres, Redis, MinIO, or Meilisearch.
-- `Polaris_worker` has no inbound route at all.
+- `worker` has no inbound route at all.
 - **Docker socket is never mounted** into any Polaris container.
 - SSRF guard on every outbound URL the customer controls: webhook endpoints, custom MCP servers, avatar/preview fetches, importer URLs. Resolve, reject private ranges, pin the resolved IP for the request.
 - `REQUIRE_CLOUDFLARE=true`, trusting `CF-Connecting-IP` only from Cloudflare ranges.
@@ -103,7 +103,7 @@ Written before they're needed, kept in `docs/runbooks/`:
 
 | Situation | First moves |
 |---|---|
-| **Site down** | `./app.sh status`; `docker logs Polaris_api --tail=200`; check disk and `free -m`; check NPM is up (it serves 20 sites, so it's probably not NPM) |
+| **Site down** | `./app.sh status`; `docker logs the api service --tail=200`; check disk and `free -m`; check NPM is up (it serves 20 sites, so it's probably not NPM) |
 | **Slow app** | Grafana p99 by operation → `pg_stat_statements` top by total time → `EXPLAIN` the offender → check for a plan flip after a data-volume change |
 | **Resync storm** | Set the bootstrap kill-switch to serve cached snapshots; check whether a deploy changed `clientSchema`; roll back if so |
 | **Bad deploy** | Auto-rollback should have fired; if not, `git checkout <prev tag> && ./app.sh restart`. **Verify the migration is compatible before rolling back** |

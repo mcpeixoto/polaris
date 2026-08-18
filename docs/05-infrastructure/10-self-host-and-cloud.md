@@ -11,13 +11,13 @@
 > still the plan. But a reader could not previously tell the two apart, and the failure that
 > produces is somebody filing a bug against a subsystem nobody has written.
 
-The repo is public, so `docker-compose.yml` must work for a stranger on a bare VPS. The fleet-specific arrangement (NPM, `webnet`, `<Prefix>_<role>`, root-owned env files) is **an override**, not the default. This revises `05-deployment-vps.md`, which assumed fleet-only.
+`docker-compose.yml` must work for a stranger on a bare VPS, so that is what it is: self-contained, its own Caddy, published ports. Running behind a reverse proxy somebody already operates is **an override** rather than the default, and the rules that make such an override safe — no published ports, datastores off the ingress network, secrets from a root-owned file outside the repo — are in `05-deployment.md`. The operator-specific half of that, for one particular machine, is deliberately not in this repository.
 
 ## The three files
 
 ```
 docker-compose.yml            # public default: self-contained, Caddy, publishes 80/443
-docker-compose.fleet.yml      # our VPS: NPM ingress, webnet, no ports  (private repo or gitignored)
+docker-compose.override.yml   # yours: existing proxy, no published ports (gitignored)
 compose.dev.yml               # local dev: ports published, hot reload
 ```
 
@@ -33,7 +33,7 @@ Us:
 docker compose -f docker-compose.yml -f docker-compose.fleet.yml up -d
 ```
 
-The fleet override drops `caddy`, removes every `ports:`, renames containers to `<Prefix>_<role>`, attaches `webnet`, and repoints `env_file` at `/root/.config/polaris/polaris.env`.
+An override of that shape drops `caddy`, removes every `ports:`, attaches the containers to the proxy's network, and repoints `env_file` at a root-owned file outside the repository. It is deployment-specific by nature, which is why it is not in this repository — see `05-deployment.md` for the rules it has to keep.
 
 ## Public default compose
 

@@ -108,7 +108,7 @@ Long-running work (bootstrap streaming, exports, imports) uses a **separate dire
 
 ### Migrations
 
-`golang-migrate`, **forward-only, additive, and deploy-compatible with the previous revision** (house rule from Almanac — the tag-deploy rollback path reverts code, not schema).
+`golang-migrate`, **forward-only, additive, and deploy-compatible with the previous revision** — the tag-deploy rollback path reverts code, not schema, so a migration that breaks release N-1 turns a rollback into an outage.
 
 Expand/contract, always:
 ```
@@ -118,7 +118,7 @@ release N+2 : drop the old column
 ```
 Never rename or drop in the same release that stops using something.
 
-Migrations run in an **init container before `Polaris_api` starts**, exactly once per deploy, guarded by an advisory lock so parallel replicas don't race.
+Migrations run in an **init container before `api` starts**, exactly once per deploy, guarded by an advisory lock so parallel replicas don't race.
 
 **Extra constraint that doesn't exist in a normal app:** a schema change that alters the shape of a sync payload must bump `clientSchema`, forcing clients to re-bootstrap. Additive optional fields don't; renames, type changes, and removals do. Put this in the PR checklist.
 

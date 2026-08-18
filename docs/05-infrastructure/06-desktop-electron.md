@@ -60,8 +60,8 @@ Ship `web/dist` **inside** the app and point it at the API.
 
 ```
 app://  → bundled index.html + assets   (loaded from disk, instant, offline-capable)
-https://polaris.peixotolabs.com/graphql → API
-wss://polaris.peixotolabs.com/sync      → sync
+https://polaris.example.com/graphql → API
+wss://polaris.example.com/sync      → sync
 ```
 
 Rejected alternative: loading the web app remotely (`loadURL('https://…')`). It sounds simpler and means the desktop app is broken whenever the box is down, has a blank-window cold start, and inherits browser cache semantics for the shell itself. The whole point of a local-first product is that the UI works before the network does.
@@ -128,12 +128,12 @@ Badge count comes from the local store (unread inbox items), not from a server c
 | Channels | `latest` and `beta`; the app reads the channel from preferences |
 | Cadence | Check on launch and every 4 h; download in background; install on quit |
 | Forced updates | Only when `X-Polaris-Min-Client` demands it |
-| Disable | Honour an enterprise policy file, mirroring the fleet's habit of allowing `AutoUpdateDisabled` via `defaults`/plist and MDM |
+| Disable | Honour an enterprise policy file — `AutoUpdateDisabled` via `defaults`/plist and MDM |
 | Delta updates | Windows NSIS supports differential; macOS ships full DMG/ZIP |
 
 ## Code signing — the part that always slips
 
-**macOS.** Apple Developer Program (already held — Team `H874DPF6H5`, used by MealMind and Almanac). Needs a *Developer ID Application* certificate (not the App Store one), hardened runtime, and **notarisation** via `notarytool` on every build. Without notarisation, Gatekeeper refuses to launch the app and users see "damaged and can't be opened". Entitlements needed: `com.apple.security.cs.allow-jit` (Chromium), and network client.
+**macOS.** An Apple Developer Program membership. Needs a *Developer ID Application* certificate (not the App Store one), hardened runtime, and **notarisation** via `notarytool` on every build. Without notarisation, Gatekeeper refuses to launch the app and users see "damaged and can't be opened". Entitlements needed: `com.apple.security.cs.allow-jit` (Chromium), and network client.
 
 **Windows.** An OV or EV code-signing certificate. Since June 2023 all new certs require hardware/HSM key storage, so signing runs against Azure Trusted Signing, DigiCert KeyLocker, or similar — you cannot just drop a `.pfx` in CI any more. Without a signature, SmartScreen warns on every download until reputation accumulates. Budget: ~€200–400/year (OV) or ~€300–600/year (EV, better SmartScreen behaviour).
 

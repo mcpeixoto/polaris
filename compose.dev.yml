@@ -1,5 +1,6 @@
 # Local development only. Publishes ports on purpose — this is not the VPS.
-# Production compose (docs/05-infrastructure/05-deployment-vps.md) never publishes ports.
+# Production compose behind a shared proxy never publishes ports — see the rules in
+# docs/05-infrastructure/05-deployment.md.
 name: polaris-dev
 
 services:

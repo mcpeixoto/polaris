@@ -7,7 +7,7 @@ One repo, one deployable unit, matching the fleet's one-repo-per-product habit.
 ```
 polaris/
 ├── app.sh                     # house standard entrypoint
-├── docker-compose.yml         # all services (see 05-deployment-vps.md)
+├── docker-compose.yml         # all services (see 05-deployment.md)
 ├── Makefile                   # dev tasks: generate, test, lint, migrate
 ├── docs/                      # this scope
 │
@@ -18,9 +18,9 @@ polaris/
 ├── services/                  # Go module: github.com/peixotolabs/polaris
 │   ├── go.mod
 │   ├── cmd/
-│   │   ├── api/main.go        # Polaris_api
-│   │   ├── sync/main.go       # Polaris_sync
-│   │   ├── worker/main.go     # Polaris_worker
+│   │   ├── api/main.go        # the api service
+│   │   ├── sync/main.go       # the sync service
+│   │   ├── worker/main.go     # the worker service
 │   │   └── polarisctl/main.go # admin CLI: backfill, reindex, replay, seed
 │   ├── internal/
 │   │   ├── domain/            # THE mutation layer — every write goes here
@@ -69,7 +69,7 @@ polaris/
 | GraphQL | **gqlgen** | Schema-first (matches "the schema is the contract"), typed resolvers, dataloader support, built-in complexity limiting — required by the API spec |
 | DB access | **sqlc** + `pgx/v5` | Hand-written SQL, generated typed Go. The filter grammar produces dynamic SQL that an ORM fights you on |
 | Dynamic filters | Small internal query builder over `pgx` | Linear's filter grammar (AND/OR groups, relation filters, `every`, comparators) compiles to SQL; keep it in one package with heavy tests |
-| Migrations | **golang-migrate** | Forward-only, additive, deploy-compatible with the previous revision (house rule from Almanac) |
+| Migrations | **golang-migrate** | Forward-only, additive, deploy-compatible with the previous revision — rollback reverts code, not schema |
 | Jobs + cron | **asynq** (Redis) | Retries, scheduling, dead-letter, a web UI, no extra infra |
 | WebSocket | **nhooyr/websocket** (`coder/websocket`) | Context-aware, simple, no gorilla legacy quirks |
 | Auth | Self-issued JWT (short) + opaque refresh in Postgres | Sessions must be individually revocable — the product exposes a session list |
@@ -121,7 +121,7 @@ generate:
 | Artifact | Produced by | Consumed by |
 |---|---|---|
 | `polaris-api`, `polaris-sync`, `polaris-worker` | Go static builds, `CGO_ENABLED=0` | Docker images, distroless base |
-| `web/dist` | Vite | Baked into `Polaris_web` nginx image **and** into the Electron app |
+| `web/dist` | Vite | Baked into `web` nginx image **and** into the Electron app |
 | `Polaris.dmg`, `Polaris Setup.exe` | electron-builder | GitHub Releases (auto-update feed) |
 | `@polaris/sdk` | tsup | npm |
 
