@@ -59,6 +59,13 @@ body {
 
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: var(--accent-subtle);
+  color: var(--text-primary);
 }
 
 /* The application mount point. Making it a stacking context means the layer scale in

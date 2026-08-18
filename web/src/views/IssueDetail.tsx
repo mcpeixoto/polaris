@@ -359,7 +359,9 @@ export function IssueDetail() {
             </span>
             <Button
               {...status.props}
+              variant="ghost"
               fullWidth
+              className={styles.propertyTrigger}
               aria-describedby={`${issue.id}-status-label`}
               icon={
                 <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
@@ -375,7 +377,9 @@ export function IssueDetail() {
             </span>
             <Button
               {...assignee.props}
+              variant="ghost"
               fullWidth
+              className={styles.propertyTrigger}
               aria-describedby={`${issue.id}-assignee-label`}
               icon={
                 issue.assigneeName === null ? undefined : (
@@ -399,7 +403,9 @@ export function IssueDetail() {
             </span>
             <Button
               {...priority.props}
+              variant="ghost"
               fullWidth
+              className={styles.propertyTrigger}
               aria-describedby={`${issue.id}-priority-label`}
               icon={<PriorityIcon priority={issue.priority} decorative />}
             >
@@ -415,7 +421,13 @@ export function IssueDetail() {
               <span className={styles.propertyLabel} id={`${issue.id}-estimate-label`}>
                 Estimate
               </span>
-              <Button {...estimate.props} fullWidth aria-describedby={`${issue.id}-estimate-label`}>
+              <Button
+                {...estimate.props}
+                variant="ghost"
+                fullWidth
+                className={styles.propertyTrigger}
+                aria-describedby={`${issue.id}-estimate-label`}
+              >
                 {issue.estimateLabel ?? 'No estimate'}
               </Button>
             </div>
@@ -425,7 +437,13 @@ export function IssueDetail() {
             <span className={styles.propertyLabel} id={`${issue.id}-due-label`}>
               Due date
             </span>
-            <Button {...due.props} fullWidth aria-describedby={`${issue.id}-due-label`}>
+            <Button
+              {...due.props}
+              variant="ghost"
+              fullWidth
+              className={styles.propertyTrigger}
+              aria-describedby={`${issue.id}-due-label`}
+            >
               <DueDateValue
                 value={issue.dueDate}
                 timezone={issue.timezone}

@@ -117,9 +117,7 @@
   margin: 0;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: var(--font-weight-medium);
 }
 
 .statusList {

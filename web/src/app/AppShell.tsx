@@ -144,19 +144,25 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
     <div className={styles.shell}>
       <nav className={styles.sidebar} aria-label="Workspace">
         <div className={styles.workspace}>
+          <span className={styles.workspaceMark} aria-hidden="true">
+            {(workspace?.name ?? 'P').slice(0, 1).toUpperCase()}
+          </span>
           <span className={styles.workspaceName}>{workspace?.name ?? 'Polaris'}</span>
           <ConnectionIndicator />
         </div>
 
         <div className={styles.section}>
           <NavLink to="/my-issues" className={navClass}>
-            My Issues
+            <NavGlyph name="issues" />
+            <span className={styles.navLabel}>My Issues</span>
           </NavLink>
           <NavLink to="/inbox" className={navClass}>
-            Inbox
+            <NavGlyph name="inbox" />
+            <span className={styles.navLabel}>Inbox</span>
           </NavLink>
           <NavLink to="/search" className={navClass}>
-            Search
+            <NavGlyph name="search" />
+            <span className={styles.navLabel}>Search</span>
           </NavLink>
         </div>
 
@@ -168,7 +174,7 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
                 {favorite.prefix !== null && (
                   <span className={styles.teamKey}>{favorite.prefix}</span>
                 )}
-                {favorite.label}
+                <span className={styles.navLabel}>{favorite.label}</span>
               </NavLink>
             ))}
           </div>
@@ -179,7 +185,7 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
           {teams.map((team) => (
             <NavLink key={team.id} to={`/team/${team.key}`} className={navClass}>
               <span className={styles.teamKey}>{team.key}</span>
-              {team.name}
+              <span className={styles.navLabel}>{team.name}</span>
             </NavLink>
           ))}
         </div>
@@ -189,7 +195,8 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
             <h2 className={styles.sectionTitle}>Views</h2>
             {views.map((view) => (
               <NavLink key={view.id} to={viewPath(view)} className={navClass}>
-                {view.name}
+                <NavGlyph name="view" />
+                <span className={styles.navLabel}>{view.name}</span>
               </NavLink>
             ))}
           </div>
@@ -200,22 +207,28 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
         <div className={styles.section}>
           <h2 className={styles.sectionTitle}>Workspace</h2>
           <NavLink to="/settings/members" className={navClass}>
-            Members
+            <NavGlyph name="members" />
+            <span className={styles.navLabel}>Members</span>
           </NavLink>
           <NavLink to="/settings/labels" className={navClass}>
-            Labels
+            <NavGlyph name="labels" />
+            <span className={styles.navLabel}>Labels</span>
           </NavLink>
           <NavLink to="/settings/notifications" className={navClass}>
-            Notifications
+            <NavGlyph name="bell" />
+            <span className={styles.navLabel}>Notifications</span>
           </NavLink>
           <NavLink to="/settings/templates" className={navClass}>
-            Templates
+            <NavGlyph name="template" />
+            <span className={styles.navLabel}>Templates</span>
           </NavLink>
           <NavLink to="/settings/api-keys" className={navClass}>
-            API keys
+            <NavGlyph name="key" />
+            <span className={styles.navLabel}>API keys</span>
           </NavLink>
           <NavLink to="/settings/trash" className={navClass}>
-            Trash
+            <NavGlyph name="trash" />
+            <span className={styles.navLabel}>Trash</span>
           </NavLink>
         </div>
       </nav>
@@ -234,6 +247,115 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
 // out, not render the literal "undefined" into the DOM.
 function navClass({ isActive }: { isActive: boolean }): string {
   return [styles.navItem, isActive ? styles.navItemActive : null].filter(Boolean).join(' ');
+}
+
+type NavGlyphName =
+  | 'issues'
+  | 'inbox'
+  | 'search'
+  | 'view'
+  | 'members'
+  | 'labels'
+  | 'bell'
+  | 'template'
+  | 'key'
+  | 'trash';
+
+function NavGlyph({ name }: { name: NavGlyphName }) {
+  return (
+    <svg
+      className={styles.navIcon}
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      {glyphPath(name)}
+    </svg>
+  );
+}
+
+function glyphPath(name: NavGlyphName) {
+  const stroke = {
+    fill: 'none' as const,
+    stroke: 'currentColor',
+    strokeWidth: 1.4,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
+  switch (name) {
+    case 'issues':
+      return (
+        <>
+          <rect x="2.5" y="2.5" width="11" height="11" rx="2" {...stroke} />
+          <path d="M5 8h6M5 10.5h3.5" {...stroke} />
+        </>
+      );
+    case 'inbox':
+      return (
+        <>
+          <path d="M2.5 8.5 4.2 3.8A1.5 1.5 0 0 1 5.6 3h4.8a1.5 1.5 0 0 1 1.4.8L13.5 8.5" {...stroke} />
+          <path d="M2.5 8.5h2.6l.8 1.8h4.2l.8-1.8h2.6V12a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 2.5 12V8.5Z" {...stroke} />
+        </>
+      );
+    case 'search':
+      return (
+        <>
+          <circle cx="7" cy="7" r="3.75" {...stroke} />
+          <path d="m10.2 10.2 3 3" {...stroke} />
+        </>
+      );
+    case 'view':
+      return (
+        <>
+          <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h7" {...stroke} />
+        </>
+      );
+    case 'members':
+      return (
+        <>
+          <circle cx="6" cy="5.5" r="2" {...stroke} />
+          <path d="M3 12.5c.2-2 1.6-3 3-3s2.8 1 3 3" {...stroke} />
+          <circle cx="11" cy="6" r="1.5" {...stroke} />
+          <path d="M10.2 12.5c.15-1.4 1-2.2 2-2.2" {...stroke} />
+        </>
+      );
+    case 'labels':
+      return (
+        <>
+          <path d="M2.5 8.2 8.2 2.5h4.3A1 1 0 0 1 13.5 3.5v4.3L7.8 13.5a1 1 0 0 1-1.4 0L2.5 9.6a1 1 0 0 1 0-1.4Z" {...stroke} />
+          <circle cx="10.2" cy="5.8" r="0.9" fill="currentColor" />
+        </>
+      );
+    case 'bell':
+      return (
+        <>
+          <path d="M4 10.5V8a4 4 0 0 1 8 0v2.5l1 1.5H3l1-1.5Z" {...stroke} />
+          <path d="M6.5 12.5a1.5 1.5 0 0 0 3 0" {...stroke} />
+        </>
+      );
+    case 'template':
+      return (
+        <>
+          <rect x="3" y="2.5" width="10" height="11" rx="1.5" {...stroke} />
+          <path d="M6 6h4M6 8.5h4M6 11h2" {...stroke} />
+        </>
+      );
+    case 'key':
+      return (
+        <>
+          <circle cx="6" cy="8" r="2.5" {...stroke} />
+          <path d="M8.2 8H14v2.2M11.5 8v2.2" {...stroke} />
+        </>
+      );
+    case 'trash':
+      return (
+        <>
+          <path d="M3.5 5h9M6 5V3.5h4V5M5 5l.6 7.2A1 1 0 0 0 6.6 13h2.8a1 1 0 0 0 1-.8L11 5" {...stroke} />
+        </>
+      );
+  }
 }
 
 /**
