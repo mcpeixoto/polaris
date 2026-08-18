@@ -120,6 +120,18 @@ services:
     build: *backend_build
     container_name: polaris_migrate
     command: ["/usr/local/bin/polarisctl", "migrate", "up"]
+    # The same env_file as api, sync and worker, and it was the one service without it.
+    #
+    # Compose's `.env` is read for `${...}` interpolation in THIS file; it is not injected
+    # into containers. So migrate started with only the DATABASE_URL below, and
+    # `polarisctl migrate up` with no --database flag loads the full configuration —
+    # which requires POLARIS_JWT_SECRET. It exited 1 before touching the database, api and
+    # sync never started because they gate on `service_completed_successfully`, and the
+    # whole stack came up as two containers and an error.
+    #
+    # That happened to everyone. `docker compose up` on a fresh clone, following the
+    # README, failed here — the documented path to running this product did not run it.
+    env_file: [.env]
     environment:
       DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@postgres:5432/polaris?sslmode=disable
     depends_on:
