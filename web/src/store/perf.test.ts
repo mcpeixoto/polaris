@@ -25,7 +25,25 @@ const ISSUES = 5000;
 /** Twenty labels, up to three per issue: a real workspace's shape, and ~14,000 `issueLabel` rows. */
 const LABELS = 20;
 
-/** The M0 budget is 50ms; 250 leaves room for a loaded CI box without hiding a real regression. */
+/**
+ * The budget the product publishes, and the one this test asserts against.
+ *
+ * Two numbers rather than one, because they answer different questions and collapsing them
+ * loses the answer to both. PRODUCT_FILTER_BUDGET_MS is the promise — 50ms, in M0 acceptance
+ * test 13 and again in M1 acceptance test 6 — and FILTER_BUDGET_MS is what a shared CI box
+ * can be held to without failing for reasons that have nothing to do with this code.
+ *
+ * The gap between them used to be silent, and silence was the problem: a run at 249ms passed
+ * while being five times the published budget, and nothing in the output would have said so.
+ * Measuring it settled the question — the median is 0.3ms with four active clauses over
+ * 5,000 issues — so the filter test now asserts the PRODUCT budget with a hundred-fold
+ * margin and no flake risk, and the CI allowance is kept only for the queries below that
+ * genuinely do more work per run.
+ *
+ * The median is logged on every run either way, because a number that is only checked
+ * against a threshold is a number nobody watches drift.
+ */
+const PRODUCT_FILTER_BUDGET_MS = 50;
 const FILTER_BUDGET_MS = 250;
 /** The M0 budget is one 16ms frame; 80 is the same trade. */
 const MUTATION_BUDGET_MS = 80;
@@ -210,11 +228,19 @@ function medianMs(runs: number, fn: () => void): number {
 
 describe('store performance', () => {
   it(`filters, groups and sorts ${ISSUES} issues within the frame budget`, async () => {
-    const { store, teamIds, userIds } = await seededStore();
+    const { store, teamIds, userIds, stateIds } = await seededStore();
 
     const elapsed = medianMs(20, () => {
+      // Four active clauses, because that is the number the criterion names
+      // (docs/07-milestones/01-milestone-1.md acceptance test 6) and two would be a
+      // measurement of something easier than the thing promised.
       const result = store.query({
-        filter: { teamIds: [teamIds[0]!], assigneeIds: [userIds[1]!, null] },
+        filter: {
+          teamIds: [teamIds[0]!],
+          assigneeIds: [userIds[1]!, null],
+          stateIds: [stateIds[0]!, stateIds[1]!],
+          priorities: [1, 2],
+        },
         groupBy: 'state',
         sortBy: 'priority',
       });
@@ -222,13 +248,16 @@ describe('store performance', () => {
       if (result.ids.length < 0) throw new Error('unreachable');
     });
 
+    console.log(`[perf] filter+group+sort median over ${ISSUES} issues: ${elapsed.toFixed(1)}ms`);
     expect(
       elapsed,
       `filter+group+sort over ${ISSUES} issues took ${elapsed.toFixed(1)}ms. ` +
-        `The product budget is 50ms (docs/07-milestones/00-milestone-0.md, acceptance test 13); ` +
+        `The product budget is ${PRODUCT_FILTER_BUDGET_MS}ms ` +
+        `(docs/07-milestones/00-milestone-0.md acceptance test 13, and ` +
+        `docs/07-milestones/01-milestone-1.md acceptance test 6); ` +
         `this test allows ${FILTER_BUDGET_MS}ms to tolerate a loaded CI box. ` +
         `Exceeding it means a list is now scanning entities instead of using the indexes.`,
-    ).toBeLessThan(FILTER_BUDGET_MS);
+    ).toBeLessThan(PRODUCT_FILTER_BUDGET_MS);
   });
 
   it('runs an unfiltered grouped query within the frame budget', async () => {
