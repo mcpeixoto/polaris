@@ -267,7 +267,19 @@ export async function createStatus(engine: SyncEngine, input: NewStatus): Promis
  * is an instruction.
  */
 export async function archiveStatus(engine: SyncEngine, stateId: UUID): Promise<void> {
-  await engine.mutate({ mutation: ARCHIVE_WORKFLOW_STATE, variables: { id: stateId } });
+  // `archived` is required by the schema and was not being sent, so this mutation was
+  // rejected at validation on every call and retiring a status had never once worked. It
+  // failed the way a missing argument does — before any resolver ran, with a message about
+  // the shape of the document rather than about statuses — which is indistinguishable from
+  // the refusal this function is written to expect, and that is why nobody noticed.
+  //
+  // Passed as `true` rather than taken as a parameter because there is no un-archive on any
+  // screen yet. The server takes a boolean and would restore a status happily; when
+  // something offers that, this signature is where it goes.
+  await engine.mutate({
+    mutation: ARCHIVE_WORKFLOW_STATE,
+    variables: { id: stateId, archived: true },
+  });
 }
 
 /**

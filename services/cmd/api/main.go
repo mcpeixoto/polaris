@@ -126,17 +126,6 @@ func run() error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// maxQueryComplexity is the budget ONE GraphQL request may spend.
-//
-// It is the only thing standing between a public API and a query that asks for every
-// issue's every comment's author's every issue. A depth limit alone does not help: a
-// shallow query over a large list is just as expensive as a deep one.
-//
-// It is a ceiling on a single request and nothing more, which is why complexityBudget sits
-// beside it: this limit is equally happy to serve a thousand 9,999-point queries a second.
-// The per-caller budget is the one that notices.
-const maxQueryComplexity = 10000
-
 func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
 	es := generated.NewExecutableSchema(generated.Config{
 		Resolvers:  &graph.Resolver{Svc: svc},
@@ -167,8 +156,10 @@ func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
 
 	h.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 	h.Use(extension.AutomaticPersistedQuery{Cache: lru.New[string](100)})
-	h.Use(extension.FixedComplexityLimit(maxQueryComplexity))
-	// Registered after the limit above, because it reads the score that one computes.
+	// Scores every operation by the model docs/03-platform/01-graphql-api.md publishes,
+	// refuses the ones over the ceiling, and bills the rest. gqlgen's own
+	// extension.FixedComplexityLimit used to sit here and is deliberately gone: it scored
+	// every field at 1, so the ceiling it enforced was one no real query could reach.
 	h.Use(complexityBudget{})
 
 	if !cfg.IsDevelopment() {

@@ -302,8 +302,8 @@ export const UPDATE_WORKFLOW_STATE = /* GraphQL */ `
 `;
 
 export const ARCHIVE_WORKFLOW_STATE = /* GraphQL */ `
-  mutation ArchiveWorkflowState($id: UUID!) {
-    archiveWorkflowState(id: $id) {
+  mutation ArchiveWorkflowState($id: UUID!, $archived: Boolean!) {
+    archiveWorkflowState(id: $id, archived: $archived) {
       version
       id
     }
