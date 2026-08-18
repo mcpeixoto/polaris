@@ -4,14 +4,33 @@
 # release. That is deliberate: two builds means the desktop app can drift from the web app
 # by a commit nobody notices until a user reports that one of them is broken.
 
-FROM node:22.12-alpine AS build
-
-RUN corepack enable
+# Node 22.21, not 22.12. The pinned pnpm (see package.json) requires >= 22.13, so the older
+# pin could not install it at all — and the failure arrived disguised: corepack tried to
+# fetch pnpm first and died on an expired signing key, which reads like a corrupt download.
+# The version floor is a real constraint between two pinned things, so it is worth pinning
+# to a patch release rather than to `22-alpine`, and worth saying why.
+FROM node:22.21-alpine AS build
 
 WORKDIR /src
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY web/package.json web/
+
+# pnpm comes from the version pinned in package.json, installed with npm.
+#
+# `corepack enable` was here and stopped working. Corepack verifies the package manager it
+# downloads against a set of signing keys BUNDLED IN THE NODE IMAGE, and those keys are
+# frozen at the image's release while the registry's rotate — so a base image pinned for
+# reproducibility eventually cannot install anything, and fails with "Cannot find matching
+# keyid", which reads like a corrupt download rather than an expired key. Node 22.12 reached
+# that point. Nothing in this repository changed; the build simply stopped one day.
+#
+# `corepack@latest` would fix it by making the build depend on an unpinned package, which is
+# the thing the --frozen-lockfile below exists to refuse. Reading the version out of
+# package.json keeps one source of truth — the same `packageManager` field corepack read —
+# and removes a moving part from the build instead of adding one.
+RUN npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+
 # --frozen-lockfile fails rather than silently resolving a different tree than the one
 # that was tested.
 RUN pnpm install --frozen-lockfile --filter @polaris/web...
