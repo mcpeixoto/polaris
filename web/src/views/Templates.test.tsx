@@ -432,7 +432,16 @@ describe('Templates', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Archive it' }));
 
     await waitFor(() => expect(sent(mutate, 'mutation ArchiveIssueTemplate')).toBeTruthy());
-    expect(sent(mutate, 'mutation ArchiveIssueTemplate')?.variables).toEqual({ id: 't-eng' });
+    // `archived` too. It was absent here and absent from the document, and the two agreeing
+    // with each other is exactly why nobody noticed: the schema requires it, so every call
+    // was rejected at validation before any resolver ran, and this test asserted the shape
+    // that failed. A client-side test cannot see a server-side refusal — the pin that does
+    // is services/internal/complexity/client_queries_test.go, which validates every document
+    // the client sends against the real schema.
+    expect(sent(mutate, 'mutation ArchiveIssueTemplate')?.variables).toEqual({
+      id: 't-eng',
+      archived: true,
+    });
     // The patch is a delete rather than a flag, because a delete is what the sync stream
     // carries for a retired template.
     expect(sent(mutate, 'mutation ArchiveIssueTemplate')?.optimistic?.[0]?.after).toBeNull();

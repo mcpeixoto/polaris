@@ -192,7 +192,17 @@ export async function updateLabel(
  * unlabelled until the next full sync.
  */
 export async function archiveLabel(engine: SyncEngine, labelId: UUID): Promise<void> {
-  await engine.mutate({ mutation: ARCHIVE_LABEL, variables: { id: labelId } });
+  // `archived` is required by the schema and was not being sent, so this was rejected at
+  // validation on every call and archiving a label had never worked. It failed before any
+  // resolver ran, with a message about the shape of the document rather than about labels.
+  //
+  // The same defect existed on archiveWorkflowState and archiveIssueTemplate; all three were
+  // written the same way and all three were wrong. `true` rather than a parameter because no
+  // screen offers un-archiving yet — the server takes a boolean and would restore happily.
+  await engine.mutate({
+    mutation: ARCHIVE_LABEL,
+    variables: { id: labelId, archived: true },
+  });
 }
 
 /**
