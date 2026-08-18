@@ -112,7 +112,22 @@ services:
       migrate: { condition: service_completed_successfully }
     networks: [frontend, backend]
     mem_limit: 512m
+    healthcheck:
+      # The hub serves GET /healthz on its own port (cmd/sync/main.go), so it can be asked
+      # the same question as the API and had simply never been asked one. A socket hub with
+      # no healthcheck is the service where that matters most: it can be holding thousands
+      # of connections and answering none of them, and nothing above it would know.
+      test: ["CMD", "/usr/local/bin/polarisctl", "health", "--addr", "127.0.0.1:8089"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
+  # No healthcheck on the worker, and it is the one service that genuinely cannot have one:
+  # it opens no listener at all. Check it by its log line — it prints `worker started` with
+  # a job count at boot — or by whether its jobs are still advancing. Inventing an HTTP
+  # endpoint purely so a healthcheck has something to talk to would add a listening socket
+  # to a process whose whole security story is that it has none.
   worker:
     <<: *defaults
     build: *backend_build
