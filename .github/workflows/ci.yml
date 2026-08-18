@@ -192,6 +192,9 @@ jobs:
       # default leaves the x64 build unlabelled, so the plain filename is the Intel one —
       # and macOS 26 tells whoever downloads it that the app needs updating.
       - run: bash scripts/lint-desktop.sh
+      # An image that pins ENTRYPOINT to one of its four binaries, so `command:` selects
+      # nothing and every service runs the API. `docker compose up` deadlocked on it.
+      - run: bash scripts/lint-images.sh
 
   secrets:
     name: Secret scan

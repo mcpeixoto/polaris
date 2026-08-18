@@ -54,4 +54,21 @@ LABEL org.opencontainers.image.title="Polaris" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.revision="${GIT_SHA}"
 
-ENTRYPOINT ["/usr/local/bin/api"]
+# CMD, not ENTRYPOINT, and the difference was the whole stack.
+#
+# This image ships four binaries on purpose — api, sync, worker and polarisctl — so that the
+# three services and the migration tool can never disagree about a schema version; see the
+# comment at the top of cmd/api/main.go, which calls them "three entrypoints built from a
+# single image". An ENTRYPOINT names one of them and makes the other three unreachable:
+# Docker appends `command:` to an ENTRYPOINT rather than replacing it, so compose's
+# `command: ["/usr/local/bin/sync"]` ran `api /usr/local/bin/sync`, which api ignores.
+#
+# Every service in docker-compose.yml therefore started the API. The migration service ran
+# an API that never exits, so `service_completed_successfully` was never satisfied, and api,
+# sync and worker never started at all — the stack deadlocked on a container doing the wrong
+# job. `docker compose up` could not have produced a working Polaris on any machine.
+#
+# CMD is a default that `command:` replaces, which is what the compose file has always
+# assumed. Running the image with no arguments still starts the API, so nothing that worked
+# before stops working.
+CMD ["/usr/local/bin/api"]
