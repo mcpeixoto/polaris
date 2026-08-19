@@ -277,6 +277,39 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			}
 		}
 
+		if includeWorkspaceScoped {
+			if err := streamPages(ctx, w, "githubConnection",
+				func(ctx context.Context, after uuid.UUID) ([]store.StreamGitHubConnectionsForBootstrapRow, error) {
+					return q.StreamGitHubConnectionsForBootstrap(ctx, store.StreamGitHubConnectionsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(c store.StreamGitHubConnectionsForBootstrapRow) (uuid.UUID, any) {
+					return c.ID, gitHubConnectionFromStream(c)
+				},
+			); err != nil {
+				return err
+			}
+		}
+
+		if err := streamPages(ctx, w, "githubUserLink",
+			func(ctx context.Context, after uuid.UUID) ([]store.StreamGitHubUserLinksForBootstrapRow, error) {
+				return q.StreamGitHubUserLinksForBootstrap(ctx, store.StreamGitHubUserLinksForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					UserID:      p.UserID,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(l store.StreamGitHubUserLinksForBootstrapRow) (uuid.UUID, any) {
+				return l.ID, gitHubUserLinkFromStream(l)
+			},
+		); err != nil {
+			return err
+		}
+
 		teams, err := q.ListTeamsInWorkspace(ctx, p.WorkspaceID)
 		if err != nil {
 			return platform.Internal(err)
@@ -891,7 +924,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v18 adds project update reminder cadence on workspace and per-project schedule overrides.
 // v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
 // v21 adds projectTemplate, projectTemplateMilestone, projectTemplateIssue, and project.projectTemplateId.
-const ClientSchemaVersion = 21
+// v22 adds githubConnection and githubUserLink (GitHub v1 linking, no secrets).
+const ClientSchemaVersion = 22
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //
