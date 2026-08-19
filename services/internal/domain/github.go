@@ -625,7 +625,7 @@ func (s *Service) lookupIssueByIdentifier(ctx context.Context, workspaceID uuid.
 		}
 		return nil, platform.Internal(err)
 	}
-	issue := toIssue(row, team.Key)
+	issue := toIssue(store.AsIssueRow(row), team.Key)
 	return &issue, nil
 }
 
