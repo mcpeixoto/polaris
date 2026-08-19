@@ -280,6 +280,24 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	}); err != nil {
 		t.Fatalf("document: %v", err)
 	}
+	if _, _, err := svc.CreateInitiative(ctx, p, domain.CreateInitiativeInput{
+		Name: "Reliability",
+	}); err != nil {
+		t.Fatalf("initiative: %v", err)
+	}
+	project, _, err = svc.CreateProject(ctx, p, domain.CreateProjectInput{
+		Name: "Launch pad", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("project for initiative link: %v", err)
+	}
+	initRows, err := svc.ListInitiatives(ctx, p)
+	if err != nil || len(initRows) == 0 {
+		t.Fatalf("list initiatives: %v", err)
+	}
+	if _, _, err := svc.AddInitiativeProject(ctx, p, initRows[0].ID, project.ID); err != nil {
+		t.Fatalf("initiativeProject: %v", err)
+	}
 
 	// The watcher subscribes and then hears about somebody else's edit, which is the only
 	// way to make a `notification` row exist without writing one by hand.

@@ -69,6 +69,7 @@ type Querier interface {
 	AppendIssueHistory(ctx context.Context, arg AppendIssueHistoryParams) error
 	ArchiveCycle(ctx context.Context, id uuid.UUID) error
 	ArchiveDocument(ctx context.Context, id uuid.UUID) error
+	ArchiveInitiative(ctx context.Context, id uuid.UUID) error
 	ArchiveIssue(ctx context.Context, id uuid.UUID) error
 	// Archived rather than deleted: issue.template_id references this row, and the question
 	// that column exists to answer — "is this template still worth having" — needs the
@@ -247,6 +248,8 @@ type Querier interface {
 	// Cycles. Column lists follow the table order, same rule as issues.sql.
 	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
+	CreateInitiative(ctx context.Context, arg CreateInitiativeParams) (Initiative, error)
+	CreateInitiativeProject(ctx context.Context, arg CreateInitiativeProjectParams) (InitiativeProject, error)
 	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
 	// Every list below is the issue table's columns, in the table's own order, minus
 	// search_vector. Minus, because the generated vector is roughly the size of the text it
@@ -293,6 +296,7 @@ type Querier interface {
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
+	DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
 	DeleteIssueRelation(ctx context.Context, id uuid.UUID) (IssueRelation, error)
 	// Soft, not a DELETE: the unique index on (user_id, group_key) is what makes the fan-out
 	// idempotent, and removing the row would let a replayed version deliver the notification a
@@ -351,6 +355,10 @@ type Querier interface {
 	GetDocumentForUpdate(ctx context.Context, id uuid.UUID) (Document, error)
 	GetFavoritePositionAfter(ctx context.Context, arg GetFavoritePositionAfterParams) (string, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
+	GetInitiative(ctx context.Context, id uuid.UUID) (Initiative, error)
+	GetInitiativeForUpdate(ctx context.Context, id uuid.UUID) (Initiative, error)
+	GetInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
+	GetInitiativeProjectByPair(ctx context.Context, arg GetInitiativeProjectByPairParams) (InitiativeProject, error)
 	GetInviteByTokenHash(ctx context.Context, tokenHash []byte) (Invite, error)
 	GetIssue(ctx context.Context, id uuid.UUID) (Issue, error)
 	GetIssueByTeamAndNumber(ctx context.Context, arg GetIssueByTeamAndNumberParams) (Issue, error)
@@ -444,6 +452,7 @@ type Querier interface {
 	LastCycleNumber(ctx context.Context, teamID uuid.UUID) (int32, error)
 	LastDocumentSortOrderForProject(ctx context.Context, projectID *uuid.UUID) (string, error)
 	LastDocumentSortOrderForTeam(ctx context.Context, teamID uuid.UUID) (string, error)
+	LastInitiativeSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastProjectMilestoneSortOrder(ctx context.Context, projectID uuid.UUID) (string, error)
 	LastProjectSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastProjectStatusPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -546,6 +555,9 @@ type Querier interface {
 	// its own owner's scope.
 	//
 	ListFavoritesForTarget(ctx context.Context, arg ListFavoritesForTargetParams) ([]Favorite, error)
+	ListInitiativeProjectIDs(ctx context.Context, initiativeID uuid.UUID) ([]uuid.UUID, error)
+	ListInitiativeProjects(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeProject, error)
+	ListInitiativesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Initiative, error)
 	ListIssueHistory(ctx context.Context, issueID uuid.UUID) ([]IssueHistory, error)
 	ListIssueLabels(ctx context.Context, issueID uuid.UUID) ([]IssueLabel, error)
 	// ListIssueLabelsForIssues is the same listing for a whole page of issues at once.
@@ -908,6 +920,7 @@ type Querier interface {
 	SnoozeNotification(ctx context.Context, arg SnoozeNotificationParams) (Notification, error)
 	SoftDeleteComment(ctx context.Context, id uuid.UUID) error
 	SoftDeleteDocument(ctx context.Context, id uuid.UUID) (Document, error)
+	SoftDeleteInitiative(ctx context.Context, arg SoftDeleteInitiativeParams) (Initiative, error)
 	// SoftDeleteIssue records who as well as when.
 	//
 	// deleted_by is nullable and a caller may pass nothing, which is what the retention sweep
@@ -955,6 +968,13 @@ type Querier interface {
 	// yours to look at), so this does too, and only a deleted one is dropped.
 	//
 	StreamFavoritesForBootstrap(ctx context.Context, arg StreamFavoritesForBootstrapParams) ([]Favorite, error)
+	// StreamInitiativeProjectsForBootstrap: both the initiative and the project must be visible.
+	//
+	StreamInitiativeProjectsForBootstrap(ctx context.Context, arg StreamInitiativeProjectsForBootstrapParams) ([]InitiativeProject, error)
+	// StreamInitiativesForBootstrap: workspace-visible unless the lead team is private and
+	// the principal is not in it — the same rule initiativeScope uses.
+	//
+	StreamInitiativesForBootstrap(ctx context.Context, arg StreamInitiativesForBootstrapParams) ([]Initiative, error)
 	// StreamIssueLabelsForBootstrap joins the issue rather than trusting the denormalised
 	// team_id alone: bootstrap must not ship applications belonging to issues the snapshot
 	// itself excludes, or the client renders label chips on rows it does not hold.
@@ -1100,6 +1120,7 @@ type Querier interface {
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error
 	UnarchiveCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
 	UnarchiveDocument(ctx context.Context, id uuid.UUID) (Document, error)
+	UnarchiveInitiative(ctx context.Context, id uuid.UUID) (Initiative, error)
 	UnarchiveIssue(ctx context.Context, id uuid.UUID) error
 	// UnarchiveIssueTemplate returns the row for the reason UnarchiveLabel does: the archive
 	// reached every client as a delete, so only a payload can put it back.
@@ -1129,6 +1150,7 @@ type Querier interface {
 	UpdateAttachment(ctx context.Context, arg UpdateAttachmentParams) (Attachment, error)
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
+	UpdateInitiative(ctx context.Context, arg UpdateInitiativeParams) (Initiative, error)
 	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error
 	UpdateIssueTemplate(ctx context.Context, arg UpdateIssueTemplateParams) (UpdateIssueTemplateRow, error)

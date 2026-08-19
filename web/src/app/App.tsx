@@ -39,8 +39,11 @@ import { Archives } from '~/views/Archives';
 import { Trash } from '~/views/Trash';
 import { DocumentDetail } from '~/views/DocumentDetail';
 import { Documents } from '~/views/Documents';
+import { Initiatives } from '~/views/Initiatives';
+import { InitiativeDetail } from '~/views/InitiativeDetail';
 import { CreateIssueModal } from '~/features/issue/CreateIssueModal';
 import { CreateProjectModal } from '~/features/projects/CreateProjectModal';
+import { CreateInitiativeModal } from '~/features/initiatives/CreateInitiativeModal';
 
 import { useQuery } from './context';
 import { AppShell } from './AppShell';
@@ -83,6 +86,7 @@ export function App() {
           <AppShell
             renderCreateIssue={({ onClose }) => <CreateIssueModal onClose={onClose} />}
             renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
+            renderCreateInitiative={({ onClose }) => <CreateInitiativeModal onClose={onClose} />}
           >
             <Routes>
               <Route path="/" element={<FirstTeam />} />
@@ -90,6 +94,8 @@ export function App() {
               <Route path="/inbox" element={<Inbox />} />
               <Route path="/search" element={<Search />} />
               <Route path="/projects" element={<Projects />} />
+              <Route path="/initiatives" element={<Initiatives />} />
+              <Route path="/initiative/:initiativeId" element={<InitiativeDetail />} />
               <Route path="/view/:viewId" element={<SavedView />} />
               <Route path="/team/:teamKey" element={<IssueList />} />
               <Route path="/team/:teamKey/projects" element={<Projects />} />

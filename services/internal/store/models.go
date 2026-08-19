@@ -181,6 +181,34 @@ type IdempotencyKey struct {
 	CreatedAt   time.Time
 }
 
+type Initiative struct {
+	ID                    uuid.UUID
+	WorkspaceID           uuid.UUID
+	Name                  string
+	Description           string
+	Status                string
+	Priority              int16
+	OwnerID               *uuid.UUID
+	LeadTeamID            *uuid.UUID
+	CreatorID             *uuid.UUID
+	SortOrder             string
+	TargetDate            pgtype.Date
+	TargetDateGranularity *string
+	ArchivedAt            *time.Time
+	DeletedAt             *time.Time
+	DeletedBy             *uuid.UUID
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
+type InitiativeProject struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	InitiativeID uuid.UUID
+	ProjectID    uuid.UUID
+	CreatedAt    time.Time
+}
+
 type Invite struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

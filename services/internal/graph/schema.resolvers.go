@@ -389,6 +389,123 @@ func (r *mutationResolver) DeleteDocument(ctx context.Context, id uuid.UUID, cli
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// CreateInitiative is the resolver for the createInitiative field.
+func (r *mutationResolver) CreateInitiative(ctx context.Context, input generated.CreateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.InitiativePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromCreateInitiativeInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	init, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Initiative, int64, error) {
+			return r.Svc.CreateInitiative(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toInitiative(init)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.InitiativePayload{Version: int(version), Initiative: &out}, nil
+}
+
+// UpdateInitiative is the resolver for the updateInitiative field.
+func (r *mutationResolver) UpdateInitiative(ctx context.Context, input generated.UpdateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.InitiativePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromUpdateInitiativeInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	init, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Initiative, int64, error) {
+			return r.Svc.UpdateInitiative(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toInitiative(init)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.InitiativePayload{Version: int(version), Initiative: &out}, nil
+}
+
+// ArchiveInitiative is the resolver for the archiveInitiative field.
+func (r *mutationResolver) ArchiveInitiative(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id, "archived": archived},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.ArchiveInitiative(ctx, p, id, archived)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// DeleteInitiative is the resolver for the deleteInitiative field.
+func (r *mutationResolver) DeleteInitiative(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteInitiative(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// AddInitiativeProject is the resolver for the addInitiativeProject field.
+func (r *mutationResolver) AddInitiativeProject(ctx context.Context, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.InitiativeProjectPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := map[string]any{"initiativeId": initiativeID, "projectId": projectID}
+	link, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.InitiativeProject, int64, error) {
+			return r.Svc.AddInitiativeProject(ctx, p, initiativeID, projectID)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toInitiativeProject(link)
+	return &generated.InitiativeProjectPayload{Version: int(version), InitiativeProject: &out}, nil
+}
+
+// RemoveInitiativeProject is the resolver for the removeInitiativeProject field.
+func (r *mutationResolver) RemoveInitiativeProject(ctx context.Context, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"initiativeId": initiativeID, "projectId": projectID},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.RemoveInitiativeProject(ctx, p, initiativeID, projectID)
+			return deletedEntity{ID: projectID}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: projectID}, nil
+}
+
 // CreateTeam is the resolver for the createTeam field.
 func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.CreateTeamInput) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)
@@ -2596,6 +2713,44 @@ func (r *queryResolver) Document(ctx context.Context, id uuid.UUID) (*generated.
 		return nil, PresentError(ctx, err)
 	}
 	out := toDocument(doc)
+	return &out, nil
+}
+
+// Initiatives is the resolver for the initiatives field.
+func (r *queryResolver) Initiatives(ctx context.Context) ([]generated.Initiative, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListInitiatives(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := make([]generated.Initiative, 0, len(rows))
+	for _, row := range rows {
+		converted, err := toInitiative(row)
+		if err != nil {
+			return nil, PresentError(ctx, err)
+		}
+		out = append(out, converted)
+	}
+	return out, nil
+}
+
+// Initiative is the resolver for the initiative field.
+func (r *queryResolver) Initiative(ctx context.Context, id uuid.UUID) (*generated.Initiative, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, err := r.Svc.GetInitiative(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toInitiative(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
 	return &out, nil
 }
 

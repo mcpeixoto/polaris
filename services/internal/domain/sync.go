@@ -448,6 +448,34 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "initiative",
+			func(ctx context.Context, after uuid.UUID) ([]store.Initiative, error) {
+				return q.StreamInitiativesForBootstrap(ctx, store.StreamInitiativesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(i store.Initiative) (uuid.UUID, any) { return i.ID, toInitiative(i) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "initiativeProject",
+			func(ctx context.Context, after uuid.UUID) ([]store.InitiativeProject, error) {
+				return q.StreamInitiativeProjectsForBootstrap(ctx, store.StreamInitiativeProjectsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(ip store.InitiativeProject) (uuid.UUID, any) { return ip.ID, toInitiativeProject(ip) },
+		); err != nil {
+			return err
+		}
+
 		if err := streamPages(ctx, w, "cycle",
 			func(ctx context.Context, after uuid.UUID) ([]store.Cycle, error) {
 				return q.StreamCyclesForBootstrap(ctx, store.StreamCyclesForBootstrapParams{
@@ -703,7 +731,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v7 adds team auto-close/archive periods and issue.autoClosedAt.
 // v8 adds attachment (URL-idempotent link cards on issues).
 // v9 adds document (markdown attached to teams and projects).
-const ClientSchemaVersion = 9
+// v10 adds initiative and initiativeProject (workspace objectives grouping projects).
+const ClientSchemaVersion = 10
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //
