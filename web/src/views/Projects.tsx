@@ -8,8 +8,8 @@
  * to reorder; drag onto a priority heading to change band.
  */
 
-import { useCallback, useState, type DragEvent } from 'react';
-import { Link, useParams } from 'react-router';
+import { useCallback, useMemo, useState, type DragEvent } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useKeymap } from '~/app/keymap';
@@ -20,9 +20,18 @@ import {
   ProjectDependencyFilterSelect,
   type ProjectDependencyFilter,
 } from '~/features/projects/dependencies';
+import {
+  DEFAULT_PROJECT_DISPLAY,
+  resolveProjectDisplay,
+  toProjectDisplayParams,
+  type ProjectDisplayOptions,
+} from '~/features/projects/display';
+import { ProjectDisplayMenu } from '~/features/projects/ProjectDisplayMenu';
+import { ProjectTimeline } from '~/features/projects/ProjectTimeline';
 import { updateProject } from '~/features/projects/mutations';
 import { compareProjectsByPriority } from '~/features/projects/projectHelpers';
 import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { PRIORITY_LEVELS } from '~/components/PriorityIcon';
 import type { Project, ProjectLabel, ProjectStatus, Store, UUID } from '~/store';
@@ -51,11 +60,38 @@ interface PriorityGroup {
 export function Projects() {
   const engine = useEngine();
   const { teamKey } = useParams<{ teamKey?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { registry, context } = useKeymap();
   const create = () => registry.invoke('project.create', { source: 'menu', context });
+  const displayTrigger = useMenuTrigger();
   const [depFilter, setDepFilter] = useState<ProjectDependencyFilter>('all');
   const [draggingId, setDraggingId] = useState<UUID | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+
+  const display = useMemo(() => resolveProjectDisplay(searchParams), [searchParams]);
+  const displayChanges = useMemo(() => {
+    let count = 0;
+    if (display.layout !== DEFAULT_PROJECT_DISPLAY.layout) count++;
+    if (display.zoom !== DEFAULT_PROJECT_DISPLAY.zoom) count++;
+    if (display.showDependencies !== DEFAULT_PROJECT_DISPLAY.showDependencies) count++;
+    if (display.showMilestones !== DEFAULT_PROJECT_DISPLAY.showMilestones) count++;
+    return count;
+  }, [display]);
+
+  const setDisplay = useCallback(
+    (patch: Partial<ProjectDisplayOptions>) => {
+      const next = { ...display, ...patch };
+      const params = new URLSearchParams(searchParams);
+      for (const key of ['layout', 'zoom', 'deps', 'milestones'] as const) {
+        params.delete(key);
+      }
+      for (const [key, value] of Object.entries(toProjectDisplayParams(next))) {
+        params.set(key, value);
+      }
+      setSearchParams(params, { replace: true });
+    },
+    [display, searchParams, setSearchParams],
+  );
 
   const team = useLiveQuery(
     (store) =>
@@ -130,13 +166,26 @@ export function Projects() {
         <h1 className={styles.title}>{heading}</h1>
         <div className={styles.headerActions}>
           <ProjectDependencyFilterSelect value={depFilter} onChange={setDepFilter} />
+          <Button {...displayTrigger.props} variant="ghost">
+            Display{displayChanges > 0 ? ` · ${displayChanges}` : ''}
+          </Button>
           <Button variant="primary" onClick={create}>
             New project
           </Button>
         </div>
       </header>
 
-      {rowCount === 0 ? (
+      <ProjectDisplayMenu
+        display={display}
+        onChange={setDisplay}
+        open={displayTrigger.open}
+        onClose={displayTrigger.hide}
+        trigger={displayTrigger.ref}
+      />
+
+      {display.layout === 'timeline' ? (
+        <ProjectTimeline teamId={team?.id} depFilter={depFilter} display={display} />
+      ) : rowCount === 0 ? (
         <EmptyState
           title="No projects yet"
           description="A project is a unit of work with a clear outcome. Create one, then file issues into it with Shift+P."

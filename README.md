@@ -22,7 +22,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Auth | Argon2id, rotating refresh tokens, HttpOnly cookies, invitations |
 | Client store | IndexedDB replica (schema 19), in-memory indexes, durable outbox, optimistic mutations |
 | Keyboard | One registry; the command menu and help overlay are views over it. Peek is `Space`; triage is `G T` / `1` `2` `3` `H`; archives is `G X` / `#`; add link is `⌘⇧U` |
-| Projects | Workspace and team lists with health from latest update, overview graph/issues/activity tabs, `Shift+P` picker, `C` files into the open project |
+| Projects | Workspace and team lists with health from latest update, Display → Timeline (bars, deps, milestones), overview graph/issues/activity tabs, `Shift+P` picker, `C` files into the open project |
 | Cycles | Team cadence, auto-created windows, rollover and auto-add, cycle graph on detail, `G C` / `Shift+C`, `C` files into the open cycle |
 | Triage | Per-team intake status, hidden from ordinary views, accept / duplicate / decline / snooze |
 | Archives | Auto-close and auto-archive with parent/sub/project blocking; on-demand archives page |
@@ -31,7 +31,8 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Documents | Team and project markdown docs, `/team/:key/documents`, `/document/:id`, archive and soft-delete on the sync stream |
 | Initiatives | Workspace objectives grouping curated projects, `/initiatives`, `/initiative/:id`, status/owner/target date on the sync stream |
 | Project updates | Health plus markdown status posts, Overview compose and Activity history, derived health on project list |
-| Project dependencies | End→start Blocked by / Blocking on Overview and sidebar, command menu, list filters — client schema 12 |
+| Project dependencies | End→start Blocked by / Blocking on Overview and sidebar, command menu, list filters, timeline lines — client schema 12 |
+| Project timeline | Display → Timeline on `/projects`: Gantt bars, dependency lines, milestones, zoom — web-only, no migration |
 | Attached project views | Saved filters as reorderable tabs on the project shell, + to create, copy link / favorite / rename / delete — client schema 13 |
 | Project labels | Workspace taxonomy with groups, picker on project sidebar, chips on `/projects` — client schema 14 |
 | Form templates | Structured intake templates with fields; form tab on Templates settings and form fill in create-issue — client schema 19; migration `000042` |
