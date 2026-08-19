@@ -794,6 +794,24 @@ type Project struct {
 	Milestones            []ProjectMilestone    `json:"milestones"`
 }
 
+// An end→start dependency: the blocking project must finish before the blocked may start.
+type ProjectDependency struct {
+	ID                uuid.UUID `json:"id"`
+	WorkspaceID       uuid.UUID `json:"workspaceId"`
+	BlockingProjectID uuid.UUID `json:"blockingProjectId"`
+	BlockedProjectID  uuid.UUID `json:"blockedProjectId"`
+	CreatedAt         time.Time `json:"createdAt"`
+	BlockingProject   *Project  `json:"blockingProject,omitempty"`
+	BlockedProject    *Project  `json:"blockedProject,omitempty"`
+}
+
+type ProjectDependencyPayload struct {
+	Version           int                `json:"version"`
+	ProjectDependency *ProjectDependency `json:"projectDependency"`
+}
+
+func (ProjectDependencyPayload) IsMutationResult() {}
+
 type ProjectMember struct {
 	ID          uuid.UUID `json:"id"`
 	WorkspaceID uuid.UUID `json:"workspaceId"`

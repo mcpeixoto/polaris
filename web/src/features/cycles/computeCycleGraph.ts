@@ -6,7 +6,7 @@
  * stays out until that is on the stream.
  */
 
-import type { Cycle, Issue, Store, Team, UUID } from '~/store';
+import type { Issue, Store, Team, UUID } from '~/store';
 
 export interface CycleGraphPoint {
   readonly day: string;

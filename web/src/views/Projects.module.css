@@ -25,6 +25,13 @@
   letter-spacing: -0.014em;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+}
+
 .list {
   list-style: none;
   margin: 0;

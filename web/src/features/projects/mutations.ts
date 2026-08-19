@@ -10,6 +10,7 @@
 import { fromWire } from '~/gql/enums';
 import {
   uuidv7,
+  type EntityOf,
   type EntityPatch,
   type Project,
   type ProjectMember,
@@ -20,7 +21,14 @@ import {
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
-import { ADD_PROJECT_MEMBER, ADD_PROJECT_TEAM, CREATE_PROJECT, UPDATE_PROJECT } from './operations';
+import {
+  ADD_PROJECT_DEPENDENCY,
+  ADD_PROJECT_MEMBER,
+  ADD_PROJECT_TEAM,
+  CREATE_PROJECT,
+  REMOVE_PROJECT_DEPENDENCY,
+  UPDATE_PROJECT,
+} from './operations';
 
 export interface NewProject {
   readonly name: string;
@@ -191,4 +199,82 @@ export async function addProjectMember(
 function defaultProjectStatusId(store: Store): UUID | undefined {
   const statuses = [...store.projectStatuses.values()].filter((s) => s.archivedAt === undefined);
   return statuses.find((s) => s.isDefault)?.id ?? statuses[0]?.id;
+}
+
+type ProjectDependency = EntityOf<'projectDependency'>;
+
+export async function addProjectDependency(
+  engine: SyncEngine,
+  blockingProjectId: UUID,
+  blockedProjectId: UUID,
+): Promise<void> {
+  const store = engine.store;
+  const id = uuidv7();
+  const now = new Date().toISOString();
+  const provisional: ProjectDependency = {
+    id,
+    workspaceId: store.workspaceId,
+    blockingProjectId,
+    blockedProjectId,
+    createdAt: now,
+  };
+
+  try {
+    const data = await engine.mutate<{
+      addProjectDependency: { projectDependency: ProjectDependency };
+    }>({
+      mutation: ADD_PROJECT_DEPENDENCY,
+      variables: { blockingProjectId, blockedProjectId },
+      optimistic: [{ type: 'projectDependency', id, before: null, after: provisional }],
+    });
+    const real = fromWire(
+      'projectDependency',
+      data.addProjectDependency.projectDependency as EntityOf<'projectDependency'>,
+    );
+    const patch: EntityPatch[] = [
+      { type: 'projectDependency', id: real.id, before: provisional, after: real },
+    ];
+    if (real.id !== id) {
+      patch.unshift({ type: 'projectDependency', id, before: null, after: null });
+    }
+    store.applyOptimistic(patch);
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
+}
+
+/** Add a blocker for this project — blocking must finish before project may start. */
+export async function addBlockedBy(
+  engine: SyncEngine,
+  projectId: UUID,
+  blockingProjectId: UUID,
+): Promise<void> {
+  await addProjectDependency(engine, blockingProjectId, projectId);
+}
+
+/** Mark that this project blocks another — other must wait until this one finishes. */
+export async function addBlocking(
+  engine: SyncEngine,
+  projectId: UUID,
+  blockedProjectId: UUID,
+): Promise<void> {
+  await addProjectDependency(engine, projectId, blockedProjectId);
+}
+
+export async function removeProjectDependency(engine: SyncEngine, depId: UUID): Promise<void> {
+  const store = engine.store;
+  const before = store.get('projectDependency', depId);
+  if (before === undefined) return;
+
+  try {
+    await engine.mutate({
+      mutation: REMOVE_PROJECT_DEPENDENCY,
+      variables: { id: depId },
+      optimistic: [{ type: 'projectDependency', id: depId, before, after: null }],
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
 }

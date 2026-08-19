@@ -5,10 +5,16 @@
  * next action — create a project — rather than decorating a blank pane.
  */
 
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { useKeymap } from '~/app/keymap';
 import { Avatar, Button, EmptyState } from '~/components';
+import {
+  matchesDependencyFilter,
+  ProjectDependencyFilterSelect,
+  type ProjectDependencyFilter,
+} from '~/features/projects/dependencies';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { latestProjectUpdate } from '~/features/project-updates/helpers';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -32,6 +38,7 @@ export function Projects() {
   const { teamKey } = useParams<{ teamKey?: string }>();
   const { registry, context } = useKeymap();
   const create = () => registry.invoke('project.create', { source: 'menu', context });
+  const [depFilter, setDepFilter] = useState<ProjectDependencyFilter>('all');
 
   const team = useLiveQuery(
     (store) =>
@@ -43,9 +50,18 @@ export function Projects() {
   );
 
   const rows = useLiveQuery(
-    (store) => listProjects(store, team?.id),
-    ['project', 'projectStatus', 'projectTeam', 'projectMember', 'projectUpdate', 'issue', 'user'],
-    [team?.id ?? ''],
+    (store) => listProjects(store, team?.id, depFilter),
+    [
+      'project',
+      'projectStatus',
+      'projectTeam',
+      'projectMember',
+      'projectUpdate',
+      'projectDependency',
+      'issue',
+      'user',
+    ],
+    [team?.id ?? '', depFilter],
   );
 
   const heading = team === null ? 'Projects' : `${team.name} projects`;
@@ -54,9 +70,12 @@ export function Projects() {
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.title}>{heading}</h1>
-        <Button variant="primary" onClick={create}>
-          New project
-        </Button>
+        <div className={styles.headerActions}>
+          <ProjectDependencyFilterSelect value={depFilter} onChange={setDepFilter} />
+          <Button variant="primary" onClick={create}>
+            New project
+          </Button>
+        </div>
       </header>
 
       {rows.length === 0 ? (
@@ -120,10 +139,15 @@ export function Projects() {
   );
 }
 
-function listProjects(store: Store, teamId: UUID | undefined): ProjectRow[] {
+function listProjects(
+  store: Store,
+  teamId: UUID | undefined,
+  depFilter: ProjectDependencyFilter,
+): ProjectRow[] {
   const rows: ProjectRow[] = [];
   for (const project of store.projects.values()) {
     if (project.archivedAt !== undefined || project.deletedAt !== undefined) continue;
+    if (!matchesDependencyFilter(store, project.id, depFilter)) continue;
     if (teamId !== undefined) {
       const onTeam = [...store.projectTeamIdsFor(project.id)].some(
         (id) => store.projectTeams.get(id)?.teamId === teamId,

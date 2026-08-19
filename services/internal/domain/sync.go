@@ -490,6 +490,20 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "projectDependency",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectDependency, error) {
+				return q.StreamProjectDependenciesForBootstrap(ctx, store.StreamProjectDependenciesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(pd store.ProjectDependency) (uuid.UUID, any) { return pd.ID, toProjectDependency(pd) },
+		); err != nil {
+			return err
+		}
+
 		if err := streamPages(ctx, w, "cycle",
 			func(ctx context.Context, after uuid.UUID) ([]store.Cycle, error) {
 				return q.StreamCyclesForBootstrap(ctx, store.StreamCyclesForBootstrapParams{
@@ -747,7 +761,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v9 adds document (markdown attached to teams and projects).
 // v10 adds initiative and initiativeProject (workspace objectives grouping projects).
 // v11 adds projectUpdate (health plus narrative status posts on projects).
-const ClientSchemaVersion = 11
+// v12 adds projectDependency (end→start links between projects).
+const ClientSchemaVersion = 12
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

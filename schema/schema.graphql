@@ -771,6 +771,23 @@ type ProjectUpdatePayload implements MutationResult {
   projectUpdate: ProjectUpdate!
 }
 
+"""An end→start dependency: the blocking project must finish before the blocked may start."""
+type ProjectDependency {
+  id: UUID!
+  workspaceId: UUID!
+  blockingProjectId: UUID!
+  blockedProjectId: UUID!
+  createdAt: Time!
+
+  blockingProject: Project
+  blockedProject: Project
+}
+
+type ProjectDependencyPayload implements MutationResult {
+  version: Int!
+  projectDependency: ProjectDependency!
+}
+
 enum InitiativeStatus {
   PROPOSED
   PLANNED
@@ -1666,6 +1683,9 @@ type Query {
   projectUpdate(id: UUID!): ProjectUpdate
   projectUpdates(projectId: UUID!): [ProjectUpdate!]!
 
+  projectDependenciesBlocking(projectId: UUID!): [ProjectDependency!]!
+  projectDependenciesBlockedBy(projectId: UUID!): [ProjectDependency!]!
+
   initiatives: [Initiative!]!
   initiative(id: UUID!): Initiative
 }
@@ -1700,6 +1720,9 @@ type Mutation {
   createProjectUpdate(input: CreateProjectUpdateInput!, clientId: UUID, opId: UUID): ProjectUpdatePayload! @idempotent
   updateProjectUpdate(input: UpdateProjectUpdateInput!, clientId: UUID, opId: UUID): ProjectUpdatePayload! @idempotent
   deleteProjectUpdate(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  addProjectDependency(blockingProjectId: UUID!, blockedProjectId: UUID!, clientId: UUID, opId: UUID): ProjectDependencyPayload! @idempotent
+  removeProjectDependency(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createInitiative(input: CreateInitiativeInput!, clientId: UUID, opId: UUID): InitiativePayload! @idempotent
   updateInitiative(input: UpdateInitiativeInput!, clientId: UUID, opId: UUID): InitiativePayload! @idempotent

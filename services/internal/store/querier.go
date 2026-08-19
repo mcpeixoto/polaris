@@ -271,6 +271,7 @@ type Querier interface {
 	// ---------------------------------------------------------------------------------------
 	// project
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
+	CreateProjectDependency(ctx context.Context, arg CreateProjectDependencyParams) (ProjectDependency, error)
 	// ---------------------------------------------------------------------------------------
 	// project_milestone
 	CreateProjectMilestone(ctx context.Context, arg CreateProjectMilestoneParams) (ProjectMilestone, error)
@@ -304,6 +305,7 @@ type Querier interface {
 	// second time to somebody who had already dismissed it.
 	//
 	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) (Notification, error)
+	DeleteProjectDependency(ctx context.Context, id uuid.UUID) (ProjectDependency, error)
 	// Upcoming cycles that have not started: dropped when the team turns cycles off.
 	DeleteUpcomingCycles(ctx context.Context, arg DeleteUpcomingCyclesParams) ([]uuid.UUID, error)
 	DeleteWebhook(ctx context.Context, arg DeleteWebhookParams) (uuid.UUID, error)
@@ -407,6 +409,7 @@ type Querier interface {
 	//
 	GetNotificationCursor(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	GetProject(ctx context.Context, id uuid.UUID) (Project, error)
+	GetProjectDependency(ctx context.Context, id uuid.UUID) (ProjectDependency, error)
 	// GetProjectForUpdate locks the row so concurrent team/member edits cannot interleave
 	// with a delete, and so a restore reads the same snapshot it writes.
 	//
@@ -678,6 +681,8 @@ type Querier interface {
 	// Open work in a closing cycle: unstarted and started, not backlog/triage/canceled/completed.
 	ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID) ([]Issue, error)
 	ListPendingInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
+	ListProjectDependenciesBlockedBy(ctx context.Context, blockedProjectID uuid.UUID) ([]ProjectDependency, error)
+	ListProjectDependenciesBlocking(ctx context.Context, blockingProjectID uuid.UUID) ([]ProjectDependency, error)
 	ListProjectMembers(ctx context.Context, projectID uuid.UUID) ([]ProjectMember, error)
 	ListProjectMilestones(ctx context.Context, projectID uuid.UUID) ([]ProjectMilestone, error)
 	ListProjectStatuses(ctx context.Context, workspaceID uuid.UUID) ([]ProjectStatus, error)
@@ -1079,6 +1084,9 @@ type Querier interface {
 	// does: forgetting an issue forgets its notifications, and forgetting a comment does not.
 	//
 	StreamNotificationsForBootstrap(ctx context.Context, arg StreamNotificationsForBootstrapParams) ([]Notification, error)
+	// StreamProjectDependenciesForBootstrap: visible when the caller can see either project.
+	//
+	StreamProjectDependenciesForBootstrap(ctx context.Context, arg StreamProjectDependenciesForBootstrapParams) ([]ProjectDependency, error)
 	StreamProjectMembersForBootstrap(ctx context.Context, arg StreamProjectMembersForBootstrapParams) ([]ProjectMember, error)
 	StreamProjectMilestonesForBootstrap(ctx context.Context, arg StreamProjectMilestonesForBootstrapParams) ([]ProjectMilestone, error)
 	StreamProjectStatusesForBootstrap(ctx context.Context, arg StreamProjectStatusesForBootstrapParams) ([]ProjectStatus, error)

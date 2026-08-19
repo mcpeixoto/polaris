@@ -374,6 +374,16 @@ function oneOfEach(): EntityRow[] {
       },
     },
     {
+      type: 'projectDependency',
+      entity: {
+        id: 'pd1',
+        workspaceId: 'w',
+        blockingProjectId: 'p2',
+        blockedProjectId: 'p1',
+        createdAt: NOW,
+      },
+    },
+    {
       type: 'cycle',
       entity: {
         id: 'cy1',
@@ -449,7 +459,7 @@ describe('PolarisDB', () => {
     // rejected transaction that aborts the whole bootstrap page it arrived in.
     expect(rows.map((row) => row.type).sort()).toEqual([...ENTITY_TYPES].sort());
 
-    await db.write({ puts: rows, meta: complete(11) });
+    await db.write({ puts: rows, meta: complete(CLIENT_SCHEMA) });
     const snapshot = await db.readAll();
     for (const type of ENTITY_TYPES) {
       expect(snapshot[type], `${type} did not survive the round trip`).toHaveLength(1);

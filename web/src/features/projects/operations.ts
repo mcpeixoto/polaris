@@ -139,3 +139,44 @@ export const ADD_PROJECT_MEMBER = /* GraphQL */ `
     }
   }
 `;
+
+export const PROJECT_DEPENDENCY_FIELDS = /* GraphQL */ `
+  fragment ProjectDependencyFields on ProjectDependency {
+    id
+    workspaceId
+    blockingProjectId
+    blockedProjectId
+    createdAt
+  }
+`;
+
+export const ADD_PROJECT_DEPENDENCY = /* GraphQL */ `
+  ${PROJECT_DEPENDENCY_FIELDS}
+  mutation AddProjectDependency(
+    $blockingProjectId: UUID!
+    $blockedProjectId: UUID!
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    addProjectDependency(
+      blockingProjectId: $blockingProjectId
+      blockedProjectId: $blockedProjectId
+      clientId: $clientId
+      opId: $opId
+    ) {
+      version
+      projectDependency {
+        ...ProjectDependencyFields
+      }
+    }
+  }
+`;
+
+export const REMOVE_PROJECT_DEPENDENCY = /* GraphQL */ `
+  mutation RemoveProjectDependency($id: UUID!, $clientId: UUID!, $opId: UUID!) {
+    removeProjectDependency(id: $id, clientId: $clientId, opId: $opId) {
+      version
+      id
+    }
+  }
+`;

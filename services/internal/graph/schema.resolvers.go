@@ -454,6 +454,41 @@ func (r *mutationResolver) DeleteProjectUpdate(ctx context.Context, id uuid.UUID
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// AddProjectDependency is the resolver for the addProjectDependency field.
+func (r *mutationResolver) AddProjectDependency(ctx context.Context, blockingProjectID uuid.UUID, blockedProjectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectDependencyPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := map[string]any{"blockingProjectId": blockingProjectID, "blockedProjectId": blockedProjectID}
+	dep, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.ProjectDependency, int64, error) {
+			return r.Svc.AddProjectDependency(ctx, p, blockingProjectID, blockedProjectID)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectDependency(dep)
+	return &generated.ProjectDependencyPayload{Version: int(version), ProjectDependency: &out}, nil
+}
+
+// RemoveProjectDependency is the resolver for the removeProjectDependency field.
+func (r *mutationResolver) RemoveProjectDependency(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			_, v, err := r.Svc.RemoveProjectDependency(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // CreateInitiative is the resolver for the createInitiative field.
 func (r *mutationResolver) CreateInitiative(ctx context.Context, input generated.CreateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.InitiativePayload, error) {
 	p, err := principalFrom(ctx)
@@ -2815,6 +2850,40 @@ func (r *queryResolver) ProjectUpdates(ctx context.Context, projectID uuid.UUID)
 			return nil, PresentError(ctx, err)
 		}
 		out = append(out, converted)
+	}
+	return out, nil
+}
+
+// ProjectDependenciesBlocking is the resolver for the projectDependenciesBlocking field.
+func (r *queryResolver) ProjectDependenciesBlocking(ctx context.Context, projectID uuid.UUID) ([]generated.ProjectDependency, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListProjectDependenciesBlocking(ctx, p, projectID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := make([]generated.ProjectDependency, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toProjectDependency(row))
+	}
+	return out, nil
+}
+
+// ProjectDependenciesBlockedBy is the resolver for the projectDependenciesBlockedBy field.
+func (r *queryResolver) ProjectDependenciesBlockedBy(ctx context.Context, projectID uuid.UUID) ([]generated.ProjectDependency, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListProjectDependenciesBlockedBy(ctx, p, projectID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := make([]generated.ProjectDependency, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toProjectDependency(row))
 	}
 	return out, nil
 }

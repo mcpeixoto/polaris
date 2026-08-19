@@ -20,6 +20,7 @@ import {
   type Initiative,
   type InitiativeProject,
   type ProjectUpdate,
+  type ProjectDependency,
   type Label,
   type Notification,
   type Project,
@@ -82,8 +83,9 @@ import {
  *
  * v10 adds initiative and initiativeProject (workspace objectives grouping projects).
  * v11 adds projectUpdate (health plus narrative status posts on projects).
+ * v12 adds projectDependency (end→start links between projects).
  */
-export const CLIENT_SCHEMA = 11;
+export const CLIENT_SCHEMA = 12;
 
 /**
  * One database per workspace per schema version.
@@ -168,6 +170,7 @@ interface PolarisSchema extends DBSchema {
   initiative: { key: UUID; value: Initiative };
   initiativeProject: { key: UUID; value: InitiativeProject };
   projectUpdate: { key: UUID; value: ProjectUpdate };
+  projectDependency: { key: UUID; value: ProjectDependency };
   cycle: { key: UUID; value: Cycle };
   issue: { key: UUID; value: Issue };
   issueLabel: { key: UUID; value: IssueLabel };
