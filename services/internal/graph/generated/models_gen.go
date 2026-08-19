@@ -257,6 +257,15 @@ type CreateIssueInput struct {
 	CycleID            *uuid.UUID `json:"cycleId,omitempty"`
 	// File into the team's triage status. The inbox's C, and an outsider filing into a team they can see.
 	FromTriage *bool `json:"fromTriage,omitempty"`
+	// The team's member or non-member default is applied when templateId is omitted.
+	// Set this when the composer cleared the applied default — otherwise the server would
+	// put it back.
+	SkipDefaultTemplate *bool `json:"skipDefaultTemplate,omitempty"`
+	// Makes the new issue the first occurrence of a schedule. Requires a first due date
+	// (recurringFirstDueDate, or dueDate).
+	RecurringCadence *RecurringCadence `json:"recurringCadence,omitempty"`
+	// Calendar day, `2006-01-02`. The due date of the first occurrence.
+	RecurringFirstDueDate *string `json:"recurringFirstDueDate,omitempty"`
 }
 
 type CreateIssueTemplateInput struct {
@@ -352,6 +361,20 @@ type CreateProjectUpdateInput struct {
 	ProjectID uuid.UUID           `json:"projectId"`
 	Health    ProjectUpdateHealth `json:"health"`
 	Body      *string             `json:"body,omitempty"`
+}
+
+type CreateRecurringIssueInput struct {
+	TeamID     uuid.UUID       `json:"teamId"`
+	Title      string          `json:"title"`
+	Body       *string         `json:"body,omitempty"`
+	Properties json.RawMessage `json:"properties,omitempty"`
+	// Provenance only. The snapshot is taken now; later edits to this template are ignored.
+	TemplateID *uuid.UUID       `json:"templateId,omitempty"`
+	Cadence    RecurringCadence `json:"cadence"`
+	// Calendar day, `2006-01-02`. The due date of the first occurrence, which is filed immediately.
+	FirstDueDate string `json:"firstDueDate"`
+	// Convert this existing issue into the first occurrence instead of filing a new one.
+	SourceIssueID *uuid.UUID `json:"sourceIssueId,omitempty"`
 }
 
 type CreateTeamInput struct {
@@ -744,6 +767,8 @@ type Issue struct {
 	TemplateID *uuid.UUID `json:"templateId,omitempty"`
 	// Which form template made this issue, for intake reporting.
 	FormTemplateID *uuid.UUID `json:"formTemplateId,omitempty"`
+	// The schedule that minted this issue, or that this issue was converted into.
+	RecurringIssueID *uuid.UUID `json:"recurringIssueId,omitempty"`
 	// At most one project. Two projects on one issue is unrepresentable.
 	ProjectID *uuid.UUID `json:"projectId,omitempty"`
 	// A milestone implies its project.
@@ -1276,6 +1301,39 @@ func (PurgePayload) IsMutationResult() {}
 type Query struct {
 }
 
+// A schedule that mints issues on a cadence.
+//
+// title, body and properties are a snapshot taken when the schedule was created. Editing
+// a source template afterwards does not change them. nextDueDate is the due date of the
+// current occurrence; the next issue is filed after that day has passed, at 00:01 in the
+// team's timezone.
+type RecurringIssue struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	TeamID      uuid.UUID `json:"teamId"`
+	Title       string    `json:"title"`
+	Body        string    `json:"body"`
+	// Keys are the same names createIssue takes.
+	Properties json.RawMessage `json:"properties"`
+	// Provenance only. Null when the schedule was written by hand or converted from an issue.
+	TemplateID *uuid.UUID       `json:"templateId,omitempty"`
+	Cadence    RecurringCadence `json:"cadence"`
+	// Calendar day, `2006-01-02`. The due date of the current occurrence.
+	NextDueDate   string     `json:"nextDueDate"`
+	LastCreatedAt *time.Time `json:"lastCreatedAt,omitempty"`
+	CreatedBy     *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
+	ArchivedAt    *time.Time `json:"archivedAt,omitempty"`
+}
+
+type RecurringIssuePayload struct {
+	Version        int             `json:"version"`
+	RecurringIssue *RecurringIssue `json:"recurringIssue"`
+}
+
+func (RecurringIssuePayload) IsMutationResult() {}
+
 // What to search, and where.
 //
 // `query` goes through the same tokeniser as the index. `filter` is the same AST the views
@@ -1353,23 +1411,28 @@ type Team struct {
 	// Close a parent when every sub-issue is done.
 	AutoCloseParent bool `json:"autoCloseParent"`
 	// Close remaining sub-issues when the parent is done.
-	AutoCloseChildren bool       `json:"autoCloseChildren"`
-	CreatedAt         time.Time  `json:"createdAt"`
-	UpdatedAt         time.Time  `json:"updatedAt"`
-	RetiredAt         *time.Time `json:"retiredAt,omitempty"`
-	ArchivedAt        *time.Time `json:"archivedAt,omitempty"`
+	AutoCloseChildren bool `json:"autoCloseChildren"`
+	// Applied to new issues filed by members of this team, when they pick no template.
+	DefaultTemplateForMembersID *uuid.UUID `json:"defaultTemplateForMembersId,omitempty"`
+	// Applied to new issues filed by everyone else. Form templates (later) may only be this one.
+	DefaultTemplateForNonMembersID *uuid.UUID `json:"defaultTemplateForNonMembersId,omitempty"`
+	CreatedAt                      time.Time  `json:"createdAt"`
+	UpdatedAt                      time.Time  `json:"updatedAt"`
+	RetiredAt                      *time.Time `json:"retiredAt,omitempty"`
+	ArchivedAt                     *time.Time `json:"archivedAt,omitempty"`
 	// When the team was deleted. Only ever set on a row `deletedTeams` returned: the sync stream
 	// carries a delete rather than the row, so a client holding a team with this set is holding
 	// something it should already have dropped.
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 	// Direct child teams, in key order.
-	SubTeams  []Team           `json:"subTeams"`
-	States    []WorkflowState  `json:"states"`
-	Members   []TeamMembership `json:"members"`
-	Issues    []Issue          `json:"issues"`
-	Labels    []Label          `json:"labels"`
-	Templates []IssueTemplate  `json:"templates"`
-	Cycles    []Cycle          `json:"cycles"`
+	SubTeams        []Team           `json:"subTeams"`
+	States          []WorkflowState  `json:"states"`
+	Members         []TeamMembership `json:"members"`
+	Issues          []Issue          `json:"issues"`
+	Labels          []Label          `json:"labels"`
+	Templates       []IssueTemplate  `json:"templates"`
+	RecurringIssues []RecurringIssue `json:"recurringIssues"`
+	Cycles          []Cycle          `json:"cycles"`
 }
 
 type TeamMembership struct {
@@ -1615,6 +1678,16 @@ type UpdateProjectUpdateInput struct {
 	Body   *string              `json:"body,omitempty"`
 }
 
+type UpdateRecurringIssueInput struct {
+	ID         uuid.UUID         `json:"id"`
+	Title      *string           `json:"title,omitempty"`
+	Body       *string           `json:"body,omitempty"`
+	Properties json.RawMessage   `json:"properties,omitempty"`
+	Cadence    *RecurringCadence `json:"cadence,omitempty"`
+	// Calendar day, `2006-01-02`. The due date of the current occurrence.
+	NextDueDate *string `json:"nextDueDate,omitempty"`
+}
+
 type UpdateTeamArchiveInput struct {
 	TeamID            uuid.UUID `json:"teamId"`
 	AutoCloseDays     *int      `json:"autoCloseDays,omitempty"`
@@ -1650,6 +1723,14 @@ type UpdateTeamInput struct {
 	Color       *string   `json:"color,omitempty"`
 	Timezone    *string   `json:"timezone,omitempty"`
 	Private     *bool     `json:"private,omitempty"`
+}
+
+type UpdateTeamTemplatesInput struct {
+	TeamID                            uuid.UUID  `json:"teamId"`
+	DefaultTemplateForMembersID       *uuid.UUID `json:"defaultTemplateForMembersId,omitempty"`
+	ClearDefaultTemplateForMembers    *bool      `json:"clearDefaultTemplateForMembers,omitempty"`
+	DefaultTemplateForNonMembersID    *uuid.UUID `json:"defaultTemplateForNonMembersId,omitempty"`
+	ClearDefaultTemplateForNonMembers *bool      `json:"clearDefaultTemplateForNonMembers,omitempty"`
 }
 
 type UpdateTeamTriageInput struct {
@@ -2566,6 +2647,69 @@ func (e *ProjectUpdateSchedule) UnmarshalJSON(b []byte) error {
 }
 
 func (e ProjectUpdateSchedule) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type RecurringCadence string
+
+const (
+	RecurringCadenceDaily     RecurringCadence = "DAILY"
+	RecurringCadenceWeekly    RecurringCadence = "WEEKLY"
+	RecurringCadenceBiweekly  RecurringCadence = "BIWEEKLY"
+	RecurringCadenceMonthly   RecurringCadence = "MONTHLY"
+	RecurringCadenceQuarterly RecurringCadence = "QUARTERLY"
+	RecurringCadenceYearly    RecurringCadence = "YEARLY"
+)
+
+var AllRecurringCadence = []RecurringCadence{
+	RecurringCadenceDaily,
+	RecurringCadenceWeekly,
+	RecurringCadenceBiweekly,
+	RecurringCadenceMonthly,
+	RecurringCadenceQuarterly,
+	RecurringCadenceYearly,
+}
+
+func (e RecurringCadence) IsValid() bool {
+	switch e {
+	case RecurringCadenceDaily, RecurringCadenceWeekly, RecurringCadenceBiweekly, RecurringCadenceMonthly, RecurringCadenceQuarterly, RecurringCadenceYearly:
+		return true
+	}
+	return false
+}
+
+func (e RecurringCadence) String() string {
+	return string(e)
+}
+
+func (e *RecurringCadence) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RecurringCadence(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RecurringCadence", str)
+	}
+	return nil
+}
+
+func (e RecurringCadence) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RecurringCadence) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RecurringCadence) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

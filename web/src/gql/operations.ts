@@ -31,6 +31,7 @@ export const ISSUE_FIELDS = /* GraphQL */ `
     subIssueSortOrder
     templateId
     formTemplateId
+    recurringIssueId
     projectId
     projectMilestoneId
     cycleId
@@ -73,6 +74,8 @@ export const TEAM_FIELDS = /* GraphQL */ `
     autoArchiveDays
     autoCloseParent
     autoCloseChildren
+    defaultTemplateForMembersId
+    defaultTemplateForNonMembersId
     createdAt
     updatedAt
     retiredAt
@@ -391,6 +394,18 @@ export const UPDATE_TEAM_ARCHIVE = /* GraphQL */ `
   ${TEAM_FIELDS}
   mutation UpdateTeamArchive($input: UpdateTeamArchiveInput!) {
     updateTeamArchive(input: $input) {
+      version
+      team {
+        ...TeamFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_TEAM_TEMPLATES = /* GraphQL */ `
+  ${TEAM_FIELDS}
+  mutation UpdateTeamTemplates($input: UpdateTeamTemplatesInput!) {
+    updateTeamTemplates(input: $input) {
       version
       team {
         ...TeamFields

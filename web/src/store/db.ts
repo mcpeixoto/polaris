@@ -37,6 +37,7 @@ import {
   type ProjectMilestone,
   type ProjectStatus,
   type ProjectTeam,
+  type RecurringIssue,
   type Team,
   type TeamMembership,
   type Timestamp,
@@ -95,13 +96,19 @@ import {
  * v12 adds projectDependency (end→start links between projects).
  * v13 adds view.projectId (attached project views as tabs).
  * v14 adds projectLabel and projectLabelLink (workspace taxonomy for projects).
+ *
+ * v15 adds githubConnection and githubUserLink (GitHub v1 linking, no secrets).
+ *
+ * v16 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
+ *
  * v18 adds project update reminder cadence on workspace and per-project schedule overrides.
  * v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
  * v21 adds projectTemplate, projectTemplateMilestone, projectTemplateIssue, and project.projectTemplateId.
  * v22 adds githubConnection and githubUserLink (GitHub v1 linking, no secrets).
  * v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
+ * v24 adds recurringIssue, team default template ids, and issue.recurringIssueId.
  */
-export const CLIENT_SCHEMA = 23;
+export const CLIENT_SCHEMA = 24;
 
 /**
  * One database per workspace per schema version.
@@ -197,6 +204,7 @@ interface PolarisSchema extends DBSchema {
   projectLabel: { key: UUID; value: ProjectLabel };
   projectLabelLink: { key: UUID; value: ProjectLabelLink };
   cycle: { key: UUID; value: Cycle };
+  recurringIssue: { key: UUID; value: RecurringIssue };
   issue: { key: UUID; value: Issue };
   issueLabel: { key: UUID; value: IssueLabel };
   issueRelation: { key: UUID; value: IssueRelation };

@@ -96,6 +96,8 @@ export type {
   ProjectMilestone,
   Initiative,
   InitiativeProject,
+  RecurringCadence,
+  RecurringIssue,
   InitiativeStatus,
   ProjectUpdate,
   ProjectUpdateHealth,

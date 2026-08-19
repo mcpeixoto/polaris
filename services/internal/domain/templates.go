@@ -221,7 +221,13 @@ func (s *Service) ArchiveIssueTemplate(
 		}
 
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), change)
-		return err
+		if err != nil {
+			return err
+		}
+		if archived {
+			return s.clearDefaultsPointingAt(ctx, q, p, id)
+		}
+		return nil
 	})
 	return id, version, err
 }
@@ -465,4 +471,136 @@ func toIssueTemplate(t store.GetIssueTemplateRow) model.IssueTemplate {
 		UpdatedAt:   t.UpdatedAt,
 		ArchivedAt:  t.ArchivedAt,
 	}
+}
+
+type UpdateTeamTemplatesInput struct {
+	TeamID uuid.UUID
+
+	DefaultTemplateForMembersID    *uuid.UUID
+	DefaultTemplateForNonMembersID *uuid.UUID
+	ClearDefaultTemplateForMembers    bool
+	ClearDefaultTemplateForNonMembers bool
+}
+
+func (s *Service) UpdateTeamTemplates(
+	ctx context.Context, p *authz.Principal, in UpdateTeamTemplatesInput,
+) (model.Team, int64, error) {
+	var out model.Team
+	var version int64
+	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		team, err := s.requireTeamAccess(ctx, q, p, in.TeamID, authz.ActionTeamUpdate)
+		if err != nil {
+			return err
+		}
+		if err := s.validateDefaultTemplate(ctx, q, p, in.TeamID, in.DefaultTemplateForMembersID, false); err != nil {
+			return err
+		}
+		if err := s.validateDefaultTemplate(ctx, q, p, in.TeamID, in.DefaultTemplateForNonMembersID, true); err != nil {
+			return err
+		}
+		row, err := q.UpdateTeamTemplates(ctx, store.UpdateTeamTemplatesParams{
+			ID:                             in.TeamID,
+			DefaultTemplateForMembersID:    in.DefaultTemplateForMembersID,
+			ClearMembers:                   in.ClearDefaultTemplateForMembers,
+			DefaultTemplateForNonMembersID: in.DefaultTemplateForNonMembersID,
+			ClearNonMembers:                in.ClearDefaultTemplateForNonMembers,
+		})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		out = toTeam(row)
+		_ = team
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "team", EntityID: out.ID, Op: OpUpsert, TeamID: &out.ID,
+			Scope: authz.TeamScope(out.ID, out.Private), Payload: out,
+		})
+		return err
+	})
+	return out, version, err
+}
+
+// validateDefaultTemplate checks a template can be a default for this team.
+//
+// Form templates can only be defaults for non-members; this codebase has no form
+// templates yet, so both pointers accept any template the team can use.
+func (s *Service) validateDefaultTemplate(
+	ctx context.Context, q *store.Queries, p *authz.Principal,
+	teamID uuid.UUID, templateID *uuid.UUID, _ bool,
+) error {
+	if templateID == nil {
+		return nil
+	}
+	return s.validateTemplate(ctx, q, p, teamID, templateID)
+}
+
+// applyDefaultTemplate fills an omitted templateId from the team's member/non-member
+// default, then copies unset fields from that template. Explicit templateId still
+// records provenance and still fills blanks — the composer already typed over the
+// rest, and an API caller that named a template but left description empty is asking
+// for the template's body.
+func (s *Service) applyDefaultTemplate(
+	ctx context.Context, q *store.Queries, p *authz.Principal,
+	team store.Team, member bool, in *CreateIssueInput,
+) error {
+	if in.TemplateID == nil && !in.SkipDefaultTemplate {
+		if member {
+			in.TemplateID = team.DefaultTemplateForMembersID
+		} else {
+			in.TemplateID = team.DefaultTemplateForNonMembersID
+		}
+	}
+	if in.TemplateID == nil {
+		return nil
+	}
+	row, err := s.requireTemplateAccess(ctx, q, p, *in.TemplateID)
+	if err != nil {
+		if platform.CodeOf(err) == platform.CodeNotFound {
+			// A default that now points at an archived template is "no default",
+			// not a create failure. The filer still gets an issue.
+			if !in.SkipDefaultTemplate {
+				in.TemplateID = nil
+				return nil
+			}
+			return platform.Validation("templateId", "no such template")
+		}
+		return err
+	}
+	if in.Description == "" && strings.TrimSpace(row.Body) != "" {
+		in.Description = row.Body
+	}
+	props, err := decodeTemplateProperties(row.Properties)
+	if err != nil {
+		return err
+	}
+	props.applyTo(in)
+	return nil
+}
+
+func (s *Service) clearDefaultsPointingAt(
+	ctx context.Context, q *store.Queries, p *authz.Principal, templateID uuid.UUID,
+) error {
+	teams, err := q.ListTeamsUsingTemplateAsDefault(ctx, &templateID)
+	if err != nil {
+		return platform.Internal(err)
+	}
+	for _, team := range teams {
+		clearMembers := team.DefaultTemplateForMembersID != nil && *team.DefaultTemplateForMembersID == templateID
+		clearNon := team.DefaultTemplateForNonMembersID != nil && *team.DefaultTemplateForNonMembersID == templateID
+		row, err := q.UpdateTeamTemplates(ctx, store.UpdateTeamTemplatesParams{
+			ID:              team.ID,
+			ClearMembers:    clearMembers,
+			ClearNonMembers: clearNon,
+		})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		out := toTeam(row)
+		if _, err := s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "team", EntityID: out.ID, Op: OpUpsert, TeamID: &out.ID,
+			Scope: authz.TeamScope(out.ID, out.Private), Payload: out,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

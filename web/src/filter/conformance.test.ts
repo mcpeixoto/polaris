@@ -55,6 +55,8 @@ interface FixtureIssue {
   readonly parentId?: UUID;
   readonly subIssueSortOrder?: string;
   readonly labelIds: readonly UUID[];
+  readonly templateId?: UUID;
+  readonly recurringIssueId?: UUID;
   readonly completedAt?: Timestamp;
   readonly archivedAt?: Timestamp;
   readonly deletedAt?: Timestamp;
@@ -178,6 +180,8 @@ const issues: Issue[] = fixture.issues.map((row) => ({
   dueDateSource: 'manual',
   parentId: row.parentId,
   subIssueSortOrder: row.subIssueSortOrder,
+  templateId: row.templateId,
+  recurringIssueId: row.recurringIssueId,
   completedAt: row.completedAt,
   archivedAt: row.archivedAt,
   createdAt: row.createdAt,

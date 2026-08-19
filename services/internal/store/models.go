@@ -334,6 +334,7 @@ type Issue struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 	FormTemplateID     *uuid.UUID
 }
 
@@ -606,40 +607,59 @@ type ProjectUpdate struct {
 	UpdatedAt   time.Time
 }
 
+type RecurringIssue struct {
+	ID            uuid.UUID
+	WorkspaceID   uuid.UUID
+	TeamID        uuid.UUID
+	Title         string
+	Body          string
+	Properties    json.RawMessage
+	TemplateID    *uuid.UUID
+	Cadence       string
+	NextDueDate   pgtype.Date
+	LastCreatedAt *time.Time
+	CreatedBy     *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	ArchivedAt    *time.Time
+}
+
 type Team struct {
-	ID                    uuid.UUID
-	WorkspaceID           uuid.UUID
-	Key                   string
-	Name                  string
-	Description           *string
-	Icon                  *string
-	Color                 *string
-	Timezone              string
-	ParentTeamID          *uuid.UUID
-	Private               bool
-	IssueCounter          int64
-	Settings              json.RawMessage
-	RetiredAt             *time.Time
-	ArchivedAt            *time.Time
-	DeletedAt             *time.Time
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	EstimateScale         string
-	EstimateAllowZero     bool
-	EstimateExtended      bool
-	CyclesEnabled         bool
-	CycleDurationWeeks    int16
-	CycleCooldownWeeks    int16
-	CycleStartDay         string
-	CycleUpcomingCount    int16
-	CycleAutoAddStarted   bool
-	CycleAutoAddCompleted bool
-	TriageEnabled         bool
-	TriageRequirePriority bool
-	AutoCloseDays         int16
-	AutoArchiveDays       int16
-	AutoCloseParent       bool
-	AutoCloseChildren     bool
+	ID                             uuid.UUID
+	WorkspaceID                    uuid.UUID
+	Key                            string
+	Name                           string
+	Description                    *string
+	Icon                           *string
+	Color                          *string
+	Timezone                       string
+	ParentTeamID                   *uuid.UUID
+	Private                        bool
+	IssueCounter                   int64
+	Settings                       json.RawMessage
+	RetiredAt                      *time.Time
+	ArchivedAt                     *time.Time
+	DeletedAt                      *time.Time
+	CreatedAt                      time.Time
+	UpdatedAt                      time.Time
+	EstimateScale                  string
+	EstimateAllowZero              bool
+	EstimateExtended               bool
+	CyclesEnabled                  bool
+	CycleDurationWeeks             int16
+	CycleCooldownWeeks             int16
+	CycleStartDay                  string
+	CycleUpcomingCount             int16
+	CycleAutoAddStarted            bool
+	CycleAutoAddCompleted          bool
+	TriageEnabled                  bool
+	TriageRequirePriority          bool
+	AutoCloseDays                  int16
+	AutoArchiveDays                int16
+	AutoCloseParent                bool
+	AutoCloseChildren              bool
+	DefaultTemplateForMembersID    *uuid.UUID
+	DefaultTemplateForNonMembersID *uuid.UUID
 }
 
 type TeamMembership struct {

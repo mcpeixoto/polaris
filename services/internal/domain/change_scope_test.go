@@ -282,6 +282,15 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 		t.Fatalf("cycle: %v", err)
 	}
 
+	if _, _, err := svc.CreateRecurringIssue(ctx, p, domain.CreateRecurringIssueInput{
+		TeamID:       f.TeamID,
+		Title:        "Weekly status",
+		Cadence:      model.CadenceWeekly,
+		FirstDueDate: "2026-09-01",
+	}); err != nil {
+		t.Fatalf("recurringIssue: %v", err)
+	}
+
 	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
 		TeamID: f.TeamID, Title: "The scoped one",
 	})

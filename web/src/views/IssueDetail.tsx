@@ -53,6 +53,8 @@ import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/pr
 import { Relations, SubIssues } from '~/features/issue/relations';
 import { Links } from '~/features/attachments/Links';
 import { browserTimezone } from '~/features/locale';
+import { RecurringDialog } from '~/features/recurring/RecurringDialog';
+import { CADENCE_LABELS, createRecurringIssue, propertiesOfIssue } from '~/features/recurring/mutations';
 import { restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { exact, when } from '~/features/time';
@@ -67,7 +69,7 @@ import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
 import { ISSUE_DETAIL_QUERY } from '~/gql/operations';
 import type { Actor, Comment, StateCategory, Store, UUID } from '~/store';
-import { gql } from '~/sync/api';
+import { ApiError, gql } from '~/sync/api';
 import styles from './IssueDetail.module.css';
 
 /** The activity feed's rows, as the API returns them. Not replicated; see `useActivity`. */
@@ -152,9 +154,18 @@ export function IssueDetail() {
           found.cycleId === undefined
             ? null
             : (store.cycles.get(found.cycleId)?.name ?? 'Unknown cycle'),
+        recurring:
+          found.recurringIssueId === undefined
+            ? null
+            : (() => {
+                const rec = store.recurringIssues.get(found.recurringIssueId);
+                return rec === undefined
+                  ? null
+                  : { cadence: rec.cadence, nextDueDate: rec.nextDueDate };
+              })(),
       };
     },
-    ['issue', 'team', 'user', 'workflowState', 'project', 'cycle'],
+    ['issue', 'team', 'user', 'workflowState', 'project', 'cycle', 'recurringIssue'],
     [issueId],
   );
 
@@ -187,6 +198,7 @@ export function IssueDetail() {
     pickCycle: () => {},
     archive: () => {},
     askDelete: () => {},
+    makeRecurring: () => {},
     submitComment: () => {},
     copyGitBranch: () => {},
   });
@@ -194,6 +206,9 @@ export function IssueDetail() {
   // Whether the confirmation is up. Held here rather than inside a component of its own so
   // that the command-menu entry and the button open the same one.
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [convertingBusy, setConvertingBusy] = useState(false);
+  const [convertingError, setConvertingError] = useState<string | null>(null);
 
   useKeyContext('detail');
 
@@ -264,6 +279,13 @@ export function IssueDetail() {
         run: () => commands.current.askDelete(),
       },
       {
+        id: 'issueDetail.makeRecurring',
+        title: 'Convert into recurring issue',
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.makeRecurring(),
+      },
+      {
         id: 'issueDetail.comment',
         title: 'Post comment',
         keys: commentSubmit === 'enter' ? ['mod+Enter', 'Enter'] : ['mod+Enter'],
@@ -316,6 +338,11 @@ export function IssueDetail() {
     const name = gitBranchNameFor(engine.store, row, viewer?.displayName ?? '');
     void copyText(name);
   };
+  commands.current.makeRecurring = () => {
+    if (issue.recurring !== null) return;
+    setConvertingError(null);
+    setConverting(true);
+  };
 
   /**
    * Deletes the issue, and says how to get it back.
@@ -365,6 +392,9 @@ export function IssueDetail() {
             moment it happens, and painting it red would say the same thing as revoking a
             credential. The confirmation is where the weight belongs. */}
         <Button onClick={() => commands.current.askDelete()}>Delete</Button>
+        {issue.recurring === null ? (
+          <Button onClick={() => commands.current.makeRecurring()}>Make recurring</Button>
+        ) : null}
       </header>
 
       <ConfirmDialog
@@ -375,6 +405,48 @@ export function IssueDetail() {
         destructive
         onConfirm={confirmDelete}
         onClose={() => setConfirmingDelete(false)}
+      />
+
+      <RecurringDialog
+        open={converting}
+        title={`Make ${issue.identifier} recurring`}
+        description="This issue becomes the first occurrence. Later ones are minted from a snapshot of it, not from a live template."
+        initialDueDate={issue.dueDate ?? undefined}
+        timezone={issue.timezone}
+        busy={convertingBusy}
+        error={convertingError}
+        onClose={() => {
+          if (convertingBusy) return;
+          setConverting(false);
+          setConvertingError(null);
+        }}
+        onConfirm={(draft) => {
+          const found = engine.store.issues.get(issue.id);
+          if (found === undefined) return;
+          setConvertingBusy(true);
+          setConvertingError(null);
+          createRecurringIssue(engine, {
+            teamId: found.teamId,
+            title: found.title,
+            body: found.description,
+            properties: propertiesOfIssue(engine.store, found),
+            cadence: draft.cadence,
+            firstDueDate: draft.firstDueDate,
+            sourceIssueId: found.id,
+          })
+            .then(() => {
+              setConvertingBusy(false);
+              setConverting(false);
+            })
+            .catch((failure: unknown) => {
+              setConvertingBusy(false);
+              setConvertingError(
+                failure instanceof ApiError
+                  ? failure.message
+                  : 'This issue could not be made recurring.',
+              );
+            });
+        }}
       />
 
       <div className={styles.body}>
@@ -550,6 +622,15 @@ export function IssueDetail() {
             </Button>
           </div>
 
+          {issue.recurring === null ? null : (
+            <div className={styles.property}>
+              <span className={styles.propertyLabel}>Repeats</span>
+              <span className={styles.propertyTrigger}>
+                {CADENCE_LABELS[issue.recurring.cadence]} · next {issue.recurring.nextDueDate}
+              </span>
+            </div>
+          )}
+
           <p className={styles.provenance}>
             {issue.creatorName === null ? 'Created' : `Created by ${issue.creatorName}`}{' '}
             <time dateTime={issue.createdAt} title={exact(issue.createdAt)}>
@@ -636,6 +717,7 @@ interface DetailCommands {
   pickCycle(): void;
   archive(): void;
   askDelete(): void;
+  makeRecurring(): void;
   submitComment(): void;
   copyGitBranch(): void;
 }

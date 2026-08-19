@@ -258,3 +258,44 @@
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
+
+.recurringList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recurringRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.recurringText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.recurringTitle {
+  font-weight: var(--font-weight-medium);
+}
+
+.recurringMeta {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.addRecurring {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: stretch;
+}
