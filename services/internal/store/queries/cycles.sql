@@ -84,6 +84,19 @@ WHERE i.team_id = sqlc.arg(team_id)
 UPDATE issue SET cycle_id = sqlc.narg(cycle_id)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 
+-- name: UpdateCycle :one
+UPDATE cycle SET
+  name = COALESCE(sqlc.narg(name), name),
+  description = CASE
+    WHEN sqlc.narg(touch_description)::boolean THEN sqlc.narg(description)
+    ELSE description
+  END,
+  starts_at = COALESCE(sqlc.narg(starts_at), starts_at),
+  ends_at = COALESCE(sqlc.narg(ends_at), ends_at)
+WHERE id = sqlc.arg(id) AND archived_at IS NULL
+RETURNING id, workspace_id, team_id, number, name, description, starts_at, ends_at,
+          completed_at, archived_at, created_at, updated_at;
+
 -- name: ArchiveCycle :exec
 UPDATE cycle SET archived_at = now() WHERE id = $1 AND archived_at IS NULL;
 

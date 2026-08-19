@@ -30,6 +30,8 @@ type Documents = {
     "\n  \n  query ArchivedProjects($teamId: UUID!) {\n    archivedProjects(teamId: $teamId) {\n      ...ProjectFields\n    }\n  }\n": typeof types.ArchivedProjectsDocument,
     "\n  mutation ArchiveCycle($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveCycle(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveCycleDocument,
     "\n  mutation ArchiveProject($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveProject(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveProjectDocument,
+    "\n  \n  mutation UpdateCycle($input: UpdateCycleInput!, $clientId: UUID!, $opId: UUID!) {\n    updateCycle(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      cycle {\n        ...CycleFields\n      }\n    }\n  }\n": typeof types.UpdateCycleDocument,
+    "\n  \n  mutation StartCycleToday($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    startCycleToday(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      cycle {\n        ...CycleFields\n      }\n    }\n  }\n": typeof types.StartCycleTodayDocument,
     "\n  fragment DocumentFields on Document {\n    id\n    workspaceId\n    teamId\n    projectId\n    title\n    body\n    sortOrder\n    creatorId\n    updatedBy\n    createdAt\n    updatedAt\n    archivedAt\n    deletedAt\n  }\n": typeof types.DocumentFieldsFragmentDoc,
     "\n  \n  mutation CreateDocument($input: CreateDocumentInput!, $clientId: UUID!, $opId: UUID!) {\n    createDocument(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      document {\n        ...DocumentFields\n      }\n    }\n  }\n": typeof types.CreateDocumentDocument,
     "\n  \n  mutation UpdateDocument($input: UpdateDocumentInput!, $clientId: UUID!, $opId: UUID!) {\n    updateDocument(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      document {\n        ...DocumentFields\n      }\n    }\n  }\n": typeof types.UpdateDocumentDocument,
@@ -187,6 +189,8 @@ const documents: Documents = {
     "\n  \n  query ArchivedProjects($teamId: UUID!) {\n    archivedProjects(teamId: $teamId) {\n      ...ProjectFields\n    }\n  }\n": types.ArchivedProjectsDocument,
     "\n  mutation ArchiveCycle($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveCycle(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.ArchiveCycleDocument,
     "\n  mutation ArchiveProject($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveProject(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.ArchiveProjectDocument,
+    "\n  \n  mutation UpdateCycle($input: UpdateCycleInput!, $clientId: UUID!, $opId: UUID!) {\n    updateCycle(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      cycle {\n        ...CycleFields\n      }\n    }\n  }\n": types.UpdateCycleDocument,
+    "\n  \n  mutation StartCycleToday($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    startCycleToday(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      cycle {\n        ...CycleFields\n      }\n    }\n  }\n": types.StartCycleTodayDocument,
     "\n  fragment DocumentFields on Document {\n    id\n    workspaceId\n    teamId\n    projectId\n    title\n    body\n    sortOrder\n    creatorId\n    updatedBy\n    createdAt\n    updatedAt\n    archivedAt\n    deletedAt\n  }\n": types.DocumentFieldsFragmentDoc,
     "\n  \n  mutation CreateDocument($input: CreateDocumentInput!, $clientId: UUID!, $opId: UUID!) {\n    createDocument(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      document {\n        ...DocumentFields\n      }\n    }\n  }\n": types.CreateDocumentDocument,
     "\n  \n  mutation UpdateDocument($input: UpdateDocumentInput!, $clientId: UUID!, $opId: UUID!) {\n    updateDocument(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      document {\n        ...DocumentFields\n      }\n    }\n  }\n": types.UpdateDocumentDocument,
@@ -406,6 +410,14 @@ export function graphql(source: "\n  mutation ArchiveCycle($id: UUID!, $archived
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation ArchiveProject($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveProject(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ArchiveProject($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveProject(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateCycle($input: UpdateCycleInput!, $clientId: UUID!, $opId: UUID!) {\n    updateCycle(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      cycle {\n        ...CycleFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateCycle($input: UpdateCycleInput!, $clientId: UUID!, $opId: UUID!) {\n    updateCycle(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      cycle {\n        ...CycleFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation StartCycleToday($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    startCycleToday(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      cycle {\n        ...CycleFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation StartCycleToday($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    startCycleToday(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      cycle {\n        ...CycleFields\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

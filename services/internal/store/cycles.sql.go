@@ -617,3 +617,53 @@ func (q *Queries) UnarchiveCycle(ctx context.Context, id uuid.UUID) (Cycle, erro
 	)
 	return i, err
 }
+
+const updateCycle = `-- name: UpdateCycle :one
+UPDATE cycle SET
+  name = COALESCE($1, name),
+  description = CASE
+    WHEN $2::boolean THEN $3
+    ELSE description
+  END,
+  starts_at = COALESCE($4, starts_at),
+  ends_at = COALESCE($5, ends_at)
+WHERE id = $6 AND archived_at IS NULL
+RETURNING id, workspace_id, team_id, number, name, description, starts_at, ends_at,
+          completed_at, archived_at, created_at, updated_at
+`
+
+type UpdateCycleParams struct {
+	Name             *string
+	TouchDescription *bool
+	Description      *string
+	StartsAt         *time.Time
+	EndsAt           *time.Time
+	ID               uuid.UUID
+}
+
+func (q *Queries) UpdateCycle(ctx context.Context, arg UpdateCycleParams) (Cycle, error) {
+	row := q.db.QueryRow(ctx, updateCycle,
+		arg.Name,
+		arg.TouchDescription,
+		arg.Description,
+		arg.StartsAt,
+		arg.EndsAt,
+		arg.ID,
+	)
+	var i Cycle
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.TeamID,
+		&i.Number,
+		&i.Name,
+		&i.Description,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.CompletedAt,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
