@@ -89,29 +89,18 @@ func seedCmd(args []string) error {
 	// seeded workspace is one a client can actually bootstrap and sync against. A seeder
 	// that wrote rows directly would produce a workspace with an empty change log — and
 	// the first thing anybody would test is sync.
-	accountID, _, err := svc.Register(ctx, domain.RegisterInput{
-		Email:    *email,
-		Password: *password,
-	})
+	accountID, err := seedAccount(ctx, svc, *email, *password)
 	if err != nil {
-		return fmt.Errorf("create account: %w", err)
+		return err
 	}
 
-	ws, err := svc.CreateWorkspace(ctx, domain.CreateWorkspaceInput{
-		AccountID:       accountID,
-		Name:            "Polaris",
-		URLKey:          fmt.Sprintf("polaris-%d", time.Now().Unix()%100000),
-		UserName:        "Dev",
-		UserDisplayName: "dev",
-		FirstTeamKey:    "ENG",
-		FirstTeamName:   "Engineering",
-	})
+	ws, firstTeam, err := seedWorkspace(ctx, svc, accountID)
 	if err != nil {
-		return fmt.Errorf("create workspace: %w", err)
+		return err
 	}
-	fmt.Printf("workspace %s (%s)\n", ws.Workspace.Name, ws.Workspace.URLKey)
+	fmt.Printf("workspace %s (%s)\n", ws.name, ws.urlKey)
 
-	p, err := svc.ResolvePrincipal(ctx, accountID, ws.Workspace.ID)
+	p, err := svc.ResolvePrincipal(ctx, accountID, ws.id)
 	if err != nil {
 		return err
 	}
@@ -120,47 +109,32 @@ func seedCmd(args []string) error {
 	// performance measurement against yesterday's is meaningless if the data differs.
 	rng := rand.New(rand.NewPCG(42, 1))
 
-	memberIDs := []uuid.UUID{}
-	for i, name := range seedNames {
-		// Invited straight into the first team. A workspace whose people belong to no team
-		// looks fine until you open the assignee picker on a private team and it is empty —
-		// which is exactly the case seed data exists to exercise.
-		invited, err := svc.InviteToWorkspace(ctx, p, domain.InviteInput{
-			Email:   fmt.Sprintf("%s@polaris.local", strings.ToLower(strings.ReplaceAll(name, " ", "."))),
-			Role:    string(authz.RoleMember),
-			TeamIDs: []uuid.UUID{ws.Team.ID},
-		})
-		if err != nil {
-			return fmt.Errorf("invite %s: %w", name, err)
-		}
-		// Accepting the invitation needs an account with the matching address.
-		memberAccount, _, err := svc.Register(ctx, domain.RegisterInput{
-			Email:    invited.Email,
-			Password: *password,
-		})
-		if err != nil {
-			return fmt.Errorf("register %s: %w", name, err)
-		}
-		user, _, err := svc.AcceptInvite(ctx, memberAccount, invited.Token, name)
-		if err != nil {
-			return fmt.Errorf("accept invite for %s: %w", name, err)
-		}
-		memberIDs = append(memberIDs, user.ID)
-		if i >= 7 {
-			break
-		}
+	memberCount, err := seedMembers(ctx, svc, p, firstTeam.id, *password)
+	if err != nil {
+		return err
 	}
 
-	type seededTeam struct {
-		id  uuid.UUID
-		key string
+	teamIDs := []seededTeam{firstTeam}
+
+	existingTeams, err := svc.ListTeams(ctx, p)
+	if err != nil {
+		return err
 	}
-	teamIDs := []seededTeam{{ws.Team.ID, ws.Team.Key}}
+	haveTeam := map[string]seededTeam{firstTeam.key: firstTeam}
+	for _, t := range existingTeams {
+		haveTeam[t.Key] = seededTeam{t.ID, t.Key}
+		if t.ID != firstTeam.id {
+			teamIDs = append(teamIDs, seededTeam{t.ID, t.Key})
+		}
+	}
 
 	extraTeams := []struct{ key, name string }{
 		{"DES", "Design"}, {"OPS", "Operations"},
 	}
 	for i := 0; i < teams-1 && i < len(extraTeams); i++ {
+		if _, ok := haveTeam[extraTeams[i].key]; ok {
+			continue
+		}
 		t, _, err := svc.CreateTeam(ctx, p, domain.CreateTeamInput{
 			Key:  extraTeams[i].key,
 			Name: extraTeams[i].name,
@@ -169,6 +143,16 @@ func seedCmd(args []string) error {
 			return fmt.Errorf("create team %s: %w", extraTeams[i].key, err)
 		}
 		teamIDs = append(teamIDs, seededTeam{t.ID, t.Key})
+		haveTeam[t.Key] = seededTeam{t.ID, t.Key}
+	}
+
+	labelIDs, err := seedLabels(ctx, svc, p)
+	if err != nil {
+		return err
+	}
+	projectIDs, err := seedProjects(ctx, svc, p, teamIDs)
+	if err != nil {
+		return err
 	}
 
 	users, err := svc.ListUsers(ctx, p)
@@ -199,6 +183,13 @@ func seedCmd(args []string) error {
 			if rng.IntN(3) != 0 && len(users) > 0 {
 				assignee := users[rng.IntN(len(users))].ID
 				in.AssigneeID = &assignee
+			}
+			if len(labelIDs) > 0 && rng.IntN(2) == 0 {
+				in.LabelIDs = []uuid.UUID{labelIDs[rng.IntN(len(labelIDs))]}
+			}
+			if len(projectIDs) > 0 && rng.IntN(3) == 0 {
+				project := projectIDs[rng.IntN(len(projectIDs))]
+				in.ProjectID = &project
 			}
 
 			issue, _, err := svc.CreateIssue(ctx, p, in)
@@ -233,15 +224,233 @@ func seedCmd(args []string) error {
 		}
 	}
 
-	version, err := svc.WorkspaceVersion(ctx, ws.Workspace.ID)
+	version, err := svc.WorkspaceVersion(ctx, ws.id)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("\nseeded %d issues across %d teams and %d members in %s\n",
-		total, len(teamIDs), len(memberIDs)+1, time.Since(start).Round(time.Millisecond))
+		total, len(teamIDs), memberCount, time.Since(start).Round(time.Millisecond))
 	fmt.Printf("sync version: %d\n", version)
 	fmt.Printf("sign in as %s / %s\n", *email, *password)
-	fmt.Printf("workspace id: %s\n", ws.Workspace.ID)
+	fmt.Printf("workspace id: %s\n", ws.id)
 	return nil
+}
+
+type seededWorkspace struct {
+	id     uuid.UUID
+	name   string
+	urlKey string
+}
+
+type seededTeam struct {
+	id  uuid.UUID
+	key string
+}
+
+// seedAccount creates the bootstrap account, or signs in if it already exists.
+//
+// Register admits the first account on an empty install and nobody else unless they
+// hold an invitation. A failed seed therefore cannot re-register the same address,
+// and flipping POLARIS_REGISTRATION_MODE does not help: polarisctl never reads it.
+// Login is the resume path; it does not open signup.
+func seedAccount(ctx context.Context, svc *domain.Service, email, password string) (uuid.UUID, error) {
+	accountID, _, err := svc.Register(ctx, domain.RegisterInput{
+		Email:    email,
+		Password: password,
+	})
+	if err == nil {
+		return accountID, nil
+	}
+	accountID, _, err = svc.Login(ctx, domain.LoginInput{
+		Email:    email,
+		Password: password,
+	})
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("create account: %w", err)
+	}
+	return accountID, nil
+}
+
+func seedWorkspace(ctx context.Context, svc *domain.Service, accountID uuid.UUID) (seededWorkspace, seededTeam, error) {
+	existing, err := svc.ListWorkspacesForAccount(ctx, accountID)
+	if err != nil {
+		return seededWorkspace{}, seededTeam{}, err
+	}
+	if len(existing) > 0 {
+		ws := existing[0]
+		p, err := svc.ResolvePrincipal(ctx, accountID, ws.ID)
+		if err != nil {
+			return seededWorkspace{}, seededTeam{}, err
+		}
+		teams, err := svc.ListTeams(ctx, p)
+		if err != nil {
+			return seededWorkspace{}, seededTeam{}, err
+		}
+		if len(teams) == 0 {
+			return seededWorkspace{}, seededTeam{}, fmt.Errorf("workspace %s has no teams", ws.URLKey)
+		}
+		first := seededTeam{teams[0].ID, teams[0].Key}
+		for _, t := range teams {
+			if t.Key == "ENG" {
+				first = seededTeam{t.ID, t.Key}
+				break
+			}
+		}
+		return seededWorkspace{ws.ID, ws.Name, ws.URLKey}, first, nil
+	}
+
+	created, err := svc.CreateWorkspace(ctx, domain.CreateWorkspaceInput{
+		AccountID:       accountID,
+		Name:            "Polaris",
+		URLKey:          fmt.Sprintf("polaris-%d", time.Now().Unix()%100000),
+		UserName:        "Dev",
+		UserDisplayName: "dev",
+		FirstTeamKey:    "ENG",
+		FirstTeamName:   "Engineering",
+	})
+	if err != nil {
+		return seededWorkspace{}, seededTeam{}, fmt.Errorf("create workspace: %w", err)
+	}
+	return seededWorkspace{created.Workspace.ID, created.Workspace.Name, created.Workspace.URLKey},
+		seededTeam{created.Team.ID, created.Team.Key}, nil
+}
+
+// seedMembers invites teammates and registers them with the invitation token.
+//
+// The token has to travel on Register: after the bootstrap account exists the
+// install is invite-only, and a bare Register is refused. Register redeems the
+// invitation in the same transaction, so there is no second AcceptInvite call
+// on the happy path — that endpoint is for an account that already exists.
+func seedMembers(ctx context.Context, svc *domain.Service, p *authz.Principal, teamID uuid.UUID, password string) (int, error) {
+	already := map[string]struct{}{}
+	users, err := svc.ListUsers(ctx, p)
+	if err != nil {
+		return 0, err
+	}
+	for _, u := range users {
+		if u.Email != nil {
+			already[strings.ToLower(*u.Email)] = struct{}{}
+		}
+	}
+
+	for i, name := range seedNames {
+		if i >= 8 {
+			break
+		}
+		email := fmt.Sprintf("%s@polaris.local", strings.ToLower(strings.ReplaceAll(name, " ", ".")))
+		if _, ok := already[email]; ok {
+			continue
+		}
+		// Invited straight into the first team. A workspace whose people belong to no team
+		// looks fine until you open the assignee picker on a private team and it is empty —
+		// which is exactly the case seed data exists to exercise.
+		invited, err := svc.InviteToWorkspace(ctx, p, domain.InviteInput{
+			Email:   email,
+			Role:    string(authz.RoleMember),
+			TeamIDs: []uuid.UUID{teamID},
+		})
+		if err != nil {
+			return 0, fmt.Errorf("invite %s: %w", name, err)
+		}
+		_, _, err = svc.Register(ctx, domain.RegisterInput{
+			Email:       invited.Email,
+			Password:    password,
+			InviteToken: invited.Token,
+			DisplayName: name,
+		})
+		if err != nil {
+			// Account already exists from a previous partial seed: sign in and redeem.
+			accountID, _, loginErr := svc.Login(ctx, domain.LoginInput{
+				Email:    invited.Email,
+				Password: password,
+			})
+			if loginErr != nil {
+				return 0, fmt.Errorf("register %s: %w", name, err)
+			}
+			if _, _, err := svc.AcceptInvite(ctx, accountID, invited.Token, name); err != nil {
+				return 0, fmt.Errorf("accept invite for %s: %w", name, err)
+			}
+		}
+	}
+
+	users, err = svc.ListUsers(ctx, p)
+	if err != nil {
+		return 0, err
+	}
+	return len(users), nil
+}
+
+func seedLabels(ctx context.Context, svc *domain.Service, p *authz.Principal) ([]uuid.UUID, error) {
+	existing, err := svc.ListLabels(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	have := map[string]uuid.UUID{}
+	for _, l := range existing {
+		if !l.IsGroup {
+			have[strings.ToLower(l.Name)] = l.ID
+		}
+	}
+
+	want := []struct{ name, color string }{
+		{"Bug", "#eb5757"},
+		{"Feature", "#5e6ad2"},
+		{"Performance", "#f2c94c"},
+		{"Security", "#27ae60"},
+	}
+	ids := make([]uuid.UUID, 0, len(want))
+	for _, spec := range want {
+		if id, ok := have[strings.ToLower(spec.name)]; ok {
+			ids = append(ids, id)
+			continue
+		}
+		color := spec.color
+		label, _, err := svc.CreateLabel(ctx, p, domain.CreateLabelInput{
+			Name:  spec.name,
+			Color: &color,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create label %s: %w", spec.name, err)
+		}
+		ids = append(ids, label.ID)
+	}
+	return ids, nil
+}
+
+func seedProjects(ctx context.Context, svc *domain.Service, p *authz.Principal, teams []seededTeam) ([]uuid.UUID, error) {
+	if len(teams) == 0 {
+		return nil, nil
+	}
+	teamIDs := make([]uuid.UUID, len(teams))
+	for i, t := range teams {
+		teamIDs[i] = t.id
+	}
+
+	existing, err := svc.ListProjects(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	have := map[string]uuid.UUID{}
+	for _, project := range existing {
+		have[strings.ToLower(project.Name)] = project.ID
+	}
+
+	want := []string{"Sync reliability", "Issue list performance"}
+	ids := make([]uuid.UUID, 0, len(want))
+	for _, name := range want {
+		if id, ok := have[strings.ToLower(name)]; ok {
+			ids = append(ids, id)
+			continue
+		}
+		project, _, err := svc.CreateProject(ctx, p, domain.CreateProjectInput{
+			Name:    name,
+			TeamIDs: teamIDs,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create project %s: %w", name, err)
+		}
+		ids = append(ids, project.ID)
+	}
+	return ids, nil
 }
