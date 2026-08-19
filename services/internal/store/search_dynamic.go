@@ -82,7 +82,7 @@ const issueColumns = `i.id, i.workspace_id, i.team_id, i.number, i.title, i.desc
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.form_template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at`
+       i.template_id, i.form_template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at, i.recurring_issue_id`
 
 const commentColumns = `c.id, c.workspace_id, c.issue_id, c.parent_id, c.body, c.actor_type, c.actor_id,
        c.edited_at, c.resolved_at, c.resolved_by, c.archived_at, c.deleted_at,
@@ -148,7 +148,7 @@ LIMIT %s`, issueColumns, issueMatch, f.and(), issueRank, limit)
 			&i.StartedAt, &i.CompletedAt, &i.CanceledAt,
 			&i.ArchivedAt, &i.DeletedAt, &i.CreatedAt, &i.UpdatedAt,
 			&i.Estimate, &i.DueDate, &i.DueDateSource, &i.ParentID, &i.SubIssueSortOrder,
-			&i.TemplateID, &i.FormTemplateID, &i.DeletedBy, &i.ProjectID, &i.ProjectMilestoneID, &i.CycleID, &i.SnoozedUntil, &i.AutoClosedAt,
+			&i.TemplateID, &i.FormTemplateID, &i.DeletedBy, &i.ProjectID, &i.ProjectMilestoneID, &i.CycleID, &i.SnoozedUntil, &i.AutoClosedAt, &i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}

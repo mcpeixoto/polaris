@@ -192,6 +192,22 @@ func run() error {
 			critical: false,
 		},
 		{
+			// Recurring issues: after the current due date has passed, at 00:01 in the
+			// team's timezone, mint the next occurrence from the snapshot. Idempotent: a
+			// pass while every due date is still in the future writes nothing.
+			name:   "advance recurring issues",
+			every:  time.Minute,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.AdvanceRecurringIssues(ctx, time.Now())
+				if err == nil && n > 0 {
+					log.Debug("advanced recurring issues", "schedules", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
 			// Auto-close then auto-archive. Hourly rather than daily: the product promises
 			// archival "typically within 24 hours", and a job that only runs at boot plus
 			// midnight leaves a 23-hour gap after someone turns the setting on.

@@ -1,0 +1,6 @@
+.error {
+  margin: var(--space-3) 0 0;
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

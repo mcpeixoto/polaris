@@ -35,6 +35,7 @@ export const SUB_ISSUE_FIELDS = /* GraphQL */ `
     subIssueSortOrder
     templateId
     formTemplateId
+    recurringIssueId
     projectId
     projectMilestoneId
     cycleId

@@ -26,24 +26,27 @@ func (r *mutationResolver) CreateIssue(ctx context.Context, input generated.Crea
 	}
 
 	in := domain.CreateIssueInput{
-		ID:                 input.ID,
-		TeamID:             input.TeamID,
-		Title:              input.Title,
-		Description:        deref(input.Description),
-		StateID:            input.StateID,
-		AssigneeID:         input.AssigneeID,
-		Priority:           deref(input.Priority),
-		AfterIssueID:       input.AfterIssueID,
-		Estimate:           input.Estimate,
-		DueDate:            toDate(input.DueDate),
-		ParentID:           input.ParentID,
-		LabelIDs:           input.LabelIds,
-		TemplateID:         input.TemplateID,
-		FormTemplateID:     input.FormTemplateID,
-		ProjectID:          input.ProjectID,
-		ProjectMilestoneID: input.ProjectMilestoneID,
-		CycleID:            input.CycleID,
-		FromTriage:         deref(input.FromTriage),
+		ID:                    input.ID,
+		TeamID:                input.TeamID,
+		Title:                 input.Title,
+		Description:           deref(input.Description),
+		StateID:               input.StateID,
+		AssigneeID:            input.AssigneeID,
+		Priority:              deref(input.Priority),
+		AfterIssueID:          input.AfterIssueID,
+		Estimate:              input.Estimate,
+		DueDate:               toDate(input.DueDate),
+		ParentID:              input.ParentID,
+		LabelIDs:              input.LabelIds,
+		TemplateID:            input.TemplateID,
+		FormTemplateID:        input.FormTemplateID,
+		ProjectID:             input.ProjectID,
+		ProjectMilestoneID:    input.ProjectMilestoneID,
+		CycleID:               input.CycleID,
+		FromTriage:            deref(input.FromTriage),
+		SkipDefaultTemplate:   deref(input.SkipDefaultTemplate),
+		RecurringCadence:      fromOptionalCadence(input.RecurringCadence),
+		RecurringFirstDueDate: toDate(input.RecurringFirstDueDate),
 	}
 	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.Issue, int64, error) {
@@ -1230,6 +1233,30 @@ func (r *mutationResolver) UpdateTeamArchive(ctx context.Context, input generate
 	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
 }
 
+// UpdateTeamTemplates is the resolver for the updateTeamTemplates field.
+func (r *mutationResolver) UpdateTeamTemplates(ctx context.Context, input generated.UpdateTeamTemplatesInput) (*generated.TeamPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	team, version, err := r.Svc.UpdateTeamTemplates(ctx, p, domain.UpdateTeamTemplatesInput{
+		TeamID:                            input.TeamID,
+		DefaultTemplateForMembersID:       input.DefaultTemplateForMembersID,
+		ClearDefaultTemplateForMembers:    deref(input.ClearDefaultTemplateForMembers),
+		DefaultTemplateForNonMembersID:    input.DefaultTemplateForNonMembersID,
+		ClearDefaultTemplateForNonMembers: deref(input.ClearDefaultTemplateForNonMembers),
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
 // ArchiveCycle is the resolver for the archiveCycle field.
 func (r *mutationResolver) ArchiveCycle(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
 	p, err := principalFrom(ctx)
@@ -2137,6 +2164,77 @@ func (r *mutationResolver) DeleteProjectTemplateIssue(ctx context.Context, id uu
 		return nil, PresentError(ctx, err)
 	}
 	return &generated.DeletePayload{Version: int(version), ID: issueID}, nil
+}
+
+// CreateRecurringIssue is the resolver for the createRecurringIssue field.
+func (r *mutationResolver) CreateRecurringIssue(ctx context.Context, input generated.CreateRecurringIssueInput) (*generated.RecurringIssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	rec, version, err := r.Svc.CreateRecurringIssue(ctx, p, domain.CreateRecurringIssueInput{
+		TeamID:        input.TeamID,
+		Title:         input.Title,
+		Body:          deref(input.Body),
+		Properties:    input.Properties,
+		TemplateID:    input.TemplateID,
+		Cadence:       fromRecurringCadence(input.Cadence),
+		FirstDueDate:  model.Date(input.FirstDueDate),
+		SourceIssueID: input.SourceIssueID,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toRecurringIssue(rec)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.RecurringIssuePayload{Version: int(version), RecurringIssue: &out}, nil
+}
+
+// UpdateRecurringIssue is the resolver for the updateRecurringIssue field.
+func (r *mutationResolver) UpdateRecurringIssue(ctx context.Context, input generated.UpdateRecurringIssueInput) (*generated.RecurringIssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	var cadence *string
+	if input.Cadence != nil {
+		c := fromRecurringCadence(*input.Cadence)
+		cadence = &c
+	}
+	rec, version, err := r.Svc.UpdateRecurringIssue(ctx, p, domain.UpdateRecurringIssueInput{
+		ID:          input.ID,
+		Title:       input.Title,
+		Body:        input.Body,
+		Properties:  input.Properties,
+		Cadence:     cadence,
+		NextDueDate: toDate(input.NextDueDate),
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toRecurringIssue(rec)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.RecurringIssuePayload{Version: int(version), RecurringIssue: &out}, nil
+}
+
+// ArchiveRecurringIssue is the resolver for the archiveRecurringIssue field.
+func (r *mutationResolver) ArchiveRecurringIssue(ctx context.Context, id uuid.UUID, archived bool) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	recID, version, err := r.Svc.ArchiveRecurringIssue(ctx, p, id, archived)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: recID}, nil
 }
 
 // CreateProject is the resolver for the createProject field.
@@ -3338,6 +3436,36 @@ func (r *queryResolver) ProjectTemplateIssues(ctx context.Context, projectTempla
 		return nil, PresentError(ctx, err)
 	}
 	return toProjectTemplateIssues(issues), nil
+}
+
+// RecurringIssues is the resolver for the recurringIssues field.
+func (r *queryResolver) RecurringIssues(ctx context.Context, teamID uuid.UUID) ([]generated.RecurringIssue, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListRecurringIssues(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toRecurringIssues(rows)
+}
+
+// RecurringIssue is the resolver for the recurringIssue field.
+func (r *queryResolver) RecurringIssue(ctx context.Context, id uuid.UUID) (*generated.RecurringIssue, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, err := r.Svc.GetRecurringIssue(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toRecurringIssue(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &out, nil
 }
 
 // Projects is the resolver for the projects field.

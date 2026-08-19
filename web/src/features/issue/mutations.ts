@@ -40,6 +40,7 @@ import {
   type IssueLabel,
   type IssueRelation,
   type IssueSubscription,
+  type RecurringCadence,
   type RelationType,
   type Store,
   type UUID,
@@ -98,6 +99,20 @@ export interface NewIssue {
    */
   readonly templateId?: UUID | undefined;
   readonly formTemplateId?: UUID | undefined;
+  /**
+   * Stops the team's member/non-member default from being applied.
+   *
+   * The composer applies a default locally and then sends its `templateId`. Clearing that
+   * default must send this flag, or the server would put the same template back on an
+   * issue the filer just emptied.
+   */
+  readonly skipDefaultTemplate?: boolean | undefined;
+  /**
+   * Makes this issue the first occurrence of a new schedule. `recurringFirstDueDate` is
+   * required with it; the issue's own due date is used when that is omitted.
+   */
+  readonly recurringCadence?: RecurringCadence | undefined;
+  readonly recurringFirstDueDate?: DateOnly | undefined;
   readonly projectId?: UUID | undefined;
   readonly projectMilestoneId?: UUID | undefined;
   readonly cycleId?: UUID | undefined;
@@ -159,7 +174,9 @@ export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<
     priority: input.priority ?? 0,
     sortOrder: lastSortOrderIn(store, state),
     ...(input.estimate === undefined ? null : { estimate: input.estimate }),
-    ...(input.dueDate === undefined ? null : { dueDate: input.dueDate }),
+    ...(input.dueDate === undefined && input.recurringFirstDueDate === undefined
+      ? null
+      : { dueDate: input.dueDate ?? input.recurringFirstDueDate }),
     ...(input.parentId === undefined ? null : { parentId: input.parentId }),
     ...(input.templateId === undefined ? null : { templateId: input.templateId }),
     ...(input.formTemplateId === undefined ? null : { formTemplateId: input.formTemplateId }),
@@ -848,6 +865,13 @@ function createInputOf(input: NewIssue, stateId: UUID, id: UUID): Record<string,
       : { labelIds: [...input.labelIds] }),
     ...(input.templateId === undefined ? null : { templateId: input.templateId }),
     ...(input.formTemplateId === undefined ? null : { formTemplateId: input.formTemplateId }),
+    ...(input.skipDefaultTemplate === true ? { skipDefaultTemplate: true } : null),
+    ...(input.recurringCadence === undefined
+      ? null
+      : { recurringCadence: toWire(input.recurringCadence) }),
+    ...(input.recurringFirstDueDate === undefined
+      ? null
+      : { recurringFirstDueDate: input.recurringFirstDueDate }),
     ...(input.projectId === undefined ? null : { projectId: input.projectId }),
     ...(input.projectMilestoneId === undefined
       ? null

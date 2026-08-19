@@ -49,6 +49,8 @@ import {
   Textarea,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { RecurringDialog } from '~/features/recurring/RecurringDialog';
+import { createRecurringIssue } from '~/features/recurring/mutations';
 import { estimateLabel, estimateOptions, estimatesEnabled } from '~/features/estimate';
 import { buildCreateURL } from '~/features/issue/create-url';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
@@ -109,6 +111,9 @@ export function Templates() {
   const [archiving, setArchiving] = useState<TemplateRow | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
+  const [converting, setConverting] = useState<TemplateRow | null>(null);
+  const [convertBusy, setConvertBusy] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
 
   const { rows, scopes } = useLiveQuery(
     (store: Store) => {
@@ -288,6 +293,14 @@ export function Templates() {
                               setArchiveError(null);
                               setArchiving(row);
                             }}
+                            onConvert={
+                              row.teamId === undefined
+                                ? undefined
+                                : () => {
+                                    setConvertError(null);
+                                    setConverting(row);
+                                  }
+                            }
                           />
                         </li>
                       ),
@@ -318,6 +331,49 @@ export function Templates() {
               setArchiveError(null);
             }}
           />
+
+          <RecurringDialog
+            open={converting !== null}
+            title={`Make ${converting?.name ?? 'this template'} recurring`}
+            description="The schedule snapshots this template now. Editing it later does not change occurrences already on the cadence."
+            timezone={
+              converting?.teamId === undefined
+                ? 'UTC'
+                : (engine.store.get('team', converting.teamId)?.timezone ?? 'UTC')
+            }
+            busy={convertBusy}
+            error={convertError}
+            onClose={() => {
+              if (convertBusy) return;
+              setConverting(null);
+              setConvertError(null);
+            }}
+            onConfirm={(draft) => {
+              if (converting === null || converting.teamId === undefined) return;
+              setConvertBusy(true);
+              setConvertError(null);
+              void createRecurringIssue(engine, {
+                teamId: converting.teamId,
+                title: converting.title === '' ? converting.name : converting.title,
+                body: converting.body,
+                properties: converting.properties,
+                templateId: converting.id,
+                cadence: draft.cadence,
+                firstDueDate: draft.firstDueDate,
+              })
+                .then(() => {
+                  setConverting(null);
+                })
+                .catch((failure: unknown) => {
+                  setConvertError(
+                    failure instanceof ApiError
+                      ? failure.message
+                      : 'Could not create the schedule.',
+                  );
+                })
+                .finally(() => setConvertBusy(false));
+            }}
+          />
         </>
       )}
     </div>
@@ -328,13 +384,13 @@ interface TemplateListRowProps {
   row: TemplateRow;
   onEdit: () => void;
   onArchive: () => void;
+  onConvert?: (() => void) | undefined;
 }
 
-function TemplateListRow({ row, onEdit, onArchive }: TemplateListRowProps) {
+function TemplateListRow({ row, onEdit, onArchive, onConvert }: TemplateListRowProps) {
   const copyUrl = () => {
     void navigator.clipboard?.writeText(buildCreateURL({ teamKey: row.teamKey, template: row.name }));
   };
-
   return (
     <div className={styles.row}>
       <div className={styles.rowText}>
@@ -360,6 +416,11 @@ function TemplateListRow({ row, onEdit, onArchive }: TemplateListRowProps) {
         <Button size="sm" onClick={onEdit} aria-label={`Edit ${row.name}`}>
           Edit
         </Button>
+        {onConvert === undefined ? null : (
+          <Button size="sm" onClick={onConvert} aria-label={`Make ${row.name} recurring`}>
+            Repeat
+          </Button>
+        )}
         <IconButton aria-label={`Archive ${row.name}`} icon={<ArchiveIcon />} onClick={onArchive} />
       </span>
     </div>

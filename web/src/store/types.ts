@@ -209,6 +209,8 @@ export interface Team {
   readonly autoArchiveDays: number;
   readonly autoCloseParent: boolean;
   readonly autoCloseChildren: boolean;
+  readonly defaultTemplateForMembersId?: UUID;
+  readonly defaultTemplateForNonMembersId?: UUID;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly retiredAt?: Timestamp;
@@ -305,6 +307,7 @@ export interface Issue {
   readonly subIssueSortOrder?: string;
   readonly templateId?: UUID;
   readonly formTemplateId?: UUID;
+  readonly recurringIssueId?: UUID;
   readonly projectId?: UUID;
   readonly projectMilestoneId?: UUID;
   readonly cycleId?: UUID;
@@ -594,6 +597,38 @@ export interface IssueTemplate {
   /** Keys are the same names the create mutation takes. */
   readonly properties: TemplateProperties;
   readonly position: string;
+  readonly createdBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+export type RecurringCadence =
+  | 'daily'
+  | 'weekly'
+  | 'biweekly'
+  | 'monthly'
+  | 'quarterly'
+  | 'yearly';
+
+/**
+ * A schedule that mints issues on a cadence.
+ *
+ * title, body and properties are a snapshot taken when the schedule was created. Editing
+ * a source template afterwards does not change them. nextDueDate is the due date of the
+ * current occurrence.
+ */
+export interface RecurringIssue {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly teamId: UUID;
+  readonly title: string;
+  readonly body: string;
+  readonly properties: TemplateProperties;
+  readonly templateId?: UUID;
+  readonly cadence: RecurringCadence;
+  readonly nextDueDate: DateOnly;
+  readonly lastCreatedAt?: Timestamp;
   readonly createdBy?: UUID;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
@@ -922,6 +957,7 @@ export interface EntityByType {
   projectLabel: ProjectLabel;
   projectLabelLink: ProjectLabelLink;
   cycle: Cycle;
+  recurringIssue: RecurringIssue;
   issue: Issue;
   issueLabel: IssueLabel;
   issueRelation: IssueRelation;
@@ -973,8 +1009,9 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'projectDependency',
   'projectLabel',
   'projectLabelLink',
-  // Before issues: an issue may name a cycle.
+  // Before issues: an issue may name a cycle or a recurring schedule.
   'cycle',
+  'recurringIssue',
   'issue',
   // After issues, because each names one.
   'issueLabel',

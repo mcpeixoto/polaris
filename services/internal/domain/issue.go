@@ -98,6 +98,16 @@ type CreateIssueInput struct {
 	// FromTriage files the issue into the team's triage status. Used by the inbox's C,
 	// and by an outsider filing into a team they can see but have not joined.
 	FromTriage bool
+
+	// SkipDefaultTemplate stops the team's member/non-member default from being applied.
+	// The composer sends this when the filer cleared the prefilled template; without it
+	// an omitted templateId would quietly put the default back.
+	SkipDefaultTemplate bool
+
+	// RecurringCadence, with RecurringFirstDueDate, makes this issue the first occurrence
+	// of a new schedule. The composer "Make recurring…" path.
+	RecurringCadence      *string
+	RecurringFirstDueDate *model.Date
 }
 
 // issueIDFor returns the id a new issue should take, honouring a client's choice.
@@ -157,7 +167,7 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		return model.Issue{}, 0, err
 	}
 
-	labelIDs := dedupe(in.LabelIDs)
+	var labelIDs []uuid.UUID
 
 	var out model.Issue
 	var version int64
@@ -167,18 +177,23 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			return err
 		}
 
+		member, err := q.IsTeamMember(ctx, store.IsTeamMemberParams{TeamID: in.TeamID, UserID: p.UserID})
+		if err != nil {
+			return platform.Internal(err)
+		}
+
+		if err := s.applyDefaultTemplate(ctx, q, p, team, member, &in); err != nil {
+			return err
+		}
 		if err := s.validateTemplate(ctx, q, p, in.TeamID, in.TemplateID); err != nil {
 			return err
 		}
 		if err := s.validateFormTemplate(ctx, q, p, in.TeamID, in.FormTemplateID); err != nil {
 			return err
 		}
+		labelIDs = dedupe(in.LabelIDs)
 
-		member, err := q.IsTeamMember(ctx, store.IsTeamMemberParams{TeamID: in.TeamID, UserID: p.UserID})
-		if err != nil {
-			return platform.Internal(err)
-		}
-		intoTriage := in.FromTriage || (!member && team.TriageEnabled)
+		intoTriage := in.FromTriage || (!member && team.TriageEnabled && in.StateID == nil)
 
 		state, err := s.resolveInitialState(ctx, q, team, in.StateID, intoTriage)
 		if err != nil {
@@ -285,6 +300,19 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		}
 		for _, mentioned := range notify.ParseMentions(in.Description) {
 			if err := s.SubscribeOnAction(ctx, q, p, id, mentioned, model.SubscribedMentioned); err != nil {
+				return err
+			}
+		}
+
+		if in.RecurringCadence != nil {
+			if err := s.attachRecurringOnCreate(ctx, q, p, team, &out, in); err != nil {
+				return err
+			}
+			version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+				EntityType: "issue", EntityID: id, Op: OpUpsert, TeamID: &in.TeamID,
+				Scope: authz.TeamScope(in.TeamID, team.Private), Payload: out,
+			})
+			if err != nil {
 				return err
 			}
 		}

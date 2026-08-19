@@ -19,6 +19,7 @@ import type {
   IssueTemplate,
   Label,
   Notification,
+  RecurringIssue,
   Team,
   TeamMembership,
   User,
@@ -291,6 +292,22 @@ function template(id: UUID, over: Partial<IssueTemplate> = {}): IssueTemplate {
   };
 }
 
+function recurring(id: UUID, over: Partial<RecurringIssue> = {}): RecurringIssue {
+  return {
+    id,
+    workspaceId: 'w1',
+    teamId: 't1',
+    title: 'Weekly report',
+    body: '',
+    properties: {},
+    cadence: 'weekly',
+    nextDueDate: '2026-01-08',
+    createdAt: NOW,
+    updatedAt: NOW,
+    ...over,
+  };
+}
+
 function upsert(v: number, type: Change['type'], entity: Entity): Change {
   return { v, type, id: entity.id, op: 'upsert', actor: ACTOR, payload: entity } as Change;
 }
@@ -322,6 +339,7 @@ async function seeded(): Promise<Store> {
     { type: 'label', entity: label('regression') },
     { type: 'label', entity: label('eng-only', { teamId: 't1' }) },
     { type: 'issueTemplate', entity: template('tpl1', { teamId: 't1' }) },
+    { type: 'recurringIssue', entity: recurring('ri1', { teamId: 't1' }) },
     { type: 'view', entity: view('v1', { teamId: 't1' }) },
     { type: 'viewPreference', entity: viewPreference('vp1', 'u1', 'my-issues') },
     { type: 'favorite', entity: favorite('f1', 'view', 'v1') },
@@ -868,13 +886,14 @@ describe('Store notifications and subscriptions', () => {
 });
 
 describe('Store views, templates and favourites', () => {
-  it("drops a team's labels, templates and views with the team", async () => {
+  it("drops a team's labels, templates, schedules and views with the team", async () => {
     const store = await seeded();
     store.applyChanges([{ v: 101, type: 'team', id: 't1', op: 'revoke', actor: ACTOR }]);
 
     for (const [what, present] of [
       ['team label', store.labels.has('eng-only')],
       ['template', store.issueTemplates.has('tpl1')],
+      ['recurring', store.recurringIssues.has('ri1')],
       ['view', store.views.has('v1')],
     ] as const) {
       if (present) {
@@ -921,6 +940,7 @@ describe('Store views, templates and favourites', () => {
     const store = await seeded();
     expect([...store.labelIdsForTeam('t1')]).toEqual(['eng-only']);
     expect([...store.issueTemplateIdsForTeam('t1')]).toEqual(['tpl1']);
+    expect([...store.recurringIssueIdsFor('t1')]).toEqual(['ri1']);
     expect([...store.viewIdsForTeam('t1')]).toEqual(['v1']);
     // A workspace label is offered in every team and therefore sits in no team's bucket.
     expect(store.labelIdsForTeam('t2').size).toBe(0);
