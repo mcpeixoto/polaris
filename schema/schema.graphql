@@ -385,6 +385,8 @@ type Issue {
   creator: User
   comments: [Comment!]!
   history: [IssueHistoryEntry!]!
+  """Link cards on this issue. URL-idempotent: the same URL is one card."""
+  attachments: [Attachment!]!
 
   labels: [Label!]!
   parent: Issue
@@ -695,6 +697,28 @@ type IssuePayload implements MutationResult {
 type CommentPayload implements MutationResult {
   version: Int!
   comment: Comment!
+}
+
+"""A link card on an issue. Recreating the same URL updates this row instead of minting another."""
+type Attachment {
+  id: UUID!
+  workspaceId: UUID!
+  issueId: UUID!
+  teamId: UUID!
+  url: String!
+  title: String!
+  subtitle: String
+  iconUrl: String
+  """Arbitrary key/value. Subtitle tokens `{var__since}` and `{var__relativeTimestamp}` look up keys here."""
+  metadata: JSON
+  creatorId: UUID
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type AttachmentPayload implements MutationResult {
+  version: Int!
+  attachment: Attachment!
 }
 
 type TeamPayload implements MutationResult {
@@ -1314,6 +1338,23 @@ input CreateCommentInput {
   parentId: UUID
 }
 
+input CreateAttachmentInput {
+  issueId: UUID!
+  url: String!
+  title: String
+  subtitle: String
+  iconUrl: String
+  metadata: JSON
+}
+
+input UpdateAttachmentInput {
+  id: UUID!
+  title: String
+  subtitle: String
+  iconUrl: String
+  metadata: JSON
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -1394,6 +1435,9 @@ type Query {
   archivedIssues(teamId: UUID!): [Issue!]!
   archivedCycles(teamId: UUID!): [Cycle!]!
   archivedProjects(teamId: UUID!): [Project!]!
+
+  """Every live attachment in this workspace that carries this exact URL."""
+  attachmentsForURL(url: String!): [Attachment!]!
 }
 
 """
@@ -1413,6 +1457,10 @@ type Mutation {
   updateComment(id: UUID!, body: String!, clientId: UUID, opId: UUID): CommentPayload! @idempotent
   resolveComment(id: UUID!, resolved: Boolean!, clientId: UUID, opId: UUID): CommentPayload! @idempotent
   deleteComment(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createAttachment(input: CreateAttachmentInput!, clientId: UUID, opId: UUID): AttachmentPayload! @idempotent
+  updateAttachment(input: UpdateAttachmentInput!, clientId: UUID, opId: UUID): AttachmentPayload! @idempotent
+  deleteAttachment(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!

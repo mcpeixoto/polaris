@@ -240,6 +240,72 @@ func (r *mutationResolver) DeleteComment(ctx context.Context, id uuid.UUID, clie
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// CreateAttachment is the resolver for the createAttachment field.
+func (r *mutationResolver) CreateAttachment(ctx context.Context, input generated.CreateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.AttachmentPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.CreateAttachmentInput{
+		IssueID:  input.IssueID,
+		URL:      input.URL,
+		Subtitle: input.Subtitle,
+		IconURL:  input.IconURL,
+		Metadata: input.Metadata,
+	}
+	if input.Title != nil {
+		in.Title = *input.Title
+	}
+	att, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Attachment, int64, error) {
+			return r.Svc.CreateAttachment(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toAttachment(att)
+	return &generated.AttachmentPayload{Version: int(version), Attachment: &out}, nil
+}
+
+func (r *mutationResolver) UpdateAttachment(ctx context.Context, input generated.UpdateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.AttachmentPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.UpdateAttachmentInput{
+		ID:       input.ID,
+		Title:    input.Title,
+		Subtitle: input.Subtitle,
+		IconURL:  input.IconURL,
+		Metadata: input.Metadata,
+	}
+	att, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Attachment, int64, error) {
+			return r.Svc.UpdateAttachment(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toAttachment(att)
+	return &generated.AttachmentPayload{Version: int(version), Attachment: &out}, nil
+}
+
+func (r *mutationResolver) DeleteAttachment(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteAttachment(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // CreateTeam is the resolver for the createTeam field.
 func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.CreateTeamInput) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)
@@ -2335,6 +2401,19 @@ func (r *queryResolver) ArchivedProjects(ctx context.Context, teamID uuid.UUID) 
 		return nil, PresentError(ctx, err)
 	}
 	return r.hydrateProjects(ctx, p, projects)
+}
+
+// AttachmentsForURL is the resolver for the attachmentsForURL field.
+func (r *queryResolver) AttachmentsForURL(ctx context.Context, url string) ([]generated.Attachment, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListAttachmentsForURL(ctx, p, url)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toAttachments(rows), nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

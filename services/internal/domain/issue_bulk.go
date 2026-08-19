@@ -531,7 +531,7 @@ func (s *Service) RestoreIssue(
 // restoredIssueContents is everything a replica threw away when the issue's delete arrived,
 // as the changes that put it back.
 //
-// The six collections are exactly the six the client's cascade removes for an issue, and
+// The seven collections are exactly the seven the client's cascade removes for an issue, and
 // each is read with the same predicate the bootstrap uses for it, so a replica that applies
 // these lands on the same rows a snapshot taken immediately afterwards would contain. That
 // agreement is the whole point, and it is why the relations come from a query with the
@@ -583,6 +583,17 @@ func restoredIssueContents(
 		changes = append(changes, Change{
 			EntityType: "comment", EntityID: c.ID, Op: OpUpsert, TeamID: &teamID,
 			Scope: scope, Payload: toComment(c), ChangedFields: restored,
+		})
+	}
+
+	attachments, err := q.ListAttachmentsForIssue(ctx, issue.ID)
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, a := range attachments {
+		changes = append(changes, Change{
+			EntityType: "attachment", EntityID: a.ID, Op: OpUpsert, TeamID: &teamID,
+			Scope: scope, Payload: toAttachment(a), ChangedFields: restored,
 		})
 	}
 

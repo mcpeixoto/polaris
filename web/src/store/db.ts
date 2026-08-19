@@ -5,6 +5,7 @@ import type { OutboxRecord } from './outbox';
 import {
   ENTITY_TYPES,
   type Comment,
+  type Attachment,
   type Cycle,
   type Entity,
   type EntityOf,
@@ -70,8 +71,10 @@ import {
  * v6 adds team triage flags and issue.snoozedUntil.
  *
  * v7 adds team auto-close/archive periods and issue.autoClosedAt.
+ *
+ * v8 adds attachment (URL-idempotent link cards on issues).
  */
-export const CLIENT_SCHEMA = 7;
+export const CLIENT_SCHEMA = 8;
 
 /**
  * One database per workspace per schema version.
@@ -157,6 +160,7 @@ interface PolarisSchema extends DBSchema {
   issue: { key: UUID; value: Issue };
   issueLabel: { key: UUID; value: IssueLabel };
   issueRelation: { key: UUID; value: IssueRelation };
+  attachment: { key: UUID; value: Attachment };
   comment: { key: UUID; value: Comment };
   issueSubscription: { key: UUID; value: IssueSubscription };
   notification: { key: UUID; value: Notification };

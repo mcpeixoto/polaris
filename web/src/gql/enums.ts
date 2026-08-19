@@ -97,6 +97,7 @@ const ENUM_FIELDS: Readonly<Record<EntityType, readonly string[]>> = {
   issue: ['dueDateSource'],
   issueLabel: [],
   issueRelation: ['type'],
+  attachment: [],
   comment: ['actor.type'],
   issueSubscription: ['reason'],
   notification: ['type', 'actor.type'],

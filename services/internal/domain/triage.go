@@ -294,6 +294,15 @@ func (s *Service) leaveTriage(
 				Scope:   relationScope(rel.TeamID, rel.RelatedTeamID),
 				Payload: rel,
 			})
+			object, err := q.GetIssue(ctx, *canonical)
+			if err != nil {
+				return platform.Internal(err)
+			}
+			moved, err := s.moveAttachmentsOnDuplicate(ctx, q, before, object, team.Private)
+			if err != nil {
+				return err
+			}
+			changes = append(changes, moved...)
 		}
 
 		if version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...); err != nil {

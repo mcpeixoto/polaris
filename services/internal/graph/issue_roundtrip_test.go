@@ -676,6 +676,12 @@ func TestIssue_TheNestedFieldsResolveToWhatTheDatabaseHolds(t *testing.T) {
 		}
 	}
 
+	if _, err := h.Mutation().CreateAttachment(h.ctx, generated.CreateAttachmentInput{
+		IssueID: subject, URL: "https://github.com/acme/app/pull/4", Title: ptr("PR 4"),
+	}, nil, nil); err != nil {
+		t.Fatalf("attach a URL: %v", err)
+	}
+
 	body := h.execute(t, `
 		query Panel($id: UUID!) {
 			issue(id: $id) {
@@ -686,6 +692,7 @@ func TestIssue_TheNestedFieldsResolveToWhatTheDatabaseHolds(t *testing.T) {
 				relations { relatedIssueId type }
 				blockedBy { issueId type }
 				subscribers { userId }
+				attachments { url title }
 			}
 		}`, map[string]any{"id": subject.String()})
 	if errs, ok := body["errors"]; ok {
@@ -746,6 +753,14 @@ func TestIssue_TheNestedFieldsResolveToWhatTheDatabaseHolds(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("issue.subscribers came back %v without the person who filed it", issue["subscribers"])
+	}
+
+	links, _ := issue["attachments"].([]any)
+	if len(links) != 1 {
+		t.Fatalf("issue.attachments came back %v; the issue has one link", issue["attachments"])
+	}
+	if row, _ := links[0].(map[string]any); fmt.Sprint(row["url"]) != "https://github.com/acme/app/pull/4" {
+		t.Errorf("issue.attachments names %v, not the URL we attached", links[0])
 	}
 }
 

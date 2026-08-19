@@ -38,6 +38,7 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"User", model.User{}, generated.User{}},
 		{"WorkflowState", model.WorkflowState{}, generated.WorkflowState{}},
 		{"Comment", model.Comment{}, generated.Comment{}},
+		{"Attachment", model.Attachment{}, generated.Attachment{}},
 		{"Workspace", model.Workspace{}, generated.Workspace{}},
 		{"Project", model.Project{}, generated.Project{}},
 		{"ProjectStatus", model.ProjectStatus{}, generated.ProjectStatus{}},

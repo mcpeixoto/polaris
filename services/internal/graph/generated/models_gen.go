@@ -59,6 +59,30 @@ type APIKeyPayload struct {
 
 func (APIKeyPayload) IsMutationResult() {}
 
+// A link card on an issue. Recreating the same URL updates this row instead of minting another.
+type Attachment struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	IssueID     uuid.UUID `json:"issueId"`
+	TeamID      uuid.UUID `json:"teamId"`
+	URL         string    `json:"url"`
+	Title       string    `json:"title"`
+	Subtitle    *string   `json:"subtitle,omitempty"`
+	IconURL     *string   `json:"iconUrl,omitempty"`
+	// Arbitrary key/value. Subtitle tokens `{var__since}` and `{var__relativeTimestamp}` look up keys here.
+	Metadata  json.RawMessage `json:"metadata,omitempty"`
+	CreatorID *uuid.UUID      `json:"creatorId,omitempty"`
+	CreatedAt time.Time       `json:"createdAt"`
+	UpdatedAt time.Time       `json:"updatedAt"`
+}
+
+type AttachmentPayload struct {
+	Version    int         `json:"version"`
+	Attachment *Attachment `json:"attachment"`
+}
+
+func (AttachmentPayload) IsMutationResult() {}
+
 // A bulk update returns the issues it changed and the single version the whole batch landed
 // at, because it emits one version block rather than one per issue.
 type BulkIssuePayload struct {
@@ -128,6 +152,15 @@ type CreateAPIKeyInput struct {
 	// Empty means everything the owner can do. Narrowing only.
 	Scopes    []string   `json:"scopes,omitempty"`
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+}
+
+type CreateAttachmentInput struct {
+	IssueID  uuid.UUID       `json:"issueId"`
+	URL      string          `json:"url"`
+	Title    *string         `json:"title,omitempty"`
+	Subtitle *string         `json:"subtitle,omitempty"`
+	IconURL  *string         `json:"iconUrl,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 
 type CreateCommentInput struct {
@@ -421,9 +454,11 @@ type Issue struct {
 	Creator   *User               `json:"creator,omitempty"`
 	Comments  []Comment           `json:"comments"`
 	History   []IssueHistoryEntry `json:"history"`
-	Labels    []Label             `json:"labels"`
-	Parent    *Issue              `json:"parent,omitempty"`
-	Children  []Issue             `json:"children"`
+	// Link cards on this issue. URL-idempotent: the same URL is one card.
+	Attachments []Attachment `json:"attachments"`
+	Labels      []Label      `json:"labels"`
+	Parent      *Issue       `json:"parent,omitempty"`
+	Children    []Issue      `json:"children"`
 	// Rolled up from the children. Zero children means null, not zero per cent.
 	Progress *IssueProgress `json:"progress,omitempty"`
 	// Relations where this issue is the subject.
@@ -869,6 +904,14 @@ type TeamPayload struct {
 }
 
 func (TeamPayload) IsMutationResult() {}
+
+type UpdateAttachmentInput struct {
+	ID       uuid.UUID       `json:"id"`
+	Title    *string         `json:"title,omitempty"`
+	Subtitle *string         `json:"subtitle,omitempty"`
+	IconURL  *string         `json:"iconUrl,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
 
 type UpdateIssueInput struct {
 	ID          uuid.UUID  `json:"id"`

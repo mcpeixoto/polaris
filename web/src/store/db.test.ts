@@ -12,6 +12,7 @@ import {
 } from './db';
 import { ENTITY_TYPES } from './types';
 import type {
+  Attachment,
   Comment,
   Favorite,
   Issue,
@@ -89,6 +90,19 @@ function comment(id: UUID, issueId: UUID): Comment {
     issueId,
     body: 'looks good',
     actor: { type: 'user', id: 'u1' },
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function attachment(id: UUID, issueId: UUID): Attachment {
+  return {
+    id,
+    workspaceId: 'w',
+    issueId,
+    teamId: 't1',
+    url: 'https://github.com/acme/app/pull/1',
+    title: 'PR 1',
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -326,6 +340,7 @@ function oneOfEach(): EntityRow[] {
     { type: 'issue', entity: issue('i1') },
     { type: 'issueLabel', entity: issueLabel },
     { type: 'issueRelation', entity: issueRelation },
+    { type: 'attachment', entity: attachment('a1', 'i1') },
     { type: 'comment', entity: comment('c1', 'i1') },
     { type: 'issueSubscription', entity: issueSubscription },
     { type: 'notification', entity: notification },

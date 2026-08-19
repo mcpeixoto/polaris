@@ -270,6 +270,11 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	}); err != nil {
 		t.Fatalf("comment: %v", err)
 	}
+	if _, _, err := svc.CreateAttachment(ctx, p, domain.CreateAttachmentInput{
+		IssueID: issue.ID, URL: "https://github.com/acme/app/pull/1", Title: "PR 1",
+	}); err != nil {
+		t.Fatalf("attachment: %v", err)
+	}
 
 	// The watcher subscribes and then hears about somebody else's edit, which is the only
 	// way to make a `notification` row exist without writing one by hand.
