@@ -43,10 +43,10 @@ func (s *Service) AddProjectDependency(
 			return platform.Internal(err)
 		}
 		row, err := q.CreateProjectDependency(ctx, store.CreateProjectDependencyParams{
-			ID:                 id,
-			WorkspaceID:        p.WorkspaceID,
-			BlockingProjectID:  blockingProjectID,
-			BlockedProjectID:   blockedProjectID,
+			ID:                id,
+			WorkspaceID:       p.WorkspaceID,
+			BlockingProjectID: blockingProjectID,
+			BlockedProjectID:  blockedProjectID,
 		})
 		if err != nil {
 			if store.IsUniqueViolation(err, "project_dependency_unique") {

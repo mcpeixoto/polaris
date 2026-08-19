@@ -219,9 +219,9 @@ func (s *Service) UpdateInitiative(
 			TargetDate:            target,
 			TargetDateGranularity: targetG,
 			ClearOwner:            in.ClearOwner,
-			OwnerID:                 in.OwnerID,
-			ClearLeadTeam:           in.ClearLeadTeam,
-			LeadTeamID:              in.LeadTeamID,
+			OwnerID:               in.OwnerID,
+			ClearLeadTeam:         in.ClearLeadTeam,
+			LeadTeamID:            in.LeadTeamID,
 		})
 		if err != nil {
 			if store.IsNotFound(err) {

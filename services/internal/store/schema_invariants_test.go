@@ -511,7 +511,7 @@ func TestProjectSchemaInvariants(t *testing.T) {
 		      VALUES (` + milestoneOther + `, ` + ws + `, ` + projID2 + `, 'Theirs', 'a0')`,
 	}, {
 		name: "an issue may sit in the project",
-		sql: `UPDATE issue SET project_id = ` + projID + ` WHERE id = ` + engIssue,
+		sql:  `UPDATE issue SET project_id = ` + projID + ` WHERE id = ` + engIssue,
 	}, {
 		name: "a milestone without its project is refused",
 		sql: `UPDATE issue SET project_id = NULL, project_milestone_id = ` + milestoneID +
@@ -552,20 +552,20 @@ func TestCycleSchemaInvariants(t *testing.T) {
 		        WHERE table_schema = 'public' AND table_name IN ('issue_cycle', 'issue_cycles')
 		      ) THEN 0 ELSE 1 END`,
 	}, {
-		name: "duration is 1–8 weeks",
-		sql:  `UPDATE team SET cycles_enabled = true, cycle_duration_weeks = 9 WHERE id = ` + engID,
+		name:    "duration is 1–8 weeks",
+		sql:     `UPDATE team SET cycles_enabled = true, cycle_duration_weeks = 9 WHERE id = ` + engID,
 		wantErr: "team_cycle_duration_check",
 	}, {
-		name: "cooldown is 0–8 weeks, never negative",
-		sql:  `UPDATE team SET cycle_cooldown_weeks = -1 WHERE id = ` + engID,
+		name:    "cooldown is 0–8 weeks, never negative",
+		sql:     `UPDATE team SET cycle_cooldown_weeks = -1 WHERE id = ` + engID,
 		wantErr: "team_cycle_cooldown_check",
 	}, {
-		name: "upcoming count is 1–15",
-		sql:  `UPDATE team SET cycle_upcoming_count = 16 WHERE id = ` + engID,
+		name:    "upcoming count is 1–15",
+		sql:     `UPDATE team SET cycle_upcoming_count = 16 WHERE id = ` + engID,
 		wantErr: "team_cycle_upcoming_check",
 	}, {
-		name: "start day is a weekday name",
-		sql:  `UPDATE team SET cycle_start_day = 'fortnight' WHERE id = ` + engID,
+		name:    "start day is a weekday name",
+		sql:     `UPDATE team SET cycle_start_day = 'fortnight' WHERE id = ` + engID,
 		wantErr: "team_cycle_start_day_check",
 	}, {
 		name: "a cycle needs a name",
@@ -599,8 +599,8 @@ func TestCycleSchemaInvariants(t *testing.T) {
 		name: "an engineering issue may sit in the engineering cycle",
 		sql:  `UPDATE issue SET cycle_id = ` + cycleID + ` WHERE id = ` + engIssue,
 	}, {
-		name: "an engineering issue may not sit in a design cycle",
-		sql:  `UPDATE issue SET cycle_id = ` + cycleID2 + ` WHERE id = ` + engIssue,
+		name:    "an engineering issue may not sit in a design cycle",
+		sql:     `UPDATE issue SET cycle_id = ` + cycleID2 + ` WHERE id = ` + engIssue,
 		wantErr: "does not belong to team",
 	}})
 }
@@ -683,14 +683,14 @@ func TestArchiveSchemaInvariants(t *testing.T) {
 		name: "a 30-day auto-close period is accepted",
 		sql:  `UPDATE team SET auto_close_days = 30 WHERE id = ` + engID,
 	}, {
-		name: "a 7-day auto-close period is refused",
+		name:    "a 7-day auto-close period is refused",
 		sql:     `UPDATE team SET auto_close_days = 7 WHERE id = ` + engID,
 		wantErr: "team_auto_close_days_check",
 	}, {
 		name: "a 365-day auto-archive period is accepted",
 		sql:  `UPDATE team SET auto_archive_days = 365 WHERE id = ` + engID,
 	}, {
-		name: "a 14-day auto-archive period is refused",
+		name:    "a 14-day auto-archive period is refused",
 		sql:     `UPDATE team SET auto_archive_days = 14 WHERE id = ` + engID,
 		wantErr: "team_auto_archive_days_check",
 	}, {

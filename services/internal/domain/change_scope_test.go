@@ -219,6 +219,20 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 		t.Fatalf("issueTemplate: %v", err)
 	}
 
+	formTpl, _, err := svc.CreateFormTemplate(ctx, p, domain.CreateFormTemplateInput{
+		TeamID: &f.TeamID, Name: "Intake form",
+	})
+	if err != nil {
+		t.Fatalf("formTemplate: %v", err)
+	}
+	if _, _, err := svc.CreateFormTemplateField(ctx, p, domain.CreateFormTemplateFieldInput{
+		FormTemplateID: formTpl.ID,
+		FieldType:      model.FormFieldText,
+		Label:          "Summary",
+	}); err != nil {
+		t.Fatalf("formTemplateField: %v", err)
+	}
+
 	if _, _, err := svc.CreateProjectStatus(ctx, p, domain.CreateProjectStatusInput{
 		Name: "Paused", Category: model.ProjectCategoryPlanned,
 	}); err != nil {

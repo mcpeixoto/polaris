@@ -366,6 +366,40 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "formTemplate",
+			func(ctx context.Context, after uuid.UUID) ([]store.StreamFormTemplatesForBootstrapRow, error) {
+				return q.StreamFormTemplatesForBootstrap(ctx, store.StreamFormTemplatesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(t store.StreamFormTemplatesForBootstrapRow) (uuid.UUID, any) {
+				return t.ID, toFormTemplate(store.AsFormTemplateRow(t))
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "formTemplateField",
+			func(ctx context.Context, after uuid.UUID) ([]store.FormTemplateField, error) {
+				return q.StreamFormTemplateFieldsForBootstrap(ctx, store.StreamFormTemplateFieldsForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(f store.FormTemplateField) (uuid.UUID, any) {
+				return f.ID, toFormTemplateField(f)
+			},
+		); err != nil {
+			return err
+		}
+
 		// Projects before issues: an issue may name a project and a milestone.
 		// Admins receive every project, including those on private teams they are not in;
 		// everybody else receives the ones whose teams they belong to.
@@ -564,7 +598,7 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 		// off an issue it left out.
 		if len(teamIDs) > 0 {
 			if err := streamPages(ctx, w, "issue",
-				func(ctx context.Context, after uuid.UUID) ([]store.Issue, error) {
+				func(ctx context.Context, after uuid.UUID) ([]store.StreamIssuesForBootstrapRow, error) {
 					return q.StreamIssuesForBootstrap(ctx, store.StreamIssuesForBootstrapParams{
 						WorkspaceID: p.WorkspaceID,
 						TeamIds:     teamIDs,
@@ -572,7 +606,9 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 						PageSize:    bootstrapPageSize,
 					})
 				},
-				func(i store.Issue) (uuid.UUID, any) { return i.ID, toIssue(i, teamKeys[i.TeamID]) },
+				func(i store.StreamIssuesForBootstrapRow) (uuid.UUID, any) {
+					return i.ID, toIssue(store.AsIssueRow(i), teamKeys[i.TeamID])
+				},
 			); err != nil {
 				return err
 			}
@@ -802,7 +838,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v13 adds view.projectId (attached project views as tabs).
 // v14 adds projectLabel and projectLabelLink (workspace taxonomy for projects).
 // v18 adds project update reminder cadence on workspace and per-project schedule overrides.
-const ClientSchemaVersion = 18
+// v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
+const ClientSchemaVersion = 19
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

@@ -177,6 +177,22 @@ type CreateDocumentInput struct {
 	Body      *string    `json:"body,omitempty"`
 }
 
+type CreateFormTemplateFieldInput struct {
+	FormTemplateID uuid.UUID             `json:"formTemplateId"`
+	FieldType      FormTemplateFieldType `json:"fieldType"`
+	Label          string                `json:"label"`
+	Description    *string               `json:"description,omitempty"`
+	Required       *bool                 `json:"required,omitempty"`
+	Config         json.RawMessage       `json:"config,omitempty"`
+}
+
+type CreateFormTemplateInput struct {
+	TeamID      *uuid.UUID      `json:"teamId,omitempty"`
+	Name        string          `json:"name"`
+	Description *string         `json:"description,omitempty"`
+	Properties  json.RawMessage `json:"properties,omitempty"`
+}
+
 type CreateInitiativeInput struct {
 	Name                  string                `json:"name"`
 	Description           *string               `json:"description,omitempty"`
@@ -214,6 +230,8 @@ type CreateIssueInput struct {
 	ParentID   *uuid.UUID  `json:"parentId,omitempty"`
 	LabelIds   []uuid.UUID `json:"labelIds,omitempty"`
 	TemplateID *uuid.UUID  `json:"templateId,omitempty"`
+	// Records which form template the issue was filed from.
+	FormTemplateID *uuid.UUID `json:"formTemplateId,omitempty"`
 	// Place the new issue directly below this one. Omit to append.
 	AfterIssueID       *uuid.UUID `json:"afterIssueId,omitempty"`
 	ProjectID          *uuid.UUID `json:"projectId,omitempty"`
@@ -430,6 +448,52 @@ type FavoritePayload struct {
 
 func (FavoritePayload) IsMutationResult() {}
 
+// Structured intake template. Fields are separate rows (`FormTemplateField`) replicated
+// alongside the template.
+type FormTemplate struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	// Null means the template is offered in every team.
+	TeamID      *uuid.UUID `json:"teamId,omitempty"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	// Default issue properties not captured by a field (assignee, status, labels, etc.).
+	Properties json.RawMessage `json:"properties"`
+	Position   string          `json:"position"`
+	CreatedBy  *uuid.UUID      `json:"createdBy,omitempty"`
+	CreatedAt  time.Time       `json:"createdAt"`
+	UpdatedAt  time.Time       `json:"updatedAt"`
+	ArchivedAt *time.Time      `json:"archivedAt,omitempty"`
+}
+
+type FormTemplateField struct {
+	ID             uuid.UUID             `json:"id"`
+	WorkspaceID    uuid.UUID             `json:"workspaceId"`
+	FormTemplateID uuid.UUID             `json:"formTemplateId"`
+	FieldType      FormTemplateFieldType `json:"fieldType"`
+	Label          string                `json:"label"`
+	Description    *string               `json:"description,omitempty"`
+	Required       bool                  `json:"required"`
+	SortOrder      string                `json:"sortOrder"`
+	Config         json.RawMessage       `json:"config"`
+	CreatedAt      time.Time             `json:"createdAt"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
+}
+
+type FormTemplateFieldPayload struct {
+	Version int                `json:"version"`
+	Field   *FormTemplateField `json:"field"`
+}
+
+func (FormTemplateFieldPayload) IsMutationResult() {}
+
+type FormTemplatePayload struct {
+	Version  int           `json:"version"`
+	Template *FormTemplate `json:"template"`
+}
+
+func (FormTemplatePayload) IsMutationResult() {}
+
 // A workspace objective grouping a manually curated set of projects.
 type Initiative struct {
 	ID                    uuid.UUID             `json:"id"`
@@ -541,6 +605,8 @@ type Issue struct {
 	SubIssueSortOrder *string `json:"subIssueSortOrder,omitempty"`
 	// Which template made this issue, for the question "is this template still worth having".
 	TemplateID *uuid.UUID `json:"templateId,omitempty"`
+	// Which form template made this issue, for intake reporting.
+	FormTemplateID *uuid.UUID `json:"formTemplateId,omitempty"`
 	// At most one project. Two projects on one issue is unrepresentable.
 	ProjectID *uuid.UUID `json:"projectId,omitempty"`
 	// A milestone implies its project.
@@ -1120,6 +1186,23 @@ type UpdateDocumentInput struct {
 	ID    uuid.UUID `json:"id"`
 	Title *string   `json:"title,omitempty"`
 	Body  *string   `json:"body,omitempty"`
+}
+
+type UpdateFormTemplateFieldInput struct {
+	ID          uuid.UUID              `json:"id"`
+	FieldType   *FormTemplateFieldType `json:"fieldType,omitempty"`
+	Label       *string                `json:"label,omitempty"`
+	Description *string                `json:"description,omitempty"`
+	Required    *bool                  `json:"required,omitempty"`
+	SortOrder   *string                `json:"sortOrder,omitempty"`
+	Config      json.RawMessage        `json:"config,omitempty"`
+}
+
+type UpdateFormTemplateInput struct {
+	ID          uuid.UUID       `json:"id"`
+	Name        *string         `json:"name,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	Properties  json.RawMessage `json:"properties,omitempty"`
 }
 
 type UpdateInitiativeInput struct {
@@ -1770,6 +1853,79 @@ func (e *FavoriteKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e FavoriteKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type FormTemplateFieldType string
+
+const (
+	FormTemplateFieldTypeText         FormTemplateFieldType = "text"
+	FormTemplateFieldTypeLongText     FormTemplateFieldType = "long_text"
+	FormTemplateFieldTypeDropdown     FormTemplateFieldType = "dropdown"
+	FormTemplateFieldTypeCheckboxes   FormTemplateFieldType = "checkboxes"
+	FormTemplateFieldTypeDate         FormTemplateFieldType = "date"
+	FormTemplateFieldTypeFileUpload   FormTemplateFieldType = "file_upload"
+	FormTemplateFieldTypeInstructions FormTemplateFieldType = "instructions"
+	FormTemplateFieldTypeLabelGroup   FormTemplateFieldType = "label_group"
+	FormTemplateFieldTypePriority     FormTemplateFieldType = "priority"
+	FormTemplateFieldTypeTitle        FormTemplateFieldType = "title"
+	FormTemplateFieldTypeDueDate      FormTemplateFieldType = "due_date"
+)
+
+var AllFormTemplateFieldType = []FormTemplateFieldType{
+	FormTemplateFieldTypeText,
+	FormTemplateFieldTypeLongText,
+	FormTemplateFieldTypeDropdown,
+	FormTemplateFieldTypeCheckboxes,
+	FormTemplateFieldTypeDate,
+	FormTemplateFieldTypeFileUpload,
+	FormTemplateFieldTypeInstructions,
+	FormTemplateFieldTypeLabelGroup,
+	FormTemplateFieldTypePriority,
+	FormTemplateFieldTypeTitle,
+	FormTemplateFieldTypeDueDate,
+}
+
+func (e FormTemplateFieldType) IsValid() bool {
+	switch e {
+	case FormTemplateFieldTypeText, FormTemplateFieldTypeLongText, FormTemplateFieldTypeDropdown, FormTemplateFieldTypeCheckboxes, FormTemplateFieldTypeDate, FormTemplateFieldTypeFileUpload, FormTemplateFieldTypeInstructions, FormTemplateFieldTypeLabelGroup, FormTemplateFieldTypePriority, FormTemplateFieldTypeTitle, FormTemplateFieldTypeDueDate:
+		return true
+	}
+	return false
+}
+
+func (e FormTemplateFieldType) String() string {
+	return string(e)
+}
+
+func (e *FormTemplateFieldType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = FormTemplateFieldType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid FormTemplateFieldType", str)
+	}
+	return nil
+}
+
+func (e FormTemplateFieldType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *FormTemplateFieldType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e FormTemplateFieldType) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

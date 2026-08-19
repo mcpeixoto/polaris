@@ -17,6 +17,8 @@ import {
   type IssueRelation,
   type IssueSubscription,
   type IssueTemplate,
+  type FormTemplate,
+  type FormTemplateField,
   type Initiative,
   type InitiativeProject,
   type ProjectUpdate,
@@ -89,8 +91,9 @@ import {
  * v13 adds view.projectId (attached project views as tabs).
  * v14 adds projectLabel and projectLabelLink (workspace taxonomy for projects).
  * v18 adds project update reminder cadence on workspace and per-project schedule overrides.
+ * v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
  */
-export const CLIENT_SCHEMA = 18;
+export const CLIENT_SCHEMA = 19;
 
 /**
  * One database per workspace per schema version.
@@ -167,6 +170,8 @@ interface PolarisSchema extends DBSchema {
   workflowState: { key: UUID; value: WorkflowState };
   label: { key: UUID; value: Label };
   issueTemplate: { key: UUID; value: IssueTemplate };
+  formTemplate: { key: UUID; value: FormTemplate };
+  formTemplateField: { key: UUID; value: FormTemplateField };
   projectStatus: { key: UUID; value: ProjectStatus };
   project: { key: UUID; value: Project };
   projectTeam: { key: UUID; value: ProjectTeam };

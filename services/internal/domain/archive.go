@@ -113,7 +113,7 @@ func (s *Service) autoCloseTeam(ctx context.Context, team store.Team, now time.T
 
 	closed := 0
 	for _, issue := range candidates {
-		skip, err := s.autoCloseBlocked(ctx, s.db.Queries(), issue, now)
+		skip, err := s.autoCloseBlocked(ctx, s.db.Queries(), store.AsIssueRow(issue), now)
 		if err != nil {
 			return closed, err
 		}
@@ -121,7 +121,7 @@ func (s *Service) autoCloseTeam(ctx context.Context, team store.Team, now time.T
 			continue
 		}
 		if err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
-			_, err := s.moveIssueToState(ctx, q, authz.SystemActor(), team, issue, dest, now, true)
+			_, err := s.moveIssueToState(ctx, q, authz.SystemActor(), team, store.AsIssueRow(issue), dest, now, true)
 			return err
 		}); err != nil {
 			return closed, err
@@ -131,7 +131,7 @@ func (s *Service) autoCloseTeam(ctx context.Context, team store.Team, now time.T
 	return closed, nil
 }
 
-func (s *Service) autoCloseBlocked(ctx context.Context, q *store.Queries, issue store.Issue, now time.Time) (bool, error) {
+func (s *Service) autoCloseBlocked(ctx context.Context, q *store.Queries, issue store.GetIssueRow, now time.Time) (bool, error) {
 	if issue.CycleID != nil {
 		cycle, err := q.GetCycle(ctx, *issue.CycleID)
 		if err != nil && !store.IsNotFound(err) {
@@ -203,7 +203,7 @@ func (s *Service) autoArchiveTeam(ctx context.Context, team store.Team, now time
 		if issue.ProjectID != nil {
 			continue
 		}
-		ok, err := s.issueGraphClear(ctx, s.db.Queries(), issue)
+		ok, err := s.issueGraphClear(ctx, s.db.Queries(), store.AsIssueRow(issue))
 		if err != nil {
 			return archived, err
 		}
@@ -211,7 +211,7 @@ func (s *Service) autoArchiveTeam(ctx context.Context, team store.Team, now time
 			continue
 		}
 		if err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
-			return s.archiveIssueLocked(ctx, q, team, issue, authz.SystemActor(), true)
+			return s.archiveIssueLocked(ctx, q, team, store.AsIssueRow(issue), authz.SystemActor(), true)
 		}); err != nil {
 			return archived, err
 		}
@@ -266,7 +266,7 @@ func (s *Service) autoArchiveProject(ctx context.Context, team store.Team, proje
 		if !isClosedCategory(st.Category) {
 			return 0, nil
 		}
-		ok, err := s.issueGraphClear(ctx, s.db.Queries(), issue)
+		ok, err := s.issueGraphClear(ctx, s.db.Queries(), store.AsIssueRow(issue))
 		if err != nil {
 			return 0, err
 		}
@@ -285,7 +285,7 @@ func (s *Service) autoArchiveProject(ctx context.Context, team store.Team, proje
 					return platform.Internal(err)
 				}
 			}
-			if err := s.archiveIssueLocked(ctx, q, issueTeam, issue, authz.SystemActor(), true); err != nil {
+			if err := s.archiveIssueLocked(ctx, q, issueTeam, store.AsIssueRow(issue), authz.SystemActor(), true); err != nil {
 				return err
 			}
 			n++
@@ -299,7 +299,7 @@ func (s *Service) autoArchiveProject(ctx context.Context, team store.Team, proje
 	return n, err
 }
 
-func (s *Service) issueGraphClear(ctx context.Context, q *store.Queries, issue store.Issue) (bool, error) {
+func (s *Service) issueGraphClear(ctx context.Context, q *store.Queries, issue store.GetIssueRow) (bool, error) {
 	if issue.ParentID != nil {
 		closed, err := s.issueIsClosed(ctx, q, *issue.ParentID)
 		if err != nil {
@@ -322,7 +322,7 @@ func (s *Service) hasOpenChildren(ctx context.Context, q *store.Queries, parentI
 		return false, platform.Internal(err)
 	}
 	for _, child := range children {
-		closed, err := s.issueRowClosed(ctx, q, child)
+		closed, err := s.issueRowClosed(ctx, q, store.AsIssueRow(child))
 		if err != nil {
 			return false, err
 		}
@@ -344,7 +344,7 @@ func (s *Service) issueIsClosed(ctx context.Context, q *store.Queries, id uuid.U
 	return s.issueRowClosed(ctx, q, row)
 }
 
-func (s *Service) issueRowClosed(ctx context.Context, q *store.Queries, row store.Issue) (bool, error) {
+func (s *Service) issueRowClosed(ctx context.Context, q *store.Queries, row store.GetIssueRow) (bool, error) {
 	if row.ArchivedAt != nil {
 		return true, nil
 	}
@@ -388,15 +388,15 @@ func calendarDay(t time.Time) time.Time {
 
 func (s *Service) moveIssueToState(
 	ctx context.Context, q *store.Queries, actor authz.Actor, team store.Team,
-	before store.Issue, dest store.WorkflowState, now time.Time, autoClosed bool,
-) (store.Issue, error) {
+	before store.GetIssueRow, dest store.WorkflowState, now time.Time, autoClosed bool,
+) (store.GetIssueRow, error) {
 	sortOrder, err := s.sortOrderFor(ctx, q, before.TeamID, dest.ID, nil)
 	if err != nil {
-		return store.Issue{}, err
+		return store.GetIssueRow{}, err
 	}
 	oldState, err := q.GetWorkflowState(ctx, before.StateID)
 	if err != nil {
-		return store.Issue{}, platform.Internal(err)
+		return store.GetIssueRow{}, platform.Internal(err)
 	}
 
 	params := store.UpdateIssueParams{
@@ -414,29 +414,29 @@ func (s *Service) moveIssueToState(
 	}
 	row, err := q.UpdateIssue(ctx, params)
 	if err != nil {
-		return store.Issue{}, platform.Internal(err)
+		return store.GetIssueRow{}, platform.Internal(err)
 	}
 
-	out := toIssue(row, team.Key)
+	out := toIssue(store.AsIssueRow(row), team.Key)
 	if _, err := s.em.Emit(ctx, q, team.WorkspaceID, actor, Change{
 		EntityType: "issue", EntityID: row.ID, Op: OpUpsert, TeamID: &row.TeamID,
 		Scope:         authz.TeamScope(row.TeamID, team.Private),
 		Payload:       out,
 		ChangedFields: []string{notify.FieldState},
 	}); err != nil {
-		return store.Issue{}, err
+		return store.GetIssueRow{}, err
 	}
 	if err := s.em.History(ctx, q, team.WorkspaceID, actor, before.CreatedAt, HistoryEntry{
 		IssueID: row.ID, Kind: "state", FromValue: oldState.Name, ToValue: dest.Name,
 	}); err != nil {
-		return store.Issue{}, err
+		return store.GetIssueRow{}, err
 	}
-	return row, nil
+	return store.AsIssueRow(row), nil
 }
 
 func (s *Service) applyFamilyClose(
 	ctx context.Context, q *store.Queries, p *authz.Principal, team store.Team,
-	issue store.Issue, newState *store.WorkflowState, visited map[uuid.UUID]bool,
+	issue store.GetIssueRow, newState *store.WorkflowState, visited map[uuid.UUID]bool,
 ) error {
 	if newState == nil || !isClosedCategory(newState.Category) {
 		return nil
@@ -452,7 +452,7 @@ func (s *Service) applyFamilyClose(
 			return platform.Internal(err)
 		}
 		for _, child := range children {
-			closed, err := s.issueRowClosed(ctx, q, child)
+			closed, err := s.issueRowClosed(ctx, q, store.AsIssueRow(child))
 			if err != nil {
 				return err
 			}
@@ -470,7 +470,7 @@ func (s *Service) applyFamilyClose(
 			if err != nil {
 				return err
 			}
-			row, err := s.moveIssueToState(ctx, q, p.Actor(), childTeam, child, dest, time.Now(), false)
+			row, err := s.moveIssueToState(ctx, q, p.Actor(), childTeam, store.AsIssueRow(child), dest, time.Now(), false)
 			if err != nil {
 				return err
 			}
@@ -520,7 +520,7 @@ func (s *Service) applyFamilyClose(
 }
 
 func (s *Service) archiveIssueLocked(
-	ctx context.Context, q *store.Queries, team store.Team, before store.Issue, actor authz.Actor, archived bool,
+	ctx context.Context, q *store.Queries, team store.Team, before store.GetIssueRow, actor authz.Actor, archived bool,
 ) error {
 	if archived {
 		if err := q.ArchiveIssue(ctx, before.ID); err != nil {
@@ -545,7 +545,7 @@ func (s *Service) archiveIssueLocked(
 		if err != nil {
 			return platform.Internal(err)
 		}
-		change.Payload = toIssue(after, team.Key)
+		change.Payload = toIssue(store.AsIssueRow(after), team.Key)
 	}
 	if _, err := s.em.Emit(ctx, q, team.WorkspaceID, actor, change); err != nil {
 		return err
@@ -657,7 +657,7 @@ func (s *Service) ListArchivedIssues(ctx context.Context, p *authz.Principal, te
 	}
 	out := make([]model.Issue, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, toIssue(r, team.Key))
+		out = append(out, toIssue(store.AsIssueRow(r), team.Key))
 	}
 	return out, nil
 }

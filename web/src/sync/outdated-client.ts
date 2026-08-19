@@ -8,8 +8,7 @@
  * trap the user on a blank flash forever.
  */
 
-export const OUTDATED_CLIENT_MESSAGE =
-  'this version of the app is out of date — reload to update';
+export const OUTDATED_CLIENT_MESSAGE = 'this version of the app is out of date — reload to update';
 
 const RELOAD_ONCE_KEY = 'polaris.schemaReload';
 

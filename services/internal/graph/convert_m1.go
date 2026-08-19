@@ -452,6 +452,54 @@ func toIssueTemplates(rows []model.IssueTemplate) []generated.IssueTemplate {
 	return out
 }
 
+func toFormTemplate(t model.FormTemplate) generated.FormTemplate {
+	return generated.FormTemplate{
+		ID:          t.ID,
+		WorkspaceID: t.WorkspaceID,
+		TeamID:      t.TeamID,
+		Name:        t.Name,
+		Description: t.Description,
+		Properties:  jsonOrEmptyObject(t.Properties),
+		Position:    t.Position,
+		CreatedBy:   t.CreatedBy,
+		CreatedAt:   t.CreatedAt,
+		UpdatedAt:   t.UpdatedAt,
+		ArchivedAt:  t.ArchivedAt,
+	}
+}
+
+func toFormTemplates(rows []model.FormTemplate) []generated.FormTemplate {
+	out := make([]generated.FormTemplate, 0, len(rows))
+	for _, t := range rows {
+		out = append(out, toFormTemplate(t))
+	}
+	return out
+}
+
+func toFormTemplateField(f model.FormTemplateField) generated.FormTemplateField {
+	return generated.FormTemplateField{
+		ID:             f.ID,
+		WorkspaceID:    f.WorkspaceID,
+		FormTemplateID: f.FormTemplateID,
+		FieldType:      generated.FormTemplateFieldType(f.FieldType),
+		Label:          f.Label,
+		Description:    f.Description,
+		Required:       f.Required,
+		SortOrder:      f.SortOrder,
+		Config:         jsonOrEmptyObject(f.Config),
+		CreatedAt:      f.CreatedAt,
+		UpdatedAt:      f.UpdatedAt,
+	}
+}
+
+func toFormTemplateFields(rows []model.FormTemplateField) []generated.FormTemplateField {
+	out := make([]generated.FormTemplateField, 0, len(rows))
+	for _, f := range rows {
+		out = append(out, toFormTemplateField(f))
+	}
+	return out
+}
+
 // --------------------------------------------------------------------------------- api keys
 
 // toAPIKey never carries the token, because model.APIKey has no field for one.

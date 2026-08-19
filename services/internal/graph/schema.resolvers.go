@@ -39,6 +39,7 @@ func (r *mutationResolver) CreateIssue(ctx context.Context, input generated.Crea
 		ParentID:           input.ParentID,
 		LabelIDs:           input.LabelIds,
 		TemplateID:         input.TemplateID,
+		FormTemplateID:     input.FormTemplateID,
 		ProjectID:          input.ProjectID,
 		ProjectMilestoneID: input.ProjectMilestoneID,
 		CycleID:            input.CycleID,
@@ -1724,6 +1725,118 @@ func (r *mutationResolver) ArchiveIssueTemplate(ctx context.Context, id uuid.UUI
 	return &generated.DeletePayload{Version: int(version), ID: templateID}, nil
 }
 
+// CreateFormTemplate is the resolver for the createFormTemplate field.
+func (r *mutationResolver) CreateFormTemplate(ctx context.Context, input generated.CreateFormTemplateInput) (*generated.FormTemplatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	template, version, err := r.Svc.CreateFormTemplate(ctx, p, domain.CreateFormTemplateInput{
+		TeamID:      input.TeamID,
+		Name:        input.Name,
+		Description: input.Description,
+		Properties:  input.Properties,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toFormTemplate(template)
+	return &generated.FormTemplatePayload{Version: int(version), Template: &out}, nil
+}
+
+// UpdateFormTemplate is the resolver for the updateFormTemplate field.
+func (r *mutationResolver) UpdateFormTemplate(ctx context.Context, input generated.UpdateFormTemplateInput) (*generated.FormTemplatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	template, version, err := r.Svc.UpdateFormTemplate(ctx, p, domain.UpdateFormTemplateInput{
+		ID:          input.ID,
+		Name:        input.Name,
+		Description: input.Description,
+		Properties:  input.Properties,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toFormTemplate(template)
+	return &generated.FormTemplatePayload{Version: int(version), Template: &out}, nil
+}
+
+// ArchiveFormTemplate is the resolver for the archiveFormTemplate field.
+func (r *mutationResolver) ArchiveFormTemplate(ctx context.Context, id uuid.UUID, archived bool) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	templateID, version, err := r.Svc.ArchiveFormTemplate(ctx, p, id, archived)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: templateID}, nil
+}
+
+// CreateFormTemplateField is the resolver for the createFormTemplateField field.
+func (r *mutationResolver) CreateFormTemplateField(ctx context.Context, input generated.CreateFormTemplateFieldInput) (*generated.FormTemplateFieldPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	field, version, err := r.Svc.CreateFormTemplateField(ctx, p, domain.CreateFormTemplateFieldInput{
+		FormTemplateID: input.FormTemplateID,
+		FieldType:      model.FormTemplateFieldType(input.FieldType),
+		Label:          input.Label,
+		Description:    input.Description,
+		Required:       deref(input.Required),
+		Config:         input.Config,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toFormTemplateField(field)
+	return &generated.FormTemplateFieldPayload{Version: int(version), Field: &out}, nil
+}
+
+// UpdateFormTemplateField is the resolver for the updateFormTemplateField field.
+func (r *mutationResolver) UpdateFormTemplateField(ctx context.Context, input generated.UpdateFormTemplateFieldInput) (*generated.FormTemplateFieldPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	var fieldType *model.FormTemplateFieldType
+	if input.FieldType != nil {
+		ft := model.FormTemplateFieldType(*input.FieldType)
+		fieldType = &ft
+	}
+	field, version, err := r.Svc.UpdateFormTemplateField(ctx, p, domain.UpdateFormTemplateFieldInput{
+		ID:          input.ID,
+		FieldType:   fieldType,
+		Label:       input.Label,
+		Description: input.Description,
+		Required:    input.Required,
+		SortOrder:   input.SortOrder,
+		Config:      input.Config,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toFormTemplateField(field)
+	return &generated.FormTemplateFieldPayload{Version: int(version), Field: &out}, nil
+}
+
+// DeleteFormTemplateField is the resolver for the deleteFormTemplateField field.
+func (r *mutationResolver) DeleteFormTemplateField(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	fieldID, version, err := r.Svc.DeleteFormTemplateField(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: fieldID}, nil
+}
+
 // CreateProject is the resolver for the createProject field.
 func (r *mutationResolver) CreateProject(ctx context.Context, input generated.CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectPayload, error) {
 	p, err := principalFrom(ctx)
@@ -2642,6 +2755,46 @@ func (r *queryResolver) IssueTemplate(ctx context.Context, id uuid.UUID) (*gener
 	}
 	out := toIssueTemplate(template)
 	return &out, nil
+}
+
+// FormTemplates is the resolver for the formTemplates field.
+func (r *queryResolver) FormTemplates(ctx context.Context, teamID *uuid.UUID) ([]generated.FormTemplate, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	templates, err := r.Svc.ListFormTemplates(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toFormTemplates(templates), nil
+}
+
+// FormTemplate is the resolver for the formTemplate field.
+func (r *queryResolver) FormTemplate(ctx context.Context, id uuid.UUID) (*generated.FormTemplate, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	template, err := r.Svc.GetFormTemplate(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toFormTemplate(template)
+	return &out, nil
+}
+
+// FormTemplateFields is the resolver for the formTemplateFields field.
+func (r *queryResolver) FormTemplateFields(ctx context.Context, formTemplateID uuid.UUID) ([]generated.FormTemplateField, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	fields, err := r.Svc.ListFormTemplateFields(ctx, p, formTemplateID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toFormTemplateFields(fields), nil
 }
 
 // Projects is the resolver for the projects field.

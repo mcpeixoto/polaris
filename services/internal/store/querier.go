@@ -70,6 +70,7 @@ type Querier interface {
 	AppendIssueHistory(ctx context.Context, arg AppendIssueHistoryParams) error
 	ArchiveCycle(ctx context.Context, id uuid.UUID) error
 	ArchiveDocument(ctx context.Context, id uuid.UUID) error
+	ArchiveFormTemplate(ctx context.Context, id uuid.UUID) (ArchiveFormTemplateRow, error)
 	ArchiveInitiative(ctx context.Context, id uuid.UUID) error
 	ArchiveIssue(ctx context.Context, id uuid.UUID) error
 	// Archived rather than deleted: issue.template_id references this row, and the question
@@ -115,7 +116,7 @@ type Querier interface {
 	// mean two hundred locks and two hundred round trips, so the rule that started_at is never
 	// cleared once set is expressed in the statement instead. Cycle time is computed from it.
 	//
-	BulkUpdateIssues(ctx context.Context, arg BulkUpdateIssuesParams) ([]Issue, error)
+	BulkUpdateIssues(ctx context.Context, arg BulkUpdateIssuesParams) ([]BulkUpdateIssuesRow, error)
 	// BumpWorkspaceVersion is the serialisation point of the entire sync engine.
 	//
 	// The UPDATE takes a row lock held until the transaction commits, so writes to one
@@ -184,6 +185,7 @@ type Querier interface {
 	// taken over issues that are still in flight rather than over relations.
 	//
 	CountBlockingIssues(ctx context.Context, relatedIssueID uuid.UUID) (int64, error)
+	CountIssuesFromFormTemplate(ctx context.Context, formTemplateID *uuid.UUID) (int64, error)
 	// CountIssuesFromTemplate is the only reason issue.template_id exists.
 	//
 	CountIssuesFromTemplate(ctx context.Context, templateID *uuid.UUID) (int64, error)
@@ -251,6 +253,8 @@ type Querier interface {
 	// Cycles. Column lists follow the table order, same rule as issues.sql.
 	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
+	CreateFormTemplate(ctx context.Context, arg CreateFormTemplateParams) (CreateFormTemplateRow, error)
+	CreateFormTemplateField(ctx context.Context, arg CreateFormTemplateFieldParams) (FormTemplateField, error)
 	CreateInitiative(ctx context.Context, arg CreateInitiativeParams) (Initiative, error)
 	CreateInitiativeProject(ctx context.Context, arg CreateInitiativeProjectParams) (InitiativeProject, error)
 	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
@@ -260,7 +264,7 @@ type Querier interface {
 	// title and description on the wire a second time, once per bootstrap row. In the table's
 	// order, because that is the rule that makes a missing column obvious: a new column lands
 	// at the end, and so does its addition here.
-	CreateIssue(ctx context.Context, arg CreateIssueParams) (Issue, error)
+	CreateIssue(ctx context.Context, arg CreateIssueParams) (CreateIssueRow, error)
 	// Only one row exists per link. "Blocked by" is a `blocks` row read from the other end,
 	// and `related` is stored with the smaller id first, so the reverse listing below is not a
 	// second table to keep in step — it is the same rows, read backwards.
@@ -303,6 +307,7 @@ type Querier interface {
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
+	DeleteFormTemplateField(ctx context.Context, id uuid.UUID) (FormTemplateField, error)
 	DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
 	DeleteIssueRelation(ctx context.Context, id uuid.UUID) (IssueRelation, error)
 	// Soft, not a DELETE: the unique index on (user_id, group_key) is what makes the fan-out
@@ -363,14 +368,16 @@ type Querier interface {
 	GetDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	GetDocumentForUpdate(ctx context.Context, id uuid.UUID) (Document, error)
 	GetFavoritePositionAfter(ctx context.Context, arg GetFavoritePositionAfterParams) (string, error)
+	GetFormTemplate(ctx context.Context, id uuid.UUID) (GetFormTemplateRow, error)
+	GetFormTemplateField(ctx context.Context, id uuid.UUID) (FormTemplateField, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
 	GetInitiative(ctx context.Context, id uuid.UUID) (Initiative, error)
 	GetInitiativeForUpdate(ctx context.Context, id uuid.UUID) (Initiative, error)
 	GetInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
 	GetInitiativeProjectByPair(ctx context.Context, arg GetInitiativeProjectByPairParams) (InitiativeProject, error)
 	GetInviteByTokenHash(ctx context.Context, tokenHash []byte) (Invite, error)
-	GetIssue(ctx context.Context, id uuid.UUID) (Issue, error)
-	GetIssueByTeamAndNumber(ctx context.Context, arg GetIssueByTeamAndNumberParams) (Issue, error)
+	GetIssue(ctx context.Context, id uuid.UUID) (GetIssueRow, error)
+	GetIssueByTeamAndNumber(ctx context.Context, arg GetIssueByTeamAndNumberParams) (GetIssueByTeamAndNumberRow, error)
 	// GetIssueExists answers "is this id taken", for the client-minted-id path.
 	//
 	// Deliberately not GetIssue: that filters deleted_at IS NULL, and a soft-deleted issue's
@@ -387,7 +394,7 @@ type Querier interface {
 	// path so that read-modify-write on timestamps (started_at, completed_at) cannot
 	// interleave with a concurrent status change and lose one of them.
 	//
-	GetIssueForUpdate(ctx context.Context, id uuid.UUID) (Issue, error)
+	GetIssueForUpdate(ctx context.Context, id uuid.UUID) (GetIssueForUpdateRow, error)
 	GetIssueRelation(ctx context.Context, id uuid.UUID) (IssueRelation, error)
 	GetIssueSubscription(ctx context.Context, arg GetIssueSubscriptionParams) (IssueSubscription, error)
 	GetIssueTemplate(ctx context.Context, id uuid.UUID) (GetIssueTemplateRow, error)
@@ -401,6 +408,7 @@ type Querier interface {
 	//
 	GetLabelPositionBefore(ctx context.Context, arg GetLabelPositionBeforeParams) (string, error)
 	GetLastFavoritePosition(ctx context.Context, userID uuid.UUID) (string, error)
+	GetLastFormTemplatePosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetLastIssueTemplatePosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetLastLabelPosition(ctx context.Context, arg GetLastLabelPositionParams) (string, error)
 	GetLastProjectLabelPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -472,6 +480,7 @@ type Querier interface {
 	LastCycleNumber(ctx context.Context, teamID uuid.UUID) (int32, error)
 	LastDocumentSortOrderForProject(ctx context.Context, projectID *uuid.UUID) (string, error)
 	LastDocumentSortOrderForTeam(ctx context.Context, teamID uuid.UUID) (string, error)
+	LastFormTemplateFieldSortOrder(ctx context.Context, formTemplateID uuid.UUID) (string, error)
 	LastInitiativeSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastProjectMilestoneSortOrder(ctx context.Context, projectID uuid.UUID) (string, error)
 	LastProjectSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -479,7 +488,7 @@ type Querier interface {
 	LastProjectStatusPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	ListAPIKeysForUser(ctx context.Context, userID uuid.UUID) ([]ListAPIKeysForUserRow, error)
 	ListArchivedCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
-	ListArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]Issue, error)
+	ListArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]ListArchivedIssuesForTeamRow, error)
 	// Archived projects linked to this team. A project belongs to the workspace, but the
 	// archives page is per-team, so the join is the same visibility rule the live list uses.
 	//
@@ -494,7 +503,7 @@ type Querier interface {
 	// become "3 of 4" because somebody archived one, which would make a finished parent look
 	// unfinished for no visible reason.
 	//
-	ListChildIssues(ctx context.Context, parentID *uuid.UUID) ([]Issue, error)
+	ListChildIssues(ctx context.Context, parentID *uuid.UUID) ([]ListChildIssuesRow, error)
 	// ListChildIssuesForParents is ListChildIssues for a whole page of parents at once.
 	//
 	// One statement rather than one per row, and that is the entire reason it exists: a list
@@ -505,15 +514,15 @@ type Querier interface {
 	//
 	// Ordered by parent first so the caller can group the rows without sorting them again.
 	//
-	ListChildIssuesForParents(ctx context.Context, arg ListChildIssuesForParentsParams) ([]Issue, error)
+	ListChildIssuesForParents(ctx context.Context, arg ListChildIssuesForParentsParams) ([]ListChildIssuesForParentsRow, error)
 	ListCommentsForIssue(ctx context.Context, issueID uuid.UUID) ([]Comment, error)
 	// Cycle-less issues in a given category, for auto-add.
-	ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyclelessIssuesByCategoryParams) ([]Issue, error)
+	ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyclelessIssuesByCategoryParams) ([]ListCyclelessIssuesByCategoryRow, error)
 	ListCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
 	// ListDeletedIssues is the "recently deleted" screen. Ordered by deletion time rather than
 	// by sort_order, because the only question being asked here is "what did I just lose".
 	//
-	ListDeletedIssues(ctx context.Context, arg ListDeletedIssuesParams) ([]Issue, error)
+	ListDeletedIssues(ctx context.Context, arg ListDeletedIssuesParams) ([]ListDeletedIssuesRow, error)
 	ListDeletedProjects(ctx context.Context, arg ListDeletedProjectsParams) ([]Project, error)
 	// ---------------------------------------------------------------------------------------
 	// Email delivery.
@@ -576,6 +585,9 @@ type Querier interface {
 	// its own owner's scope.
 	//
 	ListFavoritesForTarget(ctx context.Context, arg ListFavoritesForTargetParams) ([]Favorite, error)
+	ListFormTemplateFields(ctx context.Context, formTemplateID uuid.UUID) ([]FormTemplateField, error)
+	ListFormTemplatesForTeam(ctx context.Context, arg ListFormTemplatesForTeamParams) ([]ListFormTemplatesForTeamRow, error)
+	ListFormTemplatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListFormTemplatesInWorkspaceRow, error)
 	ListInitiativeProjectIDs(ctx context.Context, initiativeID uuid.UUID) ([]uuid.UUID, error)
 	ListInitiativeProjects(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeProject, error)
 	ListInitiativesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Initiative, error)
@@ -637,12 +649,12 @@ type Querier interface {
 	// exists to close. Archived issues are included — an issue reached by id is reachable
 	// whether or not it is on a board, which is the same rule GetIssue follows.
 	//
-	ListIssuesByIDs(ctx context.Context, arg ListIssuesByIDsParams) ([]Issue, error)
+	ListIssuesByIDs(ctx context.Context, arg ListIssuesByIDsParams) ([]ListIssuesByIDsRow, error)
 	// ListIssuesForProject is the project's Issues tab. Live issues only; archived and
 	// deleted stay off the board the same way they stay off a team list.
 	//
-	ListIssuesForProject(ctx context.Context, projectID *uuid.UUID) ([]Issue, error)
-	ListIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]Issue, error)
+	ListIssuesForProject(ctx context.Context, projectID *uuid.UUID) ([]ListIssuesForProjectRow, error)
+	ListIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]ListIssuesForTeamRow, error)
 	// ListLabelsForTeam is what the label picker on an issue may offer: the workspace's own
 	// labels plus that one team's. A label from another team is not merely hidden here — the
 	// issue_label trigger rejects it — so this list and the write rule agree by construction.
@@ -670,7 +682,7 @@ type Querier interface {
 	// the numeric order puts unprioritised work at the top, and the display order is a client
 	// concern the replica already implements. This only has to be stable and useful.
 	//
-	ListMyIssues(ctx context.Context, arg ListMyIssuesParams) ([]Issue, error)
+	ListMyIssues(ctx context.Context, arg ListMyIssuesParams) ([]ListMyIssuesRow, error)
 	// ListNotifications is the inbox. The two flags are passed rather than compiled into
 	// separate queries so that "unread only" and "everything" cannot drift apart in what they
 	// consider deleted or snoozed.
@@ -694,7 +706,7 @@ type Querier interface {
 	//
 	ListNotificationsForIssue(ctx context.Context, arg ListNotificationsForIssueParams) ([]Notification, error)
 	// Open work in a closing cycle: unstarted and started, not backlog/triage/canceled/completed.
-	ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID) ([]Issue, error)
+	ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID) ([]ListOpenIssuesInCycleRow, error)
 	ListPendingInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
 	ListProjectDependenciesBlockedBy(ctx context.Context, blockedProjectID uuid.UUID) ([]ProjectDependency, error)
 	ListProjectDependenciesBlocking(ctx context.Context, blockingProjectID uuid.UUID) ([]ProjectDependency, error)
@@ -718,7 +730,7 @@ type Querier interface {
 	// Stale closed work for auto-archive. The domain layer still refuses a row whose
 	// parent, children or project would leave the graph inconsistent.
 	//
-	ListStaleClosedIssues(ctx context.Context, arg ListStaleClosedIssuesParams) ([]Issue, error)
+	ListStaleClosedIssues(ctx context.Context, arg ListStaleClosedIssuesParams) ([]ListStaleClosedIssuesRow, error)
 	// Live projects on this team in a completed/canceled status, stale enough to consider.
 	//
 	ListStaleClosedProjectsForTeam(ctx context.Context, arg ListStaleClosedProjectsForTeamParams) ([]Project, error)
@@ -731,7 +743,7 @@ type Querier interface {
 	// are graph questions a single WHERE cannot answer without lying about a parent in
 	// another team.
 	//
-	ListStaleOpenIssues(ctx context.Context, arg ListStaleOpenIssuesParams) ([]Issue, error)
+	ListStaleOpenIssues(ctx context.Context, arg ListStaleOpenIssuesParams) ([]ListStaleOpenIssuesRow, error)
 	// ListTeamIDsForUser resolves a session's visibility set. Called on every socket connect
 	// and on every permission change, so it must stay an index-only scan on
 	// team_membership_user_idx.
@@ -902,7 +914,7 @@ type Querier interface {
 	// the name of somebody who deleted it once and was overruled, which is a fact the activity
 	// feed already holds and this column would then contradict on the next delete.
 	//
-	RestoreIssue(ctx context.Context, arg RestoreIssueParams) (Issue, error)
+	RestoreIssue(ctx context.Context, arg RestoreIssueParams) (RestoreIssueRow, error)
 	RestoreProject(ctx context.Context, arg RestoreProjectParams) (Project, error)
 	// Scoped by user_id as well as id: a key acts as its owner, so only its owner may retire
 	// it, and the rule is expressed where it cannot be skipped.
@@ -934,7 +946,7 @@ type Querier interface {
 	SetCommentResolution(ctx context.Context, arg SetCommentResolutionParams) (Comment, error)
 	SetDefaultWorkflowState(ctx context.Context, id uuid.UUID) error
 	SetIssueCycle(ctx context.Context, arg SetIssueCycleParams) error
-	SetIssueSnooze(ctx context.Context, arg SetIssueSnoozeParams) (Issue, error)
+	SetIssueSnooze(ctx context.Context, arg SetIssueSnoozeParams) (SetIssueSnoozeRow, error)
 	// SetIssueSubscription is the button. This is the one place `unsubscribed` may change,
 	// because this is the one place the user said so.
 	//
@@ -996,6 +1008,8 @@ type Querier interface {
 	// yours to look at), so this does too, and only a deleted one is dropped.
 	//
 	StreamFavoritesForBootstrap(ctx context.Context, arg StreamFavoritesForBootstrapParams) ([]Favorite, error)
+	StreamFormTemplateFieldsForBootstrap(ctx context.Context, arg StreamFormTemplateFieldsForBootstrapParams) ([]FormTemplateField, error)
+	StreamFormTemplatesForBootstrap(ctx context.Context, arg StreamFormTemplatesForBootstrapParams) ([]StreamFormTemplatesForBootstrapRow, error)
 	// StreamInitiativeProjectsForBootstrap: both the initiative and the project must be visible.
 	//
 	StreamInitiativeProjectsForBootstrap(ctx context.Context, arg StreamInitiativeProjectsForBootstrapParams) ([]InitiativeProject, error)
@@ -1049,7 +1063,7 @@ type Querier interface {
 	// effectively creation order) and keyset-paginated: OFFSET would degrade quadratically
 	// on a workspace with a hundred thousand issues, which is exactly where it matters.
 	//
-	StreamIssuesForBootstrap(ctx context.Context, arg StreamIssuesForBootstrapParams) ([]Issue, error)
+	StreamIssuesForBootstrap(ctx context.Context, arg StreamIssuesForBootstrapParams) ([]StreamIssuesForBootstrapRow, error)
 	// StreamLabelsForBootstrap feeds the initial snapshot, and its predicate is
 	// requireLabelScope's written out in SQL: a label with no team is workspace-scoped and
 	// reaches every non-guest, and a team's label reaches that team's members. Those are the
@@ -1156,6 +1170,7 @@ type Querier interface {
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error
 	UnarchiveCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
 	UnarchiveDocument(ctx context.Context, id uuid.UUID) (Document, error)
+	UnarchiveFormTemplate(ctx context.Context, id uuid.UUID) (UnarchiveFormTemplateRow, error)
 	UnarchiveInitiative(ctx context.Context, id uuid.UUID) (Initiative, error)
 	UnarchiveIssue(ctx context.Context, id uuid.UUID) error
 	// UnarchiveIssueTemplate returns the row for the reason UnarchiveLabel does: the archive
@@ -1187,8 +1202,10 @@ type Querier interface {
 	UpdateAttachment(ctx context.Context, arg UpdateAttachmentParams) (Attachment, error)
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
+	UpdateFormTemplate(ctx context.Context, arg UpdateFormTemplateParams) (UpdateFormTemplateRow, error)
+	UpdateFormTemplateField(ctx context.Context, arg UpdateFormTemplateFieldParams) (FormTemplateField, error)
 	UpdateInitiative(ctx context.Context, arg UpdateInitiativeParams) (Initiative, error)
-	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue, error)
+	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (UpdateIssueRow, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error
 	UpdateIssueTemplate(ctx context.Context, arg UpdateIssueTemplateParams) (UpdateIssueTemplateRow, error)
 	UpdateLabel(ctx context.Context, arg UpdateLabelParams) (UpdateLabelRow, error)

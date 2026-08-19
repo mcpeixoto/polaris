@@ -41,12 +41,12 @@ var webhookRetrySchedule = []time.Duration{time.Minute, time.Hour, 6 * time.Hour
 
 // The GraphQL / settings names, mapped from change_log.entity_type.
 var webhookChangeTypes = map[string]string{
-	"issue":       "Issue",
-	"comment":     "Comment",
-	"issueLabel":  "IssueLabel",
-	"attachment":  "Attachment",
-	"project":     "Project",
-	"cycle":       "Cycle",
+	"issue":      "Issue",
+	"comment":    "Comment",
+	"issueLabel": "IssueLabel",
+	"attachment": "Attachment",
+	"project":    "Project",
+	"cycle":      "Cycle",
 }
 
 var webhookAllowedTypes = map[string]bool{

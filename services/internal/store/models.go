@@ -170,6 +170,34 @@ type Favorite struct {
 	UpdatedAt   time.Time
 }
 
+type FormTemplate struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	Name        string
+	Description *string
+	Properties  json.RawMessage
+	Position    string
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ArchivedAt  *time.Time
+}
+
+type FormTemplateField struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	FormTemplateID uuid.UUID
+	FieldType      string
+	Label          string
+	Description    *string
+	Required       bool
+	SortOrder      string
+	Config         json.RawMessage
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type IdempotencyKey struct {
 	ClientID    uuid.UUID
 	OpID        uuid.UUID
@@ -256,6 +284,7 @@ type Issue struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	FormTemplateID     *uuid.UUID
 }
 
 type IssueHistory struct {

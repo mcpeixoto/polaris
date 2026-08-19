@@ -487,7 +487,7 @@ func setIssueCycle(
 		Op:            OpUpsert,
 		TeamID:        &team.ID,
 		Scope:         authz.TeamScope(team.ID, team.Private),
-		Payload:       toIssue(row, team.Key),
+		Payload:       toIssue(store.AsIssueRow(row), team.Key),
 		ChangedFields: []string{"cycle_id"},
 	}, nil
 }

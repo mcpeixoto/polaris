@@ -58,6 +58,10 @@ import { useViewerId } from '~/hooks/useViewer';
 import type { IssueTemplate, StateCategory, Store, TemplateProperties, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './Templates.module.css';
+import { FormTemplatesPanel } from '~/features/form-templates/FormTemplatesPanel';
+
+/** Which template family the settings screen is editing. */
+type TemplateKind = 'standard' | 'form';
 
 /** The scope key a workspace template carries, mirroring the label screen's sentinel. */
 const WORKSPACE_SCOPE = 'workspace';
@@ -96,6 +100,7 @@ type Editing =
 export function Templates() {
   const engine = useEngine();
   const viewerId = useViewerId();
+  const [kind, setKind] = useState<TemplateKind>('standard');
   const [editing, setEditing] = useState<Editing | null>(null);
   const [archiving, setArchiving] = useState<TemplateRow | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
@@ -173,97 +178,131 @@ export function Templates() {
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.title}>Templates</h1>
+        <div className={styles.tabs} role="tablist" aria-label="Template kind">
+          <Button
+            variant={kind === 'standard' ? 'primary' : 'ghost'}
+            role="tab"
+            aria-selected={kind === 'standard'}
+            onClick={() => {
+              setKind('standard');
+              setEditing(null);
+            }}
+          >
+            Standard
+          </Button>
+          <Button
+            variant={kind === 'form' ? 'primary' : 'ghost'}
+            role="tab"
+            aria-selected={kind === 'form'}
+            onClick={() => {
+              setKind('form');
+              setEditing(null);
+            }}
+          >
+            Form
+          </Button>
+        </div>
       </header>
 
-      <div className={styles.body}>
-        {grouped.map((scope) => (
-          <section key={scope.id} className={styles.section} aria-labelledby={`scope-${scope.id}`}>
-            <h2 className={styles.sectionTitle} id={`scope-${scope.id}`}>
-              {scope.label}
-              {scope.teamId === undefined ? <Badge tone="accent">Every team</Badge> : null}
-            </h2>
-            <p className={styles.sectionHint}>
-              {scope.teamId === undefined
-                ? 'Offered in every team. It can prefill a priority, an estimate, a person and the workspace’s own labels — never a status, because a status belongs to one team.'
-                : `Offered only when filing an issue in ${scope.label}. It can prefill that team’s statuses and labels.`}
-            </p>
+      {kind === 'form' ? (
+        <FormTemplatesPanel />
+      ) : (
+        <>
+          <div className={styles.body}>
+            {grouped.map((scope) => (
+              <section
+                key={scope.id}
+                className={styles.section}
+                aria-labelledby={`scope-${scope.id}`}
+              >
+                <h2 className={styles.sectionTitle} id={`scope-${scope.id}`}>
+                  {scope.label}
+                  {scope.teamId === undefined ? <Badge tone="accent">Every team</Badge> : null}
+                </h2>
+                <p className={styles.sectionHint}>
+                  {scope.teamId === undefined
+                    ? 'Offered in every team. It can prefill a priority, an estimate, a person and the workspace’s own labels — never a status, because a status belongs to one team.'
+                    : `Offered only when filing an issue in ${scope.label}. It can prefill that team’s statuses and labels.`}
+                </p>
 
-            {editing?.kind === 'create' && editing.scopeId === scope.id ? (
-              <TemplateEditor
-                key={`new-${scope.id}`}
-                scope={scope}
-                template={null}
-                onSave={(draft) => save(scope, null, draft)}
-                onCancel={() => setEditing(null)}
-              />
-            ) : (
-              <div className={styles.sectionActions}>
-                <Button
-                  onClick={() => setEditing({ kind: 'create', scopeId: scope.id })}
-                  aria-label={`New template for ${scope.label}`}
-                >
-                  New template
-                </Button>
-              </div>
-            )}
-
-            {scope.templates.length === 0 ? (
-              <EmptyState
-                title="No templates yet"
-                description="A template is the issue somebody files over and over — the bug report with the three questions on it, the release checklist — written down once."
-              />
-            ) : (
-              <ul className={styles.list}>
-                {scope.templates.map((row) =>
-                  editing?.kind === 'edit' && editing.templateId === row.id ? (
-                    <li key={row.id}>
-                      <TemplateEditor
-                        key={row.id}
-                        scope={scope}
-                        template={row}
-                        onSave={(draft) => save(scope, row, draft)}
-                        onCancel={() => setEditing(null)}
-                      />
-                    </li>
-                  ) : (
-                    <li key={row.id}>
-                      <TemplateListRow
-                        row={row}
-                        onEdit={() => setEditing({ kind: 'edit', templateId: row.id })}
-                        onArchive={() => {
-                          setArchiveError(null);
-                          setArchiving(row);
-                        }}
-                      />
-                    </li>
-                  ),
+                {editing?.kind === 'create' && editing.scopeId === scope.id ? (
+                  <TemplateEditor
+                    key={`new-${scope.id}`}
+                    scope={scope}
+                    template={null}
+                    onSave={(draft) => save(scope, null, draft)}
+                    onCancel={() => setEditing(null)}
+                  />
+                ) : (
+                  <div className={styles.sectionActions}>
+                    <Button
+                      onClick={() => setEditing({ kind: 'create', scopeId: scope.id })}
+                      aria-label={`New template for ${scope.label}`}
+                    >
+                      New template
+                    </Button>
+                  </div>
                 )}
-              </ul>
-            )}
-          </section>
-        ))}
 
-        <ArchivedTemplates rows={archivedRows} />
-      </div>
+                {scope.templates.length === 0 ? (
+                  <EmptyState
+                    title="No templates yet"
+                    description="A template is the issue somebody files over and over — the bug report with the three questions on it, the release checklist — written down once."
+                  />
+                ) : (
+                  <ul className={styles.list}>
+                    {scope.templates.map((row) =>
+                      editing?.kind === 'edit' && editing.templateId === row.id ? (
+                        <li key={row.id}>
+                          <TemplateEditor
+                            key={row.id}
+                            scope={scope}
+                            template={row}
+                            onSave={(draft) => save(scope, row, draft)}
+                            onCancel={() => setEditing(null)}
+                          />
+                        </li>
+                      ) : (
+                        <li key={row.id}>
+                          <TemplateListRow
+                            row={row}
+                            onEdit={() => setEditing({ kind: 'edit', templateId: row.id })}
+                            onArchive={() => {
+                              setArchiveError(null);
+                              setArchiving(row);
+                            }}
+                          />
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                )}
+              </section>
+            ))}
 
-      <ConfirmDialog
-        open={archiving !== null}
-        title={`Archive ${archiving?.name ?? 'this template'}?`}
-        consequence={
-          `It stops being offered in every create dialog, for everybody, at once. There is no way back: ` +
-          `the API has no un-archive and an archived template cannot be listed or read from this client again. ` +
-          `Issues already filed from it keep their link to it, so “how much work came from this template” still has an answer.`
-        }
-        confirmLabel="Archive it"
-        destructive
-        busy={archiveBusy}
-        error={archiveError ?? undefined}
-        onConfirm={confirmArchive}
-        onClose={() => {
-          setArchiving(null);
-          setArchiveError(null);
-        }}
-      />
+            <ArchivedTemplates rows={archivedRows} />
+          </div>
+
+          <ConfirmDialog
+            open={archiving !== null}
+            title={`Archive ${archiving?.name ?? 'this template'}?`}
+            consequence={
+              `It stops being offered in every create dialog, for everybody, at once. There is no way back: ` +
+              `the API has no un-archive and an archived template cannot be listed or read from this client again. ` +
+              `Issues already filed from it keep their link to it, so “how much work came from this template” still has an answer.`
+            }
+            confirmLabel="Archive it"
+            destructive
+            busy={archiveBusy}
+            error={archiveError ?? undefined}
+            onConfirm={confirmArchive}
+            onClose={() => {
+              setArchiving(null);
+              setArchiveError(null);
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

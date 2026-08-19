@@ -168,6 +168,27 @@ function oneOfEach(): EntityRow[] {
     createdAt: NOW,
     updatedAt: NOW,
   };
+  const formTemplate = {
+    id: 'ftpl1',
+    workspaceId: 'w',
+    name: 'Intake',
+    properties: {},
+    position: 'a0',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const formTemplateField = {
+    id: 'ffield1',
+    workspaceId: 'w',
+    formTemplateId: 'ftpl1',
+    fieldType: 'text' as const,
+    label: 'Summary',
+    required: false,
+    sortOrder: 'a0',
+    config: {},
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
   const issueLabel: IssueLabel = {
     id: 'il1',
     workspaceId: 'w',
@@ -275,6 +296,8 @@ function oneOfEach(): EntityRow[] {
     },
     { type: 'label', entity: label },
     { type: 'issueTemplate', entity: issueTemplate },
+    { type: 'formTemplate', entity: formTemplate },
+    { type: 'formTemplateField', entity: formTemplateField },
     {
       type: 'projectStatus',
       entity: {

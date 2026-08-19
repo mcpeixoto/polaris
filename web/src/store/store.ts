@@ -36,6 +36,8 @@ import {
   type IssueRelation,
   type IssueSubscription,
   type IssueTemplate,
+  type FormTemplate,
+  type FormTemplateField,
   type Initiative,
   type InitiativeProject,
   type ProjectUpdate,
@@ -152,6 +154,8 @@ export class Store {
     workflowState: new Map(),
     label: new Map(),
     issueTemplate: new Map(),
+    formTemplate: new Map(),
+    formTemplateField: new Map(),
     projectStatus: new Map(),
     project: new Map(),
     projectTeam: new Map(),
@@ -201,6 +205,8 @@ export class Store {
    */
   private readonly labelTeam = new SetIndex<UUID>();
   private readonly templateTeam = new SetIndex<UUID>();
+  private readonly formTemplateTeam = new SetIndex<UUID>();
+  private readonly formTemplateFieldOf = new SetIndex<UUID>();
   private readonly viewTeam = new SetIndex<UUID>();
   private readonly viewProject = new SetIndex<UUID>();
   private readonly subscriptionIssue = new SetIndex<UUID>();
@@ -313,6 +319,14 @@ export class Store {
 
   get issueTemplates(): ReadonlyMap<UUID, IssueTemplate> {
     return this.tables.issueTemplate as ReadonlyMap<UUID, IssueTemplate>;
+  }
+
+  get formTemplates(): ReadonlyMap<UUID, FormTemplate> {
+    return this.tables.formTemplate as ReadonlyMap<UUID, FormTemplate>;
+  }
+
+  get formTemplateFields(): ReadonlyMap<UUID, FormTemplateField> {
+    return this.tables.formTemplateField as ReadonlyMap<UUID, FormTemplateField>;
   }
 
   get projectStatuses(): ReadonlyMap<UUID, ProjectStatus> {
@@ -498,6 +512,14 @@ export class Store {
 
   issueTemplateIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
     return this.templateTeam.get(teamId);
+  }
+
+  formTemplateIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
+    return this.formTemplateTeam.get(teamId);
+  }
+
+  formTemplateFieldIdsFor(formTemplateId: UUID): ReadonlySet<UUID> {
+    return this.formTemplateFieldOf.get(formTemplateId);
   }
 
   viewIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
@@ -788,6 +810,8 @@ export class Store {
     this.membershipUser.clear();
     this.labelTeam.clear();
     this.templateTeam.clear();
+    this.formTemplateTeam.clear();
+    this.formTemplateFieldOf.clear();
     this.viewTeam.clear();
     this.viewProject.clear();
     this.subscriptionIssue.clear();
@@ -860,6 +884,9 @@ export class Store {
         }
         for (const templateId of [...this.templateTeam.get(id)]) {
           this.forget('issueTemplate', templateId, deletes, touched);
+        }
+        for (const formTemplateId of [...this.formTemplateTeam.get(id)]) {
+          this.forget('formTemplate', formTemplateId, deletes, touched);
         }
         for (const viewId of [...this.viewTeam.get(id)]) {
           this.forget('view', viewId, deletes, touched);
@@ -1022,6 +1049,22 @@ export class Store {
           next as IssueTemplate,
         );
         break;
+      case 'formTemplate':
+        this.fileByTeam(
+          this.formTemplateTeam,
+          previous as FormTemplate | undefined,
+          next as FormTemplate,
+        );
+        break;
+      case 'formTemplateField': {
+        const row = next as FormTemplateField;
+        const before = previous as FormTemplateField | undefined;
+        if (before !== undefined) {
+          this.formTemplateFieldOf.remove(before.formTemplateId, before.id);
+        }
+        this.formTemplateFieldOf.add(row.formTemplateId, row.id);
+        break;
+      }
       case 'view':
         this.fileView(previous as View | undefined, next as View);
         break;
@@ -1193,6 +1236,14 @@ export class Store {
       case 'issueTemplate':
         this.unfileByTeam(this.templateTeam, entity as IssueTemplate);
         break;
+      case 'formTemplate':
+        this.unfileByTeam(this.formTemplateTeam, entity as FormTemplate);
+        break;
+      case 'formTemplateField': {
+        const row = entity as FormTemplateField;
+        this.formTemplateFieldOf.remove(row.formTemplateId, row.id);
+        break;
+      }
       case 'view':
         this.unfileView(entity as View);
         break;

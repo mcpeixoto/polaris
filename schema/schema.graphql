@@ -352,6 +352,8 @@ type Issue {
   subIssueSortOrder: String
   """Which template made this issue, for the question "is this template still worth having"."""
   templateId: UUID
+  """Which form template made this issue, for intake reporting."""
+  formTemplateId: UUID
 
   """At most one project. Two projects on one issue is unrepresentable."""
   projectId: UUID
@@ -626,6 +628,54 @@ type IssueTemplate {
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
+}
+
+enum FormTemplateFieldType {
+  text
+  long_text
+  dropdown
+  checkboxes
+  date
+  file_upload
+  instructions
+  label_group
+  priority
+  title
+  due_date
+}
+
+"""
+Structured intake template. Fields are separate rows (`FormTemplateField`) replicated
+alongside the template.
+"""
+type FormTemplate {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the template is offered in every team."""
+  teamId: UUID
+  name: String!
+  description: String
+  """Default issue properties not captured by a field (assignee, status, labels, etc.)."""
+  properties: JSON!
+  position: String!
+  createdBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type FormTemplateField {
+  id: UUID!
+  workspaceId: UUID!
+  formTemplateId: UUID!
+  fieldType: FormTemplateFieldType!
+  label: String!
+  description: String
+  required: Boolean!
+  sortOrder: String!
+  config: JSON!
+  createdAt: Time!
+  updatedAt: Time!
 }
 
 """
@@ -993,6 +1043,16 @@ type IssueTemplatePayload implements MutationResult {
   template: IssueTemplate!
 }
 
+type FormTemplatePayload implements MutationResult {
+  version: Int!
+  template: FormTemplate!
+}
+
+type FormTemplateFieldPayload implements MutationResult {
+  version: Int!
+  field: FormTemplateField!
+}
+
 enum ProjectStatusCategory {
   BACKLOG
   PLANNED
@@ -1341,6 +1401,8 @@ input CreateIssueInput {
   parentId: UUID
   labelIds: [UUID!]
   templateId: UUID
+  """Records which form template the issue was filed from."""
+  formTemplateId: UUID
   """Place the new issue directly below this one. Omit to append."""
   afterIssueId: UUID
   projectId: UUID
@@ -1485,6 +1547,39 @@ input UpdateIssueTemplateInput {
   title: String
   body: String
   properties: JSON
+}
+
+input CreateFormTemplateInput {
+  teamId: UUID
+  name: String!
+  description: String
+  properties: JSON
+}
+
+input UpdateFormTemplateInput {
+  id: UUID!
+  name: String
+  description: String
+  properties: JSON
+}
+
+input CreateFormTemplateFieldInput {
+  formTemplateId: UUID!
+  fieldType: FormTemplateFieldType!
+  label: String!
+  description: String
+  required: Boolean
+  config: JSON
+}
+
+input UpdateFormTemplateFieldInput {
+  id: UUID!
+  fieldType: FormTemplateFieldType
+  label: String
+  description: String
+  required: Boolean
+  sortOrder: String
+  config: JSON
 }
 
 input UpdateTeamEstimatesInput {
@@ -1728,6 +1823,10 @@ type Query {
   issueTemplates(teamId: UUID): [IssueTemplate!]!
   issueTemplate(id: UUID!): IssueTemplate
 
+  formTemplates(teamId: UUID): [FormTemplate!]!
+  formTemplate(id: UUID!): FormTemplate
+  formTemplateFields(formTemplateId: UUID!): [FormTemplateField!]!
+
   projects: [Project!]!
   project(id: UUID!): Project
   projectStatuses: [ProjectStatus!]!
@@ -1935,6 +2034,13 @@ type Mutation {
   updateIssueTemplate(input: UpdateIssueTemplateInput!): IssueTemplatePayload!
   """Retires a template, or brings one back."""
   archiveIssueTemplate(id: UUID!, archived: Boolean!): DeletePayload!
+
+  createFormTemplate(input: CreateFormTemplateInput!): FormTemplatePayload!
+  updateFormTemplate(input: UpdateFormTemplateInput!): FormTemplatePayload!
+  archiveFormTemplate(id: UUID!, archived: Boolean!): DeletePayload!
+  createFormTemplateField(input: CreateFormTemplateFieldInput!): FormTemplateFieldPayload!
+  updateFormTemplateField(input: UpdateFormTemplateFieldInput!): FormTemplateFieldPayload!
+  deleteFormTemplateField(id: UUID!): DeletePayload!
 
   # ---- projects
 

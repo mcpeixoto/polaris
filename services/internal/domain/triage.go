@@ -202,7 +202,7 @@ func (s *Service) SnoozeIssue(
 		if err != nil {
 			return err
 		}
-		if err := requireInTriage(ctx, q, before); err != nil {
+		if err := requireInTriage(ctx, q, store.AsIssueRow(before)); err != nil {
 			return err
 		}
 
@@ -210,7 +210,7 @@ func (s *Service) SnoozeIssue(
 		if err != nil {
 			return platform.Internal(err)
 		}
-		out = toIssue(row, team.Key)
+		out = toIssue(store.AsIssueRow(row), team.Key)
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "issue", EntityID: id, Op: OpUpsert, TeamID: &before.TeamID,
 			Scope:         authz.TeamScope(before.TeamID, team.Private),
@@ -241,7 +241,7 @@ func (s *Service) leaveTriage(
 		if err != nil {
 			return err
 		}
-		if err := requireInTriage(ctx, q, before); err != nil {
+		if err := requireInTriage(ctx, q, store.AsIssueRow(before)); err != nil {
 			return err
 		}
 		if err := requirePriorityToLeaveTriage(team, int(before.Priority)); err != nil {
@@ -271,7 +271,7 @@ func (s *Service) leaveTriage(
 		if err != nil {
 			return platform.Internal(err)
 		}
-		out = toIssue(row, team.Key)
+		out = toIssue(store.AsIssueRow(row), team.Key)
 
 		oldState, err := q.GetWorkflowState(ctx, before.StateID)
 		if err != nil {
@@ -285,7 +285,7 @@ func (s *Service) leaveTriage(
 		}}
 
 		if canonical != nil {
-			rel, err := s.linkDuplicate(ctx, q, p, before, *canonical)
+			rel, err := s.linkDuplicate(ctx, q, p, store.AsIssueRow(before), *canonical)
 			if err != nil {
 				return err
 			}
@@ -298,7 +298,7 @@ func (s *Service) leaveTriage(
 			if err != nil {
 				return platform.Internal(err)
 			}
-			moved, err := s.moveAttachmentsOnDuplicate(ctx, q, before, object, team.Private)
+			moved, err := s.moveAttachmentsOnDuplicate(ctx, q, store.AsIssueRow(before), object, team.Private)
 			if err != nil {
 				return err
 			}
@@ -316,7 +316,7 @@ func (s *Service) leaveTriage(
 }
 
 func (s *Service) linkDuplicate(
-	ctx context.Context, q *store.Queries, p *authz.Principal, subject store.Issue, canonicalID uuid.UUID,
+	ctx context.Context, q *store.Queries, p *authz.Principal, subject store.GetIssueRow, canonicalID uuid.UUID,
 ) (model.IssueRelation, error) {
 	object, err := q.GetIssue(ctx, canonicalID)
 	if err != nil {
@@ -350,7 +350,7 @@ func (s *Service) linkDuplicate(
 	return toIssueRelation(row), nil
 }
 
-func requireInTriage(ctx context.Context, q *store.Queries, issue store.Issue) error {
+func requireInTriage(ctx context.Context, q *store.Queries, issue store.GetIssueRow) error {
 	st, err := q.GetWorkflowState(ctx, issue.StateID)
 	if err != nil {
 		return platform.Internal(err)
@@ -369,7 +369,7 @@ func requirePriorityToLeaveTriage(team store.Team, priority int) error {
 }
 
 func (s *Service) unsnooze(
-	ctx context.Context, q *store.Queries, p *authz.Principal, team store.Team, issue store.Issue,
+	ctx context.Context, q *store.Queries, p *authz.Principal, team store.Team, issue store.GetIssueRow,
 ) (int64, error) {
 	if issue.SnoozedUntil == nil {
 		return 0, nil
@@ -378,7 +378,7 @@ func (s *Service) unsnooze(
 	if err != nil {
 		return 0, platform.Internal(err)
 	}
-	out := toIssue(row, team.Key)
+	out := toIssue(store.AsIssueRow(row), team.Key)
 	return s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 		EntityType: "issue", EntityID: issue.ID, Op: OpUpsert, TeamID: &issue.TeamID,
 		Scope:         authz.TeamScope(issue.TeamID, team.Private),
