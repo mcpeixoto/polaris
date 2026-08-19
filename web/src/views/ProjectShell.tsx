@@ -7,7 +7,7 @@ import { NavLink, Outlet, useNavigate, useParams } from 'react-router';
 import { Button, EmptyState } from '~/components';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { latestProjectUpdate } from '~/features/project-updates/helpers';
-import { ProjectDependencies } from '~/features/projects/dependencies';
+import { ProjectProperties } from '~/features/projects/properties';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import styles from './ProjectShell.module.css';
 
@@ -71,7 +71,7 @@ export function ProjectShell() {
         </div>
         <aside className={styles.properties} aria-label="Project properties">
           <h2 className={styles.propertiesTitle}>Properties</h2>
-          <ProjectDependencies projectId={project.id} compact />
+          <ProjectProperties projectId={project.id} />
         </aside>
       </div>
     </div>

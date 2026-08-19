@@ -114,6 +114,8 @@ export interface ProjectFields {
   readonly statusId?: UUID | undefined;
   readonly leadId?: UUID | null | undefined;
   readonly priority?: number | undefined;
+  readonly afterProjectId?: UUID | undefined;
+  readonly moveToTop?: boolean | undefined;
 }
 
 export async function updateProject(
@@ -150,6 +152,8 @@ export async function updateProject(
             ? { clearLead: true }
             : { leadId: fields.leadId }),
         ...(fields.priority === undefined ? null : { priority: fields.priority }),
+        ...(fields.afterProjectId === undefined ? null : { afterProjectId: fields.afterProjectId }),
+        ...(fields.moveToTop === undefined ? null : { moveToTop: fields.moveToTop }),
       },
     },
     optimistic: [{ type: 'project', id, before, after }],
