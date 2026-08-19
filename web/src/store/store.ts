@@ -17,6 +17,7 @@ import {
   issueIdentifier,
   type Change,
   type Comment,
+  type Attachment,
   type Cycle,
   type Entity,
   type EntityOf,
@@ -146,6 +147,7 @@ export class Store {
     issue: new Map(),
     issueLabel: new Map(),
     issueRelation: new Map(),
+    attachment: new Map(),
     comment: new Map(),
     issueSubscription: new Map(),
     notification: new Map(),
@@ -163,6 +165,7 @@ export class Store {
   readonly notificationIndex = new NotificationIndex();
 
   private readonly commentIssue = new SetIndex<UUID>();
+  private readonly attachmentIssue = new SetIndex<UUID>();
   private readonly stateTeam = new SetIndex<UUID>();
   private readonly membershipTeam = new SetIndex<UUID>();
   private readonly membershipUser = new SetIndex<UUID>();
@@ -267,6 +270,10 @@ export class Store {
     return this.tables.comment as ReadonlyMap<UUID, Comment>;
   }
 
+  get attachments(): ReadonlyMap<UUID, Attachment> {
+    return this.tables.attachment as ReadonlyMap<UUID, Attachment>;
+  }
+
   get labels(): ReadonlyMap<UUID, Label> {
     return this.tables.label as ReadonlyMap<UUID, Label>;
   }
@@ -333,6 +340,10 @@ export class Store {
 
   commentIdsFor(issueId: UUID): ReadonlySet<UUID> {
     return this.commentIssue.get(issueId);
+  }
+
+  attachmentIdsFor(issueId: UUID): ReadonlySet<UUID> {
+    return this.attachmentIssue.get(issueId);
   }
 
   workflowStateIdsFor(teamId: UUID): ReadonlySet<UUID> {
@@ -667,6 +678,7 @@ export class Store {
     this.relationIndex.clear();
     this.notificationIndex.clear();
     this.commentIssue.clear();
+    this.attachmentIssue.clear();
     this.stateTeam.clear();
     this.membershipTeam.clear();
     this.membershipUser.clear();
@@ -762,6 +774,9 @@ export class Store {
         for (const commentId of [...this.commentIssue.get(id)]) {
           this.forget('comment', commentId, deletes, touched);
         }
+        for (const attachmentId of [...this.attachmentIssue.get(id)]) {
+          this.forget('attachment', attachmentId, deletes, touched);
+        }
         for (const rowId of [...this.labelIndex.rowIdsForIssue(id)]) {
           this.forget('issueLabel', rowId, deletes, touched);
         }
@@ -831,6 +846,15 @@ export class Store {
           this.commentIssue.remove(before.issueId, before.id);
         }
         this.commentIssue.add(comment.issueId, comment.id);
+        break;
+      }
+      case 'attachment': {
+        const attachment = next as Attachment;
+        const before = previous as Attachment | undefined;
+        if (before !== undefined && before.issueId !== attachment.issueId) {
+          this.attachmentIssue.remove(before.issueId, before.id);
+        }
+        this.attachmentIssue.add(attachment.issueId, attachment.id);
         break;
       }
       case 'workflowState': {
@@ -960,6 +984,11 @@ export class Store {
       case 'comment': {
         const comment = entity as Comment;
         this.commentIssue.remove(comment.issueId, comment.id);
+        break;
+      }
+      case 'attachment': {
+        const attachment = entity as Attachment;
+        this.attachmentIssue.remove(attachment.issueId, attachment.id);
         break;
       }
       case 'workflowState': {

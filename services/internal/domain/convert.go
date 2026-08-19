@@ -242,6 +242,23 @@ func toComment(c store.Comment) model.Comment {
 	}
 }
 
+func toAttachment(a store.Attachment) model.Attachment {
+	return model.Attachment{
+		ID:          a.ID,
+		WorkspaceID: a.WorkspaceID,
+		IssueID:     a.IssueID,
+		TeamID:      a.TeamID,
+		URL:         a.Url,
+		Title:       a.Title,
+		Subtitle:    a.Subtitle,
+		IconURL:     a.IconUrl,
+		Metadata:    a.Metadata,
+		CreatorID:   a.CreatorID,
+		CreatedAt:   a.CreatedAt,
+		UpdatedAt:   a.UpdatedAt,
+	}
+}
+
 // teamKeys maps every team in a workspace to its key, for deriving issue identifiers.
 //
 // One read for every key rather than one per issue. An identifier is the team key plus the

@@ -325,6 +325,25 @@ export interface Comment {
 }
 
 /**
+ * A link card on an issue. The URL is unique per issue: posting the same URL again
+ * updates this row rather than minting a second card.
+ */
+export interface Attachment {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly issueId: UUID;
+  readonly teamId: UUID;
+  readonly url: string;
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly iconUrl?: string;
+  readonly metadata?: unknown;
+  readonly creatorId?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/**
  * Both a label and a group of labels: a group is a label with `isGroup` set.
  *
  * One entity rather than two means one picker, one permission rule and one place where
@@ -645,6 +664,7 @@ export interface EntityByType {
   issue: Issue;
   issueLabel: IssueLabel;
   issueRelation: IssueRelation;
+  attachment: Attachment;
   comment: Comment;
   issueSubscription: IssueSubscription;
   notification: Notification;
@@ -684,6 +704,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   // After issues, because each names one.
   'issueLabel',
   'issueRelation',
+  'attachment',
   'comment',
   'issueSubscription',
   // After comments, because a notification may name one.

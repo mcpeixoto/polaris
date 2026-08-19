@@ -180,6 +180,11 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		model.RelationBlocks); err != nil {
 		t.Fatalf("create the relation: %v", err)
 	}
+	if _, _, err := svc.CreateAttachment(ctx, s.alice, domain.CreateAttachmentInput{
+		IssueID: s.openIssue, URL: "https://github.com/acme/app/pull/1", Title: "PR 1",
+	}); err != nil {
+		t.Fatalf("create the attachment: %v", err)
+	}
 
 	// Favourites: alice pins something out of the private team and something workspace-wide,
 	// bob pins the team they share. A favourite carries only its owner's scope, which is what

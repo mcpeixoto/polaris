@@ -463,6 +463,16 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 		}
 	}
 
+	if sel.has("attachments") {
+		for k, i := range issues {
+			attachments, err := r.Svc.ListAttachments(ctx, p, i.ID)
+			if err != nil {
+				return nil, err
+			}
+			out[k].Attachments = toAttachments(attachments)
+		}
+	}
+
 	if sel.has("history") {
 		for k, i := range issues {
 			entries, err := r.Svc.ListIssueHistory(ctx, p, i.ID)

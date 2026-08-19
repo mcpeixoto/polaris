@@ -522,6 +522,20 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 				return err
 			}
 
+			if err := streamPages(ctx, w, "attachment",
+				func(ctx context.Context, after uuid.UUID) ([]store.Attachment, error) {
+					return q.StreamAttachmentsForBootstrap(ctx, store.StreamAttachmentsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(a store.Attachment) (uuid.UUID, any) { return a.ID, toAttachment(a) },
+			); err != nil {
+				return err
+			}
+
 			if err := streamPages(ctx, w, "comment",
 				func(ctx context.Context, after uuid.UUID) ([]store.Comment, error) {
 					return q.StreamCommentsForBootstrap(ctx, store.StreamCommentsForBootstrapParams{
@@ -673,7 +687,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v5 adds cycle, team cadence fields, and issue.cycleId.
 // v6 adds team triage flags and issue.snoozedUntil.
 // v7 adds team auto-close/archive periods and issue.autoClosedAt.
-const ClientSchemaVersion = 7
+// v8 adds attachment (URL-idempotent link cards on issues).
+const ClientSchemaVersion = 8
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

@@ -258,6 +258,31 @@ func toComments(comments []model.Comment) ([]generated.Comment, error) {
 	return out, nil
 }
 
+func toAttachment(a model.Attachment) generated.Attachment {
+	return generated.Attachment{
+		ID:          a.ID,
+		WorkspaceID: a.WorkspaceID,
+		IssueID:     a.IssueID,
+		TeamID:      a.TeamID,
+		URL:         a.URL,
+		Title:       a.Title,
+		Subtitle:    a.Subtitle,
+		IconURL:     a.IconURL,
+		Metadata:    a.Metadata,
+		CreatorID:   a.CreatorID,
+		CreatedAt:   a.CreatedAt,
+		UpdatedAt:   a.UpdatedAt,
+	}
+}
+
+func toAttachments(rows []model.Attachment) []generated.Attachment {
+	out := make([]generated.Attachment, 0, len(rows))
+	for _, a := range rows {
+		out = append(out, toAttachment(a))
+	}
+	return out
+}
+
 func toHistoryEntry(e model.IssueHistoryEntry) (generated.IssueHistoryEntry, error) {
 	actor, err := toActor(e.Actor)
 	if err != nil {

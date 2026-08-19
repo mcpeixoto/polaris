@@ -136,6 +136,23 @@ export const COMMENT_FIELDS = /* GraphQL */ `
   }
 `;
 
+export const ATTACHMENT_FIELDS = /* GraphQL */ `
+  fragment AttachmentFields on Attachment {
+    id
+    workspaceId
+    issueId
+    teamId
+    url
+    title
+    subtitle
+    iconUrl
+    metadata
+    creatorId
+    createdAt
+    updatedAt
+  }
+`;
+
 export const VIEWER_QUERY = /* GraphQL */ `
   ${USER_FIELDS}
   query Viewer {
@@ -261,6 +278,39 @@ export const UPDATE_COMMENT = /* GraphQL */ `
 export const DELETE_COMMENT = /* GraphQL */ `
   mutation DeleteComment($id: UUID!, $clientId: UUID!, $opId: UUID!) {
     deleteComment(id: $id, clientId: $clientId, opId: $opId) {
+      version
+      id
+    }
+  }
+`;
+
+export const CREATE_ATTACHMENT = /* GraphQL */ `
+  ${ATTACHMENT_FIELDS}
+  mutation CreateAttachment($input: CreateAttachmentInput!, $clientId: UUID!, $opId: UUID!) {
+    createAttachment(input: $input, clientId: $clientId, opId: $opId) {
+      version
+      attachment {
+        ...AttachmentFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_ATTACHMENT = /* GraphQL */ `
+  ${ATTACHMENT_FIELDS}
+  mutation UpdateAttachment($input: UpdateAttachmentInput!, $clientId: UUID!, $opId: UUID!) {
+    updateAttachment(input: $input, clientId: $clientId, opId: $opId) {
+      version
+      attachment {
+        ...AttachmentFields
+      }
+    }
+  }
+`;
+
+export const DELETE_ATTACHMENT = /* GraphQL */ `
+  mutation DeleteAttachment($id: UUID!, $clientId: UUID!, $opId: UUID!) {
+    deleteAttachment(id: $id, clientId: $clientId, opId: $opId) {
       version
       id
     }

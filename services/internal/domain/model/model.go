@@ -575,6 +575,23 @@ type Comment struct {
 	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
+// Attachment is a link card on an issue. The URL is unique per issue: posting the same
+// URL again updates the existing row. Integrations stay stateless because of that.
+type Attachment struct {
+	ID          uuid.UUID       `json:"id"`
+	WorkspaceID uuid.UUID       `json:"workspaceId"`
+	IssueID     uuid.UUID       `json:"issueId"`
+	TeamID      uuid.UUID       `json:"teamId"`
+	URL         string          `json:"url"`
+	Title       string          `json:"title"`
+	Subtitle    *string         `json:"subtitle,omitempty"`
+	IconURL     *string         `json:"iconUrl,omitempty"`
+	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	CreatorID   *uuid.UUID      `json:"creatorId,omitempty"`
+	CreatedAt   time.Time       `json:"createdAt"`
+	UpdatedAt   time.Time       `json:"updatedAt"`
+}
+
 type IssueHistoryEntry struct {
 	ID        uuid.UUID `json:"id"`
 	IssueID   uuid.UUID `json:"issueId"`

@@ -698,3 +698,30 @@ func TestArchiveSchemaInvariants(t *testing.T) {
 		sql:  `UPDATE issue SET auto_closed_at = now() WHERE id = ` + engIssue,
 	}})
 }
+
+func TestAttachmentSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "an issue may carry a link",
+		sql: `INSERT INTO attachment (id, workspace_id, issue_id, team_id, url, title)
+		      VALUES ('00000000-0000-7000-8000-0000000000aa', ` + ws + `, ` + engIssue + `, ` + engID + `,
+		              'https://github.com/acme/app/pull/1', 'PR 1')`,
+	}, {
+		name: "the same URL on the same issue is refused",
+		sql: `INSERT INTO attachment (id, workspace_id, issue_id, team_id, url, title)
+		      VALUES ('00000000-0000-7000-8000-0000000000ab', ` + ws + `, ` + engIssue + `, ` + engID + `,
+		              'https://github.com/acme/app/pull/1', 'Again')`,
+		wantErr: "attachment_issue_url_key",
+	}, {
+		name: "the same URL on a different issue is fine",
+		sql: `INSERT INTO attachment (id, workspace_id, issue_id, team_id, url, title)
+		      VALUES ('00000000-0000-7000-8000-0000000000ac', ` + ws + `, ` + engIssue2 + `, ` + engID + `,
+		              'https://github.com/acme/app/pull/1', 'PR 1')`,
+	}, {
+		name: "a blank URL is refused",
+		sql: `INSERT INTO attachment (id, workspace_id, issue_id, team_id, url, title)
+		      VALUES ('00000000-0000-7000-8000-0000000000ad', ` + ws + `, ` + engIssue + `, ` + engID + `,
+		              '   ', 'Empty')`,
+		wantErr: "attachment_url_not_blank",
+	}})
+}

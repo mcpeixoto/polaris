@@ -66,6 +66,21 @@ type ApiKey struct {
 	UpdatedAt   time.Time
 }
 
+type Attachment struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	IssueID     uuid.UUID
+	TeamID      uuid.UUID
+	Url         string
+	Title       string
+	Subtitle    *string
+	IconUrl     *string
+	Metadata    json.RawMessage
+	CreatorID   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type ChangeLog struct {
 	WorkspaceID   uuid.UUID
 	Version       int64

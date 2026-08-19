@@ -239,6 +239,7 @@ type Querier interface {
 	// later. Nothing above the store has a use for it.
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (CreateAPIKeyRow, error)
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
+	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) (Attachment, error)
 	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
 	// Cycles. Column lists follow the table order, same rule as issues.sql.
 	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
@@ -280,6 +281,7 @@ type Querier interface {
 	CreateView(ctx context.Context, arg CreateViewParams) (CreateViewRow, error)
 	CreateWorkflowState(ctx context.Context, arg CreateWorkflowStateParams) (WorkflowState, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
+	DeleteAttachment(ctx context.Context, id uuid.UUID) error
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
 	DeleteIssueRelation(ctx context.Context, id uuid.UUID) (IssueRelation, error)
@@ -325,6 +327,8 @@ type Querier interface {
 	// back in reach of the reads that are meant not to see it.
 	//
 	GetArchivedLabel(ctx context.Context, id uuid.UUID) (GetArchivedLabelRow, error)
+	GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
+	GetAttachmentByIssueURL(ctx context.Context, arg GetAttachmentByIssueURLParams) (Attachment, error)
 	GetComment(ctx context.Context, id uuid.UUID) (Comment, error)
 	GetCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
 	GetDefaultProjectStatus(ctx context.Context, workspaceID uuid.UUID) (ProjectStatus, error)
@@ -429,6 +433,8 @@ type Querier interface {
 	// archives page is per-team, so the join is the same visibility rule the live list uses.
 	//
 	ListArchivedProjectsForTeam(ctx context.Context, teamID uuid.UUID) ([]Project, error)
+	ListAttachmentsForIssue(ctx context.Context, issueID uuid.UUID) ([]Attachment, error)
+	ListAttachmentsForURL(ctx context.Context, arg ListAttachmentsForURLParams) ([]Attachment, error)
 	// ListChildIssues feeds the sub-issue list and the progress rollup on the parent. The
 	// rollup counts states rather than sums them, so it needs the rows, not an aggregate —
 	// and a parent has a handful of children, not a page of them.
@@ -790,6 +796,7 @@ type Querier interface {
 	// somebody else's delivery, sitting in the error path where it is least likely to be tested.
 	//
 	ReleaseNotificationEmailClaim(ctx context.Context, arg ReleaseNotificationEmailClaimParams) (int64, error)
+	RelocateAttachment(ctx context.Context, arg RelocateAttachmentParams) (Attachment, error)
 	// Returns the removed row because the caller knows the target, not the id the change
 	// stream needs.
 	//
@@ -878,6 +885,7 @@ type Querier interface {
 	SoftDeleteIssue(ctx context.Context, arg SoftDeleteIssueParams) error
 	SoftDeleteProject(ctx context.Context, arg SoftDeleteProjectParams) error
 	SoftDeleteTeam(ctx context.Context, id uuid.UUID) error
+	StreamAttachmentsForBootstrap(ctx context.Context, arg StreamAttachmentsForBootstrapParams) ([]Attachment, error)
 	// StreamCommentsForBootstrap ships EVERY live comment on every live issue the caller can
 	// see, paged by id.
 	//
@@ -1084,6 +1092,7 @@ type Querier interface {
 	// the index performs again a moment later, and it would still be racing.
 	//
 	UnarchiveWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowState, error)
+	UpdateAttachment(ctx context.Context, arg UpdateAttachmentParams) (Attachment, error)
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
 	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error

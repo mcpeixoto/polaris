@@ -50,6 +50,7 @@ import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
 import { Relations, SubIssues } from '~/features/issue/relations';
+import { Links } from '~/features/attachments/Links';
 import { browserTimezone } from '~/features/locale';
 import { restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
@@ -374,6 +375,8 @@ export function IssueDetail() {
           />
 
           <Relations issueId={issue.id} />
+
+          <Links issueId={issue.id} />
 
           <Activity history={activity.history} names={names} />
 
