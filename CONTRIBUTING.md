@@ -17,7 +17,9 @@ make sync        # WebSocket hub on :8089
 make web         # Vite on :5173, proxying both
 ```
 
-Sign in with `dev@polaris.local` / `polaris-dev-password`.
+Open http://localhost:5173/. On loopback the API signs you in as `dev@polaris.local`
+(after `make seed`) and the login form does not appear. Off localhost, or on a
+self-hosted install, sign in with `dev@polaris.local` / `polaris-dev-password`.
 
 Seed the **large** scale before touching anything performance-sensitive. A list looks fine
 at twelve issues and janks at five thousand, and the difference is invisible until you

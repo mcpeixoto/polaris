@@ -76,6 +76,10 @@ services:
     env_file: [.env]
     environment:
       DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/polaris?sslmode=disable
+      # Never auto-login, even if .env was copied from .env.example with the flag
+      # on. A self-host on a public host must keep the password form. Local
+      # `make api` is the only process that mints a loopback session.
+      POLARIS_DEV_AUTOLOGIN: "0"
     depends_on:
       postgres: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }

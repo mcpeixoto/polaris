@@ -224,6 +224,26 @@ export const auth = {
     return refreshInFlight;
   },
 
+  /**
+   * Asks the API to mint a local-dev session cookie, the same shape as refresh.
+   *
+   * Only the server decides whether this is allowed. Callers that are not on
+   * loopback should not hit it; when they do, the response is a 404 and this
+   * returns null the same way a missing refresh cookie does.
+   */
+  async devSession(): Promise<Session | null> {
+    try {
+      const body = await post<{ accessToken: string; expiresIn: number; accountId: string }>(
+        '/auth/dev-session',
+        {},
+        { skipAuth: true },
+      );
+      return storeSession(body);
+    } catch {
+      return null;
+    }
+  },
+
   async listWorkspaces(): Promise<Workspace[]> {
     const body = await request<{ workspaces: Workspace[] }>('/auth/workspaces', { method: 'GET' });
     return body.workspaces;

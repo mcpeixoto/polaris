@@ -56,6 +56,8 @@ make seed        # a realistic workspace
 make api         # and, in other terminals: make sync, make web
 ```
 
+On http://localhost:5173/ the tracker opens as the seed account — no login form.
+
 See [`docs/07-milestones/00-milestone-0.md`](docs/07-milestones/00-milestone-0.md), [`01-milestone-1.md`](docs/07-milestones/01-milestone-1.md), [`02-milestone-2.md`](docs/07-milestones/02-milestone-2.md), [`03-cycles.md`](docs/07-milestones/03-cycles.md), [`04-peek.md`](docs/07-milestones/04-peek.md) and [`05-triage.md`](docs/07-milestones/05-triage.md) for the scope freezes and the acceptance tests that define done. Each of the M1 ten names the test that proves it, and `services/internal/acceptance/m1_test.go` fails if one loses its proof.
 
 ## Where the requirements came from
