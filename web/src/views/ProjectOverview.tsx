@@ -7,6 +7,7 @@ import { useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { Button, Select } from '~/components';
+import { ProjectGraph } from '~/features/projects/ProjectGraph';
 import { createProjectUpdate } from '~/features/project-updates/mutations';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { latestProjectUpdate } from '~/features/project-updates/helpers';
@@ -70,6 +71,11 @@ export function ProjectOverview() {
 
   return (
     <div className={styles.screen}>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Progress</h2>
+        <ProjectGraph projectId={project.id} />
+      </section>
+
       {latest !== undefined && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Latest update</h2>
