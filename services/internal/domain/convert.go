@@ -67,6 +67,14 @@ func toTeam(t store.Team) model.Team {
 		EstimateAllowZero: t.EstimateAllowZero,
 		EstimateExtended:  t.EstimateExtended,
 
+		CyclesEnabled:         t.CyclesEnabled,
+		CycleDurationWeeks:    int(t.CycleDurationWeeks),
+		CycleCooldownWeeks:    int(t.CycleCooldownWeeks),
+		CycleStartDay:         t.CycleStartDay,
+		CycleUpcomingCount:    int(t.CycleUpcomingCount),
+		CycleAutoAddStarted:   t.CycleAutoAddStarted,
+		CycleAutoAddCompleted: t.CycleAutoAddCompleted,
+
 		CreatedAt:  t.CreatedAt,
 		UpdatedAt:  t.UpdatedAt,
 		RetiredAt:  t.RetiredAt,
@@ -128,6 +136,7 @@ func toIssue(i store.Issue, teamKey string) model.Issue {
 		TemplateID:        i.TemplateID,
 		ProjectID:         i.ProjectID,
 		ProjectMilestoneID: i.ProjectMilestoneID,
+		CycleID:           i.CycleID,
 
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,
@@ -146,6 +155,23 @@ func toIssue(i store.Issue, teamKey string) model.Issue {
 	out.DueDate = dueDateOf(i)
 
 	return out
+}
+
+func toCycle(c store.Cycle) model.Cycle {
+	return model.Cycle{
+		ID:          c.ID,
+		WorkspaceID: c.WorkspaceID,
+		TeamID:      c.TeamID,
+		Number:      int(c.Number),
+		Name:        c.Name,
+		Description: c.Description,
+		StartsAt:    c.StartsAt,
+		EndsAt:      c.EndsAt,
+		CompletedAt: c.CompletedAt,
+		ArchivedAt:  c.ArchivedAt,
+		CreatedAt:   c.CreatedAt,
+		UpdatedAt:   c.UpdatedAt,
+	}
 }
 
 // intFromEstimate widens the smallint the column holds — a point value never needs more —

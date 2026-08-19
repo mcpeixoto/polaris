@@ -41,6 +41,7 @@ func (r *mutationResolver) CreateIssue(ctx context.Context, input generated.Crea
 		TemplateID:         input.TemplateID,
 		ProjectID:          input.ProjectID,
 		ProjectMilestoneID: input.ProjectMilestoneID,
+		CycleID:            input.CycleID,
 	}
 	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.Issue, int64, error) {
@@ -90,6 +91,8 @@ func (r *mutationResolver) UpdateIssue(ctx context.Context, input generated.Upda
 		ClearProject:       deref(input.ClearProject),
 		ProjectMilestoneID: input.ProjectMilestoneID,
 		ClearMilestone:     deref(input.ClearMilestone),
+		CycleID:            input.CycleID,
+		ClearCycle:         deref(input.ClearCycle),
 	}
 	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.Issue, int64, error) {
@@ -631,6 +634,33 @@ func (r *mutationResolver) UpdateTeamEstimates(ctx context.Context, input genera
 		Scale:     scale,
 		AllowZero: deref(input.AllowZero),
 		Extended:  deref(input.Extended),
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
+// UpdateTeamCycles is the resolver for the updateTeamCycles field.
+func (r *mutationResolver) UpdateTeamCycles(ctx context.Context, input generated.UpdateTeamCyclesInput) (*generated.TeamPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	team, version, err := r.Svc.UpdateTeamCycles(ctx, p, domain.UpdateTeamCyclesInput{
+		TeamID:           input.TeamID,
+		Enabled:          input.Enabled,
+		DurationWeeks:    input.DurationWeeks,
+		CooldownWeeks:    input.CooldownWeeks,
+		StartDay:         input.StartDay,
+		UpcomingCount:    input.UpcomingCount,
+		AutoAddStarted:   input.AutoAddStarted,
+		AutoAddCompleted: input.AutoAddCompleted,
 	})
 	if err != nil {
 		return nil, PresentError(ctx, err)
@@ -1947,6 +1977,33 @@ func (r *queryResolver) ProjectStatuses(ctx context.Context) ([]generated.Projec
 		return nil, PresentError(ctx, err)
 	}
 	return toProjectStatuses(statuses)
+}
+
+// Cycles is the resolver for the cycles field.
+func (r *queryResolver) Cycles(ctx context.Context, teamID uuid.UUID) ([]generated.Cycle, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	cycles, err := r.Svc.ListCycles(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toCycles(cycles), nil
+}
+
+// Cycle is the resolver for the cycle field.
+func (r *queryResolver) Cycle(ctx context.Context, id uuid.UUID) (*generated.Cycle, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	cycle, err := r.Svc.GetCycle(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toCycle(cycle)
+	return &out, nil
 }
 
 // Notifications is the resolver for the notifications field.

@@ -38,6 +38,7 @@ import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
 import { Avatar, Badge, Button, EmptyState, LabelChip, PriorityIcon, StateIcon, Tooltip } from '~/components';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { Board } from '~/features/view/ui/Board';
 import { DisplayMenu } from '~/features/view/ui/DisplayMenu';
@@ -96,6 +97,10 @@ export type IssueListSource =
   | {
       readonly kind: 'project';
       readonly projectId: UUID;
+    }
+  | {
+      readonly kind: 'cycle';
+      readonly cycleId: UUID;
     }
   | {
       /**
@@ -177,6 +182,7 @@ interface ListCommands {
   pickAssignee(): void;
   pickPriority(): void;
   pickProject(): void;
+  pickCycle(): void;
 }
 
 export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}) {
@@ -195,14 +201,16 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         ? `assignee:${source.userId}`
         : source.kind === 'project'
           ? `project:${source.projectId}`
-          : `view:${source.viewId}`;
+          : source.kind === 'cycle'
+            ? `cycle:${source.cycleId}`
+            : `view:${source.viewId}`;
   const includeCompleted = source.kind === 'assignee' && source.includeCompleted === true;
 
   const scope = useLiveQuery(
     (store) => scopeOf(store, source, teamKey, heading),
     // `view` too, because a saved view supplies the heading and the team a view-sourced list
     // is scoped to — renaming the view has to move this heading.
-    ['team', 'view'],
+    ['team', 'view', 'cycle'],
     [sourceKey, heading],
   );
 
@@ -272,6 +280,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const assignee = useMenuTrigger();
   const priority = useMenuTrigger();
   const project = useMenuTrigger();
+  const cycle = useMenuTrigger();
   const display = useMenuTrigger();
 
   /**
@@ -314,6 +323,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     pickAssignee: () => {},
     pickPriority: () => {},
     pickProject: () => {},
+    pickCycle: () => {},
   });
 
   const step = (delta: number): UUID | null => {
@@ -362,6 +372,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     pickAssignee: assignee.show,
     pickPriority: priority.show,
     pickProject: project.show,
+    pickCycle: cycle.show,
   };
 
   useKeyContext('list');
@@ -473,6 +484,14 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         run: () => commands.current.pickProject(),
       },
       {
+        id: 'issueList.cycle',
+        title: 'Set cycle',
+        keys: ['shift+c'],
+        when: 'list',
+        group: 'Issues',
+        run: () => commands.current.pickCycle(),
+      },
+      {
         id: 'issueList.archive',
         title: 'Archive issue',
         keys: ['e'],
@@ -508,16 +527,27 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
      */
     const missingView = source.kind === 'view';
     const missingProject = source.kind === 'project';
+    const missingCycle = source.kind === 'cycle';
     return (
       <div className={styles.screen}>
         <EmptyState
-          title={missingView ? 'No such view' : missingProject ? 'No such project' : 'No such team'}
+          title={
+            missingView
+              ? 'No such view'
+              : missingProject
+                ? 'No such project'
+                : missingCycle
+                  ? 'No such cycle'
+                  : 'No such team'
+          }
           description={
             missingView
               ? 'This view has been deleted, or it belongs to a team you are not in. Ask whoever sent you the link to add you to it.'
               : missingProject
                 ? 'This project has been deleted, or it belongs to a team you are not in.'
-                : `Nothing in this workspace has the key ${teamKey}.`
+                : missingCycle
+                  ? 'This cycle has been removed, or it belongs to a team you are not in.'
+                  : `Nothing in this workspace has the key ${teamKey}.`
           }
         />
       </div>
@@ -530,7 +560,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   // Telling somebody their team is empty when they have just typed four clauses is the kind
   // of wrong that makes people distrust the filter rather than fix it.
   const filtered = !isEmptyFilter(view.filter);
-  const picking = status.open || assignee.open || priority.open || project.open;
+  const picking = status.open || assignee.open || priority.open || project.open || cycle.open;
   const shared = picking ? sharedProperties(engine.store, targets) : NOTHING_SHARED;
   const canAct = targets.length > 0;
   // Statuses belong to a team, so a selection spanning two of them has no correct set to
@@ -573,6 +603,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
           <>
             <Link className={styles.link} to={`/team/${team.key}/projects`}>
               Projects
+            </Link>
+            <Link className={styles.link} to={`/team/${team.key}/cycles`}>
+              Cycles
             </Link>
             <Link className={styles.link} to={`/team/${team.key}/settings`}>
               Team settings
@@ -639,6 +672,11 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             Project
           </Button>
         </Tooltip>
+        <Tooltip label="Set cycle" keys="shift+c">
+          <Button {...cycle.props} disabled={!canAct}>
+            Cycle
+          </Button>
+        </Tooltip>
         <Tooltip label="Archive" keys="e">
           <Button
             variant="ghost"
@@ -681,6 +719,14 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         value={shared.projectId}
         onSelect={(projectId) => updateIssues(engine, targets, { projectId }).catch(report)}
       />
+      <CyclePicker
+        open={cycle.open}
+        onClose={cycle.hide}
+        trigger={cycle.ref}
+        teamId={shared.teamId}
+        value={shared.cycleId}
+        onSelect={(cycleId) => updateIssues(engine, targets, { cycleId }).catch(report)}
+      />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -690,14 +736,18 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
               ? 'Nothing matches this filter'
               : source.kind === 'project'
                 ? 'No issues in this project yet'
-                : 'No issues in this team yet'
+                : source.kind === 'cycle'
+                  ? 'No issues in this cycle yet'
+                  : 'No issues in this team yet'
           }
           description={
             filtered
               ? 'Every issue here is excluded by a clause in the filter bar above.'
               : source.kind === 'project'
                 ? 'Press C to file the first one. It will land in this project the moment you save.'
-                : 'Press C to file the first one. It will land here the moment you save.'
+                : source.kind === 'cycle'
+                  ? 'Press C to file the first one. It will land in this cycle the moment you save.'
+                  : 'Press C to file the first one. It will land here the moment you save.'
           }
           action={
             filtered ? (
@@ -950,6 +1000,18 @@ function scopeOf(
     return { heading: heading ?? project.name, team: null, timezone: browserTimezone() };
   }
 
+  if (source.kind === 'cycle') {
+    const cycle = store.cycles.get(source.cycleId);
+    if (cycle === undefined) return { heading: null, team: null, timezone: browserTimezone() };
+    const team = store.teams.get(cycle.teamId);
+    return {
+      heading: heading ?? cycle.name,
+      team:
+        team === undefined ? null : { id: team.id, key: team.key, name: team.name },
+      timezone: team?.timezone ?? browserTimezone(),
+    };
+  }
+
   if (source.kind === 'view') {
     const view = store.views.get(source.viewId);
     if (view === undefined) return { heading: null, team: null, timezone: browserTimezone() };
@@ -1024,6 +1086,7 @@ function corpusIdsOf(
 ): ReadonlySet<UUID> | null {
   if (source.kind === 'assignee') return store.index.byAssignee(source.userId);
   if (source.kind === 'project') return store.index.byProject(source.projectId);
+  if (source.kind === 'cycle') return store.index.byCycle(source.cycleId);
   if (source.kind === 'view') {
     const view = store.views.get(source.viewId);
     if (view === undefined) return null;
@@ -1072,6 +1135,7 @@ interface SharedProperties {
    */
   readonly teamId: UUID | undefined;
   readonly projectId: UUID | null | undefined;
+  readonly cycleId: UUID | null | undefined;
 }
 
 /** Nothing in common — which is also the right answer for an empty target set. */
@@ -1081,6 +1145,7 @@ const NOTHING_SHARED: SharedProperties = {
   assigneeId: undefined,
   priority: undefined,
   projectId: undefined,
+  cycleId: undefined,
 };
 
 /**
@@ -1099,6 +1164,7 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
   let priority: number | undefined;
   let teamId: UUID | undefined;
   let projectId: UUID | null | undefined;
+  let cycleId: UUID | null | undefined;
   let first = true;
 
   for (const id of targets) {
@@ -1110,6 +1176,7 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
       priority = issue.priority;
       teamId = issue.teamId;
       projectId = issue.projectId ?? null;
+      cycleId = issue.cycleId ?? null;
       first = false;
       continue;
     }
@@ -1118,8 +1185,9 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
     if (priority !== issue.priority) priority = undefined;
     if (teamId !== issue.teamId) teamId = undefined;
     if (projectId !== (issue.projectId ?? null)) projectId = undefined;
+    if (cycleId !== (issue.cycleId ?? null)) cycleId = undefined;
   }
-  return { stateId, assigneeId, priority, teamId, projectId };
+  return { stateId, assigneeId, priority, teamId, projectId, cycleId };
 }
 
 function ArchiveGlyph() {

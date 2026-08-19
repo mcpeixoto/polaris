@@ -159,6 +159,13 @@ export interface Team {
   readonly estimateScale: EstimateScale;
   readonly estimateAllowZero: boolean;
   readonly estimateExtended: boolean;
+  readonly cyclesEnabled: boolean;
+  readonly cycleDurationWeeks: number;
+  readonly cycleCooldownWeeks: number;
+  readonly cycleStartDay: string;
+  readonly cycleUpcomingCount: number;
+  readonly cycleAutoAddStarted: boolean;
+  readonly cycleAutoAddCompleted: boolean;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly retiredAt?: Timestamp;
@@ -256,6 +263,7 @@ export interface Issue {
   readonly templateId?: UUID;
   readonly projectId?: UUID;
   readonly projectMilestoneId?: UUID;
+  readonly cycleId?: UUID;
   readonly startedAt?: Timestamp;
   readonly completedAt?: Timestamp;
   readonly canceledAt?: Timestamp;
@@ -580,6 +588,21 @@ export interface ProjectMilestone {
   readonly archivedAt?: Timestamp;
 }
 
+export interface Cycle {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly teamId: UUID;
+  readonly number: number;
+  readonly name: string;
+  readonly description?: string;
+  readonly startsAt: Timestamp;
+  readonly endsAt: Timestamp;
+  readonly completedAt?: Timestamp;
+  readonly archivedAt?: Timestamp;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 /**
  * The entity types the client replicates, keyed by the exact string the server puts in
  * `change_log.entity_type` and in each bootstrap line. These strings are the protocol —
@@ -602,6 +625,7 @@ export interface EntityByType {
   projectTeam: ProjectTeam;
   projectMember: ProjectMember;
   projectMilestone: ProjectMilestone;
+  cycle: Cycle;
   issue: Issue;
   issueLabel: IssueLabel;
   issueRelation: IssueRelation;
@@ -638,6 +662,8 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'projectTeam',
   'projectMember',
   'projectMilestone',
+  // Before issues: an issue may name a cycle.
+  'cycle',
   'issue',
   // After issues, because each names one.
   'issueLabel',

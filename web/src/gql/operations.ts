@@ -32,6 +32,7 @@ export const ISSUE_FIELDS = /* GraphQL */ `
     templateId
     projectId
     projectMilestoneId
+    cycleId
     startedAt
     completedAt
     canceledAt
@@ -56,6 +57,13 @@ export const TEAM_FIELDS = /* GraphQL */ `
     estimateScale
     estimateAllowZero
     estimateExtended
+    cyclesEnabled
+    cycleDurationWeeks
+    cycleCooldownWeeks
+    cycleStartDay
+    cycleUpcomingCount
+    cycleAutoAddStarted
+    cycleAutoAddCompleted
     createdAt
     updatedAt
     retiredAt
@@ -271,6 +279,35 @@ export const UPDATE_TEAM = /* GraphQL */ `
   ${TEAM_FIELDS}
   mutation UpdateTeam($input: UpdateTeamInput!) {
     updateTeam(input: $input) {
+      version
+      team {
+        ...TeamFields
+      }
+    }
+  }
+`;
+
+export const CYCLE_FIELDS = /* GraphQL */ `
+  fragment CycleFields on Cycle {
+    id
+    workspaceId
+    teamId
+    number
+    name
+    description
+    startsAt
+    endsAt
+    completedAt
+    archivedAt
+    createdAt
+    updatedAt
+  }
+`;
+
+export const UPDATE_TEAM_CYCLES = /* GraphQL */ `
+  ${TEAM_FIELDS}
+  mutation UpdateTeamCycles($input: UpdateTeamCyclesInput!) {
+    updateTeamCycles(input: $input) {
       version
       team {
         ...TeamFields

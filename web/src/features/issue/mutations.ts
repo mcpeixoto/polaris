@@ -64,6 +64,8 @@ export interface IssueFields {
   readonly assigneeId?: UUID | null | undefined;
   /** `null` removes the issue from its project. */
   readonly projectId?: UUID | null | undefined;
+  /** `null` removes the issue from its cycle. */
+  readonly cycleId?: UUID | null | undefined;
 }
 
 export interface NewIssue {
@@ -96,6 +98,7 @@ export interface NewIssue {
   readonly templateId?: UUID | undefined;
   readonly projectId?: UUID | undefined;
   readonly projectMilestoneId?: UUID | undefined;
+  readonly cycleId?: UUID | undefined;
   /** The viewer, when it is known. Only used by the optimistic row. */
   readonly creatorId?: UUID | undefined;
 }
@@ -148,6 +151,7 @@ export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<
     ...(input.parentId === undefined ? null : { parentId: input.parentId }),
     ...(input.templateId === undefined ? null : { templateId: input.templateId }),
     ...(input.projectId === undefined ? null : { projectId: input.projectId }),
+    ...(input.cycleId === undefined ? null : { cycleId: input.cycleId }),
     dueDateSource: 'manual',
     createdAt: now,
     updatedAt: now,
@@ -227,6 +231,9 @@ export async function updateIssue(
     ...(fields.projectId === undefined
       ? null
       : { projectId: fields.projectId === null ? undefined : fields.projectId }),
+    ...(fields.cycleId === undefined
+      ? null
+      : { cycleId: fields.cycleId === null ? undefined : fields.cycleId }),
     updatedAt: new Date().toISOString(),
   };
   if (sameIssue(before, after)) return;
@@ -808,6 +815,7 @@ function createInputOf(input: NewIssue, stateId: UUID, id: UUID): Record<string,
     ...(input.templateId === undefined ? null : { templateId: input.templateId }),
     ...(input.projectId === undefined ? null : { projectId: input.projectId }),
     ...(input.projectMilestoneId === undefined ? null : { projectMilestoneId: input.projectMilestoneId }),
+    ...(input.cycleId === undefined ? null : { cycleId: input.cycleId }),
   };
 }
 
@@ -834,6 +842,11 @@ function updateInputOf(fields: IssueFields): Record<string, unknown> {
       : fields.projectId === null
         ? { clearProject: true }
         : { projectId: fields.projectId }),
+    ...(fields.cycleId === undefined
+      ? null
+      : fields.cycleId === null
+        ? { clearCycle: true }
+        : { cycleId: fields.cycleId }),
   };
 }
 
@@ -872,6 +885,7 @@ function sameIssue(before: Issue, after: Issue): boolean {
     before.stateId === after.stateId &&
     before.priority === after.priority &&
     before.assigneeId === after.assigneeId &&
-    before.projectId === after.projectId
+    before.projectId === after.projectId &&
+    before.cycleId === after.cycleId
   );
 }

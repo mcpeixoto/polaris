@@ -104,6 +104,17 @@ type Team struct {
 	EstimateAllowZero bool   `json:"estimateAllowZero"`
 	EstimateExtended  bool   `json:"estimateExtended"`
 
+	// Cadence. Off by default; turning it on creates the current cycle and the
+	// configured number of upcoming ones. A cooldown is a gap between cycles, not a
+	// cycle, which is why it is a duration here rather than a row.
+	CyclesEnabled         bool   `json:"cyclesEnabled"`
+	CycleDurationWeeks    int    `json:"cycleDurationWeeks"`
+	CycleCooldownWeeks    int    `json:"cycleCooldownWeeks"`
+	CycleStartDay         string `json:"cycleStartDay"`
+	CycleUpcomingCount    int    `json:"cycleUpcomingCount"`
+	CycleAutoAddStarted   bool   `json:"cycleAutoAddStarted"`
+	CycleAutoAddCompleted bool   `json:"cycleAutoAddCompleted"`
+
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	RetiredAt  *time.Time `json:"retiredAt,omitempty"`
@@ -128,6 +139,23 @@ type TeamMembership struct {
 	Role        string    `json:"role"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// Cycle is a dated window on a team. Cooldown is a gap between cycles, not a row, so
+// there is never a cycle whose job is "wait" — issues can only sit in a real window.
+type Cycle struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      uuid.UUID  `json:"teamId"`
+	Number      int        `json:"number"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	StartsAt    time.Time  `json:"startsAt"`
+	EndsAt      time.Time  `json:"endsAt"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
 type WorkflowState struct {
@@ -189,6 +217,7 @@ type Issue struct {
 	// a state the schema cannot represent. A milestone implies its project.
 	ProjectID          *uuid.UUID `json:"projectId,omitempty"`
 	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
+	CycleID            *uuid.UUID `json:"cycleId,omitempty"`
 
 	StartedAt   *time.Time `json:"startedAt,omitempty"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`

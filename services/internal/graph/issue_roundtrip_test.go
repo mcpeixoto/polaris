@@ -76,7 +76,7 @@ func TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI(t *testing.T) {
 					id workspaceId teamId number identifier
 					title description stateId assigneeId creatorId priority sortOrder
 					estimate dueDate dueDateSource parentId subIssueSortOrder templateId
-					projectId projectMilestoneId
+					projectId projectMilestoneId cycleId
 					startedAt completedAt canceledAt archivedAt createdAt updatedAt
 					labels { id }
 				}
@@ -184,6 +184,8 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 	onCreate, milestoneOnCreate := h.newProject(t, "On create")
 	onUpdate, milestoneOnUpdate := h.newProject(t, "On update")
 
+	cycleOnCreate, cycleOnUpdate := h.newCycles(t)
+
 	// A client-minted v7, because that is the whole point of the id field: an offline create
 	// names its own issue so the row on screen is the row the server writes.
 	chosen := uuid.Must(uuid.NewV7())
@@ -279,6 +281,13 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 			clear:       func(in *generated.UpdateIssueInput) { in.ClearMilestone = ptr(true) },
 			afterCreate: milestoneOnCreate.String(), afterUpdate: milestoneOnUpdate.String(), afterClear: "<nil>",
 		},
+		{
+			input: "cycleId", output: "cycleId",
+			create:      func(in *generated.CreateIssueInput) { in.CycleID = &cycleOnCreate },
+			update:      func(in *generated.UpdateIssueInput) { in.CycleID = &cycleOnUpdate },
+			clear:       func(in *generated.UpdateIssueInput) { in.ClearCycle = ptr(true) },
+			afterCreate: cycleOnCreate.String(), afterUpdate: cycleOnUpdate.String(), afterClear: "<nil>",
+		},
 	}
 
 	create := generated.CreateIssueInput{}
@@ -351,6 +360,31 @@ func (h *harness) newProject(t *testing.T, name string) (projectID, milestoneID 
 	return project.Project.ID, milestone.Milestone.ID
 }
 
+func (h *harness) newCycles(t *testing.T) (onCreate, onUpdate uuid.UUID) {
+	t.Helper()
+	enabled := true
+	upcoming := 2
+	payload, err := h.Mutation().UpdateTeamCycles(h.ctx, generated.UpdateTeamCyclesInput{
+		TeamID:        h.f.TeamID,
+		Enabled:       &enabled,
+		UpcomingCount: &upcoming,
+	})
+	if err != nil {
+		t.Fatalf("enable cycles: %v", err)
+	}
+	if payload.Team == nil {
+		t.Fatal("enable cycles returned no team")
+	}
+	cycles, err := h.Query().Cycles(h.ctx, h.f.TeamID)
+	if err != nil {
+		t.Fatalf("list cycles: %v", err)
+	}
+	if len(cycles) < 2 {
+		t.Fatalf("got %d cycles, want at least two", len(cycles))
+	}
+	return cycles[0].ID, cycles[1].ID
+}
+
 func renderLabelIDs(v any) string {
 	rows, _ := v.([]any)
 	ids := make([]string, 0, len(rows))
@@ -388,6 +422,7 @@ var coveredElsewhere = map[string]string{
 	"clearParent":   "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearProject":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearMilestone": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearCycle":     "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 }
 
 func TestIssueRoundTrip_TheTableCoversEveryInputField(t *testing.T) {

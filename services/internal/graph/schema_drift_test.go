@@ -44,6 +44,7 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"ProjectTeam", model.ProjectTeam{}, generated.ProjectTeam{}},
 		{"ProjectMember", model.ProjectMember{}, generated.ProjectMember{}},
 		{"ProjectMilestone", model.ProjectMilestone{}, generated.ProjectMilestone{}},
+		{"Cycle", model.Cycle{}, generated.Cycle{}},
 	}
 
 	for _, pair := range pairs {
@@ -106,6 +107,7 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 		{"ProjectTeam", model.ProjectTeam{}, func(v any) (any, error) { return toProjectTeam(v.(model.ProjectTeam)), nil }},
 		{"ProjectMember", model.ProjectMember{}, func(v any) (any, error) { return toProjectMember(v.(model.ProjectMember)), nil }},
 		{"ProjectMilestone", model.ProjectMilestone{}, func(v any) (any, error) { return toProjectMilestone(v.(model.ProjectMilestone)), nil }},
+		{"Cycle", model.Cycle{}, func(v any) (any, error) { return toCycle(v.(model.Cycle)), nil }},
 	}
 
 	for _, c := range cases {

@@ -165,6 +165,7 @@ type Querier interface {
 	// it the other way round fails.
 	//
 	ClearDefaultWorkflowState(ctx context.Context, teamID uuid.UUID) error
+	CompleteCycle(ctx context.Context, arg CompleteCycleParams) (Cycle, error)
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
 	// CountAdminsInWorkspace guards the "you cannot demote or suspend the last admin"
 	// rule. Run inside the same transaction as the demotion, or two concurrent demotions
@@ -237,6 +238,8 @@ type Querier interface {
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (CreateAPIKeyRow, error)
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
 	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
+	// Cycles. Column lists follow the table order, same rule as issues.sql.
+	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
 	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
 	// Every list below is the issue table's columns, in the table's own order, minus
 	// search_vector. Minus, because the generated vector is roughly the size of the text it
@@ -283,6 +286,8 @@ type Querier interface {
 	// second time to somebody who had already dismissed it.
 	//
 	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) (Notification, error)
+	// Upcoming cycles that have not started: dropped when the team turns cycles off.
+	DeleteUpcomingCycles(ctx context.Context, arg DeleteUpcomingCyclesParams) ([]uuid.UUID, error)
 	EnsureChangeLogPartition(ctx context.Context, month pgtype.Date) error
 	// ---------------------------------------------------------------------------------------
 	// Subscriptions.
@@ -319,6 +324,7 @@ type Querier interface {
 	//
 	GetArchivedLabel(ctx context.Context, id uuid.UUID) (GetArchivedLabelRow, error)
 	GetComment(ctx context.Context, id uuid.UUID) (Comment, error)
+	GetCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
 	GetDefaultProjectStatus(ctx context.Context, workspaceID uuid.UUID) (ProjectStatus, error)
 	GetDefaultWorkflowStateForTeam(ctx context.Context, teamID uuid.UUID) (WorkflowState, error)
 	GetFavoritePositionAfter(ctx context.Context, arg GetFavoritePositionAfterParams) (string, error)
@@ -406,6 +412,7 @@ type Querier interface {
 	GetWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	InitWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) error
 	IsTeamMember(ctx context.Context, arg IsTeamMemberParams) (bool, error)
+	LastCycleNumber(ctx context.Context, teamID uuid.UUID) (int32, error)
 	LastProjectMilestoneSortOrder(ctx context.Context, projectID uuid.UUID) (string, error)
 	LastProjectSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastProjectStatusPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -431,6 +438,9 @@ type Querier interface {
 	//
 	ListChildIssuesForParents(ctx context.Context, arg ListChildIssuesForParentsParams) ([]Issue, error)
 	ListCommentsForIssue(ctx context.Context, issueID uuid.UUID) ([]Comment, error)
+	// Cycle-less issues in a given category, for auto-add.
+	ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyclelessIssuesByCategoryParams) ([]Issue, error)
+	ListCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
 	// ListDeletedIssues is the "recently deleted" screen. Ordered by deletion time rather than
 	// by sort_order, because the only question being asked here is "what did I just lose".
 	//
@@ -609,6 +619,8 @@ type Querier interface {
 	// change.
 	//
 	ListNotificationsForIssue(ctx context.Context, arg ListNotificationsForIssueParams) ([]Notification, error)
+	// Open work in a closing cycle: unstarted and started, not backlog/triage/canceled/completed.
+	ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID) ([]Issue, error)
 	ListPendingInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
 	ListProjectMembers(ctx context.Context, projectID uuid.UUID) ([]ProjectMember, error)
 	ListProjectMilestones(ctx context.Context, projectID uuid.UUID) ([]ProjectMilestone, error)
@@ -641,6 +653,7 @@ type Querier interface {
 	//
 	ListTeamMembershipsForTeams(ctx context.Context, arg ListTeamMembershipsForTeamsParams) ([]TeamMembership, error)
 	ListTeamsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Team, error)
+	ListTeamsWithCyclesEnabled(ctx context.Context) ([]Team, error)
 	ListUsersInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]User, error)
 	ListViewPreferences(ctx context.Context, arg ListViewPreferencesParams) ([]ViewPreference, error)
 	// ListViewsForUser is the visibility rule, stated once: a view with no team spans the
@@ -812,6 +825,7 @@ type Querier interface {
 	SetAccountPassword(ctx context.Context, arg SetAccountPasswordParams) error
 	SetCommentResolution(ctx context.Context, arg SetCommentResolutionParams) (Comment, error)
 	SetDefaultWorkflowState(ctx context.Context, id uuid.UUID) error
+	SetIssueCycle(ctx context.Context, arg SetIssueCycleParams) error
 	// SetIssueSubscription is the button. This is the one place `unsubscribed` may change,
 	// because this is the one place the user said so.
 	//
@@ -848,6 +862,7 @@ type Querier interface {
 	// honest state is an accurate comment and a known cost.
 	//
 	StreamCommentsForBootstrap(ctx context.Context, arg StreamCommentsForBootstrapParams) ([]Comment, error)
+	StreamCyclesForBootstrap(ctx context.Context, arg StreamCyclesForBootstrapParams) ([]Cycle, error)
 	// StreamFavoritesForBootstrap ships the caller's own sidebar, minus the entries pointing at
 	// something this same snapshot does not carry.
 	//
@@ -1044,6 +1059,11 @@ type Querier interface {
 	UpdateProjectMilestone(ctx context.Context, arg UpdateProjectMilestoneParams) (ProjectMilestone, error)
 	UpdateProjectStatus(ctx context.Context, arg UpdateProjectStatusParams) (ProjectStatus, error)
 	UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error)
+	// UpdateTeamCycles is the cadence, kept apart from UpdateTeam for the same reason
+	// estimates are: enabling, duration, cooldown, start day and upcoming count are one
+	// decision, and a partial write that turns cycles on without a duration would leave a
+	// team in a state the CHECKs allow and the product does not.
+	UpdateTeamCycles(ctx context.Context, arg UpdateTeamCyclesParams) (Team, error)
 	// UpdateTeamEstimates is separate from UpdateTeam because the three settings are one
 	// decision: allow_zero and extended only mean anything relative to a scale, and letting a
 	// partial update change the scale without them would leave a team offering "16" on a

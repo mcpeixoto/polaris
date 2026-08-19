@@ -44,6 +44,9 @@ const (
 	milestoneID       = "'00000000-0000-7000-8000-0000000000e4'"
 	milestoneOther    = "'00000000-0000-7000-8000-0000000000e7'"
 	projMemberID      = "'00000000-0000-7000-8000-0000000000e5'"
+
+	cycleID  = "'00000000-0000-7000-8000-0000000000f1'"
+	cycleID2 = "'00000000-0000-7000-8000-0000000000f2'"
 )
 
 // fixture is the smallest workspace that can exercise cross-team and grouped-label rules:
@@ -531,6 +534,74 @@ func TestProjectSchemaInvariants(t *testing.T) {
 		name: "leaves the project in Planned — status is never derived from issues",
 		sql: `SELECT 1/count(*) FROM project
 		      WHERE id = ` + projID + ` AND status_id = ` + projStatusPlanned,
+	}})
+}
+
+// Cycles: one per issue, same team, a cadence that the database itself bounds, and a
+// cooldown that is a gap between cycles rather than a cycle you can file into.
+func TestCycleSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "an issue carries at most one cycle as a column, not a join table",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'issue' AND column_name = 'cycle_id'`,
+	}, {
+		name: "there is no issue_cycle set table — two cycles on one issue is unrepresentable",
+		sql: `SELECT 1 / CASE WHEN EXISTS (
+		        SELECT 1 FROM information_schema.tables
+		        WHERE table_schema = 'public' AND table_name IN ('issue_cycle', 'issue_cycles')
+		      ) THEN 0 ELSE 1 END`,
+	}, {
+		name: "duration is 1–8 weeks",
+		sql:  `UPDATE team SET cycles_enabled = true, cycle_duration_weeks = 9 WHERE id = ` + engID,
+		wantErr: "team_cycle_duration_check",
+	}, {
+		name: "cooldown is 0–8 weeks, never negative",
+		sql:  `UPDATE team SET cycle_cooldown_weeks = -1 WHERE id = ` + engID,
+		wantErr: "team_cycle_cooldown_check",
+	}, {
+		name: "upcoming count is 1–15",
+		sql:  `UPDATE team SET cycle_upcoming_count = 16 WHERE id = ` + engID,
+		wantErr: "team_cycle_upcoming_check",
+	}, {
+		name: "start day is a weekday name",
+		sql:  `UPDATE team SET cycle_start_day = 'fortnight' WHERE id = ` + engID,
+		wantErr: "team_cycle_start_day_check",
+	}, {
+		name: "a cycle needs a name",
+		sql: `INSERT INTO cycle (id, workspace_id, team_id, number, name, starts_at, ends_at)
+		      VALUES (` + cycleID + `, ` + ws + `, ` + engID + `, 1, '  ',
+		              '2026-08-03 00:01:00+00', '2026-08-17 00:01:00+00')`,
+		wantErr: "cycle_name_not_blank",
+	}, {
+		name: "a cycle cannot end before it starts",
+		sql: `INSERT INTO cycle (id, workspace_id, team_id, number, name, starts_at, ends_at)
+		      VALUES (` + cycleID + `, ` + ws + `, ` + engID + `, 1, 'Cycle 1',
+		              '2026-08-17 00:01:00+00', '2026-08-03 00:01:00+00')`,
+		wantErr: "cycle_ends_after_starts",
+	}, {
+		name: "seed a cycle on engineering",
+		sql: `INSERT INTO cycle (id, workspace_id, team_id, number, name, starts_at, ends_at)
+		      VALUES (` + cycleID + `, ` + ws + `, ` + engID + `, 1, 'Cycle 1',
+		              '2026-08-03 00:01:00+00', '2026-08-17 00:01:00+00')`,
+	}, {
+		name: "the same number twice in one team is refused",
+		sql: `INSERT INTO cycle (id, workspace_id, team_id, number, name, starts_at, ends_at)
+		      VALUES ('00000000-0000-7000-8000-0000000000f3', ` + ws + `, ` + engID + `, 1, 'Also 1',
+		              '2026-08-17 00:01:00+00', '2026-08-31 00:01:00+00')`,
+		wantErr: "cycle_team_number_key",
+	}, {
+		name: "seed a design cycle so an issue cannot borrow it",
+		sql: `INSERT INTO cycle (id, workspace_id, team_id, number, name, starts_at, ends_at)
+		      VALUES (` + cycleID2 + `, ` + ws + `, ` + desID + `, 1, 'Design 1',
+		              '2026-08-03 00:01:00+00', '2026-08-17 00:01:00+00')`,
+	}, {
+		name: "an engineering issue may sit in the engineering cycle",
+		sql:  `UPDATE issue SET cycle_id = ` + cycleID + ` WHERE id = ` + engIssue,
+	}, {
+		name: "an engineering issue may not sit in a design cycle",
+		sql:  `UPDATE issue SET cycle_id = ` + cycleID2 + ` WHERE id = ` + engIssue,
+		wantErr: "does not belong to team",
 	}})
 }
 
