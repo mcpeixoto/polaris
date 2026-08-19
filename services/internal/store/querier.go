@@ -68,6 +68,7 @@ type Querier interface {
 	AppendChange(ctx context.Context, arg AppendChangeParams) error
 	AppendIssueHistory(ctx context.Context, arg AppendIssueHistoryParams) error
 	ArchiveCycle(ctx context.Context, id uuid.UUID) error
+	ArchiveDocument(ctx context.Context, id uuid.UUID) error
 	ArchiveIssue(ctx context.Context, id uuid.UUID) error
 	// Archived rather than deleted: issue.template_id references this row, and the question
 	// that column exists to answer — "is this template still worth having" — needs the
@@ -245,6 +246,7 @@ type Querier interface {
 	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
 	// Cycles. Column lists follow the table order, same rule as issues.sql.
 	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
+	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
 	// Every list below is the issue table's columns, in the table's own order, minus
 	// search_vector. Minus, because the generated vector is roughly the size of the text it
@@ -345,6 +347,8 @@ type Querier interface {
 	GetCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
 	GetDefaultProjectStatus(ctx context.Context, workspaceID uuid.UUID) (ProjectStatus, error)
 	GetDefaultWorkflowStateForTeam(ctx context.Context, teamID uuid.UUID) (WorkflowState, error)
+	GetDocument(ctx context.Context, id uuid.UUID) (Document, error)
+	GetDocumentForUpdate(ctx context.Context, id uuid.UUID) (Document, error)
 	GetFavoritePositionAfter(ctx context.Context, arg GetFavoritePositionAfterParams) (string, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
 	GetInviteByTokenHash(ctx context.Context, tokenHash []byte) (Invite, error)
@@ -438,6 +442,8 @@ type Querier interface {
 	InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDeliveryParams) (WebhookDelivery, error)
 	IsTeamMember(ctx context.Context, arg IsTeamMemberParams) (bool, error)
 	LastCycleNumber(ctx context.Context, teamID uuid.UUID) (int32, error)
+	LastDocumentSortOrderForProject(ctx context.Context, projectID *uuid.UUID) (string, error)
+	LastDocumentSortOrderForTeam(ctx context.Context, teamID uuid.UUID) (string, error)
 	LastProjectMilestoneSortOrder(ctx context.Context, projectID uuid.UUID) (string, error)
 	LastProjectSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastProjectStatusPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -901,6 +907,7 @@ type Querier interface {
 	//
 	SnoozeNotification(ctx context.Context, arg SnoozeNotificationParams) (Notification, error)
 	SoftDeleteComment(ctx context.Context, id uuid.UUID) error
+	SoftDeleteDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	// SoftDeleteIssue records who as well as when.
 	//
 	// deleted_by is nullable and a caller may pass nothing, which is what the retention sweep
@@ -928,6 +935,7 @@ type Querier interface {
 	//
 	StreamCommentsForBootstrap(ctx context.Context, arg StreamCommentsForBootstrapParams) ([]Comment, error)
 	StreamCyclesForBootstrap(ctx context.Context, arg StreamCyclesForBootstrapParams) ([]Cycle, error)
+	StreamDocumentsForBootstrap(ctx context.Context, arg StreamDocumentsForBootstrapParams) ([]Document, error)
 	// StreamFavoritesForBootstrap ships the caller's own sidebar, minus the entries pointing at
 	// something this same snapshot does not carry.
 	//
@@ -1091,6 +1099,7 @@ type Querier interface {
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error
 	UnarchiveCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
+	UnarchiveDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	UnarchiveIssue(ctx context.Context, id uuid.UUID) error
 	// UnarchiveIssueTemplate returns the row for the reason UnarchiveLabel does: the archive
 	// reached every client as a delete, so only a payload can put it back.
@@ -1119,6 +1128,7 @@ type Querier interface {
 	UnarchiveWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowState, error)
 	UpdateAttachment(ctx context.Context, arg UpdateAttachmentParams) (Attachment, error)
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
+	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error
 	UpdateIssueTemplate(ctx context.Context, arg UpdateIssueTemplateParams) (UpdateIssueTemplateRow, error)

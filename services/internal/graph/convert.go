@@ -283,6 +283,24 @@ func toAttachments(rows []model.Attachment) []generated.Attachment {
 	return out
 }
 
+func toDocument(d model.Document) generated.Document {
+	return generated.Document{
+		ID:          d.ID,
+		WorkspaceID: d.WorkspaceID,
+		TeamID:      d.TeamID,
+		ProjectID:   d.ProjectID,
+		Title:       d.Title,
+		Body:        d.Body,
+		SortOrder:   d.SortOrder,
+		CreatorID:   d.CreatorID,
+		UpdatedBy:   d.UpdatedBy,
+		CreatedAt:   d.CreatedAt,
+		UpdatedAt:   d.UpdatedAt,
+		ArchivedAt:  d.ArchivedAt,
+		DeletedAt:   d.DeletedAt,
+	}
+}
+
 func toHistoryEntry(e model.IssueHistoryEntry) (generated.IssueHistoryEntry, error) {
 	actor, err := toActor(e.Actor)
 	if err != nil {

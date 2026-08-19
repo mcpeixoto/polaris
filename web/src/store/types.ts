@@ -343,6 +343,23 @@ export interface Attachment {
   readonly updatedAt: Timestamp;
 }
 
+/** Long-form markdown attached to a team or a project. */
+export interface Document {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly teamId: UUID;
+  readonly projectId?: UUID;
+  readonly title: string;
+  readonly body: string;
+  readonly sortOrder: string;
+  readonly creatorId?: UUID;
+  readonly updatedBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+}
+
 /**
  * Both a label and a group of labels: a group is a label with `isGroup` set.
  *
@@ -665,6 +682,7 @@ export interface EntityByType {
   issueLabel: IssueLabel;
   issueRelation: IssueRelation;
   attachment: Attachment;
+  document: Document;
   comment: Comment;
   issueSubscription: IssueSubscription;
   notification: Notification;
@@ -705,6 +723,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'issueLabel',
   'issueRelation',
   'attachment',
+  'document',
   'comment',
   'issueSubscription',
   // After comments, because a notification may name one.

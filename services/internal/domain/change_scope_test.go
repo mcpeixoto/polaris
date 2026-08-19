@@ -275,6 +275,11 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	}); err != nil {
 		t.Fatalf("attachment: %v", err)
 	}
+	if _, _, err := svc.CreateDocument(ctx, p, domain.CreateDocumentInput{
+		TeamID: f.TeamID, Title: "Runbook",
+	}); err != nil {
+		t.Fatalf("document: %v", err)
+	}
 
 	// The watcher subscribes and then hears about somebody else's edit, which is the only
 	// way to make a `notification` row exist without writing one by hand.

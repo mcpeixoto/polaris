@@ -6,6 +6,7 @@ import {
   ENTITY_TYPES,
   type Comment,
   type Attachment,
+  type Document,
   type Cycle,
   type Entity,
   type EntityOf,
@@ -73,8 +74,10 @@ import {
  * v7 adds team auto-close/archive periods and issue.autoClosedAt.
  *
  * v8 adds attachment (URL-idempotent link cards on issues).
+ *
+ * v9 adds document (markdown attached to teams and projects).
  */
-export const CLIENT_SCHEMA = 8;
+export const CLIENT_SCHEMA = 9;
 
 /**
  * One database per workspace per schema version.
@@ -161,6 +164,7 @@ interface PolarisSchema extends DBSchema {
   issueLabel: { key: UUID; value: IssueLabel };
   issueRelation: { key: UUID; value: IssueRelation };
   attachment: { key: UUID; value: Attachment };
+  document: { key: UUID; value: Document };
   comment: { key: UUID; value: Comment };
   issueSubscription: { key: UUID; value: IssueSubscription };
   notification: { key: UUID; value: Notification };

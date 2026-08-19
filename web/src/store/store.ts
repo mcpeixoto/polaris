@@ -18,6 +18,7 @@ import {
   type Change,
   type Comment,
   type Attachment,
+  type Document,
   type Cycle,
   type Entity,
   type EntityOf,
@@ -148,6 +149,7 @@ export class Store {
     issueLabel: new Map(),
     issueRelation: new Map(),
     attachment: new Map(),
+    document: new Map(),
     comment: new Map(),
     issueSubscription: new Map(),
     notification: new Map(),
@@ -166,6 +168,8 @@ export class Store {
 
   private readonly commentIssue = new SetIndex<UUID>();
   private readonly attachmentIssue = new SetIndex<UUID>();
+  private readonly documentTeam = new SetIndex<UUID>();
+  private readonly documentProject = new SetIndex<UUID>();
   private readonly stateTeam = new SetIndex<UUID>();
   private readonly membershipTeam = new SetIndex<UUID>();
   private readonly membershipUser = new SetIndex<UUID>();
@@ -274,6 +278,10 @@ export class Store {
     return this.tables.attachment as ReadonlyMap<UUID, Attachment>;
   }
 
+  get documents(): ReadonlyMap<UUID, Document> {
+    return this.tables.document as ReadonlyMap<UUID, Document>;
+  }
+
   get labels(): ReadonlyMap<UUID, Label> {
     return this.tables.label as ReadonlyMap<UUID, Label>;
   }
@@ -344,6 +352,14 @@ export class Store {
 
   attachmentIdsFor(issueId: UUID): ReadonlySet<UUID> {
     return this.attachmentIssue.get(issueId);
+  }
+
+  documentIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
+    return this.documentTeam.get(teamId);
+  }
+
+  documentIdsForProject(projectId: UUID): ReadonlySet<UUID> {
+    return this.documentProject.get(projectId);
   }
 
   workflowStateIdsFor(teamId: UUID): ReadonlySet<UUID> {
@@ -679,6 +695,8 @@ export class Store {
     this.notificationIndex.clear();
     this.commentIssue.clear();
     this.attachmentIssue.clear();
+    this.documentTeam.clear();
+    this.documentProject.clear();
     this.stateTeam.clear();
     this.membershipTeam.clear();
     this.membershipUser.clear();
@@ -857,6 +875,21 @@ export class Store {
         this.attachmentIssue.add(attachment.issueId, attachment.id);
         break;
       }
+      case 'document': {
+        const document = next as Document;
+        const before = previous as Document | undefined;
+        if (before !== undefined) {
+          this.documentTeam.remove(before.teamId, before.id);
+          if (before.projectId !== undefined) {
+            this.documentProject.remove(before.projectId, before.id);
+          }
+        }
+        this.documentTeam.add(document.teamId, document.id);
+        if (document.projectId !== undefined) {
+          this.documentProject.add(document.projectId, document.id);
+        }
+        break;
+      }
       case 'workflowState': {
         const state = next as WorkflowState;
         const before = previous as WorkflowState | undefined;
@@ -989,6 +1022,14 @@ export class Store {
       case 'attachment': {
         const attachment = entity as Attachment;
         this.attachmentIssue.remove(attachment.issueId, attachment.id);
+        break;
+      }
+      case 'document': {
+        const document = entity as Document;
+        this.documentTeam.remove(document.teamId, document.id);
+        if (document.projectId !== undefined) {
+          this.documentProject.remove(document.projectId, document.id);
+        }
         break;
       }
       case 'workflowState': {
