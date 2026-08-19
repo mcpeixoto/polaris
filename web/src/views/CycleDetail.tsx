@@ -9,8 +9,10 @@ import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { Button, EmptyState } from '~/components';
+import { CycleGraph } from '~/features/cycles/CycleGraph';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { IssueList, type IssueListSource } from './IssueList';
+import styles from './CycleDetail.module.css';
 
 export function CycleDetail() {
   const navigate = useNavigate();
@@ -36,5 +38,10 @@ export function CycleDetail() {
     );
   }
 
-  return <IssueList source={source} heading={cycle.name} />;
+  return (
+    <div className={styles.screen}>
+      <CycleGraph cycleId={cycle.id} />
+      <IssueList source={source} heading={cycle.name} />
+    </div>
+  );
 }
