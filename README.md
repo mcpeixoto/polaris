@@ -23,7 +23,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Client store | IndexedDB replica (schema 11), in-memory indexes, durable outbox, optimistic mutations |
 | Keyboard | One registry; the command menu and help overlay are views over it. Peek is `Space`; triage is `G T` / `1` `2` `3` `H`; archives is `G X` / `#`; add link is `⌘⇧U` |
 | Projects | Workspace and team lists with health from latest update, overview/issues/activity tabs, `Shift+P` picker, `C` files into the open project |
-| Cycles | Team cadence, auto-created windows, rollover and auto-add, `G C` / `Shift+C`, `C` files into the open cycle |
+| Cycles | Team cadence, auto-created windows, rollover and auto-add, cycle graph on detail, `G C` / `Shift+C`, `C` files into the open cycle |
 | Triage | Per-team intake status, hidden from ordinary views, accept / duplicate / decline / snooze |
 | Archives | Auto-close and auto-archive with parent/sub/project blocking; on-demand archives page |
 | Attachments | URL-idempotent link cards on issues, `attachmentsForURL`, duplicate merge moves unique URLs |
