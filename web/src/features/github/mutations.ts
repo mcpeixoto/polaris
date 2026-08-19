@@ -15,6 +15,7 @@ export const GITHUB_CONNECTION_FIELDS = /* GraphQL */ `
     orgLogin
     branchNameFormat
     linkCommits
+    linkbacks
     connectedAt
     createdAt
     updatedAt
@@ -109,6 +110,7 @@ export async function enableGitHubConnection(input: {
   orgLogin?: string;
   branchNameFormat?: string;
   linkCommits?: boolean;
+  linkbacks?: boolean;
 }): Promise<void> {
   await gql(CREATE_GITHUB_CONNECTION, { input });
 }
@@ -117,6 +119,7 @@ export async function updateGitHubConnection(input: {
   orgLogin?: string;
   branchNameFormat?: string;
   linkCommits?: boolean;
+  linkbacks?: boolean;
   enabled?: boolean;
 }): Promise<void> {
   await gql(UPDATE_GITHUB_CONNECTION, { input });

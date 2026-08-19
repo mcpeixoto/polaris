@@ -212,6 +212,7 @@ type GithubConnection struct {
 	ConnectedAt         *time.Time
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	Linkbacks           bool
 }
 
 type GithubUserLink struct {

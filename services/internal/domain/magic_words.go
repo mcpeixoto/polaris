@@ -9,9 +9,9 @@ import (
 
 // MagicClass is what a reference in a PR, commit or branch means for linking.
 //
-// Status transitions from these classes are a later slice. V1 only decides whether to
-// attach the GitHub object, and whether the author meant "this closes it", "this is
-// related", or "do not auto-link this id even if it is in the branch name".
+// Status transitions from these classes are applied by github_status.go: closing (and
+// TEAM-NEW) words complete on merge; relation and non-closing words never do. V1 of the
+// linker only decided whether to attach; this is the next slice.
 type MagicClass string
 
 const (

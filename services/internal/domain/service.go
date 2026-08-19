@@ -23,6 +23,13 @@ type Service struct {
 	db *store.DB
 	em Emitter
 
+	// PublicURL is the install's externally-correct base, used to mint issue URLs in
+	// GitHub linkback comments. Empty is valid in tests: the comment then carries a
+	// path, not a host.
+	PublicURL string
+
+	githubComments GitHubCommentPoster
+
 	// now is the clock the filter grammar's relative tokens resolve against.
 	//
 	// A field rather than a call to time.Now at the point of use, because "today" has to be
@@ -36,6 +43,11 @@ type Service struct {
 
 func NewService(db *store.DB) *Service {
 	return &Service{db: db, now: time.Now}
+}
+
+// SetGitHubCommentPoster is how the API process posts linkbacks. Tests inject a recorder.
+func (s *Service) SetGitHubCommentPoster(p GitHubCommentPoster) {
+	s.githubComments = p
 }
 
 // DB exposes the pool for the read-only paths that legitimately need it — the bootstrap

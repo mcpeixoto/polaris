@@ -35,21 +35,27 @@ type pullPayload struct {
 		Title   string `json:"title"`
 		Body    string `json:"body"`
 		Number  int    `json:"number"`
+		Draft   bool   `json:"draft"`
+		Merged  bool   `json:"merged"`
 		Head    struct {
 			Ref string `json:"ref"`
 		} `json:"head"`
 		Base struct {
+			Ref  string `json:"ref"`
 			Repo struct {
 				FullName string `json:"full_name"`
 			} `json:"repo"`
 		} `json:"base"`
+		RequestedReviewers []json.RawMessage `json:"requested_reviewers"`
 	} `json:"pull_request"`
 }
 
 type pushPayload struct {
+	Ref        string `json:"ref"`
 	Repository *struct {
-		FullName string `json:"full_name"`
-		HTMLURL  string `json:"html_url"`
+		FullName      string `json:"full_name"`
+		HTMLURL       string `json:"html_url"`
+		DefaultBranch string `json:"default_branch"`
 	} `json:"repository"`
 	Commits []struct {
 		ID      string `json:"id"`
@@ -77,12 +83,15 @@ func ParsePullRequest(body []byte) (PullRequestEvent, error) {
 		Action:       raw.Action,
 		Installation: installation,
 		Input: domain.LinkGitHubPullRequestInput{
-			URL:        pr.HTMLURL,
-			Title:      pr.Title,
-			Body:       pr.Body,
-			BranchName: pr.Head.Ref,
-			Repo:       pr.Base.Repo.FullName,
-			Number:     pr.Number,
+			URL:             pr.HTMLURL,
+			Title:           pr.Title,
+			Body:            pr.Body,
+			BranchName:      pr.Head.Ref,
+			Repo:            pr.Base.Repo.FullName,
+			Number:          pr.Number,
+			Draft:           pr.Draft,
+			Merged:          pr.Merged,
+			ReviewRequested: raw.Action == "review_requested" || len(pr.RequestedReviewers) > 0,
 		},
 	}, nil
 }
@@ -96,8 +105,14 @@ func ParsePush(body []byte) (PushEvent, error) {
 		return PushEvent{}, fmt.Errorf("github push: %w", err)
 	}
 	repoHTML := ""
+	defaultBranch := ""
 	if raw.Repository != nil {
 		repoHTML = strings.TrimRight(raw.Repository.HTMLURL, "/")
+		defaultBranch = raw.Repository.DefaultBranch
+	}
+	onDefault := false
+	if defaultBranch != "" {
+		onDefault = strings.TrimPrefix(raw.Ref, "refs/heads/") == defaultBranch
 	}
 	commits := make([]domain.GitHubCommitInput, 0, len(raw.Commits))
 	for _, c := range raw.Commits {
@@ -106,9 +121,10 @@ func ParsePush(body []byte) (PushEvent, error) {
 			url = repoHTML + "/commit/" + c.ID
 		}
 		commits = append(commits, domain.GitHubCommitInput{
-			SHA:     c.ID,
-			URL:     url,
-			Message: c.Message,
+			SHA:             c.ID,
+			URL:             url,
+			Message:         c.Message,
+			OnDefaultBranch: onDefault,
 		})
 	}
 	return PushEvent{Input: domain.GitHubPushInput{Commits: commits}}, nil

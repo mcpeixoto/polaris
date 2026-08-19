@@ -19,6 +19,7 @@ type GitHubConnection struct {
 	OrgLogin         *string    `json:"orgLogin,omitempty"`
 	BranchNameFormat string     `json:"branchNameFormat"`
 	LinkCommits      bool       `json:"linkCommits"`
+	Linkbacks        bool       `json:"linkbacks"`
 	ConnectedAt      *time.Time `json:"connectedAt,omitempty"`
 	CreatedAt        time.Time  `json:"createdAt"`
 	UpdatedAt        time.Time  `json:"updatedAt"`
@@ -29,10 +30,10 @@ type GitHubConnection struct {
 // Tokens are absent for the same reason APIKey has no token. The replica only needs to
 // know "I am connected as @login" so the settings screen and attribution can render.
 type GitHubUserLink struct {
-	ID           uuid.UUID `json:"id"`
-	WorkspaceID  uuid.UUID `json:"workspaceId"`
-	UserID       uuid.UUID `json:"userId"`
-	GitHubLogin  string    `json:"githubLogin"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	UserID      uuid.UUID `json:"userId"`
+	GitHubLogin string    `json:"githubLogin"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }

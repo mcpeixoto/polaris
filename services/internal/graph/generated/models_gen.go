@@ -197,6 +197,7 @@ type CreateGitHubConnectionInput struct {
 	OrgLogin         *string `json:"orgLogin,omitempty"`
 	BranchNameFormat *string `json:"branchNameFormat,omitempty"`
 	LinkCommits      *bool   `json:"linkCommits,omitempty"`
+	Linkbacks        *bool   `json:"linkbacks,omitempty"`
 }
 
 type CreateGitHubUserLinkInput struct {
@@ -543,16 +544,18 @@ type GitHubCommitWebhook struct {
 // Workspace GitHub install. Credentials are not on this type: the replica carries the
 // settings a client needs to copy a git branch name, and nothing that could be a token.
 type GitHubConnection struct {
-	ID               uuid.UUID  `json:"id"`
-	WorkspaceID      uuid.UUID  `json:"workspaceId"`
-	CreatorID        uuid.UUID  `json:"creatorId"`
-	Enabled          bool       `json:"enabled"`
-	OrgLogin         *string    `json:"orgLogin,omitempty"`
-	BranchNameFormat string     `json:"branchNameFormat"`
-	LinkCommits      bool       `json:"linkCommits"`
-	ConnectedAt      *time.Time `json:"connectedAt,omitempty"`
-	CreatedAt        time.Time  `json:"createdAt"`
-	UpdatedAt        time.Time  `json:"updatedAt"`
+	ID               uuid.UUID `json:"id"`
+	WorkspaceID      uuid.UUID `json:"workspaceId"`
+	CreatorID        uuid.UUID `json:"creatorId"`
+	Enabled          bool      `json:"enabled"`
+	OrgLogin         *string   `json:"orgLogin,omitempty"`
+	BranchNameFormat string    `json:"branchNameFormat"`
+	LinkCommits      bool      `json:"linkCommits"`
+	// When false, skip posting a comment back onto the GitHub PR or commit.
+	Linkbacks   bool       `json:"linkbacks"`
+	ConnectedAt *time.Time `json:"connectedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
 type GitHubConnectionPayload struct {
@@ -1391,6 +1394,7 @@ type UpdateGitHubConnectionInput struct {
 	OrgLogin         *string `json:"orgLogin,omitempty"`
 	BranchNameFormat *string `json:"branchNameFormat,omitempty"`
 	LinkCommits      *bool   `json:"linkCommits,omitempty"`
+	Linkbacks        *bool   `json:"linkbacks,omitempty"`
 	Enabled          *bool   `json:"enabled,omitempty"`
 }
 

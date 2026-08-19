@@ -32,12 +32,16 @@ func TestParsePullRequest(t *testing.T) {
 	if got.Input.Repo != "acme/app" || got.Input.Number != 12 {
 		t.Fatalf("repo: %+v", got.Input)
 	}
+	if got.Input.Draft || got.Input.Merged {
+		t.Fatalf("opened PR must not look drafted or merged: %+v", got.Input)
+	}
 }
 
 func TestParsePush_BuildsBrowserURLs(t *testing.T) {
 	t.Parallel()
 	body := []byte(`{
-		"repository": {"full_name": "acme/app", "html_url": "https://github.com/acme/app"},
+		"ref": "refs/heads/main",
+		"repository": {"full_name": "acme/app", "html_url": "https://github.com/acme/app", "default_branch": "main"},
 		"commits": [{
 			"id": "abc123",
 			"url": "https://api.github.com/repos/acme/app/commits/abc123",
@@ -57,5 +61,8 @@ func TestParsePush_BuildsBrowserURLs(t *testing.T) {
 	}
 	if c.Message != "Fixes ENG-1" {
 		t.Fatalf("message: %q", c.Message)
+	}
+	if !c.OnDefaultBranch {
+		t.Fatal("a push to the default branch must mark its commits so merge automation can fire")
 	}
 }

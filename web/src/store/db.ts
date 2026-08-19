@@ -99,8 +99,9 @@ import {
  * v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
  * v21 adds projectTemplate, projectTemplateMilestone, projectTemplateIssue, and project.projectTemplateId.
  * v22 adds githubConnection and githubUserLink (GitHub v1 linking, no secrets).
+ * v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
  */
-export const CLIENT_SCHEMA = 22;
+export const CLIENT_SCHEMA = 23;
 
 /**
  * One database per workspace per schema version.

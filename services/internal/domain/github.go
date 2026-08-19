@@ -29,6 +29,7 @@ type CreateGitHubConnectionInput struct {
 	InstallationID   *int64
 	BranchNameFormat *string
 	LinkCommits      *bool
+	Linkbacks        *bool
 }
 
 type UpdateGitHubConnectionInput struct {
@@ -36,6 +37,7 @@ type UpdateGitHubConnectionInput struct {
 	InstallationID   *int64
 	BranchNameFormat *string
 	LinkCommits      *bool
+	Linkbacks        *bool
 	Enabled          *bool
 }
 
@@ -45,12 +47,16 @@ type CreateGitHubUserLinkInput struct {
 }
 
 type LinkGitHubPullRequestInput struct {
-	URL        string
-	Title      string
-	Body       string
-	BranchName string
-	Repo       string
-	Number     int
+	URL             string
+	Title           string
+	Body            string
+	BranchName      string
+	Repo            string
+	Number          int
+	Draft           bool
+	Merged          bool
+	MergeableState  string
+	ReviewRequested bool
 }
 
 type GitHubPushInput struct {
@@ -58,9 +64,10 @@ type GitHubPushInput struct {
 }
 
 type GitHubCommitInput struct {
-	SHA     string
-	URL     string
-	Message string
+	SHA             string
+	URL             string
+	Message         string
+	OnDefaultBranch bool
 }
 
 func (s *Service) CreateGitHubConnection(
@@ -81,6 +88,10 @@ func (s *Service) CreateGitHubConnection(
 	if in.LinkCommits != nil {
 		linkCommits = *in.LinkCommits
 	}
+	linkbacks := true
+	if in.Linkbacks != nil {
+		linkbacks = *in.Linkbacks
+	}
 	org := trimPtr(in.OrgLogin)
 
 	var out model.GitHubConnection
@@ -99,6 +110,7 @@ func (s *Service) CreateGitHubConnection(
 			InstallationID:      in.InstallationID,
 			BranchNameFormat:    format,
 			LinkCommits:         linkCommits,
+			Linkbacks:           linkbacks,
 			CommitWebhookSecret: secret,
 		})
 		if err != nil {
@@ -143,6 +155,7 @@ func (s *Service) UpdateGitHubConnection(
 			InstallationID:   in.InstallationID,
 			BranchNameFormat: format,
 			LinkCommits:      in.LinkCommits,
+			Linkbacks:        in.Linkbacks,
 			Enabled:          in.Enabled,
 			WorkspaceID:      p.WorkspaceID,
 		})
@@ -159,7 +172,7 @@ func (s *Service) UpdateGitHubConnection(
 			Op:            OpUpsert,
 			Scope:         authz.WorkspaceScope(),
 			Payload:       out,
-			ChangedFields: []string{"orgLogin", "branchNameFormat", "linkCommits", "enabled"},
+			ChangedFields: []string{"orgLogin", "branchNameFormat", "linkCommits", "linkbacks", "enabled"},
 		})
 		return err
 	})
@@ -344,17 +357,24 @@ func (s *Service) LinkGitHubPullRequest(
 	if title == "" {
 		title = fmt.Sprintf("%s#%d", repo, number)
 	}
-	meta, _ := json.Marshal(map[string]any{
-		"source":     "github",
-		"kind":       "pull_request",
-		"repo":       repo,
-		"number":     number,
-		"branchName": in.BranchName,
-	})
 
 	var lastVersion int64
 	var out []model.Attachment
 	for _, t := range targets {
+		already, err := s.attachmentExistsForURL(ctx, p, t.issue.ID, parsed.String())
+		if err != nil {
+			return nil, 0, err
+		}
+		meta, _ := json.Marshal(githubAttachmentMeta{
+			Source:     "github",
+			Kind:       "pull_request",
+			Repo:       repo,
+			Number:     number,
+			BranchName: in.BranchName,
+			MagicClass: string(t.class),
+			Merged:     in.Merged,
+			Draft:      in.Draft,
+		})
 		att, version, err := s.CreateAttachment(ctx, p, CreateAttachmentInput{
 			IssueID:  t.issue.ID,
 			URL:      parsed.String(),
@@ -374,6 +394,12 @@ func (s *Service) LinkGitHubPullRequest(
 			}); err != nil {
 				return nil, 0, err
 			}
+		}
+		if err := s.applyGitHubPRStatus(ctx, p, t, in); err != nil {
+			return nil, 0, err
+		}
+		if !already {
+			s.postGitHubPRLinkback(ctx, p, t.issue, repo, number)
 		}
 	}
 	return out, lastVersion, nil
@@ -405,16 +431,21 @@ func (s *Service) IngestGitHubPush(
 			if err != nil || issue == nil {
 				continue
 			}
+			already, err := s.attachmentExistsForURL(ctx, p, issue.ID, c.URL)
+			if err != nil {
+				return 0, nil, err
+			}
 			sha := c.SHA
 			if len(sha) > 7 {
 				sha = sha[:7]
 			}
 			sub := firstLine(msg)
-			meta, _ := json.Marshal(map[string]any{
-				"source":     "github",
-				"kind":       "commit",
-				"sha":        c.SHA,
-				"magicClass": string(link.Class),
+			meta, _ := json.Marshal(githubAttachmentMeta{
+				Source:     "github",
+				Kind:       "commit",
+				SHA:        c.SHA,
+				MagicClass: string(link.Class),
+				Merged:     c.OnDefaultBranch,
 			})
 			att, version, err := s.CreateAttachment(ctx, p, CreateAttachmentInput{
 				IssueID:  issue.ID,
@@ -428,6 +459,12 @@ func (s *Service) IngestGitHubPush(
 			}
 			lastVersion = version
 			out = append(out, att)
+			if err := s.applyGitHubCommitStatus(ctx, p, *issue, link.Class, c.OnDefaultBranch); err != nil {
+				return 0, nil, err
+			}
+			if !already {
+				s.postGitHubCommitLinkback(ctx, p, *issue, c)
+			}
 		}
 	}
 	return lastVersion, out, nil
@@ -706,7 +743,8 @@ func gitHubConnectionFromCreate(r store.CreateGitHubConnectionRow) model.GitHubC
 	return model.GitHubConnection{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, CreatorID: r.CreatorID, Enabled: r.Enabled,
 		OrgLogin: r.OrgLogin, BranchNameFormat: r.BranchNameFormat,
-		LinkCommits: r.LinkCommits, ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		LinkCommits: r.LinkCommits, Linkbacks: r.Linkbacks,
+		ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
@@ -714,7 +752,8 @@ func gitHubConnectionFromGet(r store.GetGitHubConnectionRow) model.GitHubConnect
 	return model.GitHubConnection{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, CreatorID: r.CreatorID, Enabled: r.Enabled,
 		OrgLogin: r.OrgLogin, BranchNameFormat: r.BranchNameFormat,
-		LinkCommits: r.LinkCommits, ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		LinkCommits: r.LinkCommits, Linkbacks: r.Linkbacks,
+		ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
@@ -722,7 +761,8 @@ func gitHubConnectionFromUpdate(r store.UpdateGitHubConnectionRow) model.GitHubC
 	return model.GitHubConnection{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, CreatorID: r.CreatorID, Enabled: r.Enabled,
 		OrgLogin: r.OrgLogin, BranchNameFormat: r.BranchNameFormat,
-		LinkCommits: r.LinkCommits, ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		LinkCommits: r.LinkCommits, Linkbacks: r.Linkbacks,
+		ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
@@ -730,7 +770,8 @@ func gitHubConnectionFromInstall(r store.GetGitHubConnectionByInstallationRow) m
 	return model.GitHubConnection{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, CreatorID: r.CreatorID, Enabled: r.Enabled,
 		OrgLogin: r.OrgLogin, BranchNameFormat: r.BranchNameFormat,
-		LinkCommits: r.LinkCommits, ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		LinkCommits: r.LinkCommits, Linkbacks: r.Linkbacks,
+		ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
@@ -738,7 +779,8 @@ func gitHubConnectionFromStream(r store.StreamGitHubConnectionsForBootstrapRow) 
 	return model.GitHubConnection{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, CreatorID: r.CreatorID, Enabled: r.Enabled,
 		OrgLogin: r.OrgLogin, BranchNameFormat: r.BranchNameFormat,
-		LinkCommits: r.LinkCommits, ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		LinkCommits: r.LinkCommits, Linkbacks: r.Linkbacks,
+		ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 

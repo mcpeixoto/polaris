@@ -129,6 +129,7 @@ export function GitHubSettings() {
         orgLogin: orgLogin.trim() === '' ? undefined : orgLogin.trim(),
         branchNameFormat: branchFormat,
         linkCommits: connection.linkCommits,
+        linkbacks: connection.linkbacks,
       });
     } catch (failure: unknown) {
       setLoadError(failure instanceof ApiError ? failure.message : 'Could not save GitHub settings.');
@@ -145,6 +146,18 @@ export function GitHubSettings() {
       setAttempt((n) => n + 1);
     } catch (failure: unknown) {
       setLoadError(failure instanceof ApiError ? failure.message : 'Could not update commit linking.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onToggleLinkbacks = async (linkbacks: boolean) => {
+    if (connection === null) return;
+    setBusy(true);
+    try {
+      await updateGitHubConnection({ linkbacks });
+    } catch (failure: unknown) {
+      setLoadError(failure instanceof ApiError ? failure.message : 'Could not update linkbacks.');
     } finally {
       setBusy(false);
     }
@@ -265,6 +278,24 @@ export function GitHubSettings() {
                 />
               </>
             ) : null}
+          </section>
+        ) : null}
+
+        {connection !== null && isAdmin ? (
+          <section className={styles.section} aria-labelledby="github-linkbacks">
+            <h2 className={styles.sectionTitle} id="github-linkbacks">
+              Linkbacks
+            </h2>
+            <Checkbox
+              label="Post a comment on the pull request or commit when it links to an issue"
+              checked={connection.linkbacks}
+              disabled={busy}
+              onChange={(event) => void onToggleLinkbacks(event.target.checked)}
+            />
+            <p className={styles.sectionHint}>
+              Private teams get the issue URL only. Turn this off if GitHub notifications
+              from those comments are noise.
+            </p>
           </section>
         ) : null}
 

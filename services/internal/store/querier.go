@@ -393,6 +393,7 @@ type Querier interface {
 	GetFormTemplateField(ctx context.Context, id uuid.UUID) (FormTemplateField, error)
 
 	GetGitHubConnection(ctx context.Context, workspaceID uuid.UUID) (GetGitHubConnectionRow, error)
+	GetGitHubConnectionAccessToken(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetGitHubConnectionByInstallation(ctx context.Context, installationID *int64) (GetGitHubConnectionByInstallationRow, error)
 	GetGitHubConnectionSecret(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetGitHubUserLink(ctx context.Context, arg GetGitHubUserLinkParams) (GetGitHubUserLinkRow, error)

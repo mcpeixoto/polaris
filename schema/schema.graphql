@@ -1414,6 +1414,8 @@ type GitHubConnection {
   orgLogin: String
   branchNameFormat: String!
   linkCommits: Boolean!
+  """When false, skip posting a comment back onto the GitHub PR or commit."""
+  linkbacks: Boolean!
   connectedAt: Time
   createdAt: Time!
   updatedAt: Time!
@@ -1452,12 +1454,14 @@ input CreateGitHubConnectionInput {
   orgLogin: String
   branchNameFormat: String
   linkCommits: Boolean
+  linkbacks: Boolean
 }
 
 input UpdateGitHubConnectionInput {
   orgLogin: String
   branchNameFormat: String
   linkCommits: Boolean
+  linkbacks: Boolean
   enabled: Boolean
 }
 
