@@ -262,7 +262,6 @@ type Querier interface {
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateFormTemplate(ctx context.Context, arg CreateFormTemplateParams) (CreateFormTemplateRow, error)
 	CreateFormTemplateField(ctx context.Context, arg CreateFormTemplateFieldParams) (FormTemplateField, error)
-
 	// Replicated columns only. access_token and commit_webhook_secret are never selected here.
 	CreateGitHubConnection(ctx context.Context, arg CreateGitHubConnectionParams) (CreateGitHubConnectionRow, error)
 	CreateGitHubUserLink(ctx context.Context, arg CreateGitHubUserLinkParams) (CreateGitHubUserLinkRow, error)
@@ -322,7 +321,6 @@ type Querier interface {
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
 	DeleteFormTemplateField(ctx context.Context, id uuid.UUID) (FormTemplateField, error)
-
 	DeleteGitHubConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteGitHubTeamAutomation(ctx context.Context, arg DeleteGitHubTeamAutomationParams) error
 	DeleteGitHubUserLink(ctx context.Context, arg DeleteGitHubUserLinkParams) error
@@ -392,7 +390,6 @@ type Querier interface {
 	GetFavoritePositionAfter(ctx context.Context, arg GetFavoritePositionAfterParams) (string, error)
 	GetFormTemplate(ctx context.Context, id uuid.UUID) (GetFormTemplateRow, error)
 	GetFormTemplateField(ctx context.Context, id uuid.UUID) (FormTemplateField, error)
-
 	GetGitHubConnection(ctx context.Context, workspaceID uuid.UUID) (GetGitHubConnectionRow, error)
 	GetGitHubConnectionAccessToken(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetGitHubConnectionByInstallation(ctx context.Context, installationID *int64) (GetGitHubConnectionByInstallationRow, error)
@@ -1060,7 +1057,6 @@ type Querier interface {
 	StreamFavoritesForBootstrap(ctx context.Context, arg StreamFavoritesForBootstrapParams) ([]Favorite, error)
 	StreamFormTemplateFieldsForBootstrap(ctx context.Context, arg StreamFormTemplateFieldsForBootstrapParams) ([]FormTemplateField, error)
 	StreamFormTemplatesForBootstrap(ctx context.Context, arg StreamFormTemplatesForBootstrapParams) ([]StreamFormTemplatesForBootstrapRow, error)
-
 	StreamGitHubConnectionsForBootstrap(ctx context.Context, arg StreamGitHubConnectionsForBootstrapParams) ([]StreamGitHubConnectionsForBootstrapRow, error)
 	StreamGitHubUserLinksForBootstrap(ctx context.Context, arg StreamGitHubUserLinksForBootstrapParams) ([]StreamGitHubUserLinksForBootstrapRow, error)
 	// StreamInitiativeProjectsForBootstrap: both the initiative and the project must be visible.
@@ -1266,7 +1262,6 @@ type Querier interface {
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateFormTemplate(ctx context.Context, arg UpdateFormTemplateParams) (UpdateFormTemplateRow, error)
 	UpdateFormTemplateField(ctx context.Context, arg UpdateFormTemplateFieldParams) (FormTemplateField, error)
-
 	UpdateGitHubConnection(ctx context.Context, arg UpdateGitHubConnectionParams) (UpdateGitHubConnectionRow, error)
 	UpdateGitHubUserLink(ctx context.Context, arg UpdateGitHubUserLinkParams) (UpdateGitHubUserLinkRow, error)
 	UpdateInitiative(ctx context.Context, arg UpdateInitiativeParams) (Initiative, error)
