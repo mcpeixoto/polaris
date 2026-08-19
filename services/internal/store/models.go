@@ -215,6 +215,18 @@ type GithubConnection struct {
 	Linkbacks           bool
 }
 
+type GithubTeamAutomation struct {
+	TeamID                 uuid.UUID
+	WorkspaceID            uuid.UUID
+	DraftedStateID         *uuid.UUID
+	OpenedStateID          *uuid.UUID
+	ReviewRequestedStateID *uuid.UUID
+	ReadyForMergeStateID   *uuid.UUID
+	MergedStateID          *uuid.UUID
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
 type GithubUserLink struct {
 	ID           uuid.UUID
 	WorkspaceID  uuid.UUID

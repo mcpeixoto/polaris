@@ -2655,10 +2655,14 @@ func (r *mutationResolver) LinkGitHubPullRequest(ctx context.Context, input gene
 		return nil, PresentError(ctx, err)
 	}
 	in := domain.LinkGitHubPullRequestInput{
-		URL:        input.URL,
-		Title:      deref(input.Title),
-		Body:       deref(input.Body),
-		BranchName: deref(input.BranchName),
+		URL:             input.URL,
+		Title:           deref(input.Title),
+		Body:            deref(input.Body),
+		BranchName:      deref(input.BranchName),
+		Draft:           deref(input.Draft),
+		Merged:          deref(input.Merged),
+		MergeableState:  deref(input.MergeableState),
+		ReviewRequested: deref(input.ReviewRequested),
 	}
 	atts, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) ([]model.Attachment, int64, error) {
@@ -2668,6 +2672,39 @@ func (r *mutationResolver) LinkGitHubPullRequest(ctx context.Context, input gene
 		return nil, PresentError(ctx, err)
 	}
 	return &generated.GitHubLinkPayload{Version: int(version), Attachments: toAttachments(atts)}, nil
+}
+
+// UpdateGitHubTeamAutomation is the resolver for the updateGitHubTeamAutomation field.
+func (r *mutationResolver) UpdateGitHubTeamAutomation(ctx context.Context, input generated.UpdateGitHubTeamAutomationInput) (*generated.GitHubTeamAutomationPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	auto, err := r.Svc.UpdateGitHubTeamAutomation(ctx, p, domain.UpdateGitHubTeamAutomationInput{
+		TeamID:                 input.TeamID,
+		DraftedStateID:         input.DraftedStateID,
+		OpenedStateID:          input.OpenedStateID,
+		ReviewRequestedStateID: input.ReviewRequestedStateID,
+		ReadyForMergeStateID:   input.ReadyForMergeStateID,
+		MergedStateID:          input.MergedStateID,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return githubTeamAutomationPayload(auto), nil
+}
+
+// DeleteGitHubTeamAutomation is the resolver for the deleteGitHubTeamAutomation field.
+func (r *mutationResolver) DeleteGitHubTeamAutomation(ctx context.Context, teamID uuid.UUID) (*generated.GitHubTeamAutomationPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	auto, err := r.Svc.DeleteGitHubTeamAutomation(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return githubTeamAutomationPayload(auto), nil
 }
 
 // Viewer is the resolver for the viewer field.
@@ -3741,6 +3778,20 @@ func (r *queryResolver) GithubCommitWebhook(ctx context.Context) (*generated.Git
 		URL:    githubCommitWebhookURL(r.PublicURL, p.WorkspaceID.String()),
 		Secret: secret,
 	}, nil
+}
+
+// GithubTeamAutomation is the resolver for the githubTeamAutomation field.
+func (r *queryResolver) GithubTeamAutomation(ctx context.Context, teamID uuid.UUID) (*generated.GitHubTeamAutomation, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	auto, err := r.Svc.GetGitHubTeamAutomation(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitHubTeamAutomation(auto)
+	return &out, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

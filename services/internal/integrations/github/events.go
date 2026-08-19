@@ -31,13 +31,14 @@ type pullPayload struct {
 		ID int64 `json:"id"`
 	} `json:"installation"`
 	PullRequest *struct {
-		HTMLURL string `json:"html_url"`
-		Title   string `json:"title"`
-		Body    string `json:"body"`
-		Number  int    `json:"number"`
-		Draft   bool   `json:"draft"`
-		Merged  bool   `json:"merged"`
-		Head    struct {
+		HTMLURL        string `json:"html_url"`
+		Title          string `json:"title"`
+		Body           string `json:"body"`
+		Number         int    `json:"number"`
+		Draft          bool   `json:"draft"`
+		Merged         bool   `json:"merged"`
+		MergeableState string `json:"mergeable_state"`
+		Head           struct {
 			Ref string `json:"ref"`
 		} `json:"head"`
 		Base struct {
@@ -46,7 +47,6 @@ type pullPayload struct {
 				FullName string `json:"full_name"`
 			} `json:"repo"`
 		} `json:"base"`
-		RequestedReviewers []json.RawMessage `json:"requested_reviewers"`
 	} `json:"pull_request"`
 }
 
@@ -79,6 +79,15 @@ func ParsePullRequest(body []byte) (PullRequestEvent, error) {
 		installation = raw.Installation.ID
 	}
 	pr := raw.PullRequest
+	// Opened-class events must stay "opened" even when GitHub already reports a clean
+	// mergeable_state — otherwise the opened mapping never fires on a PR that is
+	// mergeable the moment it opens. Ready-for-merge is the later synchronize/edited
+	// payload. Reviewers already present on open are not a review_requested event.
+	mergeable := pr.MergeableState
+	switch raw.Action {
+	case "opened", "reopened", "ready_for_review":
+		mergeable = ""
+	}
 	return PullRequestEvent{
 		Action:       raw.Action,
 		Installation: installation,
@@ -91,7 +100,8 @@ func ParsePullRequest(body []byte) (PullRequestEvent, error) {
 			Number:          pr.Number,
 			Draft:           pr.Draft,
 			Merged:          pr.Merged,
-			ReviewRequested: raw.Action == "review_requested" || len(pr.RequestedReviewers) > 0,
+			MergeableState:  mergeable,
+			ReviewRequested: raw.Action == "review_requested",
 		},
 	}, nil
 }
