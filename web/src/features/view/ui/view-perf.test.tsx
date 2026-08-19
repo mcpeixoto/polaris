@@ -128,6 +128,8 @@ function buildRows(): EntityRow[] {
       cycleUpcomingCount: 2,
       cycleAutoAddStarted: false,
       cycleAutoAddCompleted: false,
+      triageEnabled: false,
+      triageRequirePriority: false,
       createdAt: AT,
       updatedAt: AT,
     };

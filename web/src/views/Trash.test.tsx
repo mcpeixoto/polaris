@@ -45,6 +45,8 @@ function team(): Team {
     cycleUpcomingCount: 2,
     cycleAutoAddStarted: false,
     cycleAutoAddCompleted: false,
+    triageEnabled: false,
+    triageRequirePriority: false,
     createdAt: AT,
     updatedAt: AT,
   };

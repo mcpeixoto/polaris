@@ -67,6 +67,8 @@ function team(id: UUID, key: string, name: string, over: Partial<Team> = {}): Te
     cycleUpcomingCount: 2,
     cycleAutoAddStarted: false,
     cycleAutoAddCompleted: false,
+    triageEnabled: false,
+    triageRequirePriority: false,
     createdAt: AT,
     updatedAt: AT,
     ...over,

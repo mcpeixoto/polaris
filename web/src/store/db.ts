@@ -66,8 +66,10 @@ import {
  * on an issue that point at them.
  *
  * v5 adds cycles, team cadence fields, and issue.cycleId.
+ *
+ * v6 adds team triage flags and issue.snoozedUntil.
  */
-export const CLIENT_SCHEMA = 5;
+export const CLIENT_SCHEMA = 6;
 
 /**
  * One database per workspace per schema version.

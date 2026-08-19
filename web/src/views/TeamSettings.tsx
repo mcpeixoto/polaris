@@ -36,6 +36,7 @@ import {
   STATE_LABELS,
 } from '~/components';
 import { updateTeamCycles } from '~/features/cycles/mutations';
+import { updateTeamTriage } from '~/features/triage/mutations';
 import {
   archiveStatus,
   createStatus,
@@ -68,6 +69,8 @@ interface TeamView {
   readonly cycleUpcomingCount: number;
   readonly cycleAutoAddStarted: boolean;
   readonly cycleAutoAddCompleted: boolean;
+  readonly triageEnabled: boolean;
+  readonly triageRequirePriority: boolean;
   readonly statuses: readonly StatusView[];
 }
 
@@ -154,6 +157,9 @@ export function TeamSettings() {
         <Link className={styles.link} to={`/team/${team.key}/cycles`}>
           Cycles
         </Link>
+        <Link className={styles.link} to={`/team/${team.key}/triage`}>
+          Triage
+        </Link>
         <Link className={styles.link} to={`/team/${team.key}`}>
           Back to issues
         </Link>
@@ -169,6 +175,11 @@ export function TeamSettings() {
         <TeamForm team={team} onSave={(fields) => run(updateTeam(engine, team.id, fields))} />
 
         <CycleCadence team={team} onChange={(cadence) => run(updateTeamCycles(engine, team.id, cadence))} />
+
+        <TriageSettings
+          team={team}
+          onChange={(patch) => run(updateTeamTriage(engine, team.id, patch))}
+        />
 
         <section className={styles.section} aria-labelledby="statuses-heading">
           <h2 className={styles.sectionTitle} id="statuses-heading">
@@ -367,6 +378,49 @@ function CycleCadence({
             />
           </div>
         </>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * The intake queue, not a fake view.
+ *
+ * Enabling creates the Triage status and the reserved Duplicate status if they are missing.
+ * Disabling does not delete them. Require-priority is the only extra switch: leaving the
+ * inbox without a number is refused, so `1` opens the priority picker instead.
+ */
+function TriageSettings({
+  team,
+  onChange,
+}: {
+  team: TeamView;
+  onChange: (patch: Parameters<typeof updateTeamTriage>[2]) => void;
+}) {
+  return (
+    <section className={styles.section} aria-labelledby="triage-heading">
+      <h2 className={styles.sectionTitle} id="triage-heading">
+        Triage
+      </h2>
+      <p className={styles.sectionHint}>
+        Unreviewed work from outside the team lands in a Triage status, hidden from ordinary
+        views until somebody accepts, declines, merges or snoozes it.
+      </p>
+
+      <Checkbox
+        label="Run triage"
+        checked={team.triageEnabled}
+        onChange={(event) => onChange({ enabled: event.target.checked })}
+      />
+
+      {team.triageEnabled ? (
+        <div className={styles.autoAdd}>
+          <Checkbox
+            label="Require a priority before an issue can leave triage"
+            checked={team.triageRequirePriority}
+            onChange={(event) => onChange({ requirePriority: event.target.checked })}
+          />
+        </div>
       ) : null}
     </section>
   );
@@ -586,6 +640,8 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     cycleUpcomingCount: team.cycleUpcomingCount,
     cycleAutoAddStarted: team.cycleAutoAddStarted,
     cycleAutoAddCompleted: team.cycleAutoAddCompleted,
+    triageEnabled: team.triageEnabled,
+    triageRequirePriority: team.triageRequirePriority,
     statuses,
   };
 }

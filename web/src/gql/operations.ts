@@ -33,6 +33,7 @@ export const ISSUE_FIELDS = /* GraphQL */ `
     projectId
     projectMilestoneId
     cycleId
+    snoozedUntil
     startedAt
     completedAt
     canceledAt
@@ -64,6 +65,8 @@ export const TEAM_FIELDS = /* GraphQL */ `
     cycleUpcomingCount
     cycleAutoAddStarted
     cycleAutoAddCompleted
+    triageEnabled
+    triageRequirePriority
     createdAt
     updatedAt
     retiredAt
@@ -311,6 +314,66 @@ export const UPDATE_TEAM_CYCLES = /* GraphQL */ `
       version
       team {
         ...TeamFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_TEAM_TRIAGE = /* GraphQL */ `
+  ${TEAM_FIELDS}
+  mutation UpdateTeamTriage($input: UpdateTeamTriageInput!) {
+    updateTeamTriage(input: $input) {
+      version
+      team {
+        ...TeamFields
+      }
+    }
+  }
+`;
+
+export const ACCEPT_TRIAGE_ISSUE = /* GraphQL */ `
+  ${ISSUE_FIELDS}
+  mutation AcceptTriageIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {
+    acceptTriageIssue(id: $id, clientId: $clientId, opId: $opId) {
+      version
+      issue {
+        ...IssueFields
+      }
+    }
+  }
+`;
+
+export const DECLINE_TRIAGE_ISSUE = /* GraphQL */ `
+  ${ISSUE_FIELDS}
+  mutation DeclineTriageIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {
+    declineTriageIssue(id: $id, clientId: $clientId, opId: $opId) {
+      version
+      issue {
+        ...IssueFields
+      }
+    }
+  }
+`;
+
+export const MARK_ISSUE_DUPLICATE = /* GraphQL */ `
+  ${ISSUE_FIELDS}
+  mutation MarkIssueDuplicate($id: UUID!, $canonicalId: UUID!, $clientId: UUID!, $opId: UUID!) {
+    markIssueDuplicate(id: $id, canonicalId: $canonicalId, clientId: $clientId, opId: $opId) {
+      version
+      issue {
+        ...IssueFields
+      }
+    }
+  }
+`;
+
+export const SNOOZE_ISSUE = /* GraphQL */ `
+  ${ISSUE_FIELDS}
+  mutation SnoozeIssue($id: UUID!, $until: Time!, $clientId: UUID!, $opId: UUID!) {
+    snoozeIssue(id: $id, until: $until, clientId: $clientId, opId: $opId) {
+      version
+      issue {
+        ...IssueFields
       }
     }
   }

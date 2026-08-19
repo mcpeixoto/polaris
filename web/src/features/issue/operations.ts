@@ -37,6 +37,7 @@ export const SUB_ISSUE_FIELDS = /* GraphQL */ `
     projectId
     projectMilestoneId
     cycleId
+    snoozedUntil
     startedAt
     completedAt
     canceledAt

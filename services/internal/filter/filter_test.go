@@ -138,15 +138,15 @@ func TestCompile(t *testing.T) {
 	}{{
 		name: "the canonical empty filter still carries the two defaults",
 		json: `{}`,
-		sql:  `(true AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(true AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "an or over nothing is vacuously false",
 		json: `{"conj":"or","nodes":[]}`,
-		sql:  `(false AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(false AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "eq binds a placeholder, never the value",
 		json: `{"field":"assignee","op":"eq","values":["` + ada + `"]}`,
-		sql:  `(issue.assignee_id = $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.assignee_id = $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{uuid.MustParse(ada)},
 	}, {
 		// The case the whole compiler exists for. NOT (NULL = 'ada') is NULL, so the
@@ -154,40 +154,40 @@ func TestCompile(t *testing.T) {
 		name: "neq over a nullable column keeps its nulls",
 		json: `{"field":"assignee","op":"neq","values":["` + ada + `"]}`,
 		sql: `((issue.assignee_id IS NULL OR NOT (issue.assignee_id = $1))` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{uuid.MustParse(ada)},
 	}, {
 		name: "neq over a column that cannot be null stays plain",
 		json: `{"field":"priority","op":"neq","values":["1"]}`,
-		sql:  `(NOT (issue.priority = $1) AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(NOT (issue.priority = $1) AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{int32(1)},
 	}, {
 		name: "in becomes one array parameter",
 		json: `{"field":"priority","op":"in","values":["1","2"]}`,
-		sql:  `(issue.priority = ANY($1) AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.priority = ANY($1) AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{[]int32{1, 2}},
 	}, {
 		// The obvious SQL for an empty IN-list is a syntax error and the obvious fix is to
 		// skip the clause, which turns "assigned to nobody in this list" into no filter.
 		name: "an empty in-list is a literal false, not a skipped clause",
 		json: `{"field":"priority","op":"in","values":[]}`,
-		sql:  `(false AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(false AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "an empty not-in-list is a literal true",
 		json: `{"field":"priority","op":"notIn","values":[]}`,
-		sql:  `(true AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(true AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "not-in over a nullable column keeps its nulls too",
 		json: `{"field":"estimate","op":"notIn","values":["1","2"]}`,
 		sql: `((issue.estimate IS NULL OR NOT (issue.estimate = ANY($1)))` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{[]int32{1, 2}},
 	}, {
 		name: "label membership is an EXISTS",
 		json: `{"field":"label","op":"in","values":["` + bug + `"]}`,
 		sql: `(EXISTS (SELECT 1 FROM issue_label f_label WHERE f_label.issue_id = issue.id` +
 			` AND f_label.label_id = ANY($1))` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{[]uuid.UUID{uuid.MustParse(bug)}},
 	}, {
 		// "has no label from this set", not "has some label that is not in this set". A
@@ -196,22 +196,22 @@ func TestCompile(t *testing.T) {
 		json: `{"field":"label","op":"notIn","values":["` + bug + `"]}`,
 		sql: `(NOT EXISTS (SELECT 1 FROM issue_label f_label WHERE f_label.issue_id = issue.id` +
 			` AND f_label.label_id = ANY($1))` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{[]uuid.UUID{uuid.MustParse(bug)}},
 	}, {
 		name: "an empty label in-list matches nothing",
 		json: `{"field":"label","op":"in","values":[]}`,
-		sql:  `(false AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(false AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "an empty label not-in-list matches everything",
 		json: `{"field":"label","op":"notIn","values":[]}`,
-		sql:  `(true AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(true AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "an unsubscribed row does not count as subscribed",
 		json: `{"field":"subscriber","op":"eq","values":["` + grace + `"]}`,
 		sql: `(EXISTS (SELECT 1 FROM issue_subscription f_sub WHERE f_sub.issue_id = issue.id` +
 			` AND f_sub.unsubscribed = false AND f_sub.user_id = ANY($1))` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{[]uuid.UUID{uuid.MustParse(grace)}},
 	}, {
 		name: "state category reads the status row rather than the issue",
@@ -224,52 +224,52 @@ func TestCompile(t *testing.T) {
 		name: "contains folds through the same function search does",
 		json: `{"field":"title","op":"contains","values":["acao"]}`,
 		sql: `(search_fold(issue.title) LIKE '%' || search_fold($1) || '%' ESCAPE '\'` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{"acao"},
 	}, {
 		// Somebody searching for "50%" wants the characters, not "anything ending in 50".
 		name: "a wildcard in the needle is escaped, not honoured",
 		json: `{"field":"title","op":"contains","values":["50% _done"]}`,
 		sql: `(search_fold(issue.title) LIKE '%' || search_fold($1) || '%' ESCAPE '\'` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{`50\% \_done`},
 	}, {
 		name: "notContains negates the folded match",
 		json: `{"field":"title","op":"notContains","values":["the"]}`,
 		sql: `(NOT (search_fold(issue.title) LIKE '%' || search_fold($1) || '%' ESCAPE '\')` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{"the"},
 	}, {
 		name: "isNull needs no parameter at all",
 		json: `{"field":"estimate","op":"isNull"}`,
-		sql:  `(issue.estimate IS NULL AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.estimate IS NULL AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		// Mentioning archived turns off the archived default for the whole query, and
 		// leaves the deleted one alone: asking to see archived issues is not asking to
 		// see deleted ones.
 		name: "an archived clause turns off only the archived default",
 		json: `{"field":"archived","op":"eq","values":["true"]}`,
-		sql:  `(issue.archived_at IS NOT NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.archived_at IS NOT NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "archived false is the default, stated",
 		json: `{"field":"archived","op":"eq","values":["false"]}`,
-		sql:  `(issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "a deleted clause turns off only the deleted default",
 		json: `{"field":"deleted","op":"eq","values":["true"]}`,
-		sql:  `(issue.deleted_at IS NOT NULL AND issue.archived_at IS NULL)`,
+		sql:  `(issue.deleted_at IS NOT NULL AND issue.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "neq on a flag is the other value",
 		json: `{"field":"archived","op":"neq","values":["true"]}`,
-		sql:  `(issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "a flag in-list covering both values matches everything",
 		json: `{"field":"archived","op":"in","values":["true","false"]}`,
-		sql:  `(true AND issue.deleted_at IS NULL)`,
+		sql:  `(true AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		name: "a flag not-in-list covering both values matches nothing",
 		json: `{"field":"archived","op":"notIn","values":["true","false"]}`,
-		sql:  `(false AND issue.deleted_at IS NULL)`,
+		sql:  `(false AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 	}, {
 		// The default is a property of the whole query, not of the group the clause is in.
 		// Scoping it per group would let an OR resurrect deleted issues into a view that
@@ -277,7 +277,7 @@ func TestCompile(t *testing.T) {
 		name: "a clause deep inside an or still turns the default off globally",
 		json: `{"conj":"or","nodes":[{"field":"priority","op":"eq","values":["1"]},
 			{"field":"deleted","op":"eq","values":["true"]}]}`,
-		sql:  `((issue.priority = $1 OR issue.deleted_at IS NOT NULL) AND issue.archived_at IS NULL)`,
+		sql:  `((issue.priority = $1 OR issue.deleted_at IS NOT NULL) AND issue.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{int32(1)},
 	}, {
 		name: "a nested group keeps its own parentheses",
@@ -286,12 +286,12 @@ func TestCompile(t *testing.T) {
 			                      {"field":"priority","op":"eq","values":["4"]}]},
 			{"field":"team","op":"eq","values":["` + ada + `"]}]}`,
 		sql: `(((issue.priority = $1 OR issue.priority = $2) AND issue.team_id = $3)` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{int32(1), int32(4), uuid.MustParse(ada)},
 	}, {
 		name: "an absolute timestamp",
 		json: `{"field":"createdAt","op":"lt","values":["2026-08-06T00:00:00Z"]}`,
-		sql:  `(issue.created_at < $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.created_at < $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)},
 	}, {
 		// Resolved at evaluation time, in the workspace's timezone, and to the START of
@@ -299,43 +299,43 @@ func TestCompile(t *testing.T) {
 		// time of day ten days ago.
 		name: "a relative day offset resolves to the start of that day, locally",
 		json: `{"field":"createdAt","op":"gte","values":["-10d"]}`,
-		sql:  `(issue.created_at >= $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.created_at >= $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{time.Date(2026, 8, 5, 0, 0, 0, 0, lisbon)},
 	}, {
 		name: "today is the start of today",
 		json: `{"field":"createdAt","op":"gte","values":["today"]}`,
-		sql:  `(issue.created_at >= $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.created_at >= $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{time.Date(2026, 8, 15, 0, 0, 0, 0, lisbon)},
 	}, {
 		// The clock says Saturday 15 August 2026, so the week began on Monday the 10th.
 		// Go numbers Sunday as 0, which is the trap this pins.
 		name: "startOfWeek walks back to Monday",
 		json: `{"field":"updatedAt","op":"gte","values":["startOfWeek"]}`,
-		sql:  `(issue.updated_at >= $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.updated_at >= $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{time.Date(2026, 8, 10, 0, 0, 0, 0, lisbon)},
 	}, {
 		name: "a month offset walks months, not thirty days",
 		json: `{"field":"createdAt","op":"gte","values":["-1M"]}`,
-		sql:  `(issue.created_at >= $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.created_at >= $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{time.Date(2026, 7, 15, 0, 0, 0, 0, lisbon)},
 	}, {
 		name: "a due date is a calendar day",
 		json: `{"field":"dueDate","op":"lte","values":["2026-09-01"]}`,
-		sql:  `(issue.due_date <= $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+		sql:  `(issue.due_date <= $1 AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)},
 	}, {
 		name: "blockedBy reads the relation from the blocked end",
 		json: `{"field":"blockedBy","op":"in","values":["` + ada + `"]}`,
 		sql: `(EXISTS (SELECT 1 FROM issue_relation f_rel WHERE f_rel.related_issue_id = issue.id` +
 			` AND f_rel.type = 'blocks' AND f_rel.issue_id = ANY($1))` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{[]uuid.UUID{uuid.MustParse(ada)}},
 	}, {
 		name: "blocking reads the same row from the other end",
 		json: `{"field":"blocking","op":"in","values":["` + ada + `"]}`,
 		sql: `(EXISTS (SELECT 1 FROM issue_relation f_rel WHERE f_rel.issue_id = issue.id` +
 			` AND f_rel.type = 'blocks' AND f_rel.related_issue_id = ANY($1))` +
-			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`,
+			` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`,
 		args: []any{[]uuid.UUID{uuid.MustParse(ada)}},
 	}}
 
@@ -434,7 +434,7 @@ func TestArgOffset(t *testing.T) {
 		t.Fatalf("compile: %v", err)
 	}
 	want := `((issue.priority = $2 AND issue.assignee_id = $3)` +
-		` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL)`
+		` AND issue.archived_at IS NULL AND issue.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = issue.state_id AND ws.category = 'triage'))`
 	if got.SQL != want {
 		t.Fatalf("sql\n got: %s\nwant: %s", got.SQL, want)
 	}
@@ -452,7 +452,7 @@ func TestAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
-	want := `(i.priority = $1 AND i.archived_at IS NULL AND i.deleted_at IS NULL)`
+	want := `(i.priority = $1 AND i.archived_at IS NULL AND i.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = i.state_id AND ws.category = 'triage'))`
 	if got.SQL != want {
 		t.Fatalf("sql\n got: %s\nwant: %s", got.SQL, want)
 	}

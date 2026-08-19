@@ -69,6 +69,8 @@ function seeded(extra: readonly [string, Entity][] = []): Store {
         cycleUpcomingCount: 2,
         cycleAutoAddStarted: false,
         cycleAutoAddCompleted: false,
+        triageEnabled: false,
+        triageRequirePriority: false,
         createdAt: AT,
         updatedAt: AT,
       },

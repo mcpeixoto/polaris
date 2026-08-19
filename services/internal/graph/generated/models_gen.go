@@ -167,6 +167,8 @@ type CreateIssueInput struct {
 	ProjectID          *uuid.UUID `json:"projectId,omitempty"`
 	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
 	CycleID            *uuid.UUID `json:"cycleId,omitempty"`
+	// File into the team's triage status. The inbox's C, and an outsider filing into a team they can see.
+	FromTriage *bool `json:"fromTriage,omitempty"`
 }
 
 type CreateIssueTemplateInput struct {
@@ -394,11 +396,13 @@ type Issue struct {
 	// A milestone implies its project.
 	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
 	// At most one cycle, and it has to belong to the issue's team.
-	CycleID     *uuid.UUID `json:"cycleId,omitempty"`
-	StartedAt   *time.Time `json:"startedAt,omitempty"`
-	CompletedAt *time.Time `json:"completedAt,omitempty"`
-	CanceledAt  *time.Time `json:"canceledAt,omitempty"`
-	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	CycleID *uuid.UUID `json:"cycleId,omitempty"`
+	// Hidden from the triage inbox until this instant, or until the next edit or comment.
+	SnoozedUntil *time.Time `json:"snoozedUntil,omitempty"`
+	StartedAt    *time.Time `json:"startedAt,omitempty"`
+	CompletedAt  *time.Time `json:"completedAt,omitempty"`
+	CanceledAt   *time.Time `json:"canceledAt,omitempty"`
+	ArchivedAt   *time.Time `json:"archivedAt,omitempty"`
 	// When the issue was moved to the trash. Only ever set on a row `deletedIssues` returned:
 	// every other read in the product filters deleted rows out, and the sync stream carries a
 	// delete rather than the row, so a client holding an issue with this set is holding
@@ -813,9 +817,13 @@ type Team struct {
 	// Weekday the cycle begins at 00:01 in the team's timezone: monday…sunday.
 	CycleStartDay string `json:"cycleStartDay"`
 	// How many future cycles to keep pre-created, 1–15.
-	CycleUpcomingCount    int              `json:"cycleUpcomingCount"`
-	CycleAutoAddStarted   bool             `json:"cycleAutoAddStarted"`
-	CycleAutoAddCompleted bool             `json:"cycleAutoAddCompleted"`
+	CycleUpcomingCount    int  `json:"cycleUpcomingCount"`
+	CycleAutoAddStarted   bool `json:"cycleAutoAddStarted"`
+	CycleAutoAddCompleted bool `json:"cycleAutoAddCompleted"`
+	// Off by default. Turning it on creates the Triage and Duplicate statuses if they are missing.
+	TriageEnabled bool `json:"triageEnabled"`
+	// An issue cannot leave Triage without a priority other than none.
+	TriageRequirePriority bool             `json:"triageRequirePriority"`
 	CreatedAt             time.Time        `json:"createdAt"`
 	UpdatedAt             time.Time        `json:"updatedAt"`
 	RetiredAt             *time.Time       `json:"retiredAt,omitempty"`
@@ -970,6 +978,12 @@ type UpdateTeamInput struct {
 	Color       *string   `json:"color,omitempty"`
 	Timezone    *string   `json:"timezone,omitempty"`
 	Private     *bool     `json:"private,omitempty"`
+}
+
+type UpdateTeamTriageInput struct {
+	TeamID          uuid.UUID `json:"teamId"`
+	Enabled         *bool     `json:"enabled,omitempty"`
+	RequirePriority *bool     `json:"requirePriority,omitempty"`
 }
 
 type UpdateViewInput struct {

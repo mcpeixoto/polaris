@@ -58,7 +58,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id
+       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.cycle_id = sqlc.arg(cycle_id)
@@ -72,7 +72,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id
+       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.team_id = sqlc.arg(team_id)

@@ -195,6 +195,7 @@ type Issue struct {
 	ProjectID          *uuid.UUID
 	ProjectMilestoneID *uuid.UUID
 	CycleID            *uuid.UUID
+	SnoozedUntil       *time.Time
 }
 
 type IssueHistory struct {
@@ -403,6 +404,8 @@ type Team struct {
 	CycleUpcomingCount    int16
 	CycleAutoAddStarted   bool
 	CycleAutoAddCompleted bool
+	TriageEnabled         bool
+	TriageRequirePriority bool
 }
 
 type TeamMembership struct {
