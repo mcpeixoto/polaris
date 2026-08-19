@@ -12,7 +12,11 @@ export default defineConfig({
     alias: { '~': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   server: {
+    // Bind IPv4 as well as IPv6. Default `localhost` is [::1]-only on macOS,
+    // which makes http://127.0.0.1:5173 refuse even while Vite is "up".
+    host: true,
     port: 5173,
+    strictPort: true,
     proxy: {
       '/graphql': 'http://localhost:8088',
       '/auth': 'http://localhost:8088',
