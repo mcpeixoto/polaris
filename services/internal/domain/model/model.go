@@ -684,6 +684,27 @@ type Document struct {
 	DeletedAt   *time.Time `json:"deletedAt,omitempty"`
 }
 
+const (
+	ProjectUpdateHealthOnTrack  = "on_track"
+	ProjectUpdateHealthAtRisk   = "at_risk"
+	ProjectUpdateHealthOffTrack = "off_track"
+)
+
+// ProjectUpdate is a status post on a project — health plus narrative markdown. Health on
+// the project row itself is not stored; it is derived from the latest live update.
+type ProjectUpdate struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ProjectID   uuid.UUID  `json:"projectId"`
+	Health      string     `json:"health"`
+	Body        string     `json:"body"`
+	AuthorID    uuid.UUID  `json:"authorId"`
+	EditedAt    *time.Time `json:"editedAt,omitempty"`
+	DeletedAt   *time.Time `json:"deletedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
 type IssueHistoryEntry struct {
 	ID        uuid.UUID `json:"id"`
 	IssueID   uuid.UUID `json:"issueId"`

@@ -584,3 +584,76 @@ func fromUpdateInitiativeInput(in generated.UpdateInitiativeInput) (domain.Updat
 	}
 	return out, nil
 }
+
+func toProjectUpdate(pu model.ProjectUpdate) (generated.ProjectUpdate, error) {
+	health, err := toProjectUpdateHealth(pu.Health)
+	if err != nil {
+		return generated.ProjectUpdate{}, err
+	}
+	return generated.ProjectUpdate{
+		ID:          pu.ID,
+		WorkspaceID: pu.WorkspaceID,
+		ProjectID:   pu.ProjectID,
+		Health:      health,
+		Body:        pu.Body,
+		AuthorID:    pu.AuthorID,
+		EditedAt:    pu.EditedAt,
+		DeletedAt:   pu.DeletedAt,
+		CreatedAt:   pu.CreatedAt,
+		UpdatedAt:   pu.UpdatedAt,
+	}, nil
+}
+
+func toProjectUpdateHealth(v string) (generated.ProjectUpdateHealth, error) {
+	switch v {
+	case model.ProjectUpdateHealthOnTrack:
+		return generated.ProjectUpdateHealthOnTrack, nil
+	case model.ProjectUpdateHealthAtRisk:
+		return generated.ProjectUpdateHealthAtRisk, nil
+	case model.ProjectUpdateHealthOffTrack:
+		return generated.ProjectUpdateHealthOffTrack, nil
+	default:
+		return "", fmt.Errorf("unknown project update health %q", v)
+	}
+}
+
+func fromProjectUpdateHealth(h generated.ProjectUpdateHealth) (string, error) {
+	switch h {
+	case generated.ProjectUpdateHealthOnTrack:
+		return model.ProjectUpdateHealthOnTrack, nil
+	case generated.ProjectUpdateHealthAtRisk:
+		return model.ProjectUpdateHealthAtRisk, nil
+	case generated.ProjectUpdateHealthOffTrack:
+		return model.ProjectUpdateHealthOffTrack, nil
+	default:
+		return "", fmt.Errorf("unknown project update health %q", h)
+	}
+}
+
+func fromCreateProjectUpdateInput(in generated.CreateProjectUpdateInput) (domain.CreateProjectUpdateInput, error) {
+	health, err := fromProjectUpdateHealth(in.Health)
+	if err != nil {
+		return domain.CreateProjectUpdateInput{}, err
+	}
+	out := domain.CreateProjectUpdateInput{
+		ProjectID: in.ProjectID,
+		Health:    health,
+	}
+	if in.Body != nil {
+		out.Body = *in.Body
+	}
+	return out, nil
+}
+
+func fromUpdateProjectUpdateInput(in generated.UpdateProjectUpdateInput) (domain.UpdateProjectUpdateInput, error) {
+	out := domain.UpdateProjectUpdateInput{ID: in.ID}
+	if in.Health != nil {
+		health, err := fromProjectUpdateHealth(*in.Health)
+		if err != nil {
+			return domain.UpdateProjectUpdateInput{}, err
+		}
+		out.Health = &health
+	}
+	out.Body = in.Body
+	return out, nil
+}

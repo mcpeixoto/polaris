@@ -476,6 +476,20 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "projectUpdate",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectUpdate, error) {
+				return q.StreamProjectUpdatesForBootstrap(ctx, store.StreamProjectUpdatesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(pu store.ProjectUpdate) (uuid.UUID, any) { return pu.ID, toProjectUpdate(pu) },
+		); err != nil {
+			return err
+		}
+
 		if err := streamPages(ctx, w, "cycle",
 			func(ctx context.Context, after uuid.UUID) ([]store.Cycle, error) {
 				return q.StreamCyclesForBootstrap(ctx, store.StreamCyclesForBootstrapParams{
@@ -732,7 +746,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v8 adds attachment (URL-idempotent link cards on issues).
 // v9 adds document (markdown attached to teams and projects).
 // v10 adds initiative and initiativeProject (workspace objectives grouping projects).
-const ClientSchemaVersion = 10
+// v11 adds projectUpdate (health plus narrative status posts on projects).
+const ClientSchemaVersion = 11
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

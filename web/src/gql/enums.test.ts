@@ -52,6 +52,7 @@ const MIRRORED: Readonly<Record<string, string>> = {
   FavoriteKind: 'FavoriteKind',
   ProjectStatusCategory: 'ProjectStatusCategory',
   InitiativeStatus: 'InitiativeStatus',
+  ProjectUpdateHealth: 'ProjectUpdateHealth',
   TimeframeGranularity: 'TimeframeGranularity',
 };
 

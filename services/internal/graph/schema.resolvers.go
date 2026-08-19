@@ -389,6 +389,71 @@ func (r *mutationResolver) DeleteDocument(ctx context.Context, id uuid.UUID, cli
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// CreateProjectUpdate is the resolver for the createProjectUpdate field.
+func (r *mutationResolver) CreateProjectUpdate(ctx context.Context, input generated.CreateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectUpdatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromCreateProjectUpdateInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	pu, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.ProjectUpdate, int64, error) {
+			return r.Svc.CreateProjectUpdate(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toProjectUpdate(pu)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.ProjectUpdatePayload{Version: int(version), ProjectUpdate: &out}, nil
+}
+
+// UpdateProjectUpdate is the resolver for the updateProjectUpdate field.
+func (r *mutationResolver) UpdateProjectUpdate(ctx context.Context, input generated.UpdateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectUpdatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromUpdateProjectUpdateInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	pu, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.ProjectUpdate, int64, error) {
+			return r.Svc.UpdateProjectUpdate(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toProjectUpdate(pu)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.ProjectUpdatePayload{Version: int(version), ProjectUpdate: &out}, nil
+}
+
+// DeleteProjectUpdate is the resolver for the deleteProjectUpdate field.
+func (r *mutationResolver) DeleteProjectUpdate(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteProjectUpdate(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // CreateInitiative is the resolver for the createInitiative field.
 func (r *mutationResolver) CreateInitiative(ctx context.Context, input generated.CreateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.InitiativePayload, error) {
 	p, err := principalFrom(ctx)
@@ -2714,6 +2779,44 @@ func (r *queryResolver) Document(ctx context.Context, id uuid.UUID) (*generated.
 	}
 	out := toDocument(doc)
 	return &out, nil
+}
+
+// ProjectUpdate is the resolver for the projectUpdate field.
+func (r *queryResolver) ProjectUpdate(ctx context.Context, id uuid.UUID) (*generated.ProjectUpdate, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	pu, err := r.Svc.GetProjectUpdate(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toProjectUpdate(pu)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &out, nil
+}
+
+// ProjectUpdates is the resolver for the projectUpdates field.
+func (r *queryResolver) ProjectUpdates(ctx context.Context, projectID uuid.UUID) ([]generated.ProjectUpdate, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListProjectUpdates(ctx, p, projectID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := make([]generated.ProjectUpdate, 0, len(rows))
+	for _, row := range rows {
+		converted, err := toProjectUpdate(row)
+		if err != nil {
+			return nil, PresentError(ctx, err)
+		}
+		out = append(out, converted)
+	}
+	return out, nil
 }
 
 // Initiatives is the resolver for the initiatives field.

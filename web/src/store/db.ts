@@ -19,6 +19,7 @@ import {
   type IssueTemplate,
   type Initiative,
   type InitiativeProject,
+  type ProjectUpdate,
   type Label,
   type Notification,
   type Project,
@@ -80,8 +81,9 @@ import {
  * v9 adds document (markdown attached to teams and projects).
  *
  * v10 adds initiative and initiativeProject (workspace objectives grouping projects).
+ * v11 adds projectUpdate (health plus narrative status posts on projects).
  */
-export const CLIENT_SCHEMA = 10;
+export const CLIENT_SCHEMA = 11;
 
 /**
  * One database per workspace per schema version.
@@ -165,6 +167,7 @@ interface PolarisSchema extends DBSchema {
   projectMilestone: { key: UUID; value: ProjectMilestone };
   initiative: { key: UUID; value: Initiative };
   initiativeProject: { key: UUID; value: InitiativeProject };
+  projectUpdate: { key: UUID; value: ProjectUpdate };
   cycle: { key: UUID; value: Cycle };
   issue: { key: UUID; value: Issue };
   issueLabel: { key: UUID; value: IssueLabel };

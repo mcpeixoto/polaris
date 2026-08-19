@@ -676,6 +676,22 @@ export interface InitiativeProject {
   readonly createdAt: Timestamp;
 }
 
+export type ProjectUpdateHealth = 'on_track' | 'at_risk' | 'off_track';
+
+/** A status post on a project — health plus narrative markdown. */
+export interface ProjectUpdate {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly health: ProjectUpdateHealth;
+  readonly body: string;
+  readonly authorId: UUID;
+  readonly editedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 export interface Cycle {
   readonly id: UUID;
   readonly workspaceId: UUID;
@@ -715,6 +731,7 @@ export interface EntityByType {
   projectMilestone: ProjectMilestone;
   initiative: Initiative;
   initiativeProject: InitiativeProject;
+  projectUpdate: ProjectUpdate;
   cycle: Cycle;
   issue: Issue;
   issueLabel: IssueLabel;
@@ -756,6 +773,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'projectMilestone',
   'initiative',
   'initiativeProject',
+  'projectUpdate',
   // Before issues: an issue may name a cycle.
   'cycle',
   'issue',

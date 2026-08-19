@@ -281,6 +281,7 @@ type Querier interface {
 	// ---------------------------------------------------------------------------------------
 	// project_status
 	CreateProjectStatus(ctx context.Context, arg CreateProjectStatusParams) (ProjectStatus, error)
+	CreateProjectUpdate(ctx context.Context, arg CreateProjectUpdateParams) (ProjectUpdate, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (AccountSession, error)
 	CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
@@ -417,6 +418,8 @@ type Querier interface {
 	GetProjectMilestone(ctx context.Context, id uuid.UUID) (ProjectMilestone, error)
 	GetProjectStatus(ctx context.Context, id uuid.UUID) (ProjectStatus, error)
 	GetProjectTeam(ctx context.Context, arg GetProjectTeamParams) (ProjectTeam, error)
+	GetProjectUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
+	GetProjectUpdateForUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (AccountSession, error)
 	GetSortOrderAfter(ctx context.Context, arg GetSortOrderAfterParams) (string, error)
 	// Neighbour lookups for fractional-index insertion: find the sort_order either side of
@@ -680,6 +683,7 @@ type Querier interface {
 	ListProjectStatuses(ctx context.Context, workspaceID uuid.UUID) ([]ProjectStatus, error)
 	ListProjectTeamIDs(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error)
 	ListProjectTeams(ctx context.Context, projectID uuid.UUID) ([]ProjectTeam, error)
+	ListProjectUpdatesForProject(ctx context.Context, projectID uuid.UUID) ([]ProjectUpdate, error)
 	ListProjectsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Project, error)
 	// ListReverseIssueRelations is the same links read from the far end: what blocks this
 	// issue, and what it is a duplicate of. Both listings are needed on the issue panel, which
@@ -929,6 +933,7 @@ type Querier interface {
 	//
 	SoftDeleteIssue(ctx context.Context, arg SoftDeleteIssueParams) error
 	SoftDeleteProject(ctx context.Context, arg SoftDeleteProjectParams) error
+	SoftDeleteProjectUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
 	SoftDeleteTeam(ctx context.Context, id uuid.UUID) error
 	StreamAttachmentsForBootstrap(ctx context.Context, arg StreamAttachmentsForBootstrapParams) ([]Attachment, error)
 	// StreamCommentsForBootstrap ships EVERY live comment on every live issue the caller can
@@ -1080,6 +1085,9 @@ type Querier interface {
 	// StreamProjectTeamsForBootstrap follows the parent project's visibility.
 	//
 	StreamProjectTeamsForBootstrap(ctx context.Context, arg StreamProjectTeamsForBootstrapParams) ([]ProjectTeam, error)
+	// StreamProjectUpdatesForBootstrap: visible when the project is visible.
+	//
+	StreamProjectUpdatesForBootstrap(ctx context.Context, arg StreamProjectUpdatesForBootstrapParams) ([]ProjectUpdate, error)
 	// StreamProjectsForBootstrap: a project is visible if the principal is in any of its
 	// teams — the same predicate authz.Visible uses for ScopeProject.
 	//
@@ -1158,6 +1166,7 @@ type Querier interface {
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateProjectMilestone(ctx context.Context, arg UpdateProjectMilestoneParams) (ProjectMilestone, error)
 	UpdateProjectStatus(ctx context.Context, arg UpdateProjectStatusParams) (ProjectStatus, error)
+	UpdateProjectUpdate(ctx context.Context, arg UpdateProjectUpdateParams) (ProjectUpdate, error)
 	UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error)
 	// UpdateTeamArchive is the close/archive periods and the parent/child automations.
 	// Kept apart from UpdateTeam so a settings form that only touches intake cannot

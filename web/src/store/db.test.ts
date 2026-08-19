@@ -361,6 +361,19 @@ function oneOfEach(): EntityRow[] {
       },
     },
     {
+      type: 'projectUpdate',
+      entity: {
+        id: 'pu1',
+        workspaceId: 'w',
+        projectId: 'p1',
+        health: 'on_track',
+        body: 'Shipping on schedule',
+        authorId: 'u1',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
       type: 'cycle',
       entity: {
         id: 'cy1',

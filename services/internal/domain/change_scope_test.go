@@ -298,6 +298,13 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	if _, _, err := svc.AddInitiativeProject(ctx, p, initRows[0].ID, project.ID); err != nil {
 		t.Fatalf("initiativeProject: %v", err)
 	}
+	if _, _, err := svc.CreateProjectUpdate(ctx, p, domain.CreateProjectUpdateInput{
+		ProjectID: project.ID,
+		Health:    model.ProjectUpdateHealthAtRisk,
+		Body:      "Scope creep",
+	}); err != nil {
+		t.Fatalf("projectUpdate: %v", err)
+	}
 
 	// The watcher subscribes and then hears about somebody else's edit, which is the only
 	// way to make a `notification` row exist without writing one by hand.

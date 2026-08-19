@@ -51,6 +51,7 @@ type scene struct {
 	alicesPreference                              uuid.UUID
 	openIssue, blockedIssue, privateIssue         uuid.UUID
 	openDocument                                  uuid.UUID
+	openProjectUpdate                             uuid.UUID
 	openInitiative                                uuid.UUID
 	openInitiativeProject                         uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
@@ -195,6 +196,16 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		t.Fatalf("create the document: %v", err)
 	}
 	s.openDocument = doc.ID
+
+	update, _, err := svc.CreateProjectUpdate(ctx, s.alice, domain.CreateProjectUpdateInput{
+		ProjectID: project.ID,
+		Health:    model.ProjectUpdateHealthOnTrack,
+		Body:      "Shipping on schedule",
+	})
+	if err != nil {
+		t.Fatalf("create the project update: %v", err)
+	}
+	s.openProjectUpdate = update.ID
 
 	init, _, err := svc.CreateInitiative(ctx, s.alice, domain.CreateInitiativeInput{
 		Name: "Platform reliability",
@@ -435,12 +446,14 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "label", s.workspaceLabel},
 		{bobName, "issue", s.openIssue},
 		{bobName, "document", s.openDocument},
+		{bobName, "projectUpdate", s.openProjectUpdate},
 		{bobName, "initiative", s.openInitiative},
 		{bobName, "initiativeProject", s.openInitiativeProject},
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},
 		{gretaName, "issue", s.openIssue},
 		{gretaName, "document", s.openDocument},
+		{gretaName, "projectUpdate", s.openProjectUpdate},
 		{gretaName, "initiative", s.openInitiative},
 		{gretaName, "initiativeProject", s.openInitiativeProject},
 		{samName, "label", s.workspaceLabel},
