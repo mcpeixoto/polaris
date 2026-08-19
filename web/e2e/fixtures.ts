@@ -201,7 +201,8 @@ export async function registerAccount(email: string): Promise<Account> {
 
 /** Signs a browser context in by driving the real form, not by injecting a token. */
 export async function signIn(page: Page, account: Account): Promise<void> {
-  await page.goto('/');
+  // Anonymous `/` is the marketing page; the form lives here.
+  await page.goto('/signin');
   await page.getByLabel(/email/i).fill(account.email);
   await page.getByLabel(/password/i).fill(account.password);
   await page.getByRole('button', { name: /sign in/i }).click();
