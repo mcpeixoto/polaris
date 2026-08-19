@@ -174,6 +174,10 @@ type Querier interface {
 	// it the other way round fails.
 	//
 	ClearDefaultWorkflowState(ctx context.Context, teamID uuid.UUID) error
+	// ClearExternalAssigneesInTeam runs when a team becomes private: non-members may not
+	// remain assigned to work they can no longer see.
+	//
+	ClearExternalAssigneesInTeam(ctx context.Context, teamID uuid.UUID) ([]ClearExternalAssigneesInTeamRow, error)
 	CompleteCycle(ctx context.Context, arg CompleteCycleParams) (Cycle, error)
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
 	// CountAdminsInWorkspace guards the "you cannot demote or suspend the last admin"
@@ -1221,6 +1225,10 @@ type Querier interface {
 	// the index performs again a moment later, and it would still be racing.
 	//
 	UnarchiveWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowState, error)
+	// UnsubscribeNonMembersFromTeamIssues runs when a team becomes private: watchers who are
+	// not members must not keep receiving notifications for work they can no longer reach.
+	//
+	UnsubscribeNonMembersFromTeamIssues(ctx context.Context, teamID uuid.UUID) ([]IssueSubscription, error)
 	UpdateAttachment(ctx context.Context, arg UpdateAttachmentParams) (Attachment, error)
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)

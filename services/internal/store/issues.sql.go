@@ -198,6 +198,112 @@ func (q *Queries) BulkUpdateIssues(ctx context.Context, arg BulkUpdateIssuesPara
 	return items, nil
 }
 
+const clearExternalAssigneesInTeam = `-- name: ClearExternalAssigneesInTeam :many
+UPDATE issue i
+SET assignee_id = NULL, updated_at = now()
+WHERE i.team_id = $1
+  AND i.assignee_id IS NOT NULL
+  AND i.assignee_id NOT IN (
+    SELECT user_id FROM team_membership WHERE team_id = $1
+  )
+  AND i.archived_at IS NULL
+  AND i.deleted_at IS NULL
+RETURNING id, workspace_id, team_id, number, title, description, state_id,
+          assignee_id, creator_id, priority, sort_order,
+          started_at, completed_at, canceled_at,
+          archived_at, deleted_at, created_at, updated_at,
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+`
+
+type ClearExternalAssigneesInTeamRow struct {
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamID             uuid.UUID
+	Number             int64
+	Title              string
+	Description        string
+	StateID            uuid.UUID
+	AssigneeID         *uuid.UUID
+	CreatorID          *uuid.UUID
+	Priority           int16
+	SortOrder          string
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	ArchivedAt         *time.Time
+	DeletedAt          *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Estimate           *int16
+	DueDate            pgtype.Date
+	DueDateSource      string
+	ParentID           *uuid.UUID
+	SubIssueSortOrder  *string
+	TemplateID         *uuid.UUID
+	FormTemplateID     *uuid.UUID
+	DeletedBy          *uuid.UUID
+	ProjectID          *uuid.UUID
+	ProjectMilestoneID *uuid.UUID
+	CycleID            *uuid.UUID
+	SnoozedUntil       *time.Time
+	AutoClosedAt       *time.Time
+}
+
+// ClearExternalAssigneesInTeam runs when a team becomes private: non-members may not
+// remain assigned to work they can no longer see.
+func (q *Queries) ClearExternalAssigneesInTeam(ctx context.Context, teamID uuid.UUID) ([]ClearExternalAssigneesInTeamRow, error) {
+	rows, err := q.db.Query(ctx, clearExternalAssigneesInTeam, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClearExternalAssigneesInTeamRow{}
+	for rows.Next() {
+		var i ClearExternalAssigneesInTeamRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.Number,
+			&i.Title,
+			&i.Description,
+			&i.StateID,
+			&i.AssigneeID,
+			&i.CreatorID,
+			&i.Priority,
+			&i.SortOrder,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CanceledAt,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Estimate,
+			&i.DueDate,
+			&i.DueDateSource,
+			&i.ParentID,
+			&i.SubIssueSortOrder,
+			&i.TemplateID,
+			&i.FormTemplateID,
+			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
+			&i.CycleID,
+			&i.SnoozedUntil,
+			&i.AutoClosedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countIssuesInWorkspace = `-- name: CountIssuesInWorkspace :one
 SELECT count(*) FROM issue
 WHERE workspace_id = $1 AND archived_at IS NULL AND deleted_at IS NULL

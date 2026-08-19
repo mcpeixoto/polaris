@@ -35,6 +35,8 @@ import {
   StateIcon,
   STATE_LABELS,
 } from '~/components';
+import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
 import { updateTeamArchive } from '~/features/archive/mutations';
 import { updateTeamCycles } from '~/features/cycles/mutations';
 import { updateTeamTriage } from '~/features/triage/mutations';
@@ -63,6 +65,7 @@ interface TeamView {
   readonly id: UUID;
   readonly key: string;
   readonly name: string;
+  readonly private: boolean;
   readonly cyclesEnabled: boolean;
   readonly cycleDurationWeeks: number;
   readonly cycleCooldownWeeks: number;
@@ -182,7 +185,15 @@ export function TeamSettings() {
 
         <TeamForm team={team} onSave={(fields) => run(updateTeam(engine, team.id, fields))} />
 
-        <CycleCadence team={team} onChange={(cadence) => run(updateTeamCycles(engine, team.id, cadence))} />
+        <VisibilitySettings
+          team={team}
+          onChange={(isPrivate) => run(updateTeam(engine, team.id, { private: isPrivate }))}
+        />
+
+        <CycleCadence
+          team={team}
+          onChange={(cadence) => run(updateTeamCycles(engine, team.id, cadence))}
+        />
 
         <TriageSettings
           team={team}
@@ -290,6 +301,71 @@ function TeamForm({
   );
 }
 
+/**
+ * Who may see this team's work.
+ *
+ * Making a team private is immediate and irreversible in effect: non-members lose their
+ * local copy on the next sync, external assignees are cleared, and watchers outside the team
+ * are unsubscribed. The checkbox waits for confirmation before calling that in.
+ */
+function VisibilitySettings({
+  team,
+  onChange,
+}: {
+  team: TeamView;
+  onChange: (isPrivate: boolean) => void;
+}) {
+  const entitlements = useEntitlements();
+  const block = featureBlock(entitlements, 'privateTeams');
+  const [confirmPrivate, setConfirmPrivate] = useState(false);
+
+  const onToggle = (checked: boolean) => {
+    if (checked && !team.private) {
+      setConfirmPrivate(true);
+      return;
+    }
+    onChange(checked);
+  };
+
+  return (
+    <>
+      <section className={styles.section} aria-labelledby="visibility-heading">
+        <h2 className={styles.sectionTitle} id="visibility-heading">
+          Visibility
+        </h2>
+        <p className={styles.sectionHint}>
+          Private teams are visible only to their members. Workspace members who are not on the team
+          cannot see its issues, be assigned to them, or stay subscribed.
+        </p>
+        <Checkbox
+          label="Private team"
+          checked={team.private}
+          disabled={block !== null}
+          onChange={(event) => onToggle(event.target.checked)}
+        />
+        {block === null ? null : (
+          <p className={styles.sectionHint} role="status">
+            {block}
+          </p>
+        )}
+      </section>
+
+      <ConfirmDialog
+        open={confirmPrivate}
+        title="Make this team private?"
+        consequence="Non-members will lose access to this team's issues on their devices. Assignments to people outside the team will be cleared and their subscriptions removed."
+        confirmLabel="Make private"
+        destructive
+        onClose={() => setConfirmPrivate(false)}
+        onConfirm={() => {
+          setConfirmPrivate(false);
+          onChange(true);
+        }}
+      />
+    </>
+  );
+}
+
 const START_DAYS = [
   'monday',
   'tuesday',
@@ -320,8 +396,8 @@ function CycleCadence({
         Cycles
       </h2>
       <p className={styles.sectionHint}>
-        Dated windows that repeat. A cooldown is a gap, not a cycle — nothing can be filed
-        into it. Unfinished work rolls into the next window on its own.
+        Dated windows that repeat. A cooldown is a gap, not a cycle — nothing can be filed into it.
+        Unfinished work rolls into the next window on its own.
       </p>
 
       <Checkbox
@@ -416,8 +492,8 @@ function TriageSettings({
         Triage
       </h2>
       <p className={styles.sectionHint}>
-        Unreviewed work from outside the team lands in a Triage status, hidden from ordinary
-        views until somebody accepts, declines, merges or snoozes it.
+        Unreviewed work from outside the team lands in a Triage status, hidden from ordinary views
+        until somebody accepts, declines, merges or snoozes it.
       </p>
 
       <Checkbox
@@ -455,9 +531,9 @@ function ArchiveSettings({
         Auto-close and archive
       </h2>
       <p className={styles.sectionHint}>
-        Untouched issues close on their own, then archive after they have stayed closed.
-        A parent, open sub-issues, or an unfinished project will block archival — that is
-        what keeps a project&rsquo;s graph intact.
+        Untouched issues close on their own, then archive after they have stayed closed. A parent,
+        open sub-issues, or an unfinished project will block archival — that is what keeps a
+        project&rsquo;s graph intact.
       </p>
 
       <div className={styles.cadence}>
@@ -708,6 +784,7 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     id: team.id,
     key: team.key,
     name: team.name,
+    private: team.private,
     cyclesEnabled: team.cyclesEnabled,
     cycleDurationWeeks: team.cycleDurationWeeks,
     cycleCooldownWeeks: team.cycleCooldownWeeks,
