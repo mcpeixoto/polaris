@@ -279,6 +279,7 @@ type CreateProjectInput struct {
 	StartDateGranularity  *TimeframeGranularity `json:"startDateGranularity,omitempty"`
 	TargetDate            *string               `json:"targetDate,omitempty"`
 	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
+	ProjectTemplateID     *uuid.UUID            `json:"projectTemplateId,omitempty"`
 }
 
 type CreateProjectLabelInput struct {
@@ -303,6 +304,30 @@ type CreateProjectStatusInput struct {
 	Color       *string               `json:"color,omitempty"`
 	Category    ProjectStatusCategory `json:"category"`
 	IsDefault   *bool                 `json:"isDefault,omitempty"`
+}
+
+type CreateProjectTemplateInput struct {
+	TeamID      *uuid.UUID      `json:"teamId,omitempty"`
+	Name        string          `json:"name"`
+	Description *string         `json:"description,omitempty"`
+	Summary     *string         `json:"summary,omitempty"`
+	Body        *string         `json:"body,omitempty"`
+	Properties  json.RawMessage `json:"properties,omitempty"`
+}
+
+type CreateProjectTemplateIssueInput struct {
+	ProjectTemplateID uuid.UUID       `json:"projectTemplateId"`
+	ParentID          *uuid.UUID      `json:"parentId,omitempty"`
+	Title             string          `json:"title"`
+	Description       *string         `json:"description,omitempty"`
+	Properties        json.RawMessage `json:"properties,omitempty"`
+}
+
+type CreateProjectTemplateMilestoneInput struct {
+	ProjectTemplateID uuid.UUID `json:"projectTemplateId"`
+	Name              string    `json:"name"`
+	Description       *string   `json:"description,omitempty"`
+	TargetDate        *string   `json:"targetDate,omitempty"`
 }
 
 type CreateProjectUpdateInput struct {
@@ -866,6 +891,7 @@ type Project struct {
 	ArchivedAt                 *time.Time            `json:"archivedAt,omitempty"`
 	DeletedAt                  *time.Time            `json:"deletedAt,omitempty"`
 	DeletedBy                  *uuid.UUID            `json:"deletedBy,omitempty"`
+	ProjectTemplateID          *uuid.UUID            `json:"projectTemplateId,omitempty"`
 	CreatedAt                  time.Time             `json:"createdAt"`
 	UpdatedAt                  time.Time             `json:"updatedAt"`
 	Status                     *ProjectStatus        `json:"status"`
@@ -1013,6 +1039,72 @@ type ProjectTeamPayload struct {
 }
 
 func (ProjectTeamPayload) IsMutationResult() {}
+
+// Prefilled project with milestones and starter issues. Workspace or team scoped.
+type ProjectTemplate struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	// Null means the template is offered in every team.
+	TeamID      *uuid.UUID `json:"teamId,omitempty"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	Summary     string     `json:"summary"`
+	Body        string     `json:"body"`
+	// Keys match createProject: statusId, priority, leadId, color, icon, teamIds, memberIds, dates, initiativeIds.
+	Properties json.RawMessage `json:"properties"`
+	Position   string          `json:"position"`
+	CreatedBy  *uuid.UUID      `json:"createdBy,omitempty"`
+	CreatedAt  time.Time       `json:"createdAt"`
+	UpdatedAt  time.Time       `json:"updatedAt"`
+	ArchivedAt *time.Time      `json:"archivedAt,omitempty"`
+}
+
+type ProjectTemplateIssue struct {
+	ID                uuid.UUID  `json:"id"`
+	WorkspaceID       uuid.UUID  `json:"workspaceId"`
+	ProjectTemplateID uuid.UUID  `json:"projectTemplateId"`
+	ParentID          *uuid.UUID `json:"parentId,omitempty"`
+	Title             string     `json:"title"`
+	Description       string     `json:"description"`
+	// Keys match createIssue property names, plus teamId and templateId.
+	Properties json.RawMessage `json:"properties"`
+	SortOrder  string          `json:"sortOrder"`
+	CreatedAt  time.Time       `json:"createdAt"`
+	UpdatedAt  time.Time       `json:"updatedAt"`
+}
+
+type ProjectTemplateIssuePayload struct {
+	Version int                   `json:"version"`
+	Issue   *ProjectTemplateIssue `json:"issue"`
+}
+
+func (ProjectTemplateIssuePayload) IsMutationResult() {}
+
+type ProjectTemplateMilestone struct {
+	ID                uuid.UUID `json:"id"`
+	WorkspaceID       uuid.UUID `json:"workspaceId"`
+	ProjectTemplateID uuid.UUID `json:"projectTemplateId"`
+	Name              string    `json:"name"`
+	Description       *string   `json:"description,omitempty"`
+	TargetDate        *string   `json:"targetDate,omitempty"`
+	SortOrder         string    `json:"sortOrder"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+}
+
+type ProjectTemplateMilestonePayload struct {
+	Version   int                       `json:"version"`
+	Milestone *ProjectTemplateMilestone `json:"milestone"`
+}
+
+func (ProjectTemplateMilestonePayload) IsMutationResult() {}
+
+type ProjectTemplatePayload struct {
+	Version  int              `json:"version"`
+	Template *ProjectTemplate `json:"template"`
+}
+
+func (ProjectTemplatePayload) IsMutationResult() {}
 
 // A status post on a project — health plus narrative markdown.
 type ProjectUpdate struct {
@@ -1326,6 +1418,32 @@ type UpdateProjectStatusInput struct {
 	Color       *string                `json:"color,omitempty"`
 	Category    *ProjectStatusCategory `json:"category,omitempty"`
 	IsDefault   *bool                  `json:"isDefault,omitempty"`
+}
+
+type UpdateProjectTemplateInput struct {
+	ID          uuid.UUID       `json:"id"`
+	Name        *string         `json:"name,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	Summary     *string         `json:"summary,omitempty"`
+	Body        *string         `json:"body,omitempty"`
+	Properties  json.RawMessage `json:"properties,omitempty"`
+}
+
+type UpdateProjectTemplateIssueInput struct {
+	ID          uuid.UUID       `json:"id"`
+	Title       *string         `json:"title,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	Properties  json.RawMessage `json:"properties,omitempty"`
+	ParentID    *uuid.UUID      `json:"parentId,omitempty"`
+	SortOrder   *string         `json:"sortOrder,omitempty"`
+}
+
+type UpdateProjectTemplateMilestoneInput struct {
+	ID          uuid.UUID `json:"id"`
+	Name        *string   `json:"name,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	TargetDate  *string   `json:"targetDate,omitempty"`
+	SortOrder   *string   `json:"sortOrder,omitempty"`
 }
 
 type UpdateProjectUpdateInput struct {

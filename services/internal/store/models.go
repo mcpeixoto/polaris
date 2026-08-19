@@ -424,6 +424,7 @@ type Project struct {
 	UpdateReminderIntervalDays *int16
 	UpdateReminderWeekday      *int16
 	UpdateReminderHour         *int16
+	ProjectTemplateID          *uuid.UUID
 }
 
 type ProjectDependency struct {
@@ -499,6 +500,47 @@ type ProjectTeam struct {
 	ProjectID   uuid.UUID
 	TeamID      uuid.UUID
 	CreatedAt   time.Time
+}
+
+type ProjectTemplate struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	Name        string
+	Description *string
+	Summary     string
+	Body        string
+	Properties  json.RawMessage
+	Position    string
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ArchivedAt  *time.Time
+}
+
+type ProjectTemplateIssue struct {
+	ID                uuid.UUID
+	WorkspaceID       uuid.UUID
+	ProjectTemplateID uuid.UUID
+	ParentID          *uuid.UUID
+	Title             string
+	Description       string
+	Properties        json.RawMessage
+	SortOrder         string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type ProjectTemplateMilestone struct {
+	ID                uuid.UUID
+	WorkspaceID       uuid.UUID
+	ProjectTemplateID uuid.UUID
+	Name              string
+	Description       *string
+	TargetDate        pgtype.Date
+	SortOrder         string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 type ProjectUpdate struct {

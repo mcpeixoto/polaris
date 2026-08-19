@@ -500,6 +500,77 @@ func toFormTemplateFields(rows []model.FormTemplateField) []generated.FormTempla
 	return out
 }
 
+func toProjectTemplate(t model.ProjectTemplate) generated.ProjectTemplate {
+	return generated.ProjectTemplate{
+		ID:          t.ID,
+		WorkspaceID: t.WorkspaceID,
+		TeamID:      t.TeamID,
+		Name:        t.Name,
+		Description: t.Description,
+		Summary:     t.Summary,
+		Body:        t.Body,
+		Properties:  jsonOrEmptyObject(t.Properties),
+		Position:    t.Position,
+		CreatedBy:   t.CreatedBy,
+		CreatedAt:   t.CreatedAt,
+		UpdatedAt:   t.UpdatedAt,
+		ArchivedAt:  t.ArchivedAt,
+	}
+}
+
+func toProjectTemplates(rows []model.ProjectTemplate) []generated.ProjectTemplate {
+	out := make([]generated.ProjectTemplate, 0, len(rows))
+	for _, t := range rows {
+		out = append(out, toProjectTemplate(t))
+	}
+	return out
+}
+
+func toProjectTemplateMilestone(m model.ProjectTemplateMilestone) generated.ProjectTemplateMilestone {
+	return generated.ProjectTemplateMilestone{
+		ID:                m.ID,
+		WorkspaceID:       m.WorkspaceID,
+		ProjectTemplateID: m.ProjectTemplateID,
+		Name:              m.Name,
+		Description:       m.Description,
+		TargetDate:        fromDate(m.TargetDate),
+		SortOrder:         m.SortOrder,
+		CreatedAt:         m.CreatedAt,
+		UpdatedAt:         m.UpdatedAt,
+	}
+}
+
+func toProjectTemplateMilestones(rows []model.ProjectTemplateMilestone) []generated.ProjectTemplateMilestone {
+	out := make([]generated.ProjectTemplateMilestone, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, toProjectTemplateMilestone(m))
+	}
+	return out
+}
+
+func toProjectTemplateIssue(i model.ProjectTemplateIssue) generated.ProjectTemplateIssue {
+	return generated.ProjectTemplateIssue{
+		ID:                i.ID,
+		WorkspaceID:       i.WorkspaceID,
+		ProjectTemplateID: i.ProjectTemplateID,
+		ParentID:          i.ParentID,
+		Title:             i.Title,
+		Description:       i.Description,
+		Properties:        jsonOrEmptyObject(i.Properties),
+		SortOrder:         i.SortOrder,
+		CreatedAt:         i.CreatedAt,
+		UpdatedAt:         i.UpdatedAt,
+	}
+}
+
+func toProjectTemplateIssues(rows []model.ProjectTemplateIssue) []generated.ProjectTemplateIssue {
+	out := make([]generated.ProjectTemplateIssue, 0, len(rows))
+	for _, i := range rows {
+		out = append(out, toProjectTemplateIssue(i))
+	}
+	return out
+}
+
 // --------------------------------------------------------------------------------- api keys
 
 // toAPIKey never carries the token, because model.APIKey has no field for one.

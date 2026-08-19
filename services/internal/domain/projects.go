@@ -103,6 +103,8 @@ type CreateProjectInput struct {
 	StartDateGranularity  *string
 	TargetDate            *model.Date
 	TargetDateGranularity *string
+
+	ProjectTemplateID *uuid.UUID
 }
 
 func (s *Service) CreateProject(ctx context.Context, p *authz.Principal, in CreateProjectInput) (model.Project, int64, error) {
@@ -113,26 +115,46 @@ func (s *Service) CreateProject(ctx context.Context, p *authz.Principal, in Crea
 	if !authz.Can(p, authz.ActionProjectCreate) {
 		return model.Project{}, 0, platform.Forbidden("project")
 	}
-	if len(in.TeamIDs) == 0 {
-		return model.Project{}, 0, platform.Validation("teamIds", "a project needs at least one team")
-	}
 	if in.Priority < 0 || in.Priority > 4 {
 		return model.Project{}, 0, platform.Validation("priority", "priority must be 0 (none) to 4 (low)")
 	}
 	in.Color = normaliseColor(in.Color)
 
-	start, startG, err := resolveTimeframe(in.StartDate, in.StartDateGranularity)
-	if err != nil {
-		return model.Project{}, 0, err
-	}
-	target, targetG, err := resolveTimeframe(in.TargetDate, in.TargetDateGranularity)
-	if err != nil {
-		return model.Project{}, 0, err
-	}
-
 	var out model.Project
 	var version int64
-	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		var template *model.ProjectTemplate
+		if in.ProjectTemplateID != nil {
+			row, err := s.requireProjectTemplateAccess(ctx, q, p, *in.ProjectTemplateID)
+			if err != nil {
+				if platform.CodeOf(err) == platform.CodeNotFound {
+					return platform.Validation("projectTemplateId", "no such project template")
+				}
+				return err
+			}
+			tpl := toProjectTemplate(store.AsProjectTemplateRow(row))
+			if err := mergeCreateProjectWithTemplate(&in, tpl); err != nil {
+				return err
+			}
+			template = &tpl
+		}
+
+		if len(in.TeamIDs) == 0 {
+			return platform.Validation("teamIds", "a project needs at least one team")
+		}
+		if err := s.validateProjectTemplate(ctx, q, p, in.TeamIDs, in.ProjectTemplateID); err != nil {
+			return err
+		}
+
+		start, startG, err := resolveTimeframe(in.StartDate, in.StartDateGranularity)
+		if err != nil {
+			return err
+		}
+		target, targetG, err := resolveTimeframe(in.TargetDate, in.TargetDateGranularity)
+		if err != nil {
+			return err
+		}
+
 		statusID := in.StatusID
 		if statusID == nil {
 			def, err := q.GetDefaultProjectStatus(ctx, p.WorkspaceID)
@@ -190,6 +212,7 @@ func (s *Service) CreateProject(ctx context.Context, p *authz.Principal, in Crea
 			StartDateGranularity:  startG,
 			TargetDate:            target,
 			TargetDateGranularity: targetG,
+			ProjectTemplateID:     in.ProjectTemplateID,
 		})
 		if err != nil {
 			return platform.Internal(err)
@@ -221,8 +244,19 @@ func (s *Service) CreateProject(ctx context.Context, p *authz.Principal, in Crea
 		if err != nil {
 			return err
 		}
+		if template != nil {
+			spawned, err := s.applyProjectTemplateContent(
+				ctx, q, p, id, *template, uniqueUUIDs(in.TeamIDs), scope,
+			)
+			if err != nil {
+				return err
+			}
+			changes = append(changes, spawned...)
+		}
 		for i := range changes {
-			changes[i].Scope = scope
+			if changes[i].Scope.Kind == "" {
+				changes[i].Scope = scope
+			}
 		}
 		changes = append([]Change{{
 			EntityType: "project", EntityID: id, Op: OpUpsert, Scope: scope, Payload: out,
@@ -1289,6 +1323,7 @@ func toProject(p store.Project) model.Project {
 		UpdateReminderIntervalDays: intPtrFromInt16(p.UpdateReminderIntervalDays),
 		UpdateReminderWeekday:      intPtrFromInt16(p.UpdateReminderWeekday),
 		UpdateReminderHour:         intPtrFromInt16(p.UpdateReminderHour),
+		ProjectTemplateID:          p.ProjectTemplateID,
 		ArchivedAt:                 p.ArchivedAt,
 		DeletedAt:                  p.DeletedAt,
 		DeletedBy:                  p.DeletedBy,

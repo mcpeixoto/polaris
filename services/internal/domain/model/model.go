@@ -601,6 +601,55 @@ type FormTemplateField struct {
 	UpdatedAt      time.Time             `json:"updatedAt"`
 }
 
+// ProjectTemplate prefills a project with milestones and starter issues.
+type ProjectTemplate struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      *uuid.UUID `json:"teamId,omitempty"`
+
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Summary     string  `json:"summary"`
+	Body        string  `json:"body"`
+	// Properties keys match createProject: statusId, priority, leadId, color, icon,
+	// teamIds, memberIds, startDate, targetDate, initiativeIds.
+	Properties json.RawMessage `json:"properties"`
+
+	Position string `json:"position"`
+
+	CreatedBy  *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
+// ProjectTemplateMilestone is a milestone to create when the template is applied.
+type ProjectTemplateMilestone struct {
+	ID                uuid.UUID `json:"id"`
+	WorkspaceID       uuid.UUID `json:"workspaceId"`
+	ProjectTemplateID uuid.UUID `json:"projectTemplateId"`
+	Name              string    `json:"name"`
+	Description       *string   `json:"description,omitempty"`
+	TargetDate        *Date     `json:"targetDate,omitempty"`
+	SortOrder         string    `json:"sortOrder"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+}
+
+// ProjectTemplateIssue is a starter issue to create when the template is applied.
+type ProjectTemplateIssue struct {
+	ID                uuid.UUID       `json:"id"`
+	WorkspaceID       uuid.UUID       `json:"workspaceId"`
+	ProjectTemplateID uuid.UUID       `json:"projectTemplateId"`
+	ParentID          *uuid.UUID      `json:"parentId,omitempty"`
+	Title             string          `json:"title"`
+	Description       string          `json:"description"`
+	Properties        json.RawMessage `json:"properties"`
+	SortOrder         string          `json:"sortOrder"`
+	CreatedAt         time.Time       `json:"createdAt"`
+	UpdatedAt         time.Time       `json:"updatedAt"`
+}
+
 // APIKey is a personal key, which acts as its owner.
 //
 // Deliberately NOT on the sync stream. Every other entity here is replicated because it is
@@ -910,6 +959,8 @@ type Project struct {
 	UpdateReminderIntervalDays *int   `json:"updateReminderIntervalDays,omitempty"`
 	UpdateReminderWeekday      *int   `json:"updateReminderWeekday,omitempty"`
 	UpdateReminderHour         *int   `json:"updateReminderHour,omitempty"`
+
+	ProjectTemplateID *uuid.UUID `json:"projectTemplateId,omitempty"`
 
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
 	DeletedAt  *time.Time `json:"deletedAt,omitempty"`

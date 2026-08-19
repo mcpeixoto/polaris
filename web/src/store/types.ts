@@ -618,6 +618,62 @@ export interface FormTemplateField {
   readonly updatedAt: Timestamp;
 }
 
+/** Keys match `createProject`: status, priority, lead, colour, dates, teams, members, initiatives. */
+export interface ProjectTemplateProperties {
+  readonly statusId?: UUID;
+  readonly priority?: number;
+  readonly leadId?: UUID;
+  readonly color?: string;
+  readonly icon?: string;
+  readonly teamIds?: readonly UUID[];
+  readonly memberIds?: readonly UUID[];
+  readonly startDate?: DateOnly;
+  readonly targetDate?: DateOnly;
+  readonly initiativeIds?: readonly UUID[];
+}
+
+export interface ProjectTemplate {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  /** Absent means the template is offered in every team. */
+  readonly teamId?: UUID;
+  readonly name: string;
+  readonly description?: string;
+  readonly summary: string;
+  readonly body: string;
+  readonly properties: ProjectTemplateProperties;
+  readonly position: string;
+  readonly createdBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+export interface ProjectTemplateMilestone {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectTemplateId: UUID;
+  readonly name: string;
+  readonly description?: string;
+  readonly targetDate?: DateOnly;
+  readonly sortOrder: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+export interface ProjectTemplateIssue {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectTemplateId: UUID;
+  readonly parentId?: UUID;
+  readonly title: string;
+  readonly description: string;
+  readonly properties: TemplateProperties;
+  readonly sortOrder: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 export type ProjectStatusCategory = 'backlog' | 'planned' | 'started' | 'completed' | 'canceled';
 
 export type TimeframeGranularity = 'day' | 'month' | 'quarter' | 'half' | 'year';
@@ -661,6 +717,7 @@ export interface Project {
   readonly archivedAt?: Timestamp;
   readonly deletedAt?: Timestamp;
   readonly deletedBy?: UUID;
+  readonly projectTemplateId?: UUID;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
 }
@@ -817,6 +874,9 @@ export interface EntityByType {
   issueTemplate: IssueTemplate;
   formTemplate: FormTemplate;
   formTemplateField: FormTemplateField;
+  projectTemplate: ProjectTemplate;
+  projectTemplateMilestone: ProjectTemplateMilestone;
+  projectTemplateIssue: ProjectTemplateIssue;
   projectStatus: ProjectStatus;
   project: Project;
   projectTeam: ProjectTeam;
@@ -863,6 +923,9 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'issueTemplate',
   'formTemplate',
   'formTemplateField',
+  'projectTemplate',
+  'projectTemplateMilestone',
+  'projectTemplateIssue',
   // Before issues: an issue may name a project and a milestone.
   'projectStatus',
   'project',

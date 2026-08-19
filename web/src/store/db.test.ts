@@ -189,6 +189,37 @@ function oneOfEach(): EntityRow[] {
     createdAt: NOW,
     updatedAt: NOW,
   };
+  const projectTemplate = {
+    id: 'ptpl1',
+    workspaceId: 'w',
+    name: 'Launch',
+    summary: 'Ship v1',
+    body: '',
+    properties: {},
+    position: 'a0',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const projectTemplateMilestone = {
+    id: 'ptms1',
+    workspaceId: 'w',
+    projectTemplateId: 'ptpl1',
+    name: 'Beta',
+    sortOrder: 'a0',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const projectTemplateIssue = {
+    id: 'pti1',
+    workspaceId: 'w',
+    projectTemplateId: 'ptpl1',
+    title: 'Write docs',
+    description: '',
+    properties: {},
+    sortOrder: 'a0',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
   const issueLabel: IssueLabel = {
     id: 'il1',
     workspaceId: 'w',
@@ -298,6 +329,9 @@ function oneOfEach(): EntityRow[] {
     { type: 'issueTemplate', entity: issueTemplate },
     { type: 'formTemplate', entity: formTemplate },
     { type: 'formTemplateField', entity: formTemplateField },
+    { type: 'projectTemplate', entity: projectTemplate },
+    { type: 'projectTemplateMilestone', entity: projectTemplateMilestone },
+    { type: 'projectTemplateIssue', entity: projectTemplateIssue },
     {
       type: 'projectStatus',
       entity: {

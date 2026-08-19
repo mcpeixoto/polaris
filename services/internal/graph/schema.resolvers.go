@@ -1837,6 +1837,167 @@ func (r *mutationResolver) DeleteFormTemplateField(ctx context.Context, id uuid.
 	return &generated.DeletePayload{Version: int(version), ID: fieldID}, nil
 }
 
+// CreateProjectTemplate is the resolver for the createProjectTemplate field.
+func (r *mutationResolver) CreateProjectTemplate(ctx context.Context, input generated.CreateProjectTemplateInput) (*generated.ProjectTemplatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	template, version, err := r.Svc.CreateProjectTemplate(ctx, p, domain.CreateProjectTemplateInput{
+		TeamID:      input.TeamID,
+		Name:        input.Name,
+		Description: input.Description,
+		Summary:     deref(input.Summary),
+		Body:        deref(input.Body),
+		Properties:  input.Properties,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectTemplate(template)
+	return &generated.ProjectTemplatePayload{Version: int(version), Template: &out}, nil
+}
+
+// UpdateProjectTemplate is the resolver for the updateProjectTemplate field.
+func (r *mutationResolver) UpdateProjectTemplate(ctx context.Context, input generated.UpdateProjectTemplateInput) (*generated.ProjectTemplatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	template, version, err := r.Svc.UpdateProjectTemplate(ctx, p, domain.UpdateProjectTemplateInput{
+		ID:          input.ID,
+		Name:        input.Name,
+		Description: input.Description,
+		Summary:     input.Summary,
+		Body:        input.Body,
+		Properties:  input.Properties,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectTemplate(template)
+	return &generated.ProjectTemplatePayload{Version: int(version), Template: &out}, nil
+}
+
+// ArchiveProjectTemplate is the resolver for the archiveProjectTemplate field.
+func (r *mutationResolver) ArchiveProjectTemplate(ctx context.Context, id uuid.UUID, archived bool) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	templateID, version, err := r.Svc.ArchiveProjectTemplate(ctx, p, id, archived)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: templateID}, nil
+}
+
+// CreateProjectTemplateMilestone is the resolver for the createProjectTemplateMilestone field.
+func (r *mutationResolver) CreateProjectTemplateMilestone(ctx context.Context, input generated.CreateProjectTemplateMilestoneInput) (*generated.ProjectTemplateMilestonePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	milestone, version, err := r.Svc.CreateProjectTemplateMilestone(ctx, p, domain.CreateProjectTemplateMilestoneInput{
+		ProjectTemplateID: input.ProjectTemplateID,
+		Name:              input.Name,
+		Description:       input.Description,
+		TargetDate:        toDate(input.TargetDate),
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectTemplateMilestone(milestone)
+	return &generated.ProjectTemplateMilestonePayload{Version: int(version), Milestone: &out}, nil
+}
+
+// UpdateProjectTemplateMilestone is the resolver for the updateProjectTemplateMilestone field.
+func (r *mutationResolver) UpdateProjectTemplateMilestone(ctx context.Context, input generated.UpdateProjectTemplateMilestoneInput) (*generated.ProjectTemplateMilestonePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	milestone, version, err := r.Svc.UpdateProjectTemplateMilestone(ctx, p, domain.UpdateProjectTemplateMilestoneInput{
+		ID:          input.ID,
+		Name:        input.Name,
+		Description: input.Description,
+		TargetDate:  toDate(input.TargetDate),
+		SortOrder:   input.SortOrder,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectTemplateMilestone(milestone)
+	return &generated.ProjectTemplateMilestonePayload{Version: int(version), Milestone: &out}, nil
+}
+
+// DeleteProjectTemplateMilestone is the resolver for the deleteProjectTemplateMilestone field.
+func (r *mutationResolver) DeleteProjectTemplateMilestone(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	milestoneID, version, err := r.Svc.DeleteProjectTemplateMilestone(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: milestoneID}, nil
+}
+
+// CreateProjectTemplateIssue is the resolver for the createProjectTemplateIssue field.
+func (r *mutationResolver) CreateProjectTemplateIssue(ctx context.Context, input generated.CreateProjectTemplateIssueInput) (*generated.ProjectTemplateIssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issue, version, err := r.Svc.CreateProjectTemplateIssue(ctx, p, domain.CreateProjectTemplateIssueInput{
+		ProjectTemplateID: input.ProjectTemplateID,
+		ParentID:          input.ParentID,
+		Title:             input.Title,
+		Description:       deref(input.Description),
+		Properties:        input.Properties,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectTemplateIssue(issue)
+	return &generated.ProjectTemplateIssuePayload{Version: int(version), Issue: &out}, nil
+}
+
+// UpdateProjectTemplateIssue is the resolver for the updateProjectTemplateIssue field.
+func (r *mutationResolver) UpdateProjectTemplateIssue(ctx context.Context, input generated.UpdateProjectTemplateIssueInput) (*generated.ProjectTemplateIssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issue, version, err := r.Svc.UpdateProjectTemplateIssue(ctx, p, domain.UpdateProjectTemplateIssueInput{
+		ID:          input.ID,
+		Title:       input.Title,
+		Description: input.Description,
+		Properties:  input.Properties,
+		ParentID:    input.ParentID,
+		SortOrder:   input.SortOrder,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectTemplateIssue(issue)
+	return &generated.ProjectTemplateIssuePayload{Version: int(version), Issue: &out}, nil
+}
+
+// DeleteProjectTemplateIssue is the resolver for the deleteProjectTemplateIssue field.
+func (r *mutationResolver) DeleteProjectTemplateIssue(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issueID, version, err := r.Svc.DeleteProjectTemplateIssue(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: issueID}, nil
+}
+
 // CreateProject is the resolver for the createProject field.
 func (r *mutationResolver) CreateProject(ctx context.Context, input generated.CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectPayload, error) {
 	p, err := principalFrom(ctx)
@@ -2795,6 +2956,59 @@ func (r *queryResolver) FormTemplateFields(ctx context.Context, formTemplateID u
 		return nil, PresentError(ctx, err)
 	}
 	return toFormTemplateFields(fields), nil
+}
+
+// ProjectTemplates is the resolver for the projectTemplates field.
+func (r *queryResolver) ProjectTemplates(ctx context.Context, teamID *uuid.UUID) ([]generated.ProjectTemplate, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	templates, err := r.Svc.ListProjectTemplates(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toProjectTemplates(templates), nil
+}
+
+// ProjectTemplate is the resolver for the projectTemplate field.
+func (r *queryResolver) ProjectTemplate(ctx context.Context, id uuid.UUID) (*generated.ProjectTemplate, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	template, err := r.Svc.GetProjectTemplate(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectTemplate(template)
+	return &out, nil
+}
+
+// ProjectTemplateMilestones is the resolver for the projectTemplateMilestones field.
+func (r *queryResolver) ProjectTemplateMilestones(ctx context.Context, projectTemplateID uuid.UUID) ([]generated.ProjectTemplateMilestone, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	milestones, err := r.Svc.ListProjectTemplateMilestones(ctx, p, projectTemplateID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toProjectTemplateMilestones(milestones), nil
+}
+
+// ProjectTemplateIssues is the resolver for the projectTemplateIssues field.
+func (r *queryResolver) ProjectTemplateIssues(ctx context.Context, projectTemplateID uuid.UUID) ([]generated.ProjectTemplateIssue, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issues, err := r.Svc.ListProjectTemplateIssues(ctx, p, projectTemplateID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toProjectTemplateIssues(issues), nil
 }
 
 // Projects is the resolver for the projects field.

@@ -38,6 +38,9 @@ import {
   type IssueTemplate,
   type FormTemplate,
   type FormTemplateField,
+  type ProjectTemplate,
+  type ProjectTemplateMilestone,
+  type ProjectTemplateIssue,
   type Initiative,
   type InitiativeProject,
   type ProjectUpdate,
@@ -156,6 +159,9 @@ export class Store {
     issueTemplate: new Map(),
     formTemplate: new Map(),
     formTemplateField: new Map(),
+    projectTemplate: new Map(),
+    projectTemplateMilestone: new Map(),
+    projectTemplateIssue: new Map(),
     projectStatus: new Map(),
     project: new Map(),
     projectTeam: new Map(),
@@ -207,6 +213,9 @@ export class Store {
   private readonly templateTeam = new SetIndex<UUID>();
   private readonly formTemplateTeam = new SetIndex<UUID>();
   private readonly formTemplateFieldOf = new SetIndex<UUID>();
+  private readonly projectTemplateTeam = new SetIndex<UUID>();
+  private readonly projectTemplateMilestoneOf = new SetIndex<UUID>();
+  private readonly projectTemplateIssueOf = new SetIndex<UUID>();
   private readonly viewTeam = new SetIndex<UUID>();
   private readonly viewProject = new SetIndex<UUID>();
   private readonly subscriptionIssue = new SetIndex<UUID>();
@@ -327,6 +336,18 @@ export class Store {
 
   get formTemplateFields(): ReadonlyMap<UUID, FormTemplateField> {
     return this.tables.formTemplateField as ReadonlyMap<UUID, FormTemplateField>;
+  }
+
+  get projectTemplates(): ReadonlyMap<UUID, ProjectTemplate> {
+    return this.tables.projectTemplate as ReadonlyMap<UUID, ProjectTemplate>;
+  }
+
+  get projectTemplateMilestones(): ReadonlyMap<UUID, ProjectTemplateMilestone> {
+    return this.tables.projectTemplateMilestone as ReadonlyMap<UUID, ProjectTemplateMilestone>;
+  }
+
+  get projectTemplateIssues(): ReadonlyMap<UUID, ProjectTemplateIssue> {
+    return this.tables.projectTemplateIssue as ReadonlyMap<UUID, ProjectTemplateIssue>;
   }
 
   get projectStatuses(): ReadonlyMap<UUID, ProjectStatus> {
@@ -520,6 +541,18 @@ export class Store {
 
   formTemplateFieldIdsFor(formTemplateId: UUID): ReadonlySet<UUID> {
     return this.formTemplateFieldOf.get(formTemplateId);
+  }
+
+  projectTemplateIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
+    return this.projectTemplateTeam.get(teamId);
+  }
+
+  projectTemplateMilestoneIdsFor(projectTemplateId: UUID): ReadonlySet<UUID> {
+    return this.projectTemplateMilestoneOf.get(projectTemplateId);
+  }
+
+  projectTemplateIssueIdsFor(projectTemplateId: UUID): ReadonlySet<UUID> {
+    return this.projectTemplateIssueOf.get(projectTemplateId);
   }
 
   viewIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
@@ -812,6 +845,9 @@ export class Store {
     this.templateTeam.clear();
     this.formTemplateTeam.clear();
     this.formTemplateFieldOf.clear();
+    this.projectTemplateTeam.clear();
+    this.projectTemplateMilestoneOf.clear();
+    this.projectTemplateIssueOf.clear();
     this.viewTeam.clear();
     this.viewProject.clear();
     this.subscriptionIssue.clear();
@@ -888,6 +924,9 @@ export class Store {
         for (const formTemplateId of [...this.formTemplateTeam.get(id)]) {
           this.forget('formTemplate', formTemplateId, deletes, touched);
         }
+        for (const projectTemplateId of [...this.projectTemplateTeam.get(id)]) {
+          this.forget('projectTemplate', projectTemplateId, deletes, touched);
+        }
         for (const viewId of [...this.viewTeam.get(id)]) {
           this.forget('view', viewId, deletes, touched);
         }
@@ -948,6 +987,14 @@ export class Store {
       case 'projectLabel':
         for (const rowId of [...this.projectLabelIndex.rowIdsForLabel(id)]) {
           this.forget('projectLabelLink', rowId, deletes, touched);
+        }
+        break;
+      case 'projectTemplate':
+        for (const milestoneId of [...this.projectTemplateMilestoneOf.get(id)]) {
+          this.forget('projectTemplateMilestone', milestoneId, deletes, touched);
+        }
+        for (const issueId of [...this.projectTemplateIssueOf.get(id)]) {
+          this.forget('projectTemplateIssue', issueId, deletes, touched);
         }
         break;
       default:
@@ -1063,6 +1110,31 @@ export class Store {
           this.formTemplateFieldOf.remove(before.formTemplateId, before.id);
         }
         this.formTemplateFieldOf.add(row.formTemplateId, row.id);
+        break;
+      }
+      case 'projectTemplate':
+        this.fileByTeam(
+          this.projectTemplateTeam,
+          previous as ProjectTemplate | undefined,
+          next as ProjectTemplate,
+        );
+        break;
+      case 'projectTemplateMilestone': {
+        const row = next as ProjectTemplateMilestone;
+        const before = previous as ProjectTemplateMilestone | undefined;
+        if (before !== undefined) {
+          this.projectTemplateMilestoneOf.remove(before.projectTemplateId, before.id);
+        }
+        this.projectTemplateMilestoneOf.add(row.projectTemplateId, row.id);
+        break;
+      }
+      case 'projectTemplateIssue': {
+        const row = next as ProjectTemplateIssue;
+        const before = previous as ProjectTemplateIssue | undefined;
+        if (before !== undefined) {
+          this.projectTemplateIssueOf.remove(before.projectTemplateId, before.id);
+        }
+        this.projectTemplateIssueOf.add(row.projectTemplateId, row.id);
         break;
       }
       case 'view':
@@ -1242,6 +1314,19 @@ export class Store {
       case 'formTemplateField': {
         const row = entity as FormTemplateField;
         this.formTemplateFieldOf.remove(row.formTemplateId, row.id);
+        break;
+      }
+      case 'projectTemplate':
+        this.unfileByTeam(this.projectTemplateTeam, entity as ProjectTemplate);
+        break;
+      case 'projectTemplateMilestone': {
+        const row = entity as ProjectTemplateMilestone;
+        this.projectTemplateMilestoneOf.remove(row.projectTemplateId, row.id);
+        break;
+      }
+      case 'projectTemplateIssue': {
+        const row = entity as ProjectTemplateIssue;
+        this.projectTemplateIssueOf.remove(row.projectTemplateId, row.id);
         break;
       }
       case 'view':

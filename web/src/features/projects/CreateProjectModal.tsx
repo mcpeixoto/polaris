@@ -12,6 +12,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
 import { Button, Input, Modal, Select } from '~/components';
+import { projectTemplatesForTeam } from '~/features/project-templates/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import type { UUID } from '~/store';
@@ -19,6 +20,8 @@ import { ApiError } from '~/sync/api';
 
 import { createProject } from './mutations';
 import styles from './CreateProjectModal.module.css';
+
+const NO_TEMPLATE = '';
 
 export interface CreateProjectModalProps {
   onClose: () => void;
@@ -42,6 +45,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
 
   const fromPath = useTeamKeyInPath();
   const [chosenTeam, setChosenTeam] = useState<UUID | null>(null);
+  const [templateId, setTemplateId] = useState('');
   const [name, setName] = useState('');
   const [summary, setSummary] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
@@ -52,6 +56,21 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
     if (chosenTeam !== null && teams.some((team) => team.id === chosenTeam)) return chosenTeam;
     return teams.find((team) => team.key === fromPath)?.id ?? teams[0]?.id ?? '';
   }, [chosenTeam, teams, fromPath]);
+
+  const templates = useLiveQuery(
+    (store) => (teamId === '' ? [] : projectTemplatesForTeam(store, teamId)),
+    ['projectTemplate', 'team'],
+    [teamId],
+  );
+
+  const onTemplateChange = (nextId: string) => {
+    setTemplateId(nextId);
+    if (nextId === NO_TEMPLATE) return;
+    const template = templates.find((candidate) => candidate.id === nextId);
+    if (template === undefined) return;
+    setName(template.name);
+    setSummary(template.summary);
+  };
 
   useKeyContext('modal');
   useActions(
@@ -90,6 +109,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
         summary: summary.trim() === '' ? undefined : summary.trim(),
         teamIds: [teamId],
         leadId: viewerId ?? undefined,
+        ...(templateId === NO_TEMPLATE ? null : { projectTemplateId: templateId }),
       });
       onClose();
       if (id !== '') void navigate(`/project/${id}`);
@@ -150,7 +170,10 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
           label="Team"
           hideLabel
           value={teamId}
-          onChange={(event) => setChosenTeam(event.target.value)}
+          onChange={(event) => {
+            setChosenTeam(event.target.value);
+            setTemplateId(NO_TEMPLATE);
+          }}
         >
           {teams.map((team) => (
             <option key={team.id} value={team.id}>
@@ -158,6 +181,21 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
             </option>
           ))}
         </Select>
+        {templates.length === 0 ? null : (
+          <Select
+            label="Template"
+            hideLabel
+            value={templateId}
+            onChange={(event) => onTemplateChange(event.target.value)}
+          >
+            <option value={NO_TEMPLATE}>No template</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </Select>
+        )}
         {saveError === null ? null : (
           <p className={styles.error} role="alert">
             {saveError}

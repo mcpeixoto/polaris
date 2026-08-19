@@ -37,6 +37,7 @@ export interface NewProject {
   readonly teamIds: readonly UUID[];
   readonly leadId?: UUID | undefined;
   readonly statusId?: UUID | undefined;
+  readonly projectTemplateId?: UUID | undefined;
 }
 
 export async function createProject(engine: SyncEngine, input: NewProject): Promise<UUID> {
@@ -61,6 +62,9 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
     creatorId: input.leadId,
     sortOrder: 'z',
     updateSchedule: 'default',
+    ...(input.projectTemplateId === undefined
+      ? null
+      : { projectTemplateId: input.projectTemplateId }),
     createdAt: now,
     updatedAt: now,
   };
@@ -88,6 +92,9 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
           teamIds: [...input.teamIds],
           ...(input.leadId === undefined ? null : { leadId: input.leadId }),
           ...(input.statusId === undefined ? null : { statusId: input.statusId }),
+          ...(input.projectTemplateId === undefined
+            ? null
+            : { projectTemplateId: input.projectTemplateId }),
         },
       },
       optimistic: [

@@ -47,6 +47,7 @@ export const PROJECT_FIELDS = /* GraphQL */ `
     archivedAt
     deletedAt
     deletedBy
+    projectTemplateId
     createdAt
     updatedAt
   }
