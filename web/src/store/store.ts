@@ -29,6 +29,8 @@ import {
   type IssueRelation,
   type IssueSubscription,
   type IssueTemplate,
+  type Initiative,
+  type InitiativeProject,
   type Label,
   type Notification,
   type Project,
@@ -144,6 +146,8 @@ export class Store {
     projectTeam: new Map(),
     projectMember: new Map(),
     projectMilestone: new Map(),
+    initiative: new Map(),
+    initiativeProject: new Map(),
     cycle: new Map(),
     issue: new Map(),
     issueLabel: new Map(),
@@ -195,6 +199,7 @@ export class Store {
   private readonly projectTeamOf = new SetIndex<UUID>();
   private readonly projectMemberOf = new SetIndex<UUID>();
   private readonly projectMilestoneOf = new SetIndex<UUID>();
+  private readonly initiativeProjectOf = new SetIndex<UUID>();
   private readonly cycleTeam = new SetIndex<UUID>();
   /** Keyed by user and view key together; see `preferenceKey`. */
   private readonly preferenceKeys = new Map<string, UUID>();
@@ -310,6 +315,14 @@ export class Store {
     return this.tables.projectMilestone as ReadonlyMap<UUID, ProjectMilestone>;
   }
 
+  get initiatives(): ReadonlyMap<UUID, Initiative> {
+    return this.tables.initiative as ReadonlyMap<UUID, Initiative>;
+  }
+
+  get initiativeProjects(): ReadonlyMap<UUID, InitiativeProject> {
+    return this.tables.initiativeProject as ReadonlyMap<UUID, InitiativeProject>;
+  }
+
   get cycles(): ReadonlyMap<UUID, Cycle> {
     return this.tables.cycle as ReadonlyMap<UUID, Cycle>;
   }
@@ -399,6 +412,10 @@ export class Store {
 
   projectMilestoneIdsFor(projectId: UUID): ReadonlySet<UUID> {
     return this.projectMilestoneOf.get(projectId);
+  }
+
+  initiativeProjectIdsFor(initiativeId: UUID): ReadonlySet<UUID> {
+    return this.initiativeProjectOf.get(initiativeId);
   }
 
   cycleIdsFor(teamId: UUID): ReadonlySet<UUID> {
@@ -710,6 +727,7 @@ export class Store {
     this.projectTeamOf.clear();
     this.projectMemberOf.clear();
     this.projectMilestoneOf.clear();
+    this.initiativeProjectOf.clear();
     this.cycleTeam.clear();
     this.preferenceKeys.clear();
     this.currentVersion = 0;
@@ -995,6 +1013,15 @@ export class Store {
           next as ProjectMilestone,
         );
         break;
+      case 'initiativeProject': {
+        const link = next as InitiativeProject;
+        const before = previous as InitiativeProject | undefined;
+        if (before !== undefined && before.initiativeId !== link.initiativeId) {
+          this.initiativeProjectOf.remove(before.initiativeId, before.id);
+        }
+        this.initiativeProjectOf.add(link.initiativeId, link.id);
+        break;
+      }
       case 'cycle': {
         const cycle = next as Cycle;
         const before = previous as Cycle | undefined;
@@ -1087,6 +1114,11 @@ export class Store {
       case 'projectMilestone':
         this.unfileByProject(this.projectMilestoneOf, entity as ProjectMilestone);
         break;
+      case 'initiativeProject': {
+        const link = entity as InitiativeProject;
+        this.initiativeProjectOf.remove(link.initiativeId, link.id);
+        break;
+      }
       case 'cycle': {
         const cycle = entity as Cycle;
         this.cycleTeam.remove(cycle.teamId, cycle.id);

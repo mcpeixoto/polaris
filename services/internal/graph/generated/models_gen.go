@@ -177,6 +177,17 @@ type CreateDocumentInput struct {
 	Body      *string    `json:"body,omitempty"`
 }
 
+type CreateInitiativeInput struct {
+	Name                  string                `json:"name"`
+	Description           *string               `json:"description,omitempty"`
+	Status                *InitiativeStatus     `json:"status,omitempty"`
+	Priority              *int                  `json:"priority,omitempty"`
+	OwnerID               *uuid.UUID            `json:"ownerId,omitempty"`
+	LeadTeamID            *uuid.UUID            `json:"leadTeamId,omitempty"`
+	TargetDate            *string               `json:"targetDate,omitempty"`
+	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
+}
+
 type CreateIssueInput struct {
 	// The issue's id, minted by the client.
 	//
@@ -401,6 +412,54 @@ type FavoritePayload struct {
 }
 
 func (FavoritePayload) IsMutationResult() {}
+
+// A workspace objective grouping a manually curated set of projects.
+type Initiative struct {
+	ID                    uuid.UUID             `json:"id"`
+	WorkspaceID           uuid.UUID             `json:"workspaceId"`
+	Name                  string                `json:"name"`
+	Description           string                `json:"description"`
+	Status                InitiativeStatus      `json:"status"`
+	Priority              int                   `json:"priority"`
+	OwnerID               *uuid.UUID            `json:"ownerId,omitempty"`
+	LeadTeamID            *uuid.UUID            `json:"leadTeamId,omitempty"`
+	SortOrder             string                `json:"sortOrder"`
+	TargetDate            *string               `json:"targetDate,omitempty"`
+	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
+	CreatorID             *uuid.UUID            `json:"creatorId,omitempty"`
+	ArchivedAt            *time.Time            `json:"archivedAt,omitempty"`
+	DeletedAt             *time.Time            `json:"deletedAt,omitempty"`
+	DeletedBy             *uuid.UUID            `json:"deletedBy,omitempty"`
+	CreatedAt             time.Time             `json:"createdAt"`
+	UpdatedAt             time.Time             `json:"updatedAt"`
+	Owner                 *User                 `json:"owner,omitempty"`
+	LeadTeam              *Team                 `json:"leadTeam,omitempty"`
+	Creator               *User                 `json:"creator,omitempty"`
+	Projects              []InitiativeProject   `json:"projects"`
+}
+
+type InitiativePayload struct {
+	Version    int         `json:"version"`
+	Initiative *Initiative `json:"initiative"`
+}
+
+func (InitiativePayload) IsMutationResult() {}
+
+type InitiativeProject struct {
+	ID           uuid.UUID `json:"id"`
+	WorkspaceID  uuid.UUID `json:"workspaceId"`
+	InitiativeID uuid.UUID `json:"initiativeId"`
+	ProjectID    uuid.UUID `json:"projectId"`
+	CreatedAt    time.Time `json:"createdAt"`
+	Project      *Project  `json:"project"`
+}
+
+type InitiativeProjectPayload struct {
+	Version           int                `json:"version"`
+	InitiativeProject *InitiativeProject `json:"initiativeProject"`
+}
+
+func (InitiativeProjectPayload) IsMutationResult() {}
 
 type Invite struct {
 	ID          uuid.UUID   `json:"id"`
@@ -958,6 +1017,21 @@ type UpdateDocumentInput struct {
 	ID    uuid.UUID `json:"id"`
 	Title *string   `json:"title,omitempty"`
 	Body  *string   `json:"body,omitempty"`
+}
+
+type UpdateInitiativeInput struct {
+	ID                    uuid.UUID             `json:"id"`
+	Name                  *string               `json:"name,omitempty"`
+	Description           *string               `json:"description,omitempty"`
+	Status                *InitiativeStatus     `json:"status,omitempty"`
+	Priority              *int                  `json:"priority,omitempty"`
+	OwnerID               *uuid.UUID            `json:"ownerId,omitempty"`
+	ClearOwner            *bool                 `json:"clearOwner,omitempty"`
+	LeadTeamID            *uuid.UUID            `json:"leadTeamId,omitempty"`
+	ClearLeadTeam         *bool                 `json:"clearLeadTeam,omitempty"`
+	TargetDate            *string               `json:"targetDate,omitempty"`
+	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
+	ClearTarget           *bool                 `json:"clearTarget,omitempty"`
 }
 
 type UpdateIssueInput struct {
@@ -1559,6 +1633,67 @@ func (e *FavoriteKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e FavoriteKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type InitiativeStatus string
+
+const (
+	InitiativeStatusProposed  InitiativeStatus = "PROPOSED"
+	InitiativeStatusPlanned   InitiativeStatus = "PLANNED"
+	InitiativeStatusActive    InitiativeStatus = "ACTIVE"
+	InitiativeStatusCompleted InitiativeStatus = "COMPLETED"
+	InitiativeStatusCanceled  InitiativeStatus = "CANCELED"
+)
+
+var AllInitiativeStatus = []InitiativeStatus{
+	InitiativeStatusProposed,
+	InitiativeStatusPlanned,
+	InitiativeStatusActive,
+	InitiativeStatusCompleted,
+	InitiativeStatusCanceled,
+}
+
+func (e InitiativeStatus) IsValid() bool {
+	switch e {
+	case InitiativeStatusProposed, InitiativeStatusPlanned, InitiativeStatusActive, InitiativeStatusCompleted, InitiativeStatusCanceled:
+		return true
+	}
+	return false
+}
+
+func (e InitiativeStatus) String() string {
+	return string(e)
+}
+
+func (e *InitiativeStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = InitiativeStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid InitiativeStatus", str)
+	}
+	return nil
+}
+
+func (e InitiativeStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *InitiativeStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e InitiativeStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -51,6 +51,8 @@ type scene struct {
 	alicesPreference                              uuid.UUID
 	openIssue, blockedIssue, privateIssue         uuid.UUID
 	openDocument                                  uuid.UUID
+	openInitiative                                uuid.UUID
+	openInitiativeProject                         uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
 	bobsFavorite                                  uuid.UUID
 
@@ -193,6 +195,19 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		t.Fatalf("create the document: %v", err)
 	}
 	s.openDocument = doc.ID
+
+	init, _, err := svc.CreateInitiative(ctx, s.alice, domain.CreateInitiativeInput{
+		Name: "Platform reliability",
+	})
+	if err != nil {
+		t.Fatalf("create the initiative: %v", err)
+	}
+	s.openInitiative = init.ID
+	link, _, err := svc.AddInitiativeProject(ctx, s.alice, init.ID, project.ID)
+	if err != nil {
+		t.Fatalf("link the project: %v", err)
+	}
+	s.openInitiativeProject = link.ID
 
 	// Favourites: alice pins something out of the private team and something workspace-wide,
 	// bob pins the team they share. A favourite carries only its owner's scope, which is what
@@ -420,10 +435,14 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "label", s.workspaceLabel},
 		{bobName, "issue", s.openIssue},
 		{bobName, "document", s.openDocument},
+		{bobName, "initiative", s.openInitiative},
+		{bobName, "initiativeProject", s.openInitiativeProject},
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},
 		{gretaName, "issue", s.openIssue},
 		{gretaName, "document", s.openDocument},
+		{gretaName, "initiative", s.openInitiative},
+		{gretaName, "initiativeProject", s.openInitiativeProject},
 		{samName, "label", s.workspaceLabel},
 		{samName, "issueTemplate", s.workspaceTemplate},
 		{samName, "view", s.workspaceView},

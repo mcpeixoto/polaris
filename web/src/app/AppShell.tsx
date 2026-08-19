@@ -38,19 +38,23 @@ export interface AppShellProps {
    * the modal lives with the rest of the project UI. `C` stays create-issue.
    */
   renderCreateProject?: (props: { onClose: () => void }) => ReactNode;
+  renderCreateInitiative?: (props: { onClose: () => void }) => ReactNode;
 }
 
-export function AppShell({ children, renderCreateIssue, renderCreateProject }: AppShellProps) {
+export function AppShell({ children, renderCreateIssue, renderCreateProject, renderCreateInitiative }: AppShellProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [commandOpen, setCommandOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [createInitiativeOpen, setCreateInitiativeOpen] = useState(false);
   const onProjects =
     pathname === '/projects' ||
     pathname.startsWith('/project/') ||
     /\/team\/[^/]+\/projects(?:\/|$)/.test(pathname);
+  const onInitiatives =
+    pathname === '/initiatives' || pathname.startsWith('/initiative/');
   const onCycles =
     pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
 
@@ -80,6 +84,7 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
     setHelpOpen(false);
     setCreateOpen(false);
     setCreateProjectOpen(false);
+    setCreateInitiativeOpen(false);
   }, []);
 
   useActions(
@@ -122,6 +127,12 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
         run: () => setCreateProjectOpen(true),
       },
       {
+        id: 'initiative.create',
+        title: 'Create initiative',
+        group: 'Initiatives',
+        run: () => setCreateInitiativeOpen(true),
+      },
+      {
         id: 'nav.myIssues',
         title: 'Go to My Issues',
         keys: ['g m'],
@@ -159,6 +170,12 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
         keys: ['g p'],
         group: 'Navigation',
         run: () => navigate('/projects'),
+      },
+      {
+        id: 'nav.initiatives',
+        title: 'Go to Initiatives',
+        group: 'Navigation',
+        run: () => navigate('/initiatives'),
       },
       {
         id: 'nav.cycles',
@@ -218,6 +235,10 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
           <NavLink to="/projects" className={() => navClass({ isActive: onProjects })}>
             <NavGlyph name="project" />
             <span className={styles.navLabel}>Projects</span>
+          </NavLink>
+          <NavLink to="/initiatives" className={() => navClass({ isActive: onInitiatives })}>
+            <NavGlyph name="initiative" />
+            <span className={styles.navLabel}>Initiatives</span>
           </NavLink>
           <NavLink to={cyclesPath} className={() => navClass({ isActive: onCycles })}>
             <NavGlyph name="cycle" />
@@ -302,6 +323,8 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
       <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
       {createOpen && renderCreateIssue?.({ onClose: () => setCreateOpen(false) })}
       {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
+      {createInitiativeOpen &&
+        renderCreateInitiative?.({ onClose: () => setCreateInitiativeOpen(false) })}
     </div>
   );
 }
@@ -318,6 +341,7 @@ type NavGlyphName =
   | 'inbox'
   | 'search'
   | 'project'
+  | 'initiative'
   | 'cycle'
   | 'view'
   | 'members'
@@ -378,6 +402,14 @@ function glyphPath(name: NavGlyphName) {
           <>
             <path d="M8 2.5 13.5 6v4L8 13.5 2.5 10V6L8 2.5Z" {...stroke} />
             <path d="M8 8v5.5M2.5 6 8 8l5.5-2" {...stroke} />
+          </>
+        );
+      case 'initiative':
+        return (
+          <>
+            <circle cx="8" cy="8" r="5.25" {...stroke} />
+            <circle cx="8" cy="8" r="2" {...stroke} />
+            <path d="M8 2.75v2M8 11.25v2M2.75 8h2M11.25 8h2" {...stroke} />
           </>
         );
       case 'cycle':

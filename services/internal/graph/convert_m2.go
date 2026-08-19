@@ -442,3 +442,145 @@ func (r *Resolver) hydrateProjectMember(ctx context.Context, p *authz.Principal,
 	}
 	return row, nil
 }
+
+func toInitiative(i model.Initiative) (generated.Initiative, error) {
+	status, err := toInitiativeStatus(i.Status)
+	if err != nil {
+		return generated.Initiative{}, err
+	}
+	targetG, err := toGranularity(i.TargetDateGranularity)
+	if err != nil {
+		return generated.Initiative{}, err
+	}
+	return generated.Initiative{
+		ID:                    i.ID,
+		WorkspaceID:           i.WorkspaceID,
+		Name:                  i.Name,
+		Description:           i.Description,
+		Status:                status,
+		Priority:              int(i.Priority),
+		OwnerID:               i.OwnerID,
+		LeadTeamID:            i.LeadTeamID,
+		SortOrder:             i.SortOrder,
+		TargetDate:            fromDate(i.TargetDate),
+		TargetDateGranularity: targetG,
+		CreatorID:             i.CreatorID,
+		ArchivedAt:            i.ArchivedAt,
+		DeletedAt:             i.DeletedAt,
+		DeletedBy:             i.DeletedBy,
+		CreatedAt:             i.CreatedAt,
+		UpdatedAt:             i.UpdatedAt,
+	}, nil
+}
+
+func toInitiativeProject(ip model.InitiativeProject) generated.InitiativeProject {
+	return generated.InitiativeProject{
+		ID:           ip.ID,
+		WorkspaceID:  ip.WorkspaceID,
+		InitiativeID: ip.InitiativeID,
+		ProjectID:    ip.ProjectID,
+		CreatedAt:    ip.CreatedAt,
+	}
+}
+
+func toInitiativeStatus(v string) (generated.InitiativeStatus, error) {
+	switch v {
+	case model.InitiativeStatusProposed:
+		return generated.InitiativeStatusProposed, nil
+	case model.InitiativeStatusPlanned:
+		return generated.InitiativeStatusPlanned, nil
+	case model.InitiativeStatusActive:
+		return generated.InitiativeStatusActive, nil
+	case model.InitiativeStatusCompleted:
+		return generated.InitiativeStatusCompleted, nil
+	case model.InitiativeStatusCanceled:
+		return generated.InitiativeStatusCanceled, nil
+	}
+	return "", platform.Internal(fmt.Errorf("unknown initiative status %q", v))
+}
+
+func fromInitiativeStatus(s *generated.InitiativeStatus) (string, error) {
+	if s == nil {
+		return "", nil
+	}
+	switch *s {
+	case generated.InitiativeStatusProposed:
+		return model.InitiativeStatusProposed, nil
+	case generated.InitiativeStatusPlanned:
+		return model.InitiativeStatusPlanned, nil
+	case generated.InitiativeStatusActive:
+		return model.InitiativeStatusActive, nil
+	case generated.InitiativeStatusCompleted:
+		return model.InitiativeStatusCompleted, nil
+	case generated.InitiativeStatusCanceled:
+		return model.InitiativeStatusCanceled, nil
+	}
+	return "", platform.Validation("status", "status is proposed, planned, active, completed or canceled")
+}
+
+func fromCreateInitiativeInput(in generated.CreateInitiativeInput) (domain.CreateInitiativeInput, error) {
+	status, err := fromInitiativeStatus(in.Status)
+	if err != nil {
+		return domain.CreateInitiativeInput{}, err
+	}
+	targetG, err := fromGranularity(in.TargetDateGranularity)
+	if err != nil {
+		return domain.CreateInitiativeInput{}, err
+	}
+	var target *model.Date
+	if in.TargetDate != nil {
+		target = toDate(in.TargetDate)
+	}
+	priority := 0
+	if in.Priority != nil {
+		priority = *in.Priority
+	}
+	desc := ""
+	if in.Description != nil {
+		desc = *in.Description
+	}
+	return domain.CreateInitiativeInput{
+		Name:                  in.Name,
+		Description:           desc,
+		Status:                status,
+		Priority:              priority,
+		OwnerID:               in.OwnerID,
+		LeadTeamID:            in.LeadTeamID,
+		TargetDate:            target,
+		TargetDateGranularity: targetG,
+	}, nil
+}
+
+func fromUpdateInitiativeInput(in generated.UpdateInitiativeInput) (domain.UpdateInitiativeInput, error) {
+	status, err := fromInitiativeStatus(in.Status)
+	if err != nil {
+		return domain.UpdateInitiativeInput{}, err
+	}
+	targetG, err := fromGranularity(in.TargetDateGranularity)
+	if err != nil {
+		return domain.UpdateInitiativeInput{}, err
+	}
+	var target *model.Date
+	if in.TargetDate != nil {
+		target = toDate(in.TargetDate)
+	}
+	out := domain.UpdateInitiativeInput{
+		ID:                    in.ID,
+		Name:                  in.Name,
+		Description:           in.Description,
+		OwnerID:               in.OwnerID,
+		ClearOwner:            deref(in.ClearOwner),
+		LeadTeamID:            in.LeadTeamID,
+		ClearLeadTeam:         deref(in.ClearLeadTeam),
+		TargetDate:            target,
+		TargetDateGranularity: targetG,
+		ClearTarget:           deref(in.ClearTarget),
+	}
+	if status != "" {
+		out.Status = &status
+	}
+	if in.Priority != nil {
+		out.Priority = in.Priority
+	}
+	return out, nil
+}

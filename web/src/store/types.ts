@@ -640,6 +640,42 @@ export interface ProjectMilestone {
   readonly archivedAt?: Timestamp;
 }
 
+export type InitiativeStatus =
+  | 'proposed'
+  | 'planned'
+  | 'active'
+  | 'completed'
+  | 'canceled';
+
+/** A workspace objective grouping a manually curated set of projects. */
+export interface Initiative {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly name: string;
+  readonly description: string;
+  readonly status: InitiativeStatus;
+  readonly priority: number;
+  readonly ownerId?: UUID;
+  readonly leadTeamId?: UUID;
+  readonly creatorId?: UUID;
+  readonly sortOrder: string;
+  readonly targetDate?: DateOnly;
+  readonly targetDateGranularity?: TimeframeGranularity;
+  readonly archivedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+  readonly deletedBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+export interface InitiativeProject {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly initiativeId: UUID;
+  readonly projectId: UUID;
+  readonly createdAt: Timestamp;
+}
+
 export interface Cycle {
   readonly id: UUID;
   readonly workspaceId: UUID;
@@ -677,6 +713,8 @@ export interface EntityByType {
   projectTeam: ProjectTeam;
   projectMember: ProjectMember;
   projectMilestone: ProjectMilestone;
+  initiative: Initiative;
+  initiativeProject: InitiativeProject;
   cycle: Cycle;
   issue: Issue;
   issueLabel: IssueLabel;
@@ -716,6 +754,8 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'projectTeam',
   'projectMember',
   'projectMilestone',
+  'initiative',
+  'initiativeProject',
   // Before issues: an issue may name a cycle.
   'cycle',
   'issue',

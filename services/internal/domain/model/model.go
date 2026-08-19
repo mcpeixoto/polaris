@@ -629,6 +629,43 @@ type Attachment struct {
 	UpdatedAt   time.Time       `json:"updatedAt"`
 }
 
+const (
+	InitiativeStatusProposed   = "proposed"
+	InitiativeStatusPlanned    = "planned"
+	InitiativeStatusActive     = "active"
+	InitiativeStatusCompleted  = "completed"
+	InitiativeStatusCanceled   = "canceled"
+)
+
+// Initiative groups a manually curated set of projects around one objective.
+type Initiative struct {
+	ID                    uuid.UUID  `json:"id"`
+	WorkspaceID           uuid.UUID  `json:"workspaceId"`
+	Name                  string     `json:"name"`
+	Description           string     `json:"description"`
+	Status                string     `json:"status"`
+	Priority              int16      `json:"priority"`
+	OwnerID               *uuid.UUID `json:"ownerId,omitempty"`
+	LeadTeamID            *uuid.UUID `json:"leadTeamId,omitempty"`
+	CreatorID             *uuid.UUID `json:"creatorId,omitempty"`
+	SortOrder             string     `json:"sortOrder"`
+	TargetDate            *Date      `json:"targetDate,omitempty"`
+	TargetDateGranularity *string    `json:"targetDateGranularity,omitempty"`
+	ArchivedAt            *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt             *time.Time `json:"deletedAt,omitempty"`
+	DeletedBy             *uuid.UUID `json:"deletedBy,omitempty"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
+}
+
+type InitiativeProject struct {
+	ID            uuid.UUID `json:"id"`
+	WorkspaceID   uuid.UUID `json:"workspaceId"`
+	InitiativeID  uuid.UUID `json:"initiativeId"`
+	ProjectID     uuid.UUID `json:"projectId"`
+	CreatedAt     time.Time `json:"createdAt"`
+}
+
 // Document is long-form markdown attached to a team or a project. The body is plain markdown
 // until collaborative editing lands; it is not a CRDT snapshot yet.
 type Document struct {

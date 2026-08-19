@@ -337,6 +337,30 @@ function oneOfEach(): EntityRow[] {
       },
     },
     {
+      type: 'initiative',
+      entity: {
+        id: 'in1',
+        workspaceId: 'w',
+        name: 'Platform',
+        description: 'Ship the core',
+        status: 'planned',
+        priority: 0,
+        sortOrder: 'a0',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'initiativeProject',
+      entity: {
+        id: 'ip1',
+        workspaceId: 'w',
+        initiativeId: 'in1',
+        projectId: 'p1',
+        createdAt: NOW,
+      },
+    },
+    {
       type: 'cycle',
       entity: {
         id: 'cy1',

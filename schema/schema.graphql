@@ -743,6 +743,59 @@ type DocumentPayload implements MutationResult {
   document: Document!
 }
 
+enum InitiativeStatus {
+  PROPOSED
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELED
+}
+
+"""A workspace objective grouping a manually curated set of projects."""
+type Initiative {
+  id: UUID!
+  workspaceId: UUID!
+  name: String!
+  description: String!
+  status: InitiativeStatus!
+  priority: Int!
+  ownerId: UUID
+  leadTeamId: UUID
+  sortOrder: String!
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+  creatorId: UUID
+  archivedAt: Time
+  deletedAt: Time
+  deletedBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+
+  owner: User
+  leadTeam: Team
+  creator: User
+  projects: [InitiativeProject!]!
+}
+
+type InitiativeProject {
+  id: UUID!
+  workspaceId: UUID!
+  initiativeId: UUID!
+  projectId: UUID!
+  createdAt: Time!
+  project: Project!
+}
+
+type InitiativePayload implements MutationResult {
+  version: Int!
+  initiative: Initiative!
+}
+
+type InitiativeProjectPayload implements MutationResult {
+  version: Int!
+  initiativeProject: InitiativeProject!
+}
+
 type TeamPayload implements MutationResult {
   version: Int!
   team: Team!
@@ -1454,6 +1507,32 @@ input UpdateDocumentInput {
   body: String
 }
 
+input CreateInitiativeInput {
+  name: String!
+  description: String
+  status: InitiativeStatus
+  priority: Int
+  ownerId: UUID
+  leadTeamId: UUID
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+}
+
+input UpdateInitiativeInput {
+  id: UUID!
+  name: String
+  description: String
+  status: InitiativeStatus
+  priority: Int
+  ownerId: UUID
+  clearOwner: Boolean
+  leadTeamId: UUID
+  clearLeadTeam: Boolean
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+  clearTarget: Boolean
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -1543,6 +1622,9 @@ type Query {
   attachmentsForURL(url: String!): [Attachment!]!
 
   document(id: UUID!): Document
+
+  initiatives: [Initiative!]!
+  initiative(id: UUID!): Initiative
 }
 
 """
@@ -1571,6 +1653,13 @@ type Mutation {
   updateDocument(input: UpdateDocumentInput!, clientId: UUID, opId: UUID): DocumentPayload! @idempotent
   archiveDocument(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   deleteDocument(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createInitiative(input: CreateInitiativeInput!, clientId: UUID, opId: UUID): InitiativePayload! @idempotent
+  updateInitiative(input: UpdateInitiativeInput!, clientId: UUID, opId: UUID): InitiativePayload! @idempotent
+  archiveInitiative(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  deleteInitiative(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  addInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): InitiativeProjectPayload! @idempotent
+  removeInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!
