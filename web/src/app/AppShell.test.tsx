@@ -31,6 +31,23 @@ const OTHER = '01900000-0000-7000-8000-000000000003';
 const TEAM = '01900000-0000-7000-8000-000000000004';
 const AT = '2026-01-01T00:00:00.000Z';
 
+vi.mock('./Boot', () => ({
+  useWorkspaceSession: () => ({
+    workspaces: [
+      {
+        id: WORKSPACE,
+        name: 'Polaris',
+        urlKey: 'polaris',
+        plan: 'free',
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    ],
+    currentId: WORKSPACE,
+    switchTo: vi.fn(),
+  }),
+}));
+
 vi.mock('~/hooks/useViewer', () => ({
   useViewerId: () => VIEWER,
   useViewer: () => null,
@@ -214,6 +231,7 @@ describe('the settings section', () => {
   it('links to every workspace screen', () => {
     renderShell(seeded());
     for (const name of [
+      'Preferences',
       'Members',
       'Labels',
       'Notifications',
@@ -221,13 +239,25 @@ describe('the settings section', () => {
       'API keys',
       'Webhooks',
       'GitHub',
+      'Export',
       'Trash',
       'Deleted teams',
     ]) {
       expect(screen.getByRole('link', { name }), `${name} is not reachable`).toBeTruthy();
     }
-    for (const name of ['My Issues', 'Inbox', 'Search']) {
+    for (const name of ['My Issues', 'Inbox', 'Drafts', 'Search']) {
       expect(screen.getByRole('link', { name }), `${name} is not reachable`).toBeTruthy();
     }
+  });
+
+  it('opens a team at its home rather than its issue list', () => {
+    renderShell(seeded());
+    const team = screen.getByRole('link', { name: /Engineering/ });
+    expect(team.getAttribute('href')).toBe('/team/ENG/home');
+  });
+
+  it('offers a control to switch workspace', () => {
+    renderShell(seeded());
+    expect(screen.getByRole('button', { name: 'Switch workspace' })).toBeTruthy();
   });
 });

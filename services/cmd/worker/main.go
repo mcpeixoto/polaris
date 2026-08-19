@@ -257,6 +257,17 @@ func run() error {
 				return err
 			},
 		},
+		{
+			name:  "prune drafts",
+			every: 24 * time.Hour,
+			run: func(ctx context.Context) error {
+				n, err := svc.PruneDrafts(ctx)
+				if err == nil && n > 0 {
+					log.Debug("pruned drafts", "rows", n)
+				}
+				return err
+			},
+		},
 	}
 
 	if cfg.MailEnabled() {
