@@ -347,7 +347,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
-       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+       default_template_for_members_id, default_template_for_non_members_id
 FROM team
 WHERE parent_team_id = $1 AND deleted_at IS NULL
 ORDER BY key
@@ -396,6 +397,8 @@ func (q *Queries) ListChildTeams(ctx context.Context, parentTeamID *uuid.UUID) (
 			&i.AutoArchiveDays,
 			&i.AutoCloseParent,
 			&i.AutoCloseChildren,
+			&i.DefaultTemplateForMembersID,
+			&i.DefaultTemplateForNonMembersID,
 		); err != nil {
 			return nil, err
 		}
@@ -415,7 +418,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
-       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+       default_template_for_members_id, default_template_for_non_members_id
 FROM team
 WHERE workspace_id = $1
   AND deleted_at IS NOT NULL
@@ -471,6 +475,8 @@ func (q *Queries) ListDeletedTeams(ctx context.Context, arg ListDeletedTeamsPara
 			&i.AutoArchiveDays,
 			&i.AutoCloseParent,
 			&i.AutoCloseChildren,
+			&i.DefaultTemplateForMembersID,
+			&i.DefaultTemplateForNonMembersID,
 		); err != nil {
 			return nil, err
 		}
@@ -1035,7 +1041,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
-          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id
 `
 
 type RestoreTeamParams struct {
@@ -1080,6 +1087,8 @@ func (q *Queries) RestoreTeam(ctx context.Context, arg RestoreTeamParams) (Team,
 		&i.AutoArchiveDays,
 		&i.AutoCloseParent,
 		&i.AutoCloseChildren,
+		&i.DefaultTemplateForMembersID,
+		&i.DefaultTemplateForNonMembersID,
 	)
 	return i, err
 }
@@ -1095,7 +1104,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
-          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id
 `
 
 func (q *Queries) RetireTeam(ctx context.Context, id uuid.UUID) (Team, error) {
@@ -1135,6 +1145,8 @@ func (q *Queries) RetireTeam(ctx context.Context, id uuid.UUID) (Team, error) {
 		&i.AutoArchiveDays,
 		&i.AutoCloseParent,
 		&i.AutoCloseChildren,
+		&i.DefaultTemplateForMembersID,
+		&i.DefaultTemplateForNonMembersID,
 	)
 	return i, err
 }
@@ -1183,7 +1195,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
-          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id
 `
 
 func (q *Queries) SoftDeleteTeam(ctx context.Context, id uuid.UUID) (Team, error) {
@@ -1223,6 +1236,8 @@ func (q *Queries) SoftDeleteTeam(ctx context.Context, id uuid.UUID) (Team, error
 		&i.AutoArchiveDays,
 		&i.AutoCloseParent,
 		&i.AutoCloseChildren,
+		&i.DefaultTemplateForMembersID,
+		&i.DefaultTemplateForNonMembersID,
 	)
 	return i, err
 }
@@ -1238,7 +1253,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
-          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id
 `
 
 func (q *Queries) UnretireTeam(ctx context.Context, id uuid.UUID) (Team, error) {
@@ -1278,6 +1294,8 @@ func (q *Queries) UnretireTeam(ctx context.Context, id uuid.UUID) (Team, error) 
 		&i.AutoArchiveDays,
 		&i.AutoCloseParent,
 		&i.AutoCloseChildren,
+		&i.DefaultTemplateForMembersID,
+		&i.DefaultTemplateForNonMembersID,
 	)
 	return i, err
 }
@@ -1612,6 +1630,71 @@ func (q *Queries) UpdateTeamEstimates(ctx context.Context, arg UpdateTeamEstimat
 	return i, err
 }
 
+const updateTeamParent = `-- name: UpdateTeamParent :one
+UPDATE team
+SET parent_team_id = $1,
+    private        = COALESCE($2, private)
+WHERE id = $3 AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id
+`
+
+type UpdateTeamParentParams struct {
+	ParentTeamID *uuid.UUID
+	Private      *bool
+	ID           uuid.UUID
+}
+
+func (q *Queries) UpdateTeamParent(ctx context.Context, arg UpdateTeamParentParams) (Team, error) {
+	row := q.db.QueryRow(ctx, updateTeamParent, arg.ParentTeamID, arg.Private, arg.ID)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.Color,
+		&i.Timezone,
+		&i.ParentTeamID,
+		&i.Private,
+		&i.IssueCounter,
+		&i.Settings,
+		&i.RetiredAt,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EstimateScale,
+		&i.EstimateAllowZero,
+		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
+		&i.TriageEnabled,
+		&i.TriageRequirePriority,
+		&i.AutoCloseDays,
+		&i.AutoArchiveDays,
+		&i.AutoCloseParent,
+		&i.AutoCloseChildren,
+		&i.DefaultTemplateForMembersID,
+		&i.DefaultTemplateForNonMembersID,
+	)
+	return i, err
+}
+
 const updateTeamTemplates = `-- name: UpdateTeamTemplates :one
 UPDATE team
 SET default_template_for_members_id = CASE
@@ -1691,68 +1774,6 @@ func (q *Queries) UpdateTeamTemplates(ctx context.Context, arg UpdateTeamTemplat
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
-	)
-	return i, err
-}
-
-const updateTeamParent = `-- name: UpdateTeamParent :one
-UPDATE team
-SET parent_team_id = $1,
-    private        = COALESCE($2, private)
-WHERE id = $3 AND deleted_at IS NULL
-RETURNING id, workspace_id, key, name, description, icon, color, timezone,
-          parent_team_id, private, issue_counter, settings,
-          retired_at, archived_at, deleted_at, created_at, updated_at,
-          estimate_scale, estimate_allow_zero, estimate_extended,
-          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
-          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
-          triage_enabled, triage_require_priority,
-          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
-`
-
-type UpdateTeamParentParams struct {
-	ParentTeamID *uuid.UUID
-	Private      *bool
-	ID           uuid.UUID
-}
-
-func (q *Queries) UpdateTeamParent(ctx context.Context, arg UpdateTeamParentParams) (Team, error) {
-	row := q.db.QueryRow(ctx, updateTeamParent, arg.ParentTeamID, arg.Private, arg.ID)
-	var i Team
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.Key,
-		&i.Name,
-		&i.Description,
-		&i.Icon,
-		&i.Color,
-		&i.Timezone,
-		&i.ParentTeamID,
-		&i.Private,
-		&i.IssueCounter,
-		&i.Settings,
-		&i.RetiredAt,
-		&i.ArchivedAt,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.EstimateScale,
-		&i.EstimateAllowZero,
-		&i.EstimateExtended,
-		&i.CyclesEnabled,
-		&i.CycleDurationWeeks,
-		&i.CycleCooldownWeeks,
-		&i.CycleStartDay,
-		&i.CycleUpcomingCount,
-		&i.CycleAutoAddStarted,
-		&i.CycleAutoAddCompleted,
-		&i.TriageEnabled,
-		&i.TriageRequirePriority,
-		&i.AutoCloseDays,
-		&i.AutoArchiveDays,
-		&i.AutoCloseParent,
-		&i.AutoCloseChildren,
 	)
 	return i, err
 }

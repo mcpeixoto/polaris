@@ -141,7 +141,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
-          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id;
 
 -- name: RetireTeam :one
 UPDATE team
@@ -154,7 +155,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
-          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id;
 
 -- name: UnretireTeam :one
 UPDATE team
@@ -167,7 +169,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
-          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id;
 
 -- name: RestoreTeam :one
 UPDATE team
@@ -182,7 +185,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
-          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id;
 
 -- name: ListDeletedTeams :many
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
@@ -192,7 +196,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
-       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+       default_template_for_members_id, default_template_for_non_members_id
 FROM team
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND deleted_at IS NOT NULL
@@ -211,7 +216,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
-       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+       default_template_for_members_id, default_template_for_non_members_id
 FROM team
 WHERE parent_team_id = sqlc.arg(parent_team_id) AND deleted_at IS NULL
 ORDER BY key;
@@ -228,7 +234,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
-          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id;
 
 -- name: SetTeamsPrivate :execrows
 UPDATE team

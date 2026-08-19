@@ -57,7 +57,6 @@ import type { FormTemplate } from '~/store';
 import { TemplatePicker } from '~/features/templates/TemplatePicker';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
-import type { IssueTemplate } from '~/store';
 import { buildCreateURL, type IssueComposerSeed } from './create-url';
 import { CADENCE_LABELS, CADENCES, defaultTemplateFor } from '~/features/recurring/mutations';
 import { today } from '~/features/time';

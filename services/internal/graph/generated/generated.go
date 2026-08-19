@@ -408,6 +408,7 @@ type ComplexityRoot struct {
 		ProjectID          func(childComplexity int) int
 		ProjectMilestone   func(childComplexity int) int
 		ProjectMilestoneID func(childComplexity int) int
+		RecurringIssueID   func(childComplexity int) int
 		Relations          func(childComplexity int) int
 		SnoozedUntil       func(childComplexity int) int
 		SortOrder          func(childComplexity int) int
@@ -555,6 +556,7 @@ type ComplexityRoot struct {
 		ArchiveProjectLabel            func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveProjectStatus           func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveProjectTemplate         func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveRecurringIssue          func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveWorkflowState           func(childComplexity int, id uuid.UUID, archived bool) int
 		BulkUpdateIssues               func(childComplexity int, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateAPIKey                   func(childComplexity int, input CreateAPIKeyInput) int
@@ -579,6 +581,7 @@ type ComplexityRoot struct {
 		CreateProjectTemplateIssue     func(childComplexity int, input CreateProjectTemplateIssueInput) int
 		CreateProjectTemplateMilestone func(childComplexity int, input CreateProjectTemplateMilestoneInput) int
 		CreateProjectUpdate            func(childComplexity int, input CreateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateRecurringIssue           func(childComplexity int, input CreateRecurringIssueInput) int
 		CreateTeam                     func(childComplexity int, input CreateTeamInput) int
 		CreateView                     func(childComplexity int, input CreateViewInput) int
 		CreateWebhook                  func(childComplexity int, input CreateWebhookInput) int
@@ -658,10 +661,12 @@ type ComplexityRoot struct {
 		UpdateProjectTemplateIssue     func(childComplexity int, input UpdateProjectTemplateIssueInput) int
 		UpdateProjectTemplateMilestone func(childComplexity int, input UpdateProjectTemplateMilestoneInput) int
 		UpdateProjectUpdate            func(childComplexity int, input UpdateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateRecurringIssue           func(childComplexity int, input UpdateRecurringIssueInput) int
 		UpdateTeam                     func(childComplexity int, input UpdateTeamInput) int
 		UpdateTeamArchive              func(childComplexity int, input UpdateTeamArchiveInput) int
 		UpdateTeamCycles               func(childComplexity int, input UpdateTeamCyclesInput) int
 		UpdateTeamEstimates            func(childComplexity int, input UpdateTeamEstimatesInput) int
+		UpdateTeamTemplates            func(childComplexity int, input UpdateTeamTemplatesInput) int
 		UpdateTeamTriage               func(childComplexity int, input UpdateTeamTriageInput) int
 		UpdateView                     func(childComplexity int, input UpdateViewInput) int
 		UpdateWebhook                  func(childComplexity int, input UpdateWebhookInput) int
@@ -982,6 +987,8 @@ type ComplexityRoot struct {
 		ProjectUpdate                func(childComplexity int, id uuid.UUID) int
 		ProjectUpdates               func(childComplexity int, projectID uuid.UUID) int
 		Projects                     func(childComplexity int) int
+		RecurringIssue               func(childComplexity int, id uuid.UUID) int
+		RecurringIssues              func(childComplexity int, teamID uuid.UUID) int
 		Search                       func(childComplexity int, input SearchInput) int
 		Team                         func(childComplexity int, id uuid.UUID) int
 		TeamByKey                    func(childComplexity int, key string) int
@@ -999,6 +1006,28 @@ type ComplexityRoot struct {
 		Workspace                    func(childComplexity int) int
 	}
 
+	RecurringIssue struct {
+		ArchivedAt    func(childComplexity int) int
+		Body          func(childComplexity int) int
+		Cadence       func(childComplexity int) int
+		CreatedAt     func(childComplexity int) int
+		CreatedBy     func(childComplexity int) int
+		ID            func(childComplexity int) int
+		LastCreatedAt func(childComplexity int) int
+		NextDueDate   func(childComplexity int) int
+		Properties    func(childComplexity int) int
+		TeamID        func(childComplexity int) int
+		TemplateID    func(childComplexity int) int
+		Title         func(childComplexity int) int
+		UpdatedAt     func(childComplexity int) int
+		WorkspaceID   func(childComplexity int) int
+	}
+
+	RecurringIssuePayload struct {
+		RecurringIssue func(childComplexity int) int
+		Version        func(childComplexity int) int
+	}
+
 	SearchResults struct {
 		Comments   func(childComplexity int) int
 		IssueCount func(childComplexity int) int
@@ -1011,44 +1040,47 @@ type ComplexityRoot struct {
 	}
 
 	Team struct {
-		ArchivedAt            func(childComplexity int) int
-		AutoArchiveDays       func(childComplexity int) int
-		AutoCloseChildren     func(childComplexity int) int
-		AutoCloseDays         func(childComplexity int) int
-		AutoCloseParent       func(childComplexity int) int
-		Color                 func(childComplexity int) int
-		CreatedAt             func(childComplexity int) int
-		CycleAutoAddCompleted func(childComplexity int) int
-		CycleAutoAddStarted   func(childComplexity int) int
-		CycleCooldownWeeks    func(childComplexity int) int
-		CycleDurationWeeks    func(childComplexity int) int
-		CycleStartDay         func(childComplexity int) int
-		CycleUpcomingCount    func(childComplexity int) int
-		Cycles                func(childComplexity int) int
-		CyclesEnabled         func(childComplexity int) int
-		DeletedAt             func(childComplexity int) int
-		Description           func(childComplexity int) int
-		EstimateAllowZero     func(childComplexity int) int
-		EstimateExtended      func(childComplexity int) int
-		EstimateScale         func(childComplexity int) int
-		ID                    func(childComplexity int) int
-		Icon                  func(childComplexity int) int
-		Issues                func(childComplexity int) int
-		Key                   func(childComplexity int) int
-		Labels                func(childComplexity int) int
-		Members               func(childComplexity int) int
-		Name                  func(childComplexity int) int
-		ParentTeamID          func(childComplexity int) int
-		Private               func(childComplexity int) int
-		RetiredAt             func(childComplexity int) int
-		States                func(childComplexity int) int
-		SubTeams              func(childComplexity int) int
-		Templates             func(childComplexity int) int
-		Timezone              func(childComplexity int) int
-		TriageEnabled         func(childComplexity int) int
-		TriageRequirePriority func(childComplexity int) int
-		UpdatedAt             func(childComplexity int) int
-		WorkspaceID           func(childComplexity int) int
+		ArchivedAt                     func(childComplexity int) int
+		AutoArchiveDays                func(childComplexity int) int
+		AutoCloseChildren              func(childComplexity int) int
+		AutoCloseDays                  func(childComplexity int) int
+		AutoCloseParent                func(childComplexity int) int
+		Color                          func(childComplexity int) int
+		CreatedAt                      func(childComplexity int) int
+		CycleAutoAddCompleted          func(childComplexity int) int
+		CycleAutoAddStarted            func(childComplexity int) int
+		CycleCooldownWeeks             func(childComplexity int) int
+		CycleDurationWeeks             func(childComplexity int) int
+		CycleStartDay                  func(childComplexity int) int
+		CycleUpcomingCount             func(childComplexity int) int
+		Cycles                         func(childComplexity int) int
+		CyclesEnabled                  func(childComplexity int) int
+		DefaultTemplateForMembersID    func(childComplexity int) int
+		DefaultTemplateForNonMembersID func(childComplexity int) int
+		DeletedAt                      func(childComplexity int) int
+		Description                    func(childComplexity int) int
+		EstimateAllowZero              func(childComplexity int) int
+		EstimateExtended               func(childComplexity int) int
+		EstimateScale                  func(childComplexity int) int
+		ID                             func(childComplexity int) int
+		Icon                           func(childComplexity int) int
+		Issues                         func(childComplexity int) int
+		Key                            func(childComplexity int) int
+		Labels                         func(childComplexity int) int
+		Members                        func(childComplexity int) int
+		Name                           func(childComplexity int) int
+		ParentTeamID                   func(childComplexity int) int
+		Private                        func(childComplexity int) int
+		RecurringIssues                func(childComplexity int) int
+		RetiredAt                      func(childComplexity int) int
+		States                         func(childComplexity int) int
+		SubTeams                       func(childComplexity int) int
+		Templates                      func(childComplexity int) int
+		Timezone                       func(childComplexity int) int
+		TriageEnabled                  func(childComplexity int) int
+		TriageRequirePriority          func(childComplexity int) int
+		UpdatedAt                      func(childComplexity int) int
+		WorkspaceID                    func(childComplexity int) int
 	}
 
 	TeamMembership struct {
@@ -1289,6 +1321,7 @@ type MutationResolver interface {
 	StartCycleToday(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*CyclePayload, error)
 	UpdateTeamTriage(ctx context.Context, input UpdateTeamTriageInput) (*TeamPayload, error)
 	UpdateTeamArchive(ctx context.Context, input UpdateTeamArchiveInput) (*TeamPayload, error)
+	UpdateTeamTemplates(ctx context.Context, input UpdateTeamTemplatesInput) (*TeamPayload, error)
 	ArchiveCycle(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	ArchiveProject(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	AcceptTriageIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
@@ -1336,6 +1369,9 @@ type MutationResolver interface {
 	CreateProjectTemplateIssue(ctx context.Context, input CreateProjectTemplateIssueInput) (*ProjectTemplateIssuePayload, error)
 	UpdateProjectTemplateIssue(ctx context.Context, input UpdateProjectTemplateIssueInput) (*ProjectTemplateIssuePayload, error)
 	DeleteProjectTemplateIssue(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	CreateRecurringIssue(ctx context.Context, input CreateRecurringIssueInput) (*RecurringIssuePayload, error)
+	UpdateRecurringIssue(ctx context.Context, input UpdateRecurringIssueInput) (*RecurringIssuePayload, error)
+	ArchiveRecurringIssue(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
 	CreateProject(ctx context.Context, input CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectPayload, error)
 	UpdateProject(ctx context.Context, input UpdateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectPayload, error)
 	DeleteProject(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
@@ -1400,6 +1436,8 @@ type QueryResolver interface {
 	ProjectTemplate(ctx context.Context, id uuid.UUID) (*ProjectTemplate, error)
 	ProjectTemplateMilestones(ctx context.Context, projectTemplateID uuid.UUID) ([]ProjectTemplateMilestone, error)
 	ProjectTemplateIssues(ctx context.Context, projectTemplateID uuid.UUID) ([]ProjectTemplateIssue, error)
+	RecurringIssues(ctx context.Context, teamID uuid.UUID) ([]RecurringIssue, error)
+	RecurringIssue(ctx context.Context, id uuid.UUID) (*RecurringIssue, error)
 	Projects(ctx context.Context) ([]Project, error)
 	Project(ctx context.Context, id uuid.UUID) (*Project, error)
 	ProjectStatuses(ctx context.Context) ([]ProjectStatus, error)
@@ -3008,6 +3046,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Issue.ProjectMilestoneID(childComplexity), true
+	case "Issue.recurringIssueId":
+		if e.ComplexityRoot.Issue.RecurringIssueID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Issue.RecurringIssueID(childComplexity), true
 	case "Issue.relations":
 		if e.ComplexityRoot.Issue.Relations == nil {
 			break
@@ -3769,6 +3813,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ArchiveProjectTemplate(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
+	case "Mutation.archiveRecurringIssue":
+		if e.ComplexityRoot.Mutation.ArchiveRecurringIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveRecurringIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ArchiveRecurringIssue(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
 	case "Mutation.archiveWorkflowState":
 		if e.ComplexityRoot.Mutation.ArchiveWorkflowState == nil {
 			break
@@ -4033,6 +4088,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateProjectUpdate(childComplexity, args["input"].(CreateProjectUpdateInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createRecurringIssue":
+		if e.ComplexityRoot.Mutation.CreateRecurringIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createRecurringIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateRecurringIssue(childComplexity, args["input"].(CreateRecurringIssueInput)), true
 	case "Mutation.createTeam":
 		if e.ComplexityRoot.Mutation.CreateTeam == nil {
 			break
@@ -4887,6 +4953,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateProjectUpdate(childComplexity, args["input"].(UpdateProjectUpdateInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.updateRecurringIssue":
+		if e.ComplexityRoot.Mutation.UpdateRecurringIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateRecurringIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateRecurringIssue(childComplexity, args["input"].(UpdateRecurringIssueInput)), true
 	case "Mutation.updateTeam":
 		if e.ComplexityRoot.Mutation.UpdateTeam == nil {
 			break
@@ -4931,6 +5008,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateTeamEstimates(childComplexity, args["input"].(UpdateTeamEstimatesInput)), true
+	case "Mutation.updateTeamTemplates":
+		if e.ComplexityRoot.Mutation.UpdateTeamTemplates == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTeamTemplates_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateTeamTemplates(childComplexity, args["input"].(UpdateTeamTemplatesInput)), true
 	case "Mutation.updateTeamTriage":
 		if e.ComplexityRoot.Mutation.UpdateTeamTriage == nil {
 			break
@@ -6544,6 +6632,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Projects(childComplexity), true
+	case "Query.recurringIssue":
+		if e.ComplexityRoot.Query.RecurringIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Query_recurringIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.RecurringIssue(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.recurringIssues":
+		if e.ComplexityRoot.Query.RecurringIssues == nil {
+			break
+		}
+
+		args, err := ec.field_Query_recurringIssues_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.RecurringIssues(childComplexity, args["teamId"].(uuid.UUID)), true
 	case "Query.search":
 		if e.ComplexityRoot.Query.Search == nil {
 			break
@@ -6670,6 +6780,104 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.Workspace(childComplexity), true
 
+	case "RecurringIssue.archivedAt":
+		if e.ComplexityRoot.RecurringIssue.ArchivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.ArchivedAt(childComplexity), true
+	case "RecurringIssue.body":
+		if e.ComplexityRoot.RecurringIssue.Body == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.Body(childComplexity), true
+	case "RecurringIssue.cadence":
+		if e.ComplexityRoot.RecurringIssue.Cadence == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.Cadence(childComplexity), true
+	case "RecurringIssue.createdAt":
+		if e.ComplexityRoot.RecurringIssue.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.CreatedAt(childComplexity), true
+	case "RecurringIssue.createdBy":
+		if e.ComplexityRoot.RecurringIssue.CreatedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.CreatedBy(childComplexity), true
+	case "RecurringIssue.id":
+		if e.ComplexityRoot.RecurringIssue.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.ID(childComplexity), true
+	case "RecurringIssue.lastCreatedAt":
+		if e.ComplexityRoot.RecurringIssue.LastCreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.LastCreatedAt(childComplexity), true
+	case "RecurringIssue.nextDueDate":
+		if e.ComplexityRoot.RecurringIssue.NextDueDate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.NextDueDate(childComplexity), true
+	case "RecurringIssue.properties":
+		if e.ComplexityRoot.RecurringIssue.Properties == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.Properties(childComplexity), true
+	case "RecurringIssue.teamId":
+		if e.ComplexityRoot.RecurringIssue.TeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.TeamID(childComplexity), true
+	case "RecurringIssue.templateId":
+		if e.ComplexityRoot.RecurringIssue.TemplateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.TemplateID(childComplexity), true
+	case "RecurringIssue.title":
+		if e.ComplexityRoot.RecurringIssue.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.Title(childComplexity), true
+	case "RecurringIssue.updatedAt":
+		if e.ComplexityRoot.RecurringIssue.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.UpdatedAt(childComplexity), true
+	case "RecurringIssue.workspaceId":
+		if e.ComplexityRoot.RecurringIssue.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssue.WorkspaceID(childComplexity), true
+
+	case "RecurringIssuePayload.recurringIssue":
+		if e.ComplexityRoot.RecurringIssuePayload.RecurringIssue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssuePayload.RecurringIssue(childComplexity), true
+	case "RecurringIssuePayload.version":
+		if e.ComplexityRoot.RecurringIssuePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecurringIssuePayload.Version(childComplexity), true
+
 	case "SearchResults.comments":
 		if e.ComplexityRoot.SearchResults.Comments == nil {
 			break
@@ -6792,6 +7000,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Team.CyclesEnabled(childComplexity), true
+	case "Team.defaultTemplateForMembersId":
+		if e.ComplexityRoot.Team.DefaultTemplateForMembersID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.DefaultTemplateForMembersID(childComplexity), true
+	case "Team.defaultTemplateForNonMembersId":
+		if e.ComplexityRoot.Team.DefaultTemplateForNonMembersID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.DefaultTemplateForNonMembersID(childComplexity), true
 	case "Team.deletedAt":
 		if e.ComplexityRoot.Team.DeletedAt == nil {
 			break
@@ -6876,6 +7096,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Team.Private(childComplexity), true
+	case "Team.recurringIssues":
+		if e.ComplexityRoot.Team.RecurringIssues == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.RecurringIssues(childComplexity), true
 	case "Team.retiredAt":
 		if e.ComplexityRoot.Team.RetiredAt == nil {
 			break
@@ -7712,6 +7938,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateProjectTemplateIssueInput,
 		ec.unmarshalInputCreateProjectTemplateMilestoneInput,
 		ec.unmarshalInputCreateProjectUpdateInput,
+		ec.unmarshalInputCreateRecurringIssueInput,
 		ec.unmarshalInputCreateTeamInput,
 		ec.unmarshalInputCreateViewInput,
 		ec.unmarshalInputCreateWebhookInput,
@@ -7740,10 +7967,12 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateProjectTemplateIssueInput,
 		ec.unmarshalInputUpdateProjectTemplateMilestoneInput,
 		ec.unmarshalInputUpdateProjectUpdateInput,
+		ec.unmarshalInputUpdateRecurringIssueInput,
 		ec.unmarshalInputUpdateTeamArchiveInput,
 		ec.unmarshalInputUpdateTeamCyclesInput,
 		ec.unmarshalInputUpdateTeamEstimatesInput,
 		ec.unmarshalInputUpdateTeamInput,
+		ec.unmarshalInputUpdateTeamTemplatesInput,
 		ec.unmarshalInputUpdateTeamTriageInput,
 		ec.unmarshalInputUpdateViewInput,
 		ec.unmarshalInputUpdateWebhookInput,
@@ -8089,6 +8318,11 @@ type Team {
   """Close remaining sub-issues when the parent is done."""
   autoCloseChildren: Boolean!
 
+  """Applied to new issues filed by members of this team, when they pick no template."""
+  defaultTemplateForMembersId: UUID
+  """Applied to new issues filed by everyone else. Form templates (later) may only be this one."""
+  defaultTemplateForNonMembersId: UUID
+
   createdAt: Time!
   updatedAt: Time!
   retiredAt: Time
@@ -8108,6 +8342,7 @@ type Team {
   issues: [Issue!]!
   labels: [Label!]!
   templates: [IssueTemplate!]!
+  recurringIssues: [RecurringIssue!]!
   cycles: [Cycle!]!
 }
 
@@ -8193,6 +8428,8 @@ type Issue {
   templateId: UUID
   """Which form template made this issue, for intake reporting."""
   formTemplateId: UUID
+  """The schedule that minted this issue, or that this issue was converted into."""
+  recurringIssueId: UUID
 
   """At most one project. Two projects on one issue is unrepresentable."""
   projectId: UUID
@@ -8562,6 +8799,43 @@ type ProjectTemplateIssue {
   sortOrder: String!
   createdAt: Time!
   updatedAt: Time!
+}
+
+"""
+A schedule that mints issues on a cadence.
+
+title, body and properties are a snapshot taken when the schedule was created. Editing
+a source template afterwards does not change them. nextDueDate is the due date of the
+current occurrence; the next issue is filed after that day has passed, at 00:01 in the
+team's timezone.
+"""
+type RecurringIssue {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  title: String!
+  body: String!
+  """Keys are the same names createIssue takes."""
+  properties: JSON!
+  """Provenance only. Null when the schedule was written by hand or converted from an issue."""
+  templateId: UUID
+  cadence: RecurringCadence!
+  """Calendar day, ` + "`" + `2006-01-02` + "`" + `. The due date of the current occurrence."""
+  nextDueDate: String!
+  lastCreatedAt: Time
+  createdBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+enum RecurringCadence {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
 }
 
 """
@@ -8952,6 +9226,11 @@ type ProjectTemplateMilestonePayload implements MutationResult {
 type ProjectTemplateIssuePayload implements MutationResult {
   version: Int!
   issue: ProjectTemplateIssue!
+}
+
+type RecurringIssuePayload implements MutationResult {
+  version: Int!
+  recurringIssue: RecurringIssue!
 }
 
 enum ProjectStatusCategory {
@@ -9455,6 +9734,19 @@ input CreateIssueInput {
   cycleId: UUID
   """File into the team's triage status. The inbox's C, and an outsider filing into a team they can see."""
   fromTriage: Boolean
+  """
+  The team's member or non-member default is applied when templateId is omitted.
+  Set this when the composer cleared the applied default — otherwise the server would
+  put it back.
+  """
+  skipDefaultTemplate: Boolean
+  """
+  Makes the new issue the first occurrence of a schedule. Requires a first due date
+  (recurringFirstDueDate, or dueDate).
+  """
+  recurringCadence: RecurringCadence
+  """Calendar day, ` + "`" + `2006-01-02` + "`" + `. The due date of the first occurrence."""
+  recurringFirstDueDate: String
 }
 
 input UpdateIssueInput {
@@ -9720,6 +10012,38 @@ input UpdateTeamArchiveInput {
   autoCloseChildren: Boolean
 }
 
+input UpdateTeamTemplatesInput {
+  teamId: UUID!
+  defaultTemplateForMembersId: UUID
+  clearDefaultTemplateForMembers: Boolean
+  defaultTemplateForNonMembersId: UUID
+  clearDefaultTemplateForNonMembers: Boolean
+}
+
+input CreateRecurringIssueInput {
+  teamId: UUID!
+  title: String!
+  body: String
+  properties: JSON
+  """Provenance only. The snapshot is taken now; later edits to this template are ignored."""
+  templateId: UUID
+  cadence: RecurringCadence!
+  """Calendar day, ` + "`" + `2006-01-02` + "`" + `. The due date of the first occurrence, which is filed immediately."""
+  firstDueDate: String!
+  """Convert this existing issue into the first occurrence instead of filing a new one."""
+  sourceIssueId: UUID
+}
+
+input UpdateRecurringIssueInput {
+  id: UUID!
+  title: String
+  body: String
+  properties: JSON
+  cadence: RecurringCadence
+  """Calendar day, ` + "`" + `2006-01-02` + "`" + `. The due date of the current occurrence."""
+  nextDueDate: String
+}
+
 input InviteInput {
   email: String!
   role: UserRole
@@ -9940,6 +10264,9 @@ type Query {
   projectTemplateMilestones(projectTemplateId: UUID!): [ProjectTemplateMilestone!]!
   projectTemplateIssues(projectTemplateId: UUID!): [ProjectTemplateIssue!]!
 
+  recurringIssues(teamId: UUID!): [RecurringIssue!]!
+  recurringIssue(id: UUID!): RecurringIssue
+
   projects: [Project!]!
   project(id: UUID!): Project
   projectStatuses: [ProjectStatus!]!
@@ -10116,6 +10443,7 @@ type Mutation {
   startCycleToday(id: UUID!, clientId: UUID, opId: UUID): CyclePayload! @idempotent
   updateTeamTriage(input: UpdateTeamTriageInput!): TeamPayload!
   updateTeamArchive(input: UpdateTeamArchiveInput!): TeamPayload!
+  updateTeamTemplates(input: UpdateTeamTemplatesInput!): TeamPayload!
 
   archiveCycle(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   archiveProject(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
@@ -10200,6 +10528,11 @@ type Mutation {
   createProjectTemplateIssue(input: CreateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
   updateProjectTemplateIssue(input: UpdateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
   deleteProjectTemplateIssue(id: UUID!): DeletePayload!
+
+  createRecurringIssue(input: CreateRecurringIssueInput!): RecurringIssuePayload!
+  updateRecurringIssue(input: UpdateRecurringIssueInput!): RecurringIssuePayload!
+  """Retires a schedule, or brings one back. Does not archive the issues it already minted."""
+  archiveRecurringIssue(id: UUID!, archived: Boolean!): DeletePayload!
 
   # ---- projects
 
@@ -10962,6 +11295,8 @@ func (ec *executionContext) childFields_Issue(ctx context.Context, field graphql
 		return ec.fieldContext_Issue_templateId(ctx, field)
 	case "formTemplateId":
 		return ec.fieldContext_Issue_formTemplateId(ctx, field)
+	case "recurringIssueId":
+		return ec.fieldContext_Issue_recurringIssueId(ctx, field)
 	case "projectId":
 		return ec.fieldContext_Issue_projectId(ctx, field)
 	case "projectMilestoneId":
@@ -11776,6 +12111,50 @@ func (ec *executionContext) childFields_PurgePayload(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type PurgePayload", field.Name)
 }
 
+func (ec *executionContext) childFields_RecurringIssue(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_RecurringIssue_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_RecurringIssue_workspaceId(ctx, field)
+	case "teamId":
+		return ec.fieldContext_RecurringIssue_teamId(ctx, field)
+	case "title":
+		return ec.fieldContext_RecurringIssue_title(ctx, field)
+	case "body":
+		return ec.fieldContext_RecurringIssue_body(ctx, field)
+	case "properties":
+		return ec.fieldContext_RecurringIssue_properties(ctx, field)
+	case "templateId":
+		return ec.fieldContext_RecurringIssue_templateId(ctx, field)
+	case "cadence":
+		return ec.fieldContext_RecurringIssue_cadence(ctx, field)
+	case "nextDueDate":
+		return ec.fieldContext_RecurringIssue_nextDueDate(ctx, field)
+	case "lastCreatedAt":
+		return ec.fieldContext_RecurringIssue_lastCreatedAt(ctx, field)
+	case "createdBy":
+		return ec.fieldContext_RecurringIssue_createdBy(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_RecurringIssue_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_RecurringIssue_updatedAt(ctx, field)
+	case "archivedAt":
+		return ec.fieldContext_RecurringIssue_archivedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecurringIssue", field.Name)
+}
+
+func (ec *executionContext) childFields_RecurringIssuePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_RecurringIssuePayload_version(ctx, field)
+	case "recurringIssue":
+		return ec.fieldContext_RecurringIssuePayload_recurringIssue(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecurringIssuePayload", field.Name)
+}
+
 func (ec *executionContext) childFields_SearchResults(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "issues":
@@ -11852,6 +12231,10 @@ func (ec *executionContext) childFields_Team(ctx context.Context, field graphql.
 		return ec.fieldContext_Team_autoCloseParent(ctx, field)
 	case "autoCloseChildren":
 		return ec.fieldContext_Team_autoCloseChildren(ctx, field)
+	case "defaultTemplateForMembersId":
+		return ec.fieldContext_Team_defaultTemplateForMembersId(ctx, field)
+	case "defaultTemplateForNonMembersId":
+		return ec.fieldContext_Team_defaultTemplateForNonMembersId(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Team_createdAt(ctx, field)
 	case "updatedAt":
@@ -11874,6 +12257,8 @@ func (ec *executionContext) childFields_Team(ctx context.Context, field graphql.
 		return ec.fieldContext_Team_labels(ctx, field)
 	case "templates":
 		return ec.fieldContext_Team_templates(ctx, field)
+	case "recurringIssues":
+		return ec.fieldContext_Team_recurringIssues(ctx, field)
 	case "cycles":
 		return ec.fieldContext_Team_cycles(ctx, field)
 	}
@@ -12978,6 +13363,28 @@ func (ec *executionContext) field_Mutation_archiveProject_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_archiveRecurringIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_archiveWorkflowState_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13511,6 +13918,20 @@ func (ec *executionContext) field_Mutation_createProject_args(ctx context.Contex
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createRecurringIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateRecurringIssueInput, error) {
+			return ec.unmarshalNCreateRecurringIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateRecurringIssueInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -15314,6 +15735,20 @@ func (ec *executionContext) field_Mutation_updateProject_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateRecurringIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateRecurringIssueInput, error) {
+			return ec.unmarshalNUpdateRecurringIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateRecurringIssueInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateTeamArchive_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -15348,6 +15783,20 @@ func (ec *executionContext) field_Mutation_updateTeamEstimates_args(ctx context.
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (UpdateTeamEstimatesInput, error) {
 			return ec.unmarshalNUpdateTeamEstimatesInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamEstimatesInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateTeamTemplates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateTeamTemplatesInput, error) {
+			return ec.unmarshalNUpdateTeamTemplatesInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamTemplatesInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -15915,6 +16364,34 @@ func (ec *executionContext) field_Query_project_args(ctx context.Context, rawArg
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_recurringIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_recurringIssues_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
 	return args, nil
 }
 
@@ -21760,6 +22237,29 @@ func (ec *executionContext) fieldContext_Issue_formTemplateId(_ context.Context,
 	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type UUID does not have child fields"))
 }
 
+func (ec *executionContext) _Issue_recurringIssueId(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Issue_recurringIssueId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecurringIssueID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Issue_recurringIssueId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
 func (ec *executionContext) _Issue_projectId(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27173,6 +27673,50 @@ func (ec *executionContext) fieldContext_Mutation_updateTeamArchive(ctx context.
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_updateTeamTemplates(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateTeamTemplates(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateTeamTemplates(ctx, fc.Args["input"].(UpdateTeamTemplatesInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *TeamPayload) graphql.Marshaler {
+			return ec.marshalNTeamPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateTeamTemplates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TeamPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTeamTemplates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_archiveCycle(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -29379,6 +29923,138 @@ func (ec *executionContext) fieldContext_Mutation_deleteProjectTemplateIssue(ctx
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteProjectTemplateIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createRecurringIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createRecurringIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateRecurringIssue(ctx, fc.Args["input"].(CreateRecurringIssueInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *RecurringIssuePayload) graphql.Marshaler {
+			return ec.marshalNRecurringIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createRecurringIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecurringIssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createRecurringIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateRecurringIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateRecurringIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateRecurringIssue(ctx, fc.Args["input"].(UpdateRecurringIssueInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *RecurringIssuePayload) graphql.Marshaler {
+			return ec.marshalNRecurringIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateRecurringIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecurringIssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateRecurringIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveRecurringIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_archiveRecurringIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ArchiveRecurringIssue(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_archiveRecurringIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveRecurringIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -36552,6 +37228,94 @@ func (ec *executionContext) fieldContext_Query_projectTemplateIssues(ctx context
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_recurringIssues(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_recurringIssues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().RecurringIssues(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []RecurringIssue) graphql.Marshaler {
+			return ec.marshalNRecurringIssue2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssueᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_recurringIssues(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecurringIssue(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_recurringIssues_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_recurringIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_recurringIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().RecurringIssue(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *RecurringIssue) graphql.Marshaler {
+			return ec.marshalORecurringIssue2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssue(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_recurringIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecurringIssue(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_recurringIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_projects(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37850,6 +38614,383 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _RecurringIssue_id(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_workspaceId(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_teamId(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_teamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_title(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_title(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_body(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_body(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Body, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_body(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_properties(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_properties(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Properties, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_properties(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_templateId(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_templateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TemplateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_templateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_cadence(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_cadence(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cadence, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v RecurringCadence) graphql.Marshaler {
+			return ec.marshalNRecurringCadence2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringCadence(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_cadence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type RecurringCadence does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_nextDueDate(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_nextDueDate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextDueDate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_nextDueDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_lastCreatedAt(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_lastCreatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastCreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_lastCreatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_createdBy(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_createdBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_createdAt(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_updatedAt(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssue_archivedAt(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssue_archivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssue_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssue", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssuePayload_version(ctx context.Context, field graphql.CollectedField, obj *RecurringIssuePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssuePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssuePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecurringIssuePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RecurringIssuePayload_recurringIssue(ctx context.Context, field graphql.CollectedField, obj *RecurringIssuePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecurringIssuePayload_recurringIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecurringIssue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *RecurringIssue) graphql.Marshaler {
+			return ec.marshalNRecurringIssue2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssue(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecurringIssuePayload_recurringIssue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RecurringIssuePayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecurringIssue(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SearchResults_issues(ctx context.Context, field graphql.CollectedField, obj *SearchResults) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38590,6 +39731,52 @@ func (ec *executionContext) fieldContext_Team_autoCloseChildren(_ context.Contex
 	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _Team_defaultTemplateForMembersId(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_defaultTemplateForMembersId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultTemplateForMembersID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Team_defaultTemplateForMembersId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Team_defaultTemplateForNonMembersId(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_defaultTemplateForNonMembersId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultTemplateForNonMembersID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Team_defaultTemplateForNonMembersId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
 func (ec *executionContext) _Team_createdAt(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38892,6 +40079,38 @@ func (ec *executionContext) fieldContext_Team_templates(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_IssueTemplate(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Team_recurringIssues(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_recurringIssues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecurringIssues, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []RecurringIssue) graphql.Marshaler {
+			return ec.marshalNRecurringIssue2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssueᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_recurringIssues(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Team",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecurringIssue(ctx, field)
 		},
 	}
 	return fc, nil
@@ -43582,7 +44801,7 @@ func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "teamId", "title", "description", "stateId", "assigneeId", "priority", "estimate", "dueDate", "parentId", "labelIds", "templateId", "formTemplateId", "afterIssueId", "projectId", "projectMilestoneId", "cycleId", "fromTriage"}
+	fieldsInOrder := [...]string{"id", "teamId", "title", "description", "stateId", "assigneeId", "priority", "estimate", "dueDate", "parentId", "labelIds", "templateId", "formTemplateId", "afterIssueId", "projectId", "projectMilestoneId", "cycleId", "fromTriage", "skipDefaultTemplate", "recurringCadence", "recurringFirstDueDate"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -43715,6 +44934,27 @@ func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, 
 				return it, err
 			}
 			it.FromTriage = data
+		case "skipDefaultTemplate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("skipDefaultTemplate"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SkipDefaultTemplate = data
+		case "recurringCadence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recurringCadence"))
+			data, err := ec.unmarshalORecurringCadence2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringCadence(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RecurringCadence = data
+		case "recurringFirstDueDate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recurringFirstDueDate"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RecurringFirstDueDate = data
 		}
 	}
 	return it, nil
@@ -44372,6 +45612,85 @@ func (ec *executionContext) unmarshalInputCreateProjectUpdateInput(ctx context.C
 				return it, err
 			}
 			it.Body = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateRecurringIssueInput(ctx context.Context, obj any) (CreateRecurringIssueInput, error) {
+	var it CreateRecurringIssueInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"teamId", "title", "body", "properties", "templateId", "cadence", "firstDueDate", "sourceIssueId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "body":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Body = data
+		case "properties":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("properties"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Properties = data
+		case "templateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("templateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TemplateID = data
+		case "cadence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cadence"))
+			data, err := ec.unmarshalNRecurringCadence2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringCadence(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Cadence = data
+		case "firstDueDate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("firstDueDate"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FirstDueDate = data
+		case "sourceIssueId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceIssueId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceIssueID = data
 		}
 	}
 	return it, nil
@@ -46372,6 +47691,71 @@ func (ec *executionContext) unmarshalInputUpdateProjectUpdateInput(ctx context.C
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateRecurringIssueInput(ctx context.Context, obj any) (UpdateRecurringIssueInput, error) {
+	var it UpdateRecurringIssueInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "title", "body", "properties", "cadence", "nextDueDate"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "body":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Body = data
+		case "properties":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("properties"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Properties = data
+		case "cadence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cadence"))
+			data, err := ec.unmarshalORecurringCadence2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringCadence(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Cadence = data
+		case "nextDueDate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nextDueDate"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NextDueDate = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateTeamArchiveInput(ctx context.Context, obj any) (UpdateTeamArchiveInput, error) {
 	var it UpdateTeamArchiveInput
 	if obj == nil {
@@ -46634,6 +48018,64 @@ func (ec *executionContext) unmarshalInputUpdateTeamInput(ctx context.Context, o
 				return it, err
 			}
 			it.Private = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateTeamTemplatesInput(ctx context.Context, obj any) (UpdateTeamTemplatesInput, error) {
+	var it UpdateTeamTemplatesInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"teamId", "defaultTemplateForMembersId", "clearDefaultTemplateForMembers", "defaultTemplateForNonMembersId", "clearDefaultTemplateForNonMembers"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		case "defaultTemplateForMembersId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultTemplateForMembersId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefaultTemplateForMembersID = data
+		case "clearDefaultTemplateForMembers":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearDefaultTemplateForMembers"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearDefaultTemplateForMembers = data
+		case "defaultTemplateForNonMembersId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultTemplateForNonMembersId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefaultTemplateForNonMembersID = data
+		case "clearDefaultTemplateForNonMembers":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearDefaultTemplateForNonMembers"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearDefaultTemplateForNonMembers = data
 		}
 	}
 	return it, nil
@@ -47000,6 +48442,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._SubscriptionPayload(ctx, sel, obj)
+	case RecurringIssuePayload:
+		return ec._RecurringIssuePayload(ctx, sel, &obj)
+	case *RecurringIssuePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._RecurringIssuePayload(ctx, sel, obj)
 	case PurgePayload:
 		return ec._PurgePayload(ctx, sel, &obj)
 	case *PurgePayload:
@@ -49716,6 +51165,11 @@ func (ec *executionContext) _Issue(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "recurringIssueId":
+			out.Values[i] = ec._Issue_recurringIssueId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "projectId":
 			out.Values[i] = ec._Issue_projectId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -51044,6 +52498,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "updateTeamTemplates":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTeamTemplates(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "archiveCycle":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_archiveCycle(ctx, field)
@@ -51369,6 +52830,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteProjectTemplateIssue":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteProjectTemplateIssue(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createRecurringIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createRecurringIssue(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateRecurringIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateRecurringIssue(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveRecurringIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveRecurringIssue(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -54127,6 +55609,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "recurringIssues":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_recurringIssues(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "recurringIssue":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_recurringIssue(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "projects":
 			field := field
 
@@ -54866,6 +56392,152 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
+var recurringIssueImplementors = []string{"RecurringIssue"}
+
+func (ec *executionContext) _RecurringIssue(ctx context.Context, sel ast.SelectionSet, obj *RecurringIssue) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recurringIssueImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecurringIssue")
+		case "id":
+			out.Values[i] = ec._RecurringIssue_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._RecurringIssue_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamId":
+			out.Values[i] = ec._RecurringIssue_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._RecurringIssue_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "body":
+			out.Values[i] = ec._RecurringIssue_body(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "properties":
+			out.Values[i] = ec._RecurringIssue_properties(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "templateId":
+			out.Values[i] = ec._RecurringIssue_templateId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "cadence":
+			out.Values[i] = ec._RecurringIssue_cadence(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextDueDate":
+			out.Values[i] = ec._RecurringIssue_nextDueDate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastCreatedAt":
+			out.Values[i] = ec._RecurringIssue_lastCreatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdBy":
+			out.Values[i] = ec._RecurringIssue_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._RecurringIssue_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._RecurringIssue_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archivedAt":
+			out.Values[i] = ec._RecurringIssue_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var recurringIssuePayloadImplementors = []string{"RecurringIssuePayload", "MutationResult"}
+
+func (ec *executionContext) _RecurringIssuePayload(ctx context.Context, sel ast.SelectionSet, obj *RecurringIssuePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recurringIssuePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecurringIssuePayload")
+		case "version":
+			out.Values[i] = ec._RecurringIssuePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recurringIssue":
+			out.Values[i] = ec._RecurringIssuePayload_recurringIssue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var searchResultsImplementors = []string{"SearchResults"}
 
 func (ec *executionContext) _SearchResults(ctx context.Context, sel ast.SelectionSet, obj *SearchResults) graphql.Marshaler {
@@ -55099,6 +56771,16 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "defaultTemplateForMembersId":
+			out.Values[i] = ec._Team_defaultTemplateForMembersId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "defaultTemplateForNonMembersId":
+			out.Values[i] = ec._Team_defaultTemplateForNonMembersId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "createdAt":
 			out.Values[i] = ec._Team_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -55151,6 +56833,11 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "templates":
 			out.Values[i] = ec._Team_templates(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recurringIssues":
+			out.Values[i] = ec._Team_recurringIssues(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -57131,6 +58818,11 @@ func (ec *executionContext) unmarshalNCreateProjectUpdateInput2githubᚗcomᚋpe
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateRecurringIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateRecurringIssueInput(ctx context.Context, v any) (CreateRecurringIssueInput, error) {
+	res, err := ec.unmarshalInputCreateRecurringIssueInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateTeamInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateTeamInput(ctx context.Context, v any) (CreateTeamInput, error) {
 	res, err := ec.unmarshalInputCreateTeamInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -58609,6 +60301,60 @@ func (ec *executionContext) marshalNPurgePayload2ᚖgithubᚗcomᚋpeixotolabs�
 	return ec._PurgePayload(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNRecurringCadence2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringCadence(ctx context.Context, v any) (RecurringCadence, error) {
+	var res RecurringCadence
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRecurringCadence2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringCadence(ctx context.Context, sel ast.SelectionSet, v RecurringCadence) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNRecurringIssue2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssue(ctx context.Context, sel ast.SelectionSet, v RecurringIssue) graphql.Marshaler {
+	return ec._RecurringIssue(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNRecurringIssue2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssueᚄ(ctx context.Context, sel ast.SelectionSet, v []RecurringIssue) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRecurringIssue2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssue(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRecurringIssue2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssue(ctx context.Context, sel ast.SelectionSet, v *RecurringIssue) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RecurringIssue(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRecurringIssuePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssuePayload(ctx context.Context, sel ast.SelectionSet, v RecurringIssuePayload) graphql.Marshaler {
+	return ec._RecurringIssuePayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNRecurringIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssuePayload(ctx context.Context, sel ast.SelectionSet, v *RecurringIssuePayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RecurringIssuePayload(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNRelationType2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRelationType(ctx context.Context, v any) (RelationType, error) {
 	var res RelationType
 	err := res.UnmarshalGQL(v)
@@ -58981,6 +60727,11 @@ func (ec *executionContext) unmarshalNUpdateProjectUpdateInput2githubᚗcomᚋpe
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateRecurringIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateRecurringIssueInput(ctx context.Context, v any) (UpdateRecurringIssueInput, error) {
+	res, err := ec.unmarshalInputUpdateRecurringIssueInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateTeamArchiveInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamArchiveInput(ctx context.Context, v any) (UpdateTeamArchiveInput, error) {
 	res, err := ec.unmarshalInputUpdateTeamArchiveInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -58998,6 +60749,11 @@ func (ec *executionContext) unmarshalNUpdateTeamEstimatesInput2githubᚗcomᚋpe
 
 func (ec *executionContext) unmarshalNUpdateTeamInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamInput(ctx context.Context, v any) (UpdateTeamInput, error) {
 	res, err := ec.unmarshalInputUpdateTeamInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateTeamTemplatesInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamTemplatesInput(ctx context.Context, v any) (UpdateTeamTemplatesInput, error) {
+	res, err := ec.unmarshalInputUpdateTeamTemplatesInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -59774,6 +61530,29 @@ func (ec *executionContext) marshalOProjectUpdateSchedule2ᚖgithubᚗcomᚋpeix
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) unmarshalORecurringCadence2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringCadence(ctx context.Context, v any) (*RecurringCadence, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(RecurringCadence)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalORecurringCadence2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringCadence(ctx context.Context, sel ast.SelectionSet, v *RecurringCadence) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) marshalORecurringIssue2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssue(ctx context.Context, sel ast.SelectionSet, v *RecurringIssue) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._RecurringIssue(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
