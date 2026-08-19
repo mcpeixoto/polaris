@@ -60,6 +60,7 @@ export type {
   Change,
   Comment,
   Attachment,
+  Document,
   Cycle,
   DateOnly,
   DueDateSource,

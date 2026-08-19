@@ -37,6 +37,8 @@ import { SignIn } from '~/views/SignIn';
 import { SignUp } from '~/views/SignUp';
 import { Archives } from '~/views/Archives';
 import { Trash } from '~/views/Trash';
+import { DocumentDetail } from '~/views/DocumentDetail';
+import { Documents } from '~/views/Documents';
 import { CreateIssueModal } from '~/features/issue/CreateIssueModal';
 import { CreateProjectModal } from '~/features/projects/CreateProjectModal';
 
@@ -94,9 +96,12 @@ export function App() {
               <Route path="/team/:teamKey/cycles" element={<Cycles />} />
               <Route path="/team/:teamKey/triage" element={<Triage />} />
               <Route path="/team/:teamKey/archives" element={<Archives />} />
+              <Route path="/team/:teamKey/documents" element={<Documents />} />
               <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
               <Route path="/issue/:identifier" element={<IssueDetail />} />
               <Route path="/project/:projectId" element={<ProjectDetail />} />
+              <Route path="/project/:projectId/documents" element={<Documents />} />
+              <Route path="/document/:documentId" element={<DocumentDetail />} />
               <Route path="/cycle/:cycleId" element={<CycleDetail />} />
               <Route path="/settings/members" element={<MemberSettings />} />
               <Route path="/settings/labels" element={<LabelSettings />} />

@@ -108,6 +108,19 @@ function attachment(id: UUID, issueId: UUID): Attachment {
   };
 }
 
+function documentRow(id: UUID) {
+  return {
+    id,
+    workspaceId: 'w',
+    teamId: 't1',
+    title: 'Runbook',
+    body: 'Ship it',
+    sortOrder: 'a',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
 function complete(version: number): Meta {
   return { version, bootstrapAt: NOW, clientSchema: CLIENT_SCHEMA };
 }
@@ -341,6 +354,7 @@ function oneOfEach(): EntityRow[] {
     { type: 'issueLabel', entity: issueLabel },
     { type: 'issueRelation', entity: issueRelation },
     { type: 'attachment', entity: attachment('a1', 'i1') },
+    { type: 'document', entity: documentRow('d1') },
     { type: 'comment', entity: comment('c1', 'i1') },
     { type: 'issueSubscription', entity: issueSubscription },
     { type: 'notification', entity: notification },

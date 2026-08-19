@@ -629,6 +629,24 @@ type Attachment struct {
 	UpdatedAt   time.Time       `json:"updatedAt"`
 }
 
+// Document is long-form markdown attached to a team or a project. The body is plain markdown
+// until collaborative editing lands; it is not a CRDT snapshot yet.
+type Document struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      uuid.UUID  `json:"teamId"`
+	ProjectID   *uuid.UUID `json:"projectId,omitempty"`
+	Title       string     `json:"title"`
+	Body        string     `json:"body"`
+	SortOrder   string     `json:"sortOrder"`
+	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	UpdatedBy   *uuid.UUID `json:"updatedBy,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt   *time.Time `json:"deletedAt,omitempty"`
+}
+
 type IssueHistoryEntry struct {
 	ID        uuid.UUID `json:"id"`
 	IssueID   uuid.UUID `json:"issueId"`

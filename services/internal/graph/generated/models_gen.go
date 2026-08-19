@@ -169,6 +169,14 @@ type CreateCommentInput struct {
 	ParentID *uuid.UUID `json:"parentId,omitempty"`
 }
 
+type CreateDocumentInput struct {
+	TeamID uuid.UUID `json:"teamId"`
+	// When set, the document belongs to this project rather than the team home.
+	ProjectID *uuid.UUID `json:"projectId,omitempty"`
+	Title     string     `json:"title"`
+	Body      *string    `json:"body,omitempty"`
+}
+
 type CreateIssueInput struct {
 	// The issue's id, minted by the client.
 	//
@@ -328,6 +336,30 @@ type DeletePayload struct {
 }
 
 func (DeletePayload) IsMutationResult() {}
+
+// Long-form markdown attached to a team or a project.
+type Document struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      uuid.UUID  `json:"teamId"`
+	ProjectID   *uuid.UUID `json:"projectId,omitempty"`
+	Title       string     `json:"title"`
+	Body        string     `json:"body"`
+	SortOrder   string     `json:"sortOrder"`
+	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	UpdatedBy   *uuid.UUID `json:"updatedBy,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt   *time.Time `json:"deletedAt,omitempty"`
+}
+
+type DocumentPayload struct {
+	Version  int       `json:"version"`
+	Document *Document `json:"document"`
+}
+
+func (DocumentPayload) IsMutationResult() {}
 
 // The answer to "may this workspace do X", in one place.
 //
@@ -920,6 +952,12 @@ type UpdateAttachmentInput struct {
 	Subtitle *string         `json:"subtitle,omitempty"`
 	IconURL  *string         `json:"iconUrl,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+type UpdateDocumentInput struct {
+	ID    uuid.UUID `json:"id"`
+	Title *string   `json:"title,omitempty"`
+	Body  *string   `json:"body,omitempty"`
 }
 
 type UpdateIssueInput struct {

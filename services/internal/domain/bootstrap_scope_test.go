@@ -50,6 +50,7 @@ type scene struct {
 	workspaceView, privateTeamView, alicesOwnView uuid.UUID
 	alicesPreference                              uuid.UUID
 	openIssue, blockedIssue, privateIssue         uuid.UUID
+	openDocument                                  uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
 	bobsFavorite                                  uuid.UUID
 
@@ -185,6 +186,13 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	}); err != nil {
 		t.Fatalf("create the attachment: %v", err)
 	}
+	doc, _, err := svc.CreateDocument(ctx, s.alice, domain.CreateDocumentInput{
+		TeamID: f.TeamID, Title: "Team runbook", Body: "How we ship",
+	})
+	if err != nil {
+		t.Fatalf("create the document: %v", err)
+	}
+	s.openDocument = doc.ID
 
 	// Favourites: alice pins something out of the private team and something workspace-wide,
 	// bob pins the team they share. A favourite carries only its owner's scope, which is what
@@ -411,9 +419,11 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{aliceName, "issue", s.privateIssue},
 		{bobName, "label", s.workspaceLabel},
 		{bobName, "issue", s.openIssue},
+		{bobName, "document", s.openDocument},
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},
 		{gretaName, "issue", s.openIssue},
+		{gretaName, "document", s.openDocument},
 		{samName, "label", s.workspaceLabel},
 		{samName, "issueTemplate", s.workspaceTemplate},
 		{samName, "view", s.workspaceView},

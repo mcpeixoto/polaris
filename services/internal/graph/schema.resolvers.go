@@ -308,6 +308,87 @@ func (r *mutationResolver) DeleteAttachment(ctx context.Context, id uuid.UUID, c
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// CreateDocument is the resolver for the createDocument field.
+func (r *mutationResolver) CreateDocument(ctx context.Context, input generated.CreateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DocumentPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.CreateDocumentInput{
+		TeamID:    input.TeamID,
+		ProjectID: input.ProjectID,
+		Title:     input.Title,
+	}
+	if input.Body != nil {
+		in.Body = *input.Body
+	}
+	doc, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Document, int64, error) {
+			return r.Svc.CreateDocument(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toDocument(doc)
+	return &generated.DocumentPayload{Version: int(version), Document: &out}, nil
+}
+
+// UpdateDocument is the resolver for the updateDocument field.
+func (r *mutationResolver) UpdateDocument(ctx context.Context, input generated.UpdateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DocumentPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.UpdateDocumentInput{
+		ID:    input.ID,
+		Title: input.Title,
+		Body:  input.Body,
+	}
+	doc, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Document, int64, error) {
+			return r.Svc.UpdateDocument(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toDocument(doc)
+	return &generated.DocumentPayload{Version: int(version), Document: &out}, nil
+}
+
+// ArchiveDocument is the resolver for the archiveDocument field.
+func (r *mutationResolver) ArchiveDocument(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id, "archived": archived},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.ArchiveDocument(ctx, p, id, archived)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// DeleteDocument is the resolver for the deleteDocument field.
+func (r *mutationResolver) DeleteDocument(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteDocument(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // CreateTeam is the resolver for the createTeam field.
 func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.CreateTeamInput) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)
@@ -2502,6 +2583,20 @@ func (r *queryResolver) AttachmentsForURL(ctx context.Context, url string) ([]ge
 		return nil, PresentError(ctx, err)
 	}
 	return toAttachments(rows), nil
+}
+
+// Document is the resolver for the document field.
+func (r *queryResolver) Document(ctx context.Context, id uuid.UUID) (*generated.Document, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	doc, err := r.Svc.GetDocument(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toDocument(doc)
+	return &out, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

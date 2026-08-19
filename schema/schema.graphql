@@ -721,6 +721,28 @@ type AttachmentPayload implements MutationResult {
   attachment: Attachment!
 }
 
+"""Long-form markdown attached to a team or a project."""
+type Document {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  projectId: UUID
+  title: String!
+  body: String!
+  sortOrder: String!
+  creatorId: UUID
+  updatedBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+  deletedAt: Time
+}
+
+type DocumentPayload implements MutationResult {
+  version: Int!
+  document: Document!
+}
+
 type TeamPayload implements MutationResult {
   version: Int!
   team: Team!
@@ -1418,6 +1440,20 @@ input UpdateAttachmentInput {
   metadata: JSON
 }
 
+input CreateDocumentInput {
+  teamId: UUID!
+  """When set, the document belongs to this project rather than the team home."""
+  projectId: UUID
+  title: String!
+  body: String
+}
+
+input UpdateDocumentInput {
+  id: UUID!
+  title: String
+  body: String
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -1505,6 +1541,8 @@ type Query {
 
   """Every live attachment in this workspace that carries this exact URL."""
   attachmentsForURL(url: String!): [Attachment!]!
+
+  document(id: UUID!): Document
 }
 
 """
@@ -1528,6 +1566,11 @@ type Mutation {
   createAttachment(input: CreateAttachmentInput!, clientId: UUID, opId: UUID): AttachmentPayload! @idempotent
   updateAttachment(input: UpdateAttachmentInput!, clientId: UUID, opId: UUID): AttachmentPayload! @idempotent
   deleteAttachment(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createDocument(input: CreateDocumentInput!, clientId: UUID, opId: UUID): DocumentPayload! @idempotent
+  updateDocument(input: UpdateDocumentInput!, clientId: UUID, opId: UUID): DocumentPayload! @idempotent
+  archiveDocument(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  deleteDocument(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!

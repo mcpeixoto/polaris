@@ -143,6 +143,22 @@ type Cycle struct {
 	UpdatedAt   time.Time
 }
 
+type Document struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      uuid.UUID
+	ProjectID   *uuid.UUID
+	Title       string
+	Body        string
+	SortOrder   string
+	CreatorID   *uuid.UUID
+	UpdatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ArchivedAt  *time.Time
+	DeletedAt   *time.Time
+}
+
 type Favorite struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
