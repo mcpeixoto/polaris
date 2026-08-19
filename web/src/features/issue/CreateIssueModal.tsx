@@ -41,6 +41,16 @@ import { ApiError } from '~/sync/api';
 import { createIssue } from './mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { templateDefaults, type TemplateDefaults } from '~/features/templates/mutations';
+import { fieldsForFormTemplate } from '~/features/form-templates/mutations';
+import { FormTemplatePicker } from '~/features/form-templates/FormTemplatePicker';
+import {
+  FormFillFields,
+  descriptionFromFormAnswers,
+  priorityFromFormAnswers,
+  titleFromFormAnswers,
+  type FormAnswers,
+} from '~/features/form-templates/FormFillFields';
+import type { FormTemplate } from '~/store';
 import { TemplatePicker } from '~/features/templates/TemplatePicker';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
@@ -102,6 +112,8 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   const [projectId, setProjectId] = useState<UUID | null | undefined>(undefined);
   const [cycleId, setCycleId] = useState<UUID | null | undefined>(undefined);
   const [template, setTemplate] = useState<TemplateDefaults | null>(null);
+  const [formTemplate, setFormTemplate] = useState<FormTemplate | null>(null);
+  const [formAnswers, setFormAnswers] = useState<FormAnswers>({});
   const [titleError, setTitleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -143,8 +155,17 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
     fromTriagePath && teams.find((team) => team.id === teamId)?.triageEnabled === true;
 
   const templateMenu = useMenuTrigger();
+  const formTemplateMenu = useMenuTrigger();
   const projectMenu = useMenuTrigger();
   const cycleMenu = useMenuTrigger();
+
+  const formFields = useLiveQuery(
+    (store) => (formTemplate === null ? [] : fieldsForFormTemplate(store, formTemplate.id)),
+    ['formTemplateField'],
+    [formTemplate?.id ?? ''],
+  );
+
+  const formTemplateName = formTemplate?.name ?? null;
 
   const templateName = useLiveQuery(
     (store) =>
@@ -180,6 +201,8 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
       setTemplate(null);
       return;
     }
+    setFormTemplate(null);
+    setFormAnswers({});
     const defaults = templateDefaults(engine.store, chosen, teamId);
     setTemplate(defaults);
     if (defaults.title !== '') setTitle(defaults.title);
@@ -189,6 +212,14 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
     if (defaults.stateId !== undefined) setChosenState(defaults.stateId);
     setAssigneeId(defaults.assigneeId ?? UNASSIGNED);
     setPriority(defaults.priority ?? 0);
+  };
+
+  const applyFormTemplate = (chosen: FormTemplate | null) => {
+    setFormTemplate(chosen);
+    setFormAnswers({});
+    setTemplate(null);
+    if (chosen === null) return;
+    if (chosen.properties.priority !== undefined) setPriority(chosen.properties.priority);
   };
 
   const states = useLiveQuery(
@@ -221,8 +252,13 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
       return chosenState;
     }
     if (fromTriage) {
-      return (states.find((state) => state.category === 'triage') ?? states.find((state) => state.isDefault) ?? states[0])
-        ?.id ?? '';
+      return (
+        (
+          states.find((state) => state.category === 'triage') ??
+          states.find((state) => state.isDefault) ??
+          states[0]
+        )?.id ?? ''
+      );
     }
     return (states.find((state) => state.isDefault) ?? states[0])?.id ?? '';
   }, [chosenState, states, fromTriage]);
@@ -230,7 +266,11 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   const save = async () => {
     if (saving) return;
     const trimmed = title.trim();
-    if (trimmed === '') {
+    const resolvedTitle =
+      formTemplate === null
+        ? trimmed
+        : titleFromFormAnswers(formFields, formAnswers, trimmed).trim();
+    if (resolvedTitle === '') {
       setTitleError('An issue needs a title.');
       titleRef.current?.focus();
       return;
@@ -246,11 +286,19 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
     try {
       await createIssue(engine, {
         teamId,
-        title: trimmed,
-        description: description.trim(),
+        title: resolvedTitle,
+        description:
+          formTemplate === null
+            ? description.trim()
+            : [description.trim(), descriptionFromFormAnswers(formFields, formAnswers)]
+                .filter((part) => part !== '')
+                .join('\n\n'),
         stateId: stateId === '' ? undefined : stateId,
         assigneeId: assigneeId === UNASSIGNED ? undefined : assigneeId,
-        priority,
+        priority:
+          formTemplate === null
+            ? priority
+            : priorityFromFormAnswers(formFields, formAnswers, priority),
         ...(resolvedProjectId === null ? null : { projectId: resolvedProjectId }),
         ...(resolvedCycleId === null || !teamRunsCycles ? null : { cycleId: resolvedCycleId }),
         ...(fromTriage ? { fromTriage: true } : null),
@@ -265,6 +313,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
               ...(template.estimate === undefined ? null : { estimate: template.estimate }),
               ...(template.labelIds.length === 0 ? null : { labelIds: template.labelIds }),
             }),
+        ...(formTemplate === null ? null : { formTemplateId: formTemplate.id }),
         creatorId: viewerId ?? undefined,
       });
       // Closed without waiting for anything else: the issue is already in the list, and the
@@ -465,7 +514,30 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
               {templateName ?? 'No template'}
             </Button>
           </div>
+
+          <div className={styles.template}>
+            <span className={styles.templateLabel} id={`${formId}-form-template`}>
+              Form
+            </span>
+            <Button
+              {...formTemplateMenu.props}
+              variant="ghost"
+              fullWidth
+              aria-describedby={`${formId}-form-template`}
+              disabled={teamId === ''}
+            >
+              {formTemplateName ?? 'No form'}
+            </Button>
+          </div>
         </div>
+
+        {formTemplate !== null && formFields.length > 0 ? (
+          <FormFillFields
+            fields={formFields}
+            answers={formAnswers}
+            onChange={(fieldId, value) => setFormAnswers((prev) => ({ ...prev, [fieldId]: value }))}
+          />
+        ) : null}
 
         {saveError === null ? null : (
           <p className={styles.error} role="alert">
@@ -508,6 +580,14 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         teamId={teamId}
         value={template?.templateId ?? null}
         onSelect={applyTemplate}
+      />
+      <FormTemplatePicker
+        open={formTemplateMenu.open}
+        onClose={formTemplateMenu.hide}
+        trigger={formTemplateMenu.ref}
+        teamId={teamId}
+        value={formTemplate?.id ?? null}
+        onSelect={applyFormTemplate}
       />
     </Modal>
   );

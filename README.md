@@ -16,11 +16,11 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 
 | Working | |
 |---|---|
-| Schema | 41 migrations, including project update reminder cadence, project labels, attached project views, project dependencies, project updates, initiatives, documents, webhooks, attachments, auto-close/archive, triage, cycles, projects, statuses, teams, members and milestones; monthly-partitioned change log, UUIDv7 |
+| Schema | 42 migrations, including form templates, project update reminder cadence, project labels, attached project views, project dependencies, project updates, initiatives, documents, webhooks, attachments, auto-close/archive, triage, cycles, projects, statuses, teams, members and milestones; monthly-partitioned change log, UUIDv7 |
 | Sync engine | Gapless per-workspace versions, NDJSON bootstrap, WebSocket hub, resume, revoke, backpressure |
 | API | GraphQL over the whole domain, one contract in `schema/schema.graphql`, complexity scored by the published model |
 | Auth | Argon2id, rotating refresh tokens, HttpOnly cookies, invitations |
-| Client store | IndexedDB replica (schema 18), in-memory indexes, durable outbox, optimistic mutations |
+| Client store | IndexedDB replica (schema 19), in-memory indexes, durable outbox, optimistic mutations |
 | Keyboard | One registry; the command menu and help overlay are views over it. Peek is `Space`; triage is `G T` / `1` `2` `3` `H`; archives is `G X` / `#`; add link is `⌘⇧U` |
 | Projects | Workspace and team lists with health from latest update, overview graph/issues/activity tabs, `Shift+P` picker, `C` files into the open project |
 | Cycles | Team cadence, auto-created windows, rollover and auto-add, cycle graph on detail, `G C` / `Shift+C`, `C` files into the open cycle |
@@ -34,6 +34,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Project dependencies | End→start Blocked by / Blocking on Overview and sidebar, command menu, list filters — client schema 12 |
 | Attached project views | Saved filters as reorderable tabs on the project shell, + to create, copy link / favorite / rename / delete — client schema 13 |
 | Project labels | Workspace taxonomy with groups, picker on project sidebar, chips on `/projects` — client schema 14 |
+| Form templates | Structured intake templates with fields; form tab on Templates settings and form fill in create-issue — client schema 19; migration `000042` |
 | Project update reminders | Workspace cadence settings, per-project schedule, staleness on list and shell — client schema 18; migration `000041` |
 | Project priority | Five-level scale, P shortcut, grouped/drag reorder on `/projects` |
 | Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |

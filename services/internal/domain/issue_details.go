@@ -74,12 +74,12 @@ func (s *Service) SubIssuesFor(
 	// Grouped in two passes rather than one, because the two answers are drawn from
 	// different subsets of the same rows: everything counts towards the rollup, only what
 	// the reader can open goes in the list.
-	byParent := make(map[uuid.UUID][]store.Issue, len(parentIDs))
+	byParent := make(map[uuid.UUID][]store.GetIssueRow, len(parentIDs))
 	for _, r := range rows {
 		if r.ParentID == nil {
 			continue
 		}
-		byParent[*r.ParentID] = append(byParent[*r.ParentID], r)
+		byParent[*r.ParentID] = append(byParent[*r.ParentID], store.AsIssueRow(r))
 	}
 
 	for parentID, children := range byParent {
@@ -94,7 +94,7 @@ func (s *Service) SubIssuesFor(
 			if !authz.Visible(p, authz.TeamScope(c.TeamID, false)) {
 				continue
 			}
-			visible = append(visible, toIssue(c, keys[c.TeamID]))
+			visible = append(visible, toIssue(store.AsIssueRow(c), keys[c.TeamID]))
 		}
 		out[parentID] = SubIssues{Children: visible, Progress: rollUpProgress(children)}
 	}
@@ -139,7 +139,7 @@ func (s *Service) IssuesByID(
 		return nil, err
 	}
 	for _, r := range rows {
-		out[r.ID] = toIssue(r, keys[r.TeamID])
+		out[r.ID] = toIssue(store.AsIssueRow(r), keys[r.TeamID])
 	}
 	return out, nil
 }

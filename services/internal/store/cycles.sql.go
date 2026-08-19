@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const archiveCycle = `-- name: ArchiveCycle :exec
@@ -225,7 +226,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
+       i.template_id, i.form_template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.team_id = $1
@@ -239,16 +240,50 @@ type ListCyclelessIssuesByCategoryParams struct {
 	Category string
 }
 
+type ListCyclelessIssuesByCategoryRow struct {
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamID             uuid.UUID
+	Number             int64
+	Title              string
+	Description        string
+	StateID            uuid.UUID
+	AssigneeID         *uuid.UUID
+	CreatorID          *uuid.UUID
+	Priority           int16
+	SortOrder          string
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	ArchivedAt         *time.Time
+	DeletedAt          *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Estimate           *int16
+	DueDate            pgtype.Date
+	DueDateSource      string
+	ParentID           *uuid.UUID
+	SubIssueSortOrder  *string
+	TemplateID         *uuid.UUID
+	FormTemplateID     *uuid.UUID
+	DeletedBy          *uuid.UUID
+	ProjectID          *uuid.UUID
+	ProjectMilestoneID *uuid.UUID
+	CycleID            *uuid.UUID
+	SnoozedUntil       *time.Time
+	AutoClosedAt       *time.Time
+}
+
 // Cycle-less issues in a given category, for auto-add.
-func (q *Queries) ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyclelessIssuesByCategoryParams) ([]Issue, error) {
+func (q *Queries) ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyclelessIssuesByCategoryParams) ([]ListCyclelessIssuesByCategoryRow, error) {
 	rows, err := q.db.Query(ctx, listCyclelessIssuesByCategory, arg.TeamID, arg.Category)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Issue{}
+	items := []ListCyclelessIssuesByCategoryRow{}
 	for rows.Next() {
-		var i Issue
+		var i ListCyclelessIssuesByCategoryRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
@@ -274,6 +309,7 @@ func (q *Queries) ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyc
 			&i.ParentID,
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
+			&i.FormTemplateID,
 			&i.DeletedBy,
 			&i.ProjectID,
 			&i.ProjectMilestoneID,
@@ -338,7 +374,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
+       i.template_id, i.form_template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.cycle_id = $1
@@ -346,16 +382,50 @@ WHERE i.cycle_id = $1
   AND s.category IN ('unstarted', 'started')
 `
 
+type ListOpenIssuesInCycleRow struct {
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamID             uuid.UUID
+	Number             int64
+	Title              string
+	Description        string
+	StateID            uuid.UUID
+	AssigneeID         *uuid.UUID
+	CreatorID          *uuid.UUID
+	Priority           int16
+	SortOrder          string
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	ArchivedAt         *time.Time
+	DeletedAt          *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Estimate           *int16
+	DueDate            pgtype.Date
+	DueDateSource      string
+	ParentID           *uuid.UUID
+	SubIssueSortOrder  *string
+	TemplateID         *uuid.UUID
+	FormTemplateID     *uuid.UUID
+	DeletedBy          *uuid.UUID
+	ProjectID          *uuid.UUID
+	ProjectMilestoneID *uuid.UUID
+	CycleID            *uuid.UUID
+	SnoozedUntil       *time.Time
+	AutoClosedAt       *time.Time
+}
+
 // Open work in a closing cycle: unstarted and started, not backlog/triage/canceled/completed.
-func (q *Queries) ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID) ([]Issue, error) {
+func (q *Queries) ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID) ([]ListOpenIssuesInCycleRow, error) {
 	rows, err := q.db.Query(ctx, listOpenIssuesInCycle, cycleID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Issue{}
+	items := []ListOpenIssuesInCycleRow{}
 	for rows.Next() {
-		var i Issue
+		var i ListOpenIssuesInCycleRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
@@ -381,6 +451,7 @@ func (q *Queries) ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID)
 			&i.ParentID,
 			&i.SubIssueSortOrder,
 			&i.TemplateID,
+			&i.FormTemplateID,
 			&i.DeletedBy,
 			&i.ProjectID,
 			&i.ProjectMilestoneID,

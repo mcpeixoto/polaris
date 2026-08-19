@@ -75,7 +75,7 @@ func TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI(t *testing.T) {
 				issue(id: $id) {
 					id workspaceId teamId number identifier
 					title description stateId assigneeId creatorId priority sortOrder
-					estimate dueDate dueDateSource parentId subIssueSortOrder templateId
+					estimate dueDate dueDateSource parentId subIssueSortOrder templateId formTemplateId
 					projectId projectMilestoneId cycleId
 					startedAt completedAt canceledAt archivedAt createdAt updatedAt
 					labels { id }
@@ -179,6 +179,14 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 		t.Fatalf("create a template to file from: %v", err)
 	}
 
+	formTemplate, err := h.Mutation().CreateFormTemplate(h.ctx, generated.CreateFormTemplateInput{
+		TeamID: &h.f.TeamID,
+		Name:   "Intake",
+	})
+	if err != nil {
+		t.Fatalf("create a form template to file from: %v", err)
+	}
+
 	bug, regression := h.newLabel(t, "bug"), h.newLabel(t, "regression")
 
 	onCreate, milestoneOnCreate := h.newProject(t, "On create")
@@ -257,6 +265,11 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 			input: "templateId", output: "templateId",
 			create:      func(in *generated.CreateIssueInput) { in.TemplateID = &template.Template.ID },
 			afterCreate: template.Template.ID.String(),
+		},
+		{
+			input: "formTemplateId", output: "formTemplateId",
+			create:      func(in *generated.CreateIssueInput) { in.FormTemplateID = &formTemplate.Template.ID },
+			afterCreate: formTemplate.Template.ID.String(),
 		},
 		{
 			// Written as a list of ids and read back as the labels themselves, which is the

@@ -96,6 +96,7 @@ export interface NewIssue {
    * answer. It is the only reason `issue.template_id` exists, and nothing was sending it.
    */
   readonly templateId?: UUID | undefined;
+  readonly formTemplateId?: UUID | undefined;
   readonly projectId?: UUID | undefined;
   readonly projectMilestoneId?: UUID | undefined;
   readonly cycleId?: UUID | undefined;
@@ -132,7 +133,12 @@ export interface NewIssue {
  */
 export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<UUID> {
   const store = engine.store;
-  const state = resolveState(store, input.teamId, input.fromTriage === true ? undefined : input.stateId, input.fromTriage === true);
+  const state = resolveState(
+    store,
+    input.teamId,
+    input.fromTriage === true ? undefined : input.stateId,
+    input.fromTriage === true,
+  );
   const now = new Date().toISOString();
   const team = store.get('team', input.teamId);
   const number = nextNumberFor(store, input.teamId);
@@ -155,6 +161,7 @@ export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<
     ...(input.dueDate === undefined ? null : { dueDate: input.dueDate }),
     ...(input.parentId === undefined ? null : { parentId: input.parentId }),
     ...(input.templateId === undefined ? null : { templateId: input.templateId }),
+    ...(input.formTemplateId === undefined ? null : { formTemplateId: input.formTemplateId }),
     ...(input.projectId === undefined ? null : { projectId: input.projectId }),
     ...(input.cycleId === undefined ? null : { cycleId: input.cycleId }),
     dueDateSource: 'manual',
@@ -740,7 +747,9 @@ function resolveState(
 ): UUID {
   const states = [...store.workflowStateIdsFor(teamId)]
     .map((id) => store.get('workflowState', id))
-    .filter((state): state is WorkflowState => state !== undefined && state.archivedAt === undefined);
+    .filter(
+      (state): state is WorkflowState => state !== undefined && state.archivedAt === undefined,
+    );
   if (fromTriage) {
     return states.find((state) => state.category === 'triage')?.id ?? '';
   }
@@ -833,8 +842,11 @@ function createInputOf(input: NewIssue, stateId: UUID, id: UUID): Record<string,
       ? null
       : { labelIds: [...input.labelIds] }),
     ...(input.templateId === undefined ? null : { templateId: input.templateId }),
+    ...(input.formTemplateId === undefined ? null : { formTemplateId: input.formTemplateId }),
     ...(input.projectId === undefined ? null : { projectId: input.projectId }),
-    ...(input.projectMilestoneId === undefined ? null : { projectMilestoneId: input.projectMilestoneId }),
+    ...(input.projectMilestoneId === undefined
+      ? null
+      : { projectMilestoneId: input.projectMilestoneId }),
     ...(input.cycleId === undefined ? null : { cycleId: input.cycleId }),
     ...(input.fromTriage === true ? { fromTriage: true } : null),
   };

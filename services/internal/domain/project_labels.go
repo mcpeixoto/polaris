@@ -27,12 +27,12 @@ type CreateProjectLabelInput struct {
 }
 
 type UpdateProjectLabelInput struct {
-	ID          uuid.UUID
-	Name        *string
-	Description *string
-	Color       *string
-	ParentID    *uuid.UUID
-	ClearParent bool
+	ID           uuid.UUID
+	Name         *string
+	Description  *string
+	Color        *string
+	ParentID     *uuid.UUID
+	ClearParent  bool
 	AfterLabelID *uuid.UUID
 }
 

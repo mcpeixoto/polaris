@@ -126,7 +126,7 @@ func toWorkflowState(s store.WorkflowState) model.WorkflowState {
 // toIssue needs the team key because the identifier (ENG-123) is derived rather than
 // stored — see the comment on the issue table. Callers that already hold the team pass
 // its key; the ones that do not look it up once and reuse it across a batch.
-func toIssue(i store.Issue, teamKey string) model.Issue {
+func toIssue(i store.GetIssueRow, teamKey string) model.Issue {
 	out := model.Issue{
 		ID:          i.ID,
 		WorkspaceID: i.WorkspaceID,
@@ -145,6 +145,7 @@ func toIssue(i store.Issue, teamKey string) model.Issue {
 		ParentID:           i.ParentID,
 		SubIssueSortOrder:  i.SubIssueSortOrder,
 		TemplateID:         i.TemplateID,
+		FormTemplateID:     i.FormTemplateID,
 		ProjectID:          i.ProjectID,
 		ProjectMilestoneID: i.ProjectMilestoneID,
 		CycleID:            i.CycleID,
@@ -204,7 +205,7 @@ func intFromEstimate(v *int16) *int {
 // was NULL — no due date, rather than the zero day. Formatting it here rather than shipping
 // an instant is what keeps the timezone out of it: the day the setter chose is the day every
 // reader sees, wherever they are.
-func dueDateOf(i store.Issue) *model.Date {
+func dueDateOf(i store.GetIssueRow) *model.Date {
 	if !i.DueDate.Valid {
 		return nil
 	}

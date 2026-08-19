@@ -35,10 +35,10 @@ type Destination struct {
 
 // Result is what the worker records: status 0 means the request never got a response.
 type Result struct {
-	Status     int
-	Duration   time.Duration
-	Snippet    string
-	Err        error
+	Status   int
+	Duration time.Duration
+	Snippet  string
+	Err      error
 }
 
 // Sender is what domain.DeliverDueWebhooks needs. Production uses Deliverer; tests

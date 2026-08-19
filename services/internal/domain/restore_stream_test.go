@@ -55,7 +55,7 @@ import (
 // cannot see them and comparing them would fail on the fixture. Every other type in this
 // file is created the way a person would create it.
 var replayedTypes = []string{
-	"label", "issueTemplate",
+	"label", "issueTemplate", "formTemplate", "formTemplateField",
 	"issue", "issueLabel", "issueRelation", "attachment", "comment", "issueSubscription",
 	"notification", "view", "viewPreference", "favorite",
 }

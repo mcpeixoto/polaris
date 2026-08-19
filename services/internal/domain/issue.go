@@ -64,6 +64,10 @@ type CreateIssueInput struct {
 	// answers is "is this template still worth having", which nothing else can.
 	TemplateID *uuid.UUID
 
+	// FormTemplateID records which form template the issue was filed from. Same provenance
+	// contract as TemplateID: the client fills content from the form before sending.
+	FormTemplateID *uuid.UUID
+
 	// No clear flags here, unlike UpdateIssueInput. There is nothing to clear on an issue
 	// that does not exist yet, and offering the flags would invite a caller to send them.
 
@@ -166,6 +170,9 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		if err := s.validateTemplate(ctx, q, p, in.TeamID, in.TemplateID); err != nil {
 			return err
 		}
+		if err := s.validateFormTemplate(ctx, q, p, in.TeamID, in.FormTemplateID); err != nil {
+			return err
+		}
 
 		member, err := q.IsTeamMember(ctx, store.IsTeamMemberParams{TeamID: in.TeamID, UserID: p.UserID})
 		if err != nil {
@@ -215,27 +222,28 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		// A new issue may only be created in a backlog or unstarted status, so no
 		// category timestamp can legitimately be set at creation time.
 		params := store.CreateIssueParams{
-			ID:                id,
-			WorkspaceID:       p.WorkspaceID,
-			TeamID:            in.TeamID,
-			Number:            number,
-			Title:             in.Title,
-			Description:       in.Description,
-			StateID:           state.ID,
-			AssigneeID:        in.AssigneeID,
-			CreatorID:         &p.UserID,
-			Priority:          int16(in.Priority),
-			SortOrder:         sortOrder,
-			StartedAt:         startedAtFor(state.Category, nil),
-			CompletedAt:       completedAtFor(state.Category),
-			CanceledAt:        canceledAtFor(state.Category),
-			Estimate:          estimate,
-			ParentID:          in.ParentID,
-			SubIssueSortOrder: siblingOrder,
-			TemplateID:        in.TemplateID,
-			ProjectID:         in.ProjectID,
+			ID:                 id,
+			WorkspaceID:        p.WorkspaceID,
+			TeamID:             in.TeamID,
+			Number:             number,
+			Title:              in.Title,
+			Description:        in.Description,
+			StateID:            state.ID,
+			AssigneeID:         in.AssigneeID,
+			CreatorID:          &p.UserID,
+			Priority:           int16(in.Priority),
+			SortOrder:          sortOrder,
+			StartedAt:          startedAtFor(state.Category, nil),
+			CompletedAt:        completedAtFor(state.Category),
+			CanceledAt:         canceledAtFor(state.Category),
+			Estimate:           estimate,
+			ParentID:           in.ParentID,
+			SubIssueSortOrder:  siblingOrder,
+			TemplateID:         in.TemplateID,
+			FormTemplateID:     in.FormTemplateID,
+			ProjectID:          in.ProjectID,
 			ProjectMilestoneID: in.ProjectMilestoneID,
-			CycleID:           in.CycleID,
+			CycleID:            in.CycleID,
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -245,7 +253,7 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		if err != nil {
 			return mapParentTriggerError(err)
 		}
-		out = toIssue(row, team.Key)
+		out = toIssue(store.AsIssueRow(row), team.Key)
 
 		// No ChangedFields: an empty list is what marks a create, where every field is new
 		// and the question "did this one move" has no meaning yet.
@@ -391,10 +399,10 @@ type UpdateIssueInput struct {
 	// while it also moves in the backlog — and each is applied to its own column.
 	AfterSiblingID *uuid.UUID
 
-	ProjectID      *uuid.UUID
-	ClearProject   bool
+	ProjectID          *uuid.UUID
+	ClearProject       bool
 	ProjectMilestoneID *uuid.UUID
-	ClearMilestone bool
+	ClearMilestone     bool
 
 	CycleID    *uuid.UUID
 	ClearCycle bool
@@ -597,7 +605,7 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			if !in.ClearDueDate {
 				to = in.DueDate
 			}
-			from := dueDateOf(before)
+			from := dueDateOf(store.AsIssueRow(before))
 			if !equalDatePtr(from, to) {
 				history = append(history, HistoryEntry{
 					IssueID: in.ID, Kind: "due_date", FromValue: from, ToValue: to,
@@ -697,20 +705,20 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			TeamID:        nil,
 			Number:        nil,
 
-			Estimate:          estimate,
-			ClearEstimate:     in.ClearEstimate,
-			ClearDueDate:      in.ClearDueDate,
-			ParentID:          in.ParentID,
-			ClearParent:       in.ClearParent,
-			SubIssueSortOrder: siblingOrder,
-			ProjectID:         in.ProjectID,
-			ClearProject:      in.ClearProject,
+			Estimate:           estimate,
+			ClearEstimate:      in.ClearEstimate,
+			ClearDueDate:       in.ClearDueDate,
+			ParentID:           in.ParentID,
+			ClearParent:        in.ClearParent,
+			SubIssueSortOrder:  siblingOrder,
+			ProjectID:          in.ProjectID,
+			ClearProject:       in.ClearProject,
 			ProjectMilestoneID: in.ProjectMilestoneID,
-			ClearMilestone:    in.ClearMilestone,
-			CycleID:           in.CycleID,
-			ClearCycle:        in.ClearCycle,
-			ClearSnooze:       before.SnoozedUntil != nil,
-			ClearAutoClosed:   newState != nil && !isClosedCategory(newState.Category),
+			ClearMilestone:     in.ClearMilestone,
+			CycleID:            in.CycleID,
+			ClearCycle:         in.ClearCycle,
+			ClearSnooze:        before.SnoozedUntil != nil,
+			ClearAutoClosed:    newState != nil && !isClosedCategory(newState.Category),
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -720,7 +728,7 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 		if err != nil {
 			return mapParentTriggerError(err)
 		}
-		out = toIssue(row, team.Key)
+		out = toIssue(store.AsIssueRow(row), team.Key)
 
 		// A move has no history entry — the feed does not report reordering — but it is
 		// still something this mutation set, and a changed-field list that omits what it
@@ -760,7 +768,7 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 		if err := s.em.History(ctx, q, p.WorkspaceID, p.Actor(), before.CreatedAt, history...); err != nil {
 			return err
 		}
-		return s.applyFamilyClose(ctx, q, p, team, row, newState, map[uuid.UUID]bool{})
+		return s.applyFamilyClose(ctx, q, p, team, store.AsIssueRow(row), newState, map[uuid.UUID]bool{})
 	})
 	return out, version, err
 }
@@ -809,7 +817,7 @@ func (s *Service) ArchiveIssue(ctx context.Context, p *authz.Principal, id uuid.
 			if err != nil {
 				return platform.Internal(err)
 			}
-			change.Payload = toIssue(after, team.Key)
+			change.Payload = toIssue(store.AsIssueRow(after), team.Key)
 		}
 
 		if version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), change); err != nil {
@@ -880,7 +888,7 @@ func (s *Service) GetIssue(ctx context.Context, p *authz.Principal, id uuid.UUID
 	if !authz.Visible(p, authz.TeamScope(row.TeamID, team.Private)) {
 		return model.Issue{}, platform.NotFound("issue")
 	}
-	return toIssue(row, team.Key), nil
+	return toIssue(store.AsIssueRow(row), team.Key), nil
 }
 
 func (s *Service) ListIssuesForTeam(ctx context.Context, p *authz.Principal, teamID uuid.UUID) ([]model.Issue, error) {
@@ -902,7 +910,7 @@ func (s *Service) ListIssuesForTeam(ctx context.Context, p *authz.Principal, tea
 	}
 	out := make([]model.Issue, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, toIssue(r, team.Key))
+		out = append(out, toIssue(store.AsIssueRow(r), team.Key))
 	}
 	return out, nil
 }

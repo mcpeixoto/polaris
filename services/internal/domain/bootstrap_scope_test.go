@@ -122,6 +122,25 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	s.workspaceTemplate = template("Incident", nil)
 	s.privateTemplate = template("Design review", &design.ID)
 
+	formTemplate := func(name string, teamID *uuid.UUID) uuid.UUID {
+		row, _, err := svc.CreateFormTemplate(ctx, s.alice, domain.CreateFormTemplateInput{
+			TeamID: teamID, Name: name,
+		})
+		if err != nil {
+			t.Fatalf("create form template %q: %v", name, err)
+		}
+		if _, _, err := svc.CreateFormTemplateField(ctx, s.alice, domain.CreateFormTemplateFieldInput{
+			FormTemplateID: row.ID,
+			FieldType:      model.FormFieldText,
+			Label:          "Details",
+		}); err != nil {
+			t.Fatalf("create form template field for %q: %v", name, err)
+		}
+		return row.ID
+	}
+	formTemplate("Bug intake", nil)
+	formTemplate("Design intake", &design.ID)
+
 	project, _, err := svc.CreateProject(ctx, s.alice, domain.CreateProjectInput{
 		Name: "Shipping", TeamIDs: []uuid.UUID{f.TeamID}, MemberIDs: []uuid.UUID{s.alice.UserID},
 	})

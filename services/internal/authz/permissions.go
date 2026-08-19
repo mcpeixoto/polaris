@@ -63,9 +63,9 @@ const (
 	// Projects span teams, so create/update/delete are workspace-level; the domain then
 	// asks Visible against the project's team list. An admin bypasses that so they can
 	// reach a project on private teams they are not in.
-	ActionProjectCreate Action = "project.create"
-	ActionProjectUpdate Action = "project.update"
-	ActionProjectDelete Action = "project.delete"
+	ActionProjectCreate       Action = "project.create"
+	ActionProjectUpdate       Action = "project.update"
+	ActionProjectDelete       Action = "project.delete"
 	ActionProjectStatusManage Action = "project_status.manage"
 
 	// Personal keys, and only ever the caller's own — ownership is checked separately.

@@ -196,6 +196,44 @@ type ComplexityRoot struct {
 		Version  func(childComplexity int) int
 	}
 
+	FormTemplate struct {
+		ArchivedAt  func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		CreatedBy   func(childComplexity int) int
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Position    func(childComplexity int) int
+		Properties  func(childComplexity int) int
+		TeamID      func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	FormTemplateField struct {
+		Config         func(childComplexity int) int
+		CreatedAt      func(childComplexity int) int
+		Description    func(childComplexity int) int
+		FieldType      func(childComplexity int) int
+		FormTemplateID func(childComplexity int) int
+		ID             func(childComplexity int) int
+		Label          func(childComplexity int) int
+		Required       func(childComplexity int) int
+		SortOrder      func(childComplexity int) int
+		UpdatedAt      func(childComplexity int) int
+		WorkspaceID    func(childComplexity int) int
+	}
+
+	FormTemplateFieldPayload struct {
+		Field   func(childComplexity int) int
+		Version func(childComplexity int) int
+	}
+
+	FormTemplatePayload struct {
+		Template func(childComplexity int) int
+		Version  func(childComplexity int) int
+	}
+
 	Initiative struct {
 		ArchivedAt            func(childComplexity int) int
 		CreatedAt             func(childComplexity int) int
@@ -282,6 +320,7 @@ type ComplexityRoot struct {
 		DueDate            func(childComplexity int) int
 		DueDateSource      func(childComplexity int) int
 		Estimate           func(childComplexity int) int
+		FormTemplateID     func(childComplexity int) int
 		History            func(childComplexity int) int
 		ID                 func(childComplexity int) int
 		Identifier         func(childComplexity int) int
@@ -433,6 +472,7 @@ type ComplexityRoot struct {
 		AddTeamMember            func(childComplexity int, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) int
 		ArchiveCycle             func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveDocument          func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
+		ArchiveFormTemplate      func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveInitiative        func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveIssue             func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveIssueTemplate     func(childComplexity int, id uuid.UUID, archived bool) int
@@ -446,6 +486,8 @@ type ComplexityRoot struct {
 		CreateAttachment         func(childComplexity int, input CreateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateComment            func(childComplexity int, input CreateCommentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateDocument           func(childComplexity int, input CreateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateFormTemplate       func(childComplexity int, input CreateFormTemplateInput) int
+		CreateFormTemplateField  func(childComplexity int, input CreateFormTemplateFieldInput) int
 		CreateInitiative         func(childComplexity int, input CreateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssue              func(childComplexity int, input CreateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssueRelation      func(childComplexity int, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -464,6 +506,7 @@ type ComplexityRoot struct {
 		DeleteAttachment         func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteComment            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteDocument           func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteFormTemplateField  func(childComplexity int, id uuid.UUID) int
 		DeleteInitiative         func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssue              func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssueRelation      func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -501,6 +544,8 @@ type ComplexityRoot struct {
 		UpdateAttachment         func(childComplexity int, input UpdateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateComment            func(childComplexity int, id uuid.UUID, body string, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateDocument           func(childComplexity int, input UpdateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateFormTemplate       func(childComplexity int, input UpdateFormTemplateInput) int
+		UpdateFormTemplateField  func(childComplexity int, input UpdateFormTemplateFieldInput) int
 		UpdateInitiative         func(childComplexity int, input UpdateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateIssue              func(childComplexity int, input UpdateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateIssueTemplate      func(childComplexity int, input UpdateIssueTemplateInput) int
@@ -743,6 +788,9 @@ type ComplexityRoot struct {
 		DeletedIssues                func(childComplexity int) int
 		Document                     func(childComplexity int, id uuid.UUID) int
 		Favorites                    func(childComplexity int) int
+		FormTemplate                 func(childComplexity int, id uuid.UUID) int
+		FormTemplateFields           func(childComplexity int, formTemplateID uuid.UUID) int
+		FormTemplates                func(childComplexity int, teamID *uuid.UUID) int
 		Initiative                   func(childComplexity int, id uuid.UUID) int
 		Initiatives                  func(childComplexity int) int
 		Invites                      func(childComplexity int) int
@@ -1095,6 +1143,12 @@ type MutationResolver interface {
 	CreateIssueTemplate(ctx context.Context, input CreateIssueTemplateInput) (*IssueTemplatePayload, error)
 	UpdateIssueTemplate(ctx context.Context, input UpdateIssueTemplateInput) (*IssueTemplatePayload, error)
 	ArchiveIssueTemplate(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
+	CreateFormTemplate(ctx context.Context, input CreateFormTemplateInput) (*FormTemplatePayload, error)
+	UpdateFormTemplate(ctx context.Context, input UpdateFormTemplateInput) (*FormTemplatePayload, error)
+	ArchiveFormTemplate(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
+	CreateFormTemplateField(ctx context.Context, input CreateFormTemplateFieldInput) (*FormTemplateFieldPayload, error)
+	UpdateFormTemplateField(ctx context.Context, input UpdateFormTemplateFieldInput) (*FormTemplateFieldPayload, error)
+	DeleteFormTemplateField(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 	CreateProject(ctx context.Context, input CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectPayload, error)
 	UpdateProject(ctx context.Context, input UpdateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectPayload, error)
 	DeleteProject(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
@@ -1141,6 +1195,9 @@ type QueryResolver interface {
 	Favorites(ctx context.Context) ([]Favorite, error)
 	IssueTemplates(ctx context.Context, teamID *uuid.UUID) ([]IssueTemplate, error)
 	IssueTemplate(ctx context.Context, id uuid.UUID) (*IssueTemplate, error)
+	FormTemplates(ctx context.Context, teamID *uuid.UUID) ([]FormTemplate, error)
+	FormTemplate(ctx context.Context, id uuid.UUID) (*FormTemplate, error)
+	FormTemplateFields(ctx context.Context, formTemplateID uuid.UUID) ([]FormTemplateField, error)
 	Projects(ctx context.Context) ([]Project, error)
 	Project(ctx context.Context, id uuid.UUID) (*Project, error)
 	ProjectStatuses(ctx context.Context) ([]ProjectStatus, error)
@@ -1816,6 +1873,166 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.FavoritePayload.Version(childComplexity), true
 
+	case "FormTemplate.archivedAt":
+		if e.ComplexityRoot.FormTemplate.ArchivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.ArchivedAt(childComplexity), true
+	case "FormTemplate.createdAt":
+		if e.ComplexityRoot.FormTemplate.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.CreatedAt(childComplexity), true
+	case "FormTemplate.createdBy":
+		if e.ComplexityRoot.FormTemplate.CreatedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.CreatedBy(childComplexity), true
+	case "FormTemplate.description":
+		if e.ComplexityRoot.FormTemplate.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.Description(childComplexity), true
+	case "FormTemplate.id":
+		if e.ComplexityRoot.FormTemplate.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.ID(childComplexity), true
+	case "FormTemplate.name":
+		if e.ComplexityRoot.FormTemplate.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.Name(childComplexity), true
+	case "FormTemplate.position":
+		if e.ComplexityRoot.FormTemplate.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.Position(childComplexity), true
+	case "FormTemplate.properties":
+		if e.ComplexityRoot.FormTemplate.Properties == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.Properties(childComplexity), true
+	case "FormTemplate.teamId":
+		if e.ComplexityRoot.FormTemplate.TeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.TeamID(childComplexity), true
+	case "FormTemplate.updatedAt":
+		if e.ComplexityRoot.FormTemplate.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.UpdatedAt(childComplexity), true
+	case "FormTemplate.workspaceId":
+		if e.ComplexityRoot.FormTemplate.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplate.WorkspaceID(childComplexity), true
+
+	case "FormTemplateField.config":
+		if e.ComplexityRoot.FormTemplateField.Config == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.Config(childComplexity), true
+	case "FormTemplateField.createdAt":
+		if e.ComplexityRoot.FormTemplateField.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.CreatedAt(childComplexity), true
+	case "FormTemplateField.description":
+		if e.ComplexityRoot.FormTemplateField.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.Description(childComplexity), true
+	case "FormTemplateField.fieldType":
+		if e.ComplexityRoot.FormTemplateField.FieldType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.FieldType(childComplexity), true
+	case "FormTemplateField.formTemplateId":
+		if e.ComplexityRoot.FormTemplateField.FormTemplateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.FormTemplateID(childComplexity), true
+	case "FormTemplateField.id":
+		if e.ComplexityRoot.FormTemplateField.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.ID(childComplexity), true
+	case "FormTemplateField.label":
+		if e.ComplexityRoot.FormTemplateField.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.Label(childComplexity), true
+	case "FormTemplateField.required":
+		if e.ComplexityRoot.FormTemplateField.Required == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.Required(childComplexity), true
+	case "FormTemplateField.sortOrder":
+		if e.ComplexityRoot.FormTemplateField.SortOrder == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.SortOrder(childComplexity), true
+	case "FormTemplateField.updatedAt":
+		if e.ComplexityRoot.FormTemplateField.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.UpdatedAt(childComplexity), true
+	case "FormTemplateField.workspaceId":
+		if e.ComplexityRoot.FormTemplateField.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateField.WorkspaceID(childComplexity), true
+
+	case "FormTemplateFieldPayload.field":
+		if e.ComplexityRoot.FormTemplateFieldPayload.Field == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateFieldPayload.Field(childComplexity), true
+	case "FormTemplateFieldPayload.version":
+		if e.ComplexityRoot.FormTemplateFieldPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplateFieldPayload.Version(childComplexity), true
+
+	case "FormTemplatePayload.template":
+		if e.ComplexityRoot.FormTemplatePayload.Template == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplatePayload.Template(childComplexity), true
+	case "FormTemplatePayload.version":
+		if e.ComplexityRoot.FormTemplatePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FormTemplatePayload.Version(childComplexity), true
+
 	case "Initiative.archivedAt":
 		if e.ComplexityRoot.Initiative.ArchivedAt == nil {
 			break
@@ -2224,6 +2441,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Issue.Estimate(childComplexity), true
+	case "Issue.formTemplateId":
+		if e.ComplexityRoot.Issue.FormTemplateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Issue.FormTemplateID(childComplexity), true
 	case "Issue.history":
 		if e.ComplexityRoot.Issue.History == nil {
 			break
@@ -2964,6 +3187,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ArchiveDocument(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.archiveFormTemplate":
+		if e.ComplexityRoot.Mutation.ArchiveFormTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveFormTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ArchiveFormTemplate(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
 	case "Mutation.archiveInitiative":
 		if e.ComplexityRoot.Mutation.ArchiveInitiative == nil {
 			break
@@ -3107,6 +3341,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateDocument(childComplexity, args["input"].(CreateDocumentInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createFormTemplate":
+		if e.ComplexityRoot.Mutation.CreateFormTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createFormTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateFormTemplate(childComplexity, args["input"].(CreateFormTemplateInput)), true
+	case "Mutation.createFormTemplateField":
+		if e.ComplexityRoot.Mutation.CreateFormTemplateField == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createFormTemplateField_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateFormTemplateField(childComplexity, args["input"].(CreateFormTemplateFieldInput)), true
 	case "Mutation.createInitiative":
 		if e.ComplexityRoot.Mutation.CreateInitiative == nil {
 			break
@@ -3305,6 +3561,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteDocument(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteFormTemplateField":
+		if e.ComplexityRoot.Mutation.DeleteFormTemplateField == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteFormTemplateField_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteFormTemplateField(childComplexity, args["id"].(uuid.UUID)), true
 	case "Mutation.deleteInitiative":
 		if e.ComplexityRoot.Mutation.DeleteInitiative == nil {
 			break
@@ -3707,6 +3974,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateDocument(childComplexity, args["input"].(UpdateDocumentInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.updateFormTemplate":
+		if e.ComplexityRoot.Mutation.UpdateFormTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateFormTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateFormTemplate(childComplexity, args["input"].(UpdateFormTemplateInput)), true
+	case "Mutation.updateFormTemplateField":
+		if e.ComplexityRoot.Mutation.UpdateFormTemplateField == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateFormTemplateField_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateFormTemplateField(childComplexity, args["input"].(UpdateFormTemplateFieldInput)), true
 	case "Mutation.updateInitiative":
 		if e.ComplexityRoot.Mutation.UpdateInitiative == nil {
 			break
@@ -4908,6 +5197,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Favorites(childComplexity), true
+	case "Query.formTemplate":
+		if e.ComplexityRoot.Query.FormTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Query_formTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.FormTemplate(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.formTemplateFields":
+		if e.ComplexityRoot.Query.FormTemplateFields == nil {
+			break
+		}
+
+		args, err := ec.field_Query_formTemplateFields_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.FormTemplateFields(childComplexity, args["formTemplateId"].(uuid.UUID)), true
+	case "Query.formTemplates":
+		if e.ComplexityRoot.Query.FormTemplates == nil {
+			break
+		}
+
+		args, err := ec.field_Query_formTemplates_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.FormTemplates(childComplexity, args["teamId"].(*uuid.UUID)), true
 	case "Query.initiative":
 		if e.ComplexityRoot.Query.Initiative == nil {
 			break
@@ -6260,6 +6582,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateAttachmentInput,
 		ec.unmarshalInputCreateCommentInput,
 		ec.unmarshalInputCreateDocumentInput,
+		ec.unmarshalInputCreateFormTemplateFieldInput,
+		ec.unmarshalInputCreateFormTemplateInput,
 		ec.unmarshalInputCreateInitiativeInput,
 		ec.unmarshalInputCreateIssueInput,
 		ec.unmarshalInputCreateIssueTemplateInput,
@@ -6277,6 +6601,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputSearchInput,
 		ec.unmarshalInputUpdateAttachmentInput,
 		ec.unmarshalInputUpdateDocumentInput,
+		ec.unmarshalInputUpdateFormTemplateFieldInput,
+		ec.unmarshalInputUpdateFormTemplateInput,
 		ec.unmarshalInputUpdateInitiativeInput,
 		ec.unmarshalInputUpdateIssueInput,
 		ec.unmarshalInputUpdateIssueTemplateInput,
@@ -6725,6 +7051,8 @@ type Issue {
   subIssueSortOrder: String
   """Which template made this issue, for the question "is this template still worth having"."""
   templateId: UUID
+  """Which form template made this issue, for intake reporting."""
+  formTemplateId: UUID
 
   """At most one project. Two projects on one issue is unrepresentable."""
   projectId: UUID
@@ -6999,6 +7327,54 @@ type IssueTemplate {
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
+}
+
+enum FormTemplateFieldType {
+  text
+  long_text
+  dropdown
+  checkboxes
+  date
+  file_upload
+  instructions
+  label_group
+  priority
+  title
+  due_date
+}
+
+"""
+Structured intake template. Fields are separate rows (` + "`" + `FormTemplateField` + "`" + `) replicated
+alongside the template.
+"""
+type FormTemplate {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the template is offered in every team."""
+  teamId: UUID
+  name: String!
+  description: String
+  """Default issue properties not captured by a field (assignee, status, labels, etc.)."""
+  properties: JSON!
+  position: String!
+  createdBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type FormTemplateField {
+  id: UUID!
+  workspaceId: UUID!
+  formTemplateId: UUID!
+  fieldType: FormTemplateFieldType!
+  label: String!
+  description: String
+  required: Boolean!
+  sortOrder: String!
+  config: JSON!
+  createdAt: Time!
+  updatedAt: Time!
 }
 
 """
@@ -7366,6 +7742,16 @@ type IssueTemplatePayload implements MutationResult {
   template: IssueTemplate!
 }
 
+type FormTemplatePayload implements MutationResult {
+  version: Int!
+  template: FormTemplate!
+}
+
+type FormTemplateFieldPayload implements MutationResult {
+  version: Int!
+  field: FormTemplateField!
+}
+
 enum ProjectStatusCategory {
   BACKLOG
   PLANNED
@@ -7714,6 +8100,8 @@ input CreateIssueInput {
   parentId: UUID
   labelIds: [UUID!]
   templateId: UUID
+  """Records which form template the issue was filed from."""
+  formTemplateId: UUID
   """Place the new issue directly below this one. Omit to append."""
   afterIssueId: UUID
   projectId: UUID
@@ -7858,6 +8246,39 @@ input UpdateIssueTemplateInput {
   title: String
   body: String
   properties: JSON
+}
+
+input CreateFormTemplateInput {
+  teamId: UUID
+  name: String!
+  description: String
+  properties: JSON
+}
+
+input UpdateFormTemplateInput {
+  id: UUID!
+  name: String
+  description: String
+  properties: JSON
+}
+
+input CreateFormTemplateFieldInput {
+  formTemplateId: UUID!
+  fieldType: FormTemplateFieldType!
+  label: String!
+  description: String
+  required: Boolean
+  config: JSON
+}
+
+input UpdateFormTemplateFieldInput {
+  id: UUID!
+  fieldType: FormTemplateFieldType
+  label: String
+  description: String
+  required: Boolean
+  sortOrder: String
+  config: JSON
 }
 
 input UpdateTeamEstimatesInput {
@@ -8101,6 +8522,10 @@ type Query {
   issueTemplates(teamId: UUID): [IssueTemplate!]!
   issueTemplate(id: UUID!): IssueTemplate
 
+  formTemplates(teamId: UUID): [FormTemplate!]!
+  formTemplate(id: UUID!): FormTemplate
+  formTemplateFields(formTemplateId: UUID!): [FormTemplateField!]!
+
   projects: [Project!]!
   project(id: UUID!): Project
   projectStatuses: [ProjectStatus!]!
@@ -8308,6 +8733,13 @@ type Mutation {
   updateIssueTemplate(input: UpdateIssueTemplateInput!): IssueTemplatePayload!
   """Retires a template, or brings one back."""
   archiveIssueTemplate(id: UUID!, archived: Boolean!): DeletePayload!
+
+  createFormTemplate(input: CreateFormTemplateInput!): FormTemplatePayload!
+  updateFormTemplate(input: UpdateFormTemplateInput!): FormTemplatePayload!
+  archiveFormTemplate(id: UUID!, archived: Boolean!): DeletePayload!
+  createFormTemplateField(input: CreateFormTemplateFieldInput!): FormTemplateFieldPayload!
+  updateFormTemplateField(input: UpdateFormTemplateFieldInput!): FormTemplateFieldPayload!
+  deleteFormTemplateField(id: UUID!): DeletePayload!
 
   # ---- projects
 
@@ -8653,6 +9085,82 @@ func (ec *executionContext) childFields_FavoritePayload(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type FavoritePayload", field.Name)
 }
 
+func (ec *executionContext) childFields_FormTemplate(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_FormTemplate_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_FormTemplate_workspaceId(ctx, field)
+	case "teamId":
+		return ec.fieldContext_FormTemplate_teamId(ctx, field)
+	case "name":
+		return ec.fieldContext_FormTemplate_name(ctx, field)
+	case "description":
+		return ec.fieldContext_FormTemplate_description(ctx, field)
+	case "properties":
+		return ec.fieldContext_FormTemplate_properties(ctx, field)
+	case "position":
+		return ec.fieldContext_FormTemplate_position(ctx, field)
+	case "createdBy":
+		return ec.fieldContext_FormTemplate_createdBy(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_FormTemplate_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_FormTemplate_updatedAt(ctx, field)
+	case "archivedAt":
+		return ec.fieldContext_FormTemplate_archivedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FormTemplate", field.Name)
+}
+
+func (ec *executionContext) childFields_FormTemplateField(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_FormTemplateField_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_FormTemplateField_workspaceId(ctx, field)
+	case "formTemplateId":
+		return ec.fieldContext_FormTemplateField_formTemplateId(ctx, field)
+	case "fieldType":
+		return ec.fieldContext_FormTemplateField_fieldType(ctx, field)
+	case "label":
+		return ec.fieldContext_FormTemplateField_label(ctx, field)
+	case "description":
+		return ec.fieldContext_FormTemplateField_description(ctx, field)
+	case "required":
+		return ec.fieldContext_FormTemplateField_required(ctx, field)
+	case "sortOrder":
+		return ec.fieldContext_FormTemplateField_sortOrder(ctx, field)
+	case "config":
+		return ec.fieldContext_FormTemplateField_config(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_FormTemplateField_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_FormTemplateField_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FormTemplateField", field.Name)
+}
+
+func (ec *executionContext) childFields_FormTemplateFieldPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_FormTemplateFieldPayload_version(ctx, field)
+	case "field":
+		return ec.fieldContext_FormTemplateFieldPayload_field(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FormTemplateFieldPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_FormTemplatePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_FormTemplatePayload_version(ctx, field)
+	case "template":
+		return ec.fieldContext_FormTemplatePayload_template(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FormTemplatePayload", field.Name)
+}
+
 func (ec *executionContext) childFields_Initiative(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -8819,6 +9327,8 @@ func (ec *executionContext) childFields_Issue(ctx context.Context, field graphql
 		return ec.fieldContext_Issue_subIssueSortOrder(ctx, field)
 	case "templateId":
 		return ec.fieldContext_Issue_templateId(ctx, field)
+	case "formTemplateId":
+		return ec.fieldContext_Issue_formTemplateId(ctx, field)
 	case "projectId":
 		return ec.fieldContext_Issue_projectId(ctx, field)
 	case "projectMilestoneId":
@@ -10471,6 +10981,28 @@ func (ec *executionContext) field_Mutation_archiveDocument_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_archiveFormTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_archiveInitiative_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -10826,6 +11358,34 @@ func (ec *executionContext) field_Mutation_createDocument_args(ctx context.Conte
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createFormTemplateField_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateFormTemplateFieldInput, error) {
+			return ec.unmarshalNCreateFormTemplateFieldInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateFormTemplateFieldInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createFormTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateFormTemplateInput, error) {
+			return ec.unmarshalNCreateFormTemplateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateFormTemplateInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -11270,6 +11830,20 @@ func (ec *executionContext) field_Mutation_deleteDocument_args(ctx context.Conte
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteFormTemplateField_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -12217,6 +12791,34 @@ func (ec *executionContext) field_Mutation_updateDocument_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateFormTemplateField_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateFormTemplateFieldInput, error) {
+			return ec.unmarshalNUpdateFormTemplateFieldInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateFormTemplateFieldInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateFormTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateFormTemplateInput, error) {
+			return ec.unmarshalNUpdateFormTemplateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateFormTemplateInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateInitiative_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -12716,6 +13318,48 @@ func (ec *executionContext) field_Query_document_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_formTemplateFields_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "formTemplateId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["formTemplateId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_formTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_formTemplates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
 	return args, nil
 }
 
@@ -15570,6 +16214,622 @@ func (ec *executionContext) fieldContext_FavoritePayload_favorite(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _FormTemplate_id(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplate_workspaceId(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplate_teamId(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_teamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplate_name(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplate_description(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplate_properties(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_properties(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Properties, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_properties(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplate_position(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplate_createdBy(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_createdBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplate_createdAt(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplate_updatedAt(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplate_archivedAt(ctx context.Context, field graphql.CollectedField, obj *FormTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplate_archivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplate_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplate", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_id(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_workspaceId(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_formTemplateId(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_formTemplateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FormTemplateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_formTemplateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_fieldType(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_fieldType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FieldType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v FormTemplateFieldType) graphql.Marshaler {
+			return ec.marshalNFormTemplateFieldType2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldType(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_fieldType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type FormTemplateFieldType does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_label(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_description(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_required(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_required(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Required, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_required(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_sortOrder(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_sortOrder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SortOrder, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_config(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_config(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Config, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_config(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_createdAt(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateField_updatedAt(ctx context.Context, field graphql.CollectedField, obj *FormTemplateField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateField_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateField_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateField", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateFieldPayload_version(ctx context.Context, field graphql.CollectedField, obj *FormTemplateFieldPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateFieldPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateFieldPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplateFieldPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplateFieldPayload_field(ctx context.Context, field graphql.CollectedField, obj *FormTemplateFieldPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplateFieldPayload_field(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Field, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *FormTemplateField) graphql.Marshaler {
+			return ec.marshalNFormTemplateField2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateField(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplateFieldPayload_field(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FormTemplateFieldPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FormTemplateField(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FormTemplatePayload_version(ctx context.Context, field graphql.CollectedField, obj *FormTemplatePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplatePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplatePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FormTemplatePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _FormTemplatePayload_template(ctx context.Context, field graphql.CollectedField, obj *FormTemplatePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FormTemplatePayload_template(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Template, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *FormTemplate) graphql.Marshaler {
+			return ec.marshalNFormTemplate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplate(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FormTemplatePayload_template(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FormTemplatePayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FormTemplate(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Initiative_id(ctx context.Context, field graphql.CollectedField, obj *Initiative) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -17102,6 +18362,29 @@ func (ec *executionContext) _Issue_templateId(ctx context.Context, field graphql
 	)
 }
 func (ec *executionContext) fieldContext_Issue_templateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Issue_formTemplateId(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Issue_formTemplateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FormTemplateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Issue_formTemplateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type UUID does not have child fields"))
 }
 
@@ -23671,6 +24954,270 @@ func (ec *executionContext) fieldContext_Mutation_archiveIssueTemplate(ctx conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createFormTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createFormTemplate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateFormTemplate(ctx, fc.Args["input"].(CreateFormTemplateInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *FormTemplatePayload) graphql.Marshaler {
+			return ec.marshalNFormTemplatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplatePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createFormTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FormTemplatePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createFormTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateFormTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateFormTemplate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateFormTemplate(ctx, fc.Args["input"].(UpdateFormTemplateInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *FormTemplatePayload) graphql.Marshaler {
+			return ec.marshalNFormTemplatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplatePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateFormTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FormTemplatePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateFormTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveFormTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_archiveFormTemplate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ArchiveFormTemplate(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_archiveFormTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveFormTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createFormTemplateField(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createFormTemplateField(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateFormTemplateField(ctx, fc.Args["input"].(CreateFormTemplateFieldInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *FormTemplateFieldPayload) graphql.Marshaler {
+			return ec.marshalNFormTemplateFieldPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createFormTemplateField(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FormTemplateFieldPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createFormTemplateField_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateFormTemplateField(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateFormTemplateField(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateFormTemplateField(ctx, fc.Args["input"].(UpdateFormTemplateFieldInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *FormTemplateFieldPayload) graphql.Marshaler {
+			return ec.marshalNFormTemplateFieldPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateFormTemplateField(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FormTemplateFieldPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateFormTemplateField_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteFormTemplateField(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteFormTemplateField(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteFormTemplateField(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteFormTemplateField(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteFormTemplateField_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createProject(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -29127,6 +30674,138 @@ func (ec *executionContext) fieldContext_Query_issueTemplate(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_issueTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_formTemplates(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_formTemplates(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().FormTemplates(ctx, fc.Args["teamId"].(*uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []FormTemplate) graphql.Marshaler {
+			return ec.marshalNFormTemplate2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_formTemplates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FormTemplate(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_formTemplates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_formTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_formTemplate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().FormTemplate(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *FormTemplate) graphql.Marshaler {
+			return ec.marshalOFormTemplate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplate(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_formTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FormTemplate(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_formTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_formTemplateFields(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_formTemplateFields(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().FormTemplateFields(ctx, fc.Args["formTemplateId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []FormTemplateField) graphql.Marshaler {
+			return ec.marshalNFormTemplateField2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_formTemplateFields(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FormTemplateField(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_formTemplateFields_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -35550,6 +37229,122 @@ func (ec *executionContext) unmarshalInputCreateDocumentInput(ctx context.Contex
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateFormTemplateFieldInput(ctx context.Context, obj any) (CreateFormTemplateFieldInput, error) {
+	var it CreateFormTemplateFieldInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"formTemplateId", "fieldType", "label", "description", "required", "config"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "formTemplateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("formTemplateId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FormTemplateID = data
+		case "fieldType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fieldType"))
+			data, err := ec.unmarshalNFormTemplateFieldType2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldType(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FieldType = data
+		case "label":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("label"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Label = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "required":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("required"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Required = data
+		case "config":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("config"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Config = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateFormTemplateInput(ctx context.Context, obj any) (CreateFormTemplateInput, error) {
+	var it CreateFormTemplateInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"teamId", "name", "description", "properties"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "properties":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("properties"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Properties = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateInitiativeInput(ctx context.Context, obj any) (CreateInitiativeInput, error) {
 	var it CreateInitiativeInput
 	if obj == nil {
@@ -35640,7 +37435,7 @@ func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "teamId", "title", "description", "stateId", "assigneeId", "priority", "estimate", "dueDate", "parentId", "labelIds", "templateId", "afterIssueId", "projectId", "projectMilestoneId", "cycleId", "fromTriage"}
+	fieldsInOrder := [...]string{"id", "teamId", "title", "description", "stateId", "assigneeId", "priority", "estimate", "dueDate", "parentId", "labelIds", "templateId", "formTemplateId", "afterIssueId", "projectId", "projectMilestoneId", "cycleId", "fromTriage"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -35731,6 +37526,13 @@ func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, 
 				return it, err
 			}
 			it.TemplateID = data
+		case "formTemplateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("formTemplateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FormTemplateID = data
 		case "afterIssueId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("afterIssueId"))
 			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
@@ -36727,6 +38529,129 @@ func (ec *executionContext) unmarshalInputUpdateDocumentInput(ctx context.Contex
 				return it, err
 			}
 			it.Body = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateFormTemplateFieldInput(ctx context.Context, obj any) (UpdateFormTemplateFieldInput, error) {
+	var it UpdateFormTemplateFieldInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "fieldType", "label", "description", "required", "sortOrder", "config"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "fieldType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fieldType"))
+			data, err := ec.unmarshalOFormTemplateFieldType2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldType(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FieldType = data
+		case "label":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("label"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Label = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "required":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("required"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Required = data
+		case "sortOrder":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortOrder"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SortOrder = data
+		case "config":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("config"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Config = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateFormTemplateInput(ctx context.Context, obj any) (UpdateFormTemplateInput, error) {
+	var it UpdateFormTemplateInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name", "description", "properties"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "properties":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("properties"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Properties = data
 		}
 	}
 	return it, nil
@@ -38381,6 +40306,20 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._InitiativePayload(ctx, sel, obj)
+	case FormTemplatePayload:
+		return ec._FormTemplatePayload(ctx, sel, &obj)
+	case *FormTemplatePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._FormTemplatePayload(ctx, sel, obj)
+	case FormTemplateFieldPayload:
+		return ec._FormTemplateFieldPayload(ctx, sel, &obj)
+	case *FormTemplateFieldPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._FormTemplateFieldPayload(ctx, sel, obj)
 	case FavoritePayload:
 		return ec._FavoritePayload(ctx, sel, &obj)
 	case *FavoritePayload:
@@ -39554,6 +41493,268 @@ func (ec *executionContext) _FavoritePayload(ctx context.Context, sel ast.Select
 	return out
 }
 
+var formTemplateImplementors = []string{"FormTemplate"}
+
+func (ec *executionContext) _FormTemplate(ctx context.Context, sel ast.SelectionSet, obj *FormTemplate) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, formTemplateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FormTemplate")
+		case "id":
+			out.Values[i] = ec._FormTemplate_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._FormTemplate_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamId":
+			out.Values[i] = ec._FormTemplate_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._FormTemplate_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._FormTemplate_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "properties":
+			out.Values[i] = ec._FormTemplate_properties(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._FormTemplate_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdBy":
+			out.Values[i] = ec._FormTemplate_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._FormTemplate_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._FormTemplate_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archivedAt":
+			out.Values[i] = ec._FormTemplate_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var formTemplateFieldImplementors = []string{"FormTemplateField"}
+
+func (ec *executionContext) _FormTemplateField(ctx context.Context, sel ast.SelectionSet, obj *FormTemplateField) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, formTemplateFieldImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FormTemplateField")
+		case "id":
+			out.Values[i] = ec._FormTemplateField_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._FormTemplateField_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "formTemplateId":
+			out.Values[i] = ec._FormTemplateField_formTemplateId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fieldType":
+			out.Values[i] = ec._FormTemplateField_fieldType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._FormTemplateField_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._FormTemplateField_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "required":
+			out.Values[i] = ec._FormTemplateField_required(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sortOrder":
+			out.Values[i] = ec._FormTemplateField_sortOrder(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "config":
+			out.Values[i] = ec._FormTemplateField_config(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._FormTemplateField_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._FormTemplateField_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var formTemplateFieldPayloadImplementors = []string{"FormTemplateFieldPayload", "MutationResult"}
+
+func (ec *executionContext) _FormTemplateFieldPayload(ctx context.Context, sel ast.SelectionSet, obj *FormTemplateFieldPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, formTemplateFieldPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FormTemplateFieldPayload")
+		case "version":
+			out.Values[i] = ec._FormTemplateFieldPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "field":
+			out.Values[i] = ec._FormTemplateFieldPayload_field(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var formTemplatePayloadImplementors = []string{"FormTemplatePayload", "MutationResult"}
+
+func (ec *executionContext) _FormTemplatePayload(ctx context.Context, sel ast.SelectionSet, obj *FormTemplatePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, formTemplatePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FormTemplatePayload")
+		case "version":
+			out.Values[i] = ec._FormTemplatePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "template":
+			out.Values[i] = ec._FormTemplatePayload_template(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var initiativeImplementors = []string{"Initiative"}
 
 func (ec *executionContext) _Initiative(ctx context.Context, sel ast.SelectionSet, obj *Initiative) graphql.Marshaler {
@@ -40081,6 +42282,11 @@ func (ec *executionContext) _Issue(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "templateId":
 			out.Values[i] = ec._Issue_templateId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "formTemplateId":
+			out.Values[i] = ec._Issue_formTemplateId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -41583,6 +43789,48 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "archiveIssueTemplate":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_archiveIssueTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createFormTemplate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createFormTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateFormTemplate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateFormTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveFormTemplate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveFormTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createFormTemplateField":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createFormTemplateField(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateFormTemplateField":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateFormTemplateField(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteFormTemplateField":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteFormTemplateField(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -43706,6 +45954,72 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_issueTemplate(ctx, field)
 				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "formTemplates":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_formTemplates(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "formTemplate":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_formTemplate(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "formTemplateFields":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_formTemplateFields(ctx, field)
+				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
@@ -46472,6 +48786,16 @@ func (ec *executionContext) unmarshalNCreateDocumentInput2githubᚗcomᚋpeixoto
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateFormTemplateFieldInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateFormTemplateFieldInput(ctx context.Context, v any) (CreateFormTemplateFieldInput, error) {
+	res, err := ec.unmarshalInputCreateFormTemplateFieldInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateFormTemplateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateFormTemplateInput(ctx context.Context, v any) (CreateFormTemplateInput, error) {
+	res, err := ec.unmarshalInputCreateFormTemplateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateInitiativeInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateInitiativeInput(ctx context.Context, v any) (CreateInitiativeInput, error) {
 	res, err := ec.unmarshalInputCreateInitiativeInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -46687,6 +49011,104 @@ func (ec *executionContext) marshalNFavoritePayload2ᚖgithubᚗcomᚋpeixotolab
 		return graphql.Null
 	}
 	return ec._FavoritePayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFormTemplate2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplate(ctx context.Context, sel ast.SelectionSet, v FormTemplate) graphql.Marshaler {
+	return ec._FormTemplate(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNFormTemplate2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateᚄ(ctx context.Context, sel ast.SelectionSet, v []FormTemplate) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFormTemplate2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplate(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFormTemplate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplate(ctx context.Context, sel ast.SelectionSet, v *FormTemplate) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FormTemplate(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFormTemplateField2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateField(ctx context.Context, sel ast.SelectionSet, v FormTemplateField) graphql.Marshaler {
+	return ec._FormTemplateField(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNFormTemplateField2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldᚄ(ctx context.Context, sel ast.SelectionSet, v []FormTemplateField) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFormTemplateField2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateField(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFormTemplateField2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateField(ctx context.Context, sel ast.SelectionSet, v *FormTemplateField) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FormTemplateField(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFormTemplateFieldPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldPayload(ctx context.Context, sel ast.SelectionSet, v FormTemplateFieldPayload) graphql.Marshaler {
+	return ec._FormTemplateFieldPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNFormTemplateFieldPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldPayload(ctx context.Context, sel ast.SelectionSet, v *FormTemplateFieldPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FormTemplateFieldPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNFormTemplateFieldType2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldType(ctx context.Context, v any) (FormTemplateFieldType, error) {
+	var res FormTemplateFieldType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFormTemplateFieldType2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldType(ctx context.Context, sel ast.SelectionSet, v FormTemplateFieldType) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNFormTemplatePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplatePayload(ctx context.Context, sel ast.SelectionSet, v FormTemplatePayload) graphql.Marshaler {
+	return ec._FormTemplatePayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNFormTemplatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplatePayload(ctx context.Context, sel ast.SelectionSet, v *FormTemplatePayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FormTemplatePayload(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNInitiative2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiative(ctx context.Context, sel ast.SelectionSet, v Initiative) graphql.Marshaler {
@@ -47879,6 +50301,16 @@ func (ec *executionContext) unmarshalNUpdateDocumentInput2githubᚗcomᚋpeixoto
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateFormTemplateFieldInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateFormTemplateFieldInput(ctx context.Context, v any) (UpdateFormTemplateFieldInput, error) {
+	res, err := ec.unmarshalInputUpdateFormTemplateFieldInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateFormTemplateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateFormTemplateInput(ctx context.Context, v any) (UpdateFormTemplateInput, error) {
+	res, err := ec.unmarshalInputUpdateFormTemplateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateInitiativeInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateInitiativeInput(ctx context.Context, v any) (UpdateInitiativeInput, error) {
 	res, err := ec.unmarshalInputUpdateInitiativeInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -48508,6 +50940,29 @@ func (ec *executionContext) marshalODocument2ᚖgithubᚗcomᚋpeixotolabsᚋpol
 		return graphql.Null
 	}
 	return ec._Document(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOFormTemplate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplate(ctx context.Context, sel ast.SelectionSet, v *FormTemplate) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._FormTemplate(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOFormTemplateFieldType2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldType(ctx context.Context, v any) (*FormTemplateFieldType, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(FormTemplateFieldType)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOFormTemplateFieldType2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldType(ctx context.Context, sel ast.SelectionSet, v *FormTemplateFieldType) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalOInitiative2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiative(ctx context.Context, sel ast.SelectionSet, v *Initiative) graphql.Marshaler {

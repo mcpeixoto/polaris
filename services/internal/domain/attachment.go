@@ -368,7 +368,7 @@ func attachmentMetadata(raw json.RawMessage) (json.RawMessage, error) {
 // idempotency rule still holds after a merge.
 func (s *Service) moveAttachmentsOnDuplicate(
 	ctx context.Context, q *store.Queries,
-	from, to store.Issue, private bool,
+	from, to store.GetIssueRow, private bool,
 ) ([]Change, error) {
 	rows, err := q.ListAttachmentsForIssue(ctx, from.ID)
 	if err != nil {

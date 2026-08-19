@@ -229,6 +229,9 @@ type Issue struct {
 	// TemplateID records which template made this issue. Not for display: for the
 	// question "is this template still worth having", which nothing else can answer.
 	TemplateID *uuid.UUID `json:"templateId,omitempty"`
+	// FormTemplateID records which form template made this issue — parallel provenance
+	// for intake reporting.
+	FormTemplateID *uuid.UUID `json:"formTemplateId,omitempty"`
 
 	// At most one project, as a column rather than a join: two projects on one issue is
 	// a state the schema cannot represent. A milestone implies its project.
@@ -546,6 +549,56 @@ type IssueTemplate struct {
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
+// FormTemplateFieldType names a field kind in a form template.
+type FormTemplateFieldType string
+
+const (
+	FormFieldText         FormTemplateFieldType = "text"
+	FormFieldLongText     FormTemplateFieldType = "long_text"
+	FormFieldDropdown     FormTemplateFieldType = "dropdown"
+	FormFieldCheckboxes   FormTemplateFieldType = "checkboxes"
+	FormFieldDate         FormTemplateFieldType = "date"
+	FormFieldFileUpload   FormTemplateFieldType = "file_upload"
+	FormFieldInstructions FormTemplateFieldType = "instructions"
+	FormFieldLabelGroup   FormTemplateFieldType = "label_group"
+	FormFieldPriority     FormTemplateFieldType = "priority"
+	FormFieldTitle        FormTemplateFieldType = "title"
+	FormFieldDueDate      FormTemplateFieldType = "due_date"
+)
+
+// FormTemplate is a structured intake template.
+type FormTemplate struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      *uuid.UUID `json:"teamId,omitempty"`
+
+	Name        string          `json:"name"`
+	Description *string         `json:"description,omitempty"`
+	Properties  json.RawMessage `json:"properties"`
+
+	Position string `json:"position"`
+
+	CreatedBy  *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
+// FormTemplateField is one input in a form template.
+type FormTemplateField struct {
+	ID             uuid.UUID             `json:"id"`
+	WorkspaceID    uuid.UUID             `json:"workspaceId"`
+	FormTemplateID uuid.UUID             `json:"formTemplateId"`
+	FieldType      FormTemplateFieldType `json:"fieldType"`
+	Label          string                `json:"label"`
+	Description    *string               `json:"description,omitempty"`
+	Required       bool                  `json:"required"`
+	SortOrder      string                `json:"sortOrder"`
+	Config         json.RawMessage       `json:"config"`
+	CreatedAt      time.Time             `json:"createdAt"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
 }
 
 // APIKey is a personal key, which acts as its owner.

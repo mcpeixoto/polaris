@@ -273,6 +273,7 @@ export interface Issue {
   /** Order among siblings. A checklist's order has nothing to do with the backlog's. */
   readonly subIssueSortOrder?: string;
   readonly templateId?: UUID;
+  readonly formTemplateId?: UUID;
   readonly projectId?: UUID;
   readonly projectMilestoneId?: UUID;
   readonly cycleId?: UUID;
@@ -576,6 +577,47 @@ export interface TemplateProperties {
   readonly labelIds?: readonly UUID[];
 }
 
+export type FormTemplateFieldType =
+  | 'text'
+  | 'long_text'
+  | 'dropdown'
+  | 'checkboxes'
+  | 'date'
+  | 'file_upload'
+  | 'instructions'
+  | 'label_group'
+  | 'priority'
+  | 'title'
+  | 'due_date';
+
+export interface FormTemplate {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly teamId?: UUID;
+  readonly name: string;
+  readonly description?: string;
+  readonly properties: TemplateProperties;
+  readonly position: string;
+  readonly createdBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+export interface FormTemplateField {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly formTemplateId: UUID;
+  readonly fieldType: FormTemplateFieldType;
+  readonly label: string;
+  readonly description?: string;
+  readonly required: boolean;
+  readonly sortOrder: string;
+  readonly config: Record<string, unknown>;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 export type ProjectStatusCategory = 'backlog' | 'planned' | 'started' | 'completed' | 'canceled';
 
 export type TimeframeGranularity = 'day' | 'month' | 'quarter' | 'half' | 'year';
@@ -773,6 +815,8 @@ export interface EntityByType {
   workflowState: WorkflowState;
   label: Label;
   issueTemplate: IssueTemplate;
+  formTemplate: FormTemplate;
+  formTemplateField: FormTemplateField;
   projectStatus: ProjectStatus;
   project: Project;
   projectTeam: ProjectTeam;
@@ -817,6 +861,8 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   // Before issues: an issue may carry a labelId or a templateId.
   'label',
   'issueTemplate',
+  'formTemplate',
+  'formTemplateField',
   // Before issues: an issue may name a project and a milestone.
   'projectStatus',
   'project',

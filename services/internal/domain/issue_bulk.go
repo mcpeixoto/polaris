@@ -149,7 +149,7 @@ func (s *Service) BulkUpdateIssues(
 		teams := map[uuid.UUID]store.Team{}
 		assigneeChecked := map[uuid.UUID]bool{}
 		seen := map[uuid.UUID]bool{}
-		before := make([]store.Issue, 0, len(in.IDs))
+		before := make([]store.GetIssueRow, 0, len(in.IDs))
 
 		// One point read per id. These are primary-key lookups inside a transaction that
 		// holds no contended lock yet — the version lock is not taken until Emit — and they
@@ -283,7 +283,7 @@ func (s *Service) BulkUpdateIssues(
 			return platform.Internal(err)
 		}
 
-		beforeByID := make(map[uuid.UUID]store.Issue, len(before))
+		beforeByID := make(map[uuid.UUID]store.GetIssueRow, len(before))
 		for _, row := range before {
 			beforeByID[row.ID] = row
 		}
@@ -297,7 +297,7 @@ func (s *Service) BulkUpdateIssues(
 		changes := make([]Change, 0, len(rows))
 		for _, row := range rows {
 			team := teams[row.TeamID]
-			issue := toIssue(row, team.Key)
+			issue := toIssue(store.AsIssueRow(row), team.Key)
 			out = append(out, issue)
 			changes = append(changes, Change{
 				EntityType: "issue", EntityID: row.ID, Op: OpUpsert, TeamID: &row.TeamID,
@@ -317,7 +317,7 @@ func (s *Service) BulkUpdateIssues(
 		// reading it, from one that changed by itself.
 		stateNames := map[uuid.UUID]string{}
 		for _, row := range rows {
-			entries, err := bulkHistoryEntries(ctx, q, beforeByID[row.ID], row, stateNames)
+			entries, err := bulkHistoryEntries(ctx, q, beforeByID[row.ID], store.AsIssueRow(row), stateNames)
 			if err != nil {
 				return err
 			}
@@ -366,7 +366,7 @@ func bulkChangedFields(in BulkUpdateIssuesInput) []string {
 // moving between the same two columns would otherwise read the same two rows four hundred
 // times.
 func bulkHistoryEntries(
-	ctx context.Context, q *store.Queries, before, after store.Issue, names map[uuid.UUID]string,
+	ctx context.Context, q *store.Queries, before, after store.GetIssueRow, names map[uuid.UUID]string,
 ) ([]HistoryEntry, error) {
 	var entries []HistoryEntry
 
@@ -486,7 +486,7 @@ func (s *Service) RestoreIssue(
 		if err != nil {
 			return err
 		}
-		out = toIssue(row, team.Key)
+		out = toIssue(store.AsIssueRow(row), team.Key)
 
 		change := Change{
 			EntityType: "issue", EntityID: id, Op: OpUpsert, TeamID: &row.TeamID,
@@ -512,7 +512,7 @@ func (s *Service) RestoreIssue(
 			changes[0].Op = OpDelete
 			changes[0].Payload = nil
 		} else {
-			contents, err := restoredIssueContents(ctx, q, p.WorkspaceID, row, team.Private)
+			contents, err := restoredIssueContents(ctx, q, p.WorkspaceID, store.AsIssueRow(row), team.Private)
 			if err != nil {
 				return err
 			}
@@ -552,7 +552,7 @@ func (s *Service) RestoreIssue(
 // on one issue, and the alternative is a replica whose inbox quietly disagrees with the
 // server's until something forces a re-bootstrap.
 func restoredIssueContents(
-	ctx context.Context, q *store.Queries, workspaceID uuid.UUID, issue store.Issue, private bool,
+	ctx context.Context, q *store.Queries, workspaceID uuid.UUID, issue store.GetIssueRow, private bool,
 ) ([]Change, error) {
 	scope := authz.TeamScope(issue.TeamID, private)
 	teamID := issue.TeamID
@@ -725,7 +725,7 @@ func (s *Service) ListDeletedIssues(ctx context.Context, p *authz.Principal) ([]
 
 	out := make([]model.Issue, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, toIssue(r, keys[r.TeamID]))
+		out = append(out, toIssue(store.AsIssueRow(r), keys[r.TeamID]))
 	}
 	return out, nil
 }
@@ -992,7 +992,11 @@ func (s *Service) IssueProgress(
 	if err != nil {
 		return nil, platform.Internal(err)
 	}
-	return rollUpProgress(children), nil
+	rows := make([]store.GetIssueRow, len(children))
+	for i, c := range children {
+		rows[i] = store.AsIssueRow(c)
+	}
+	return rollUpProgress(rows), nil
 }
 
 // rollUpProgress is the arithmetic behind the progress bar, shared by the single-issue call
@@ -1002,7 +1006,7 @@ func (s *Service) IssueProgress(
 // gets re-derived slightly differently the second time somebody writes it, and two progress
 // bars on one screen disagreeing about the same parent is a bug nobody can reproduce on
 // demand.
-func rollUpProgress(children []store.Issue) *model.IssueProgress {
+func rollUpProgress(children []store.GetIssueRow) *model.IssueProgress {
 	if len(children) == 0 {
 		// No children is "this is not a parent", which is a different statement from nought
 		// per cent complete — hence nil, and a nullable field on the wire.
