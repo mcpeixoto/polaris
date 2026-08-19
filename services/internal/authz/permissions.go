@@ -78,6 +78,11 @@ const (
 	// admin action: a member minting a URL that receives every issue is an exfiltration
 	// path nobody would review.
 	ActionWebhookManage Action = "webhook.manage"
+
+	// Connecting GitHub for the workspace: inbound webhooks, branch format, commit linking.
+	// Admin because the install covers every team and the commit-webhook secret is a
+	// credential that would otherwise sit in a member's clipboard.
+	ActionGitHubManage Action = "github.manage"
 )
 
 // AllActions exists so a test can assert that every action is classified.
@@ -97,7 +102,7 @@ var AllActions = []Action{
 	ActionWorkspaceViewManage, ActionTeamViewManage,
 	ActionWorkspaceTemplateManage, ActionTeamTemplateManage,
 	ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete, ActionProjectStatusManage,
-	ActionAPIKeyManage, ActionWebhookManage,
+	ActionAPIKeyManage, ActionWebhookManage, ActionGitHubManage,
 }
 
 // Deliberately absent: notifications, subscriptions, favourites and view preferences.
@@ -148,7 +153,7 @@ func Can(p *Principal, a Action) bool {
 		// team-scoped equivalents are not.
 		ActionWorkspaceLabelManage, ActionWorkspaceViewManage, ActionWorkspaceTemplateManage,
 		ActionProjectStatusManage,
-		ActionWebhookManage:
+		ActionWebhookManage, ActionGitHubManage:
 		return p.Role.IsAdmin()
 
 	case ActionTeamJoin, ActionAPIKeyManage, ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete:

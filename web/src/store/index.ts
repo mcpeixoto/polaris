@@ -75,6 +75,8 @@ export type {
   FormTemplate,
   FormTemplateField,
   FormTemplateFieldType,
+  GitHubConnection,
+  GitHubUserLink,
   ProjectTemplate,
   ProjectTemplateMilestone,
   ProjectTemplateIssue,

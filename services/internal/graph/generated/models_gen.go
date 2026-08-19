@@ -193,6 +193,16 @@ type CreateFormTemplateInput struct {
 	Properties  json.RawMessage `json:"properties,omitempty"`
 }
 
+type CreateGitHubConnectionInput struct {
+	OrgLogin         *string `json:"orgLogin,omitempty"`
+	BranchNameFormat *string `json:"branchNameFormat,omitempty"`
+	LinkCommits      *bool   `json:"linkCommits,omitempty"`
+}
+
+type CreateGitHubUserLinkInput struct {
+	GithubLogin string `json:"githubLogin"`
+}
+
 type CreateInitiativeInput struct {
 	Name                  string                `json:"name"`
 	Description           *string               `json:"description,omitempty"`
@@ -525,6 +535,56 @@ type FormTemplatePayload struct {
 
 func (FormTemplatePayload) IsMutationResult() {}
 
+type GitHubCommitWebhook struct {
+	URL    string `json:"url"`
+	Secret string `json:"secret"`
+}
+
+// Workspace GitHub install. Credentials are not on this type: the replica carries the
+// settings a client needs to copy a git branch name, and nothing that could be a token.
+type GitHubConnection struct {
+	ID               uuid.UUID  `json:"id"`
+	WorkspaceID      uuid.UUID  `json:"workspaceId"`
+	CreatorID        uuid.UUID  `json:"creatorId"`
+	Enabled          bool       `json:"enabled"`
+	OrgLogin         *string    `json:"orgLogin,omitempty"`
+	BranchNameFormat string     `json:"branchNameFormat"`
+	LinkCommits      bool       `json:"linkCommits"`
+	ConnectedAt      *time.Time `json:"connectedAt,omitempty"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	UpdatedAt        time.Time  `json:"updatedAt"`
+}
+
+type GitHubConnectionPayload struct {
+	Version          int               `json:"version"`
+	GithubConnection *GitHubConnection `json:"githubConnection"`
+}
+
+func (GitHubConnectionPayload) IsMutationResult() {}
+
+type GitHubLinkPayload struct {
+	Version     int          `json:"version"`
+	Attachments []Attachment `json:"attachments"`
+}
+
+func (GitHubLinkPayload) IsMutationResult() {}
+
+type GitHubUserLink struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	UserID      uuid.UUID `json:"userId"`
+	GithubLogin string    `json:"githubLogin"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type GitHubUserLinkPayload struct {
+	Version        int             `json:"version"`
+	GithubUserLink *GitHubUserLink `json:"githubUserLink"`
+}
+
+func (GitHubUserLinkPayload) IsMutationResult() {}
+
 // A workspace objective grouping a manually curated set of projects.
 type Initiative struct {
 	ID                    uuid.UUID             `json:"id"`
@@ -826,6 +886,13 @@ type LabelPayload struct {
 }
 
 func (LabelPayload) IsMutationResult() {}
+
+type LinkGitHubPullRequestInput struct {
+	URL        string  `json:"url"`
+	Title      *string `json:"title,omitempty"`
+	Body       *string `json:"body,omitempty"`
+	BranchName *string `json:"branchName,omitempty"`
+}
 
 type Mutation struct {
 }
@@ -1318,6 +1385,13 @@ type UpdateFormTemplateInput struct {
 	Name        *string         `json:"name,omitempty"`
 	Description *string         `json:"description,omitempty"`
 	Properties  json.RawMessage `json:"properties,omitempty"`
+}
+
+type UpdateGitHubConnectionInput struct {
+	OrgLogin         *string `json:"orgLogin,omitempty"`
+	BranchNameFormat *string `json:"branchNameFormat,omitempty"`
+	LinkCommits      *bool   `json:"linkCommits,omitempty"`
+	Enabled          *bool   `json:"enabled,omitempty"`
 }
 
 type UpdateInitiativeInput struct {

@@ -220,6 +220,7 @@ describe('the settings section', () => {
       'Templates',
       'API keys',
       'Webhooks',
+      'GitHub',
       'Trash',
       'Deleted teams',
     ]) {

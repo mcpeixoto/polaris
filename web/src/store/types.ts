@@ -115,6 +115,36 @@ export interface User {
 }
 
 /**
+ * Workspace GitHub install, minus credentials. On the replica so Copy git branch
+ * name works offline and the settings screen can render without a round trip.
+ */
+export interface GitHubConnection {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly creatorId: UUID;
+  readonly enabled: boolean;
+  readonly orgLogin?: string;
+  readonly branchNameFormat: string;
+  readonly linkCommits: boolean;
+  readonly connectedAt?: Timestamp;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/**
+ * The caller's linked GitHub login. Tokens are absent for the same reason API keys
+ * never replicate theirs.
+ */
+export interface GitHubUserLink {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly userId: UUID;
+  readonly githubLogin: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/**
  * Delivery preferences. Every key is optional and absence means the default, so a client
  * built before a notification type existed does not have to know about it.
  */
@@ -867,6 +897,8 @@ export interface Cycle {
 export interface EntityByType {
   workspace: Workspace;
   user: User;
+  githubConnection: GitHubConnection;
+  githubUserLink: GitHubUserLink;
   team: Team;
   teamMembership: TeamMembership;
   workflowState: WorkflowState;
@@ -915,6 +947,8 @@ export type Entity = EntityByType[EntityType];
 export const ENTITY_TYPES: readonly EntityType[] = [
   'workspace',
   'user',
+  'githubConnection',
+  'githubUserLink',
   'team',
   'teamMembership',
   'workflowState',

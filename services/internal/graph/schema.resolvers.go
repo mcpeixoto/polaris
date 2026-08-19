@@ -2567,6 +2567,107 @@ func (r *mutationResolver) DeleteWebhook(ctx context.Context, id uuid.UUID) (*ge
 	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
 }
 
+// CreateGitHubConnection is the resolver for the createGitHubConnection field.
+func (r *mutationResolver) CreateGitHubConnection(ctx context.Context, input generated.CreateGitHubConnectionInput) (*generated.GitHubConnectionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	conn, _, version, err := r.Svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{
+		OrgLogin:         input.OrgLogin,
+		BranchNameFormat: input.BranchNameFormat,
+		LinkCommits:      input.LinkCommits,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitHubConnection(conn)
+	return &generated.GitHubConnectionPayload{Version: int(version), GithubConnection: &out}, nil
+}
+
+// UpdateGitHubConnection is the resolver for the updateGitHubConnection field.
+func (r *mutationResolver) UpdateGitHubConnection(ctx context.Context, input generated.UpdateGitHubConnectionInput) (*generated.GitHubConnectionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	conn, version, err := r.Svc.UpdateGitHubConnection(ctx, p, domain.UpdateGitHubConnectionInput{
+		OrgLogin:         input.OrgLogin,
+		BranchNameFormat: input.BranchNameFormat,
+		LinkCommits:      input.LinkCommits,
+		Enabled:          input.Enabled,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitHubConnection(conn)
+	return &generated.GitHubConnectionPayload{Version: int(version), GithubConnection: &out}, nil
+}
+
+// DeleteGitHubConnection is the resolver for the deleteGitHubConnection field.
+func (r *mutationResolver) DeleteGitHubConnection(ctx context.Context) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	id, version, err := r.Svc.DeleteGitHubConnection(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// CreateGitHubUserLink is the resolver for the createGitHubUserLink field.
+func (r *mutationResolver) CreateGitHubUserLink(ctx context.Context, input generated.CreateGitHubUserLinkInput) (*generated.GitHubUserLinkPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	link, version, err := r.Svc.CreateGitHubUserLink(ctx, p, domain.CreateGitHubUserLinkInput{
+		GitHubLogin: input.GithubLogin,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitHubUserLink(link)
+	return &generated.GitHubUserLinkPayload{Version: int(version), GithubUserLink: &out}, nil
+}
+
+// DeleteGitHubUserLink is the resolver for the deleteGitHubUserLink field.
+func (r *mutationResolver) DeleteGitHubUserLink(ctx context.Context) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	id, version, err := r.Svc.DeleteGitHubUserLink(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// LinkGitHubPullRequest is the resolver for the linkGitHubPullRequest field.
+func (r *mutationResolver) LinkGitHubPullRequest(ctx context.Context, input generated.LinkGitHubPullRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.GitHubLinkPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.LinkGitHubPullRequestInput{
+		URL:        input.URL,
+		Title:      deref(input.Title),
+		Body:       deref(input.Body),
+		BranchName: deref(input.BranchName),
+	}
+	atts, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) ([]model.Attachment, int64, error) {
+			return r.Svc.LinkGitHubPullRequest(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.GitHubLinkPayload{Version: int(version), Attachments: toAttachments(atts)}, nil
+}
+
 // Viewer is the resolver for the viewer field.
 //
 // The one composite query in the schema: it is what the client asks for before it opens
@@ -3577,6 +3678,67 @@ func (r *queryResolver) Initiative(ctx context.Context, id uuid.UUID) (*generate
 		return nil, PresentError(ctx, err)
 	}
 	return &out, nil
+}
+
+// GithubConnection is the resolver for the githubConnection field.
+func (r *queryResolver) GithubConnection(ctx context.Context) (*generated.GitHubConnection, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	conn, err := r.Svc.GetGitHubConnection(ctx, p)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitHubConnection(conn)
+	return &out, nil
+}
+
+// GithubUserLink is the resolver for the githubUserLink field.
+func (r *queryResolver) GithubUserLink(ctx context.Context) (*generated.GitHubUserLink, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	link, err := r.Svc.GetGitHubUserLink(ctx, p)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitHubUserLink(link)
+	return &out, nil
+}
+
+// GithubOAuthConfigured is the resolver for the githubOAuthConfigured field.
+func (r *queryResolver) GithubOAuthConfigured(ctx context.Context) (bool, error) {
+	if _, err := principalFrom(ctx); err != nil {
+		return false, PresentError(ctx, err)
+	}
+	return r.GitHubOAuthConfigured, nil
+}
+
+// GithubCommitWebhook is the resolver for the githubCommitWebhook field.
+func (r *queryResolver) GithubCommitWebhook(ctx context.Context) (*generated.GitHubCommitWebhook, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	secret, err := r.Svc.GetGitHubCommitWebhookSecret(ctx, p)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.GitHubCommitWebhook{
+		URL:    githubCommitWebhookURL(r.PublicURL, p.WorkspaceID.String()),
+		Secret: secret,
+	}, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

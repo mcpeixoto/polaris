@@ -198,6 +198,33 @@ type FormTemplateField struct {
 	UpdatedAt      time.Time
 }
 
+type GithubConnection struct {
+	ID                  uuid.UUID
+	WorkspaceID         uuid.UUID
+	CreatorID           uuid.UUID
+	Enabled             bool
+	OrgLogin            *string
+	InstallationID      *int64
+	BranchNameFormat    string
+	LinkCommits         bool
+	CommitWebhookSecret string
+	AccessToken         *string
+	ConnectedAt         *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type GithubUserLink struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	UserID       uuid.UUID
+	GithubLogin  string
+	GithubUserID *int64
+	AccessToken  *string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type IdempotencyKey struct {
 	ClientID    uuid.UUID
 	OpID        uuid.UUID

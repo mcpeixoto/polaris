@@ -18,6 +18,7 @@ import { UndoToast } from '~/features/undo/UndoToast';
 import { AcceptInvite } from '~/views/AcceptInvite';
 import { ApiKeys } from '~/views/ApiKeys';
 import { Webhooks } from '~/views/Webhooks';
+import { GitHubSettings } from '~/views/GitHubSettings';
 import { ConnectServer } from '~/views/ConnectServer';
 import { CreateWorkspace } from '~/views/CreateWorkspace';
 import { Inbox } from '~/views/Inbox';
@@ -129,6 +130,7 @@ export function App() {
               <Route path="/settings/templates" element={<Templates />} />
               <Route path="/settings/api-keys" element={<ApiKeys />} />
               <Route path="/settings/webhooks" element={<Webhooks />} />
+              <Route path="/settings/github" element={<GitHubSettings />} />
               <Route path="/settings/trash" element={<Trash />} />
               <Route path="/settings/deleted-teams" element={<DeletedTeams />} />
               {/* Unknown paths go somewhere useful rather than to a dead end. A stale
