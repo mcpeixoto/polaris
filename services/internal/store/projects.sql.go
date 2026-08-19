@@ -516,6 +516,27 @@ func (q *Queries) GetProjectMilestone(ctx context.Context, id uuid.UUID) (Projec
 	return i, err
 }
 
+const getProjectSortOrderAfter = `-- name: GetProjectSortOrderAfter :one
+SELECT sort_order FROM project
+WHERE workspace_id = $1 AND priority = $2
+  AND sort_order > $3 AND deleted_at IS NULL
+ORDER BY sort_order
+LIMIT 1
+`
+
+type GetProjectSortOrderAfterParams struct {
+	WorkspaceID uuid.UUID
+	Priority    int16
+	SortOrder   string
+}
+
+func (q *Queries) GetProjectSortOrderAfter(ctx context.Context, arg GetProjectSortOrderAfterParams) (string, error) {
+	row := q.db.QueryRow(ctx, getProjectSortOrderAfter, arg.WorkspaceID, arg.Priority, arg.SortOrder)
+	var sort_order string
+	err := row.Scan(&sort_order)
+	return sort_order, err
+}
+
 const getProjectStatus = `-- name: GetProjectStatus :one
 SELECT id, workspace_id, name, description, color, category, position, is_default,
        archived_at, created_at, updated_at
@@ -589,6 +610,25 @@ LIMIT 1
 
 func (q *Queries) LastProjectSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error) {
 	row := q.db.QueryRow(ctx, lastProjectSortOrder, workspaceID)
+	var sort_order string
+	err := row.Scan(&sort_order)
+	return sort_order, err
+}
+
+const lastProjectSortOrderForPriority = `-- name: LastProjectSortOrderForPriority :one
+SELECT sort_order FROM project
+WHERE workspace_id = $1 AND priority = $2 AND deleted_at IS NULL
+ORDER BY sort_order DESC
+LIMIT 1
+`
+
+type LastProjectSortOrderForPriorityParams struct {
+	WorkspaceID uuid.UUID
+	Priority    int16
+}
+
+func (q *Queries) LastProjectSortOrderForPriority(ctx context.Context, arg LastProjectSortOrderForPriorityParams) (string, error) {
+	row := q.db.QueryRow(ctx, lastProjectSortOrderForPriority, arg.WorkspaceID, arg.Priority)
 	var sort_order string
 	err := row.Scan(&sort_order)
 	return sort_order, err

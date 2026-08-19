@@ -1101,6 +1101,9 @@ input UpdateProjectInput {
   targetDate: String
   targetDateGranularity: TimeframeGranularity
   clearTarget: Boolean
+  """Place directly below this project in the same priority group. Omit to append."""
+  afterProjectId: UUID
+  moveToTop: Boolean
 }
 
 input CreateProjectMilestoneInput {

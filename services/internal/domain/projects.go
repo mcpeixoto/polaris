@@ -246,6 +246,9 @@ type UpdateProjectInput struct {
 	LeadID      *uuid.UUID
 	ClearLead   bool
 
+	AfterProjectID *uuid.UUID
+	MoveToTop      bool
+
 	StartDate             *model.Date
 	StartDateGranularity  *string
 	ClearStart            bool
@@ -268,6 +271,10 @@ func (s *Service) UpdateProject(ctx context.Context, p *authz.Principal, in Upda
 	if in.LeadID != nil && in.ClearLead {
 		return model.Project{}, 0, platform.Validation("leadId", "cannot set and clear the lead in one call")
 	}
+	if in.AfterProjectID != nil && in.MoveToTop {
+		return model.Project{}, 0, platform.Validation("afterProjectId",
+			"cannot place after a project and move to top in one call")
+	}
 	if in.StartDate != nil && in.ClearStart {
 		return model.Project{}, 0, platform.Validation("startDate", "cannot set and clear the start date in one call")
 	}
@@ -288,7 +295,8 @@ func (s *Service) UpdateProject(ctx context.Context, p *authz.Principal, in Upda
 	var out model.Project
 	var version int64
 	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
-		if _, _, err := s.requireProjectWrite(ctx, q, p, in.ID, authz.ActionProjectUpdate); err != nil {
+		before, _, err := s.requireProjectWrite(ctx, q, p, in.ID, authz.ActionProjectUpdate)
+		if err != nil {
 			return err
 		}
 		if in.StatusID != nil {
@@ -296,6 +304,24 @@ func (s *Service) UpdateProject(ctx context.Context, p *authz.Principal, in Upda
 				return err
 			}
 		}
+
+		var sortOrder *string
+		targetPriority := before.Priority
+		if in.Priority != nil {
+			targetPriority = int16(*in.Priority)
+		}
+		needsReorder := in.AfterProjectID != nil || in.MoveToTop ||
+			(in.Priority != nil && targetPriority != before.Priority)
+		if needsReorder {
+			pos, err := s.projectSortOrderFor(
+				ctx, q, p.WorkspaceID, targetPriority, in.AfterProjectID, in.MoveToTop,
+			)
+			if err != nil {
+				return err
+			}
+			sortOrder = &pos
+		}
+
 		var priority *int16
 		if in.Priority != nil {
 			v := int16(*in.Priority)
@@ -310,6 +336,7 @@ func (s *Service) UpdateProject(ctx context.Context, p *authz.Principal, in Upda
 			Color:                 in.Color,
 			StatusID:              in.StatusID,
 			Priority:              priority,
+			SortOrder:             sortOrder,
 			LeadID:                in.LeadID,
 			ClearLead:             in.ClearLead,
 			StartDate:             start,
@@ -1076,6 +1103,79 @@ func nextMilestoneSort(ctx context.Context, q *store.Queries, projectID uuid.UUI
 		return "", platform.Internal(err)
 	}
 	return fractional.After(last), nil
+}
+
+func (s *Service) projectSortOrderFor(
+	ctx context.Context, q *store.Queries, workspaceID uuid.UUID, priority int16,
+	after *uuid.UUID, toTop bool,
+) (string, error) {
+	if toTop {
+		rows, err := q.ListProjectsInWorkspace(ctx, workspaceID)
+		if err != nil {
+			return "", platform.Internal(err)
+		}
+		first := ""
+		for _, row := range rows {
+			if row.Priority != priority {
+				continue
+			}
+			if first == "" || row.SortOrder < first {
+				first = row.SortOrder
+			}
+		}
+		if first == "" {
+			return fractional.First(), nil
+		}
+		return fractional.Before(first), nil
+	}
+	if after == nil {
+		last, err := q.LastProjectSortOrderForPriority(ctx, store.LastProjectSortOrderForPriorityParams{
+			WorkspaceID: workspaceID, Priority: priority,
+		})
+		if err != nil {
+			if store.IsNotFound(err) {
+				return fractional.First(), nil
+			}
+			return "", platform.Internal(err)
+		}
+		return fractional.After(last), nil
+	}
+	return s.projectReorderPosition(ctx, q, workspaceID, priority, after)
+}
+
+func (s *Service) projectReorderPosition(
+	ctx context.Context, q *store.Queries, workspaceID uuid.UUID, priority int16, after *uuid.UUID,
+) (string, error) {
+	anchor, err := q.GetProject(ctx, *after)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return "", platform.Validation("afterProjectId", "no such project")
+		}
+		return "", platform.Internal(err)
+	}
+	if anchor.WorkspaceID != workspaceID {
+		return "", platform.Validation("afterProjectId", "no such project")
+	}
+	if anchor.Priority != priority {
+		return "", platform.Validation("afterProjectId",
+			"that project is in a different priority group")
+	}
+
+	next, err := q.GetProjectSortOrderAfter(ctx, store.GetProjectSortOrderAfterParams{
+		WorkspaceID: workspaceID, Priority: priority, SortOrder: anchor.SortOrder,
+	})
+	if err != nil && !store.IsNotFound(err) {
+		return "", platform.Internal(err)
+	}
+	upper := ""
+	if err == nil {
+		upper = next
+	}
+	pos, err := fractional.Between(anchor.SortOrder, upper)
+	if err != nil {
+		return "", platform.Internal(err)
+	}
+	return pos, nil
 }
 
 func nextStatusPosition(ctx context.Context, q *store.Queries, workspaceID uuid.UUID) (string, error) {

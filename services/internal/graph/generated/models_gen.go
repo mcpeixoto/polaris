@@ -1153,6 +1153,9 @@ type UpdateProjectInput struct {
 	TargetDate            *string               `json:"targetDate,omitempty"`
 	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
 	ClearTarget           *bool                 `json:"clearTarget,omitempty"`
+	// Place directly below this project in the same priority group. Omit to append.
+	AfterProjectID *uuid.UUID `json:"afterProjectId,omitempty"`
+	MoveToTop      *bool      `json:"moveToTop,omitempty"`
 }
 
 type UpdateProjectMilestoneInput struct {

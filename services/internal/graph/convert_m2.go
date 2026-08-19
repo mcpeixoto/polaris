@@ -251,6 +251,8 @@ func fromUpdateProjectInput(in generated.UpdateProjectInput) (domain.UpdateProje
 		TargetDate:            toDate(in.TargetDate),
 		TargetDateGranularity: targetG,
 		ClearTarget:           deref(in.ClearTarget),
+		AfterProjectID:        in.AfterProjectID,
+		MoveToTop:             deref(in.MoveToTop),
 	}, nil
 }
 

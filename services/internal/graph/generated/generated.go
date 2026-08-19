@@ -7160,6 +7160,9 @@ input UpdateProjectInput {
   targetDate: String
   targetDateGranularity: TimeframeGranularity
   clearTarget: Boolean
+  """Place directly below this project in the same priority group. Omit to append."""
+  afterProjectId: UUID
+  moveToTop: Boolean
 }
 
 input CreateProjectMilestoneInput {
@@ -35535,7 +35538,7 @@ func (ec *executionContext) unmarshalInputUpdateProjectInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "name", "summary", "description", "icon", "color", "statusId", "priority", "leadId", "clearLead", "startDate", "startDateGranularity", "clearStart", "targetDate", "targetDateGranularity", "clearTarget"}
+	fieldsInOrder := [...]string{"id", "name", "summary", "description", "icon", "color", "statusId", "priority", "leadId", "clearLead", "startDate", "startDateGranularity", "clearStart", "targetDate", "targetDateGranularity", "clearTarget", "afterProjectId", "moveToTop"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -35654,6 +35657,20 @@ func (ec *executionContext) unmarshalInputUpdateProjectInput(ctx context.Context
 				return it, err
 			}
 			it.ClearTarget = data
+		case "afterProjectId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("afterProjectId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AfterProjectID = data
+		case "moveToTop":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("moveToTop"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MoveToTop = data
 		}
 	}
 	return it, nil

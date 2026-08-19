@@ -32,6 +32,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Initiatives | Workspace objectives grouping curated projects, `/initiatives`, `/initiative/:id`, status/owner/target date on the sync stream |
 | Project updates | Health plus markdown status posts, Overview compose and Activity history, derived health on project list |
 | Project dependencies | End→start Blocked by / Blocking on Overview and sidebar, command menu, list filters — client schema 12 |
+| Project priority | Five-level scale, P shortcut, grouped/drag reorder on `/projects` |
 | Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |
 | Desktop | Electron shell for macOS, Windows and Linux; per-architecture builds, auto-update, deep links |
 | Notifications | Inbox, unread badge, subscriptions, coalescing fan-out, digest email |

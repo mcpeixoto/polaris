@@ -156,6 +156,19 @@ WHERE workspace_id = $1 AND deleted_at IS NULL
 ORDER BY sort_order DESC
 LIMIT 1;
 
+-- name: LastProjectSortOrderForPriority :one
+SELECT sort_order FROM project
+WHERE workspace_id = sqlc.arg(workspace_id) AND priority = sqlc.arg(priority) AND deleted_at IS NULL
+ORDER BY sort_order DESC
+LIMIT 1;
+
+-- name: GetProjectSortOrderAfter :one
+SELECT sort_order FROM project
+WHERE workspace_id = sqlc.arg(workspace_id) AND priority = sqlc.arg(priority)
+  AND sort_order > sqlc.arg(sort_order) AND deleted_at IS NULL
+ORDER BY sort_order
+LIMIT 1;
+
 -- name: UpdateProject :one
 UPDATE project
 SET name                     = COALESCE(sqlc.narg(name), name),
