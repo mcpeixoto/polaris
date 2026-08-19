@@ -20,7 +20,8 @@ function press(key: string, mods: Partial<Omit<KeyboardEventLike, 'key'>> = {}):
     metaKey: mods.metaKey ?? false,
     shiftKey: mods.shiftKey ?? false,
     altKey: mods.altKey ?? false,
-    ...(mods.code === undefined ? {} : { code: mods.code }),
+    ...(mods.code === undefined ? null : { code: mods.code }),
+    ...(mods.repeat === undefined ? null : { repeat: mods.repeat }),
   };
 }
 
@@ -57,6 +58,10 @@ function harness(options: KeymapOptions<TestContext> = {}) {
     fire(key: string, mods: Partial<Omit<KeyboardEventLike, 'key'>> = {}): boolean {
       const context = registry.activeContext;
       return registry.handle(press(key, mods), context, { source: 'key', context, log });
+    },
+    fireUp(key: string, mods: Partial<Omit<KeyboardEventLike, 'key'>> = {}): boolean {
+      const context = registry.activeContext;
+      return registry.handleKeyUp(press(key, mods), context, { source: 'key', context, log });
     },
   };
 }
@@ -665,5 +670,52 @@ describe('the M0 keymap', () => {
       'modal.submit',
       'modal.close',
     ]);
+  });
+});
+
+describe('hold-to-preview', () => {
+  it('consumes a held key without running the toggle again', () => {
+    const { register, registry, log, fire } = harness();
+    register({ id: 'list.peek', keys: ['space'], when: 'list', ignoreRepeat: true });
+    registry.pushContext('list');
+
+    expect(fire(' ')).toBe(true);
+    expect(fire(' ', { repeat: true })).toBe(true);
+    expect(log, 'a held Space must not toggle Peek on every repeat').toEqual(['list.peek']);
+  });
+
+  it('runs keyup on the matching release so a hold can put the preview away', () => {
+    const { register, registry, log, fire, fireUp } = harness();
+    register({
+      id: 'list.peek',
+      keys: ['space'],
+      when: 'list',
+      ignoreRepeat: true,
+      keyup: (ctx) => {
+        ctx.log.push('list.peek.up');
+      },
+    });
+    registry.pushContext('list');
+
+    fire(' ');
+    expect(fireUp(' ')).toBe(true);
+    expect(log).toEqual(['list.peek', 'list.peek.up']);
+  });
+
+  it('does not run keyup for a different key', () => {
+    const { register, registry, log, fire, fireUp } = harness();
+    register({
+      id: 'list.peek',
+      keys: ['space'],
+      when: 'list',
+      keyup: (ctx) => {
+        ctx.log.push('list.peek.up');
+      },
+    });
+    registry.pushContext('list');
+
+    fire(' ');
+    expect(fireUp('j')).toBe(false);
+    expect(log).toEqual(['list.peek']);
   });
 });

@@ -46,6 +46,11 @@ export interface KeyboardEventLike {
   readonly metaKey: boolean;
   readonly shiftKey: boolean;
   readonly altKey: boolean;
+  /**
+   * A held key's repeats. Optional because tests construct minimal events; a real
+   * `keydown` always carries it. Navigation may honour repeats; a toggle must not.
+   */
+  readonly repeat?: boolean;
 }
 
 /**
@@ -134,6 +139,17 @@ export interface Action<Ctx extends ActionContext = ActionContext> {
   /** Help-overlay section: 'Issues', 'Navigation', 'Selection'. */
   readonly group: string;
   readonly run: (ctx: Ctx) => void | Promise<void>;
+  /**
+   * Fired on the matching key's `keyup`, for hold-to-preview: Space opens on the way
+   * down and this decides whether to keep it (a tap) or put it away (a hold).
+   */
+  readonly keyup?: (ctx: Ctx) => void;
+  /**
+   * A held key's extra `keydown`s are ignored. Toggles need this — Space opening Peek
+   * twenty times a second is the bug — and navigation does not, because holding `J`
+   * should walk the list.
+   */
+  readonly ignoreRepeat?: boolean;
   /**
    * Gate for actions that only make sense sometimes — "Assign to…" with nothing
    * selected. A disabled action is treated as unbound, so the keystroke falls through to

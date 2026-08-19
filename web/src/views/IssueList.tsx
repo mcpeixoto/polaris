@@ -39,6 +39,7 @@ import { Avatar, Badge, Button, EmptyState, LabelChip, PriorityIcon, StateIcon, 
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
+import { Peek } from '~/features/peek/Peek';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { Board } from '~/features/view/ui/Board';
 import { DisplayMenu } from '~/features/view/ui/DisplayMenu';
@@ -168,6 +169,9 @@ const ESTIMATED_HEADER_PX = 36;
 /** Rows kept mounted beyond the viewport, so a held-down `J` never outruns the renderer. */
 const OVERSCAN = 12;
 
+/** A Space tap keeps Peek; a hold longer than this puts it away on release. */
+const PEEK_HOLD_MS = 280;
+
 /** What the registered actions call. Named so the ref's type is a contract, not an inference. */
 interface ListCommands {
   move(delta: number): void;
@@ -176,6 +180,7 @@ interface ListCommands {
   selectAll(): void;
   clearSelection(): void;
   hasSelection(): boolean;
+  hasRows(): boolean;
   open(): void;
   archive(): void;
   pickStatus(): void;
@@ -183,6 +188,11 @@ interface ListCommands {
   pickPriority(): void;
   pickProject(): void;
   pickCycle(): void;
+  peekOpen(): boolean;
+  pressPeek(): void;
+  togglePeek(): void;
+  releasePeek(): void;
+  closePeek(): void;
 }
 
 export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}) {
@@ -282,6 +292,14 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const project = useMenuTrigger();
   const cycle = useMenuTrigger();
   const display = useMenuTrigger();
+  const [peekOpen, setPeekOpen] = useState(false);
+  const peekOpenRef = useRef(false);
+  const peekHoldAt = useRef<number | null>(null);
+
+  const setPeek = (open: boolean) => {
+    peekOpenRef.current = open;
+    setPeekOpen(open);
+  };
 
   /**
    * What a command acts on: the selection when there is one, the cursor row otherwise.
@@ -317,6 +335,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     selectAll: () => {},
     clearSelection: () => {},
     hasSelection: () => false,
+    hasRows: () => false,
     open: () => {},
     archive: () => {},
     pickStatus: () => {},
@@ -324,6 +343,11 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     pickPriority: () => {},
     pickProject: () => {},
     pickCycle: () => {},
+    peekOpen: () => false,
+    pressPeek: () => {},
+    togglePeek: () => {},
+    releasePeek: () => {},
+    closePeek: () => {},
   });
 
   const step = (delta: number): UUID | null => {
@@ -354,6 +378,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     selectAll: () => selection.selectAll(),
     clearSelection: () => selection.clear(),
     hasSelection: () => selection.size > 0,
+    hasRows: () => ids.length > 0,
     open: () => {
       if (cursorId === null) return;
       const issue = engine.store.get('issue', cursorId);
@@ -373,6 +398,26 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     pickPriority: priority.show,
     pickProject: project.show,
     pickCycle: cycle.show,
+    peekOpen: () => peekOpenRef.current,
+    pressPeek: () => {
+      if (peekOpenRef.current) {
+        setPeek(false);
+        peekHoldAt.current = null;
+        return;
+      }
+      setPeek(true);
+      peekHoldAt.current = Date.now();
+    },
+    togglePeek: () => setPeek(!peekOpenRef.current),
+    releasePeek: () => {
+      const at = peekHoldAt.current;
+      peekHoldAt.current = null;
+      if (at !== null && Date.now() - at >= PEEK_HOLD_MS) setPeek(false);
+    },
+    closePeek: () => {
+      peekHoldAt.current = null;
+      setPeek(false);
+    },
   };
 
   useKeyContext('list');
@@ -440,8 +485,32 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         hidden: true,
         // Disabled is treated as unbound, so with nothing selected Escape falls through to
         // the shell's dismiss instead of being swallowed by a command with nothing to do.
-        enabled: () => commands.current.hasSelection(),
+        enabled: () => commands.current.hasSelection() && !commands.current.peekOpen(),
         run: () => commands.current.clearSelection(),
+      },
+      {
+        id: 'issueList.peek',
+        title: 'Peek issue',
+        keys: ['space'],
+        when: 'list',
+        group: 'Issues',
+        ignoreRepeat: true,
+        enabled: () => commands.current.hasRows(),
+        run: (ctx) => {
+          if (ctx.source === 'key') commands.current.pressPeek();
+          else commands.current.togglePeek();
+        },
+        keyup: () => commands.current.releasePeek(),
+      },
+      {
+        id: 'issueList.peek.close',
+        title: 'Close peek',
+        keys: ['Escape'],
+        when: 'list',
+        group: 'Issues',
+        hidden: true,
+        enabled: () => commands.current.peekOpen(),
+        run: () => commands.current.closePeek(),
       },
       {
         id: 'issueList.open',
@@ -728,6 +797,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         onSelect={(cycleId) => updateIssues(engine, targets, { cycleId }).catch(report)}
       />
 
+      <div className={styles.body}>
       {rows.length === 0 ? (
         <EmptyState
           className={styles.empty}
@@ -819,6 +889,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
           </div>
         </div>
       )}
+      {peekOpen ? <Peek issueId={cursorId} /> : null}
+      </div>
     </div>
   );
 }

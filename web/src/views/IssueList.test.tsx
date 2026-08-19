@@ -224,6 +224,25 @@ describe('IssueList', () => {
     expect(cursorText()).toBe('ENG-2Ship the importer');
   });
 
+  it('opens Peek with Space without leaving the list, and Esc puts it away', async () => {
+    const { user } = renderList();
+
+    await user.keyboard('{Space}');
+
+    expect(screen.getByRole('complementary', { name: 'Peek ENG-1' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Fix the flake' })).toBeTruthy();
+    expect(screen.getByText('No description.')).toBeTruthy();
+
+    await user.keyboard('j');
+    expect(cursorText()).toBe('ENG-2Ship the importer');
+    expect(screen.getByRole('complementary', { name: 'Peek ENG-2' })).toBeTruthy();
+    expect(screen.queryByRole('complementary', { name: 'Peek ENG-1' })).toBeNull();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(cursorText()).toBe('ENG-2Ship the importer');
+  });
+
   it('selects the cursor row with x and says how many are selected', async () => {
     const { user } = renderList();
 
