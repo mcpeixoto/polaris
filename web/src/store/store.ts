@@ -8,7 +8,14 @@ import {
   type Snapshot,
   type WriteBatch,
 } from './db';
-import { IssueIndex, LabelIndex, NotificationIndex, ProjectLabelIndex, RelationIndex, SetIndex } from './indexes';
+import {
+  IssueIndex,
+  LabelIndex,
+  NotificationIndex,
+  ProjectLabelIndex,
+  RelationIndex,
+  SetIndex,
+} from './indexes';
 import type { OptimisticPatch } from './outbox';
 import { queryIssues, type IssueQuery, type IssueQueryResult } from './query';
 import {
@@ -1081,7 +1088,11 @@ export class Store {
         break;
       }
       case 'projectTeam':
-        this.fileByProject(this.projectTeamOf, previous as ProjectTeam | undefined, next as ProjectTeam);
+        this.fileByProject(
+          this.projectTeamOf,
+          previous as ProjectTeam | undefined,
+          next as ProjectTeam,
+        );
         break;
       case 'projectMember':
         this.fileByProject(

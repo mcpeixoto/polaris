@@ -124,11 +124,7 @@ export function listBlocking(store: Store, projectId: UUID): DependencyRow[] {
 }
 
 export type ProjectDependencyFilter =
-  | 'all'
-  | 'has-dependencies'
-  | 'blocking'
-  | 'blocked-by'
-  | 'violated';
+  'all' | 'has-dependencies' | 'blocking' | 'blocked-by' | 'violated';
 
 export function matchesDependencyFilter(
   store: Store,

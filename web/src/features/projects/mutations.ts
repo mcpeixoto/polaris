@@ -15,6 +15,7 @@ import {
   type Project,
   type ProjectMember,
   type ProjectTeam,
+  type ProjectUpdateSchedule,
   type Store,
   type UUID,
 } from '~/store';
@@ -59,6 +60,7 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
     leadId: input.leadId,
     creatorId: input.leadId,
     sortOrder: 'z',
+    updateSchedule: 'default',
     createdAt: now,
     updatedAt: now,
   };
@@ -80,13 +82,18 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
       variables: {
         input: {
           name,
-          ...(input.summary === undefined || input.summary === '' ? null : { summary: input.summary }),
+          ...(input.summary === undefined || input.summary === ''
+            ? null
+            : { summary: input.summary }),
           teamIds: [...input.teamIds],
           ...(input.leadId === undefined ? null : { leadId: input.leadId }),
           ...(input.statusId === undefined ? null : { statusId: input.statusId }),
         },
       },
-      optimistic: [{ type: 'project', id: provisional.id, before: null, after: provisional }, ...teamRows],
+      optimistic: [
+        { type: 'project', id: provisional.id, before: null, after: provisional },
+        ...teamRows,
+      ],
     });
     const created = swapProject(store, provisional.id, data.createProject.project);
     return created;
@@ -116,6 +123,10 @@ export interface ProjectFields {
   readonly priority?: number | undefined;
   readonly afterProjectId?: UUID | undefined;
   readonly moveToTop?: boolean | undefined;
+  readonly updateSchedule?: ProjectUpdateSchedule | undefined;
+  readonly updateReminderIntervalDays?: number | undefined;
+  readonly updateReminderWeekday?: number | undefined;
+  readonly updateReminderHour?: number | undefined;
 }
 
 export async function updateProject(
@@ -135,6 +146,16 @@ export async function updateProject(
       ? null
       : { leadId: fields.leadId === null ? undefined : fields.leadId }),
     ...(fields.priority === undefined ? null : { priority: fields.priority }),
+    ...(fields.updateSchedule === undefined ? null : { updateSchedule: fields.updateSchedule }),
+    ...(fields.updateReminderIntervalDays === undefined
+      ? null
+      : { updateReminderIntervalDays: fields.updateReminderIntervalDays }),
+    ...(fields.updateReminderWeekday === undefined
+      ? null
+      : { updateReminderWeekday: fields.updateReminderWeekday }),
+    ...(fields.updateReminderHour === undefined
+      ? null
+      : { updateReminderHour: fields.updateReminderHour }),
     updatedAt: new Date().toISOString(),
   };
 
@@ -154,6 +175,16 @@ export async function updateProject(
         ...(fields.priority === undefined ? null : { priority: fields.priority }),
         ...(fields.afterProjectId === undefined ? null : { afterProjectId: fields.afterProjectId }),
         ...(fields.moveToTop === undefined ? null : { moveToTop: fields.moveToTop }),
+        ...(fields.updateSchedule === undefined ? null : { updateSchedule: fields.updateSchedule }),
+        ...(fields.updateReminderIntervalDays === undefined
+          ? null
+          : { updateReminderIntervalDays: fields.updateReminderIntervalDays }),
+        ...(fields.updateReminderWeekday === undefined
+          ? null
+          : { updateReminderWeekday: fields.updateReminderWeekday }),
+        ...(fields.updateReminderHour === undefined
+          ? null
+          : { updateReminderHour: fields.updateReminderHour }),
       },
     },
     optimistic: [{ type: 'project', id, before, after }],

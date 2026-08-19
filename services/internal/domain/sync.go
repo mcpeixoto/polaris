@@ -801,7 +801,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v12 adds projectDependency (end→start links between projects).
 // v13 adds view.projectId (attached project views as tabs).
 // v14 adds projectLabel and projectLabelLink (workspace taxonomy for projects).
-const ClientSchemaVersion = 14
+// v18 adds project update reminder cadence on workspace and per-project schedule overrides.
+const ClientSchemaVersion = 18
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

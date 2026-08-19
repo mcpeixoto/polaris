@@ -416,11 +416,11 @@ var coveredElsewhere = map[string]string{
 
 	// Each of these is the clear half of a three-state property, and the table exercises it
 	// through that property's own row rather than as a field of its own.
-	"clearAssignee": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
-	"clearEstimate": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
-	"clearDueDate":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
-	"clearParent":   "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
-	"clearProject":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearAssignee":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearEstimate":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearDueDate":   "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearParent":    "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearProject":   "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearMilestone": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearCycle":     "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 
@@ -485,8 +485,8 @@ var storedButUnwritable = map[string]string{
 	// and every listing filter deleted rows out, so a non-zero value here would mean the API
 	// had just handed somebody a row from the trash. deletedIssues is the one read that
 	// returns them populated, and TestDeletedIssues_CarryWhenAndByWhom is what checks it.
-	"deletedAt": "only ever set on a row the trash listing returns; this read cannot see one",
-	"deletedBy": "same",
+	"deletedAt":    "only ever set on a row the trash listing returns; this read cannot see one",
+	"deletedBy":    "same",
 	"snoozedUntil": "set by snoozeIssue, not by create; TestSnoozeIssue_HidesUntilTimeOrActivity",
 	"autoClosedAt": "set by the auto-close engine, not by create",
 }

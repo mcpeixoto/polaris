@@ -149,7 +149,8 @@ VALUES ($1, $2, $3, $4,
 RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at
+          archived_at, deleted_at, deleted_by, created_at, updated_at,
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 `
 
 type CreateProjectParams struct {
@@ -215,6 +216,10 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdateSchedule,
+		&i.UpdateReminderIntervalDays,
+		&i.UpdateReminderWeekday,
+		&i.UpdateReminderHour,
 	)
 	return i, err
 }
@@ -352,7 +357,8 @@ const getProject = `-- name: GetProject :one
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at,
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 FROM project
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -382,6 +388,10 @@ func (q *Queries) GetProject(ctx context.Context, id uuid.UUID) (Project, error)
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdateSchedule,
+		&i.UpdateReminderIntervalDays,
+		&i.UpdateReminderWeekday,
+		&i.UpdateReminderHour,
 	)
 	return i, err
 }
@@ -390,7 +400,8 @@ const getProjectForUpdate = `-- name: GetProjectForUpdate :one
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at,
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 FROM project
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE
@@ -423,6 +434,10 @@ func (q *Queries) GetProjectForUpdate(ctx context.Context, id uuid.UUID) (Projec
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdateSchedule,
+		&i.UpdateReminderIntervalDays,
+		&i.UpdateReminderWeekday,
+		&i.UpdateReminderHour,
 	)
 	return i, err
 }
@@ -431,7 +446,8 @@ const getProjectIncludingDeleted = `-- name: GetProjectIncludingDeleted :one
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at,
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 FROM project
 WHERE id = $1
 FOR UPDATE
@@ -463,6 +479,10 @@ func (q *Queries) GetProjectIncludingDeleted(ctx context.Context, id uuid.UUID) 
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdateSchedule,
+		&i.UpdateReminderIntervalDays,
+		&i.UpdateReminderWeekday,
+		&i.UpdateReminderHour,
 	)
 	return i, err
 }
@@ -652,7 +672,8 @@ const listArchivedProjectsForTeam = `-- name: ListArchivedProjectsForTeam :many
 SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
        p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
        p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
-       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at
+       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at,
+       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour
 FROM project p
 JOIN project_team pt ON pt.project_id = p.id
 WHERE pt.team_id = $1 AND p.archived_at IS NOT NULL AND p.deleted_at IS NULL
@@ -692,6 +713,10 @@ func (q *Queries) ListArchivedProjectsForTeam(ctx context.Context, teamID uuid.U
 			&i.DeletedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UpdateSchedule,
+			&i.UpdateReminderIntervalDays,
+			&i.UpdateReminderWeekday,
+			&i.UpdateReminderHour,
 		); err != nil {
 			return nil, err
 		}
@@ -707,7 +732,8 @@ const listDeletedProjects = `-- name: ListDeletedProjects :many
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at,
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 FROM project
 WHERE workspace_id = $1
   AND deleted_at IS NOT NULL
@@ -751,6 +777,10 @@ func (q *Queries) ListDeletedProjects(ctx context.Context, arg ListDeletedProjec
 			&i.DeletedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UpdateSchedule,
+			&i.UpdateReminderIntervalDays,
+			&i.UpdateReminderWeekday,
+			&i.UpdateReminderHour,
 		); err != nil {
 			return nil, err
 		}
@@ -935,7 +965,8 @@ const listProjectsInWorkspace = `-- name: ListProjectsInWorkspace :many
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at,
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 FROM project
 WHERE workspace_id = $1 AND deleted_at IS NULL AND archived_at IS NULL
 ORDER BY sort_order
@@ -972,6 +1003,10 @@ func (q *Queries) ListProjectsInWorkspace(ctx context.Context, workspaceID uuid.
 			&i.DeletedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UpdateSchedule,
+			&i.UpdateReminderIntervalDays,
+			&i.UpdateReminderWeekday,
+			&i.UpdateReminderHour,
 		); err != nil {
 			return nil, err
 		}
@@ -987,7 +1022,8 @@ const listStaleClosedProjectsForTeam = `-- name: ListStaleClosedProjectsForTeam 
 SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
        p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
        p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
-       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at
+       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at,
+       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour
 FROM project p
 JOIN project_team pt ON pt.project_id = p.id
 JOIN project_status ps ON ps.id = p.status_id
@@ -1035,6 +1071,10 @@ func (q *Queries) ListStaleClosedProjectsForTeam(ctx context.Context, arg ListSt
 			&i.DeletedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UpdateSchedule,
+			&i.UpdateReminderIntervalDays,
+			&i.UpdateReminderWeekday,
+			&i.UpdateReminderHour,
 		); err != nil {
 			return nil, err
 		}
@@ -1088,7 +1128,8 @@ WHERE id = $1 AND deleted_at IS NOT NULL AND deleted_at > $2
 RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at
+          archived_at, deleted_at, deleted_by, created_at, updated_at,
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 `
 
 type RestoreProjectParams struct {
@@ -1121,6 +1162,10 @@ func (q *Queries) RestoreProject(ctx context.Context, arg RestoreProjectParams) 
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdateSchedule,
+		&i.UpdateReminderIntervalDays,
+		&i.UpdateReminderWeekday,
+		&i.UpdateReminderHour,
 	)
 	return i, err
 }
@@ -1364,7 +1409,8 @@ const streamProjectsForBootstrap = `-- name: StreamProjectsForBootstrap :many
 SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
        p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
        p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
-       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at
+       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at,
+       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour
 FROM project p
 WHERE p.workspace_id = $1
   AND p.deleted_at IS NULL
@@ -1422,6 +1468,10 @@ func (q *Queries) StreamProjectsForBootstrap(ctx context.Context, arg StreamProj
 			&i.DeletedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UpdateSchedule,
+			&i.UpdateReminderIntervalDays,
+			&i.UpdateReminderWeekday,
+			&i.UpdateReminderHour,
 		); err != nil {
 			return nil, err
 		}
@@ -1438,7 +1488,8 @@ UPDATE project SET archived_at = NULL WHERE id = $1 AND deleted_at IS NULL
 RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at
+          archived_at, deleted_at, deleted_by, created_at, updated_at,
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 `
 
 func (q *Queries) UnarchiveProject(ctx context.Context, id uuid.UUID) (Project, error) {
@@ -1466,6 +1517,10 @@ func (q *Queries) UnarchiveProject(ctx context.Context, id uuid.UUID) (Project, 
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdateSchedule,
+		&i.UpdateReminderIntervalDays,
+		&i.UpdateReminderWeekday,
+		&i.UpdateReminderHour,
 	)
 	return i, err
 }
@@ -1498,32 +1553,44 @@ SET name                     = COALESCE($1, name),
     target_date_granularity  = CASE WHEN $12::boolean THEN NULL
                                     ELSE COALESCE($14, target_date_granularity) END,
     lead_id = CASE WHEN $15::boolean THEN NULL
-                   ELSE COALESCE($16, lead_id) END
-WHERE id = $17 AND deleted_at IS NULL
+                   ELSE COALESCE($16, lead_id) END,
+    update_schedule = COALESCE($17, update_schedule),
+    update_reminder_interval_days = COALESCE(
+        $18, update_reminder_interval_days),
+    update_reminder_weekday = COALESCE(
+        $19, update_reminder_weekday),
+    update_reminder_hour = COALESCE(
+        $20, update_reminder_hour)
+WHERE id = $21 AND deleted_at IS NULL
 RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at
+          archived_at, deleted_at, deleted_by, created_at, updated_at,
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 `
 
 type UpdateProjectParams struct {
-	Name                  *string
-	Summary               *string
-	Description           *string
-	Icon                  *string
-	Color                 *string
-	StatusID              *uuid.UUID
-	Priority              *int16
-	SortOrder             *string
-	ClearStart            bool
-	StartDate             pgtype.Date
-	StartDateGranularity  *string
-	ClearTarget           bool
-	TargetDate            pgtype.Date
-	TargetDateGranularity *string
-	ClearLead             bool
-	LeadID                *uuid.UUID
-	ID                    uuid.UUID
+	Name                       *string
+	Summary                    *string
+	Description                *string
+	Icon                       *string
+	Color                      *string
+	StatusID                   *uuid.UUID
+	Priority                   *int16
+	SortOrder                  *string
+	ClearStart                 bool
+	StartDate                  pgtype.Date
+	StartDateGranularity       *string
+	ClearTarget                bool
+	TargetDate                 pgtype.Date
+	TargetDateGranularity      *string
+	ClearLead                  bool
+	LeadID                     *uuid.UUID
+	UpdateSchedule             *string
+	UpdateReminderIntervalDays *int16
+	UpdateReminderWeekday      *int16
+	UpdateReminderHour         *int16
+	ID                         uuid.UUID
 }
 
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
@@ -1544,6 +1611,10 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		arg.TargetDateGranularity,
 		arg.ClearLead,
 		arg.LeadID,
+		arg.UpdateSchedule,
+		arg.UpdateReminderIntervalDays,
+		arg.UpdateReminderWeekday,
+		arg.UpdateReminderHour,
 		arg.ID,
 	)
 	var i Project
@@ -1569,6 +1640,10 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdateSchedule,
+		&i.UpdateReminderIntervalDays,
+		&i.UpdateReminderWeekday,
+		&i.UpdateReminderHour,
 	)
 	return i, err
 }

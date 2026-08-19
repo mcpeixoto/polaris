@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { Store } from '~/store/store';
-import type { Change, Entity, Issue, Project, ProjectStatus, Team, WorkflowState } from '~/store/types';
+import type {
+  Change,
+  Entity,
+  Issue,
+  Project,
+  ProjectStatus,
+  Team,
+  WorkflowState,
+} from '~/store/types';
 
 import { buildProjectGraph } from './computeProjectGraph';
 
@@ -69,6 +77,7 @@ describe('buildProjectGraph', () => {
       statusId,
       priority: 0,
       sortOrder: 'a',
+      updateSchedule: 'default',
       startDate: '2026-01-01',
       targetDate: '2026-03-01',
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -162,13 +171,11 @@ describe('buildProjectGraph', () => {
       statusId: 'ps1',
       priority: 0,
       sortOrder: 'a',
+      updateSchedule: 'default',
       createdAt: NOW,
       updatedAt: NOW,
     };
-    store.applyChanges([
-      upsert(1, 'projectStatus', status),
-      upsert(2, 'project', project),
-    ]);
+    store.applyChanges([upsert(1, 'projectStatus', status), upsert(2, 'project', project)]);
     expect(buildProjectGraph(store, 'p1')).toBeNull();
   });
 });

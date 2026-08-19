@@ -92,7 +92,9 @@ describe('fold', () => {
 describe('IssueIndex', () => {
   it('files an issue under every dimension', () => {
     const index = new IssueIndex();
-    index.add(issue('i1', { teamId: 't1', stateId: 's1', assigneeId: 'u1', priority: 2, projectId: 'p1' }));
+    index.add(
+      issue('i1', { teamId: 't1', stateId: 's1', assigneeId: 'u1', priority: 2, projectId: 'p1' }),
+    );
 
     expect([...index.byTeam('t1')]).toEqual(['i1']);
     expect([...index.byState('s1')]).toEqual(['i1']);

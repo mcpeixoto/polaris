@@ -178,7 +178,11 @@ function DependencySection({
           {rows.map((row) => (
             <li key={row.depId} className={styles.row}>
               <Link to={`/project/${row.projectId}`} className={styles.link}>
-                <span className={styles.mark} style={{ background: row.color }} aria-hidden="true" />
+                <span
+                  className={styles.mark}
+                  style={{ background: row.color }}
+                  aria-hidden="true"
+                />
                 <span className={styles.name}>{row.name}</span>
               </Link>
               {row.violated && <span className={styles.violated}>Violated</span>}

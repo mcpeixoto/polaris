@@ -300,6 +300,7 @@ function oneOfEach(): EntityRow[] {
         statusId: 'ps1',
         priority: 0,
         sortOrder: 'a0',
+        updateSchedule: 'default',
         createdAt: NOW,
         updatedAt: NOW,
       },
@@ -601,6 +602,9 @@ function blankWorkspace(): Workspace {
     name: 'Polaris',
     urlKey: 'polaris',
     plan: 'free',
+    projectUpdateReminderIntervalDays: 7,
+    projectUpdateReminderWeekday: 3,
+    projectUpdateReminderHour: 9,
     createdAt: NOW,
     updatedAt: NOW,
   };

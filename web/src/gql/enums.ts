@@ -89,7 +89,7 @@ const ENUM_FIELDS: Readonly<Record<EntityType, readonly string[]>> = {
   label: [],
   issueTemplate: [],
   projectStatus: ['category'],
-  project: ['startDateGranularity', 'targetDateGranularity'],
+  project: ['startDateGranularity', 'targetDateGranularity', 'updateSchedule'],
   projectTeam: [],
   projectMember: [],
   projectMilestone: [],

@@ -48,3 +48,15 @@
   flex-wrap: wrap;
   gap: var(--space-1);
 }
+
+.customField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.customLabel {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}

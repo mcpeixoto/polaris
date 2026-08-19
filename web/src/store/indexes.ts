@@ -1,4 +1,11 @@
-import type { Issue, IssueLabel, IssueRelation, Notification, ProjectLabelLink, UUID } from './types';
+import type {
+  Issue,
+  IssueLabel,
+  IssueRelation,
+  Notification,
+  ProjectLabelLink,
+  UUID,
+} from './types';
 
 /**
  * The secondary indexes every view reads through.

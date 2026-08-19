@@ -6,10 +6,7 @@ export const PROJECT_UPDATE_HEALTH_LABEL: Readonly<Record<ProjectUpdateHealth, s
   off_track: 'Off track',
 };
 
-export function latestProjectUpdate(
-  store: Store,
-  projectId: UUID,
-): ProjectUpdate | undefined {
+export function latestProjectUpdate(store: Store, projectId: UUID): ProjectUpdate | undefined {
   let latest: ProjectUpdate | undefined;
   for (const id of store.projectUpdateIdsFor(projectId)) {
     const update = store.projectUpdates.get(id);

@@ -11,11 +11,10 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { ProjectLabel, UUID } from '~/store';
 
 import { report } from '~/features/issue/mutations';
-import {
-  applyProjectLabel,
-  removeProjectLabel,
-} from '~/features/project-labels/mutations';
+import { applyProjectLabel, removeProjectLabel } from '~/features/project-labels/mutations';
 import { ProjectLabelPicker } from '~/features/project-labels/ProjectLabelPicker';
+import { Select } from '~/components';
+import type { ProjectUpdateSchedule } from '~/store';
 import { updateProject } from './mutations';
 import { ProjectDependencies } from './dependencies';
 import styles from './properties.module.css';
@@ -47,7 +46,9 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
     (store) =>
       [...store.projectLabelIdsFor(projectId)]
         .map((id) => store.projectLabels.get(id))
-        .filter((label): label is ProjectLabel => label !== undefined && label.archivedAt === undefined),
+        .filter(
+          (label): label is ProjectLabel => label !== undefined && label.archivedAt === undefined,
+        ),
     ['projectLabel', 'projectLabelLink'],
     [projectId],
   );
@@ -109,15 +110,49 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
           )}
         </button>
       </section>
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Update schedule</h3>
+        <Select
+          value={project.updateSchedule}
+          onChange={(event) =>
+            updateProject(engine, project.id, {
+              updateSchedule: event.target.value as ProjectUpdateSchedule,
+            }).catch(report)
+          }
+          aria-label="Update schedule"
+        >
+          <option value="default">Workspace default</option>
+          <option value="custom">Custom</option>
+          <option value="never">Never</option>
+        </Select>
+        {project.updateSchedule === 'custom' && (
+          <label className={styles.customField}>
+            <span className={styles.customLabel}>Every (days)</span>
+            <Select
+              value={String(project.updateReminderIntervalDays ?? 7)}
+              onChange={(event) =>
+                updateProject(engine, project.id, {
+                  updateReminderIntervalDays: Number.parseInt(event.target.value, 10),
+                }).catch(report)
+              }
+              aria-label="Custom reminder interval"
+            >
+              {[7, 14, 21, 28].map((days) => (
+                <option key={days} value={days}>
+                  {days} days
+                </option>
+              ))}
+            </Select>
+          </label>
+        )}
+      </section>
       <ProjectDependencies projectId={project.id} compact />
       <PriorityPicker
         open={priority.open}
         onClose={priority.hide}
         trigger={priority.ref}
         value={project.priority}
-        onSelect={(level) =>
-          updateProject(engine, project.id, { priority: level }).catch(report)
-        }
+        onSelect={(level) => updateProject(engine, project.id, { priority: level }).catch(report)}
       />
       <ProjectLabelPicker
         open={labels.open}
@@ -127,9 +162,7 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
         onApply={(labelId, displaced) =>
           applyProjectLabel(engine, project.id, labelId, displaced).catch(report)
         }
-        onRemove={(labelId) =>
-          removeProjectLabel(engine, project.id, labelId).catch(report)
-        }
+        onRemove={(labelId) => removeProjectLabel(engine, project.id, labelId).catch(report)}
       />
     </div>
   );

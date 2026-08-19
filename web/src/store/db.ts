@@ -88,8 +88,9 @@ import {
  * v12 adds projectDependency (end→start links between projects).
  * v13 adds view.projectId (attached project views as tabs).
  * v14 adds projectLabel and projectLabelLink (workspace taxonomy for projects).
+ * v18 adds project update reminder cadence on workspace and per-project schedule overrides.
  */
-export const CLIENT_SCHEMA = 14;
+export const CLIENT_SCHEMA = 18;
 
 /**
  * One database per workspace per schema version.
