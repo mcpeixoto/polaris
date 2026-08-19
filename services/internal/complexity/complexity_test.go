@@ -224,13 +224,20 @@ func TestNoPaginationArgumentGoesUnrecognised(t *testing.T) {
 	// Int arguments that are values rather than page sizes. Listed by hand, because the
 	// point of the test is that a NEW one has to be classified by a person.
 	notPagination := map[string]string{
-		"estimate":                 "an issue's points, not a row count",
-		"priority":                 "0-4, not a row count",
-		"durationWeeks":            "cadence length in weeks, not a row count",
-		"cooldownWeeks":            "gap after a cycle in weeks, not a row count",
-		"upcomingCount":            "how many future cycles to mint, not a page size",
-		"autoCloseDays":            "inactivity period in days, not a row count",
-		"autoArchiveDays":          "inactivity period in days, not a row count",
+		"estimate":        "an issue's points, not a row count",
+		"priority":        "0-4, not a row count",
+		"durationWeeks":   "cadence length in weeks, not a row count",
+		"cooldownWeeks":   "gap after a cycle in weeks, not a row count",
+		"upcomingCount":   "how many future cycles to mint, not a page size",
+		"autoCloseDays":   "inactivity period in days, not a row count",
+		"autoArchiveDays": "inactivity period in days, not a row count",
+
+		"projectUpdateReminderIntervalDays": "reminder cadence in days, not a row count",
+		"projectUpdateReminderWeekday":      "reminder weekday 0-6, not a row count",
+		"projectUpdateReminderHour":         "reminder hour 0-23, not a row count",
+		"updateReminderIntervalDays":        "per-project reminder interval in days, not a row count",
+		"updateReminderWeekday":             "per-project reminder weekday 0-6, not a row count",
+		"updateReminderHour":                "per-project reminder hour 0-23, not a row count",
 	}
 
 	schema := generated.NewExecutableSchema(generated.Config{}).Schema()

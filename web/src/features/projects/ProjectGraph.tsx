@@ -166,15 +166,17 @@ function toLayout(data: ProjectGraphData): Layout | null {
 
   const line = (values: readonly number[]) =>
     data.weeks
-      .map((week, index) => `${index === 0 ? 'M' : 'L'} ${xForDay(week.weekStart)} ${y(values[index] ?? 0)}`)
+      .map(
+        (week, index) =>
+          `${index === 0 ? 'M' : 'L'} ${xForDay(week.weekStart)} ${y(values[index] ?? 0)}`,
+      )
       .join(' ');
 
   const scope = line(data.weeks.map((week) => week.scope));
   const started = line(data.weeks.map((week) => week.started));
   const completed = line(data.weeks.map((week) => week.completed));
 
-  const targetX =
-    data.targetDate === undefined ? undefined : xForDay(data.targetDate);
+  const targetX = data.targetDate === undefined ? undefined : xForDay(data.targetDate);
 
   let prediction: Layout['prediction'];
   if (data.prediction !== undefined) {

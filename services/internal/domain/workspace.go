@@ -263,6 +263,10 @@ func (s *Service) GetWorkspace(ctx context.Context, p *authz.Principal) (model.W
 type UpdateWorkspaceInput struct {
 	Name    *string
 	LogoURL *string
+
+	ProjectUpdateReminderIntervalDays *int
+	ProjectUpdateReminderWeekday      *int
+	ProjectUpdateReminderHour         *int
 }
 
 func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in UpdateWorkspaceInput) (model.Workspace, int64, error) {
@@ -276,14 +280,24 @@ func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in Up
 		}
 		in.Name = &trimmed
 	}
+	if err := validateProjectUpdateReminderFields(
+		in.ProjectUpdateReminderIntervalDays,
+		in.ProjectUpdateReminderWeekday,
+		in.ProjectUpdateReminderHour,
+	); err != nil {
+		return model.Workspace{}, 0, err
+	}
 
 	var out model.Workspace
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		row, err := q.UpdateWorkspace(ctx, store.UpdateWorkspaceParams{
-			ID:      p.WorkspaceID,
-			Name:    in.Name,
-			LogoUrl: in.LogoURL,
+			ID:                                p.WorkspaceID,
+			Name:                              in.Name,
+			LogoUrl:                           in.LogoURL,
+			ProjectUpdateReminderIntervalDays: int16PtrFromInt(in.ProjectUpdateReminderIntervalDays),
+			ProjectUpdateReminderWeekday:      int16PtrFromInt(in.ProjectUpdateReminderWeekday),
+			ProjectUpdateReminderHour:         int16PtrFromInt(in.ProjectUpdateReminderHour),
 		})
 		if err != nil {
 			if store.IsNotFound(err) {

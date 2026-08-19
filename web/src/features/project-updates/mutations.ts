@@ -1,5 +1,11 @@
 import { fromWire, toWire } from '~/gql/enums';
-import { uuidv7, type EntityOf, type EntityPatch, type ProjectUpdateHealth, type UUID } from '~/store';
+import {
+  uuidv7,
+  type EntityOf,
+  type EntityPatch,
+  type ProjectUpdateHealth,
+  type UUID,
+} from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -21,7 +27,10 @@ export interface ProjectUpdatePatch {
   readonly body?: string | undefined;
 }
 
-export async function createProjectUpdate(engine: SyncEngine, input: NewProjectUpdate): Promise<UUID> {
+export async function createProjectUpdate(
+  engine: SyncEngine,
+  input: NewProjectUpdate,
+): Promise<UUID> {
   const store = engine.store;
   const id = uuidv7();
   const now = new Date().toISOString();
@@ -48,7 +57,10 @@ export async function createProjectUpdate(engine: SyncEngine, input: NewProjectU
       },
       optimistic: [{ type: 'projectUpdate', id, before: null, after: provisional }],
     });
-    const real = fromWire('projectUpdate', data.createProjectUpdate.projectUpdate as EntityOf<'projectUpdate'>);
+    const real = fromWire(
+      'projectUpdate',
+      data.createProjectUpdate.projectUpdate as EntityOf<'projectUpdate'>,
+    );
     const patch: EntityPatch[] = [
       { type: 'projectUpdate', id: real.id, before: provisional, after: real },
     ];
@@ -63,7 +75,10 @@ export async function createProjectUpdate(engine: SyncEngine, input: NewProjectU
   }
 }
 
-export async function updateProjectUpdate(engine: SyncEngine, patch: ProjectUpdatePatch): Promise<void> {
+export async function updateProjectUpdate(
+  engine: SyncEngine,
+  patch: ProjectUpdatePatch,
+): Promise<void> {
   const store = engine.store;
   const before = store.get('projectUpdate', patch.id);
   if (before === undefined) return;

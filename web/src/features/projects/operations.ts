@@ -40,6 +40,10 @@ export const PROJECT_FIELDS = /* GraphQL */ `
     startDateGranularity
     targetDate
     targetDateGranularity
+    updateSchedule
+    updateReminderIntervalDays
+    updateReminderWeekday
+    updateReminderHour
     archivedAt
     deletedAt
     deletedBy

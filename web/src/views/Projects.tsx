@@ -22,11 +22,10 @@ import {
 } from '~/features/projects/dependencies';
 import { updateProject } from '~/features/projects/mutations';
 import { compareProjectsByPriority } from '~/features/projects/projectHelpers';
-import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
-import { latestProjectUpdate } from '~/features/project-updates/helpers';
+import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { PRIORITY_LEVELS } from '~/components/PriorityIcon';
-import type { Project, ProjectLabel, ProjectStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
+import type { Project, ProjectLabel, ProjectStatus, Store, UUID } from '~/store';
 import styles from './Projects.module.css';
 
 interface ProjectRow {
@@ -38,7 +37,6 @@ interface ProjectRow {
   readonly sortOrder: string;
   readonly statusName: string;
   readonly statusColor: string;
-  readonly health: ProjectUpdateHealth | undefined;
   readonly leadName: string | null;
   readonly leadId: UUID | undefined;
   readonly issueCount: number;
@@ -79,6 +77,7 @@ export function Projects() {
       'projectDependency',
       'projectLabel',
       'projectLabelLink',
+      'workspace',
       'issue',
       'user',
     ],
@@ -158,7 +157,9 @@ export function Projects() {
                 <h2
                   id={headingId}
                   className={
-                    overId === headingId ? `${styles.groupTitle} ${styles.groupTitleOver}` : styles.groupTitle
+                    overId === headingId
+                      ? `${styles.groupTitle} ${styles.groupTitleOver}`
+                      : styles.groupTitle
                   }
                   onDragOver={(event) => {
                     if (draggingId === null) return;
@@ -180,6 +181,7 @@ export function Projects() {
                   {group.rows.map((row) => (
                     <li key={row.id}>
                       <ProjectRowLink
+                        store={engine.store}
                         row={row}
                         dragging={draggingId === row.id}
                         over={overId === row.id}
@@ -215,6 +217,7 @@ export function Projects() {
 }
 
 interface RowLinkProps {
+  readonly store: Store;
   readonly row: ProjectRow;
   readonly dragging: boolean;
   readonly over: boolean;
@@ -227,6 +230,7 @@ interface RowLinkProps {
 }
 
 function ProjectRowLink({
+  store,
   row,
   dragging,
   over,
@@ -274,13 +278,9 @@ function ProjectRowLink({
         />
         {row.statusName}
       </span>
-      {row.health === undefined ? (
-        <span className={styles.healthMuted}>No update</span>
-      ) : (
-        <span className={styles.health}>
-          <ProjectHealthBadge health={row.health} compact />
-        </span>
-      )}
+      <span className={styles.health}>
+        <ProjectHealthCell store={store} projectId={row.id} compact />
+      </span>
       {row.leadName === null ? (
         <span className={styles.leadMuted}>No lead</span>
       ) : (
@@ -337,7 +337,6 @@ function listProjectGroups(
       sortOrder: project.sortOrder,
       statusName: status?.name ?? 'No status',
       statusColor: status?.color ?? project.color,
-      health: latestProjectUpdate(store, project.id)?.health,
       leadName: lead?.displayName ?? null,
       leadId: project.leadId,
       issueCount: store.index.byProject(project.id).size,

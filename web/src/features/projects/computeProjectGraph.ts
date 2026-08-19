@@ -44,7 +44,11 @@ export interface ProjectGraphData {
 
 export function buildProjectGraph(store: Store, projectId: UUID): ProjectGraphData | null {
   const project = store.projects.get(projectId);
-  if (project === undefined || project.archivedAt !== undefined || project.deletedAt !== undefined) {
+  if (
+    project === undefined ||
+    project.archivedAt !== undefined ||
+    project.deletedAt !== undefined
+  ) {
     return null;
   }
 

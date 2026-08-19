@@ -13,13 +13,7 @@ import type { RefObject } from 'react';
 import { Menu, type MenuNode, type MenuPlacement } from '~/components';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
-import type {
-  Project,
-  ProjectStatus,
-  ProjectStatusCategory,
-  Store,
-  UUID,
-} from '~/store';
+import type { Project, ProjectStatus, ProjectStatusCategory, Store, UUID } from '~/store';
 
 import type { Mixed } from '~/features/issue/pickers';
 
@@ -122,7 +116,9 @@ function rankProjects(
     const status = store.projectStatuses.get(project.statusId);
     const member =
       viewerId !== null &&
-      [...store.projectMemberIdsFor(project.id)].some((id) => store.projectMembers.get(id)?.userId === viewerId);
+      [...store.projectMemberIdsFor(project.id)].some(
+        (id) => store.projectMembers.get(id)?.userId === viewerId,
+      );
     const overlapping = [...store.projectTeamIdsFor(project.id)].some((id) => {
       const teamId = store.projectTeams.get(id)?.teamId;
       return teamId !== undefined && teamSet.has(teamId);

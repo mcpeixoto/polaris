@@ -370,27 +370,31 @@ type NotificationEmailCursor struct {
 }
 
 type Project struct {
-	ID                    uuid.UUID
-	WorkspaceID           uuid.UUID
-	Name                  string
-	Summary               *string
-	Description           string
-	Icon                  *string
-	Color                 string
-	StatusID              uuid.UUID
-	Priority              int16
-	LeadID                *uuid.UUID
-	CreatorID             *uuid.UUID
-	SortOrder             string
-	StartDate             pgtype.Date
-	StartDateGranularity  *string
-	TargetDate            pgtype.Date
-	TargetDateGranularity *string
-	ArchivedAt            *time.Time
-	DeletedAt             *time.Time
-	DeletedBy             *uuid.UUID
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	ID                         uuid.UUID
+	WorkspaceID                uuid.UUID
+	Name                       string
+	Summary                    *string
+	Description                string
+	Icon                       *string
+	Color                      string
+	StatusID                   uuid.UUID
+	Priority                   int16
+	LeadID                     *uuid.UUID
+	CreatorID                  *uuid.UUID
+	SortOrder                  string
+	StartDate                  pgtype.Date
+	StartDateGranularity       *string
+	TargetDate                 pgtype.Date
+	TargetDateGranularity      *string
+	ArchivedAt                 *time.Time
+	DeletedAt                  *time.Time
+	DeletedBy                  *uuid.UUID
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
+	UpdateSchedule             string
+	UpdateReminderIntervalDays *int16
+	UpdateReminderWeekday      *int16
+	UpdateReminderHour         *int16
 }
 
 type ProjectDependency struct {
@@ -632,19 +636,22 @@ type WorkflowState struct {
 }
 
 type Workspace struct {
-	ID            uuid.UUID
-	Name          string
-	UrlKey        string
-	LogoUrl       *string
-	Settings      json.RawMessage
-	Plan          string
-	ArchivedAt    *time.Time
-	DeletedAt     *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	PlanExpiresAt *time.Time
-	SeatLimit     *int32
-	PlanLapsedAt  *time.Time
+	ID                                uuid.UUID
+	Name                              string
+	UrlKey                            string
+	LogoUrl                           *string
+	Settings                          json.RawMessage
+	Plan                              string
+	ArchivedAt                        *time.Time
+	DeletedAt                         *time.Time
+	CreatedAt                         time.Time
+	UpdatedAt                         time.Time
+	PlanExpiresAt                     *time.Time
+	SeatLimit                         *int32
+	PlanLapsedAt                      *time.Time
+	ProjectUpdateReminderIntervalDays int16
+	ProjectUpdateReminderWeekday      int16
+	ProjectUpdateReminderHour         int16
 }
 
 type WorkspaceVersion struct {

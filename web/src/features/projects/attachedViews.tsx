@@ -2,13 +2,7 @@
  * Attached view tabs on a project — create, reorder, and open saved filters.
  */
 
-import {
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-} from 'react';
+import { useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -168,12 +162,7 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
           {view.name}
         </NavLink>
       ))}
-      <IconButton
-        aria-label="New view"
-        className={styles.newTab}
-        icon="+"
-        onClick={openCreate}
-      />
+      <IconButton aria-label="New view" className={styles.newTab} icon="+" onClick={openCreate} />
 
       <Modal
         open={creating}
@@ -192,15 +181,19 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
           </>
         }
       >
-        <Input
-          ref={nameRef}
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="View name"
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') void submitCreate();
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim() !== '') void submitCreate();
           }}
-        />
+        >
+          <Input
+            ref={nameRef}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="View name"
+          />
+        </form>
       </Modal>
 
       <Menu

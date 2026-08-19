@@ -150,14 +150,15 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 // converters refuse anything else — which is deliberate, and covered by their own tests. Any
 // old string would make this test fail for the wrong reason.
 var enumValues = map[string]string{
-	"dueDateSource":          model.DueDateManual,
-	"estimateScale":          model.EstimateScaleFibonacci,
-	"role":                   string(authz.RoleMember),
-	"status":                 "active",
-	"kind":                   "human",
-	"category":               model.ProjectCategoryStarted,
-	"startDateGranularity":   model.GranularityQuarter,
-	"targetDateGranularity":  model.GranularityQuarter,
+	"dueDateSource":         model.DueDateManual,
+	"estimateScale":         model.EstimateScaleFibonacci,
+	"role":                  string(authz.RoleMember),
+	"status":                "active",
+	"kind":                  "human",
+	"category":              model.ProjectCategoryStarted,
+	"startDateGranularity":  model.GranularityQuarter,
+	"targetDateGranularity": model.GranularityQuarter,
+	"updateSchedule":        model.ProjectUpdateScheduleDefault,
 }
 
 // fillNonZero writes a distinguishable value into every field of v, recursively.

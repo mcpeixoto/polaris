@@ -5,10 +5,10 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router';
 
 import { Button, EmptyState } from '~/components';
-import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
-import { latestProjectUpdate } from '~/features/project-updates/helpers';
+import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
 import { ProjectProperties } from '~/features/projects/properties';
 import { ProjectViewTabs } from '~/features/projects/attachedViews';
+import { useEngine } from '~/app/context';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import styles from './ProjectShell.module.css';
 
@@ -19,18 +19,13 @@ function tabClass({ isActive }: { isActive: boolean }): string {
 }
 
 export function ProjectShell() {
+  const engine = useEngine();
   const navigate = useNavigate();
   const { projectId = '' } = useParams<{ projectId: string }>();
 
   const project = useLiveQuery(
     (store) => store.projects.get(projectId) ?? null,
-    ['project'],
-    [projectId],
-  );
-
-  const latestHealth = useLiveQuery(
-    (store) => latestProjectUpdate(store, projectId)?.health,
-    ['projectUpdate'],
+    ['project', 'projectUpdate', 'projectStatus', 'workspace'],
     [projectId],
   );
 
@@ -52,7 +47,7 @@ export function ProjectShell() {
         <div className={styles.titleRow}>
           <span className={styles.mark} style={{ background: project.color }} aria-hidden="true" />
           <h1 className={styles.title}>{project.name}</h1>
-          {latestHealth !== undefined && <ProjectHealthBadge health={latestHealth} />}
+          <ProjectHealthCell store={engine.store} projectId={project.id} />
         </div>
         <nav className={styles.tabs} aria-label="Project sections">
           <NavLink to={base} end className={tabClass}>

@@ -3,19 +3,25 @@ INSERT INTO workspace (id, name, url_key, plan, settings)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
-          plan_expires_at, seat_limit, plan_lapsed_at;
+          plan_expires_at, seat_limit, plan_lapsed_at,
+          project_update_reminder_interval_days, project_update_reminder_weekday,
+          project_update_reminder_hour;
 
 -- name: GetWorkspace :one
 SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
-       plan_expires_at, seat_limit, plan_lapsed_at
+       plan_expires_at, seat_limit, plan_lapsed_at,
+       project_update_reminder_interval_days, project_update_reminder_weekday,
+       project_update_reminder_hour
 FROM workspace
 WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: GetWorkspaceByURLKey :one
 SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
-       plan_expires_at, seat_limit, plan_lapsed_at
+       plan_expires_at, seat_limit, plan_lapsed_at,
+       project_update_reminder_interval_days, project_update_reminder_weekday,
+       project_update_reminder_hour
 FROM workspace
 WHERE url_key = $1 AND deleted_at IS NULL;
 
@@ -23,11 +29,20 @@ WHERE url_key = $1 AND deleted_at IS NULL;
 UPDATE workspace
 SET name     = COALESCE(sqlc.narg(name), name),
     logo_url = COALESCE(sqlc.narg(logo_url), logo_url),
-    settings = COALESCE(sqlc.narg(settings), settings)
+    settings = COALESCE(sqlc.narg(settings), settings),
+    project_update_reminder_interval_days = COALESCE(
+        sqlc.narg(project_update_reminder_interval_days),
+        project_update_reminder_interval_days),
+    project_update_reminder_weekday = COALESCE(
+        sqlc.narg(project_update_reminder_weekday), project_update_reminder_weekday),
+    project_update_reminder_hour = COALESCE(
+        sqlc.narg(project_update_reminder_hour), project_update_reminder_hour)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
-          plan_expires_at, seat_limit, plan_lapsed_at;
+          plan_expires_at, seat_limit, plan_lapsed_at,
+          project_update_reminder_interval_days, project_update_reminder_weekday,
+          project_update_reminder_hour;
 
 -- CountWorkspaceSeats is the number the seat limit is checked against.
 --

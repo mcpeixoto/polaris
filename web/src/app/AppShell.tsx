@@ -41,7 +41,12 @@ export interface AppShellProps {
   renderCreateInitiative?: (props: { onClose: () => void }) => ReactNode;
 }
 
-export function AppShell({ children, renderCreateIssue, renderCreateProject, renderCreateInitiative }: AppShellProps) {
+export function AppShell({
+  children,
+  renderCreateIssue,
+  renderCreateProject,
+  renderCreateInitiative,
+}: AppShellProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [commandOpen, setCommandOpen] = useState(false);
@@ -53,10 +58,8 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject, ren
     pathname === '/projects' ||
     pathname.startsWith('/project/') ||
     /\/team\/[^/]+\/projects(?:\/|$)/.test(pathname);
-  const onInitiatives =
-    pathname === '/initiatives' || pathname.startsWith('/initiative/');
-  const onCycles =
-    pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
+  const onInitiatives = pathname === '/initiatives' || pathname.startsWith('/initiative/');
+  const onCycles = pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
 
   const teams = useQuery(
     (store) => [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key)),
@@ -298,6 +301,10 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject, ren
             <NavGlyph name="labels" />
             <span className={styles.navLabel}>Project labels</span>
           </NavLink>
+          <NavLink to="/settings/project-updates" className={navClass}>
+            <NavGlyph name="bell" />
+            <span className={styles.navLabel}>Project updates</span>
+          </NavLink>
           <NavLink to="/settings/notifications" className={navClass}>
             <NavGlyph name="bell" />
             <span className={styles.navLabel}>Notifications</span>
@@ -390,39 +397,45 @@ function glyphPath(name: NavGlyphName) {
     case 'inbox':
       return (
         <>
-          <path d="M2.5 8.5 4.2 3.8A1.5 1.5 0 0 1 5.6 3h4.8a1.5 1.5 0 0 1 1.4.8L13.5 8.5" {...stroke} />
-          <path d="M2.5 8.5h2.6l.8 1.8h4.2l.8-1.8h2.6V12a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 2.5 12V8.5Z" {...stroke} />
+          <path
+            d="M2.5 8.5 4.2 3.8A1.5 1.5 0 0 1 5.6 3h4.8a1.5 1.5 0 0 1 1.4.8L13.5 8.5"
+            {...stroke}
+          />
+          <path
+            d="M2.5 8.5h2.6l.8 1.8h4.2l.8-1.8h2.6V12a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 2.5 12V8.5Z"
+            {...stroke}
+          />
         </>
       );
-      case 'search':
-        return (
-          <>
-            <circle cx="7" cy="7" r="3.75" {...stroke} />
-            <path d="m10.2 10.2 3 3" {...stroke} />
-          </>
-        );
-      case 'project':
-        return (
-          <>
-            <path d="M8 2.5 13.5 6v4L8 13.5 2.5 10V6L8 2.5Z" {...stroke} />
-            <path d="M8 8v5.5M2.5 6 8 8l5.5-2" {...stroke} />
-          </>
-        );
-      case 'initiative':
-        return (
-          <>
-            <circle cx="8" cy="8" r="5.25" {...stroke} />
-            <circle cx="8" cy="8" r="2" {...stroke} />
-            <path d="M8 2.75v2M8 11.25v2M2.75 8h2M11.25 8h2" {...stroke} />
-          </>
-        );
-      case 'cycle':
-        return (
-          <>
-            <circle cx="8" cy="8" r="5.25" {...stroke} />
-            <path d="M8 5.25V8l2 1.5" {...stroke} />
-          </>
-        );
+    case 'search':
+      return (
+        <>
+          <circle cx="7" cy="7" r="3.75" {...stroke} />
+          <path d="m10.2 10.2 3 3" {...stroke} />
+        </>
+      );
+    case 'project':
+      return (
+        <>
+          <path d="M8 2.5 13.5 6v4L8 13.5 2.5 10V6L8 2.5Z" {...stroke} />
+          <path d="M8 8v5.5M2.5 6 8 8l5.5-2" {...stroke} />
+        </>
+      );
+    case 'initiative':
+      return (
+        <>
+          <circle cx="8" cy="8" r="5.25" {...stroke} />
+          <circle cx="8" cy="8" r="2" {...stroke} />
+          <path d="M8 2.75v2M8 11.25v2M2.75 8h2M11.25 8h2" {...stroke} />
+        </>
+      );
+    case 'cycle':
+      return (
+        <>
+          <circle cx="8" cy="8" r="5.25" {...stroke} />
+          <path d="M8 5.25V8l2 1.5" {...stroke} />
+        </>
+      );
     case 'view':
       return (
         <>
@@ -441,7 +454,10 @@ function glyphPath(name: NavGlyphName) {
     case 'labels':
       return (
         <>
-          <path d="M2.5 8.2 8.2 2.5h4.3A1 1 0 0 1 13.5 3.5v4.3L7.8 13.5a1 1 0 0 1-1.4 0L2.5 9.6a1 1 0 0 1 0-1.4Z" {...stroke} />
+          <path
+            d="M2.5 8.2 8.2 2.5h4.3A1 1 0 0 1 13.5 3.5v4.3L7.8 13.5a1 1 0 0 1-1.4 0L2.5 9.6a1 1 0 0 1 0-1.4Z"
+            {...stroke}
+          />
           <circle cx="10.2" cy="5.8" r="0.9" fill="currentColor" />
         </>
       );
@@ -477,7 +493,10 @@ function glyphPath(name: NavGlyphName) {
     case 'trash':
       return (
         <>
-          <path d="M3.5 5h9M6 5V3.5h4V5M5 5l.6 7.2A1 1 0 0 0 6.6 13h2.8a1 1 0 0 0 1-.8L11 5" {...stroke} />
+          <path
+            d="M3.5 5h9M6 5V3.5h4V5M5 5l.6 7.2A1 1 0 0 0 6.6 13h2.8a1 1 0 0 0 1-.8L11 5"
+            {...stroke}
+          />
         </>
       );
   }

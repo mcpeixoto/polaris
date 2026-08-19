@@ -14,6 +14,7 @@ function project(id: string, priority: number, sortOrder: string): Project {
     statusId: 'ps',
     priority,
     sortOrder,
+    updateSchedule: 'default',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   };
@@ -21,14 +22,10 @@ function project(id: string, priority: number, sortOrder: string): Project {
 
 describe('compareProjectsByPriority', () => {
   it('ranks urgent above none regardless of sortOrder', () => {
-    expect(
-      compareProjectsByPriority(project('a', 1, 'z'), project('b', 0, 'a')),
-    ).toBeLessThan(0);
+    expect(compareProjectsByPriority(project('a', 1, 'z'), project('b', 0, 'a'))).toBeLessThan(0);
   });
 
   it('orders by sortOrder within the same band', () => {
-    expect(
-      compareProjectsByPriority(project('a', 2, 'a0'), project('b', 2, 'a1')),
-    ).toBeLessThan(0);
+    expect(compareProjectsByPriority(project('a', 2, 'a0'), project('b', 2, 'a1'))).toBeLessThan(0);
   });
 });

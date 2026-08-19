@@ -880,8 +880,11 @@ func (r *mutationResolver) UpdateWorkspace(ctx context.Context, input generated.
 	}
 
 	ws, version, err := r.Svc.UpdateWorkspace(ctx, p, domain.UpdateWorkspaceInput{
-		Name:    input.Name,
-		LogoURL: input.LogoURL,
+		Name:                              input.Name,
+		LogoURL:                           input.LogoURL,
+		ProjectUpdateReminderIntervalDays: input.ProjectUpdateReminderIntervalDays,
+		ProjectUpdateReminderWeekday:      input.ProjectUpdateReminderWeekday,
+		ProjectUpdateReminderHour:         input.ProjectUpdateReminderHour,
 	})
 	if err != nil {
 		return nil, PresentError(ctx, err)

@@ -18,14 +18,17 @@ import (
 
 func toWorkspace(w store.Workspace) model.Workspace {
 	return model.Workspace{
-		ID:         w.ID,
-		Name:       w.Name,
-		URLKey:     w.UrlKey,
-		LogoURL:    w.LogoUrl,
-		Plan:       w.Plan,
-		CreatedAt:  w.CreatedAt,
-		UpdatedAt:  w.UpdatedAt,
-		ArchivedAt: w.ArchivedAt,
+		ID:                                w.ID,
+		Name:                              w.Name,
+		URLKey:                            w.UrlKey,
+		LogoURL:                           w.LogoUrl,
+		Plan:                              w.Plan,
+		ProjectUpdateReminderIntervalDays: int(w.ProjectUpdateReminderIntervalDays),
+		ProjectUpdateReminderWeekday:      int(w.ProjectUpdateReminderWeekday),
+		ProjectUpdateReminderHour:         int(w.ProjectUpdateReminderHour),
+		CreatedAt:                         w.CreatedAt,
+		UpdatedAt:                         w.UpdatedAt,
+		ArchivedAt:                        w.ArchivedAt,
 	}
 }
 
@@ -138,15 +141,15 @@ func toIssue(i store.Issue, teamKey string) model.Issue {
 		Priority:    int(i.Priority),
 		SortOrder:   i.SortOrder,
 
-		DueDateSource:     i.DueDateSource,
-		ParentID:          i.ParentID,
-		SubIssueSortOrder: i.SubIssueSortOrder,
-		TemplateID:        i.TemplateID,
-		ProjectID:         i.ProjectID,
+		DueDateSource:      i.DueDateSource,
+		ParentID:           i.ParentID,
+		SubIssueSortOrder:  i.SubIssueSortOrder,
+		TemplateID:         i.TemplateID,
+		ProjectID:          i.ProjectID,
 		ProjectMilestoneID: i.ProjectMilestoneID,
-		CycleID:           i.CycleID,
-		SnoozedUntil:      i.SnoozedUntil,
-		AutoClosedAt:      i.AutoClosedAt,
+		CycleID:            i.CycleID,
+		SnoozedUntil:       i.SnoozedUntil,
+		AutoClosedAt:       i.AutoClosedAt,
 
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,

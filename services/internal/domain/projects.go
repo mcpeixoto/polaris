@@ -99,9 +99,9 @@ type CreateProjectInput struct {
 	TeamIDs   []uuid.UUID
 	MemberIDs []uuid.UUID
 
-	StartDate            *model.Date
-	StartDateGranularity *string
-	TargetDate           *model.Date
+	StartDate             *model.Date
+	StartDateGranularity  *string
+	TargetDate            *model.Date
 	TargetDateGranularity *string
 }
 
@@ -255,6 +255,11 @@ type UpdateProjectInput struct {
 	TargetDate            *model.Date
 	TargetDateGranularity *string
 	ClearTarget           bool
+
+	UpdateSchedule             *string
+	UpdateReminderIntervalDays *int
+	UpdateReminderWeekday      *int
+	UpdateReminderHour         *int
 }
 
 func (s *Service) UpdateProject(ctx context.Context, p *authz.Principal, in UpdateProjectInput) (model.Project, int64, error) {
@@ -280,6 +285,16 @@ func (s *Service) UpdateProject(ctx context.Context, p *authz.Principal, in Upda
 	}
 	if in.TargetDate != nil && in.ClearTarget {
 		return model.Project{}, 0, platform.Validation("targetDate", "cannot set and clear the target date in one call")
+	}
+	if err := validateProjectUpdateSchedule(in.UpdateSchedule); err != nil {
+		return model.Project{}, 0, err
+	}
+	if err := validateProjectUpdateReminderFields(
+		in.UpdateReminderIntervalDays,
+		in.UpdateReminderWeekday,
+		in.UpdateReminderHour,
+	); err != nil {
+		return model.Project{}, 0, err
 	}
 	in.Color = normaliseColor(in.Color)
 
@@ -328,23 +343,27 @@ func (s *Service) UpdateProject(ctx context.Context, p *authz.Principal, in Upda
 			priority = &v
 		}
 		row, err := q.UpdateProject(ctx, store.UpdateProjectParams{
-			ID:                    in.ID,
-			Name:                  in.Name,
-			Summary:               in.Summary,
-			Description:           in.Description,
-			Icon:                  in.Icon,
-			Color:                 in.Color,
-			StatusID:              in.StatusID,
-			Priority:              priority,
-			SortOrder:             sortOrder,
-			LeadID:                in.LeadID,
-			ClearLead:             in.ClearLead,
-			StartDate:             start,
-			StartDateGranularity:  startG,
-			ClearStart:            in.ClearStart,
-			TargetDate:            target,
-			TargetDateGranularity: targetG,
-			ClearTarget:           in.ClearTarget,
+			ID:                         in.ID,
+			Name:                       in.Name,
+			Summary:                    in.Summary,
+			Description:                in.Description,
+			Icon:                       in.Icon,
+			Color:                      in.Color,
+			StatusID:                   in.StatusID,
+			Priority:                   priority,
+			SortOrder:                  sortOrder,
+			LeadID:                     in.LeadID,
+			ClearLead:                  in.ClearLead,
+			StartDate:                  start,
+			StartDateGranularity:       startG,
+			ClearStart:                 in.ClearStart,
+			TargetDate:                 target,
+			TargetDateGranularity:      targetG,
+			ClearTarget:                in.ClearTarget,
+			UpdateSchedule:             in.UpdateSchedule,
+			UpdateReminderIntervalDays: int16PtrFromInt(in.UpdateReminderIntervalDays),
+			UpdateReminderWeekday:      int16PtrFromInt(in.UpdateReminderWeekday),
+			UpdateReminderHour:         int16PtrFromInt(in.UpdateReminderHour),
 		})
 		if err != nil {
 			return platform.Internal(err)
@@ -1252,25 +1271,29 @@ func toProjectStatus(s store.ProjectStatus) model.ProjectStatus {
 
 func toProject(p store.Project) model.Project {
 	out := model.Project{
-		ID:                    p.ID,
-		WorkspaceID:           p.WorkspaceID,
-		Name:                  p.Name,
-		Summary:               p.Summary,
-		Description:           p.Description,
-		Icon:                  p.Icon,
-		Color:                 p.Color,
-		StatusID:              p.StatusID,
-		Priority:              int(p.Priority),
-		LeadID:                p.LeadID,
-		CreatorID:             p.CreatorID,
-		SortOrder:             p.SortOrder,
-		StartDateGranularity:  p.StartDateGranularity,
-		TargetDateGranularity: p.TargetDateGranularity,
-		ArchivedAt:            p.ArchivedAt,
-		DeletedAt:             p.DeletedAt,
-		DeletedBy:             p.DeletedBy,
-		CreatedAt:             p.CreatedAt,
-		UpdatedAt:             p.UpdatedAt,
+		ID:                         p.ID,
+		WorkspaceID:                p.WorkspaceID,
+		Name:                       p.Name,
+		Summary:                    p.Summary,
+		Description:                p.Description,
+		Icon:                       p.Icon,
+		Color:                      p.Color,
+		StatusID:                   p.StatusID,
+		Priority:                   int(p.Priority),
+		LeadID:                     p.LeadID,
+		CreatorID:                  p.CreatorID,
+		SortOrder:                  p.SortOrder,
+		StartDateGranularity:       p.StartDateGranularity,
+		TargetDateGranularity:      p.TargetDateGranularity,
+		UpdateSchedule:             p.UpdateSchedule,
+		UpdateReminderIntervalDays: intPtrFromInt16(p.UpdateReminderIntervalDays),
+		UpdateReminderWeekday:      intPtrFromInt16(p.UpdateReminderWeekday),
+		UpdateReminderHour:         intPtrFromInt16(p.UpdateReminderHour),
+		ArchivedAt:                 p.ArchivedAt,
+		DeletedAt:                  p.DeletedAt,
+		DeletedBy:                  p.DeletedBy,
+		CreatedAt:                  p.CreatedAt,
+		UpdatedAt:                  p.UpdatedAt,
 	}
 	out.StartDate = dateOf(p.StartDate)
 	out.TargetDate = dateOf(p.TargetDate)

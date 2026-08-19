@@ -792,17 +792,22 @@ type Project struct {
 	StartDateGranularity  *TimeframeGranularity `json:"startDateGranularity,omitempty"`
 	TargetDate            *string               `json:"targetDate,omitempty"`
 	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
-	ArchivedAt            *time.Time            `json:"archivedAt,omitempty"`
-	DeletedAt             *time.Time            `json:"deletedAt,omitempty"`
-	DeletedBy             *uuid.UUID            `json:"deletedBy,omitempty"`
-	CreatedAt             time.Time             `json:"createdAt"`
-	UpdatedAt             time.Time             `json:"updatedAt"`
-	Status                *ProjectStatus        `json:"status"`
-	Lead                  *User                 `json:"lead,omitempty"`
-	Creator               *User                 `json:"creator,omitempty"`
-	Teams                 []ProjectTeam         `json:"teams"`
-	Members               []ProjectMember       `json:"members"`
-	Milestones            []ProjectMilestone    `json:"milestones"`
+	// Workspace default, custom cadence, or never expect updates.
+	UpdateSchedule             ProjectUpdateSchedule `json:"updateSchedule"`
+	UpdateReminderIntervalDays *int                  `json:"updateReminderIntervalDays,omitempty"`
+	UpdateReminderWeekday      *int                  `json:"updateReminderWeekday,omitempty"`
+	UpdateReminderHour         *int                  `json:"updateReminderHour,omitempty"`
+	ArchivedAt                 *time.Time            `json:"archivedAt,omitempty"`
+	DeletedAt                  *time.Time            `json:"deletedAt,omitempty"`
+	DeletedBy                  *uuid.UUID            `json:"deletedBy,omitempty"`
+	CreatedAt                  time.Time             `json:"createdAt"`
+	UpdatedAt                  time.Time             `json:"updatedAt"`
+	Status                     *ProjectStatus        `json:"status"`
+	Lead                       *User                 `json:"lead,omitempty"`
+	Creator                    *User                 `json:"creator,omitempty"`
+	Teams                      []ProjectTeam         `json:"teams"`
+	Members                    []ProjectMember       `json:"members"`
+	Milestones                 []ProjectMilestone    `json:"milestones"`
 }
 
 // An end→start dependency: the blocking project must finish before the blocked may start.
@@ -1205,8 +1210,12 @@ type UpdateProjectInput struct {
 	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
 	ClearTarget           *bool                 `json:"clearTarget,omitempty"`
 	// Place directly below this project in the same priority group. Omit to append.
-	AfterProjectID *uuid.UUID `json:"afterProjectId,omitempty"`
-	MoveToTop      *bool      `json:"moveToTop,omitempty"`
+	AfterProjectID             *uuid.UUID             `json:"afterProjectId,omitempty"`
+	MoveToTop                  *bool                  `json:"moveToTop,omitempty"`
+	UpdateSchedule             *ProjectUpdateSchedule `json:"updateSchedule,omitempty"`
+	UpdateReminderIntervalDays *int                   `json:"updateReminderIntervalDays,omitempty"`
+	UpdateReminderWeekday      *int                   `json:"updateReminderWeekday,omitempty"`
+	UpdateReminderHour         *int                   `json:"updateReminderHour,omitempty"`
 }
 
 type UpdateProjectLabelInput struct {
@@ -1311,8 +1320,11 @@ type UpdateWorkflowStateInput struct {
 }
 
 type UpdateWorkspaceInput struct {
-	Name    *string `json:"name,omitempty"`
-	LogoURL *string `json:"logoUrl,omitempty"`
+	Name                              *string `json:"name,omitempty"`
+	LogoURL                           *string `json:"logoUrl,omitempty"`
+	ProjectUpdateReminderIntervalDays *int    `json:"projectUpdateReminderIntervalDays,omitempty"`
+	ProjectUpdateReminderWeekday      *int    `json:"projectUpdateReminderWeekday,omitempty"`
+	ProjectUpdateReminderHour         *int    `json:"projectUpdateReminderHour,omitempty"`
 }
 
 type User struct {
@@ -1499,13 +1511,19 @@ type Workspace struct {
 	// not — locking people out of their own data over a failed card is not a business model.
 	PlanLapsedAt *time.Time `json:"planLapsedAt,omitempty"`
 	// Overrides the plan's default seat count. Null means whatever the plan says.
-	SeatLimit  *int       `json:"seatLimit,omitempty"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	UpdatedAt  time.Time  `json:"updatedAt"`
-	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
-	Teams      []Team     `json:"teams"`
-	Users      []User     `json:"users"`
-	Labels     []Label    `json:"labels"`
+	SeatLimit *int `json:"seatLimit,omitempty"`
+	// Default cadence for project update reminders (staleness + future delivery).
+	ProjectUpdateReminderIntervalDays int `json:"projectUpdateReminderIntervalDays"`
+	// 0 = Sunday through 6 = Saturday.
+	ProjectUpdateReminderWeekday int `json:"projectUpdateReminderWeekday"`
+	// Hour of day in the lead's timezone when reminders would send (0–23).
+	ProjectUpdateReminderHour int        `json:"projectUpdateReminderHour"`
+	CreatedAt                 time.Time  `json:"createdAt"`
+	UpdatedAt                 time.Time  `json:"updatedAt"`
+	ArchivedAt                *time.Time `json:"archivedAt,omitempty"`
+	Teams                     []Team     `json:"teams"`
+	Users                     []User     `json:"users"`
+	Labels                    []Label    `json:"labels"`
 	// What this workspace's plan permits, resolved by one service rather than scattered plan checks.
 	Entitlements *Entitlements `json:"entitlements"`
 }
@@ -1998,6 +2016,63 @@ func (e *ProjectUpdateHealth) UnmarshalJSON(b []byte) error {
 }
 
 func (e ProjectUpdateHealth) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ProjectUpdateSchedule string
+
+const (
+	ProjectUpdateScheduleDefault ProjectUpdateSchedule = "default"
+	ProjectUpdateScheduleNever   ProjectUpdateSchedule = "never"
+	ProjectUpdateScheduleCustom  ProjectUpdateSchedule = "custom"
+)
+
+var AllProjectUpdateSchedule = []ProjectUpdateSchedule{
+	ProjectUpdateScheduleDefault,
+	ProjectUpdateScheduleNever,
+	ProjectUpdateScheduleCustom,
+}
+
+func (e ProjectUpdateSchedule) IsValid() bool {
+	switch e {
+	case ProjectUpdateScheduleDefault, ProjectUpdateScheduleNever, ProjectUpdateScheduleCustom:
+		return true
+	}
+	return false
+}
+
+func (e ProjectUpdateSchedule) String() string {
+	return string(e)
+}
+
+func (e *ProjectUpdateSchedule) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ProjectUpdateSchedule(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ProjectUpdateSchedule", str)
+	}
+	return nil
+}
+
+func (e ProjectUpdateSchedule) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ProjectUpdateSchedule) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ProjectUpdateSchedule) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

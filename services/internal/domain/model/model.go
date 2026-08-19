@@ -55,6 +55,11 @@ type Workspace struct {
 	// SeatLimit overrides the plan's default seat count. nil means "whatever the plan says".
 	SeatLimit *int `json:"seatLimit,omitempty"`
 
+	// Default cadence for project update reminders (display + staleness; delivery is later).
+	ProjectUpdateReminderIntervalDays int `json:"projectUpdateReminderIntervalDays"`
+	ProjectUpdateReminderWeekday      int `json:"projectUpdateReminderWeekday"`
+	ProjectUpdateReminderHour         int `json:"projectUpdateReminderHour"`
+
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
@@ -336,10 +341,10 @@ type IssueLabel struct {
 
 // ProjectLabel is both a label and a group of labels for projects. Workspace-scoped only.
 type ProjectLabel struct {
-	ID          uuid.UUID `json:"id"`
-	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
 	ParentID    *uuid.UUID `json:"parentId,omitempty"`
-	IsGroup     bool      `json:"isGroup"`
+	IsGroup     bool       `json:"isGroup"`
 
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
@@ -794,6 +799,13 @@ const (
 	ProjectCategoryCanceled  = "canceled"
 )
 
+// ProjectUpdateSchedule values for per-project reminder overrides.
+const (
+	ProjectUpdateScheduleDefault = "default"
+	ProjectUpdateScheduleNever   = "never"
+	ProjectUpdateScheduleCustom  = "custom"
+)
+
 // TimeframeGranularity is how coarsely a project date is meant. A date without one is
 // just a day; "Q3" is a date in that quarter plus this flag, never an instant.
 const (
@@ -839,6 +851,12 @@ type Project struct {
 	StartDateGranularity  *string `json:"startDateGranularity,omitempty"`
 	TargetDate            *Date   `json:"targetDate,omitempty"`
 	TargetDateGranularity *string `json:"targetDateGranularity,omitempty"`
+
+	// Update schedule: default (workspace cadence), custom, or never.
+	UpdateSchedule             string `json:"updateSchedule"`
+	UpdateReminderIntervalDays *int   `json:"updateReminderIntervalDays,omitempty"`
+	UpdateReminderWeekday      *int   `json:"updateReminderWeekday,omitempty"`
+	UpdateReminderHour         *int   `json:"updateReminderHour,omitempty"`
 
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
 	DeletedAt  *time.Time `json:"deletedAt,omitempty"`

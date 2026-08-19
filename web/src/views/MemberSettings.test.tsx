@@ -127,6 +127,9 @@ function workspace(): Workspace {
     name: 'Acme',
     urlKey: 'acme',
     plan: 'free',
+    projectUpdateReminderIntervalDays: 7,
+    projectUpdateReminderWeekday: 3,
+    projectUpdateReminderHour: 9,
     createdAt: AT,
     updatedAt: AT,
   };

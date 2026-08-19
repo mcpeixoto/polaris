@@ -30,28 +30,36 @@ func toProject(p model.Project) (generated.Project, error) {
 	if err != nil {
 		return generated.Project{}, err
 	}
+	schedule, err := toProjectUpdateSchedule(p.UpdateSchedule)
+	if err != nil {
+		return generated.Project{}, err
+	}
 	return generated.Project{
-		ID:                    p.ID,
-		WorkspaceID:           p.WorkspaceID,
-		Name:                  p.Name,
-		Summary:               p.Summary,
-		Description:           p.Description,
-		Icon:                  p.Icon,
-		Color:                 p.Color,
-		StatusID:              p.StatusID,
-		Priority:              p.Priority,
-		LeadID:                p.LeadID,
-		CreatorID:             p.CreatorID,
-		SortOrder:             p.SortOrder,
-		StartDate:             fromDate(p.StartDate),
-		StartDateGranularity:  startG,
-		TargetDate:            fromDate(p.TargetDate),
-		TargetDateGranularity: targetG,
-		ArchivedAt:            p.ArchivedAt,
-		DeletedAt:             p.DeletedAt,
-		DeletedBy:             p.DeletedBy,
-		CreatedAt:             p.CreatedAt,
-		UpdatedAt:             p.UpdatedAt,
+		ID:                         p.ID,
+		WorkspaceID:                p.WorkspaceID,
+		Name:                       p.Name,
+		Summary:                    p.Summary,
+		Description:                p.Description,
+		Icon:                       p.Icon,
+		Color:                      p.Color,
+		StatusID:                   p.StatusID,
+		Priority:                   p.Priority,
+		LeadID:                     p.LeadID,
+		CreatorID:                  p.CreatorID,
+		SortOrder:                  p.SortOrder,
+		StartDate:                  fromDate(p.StartDate),
+		StartDateGranularity:       startG,
+		TargetDate:                 fromDate(p.TargetDate),
+		TargetDateGranularity:      targetG,
+		UpdateSchedule:             schedule,
+		UpdateReminderIntervalDays: p.UpdateReminderIntervalDays,
+		UpdateReminderWeekday:      p.UpdateReminderWeekday,
+		UpdateReminderHour:         p.UpdateReminderHour,
+		ArchivedAt:                 p.ArchivedAt,
+		DeletedAt:                  p.DeletedAt,
+		DeletedBy:                  p.DeletedBy,
+		CreatedAt:                  p.CreatedAt,
+		UpdatedAt:                  p.UpdatedAt,
 	}, nil
 }
 
@@ -234,25 +242,37 @@ func fromUpdateProjectInput(in generated.UpdateProjectInput) (domain.UpdateProje
 	if err != nil {
 		return domain.UpdateProjectInput{}, err
 	}
+	var schedule *string
+	if in.UpdateSchedule != nil {
+		s, err := fromProjectUpdateSchedule(*in.UpdateSchedule)
+		if err != nil {
+			return domain.UpdateProjectInput{}, err
+		}
+		schedule = &s
+	}
 	return domain.UpdateProjectInput{
-		ID:                    in.ID,
-		Name:                  in.Name,
-		Summary:               in.Summary,
-		Description:           in.Description,
-		Icon:                  in.Icon,
-		Color:                 in.Color,
-		StatusID:              in.StatusID,
-		Priority:              in.Priority,
-		LeadID:                in.LeadID,
-		ClearLead:             deref(in.ClearLead),
-		StartDate:             toDate(in.StartDate),
-		StartDateGranularity:  startG,
-		ClearStart:            deref(in.ClearStart),
-		TargetDate:            toDate(in.TargetDate),
-		TargetDateGranularity: targetG,
-		ClearTarget:           deref(in.ClearTarget),
-		AfterProjectID:        in.AfterProjectID,
-		MoveToTop:             deref(in.MoveToTop),
+		ID:                         in.ID,
+		Name:                       in.Name,
+		Summary:                    in.Summary,
+		Description:                in.Description,
+		Icon:                       in.Icon,
+		Color:                      in.Color,
+		StatusID:                   in.StatusID,
+		Priority:                   in.Priority,
+		LeadID:                     in.LeadID,
+		ClearLead:                  deref(in.ClearLead),
+		StartDate:                  toDate(in.StartDate),
+		StartDateGranularity:       startG,
+		ClearStart:                 deref(in.ClearStart),
+		TargetDate:                 toDate(in.TargetDate),
+		TargetDateGranularity:      targetG,
+		ClearTarget:                deref(in.ClearTarget),
+		AfterProjectID:             in.AfterProjectID,
+		MoveToTop:                  deref(in.MoveToTop),
+		UpdateSchedule:             schedule,
+		UpdateReminderIntervalDays: in.UpdateReminderIntervalDays,
+		UpdateReminderWeekday:      in.UpdateReminderWeekday,
+		UpdateReminderHour:         in.UpdateReminderHour,
 	}, nil
 }
 
@@ -487,11 +507,11 @@ func toInitiativeProject(ip model.InitiativeProject) generated.InitiativeProject
 
 func toProjectDependency(dep model.ProjectDependency) generated.ProjectDependency {
 	return generated.ProjectDependency{
-		ID:                 dep.ID,
-		WorkspaceID:        dep.WorkspaceID,
-		BlockingProjectID:  dep.BlockingProjectID,
-		BlockedProjectID:   dep.BlockedProjectID,
-		CreatedAt:          dep.CreatedAt,
+		ID:                dep.ID,
+		WorkspaceID:       dep.WorkspaceID,
+		BlockingProjectID: dep.BlockingProjectID,
+		BlockedProjectID:  dep.BlockedProjectID,
+		CreatedAt:         dep.CreatedAt,
 	}
 }
 
@@ -639,6 +659,32 @@ func fromProjectUpdateHealth(h generated.ProjectUpdateHealth) (string, error) {
 		return model.ProjectUpdateHealthOffTrack, nil
 	default:
 		return "", fmt.Errorf("unknown project update health %q", h)
+	}
+}
+
+func toProjectUpdateSchedule(v string) (generated.ProjectUpdateSchedule, error) {
+	switch v {
+	case model.ProjectUpdateScheduleDefault:
+		return generated.ProjectUpdateScheduleDefault, nil
+	case model.ProjectUpdateScheduleNever:
+		return generated.ProjectUpdateScheduleNever, nil
+	case model.ProjectUpdateScheduleCustom:
+		return generated.ProjectUpdateScheduleCustom, nil
+	default:
+		return "", platform.Internal(fmt.Errorf("unknown project update schedule %q", v))
+	}
+}
+
+func fromProjectUpdateSchedule(s generated.ProjectUpdateSchedule) (string, error) {
+	switch s {
+	case generated.ProjectUpdateScheduleDefault:
+		return model.ProjectUpdateScheduleDefault, nil
+	case generated.ProjectUpdateScheduleNever:
+		return model.ProjectUpdateScheduleNever, nil
+	case generated.ProjectUpdateScheduleCustom:
+		return model.ProjectUpdateScheduleCustom, nil
+	default:
+		return "", platform.Validation("updateSchedule", "schedule must be default, custom, or never")
 	}
 }
 

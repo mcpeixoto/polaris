@@ -115,7 +115,9 @@ INSERT INTO workspace (id, name, url_key, plan, settings)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
-          plan_expires_at, seat_limit, plan_lapsed_at
+          plan_expires_at, seat_limit, plan_lapsed_at,
+          project_update_reminder_interval_days, project_update_reminder_weekday,
+          project_update_reminder_hour
 `
 
 type CreateWorkspaceParams struct {
@@ -149,6 +151,9 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.PlanExpiresAt,
 		&i.SeatLimit,
 		&i.PlanLapsedAt,
+		&i.ProjectUpdateReminderIntervalDays,
+		&i.ProjectUpdateReminderWeekday,
+		&i.ProjectUpdateReminderHour,
 	)
 	return i, err
 }
@@ -156,7 +161,9 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 const getWorkspace = `-- name: GetWorkspace :one
 SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
-       plan_expires_at, seat_limit, plan_lapsed_at
+       plan_expires_at, seat_limit, plan_lapsed_at,
+       project_update_reminder_interval_days, project_update_reminder_weekday,
+       project_update_reminder_hour
 FROM workspace
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -178,6 +185,9 @@ func (q *Queries) GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, er
 		&i.PlanExpiresAt,
 		&i.SeatLimit,
 		&i.PlanLapsedAt,
+		&i.ProjectUpdateReminderIntervalDays,
+		&i.ProjectUpdateReminderWeekday,
+		&i.ProjectUpdateReminderHour,
 	)
 	return i, err
 }
@@ -185,7 +195,9 @@ func (q *Queries) GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, er
 const getWorkspaceByURLKey = `-- name: GetWorkspaceByURLKey :one
 SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
-       plan_expires_at, seat_limit, plan_lapsed_at
+       plan_expires_at, seat_limit, plan_lapsed_at,
+       project_update_reminder_interval_days, project_update_reminder_weekday,
+       project_update_reminder_hour
 FROM workspace
 WHERE url_key = $1 AND deleted_at IS NULL
 `
@@ -207,6 +219,9 @@ func (q *Queries) GetWorkspaceByURLKey(ctx context.Context, urlKey string) (Work
 		&i.PlanExpiresAt,
 		&i.SeatLimit,
 		&i.PlanLapsedAt,
+		&i.ProjectUpdateReminderIntervalDays,
+		&i.ProjectUpdateReminderWeekday,
+		&i.ProjectUpdateReminderHour,
 	)
 	return i, err
 }
@@ -327,18 +342,30 @@ const updateWorkspace = `-- name: UpdateWorkspace :one
 UPDATE workspace
 SET name     = COALESCE($1, name),
     logo_url = COALESCE($2, logo_url),
-    settings = COALESCE($3, settings)
-WHERE id = $4 AND deleted_at IS NULL
+    settings = COALESCE($3, settings),
+    project_update_reminder_interval_days = COALESCE(
+        $4,
+        project_update_reminder_interval_days),
+    project_update_reminder_weekday = COALESCE(
+        $5, project_update_reminder_weekday),
+    project_update_reminder_hour = COALESCE(
+        $6, project_update_reminder_hour)
+WHERE id = $7 AND deleted_at IS NULL
 RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
-          plan_expires_at, seat_limit, plan_lapsed_at
+          plan_expires_at, seat_limit, plan_lapsed_at,
+          project_update_reminder_interval_days, project_update_reminder_weekday,
+          project_update_reminder_hour
 `
 
 type UpdateWorkspaceParams struct {
-	Name     *string
-	LogoUrl  *string
-	Settings []byte
-	ID       uuid.UUID
+	Name                              *string
+	LogoUrl                           *string
+	Settings                          []byte
+	ProjectUpdateReminderIntervalDays *int16
+	ProjectUpdateReminderWeekday      *int16
+	ProjectUpdateReminderHour         *int16
+	ID                                uuid.UUID
 }
 
 func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error) {
@@ -346,6 +373,9 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		arg.Name,
 		arg.LogoUrl,
 		arg.Settings,
+		arg.ProjectUpdateReminderIntervalDays,
+		arg.ProjectUpdateReminderWeekday,
+		arg.ProjectUpdateReminderHour,
 		arg.ID,
 	)
 	var i Workspace
@@ -363,6 +393,9 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		&i.PlanExpiresAt,
 		&i.SeatLimit,
 		&i.PlanLapsedAt,
+		&i.ProjectUpdateReminderIntervalDays,
+		&i.ProjectUpdateReminderWeekday,
+		&i.ProjectUpdateReminderHour,
 	)
 	return i, err
 }

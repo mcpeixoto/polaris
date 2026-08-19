@@ -89,13 +89,15 @@ VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(name), sqlc.narg(summary)
 RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at;
+          archived_at, deleted_at, deleted_by, created_at, updated_at,
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour;
 
 -- name: GetProject :one
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at,
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 FROM project
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -106,7 +108,8 @@ WHERE id = $1 AND deleted_at IS NULL;
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at,
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 FROM project
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE;
@@ -117,7 +120,8 @@ FOR UPDATE;
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at,
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 FROM project
 WHERE id = $1
 FOR UPDATE;
@@ -126,7 +130,8 @@ FOR UPDATE;
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at,
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 FROM project
 WHERE workspace_id = $1 AND deleted_at IS NULL AND archived_at IS NULL
 ORDER BY sort_order;
@@ -138,7 +143,8 @@ ORDER BY sort_order;
 SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
        p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
        p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
-       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at
+       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at,
+       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour
 FROM project p
 WHERE p.workspace_id = sqlc.arg(workspace_id)
   AND p.deleted_at IS NULL
@@ -188,12 +194,20 @@ SET name                     = COALESCE(sqlc.narg(name), name),
     target_date_granularity  = CASE WHEN sqlc.arg(clear_target)::boolean THEN NULL
                                     ELSE COALESCE(sqlc.narg(target_date_granularity), target_date_granularity) END,
     lead_id = CASE WHEN sqlc.arg(clear_lead)::boolean THEN NULL
-                   ELSE COALESCE(sqlc.narg(lead_id), lead_id) END
+                   ELSE COALESCE(sqlc.narg(lead_id), lead_id) END,
+    update_schedule = COALESCE(sqlc.narg(update_schedule), update_schedule),
+    update_reminder_interval_days = COALESCE(
+        sqlc.narg(update_reminder_interval_days), update_reminder_interval_days),
+    update_reminder_weekday = COALESCE(
+        sqlc.narg(update_reminder_weekday), update_reminder_weekday),
+    update_reminder_hour = COALESCE(
+        sqlc.narg(update_reminder_hour), update_reminder_hour)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at;
+          archived_at, deleted_at, deleted_by, created_at, updated_at,
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour;
 
 -- name: SoftDeleteProject :exec
 UPDATE project SET deleted_at = now(), deleted_by = sqlc.narg(deleted_by)
@@ -205,13 +219,15 @@ WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL AND deleted_at > sqlc.arg(del
 RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at;
+          archived_at, deleted_at, deleted_by, created_at, updated_at,
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour;
 
 -- name: ListDeletedProjects :many
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at,
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
 FROM project
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND deleted_at IS NOT NULL
@@ -364,7 +380,8 @@ UPDATE project SET archived_at = NULL WHERE id = $1 AND deleted_at IS NULL
 RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at;
+          archived_at, deleted_at, deleted_by, created_at, updated_at,
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour;
 
 -- Archived projects linked to this team. A project belongs to the workspace, but the
 -- archives page is per-team, so the join is the same visibility rule the live list uses.
@@ -373,7 +390,8 @@ RETURNING id, workspace_id, name, summary, description, icon, color,
 SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
        p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
        p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
-       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at
+       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at,
+       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour
 FROM project p
 JOIN project_team pt ON pt.project_id = p.id
 WHERE pt.team_id = $1 AND p.archived_at IS NOT NULL AND p.deleted_at IS NULL
@@ -385,7 +403,8 @@ ORDER BY p.archived_at DESC;
 SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
        p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
        p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
-       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at
+       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at,
+       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour
 FROM project p
 JOIN project_team pt ON pt.project_id = p.id
 JOIN project_status ps ON ps.id = p.status_id

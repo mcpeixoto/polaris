@@ -147,6 +147,12 @@ type Workspace {
   planLapsedAt: Time
   """Overrides the plan's default seat count. Null means whatever the plan says."""
   seatLimit: Int
+  """Default cadence for project update reminders (staleness + future delivery)."""
+  projectUpdateReminderIntervalDays: Int!
+  """0 = Sunday through 6 = Saturday."""
+  projectUpdateReminderWeekday: Int!
+  """Hour of day in the lead's timezone when reminders would send (0–23)."""
+  projectUpdateReminderHour: Int!
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
@@ -995,6 +1001,12 @@ enum ProjectStatusCategory {
   CANCELED
 }
 
+enum ProjectUpdateSchedule {
+  default
+  never
+  custom
+}
+
 enum TimeframeGranularity {
   DAY
   MONTH
@@ -1034,6 +1046,11 @@ type Project {
   startDateGranularity: TimeframeGranularity
   targetDate: String
   targetDateGranularity: TimeframeGranularity
+  """Workspace default, custom cadence, or never expect updates."""
+  updateSchedule: ProjectUpdateSchedule!
+  updateReminderIntervalDays: Int
+  updateReminderWeekday: Int
+  updateReminderHour: Int
   archivedAt: Time
   deletedAt: Time
   deletedBy: UUID
@@ -1142,6 +1159,10 @@ input UpdateProjectInput {
   """Place directly below this project in the same priority group. Omit to append."""
   afterProjectId: UUID
   moveToTop: Boolean
+  updateSchedule: ProjectUpdateSchedule
+  updateReminderIntervalDays: Int
+  updateReminderWeekday: Int
+  updateReminderHour: Int
 }
 
 input CreateProjectMilestoneInput {
@@ -1662,6 +1683,9 @@ input UpdateProfileInput {
 input UpdateWorkspaceInput {
   name: String
   logoUrl: String
+  projectUpdateReminderIntervalDays: Int
+  projectUpdateReminderWeekday: Int
+  projectUpdateReminderHour: Int
 }
 
 # ---------------------------------------------------------------- root

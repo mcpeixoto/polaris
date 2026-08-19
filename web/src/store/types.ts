@@ -74,6 +74,12 @@ export interface Workspace {
   readonly planLapsedAt?: Timestamp;
   /** Overrides the plan's default seat count. Absent means whatever the plan says. */
   readonly seatLimit?: number;
+  /** Default cadence for project update reminders (staleness; delivery is later). */
+  readonly projectUpdateReminderIntervalDays: number;
+  /** 0 = Sunday through 6 = Saturday. */
+  readonly projectUpdateReminderWeekday: number;
+  /** Hour of day (0–23) when reminders would send in the lead's timezone. */
+  readonly projectUpdateReminderHour: number;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly archivedAt?: Timestamp;
@@ -570,8 +576,7 @@ export interface TemplateProperties {
   readonly labelIds?: readonly UUID[];
 }
 
-export type ProjectStatusCategory =
-  'backlog' | 'planned' | 'started' | 'completed' | 'canceled';
+export type ProjectStatusCategory = 'backlog' | 'planned' | 'started' | 'completed' | 'canceled';
 
 export type TimeframeGranularity = 'day' | 'month' | 'quarter' | 'half' | 'year';
 
@@ -606,6 +611,11 @@ export interface Project {
   readonly startDateGranularity?: TimeframeGranularity;
   readonly targetDate?: DateOnly;
   readonly targetDateGranularity?: TimeframeGranularity;
+  /** Workspace default, custom cadence, or never expect updates. */
+  readonly updateSchedule: ProjectUpdateSchedule;
+  readonly updateReminderIntervalDays?: number;
+  readonly updateReminderWeekday?: number;
+  readonly updateReminderHour?: number;
   readonly archivedAt?: Timestamp;
   readonly deletedAt?: Timestamp;
   readonly deletedBy?: UUID;
@@ -642,12 +652,7 @@ export interface ProjectMilestone {
   readonly archivedAt?: Timestamp;
 }
 
-export type InitiativeStatus =
-  | 'proposed'
-  | 'planned'
-  | 'active'
-  | 'completed'
-  | 'canceled';
+export type InitiativeStatus = 'proposed' | 'planned' | 'active' | 'completed' | 'canceled';
 
 /** A workspace objective grouping a manually curated set of projects. */
 export interface Initiative {
@@ -679,6 +684,8 @@ export interface InitiativeProject {
 }
 
 export type ProjectUpdateHealth = 'on_track' | 'at_risk' | 'off_track';
+
+export type ProjectUpdateSchedule = 'default' | 'never' | 'custom';
 
 /** A status post on a project — health plus narrative markdown. */
 export interface ProjectUpdate {

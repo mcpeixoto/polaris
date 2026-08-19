@@ -90,6 +90,7 @@ export type {
   InitiativeStatus,
   ProjectUpdate,
   ProjectUpdateHealth,
+  ProjectUpdateSchedule,
   ProjectDependency,
   ProjectLabel,
   ProjectLabelLink,

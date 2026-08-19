@@ -26,14 +26,17 @@ import (
 
 func toWorkspace(w model.Workspace) generated.Workspace {
 	return generated.Workspace{
-		ID:         w.ID,
-		Name:       w.Name,
-		URLKey:     w.URLKey,
-		LogoURL:    w.LogoURL,
-		Plan:       w.Plan,
-		CreatedAt:  w.CreatedAt,
-		UpdatedAt:  w.UpdatedAt,
-		ArchivedAt: w.ArchivedAt,
+		ID:                                w.ID,
+		Name:                              w.Name,
+		URLKey:                            w.URLKey,
+		LogoURL:                           w.LogoURL,
+		Plan:                              w.Plan,
+		ProjectUpdateReminderIntervalDays: w.ProjectUpdateReminderIntervalDays,
+		ProjectUpdateReminderWeekday:      w.ProjectUpdateReminderWeekday,
+		ProjectUpdateReminderHour:         w.ProjectUpdateReminderHour,
+		CreatedAt:                         w.CreatedAt,
+		UpdatedAt:                         w.UpdatedAt,
+		ArchivedAt:                        w.ArchivedAt,
 	}
 }
 
@@ -103,9 +106,9 @@ func toTeam(t model.Team) (generated.Team, error) {
 		// The estimate settings live on the team and the number lives on the issue. A client
 		// that received the numbers without the scale would render 3 as "3 points" for a
 		// team on t-shirt sizes, which is the one thing the split exists to prevent.
-		EstimateScale:     scale,
-		EstimateAllowZero: t.EstimateAllowZero,
-		EstimateExtended:  t.EstimateExtended,
+		EstimateScale:         scale,
+		EstimateAllowZero:     t.EstimateAllowZero,
+		EstimateExtended:      t.EstimateExtended,
 		CyclesEnabled:         t.CyclesEnabled,
 		CycleDurationWeeks:    t.CycleDurationWeeks,
 		CycleCooldownWeeks:    t.CycleCooldownWeeks,
@@ -119,10 +122,10 @@ func toTeam(t model.Team) (generated.Team, error) {
 		AutoArchiveDays:       t.AutoArchiveDays,
 		AutoCloseParent:       t.AutoCloseParent,
 		AutoCloseChildren:     t.AutoCloseChildren,
-		CreatedAt:         t.CreatedAt,
-		UpdatedAt:         t.UpdatedAt,
-		RetiredAt:         t.RetiredAt,
-		ArchivedAt:        t.ArchivedAt,
+		CreatedAt:             t.CreatedAt,
+		UpdatedAt:             t.UpdatedAt,
+		RetiredAt:             t.RetiredAt,
+		ArchivedAt:            t.ArchivedAt,
 	}, nil
 }
 
@@ -203,17 +206,17 @@ func toIssue(i model.Issue) (generated.Issue, error) {
 		Priority:    i.Priority,
 		SortOrder:   i.SortOrder,
 
-		Estimate:          i.Estimate,
-		DueDate:           fromDate(i.DueDate),
-		DueDateSource:     source,
-		ParentID:          i.ParentID,
-		SubIssueSortOrder: i.SubIssueSortOrder,
-		TemplateID:        i.TemplateID,
-		ProjectID:         i.ProjectID,
+		Estimate:           i.Estimate,
+		DueDate:            fromDate(i.DueDate),
+		DueDateSource:      source,
+		ParentID:           i.ParentID,
+		SubIssueSortOrder:  i.SubIssueSortOrder,
+		TemplateID:         i.TemplateID,
+		ProjectID:          i.ProjectID,
 		ProjectMilestoneID: i.ProjectMilestoneID,
-		CycleID:           i.CycleID,
-		SnoozedUntil:      i.SnoozedUntil,
-		AutoClosedAt:      i.AutoClosedAt,
+		CycleID:            i.CycleID,
+		SnoozedUntil:       i.SnoozedUntil,
+		AutoClosedAt:       i.AutoClosedAt,
 
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,

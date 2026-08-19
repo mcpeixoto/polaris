@@ -553,33 +553,37 @@ type ComplexityRoot struct {
 	}
 
 	Project struct {
-		ArchivedAt            func(childComplexity int) int
-		Color                 func(childComplexity int) int
-		CreatedAt             func(childComplexity int) int
-		Creator               func(childComplexity int) int
-		CreatorID             func(childComplexity int) int
-		DeletedAt             func(childComplexity int) int
-		DeletedBy             func(childComplexity int) int
-		Description           func(childComplexity int) int
-		ID                    func(childComplexity int) int
-		Icon                  func(childComplexity int) int
-		Lead                  func(childComplexity int) int
-		LeadID                func(childComplexity int) int
-		Members               func(childComplexity int) int
-		Milestones            func(childComplexity int) int
-		Name                  func(childComplexity int) int
-		Priority              func(childComplexity int) int
-		SortOrder             func(childComplexity int) int
-		StartDate             func(childComplexity int) int
-		StartDateGranularity  func(childComplexity int) int
-		Status                func(childComplexity int) int
-		StatusID              func(childComplexity int) int
-		Summary               func(childComplexity int) int
-		TargetDate            func(childComplexity int) int
-		TargetDateGranularity func(childComplexity int) int
-		Teams                 func(childComplexity int) int
-		UpdatedAt             func(childComplexity int) int
-		WorkspaceID           func(childComplexity int) int
+		ArchivedAt                 func(childComplexity int) int
+		Color                      func(childComplexity int) int
+		CreatedAt                  func(childComplexity int) int
+		Creator                    func(childComplexity int) int
+		CreatorID                  func(childComplexity int) int
+		DeletedAt                  func(childComplexity int) int
+		DeletedBy                  func(childComplexity int) int
+		Description                func(childComplexity int) int
+		ID                         func(childComplexity int) int
+		Icon                       func(childComplexity int) int
+		Lead                       func(childComplexity int) int
+		LeadID                     func(childComplexity int) int
+		Members                    func(childComplexity int) int
+		Milestones                 func(childComplexity int) int
+		Name                       func(childComplexity int) int
+		Priority                   func(childComplexity int) int
+		SortOrder                  func(childComplexity int) int
+		StartDate                  func(childComplexity int) int
+		StartDateGranularity       func(childComplexity int) int
+		Status                     func(childComplexity int) int
+		StatusID                   func(childComplexity int) int
+		Summary                    func(childComplexity int) int
+		TargetDate                 func(childComplexity int) int
+		TargetDateGranularity      func(childComplexity int) int
+		Teams                      func(childComplexity int) int
+		UpdateReminderHour         func(childComplexity int) int
+		UpdateReminderIntervalDays func(childComplexity int) int
+		UpdateReminderWeekday      func(childComplexity int) int
+		UpdateSchedule             func(childComplexity int) int
+		UpdatedAt                  func(childComplexity int) int
+		WorkspaceID                func(childComplexity int) int
 	}
 
 	ProjectDependency struct {
@@ -982,21 +986,24 @@ type ComplexityRoot struct {
 	}
 
 	Workspace struct {
-		ArchivedAt    func(childComplexity int) int
-		CreatedAt     func(childComplexity int) int
-		Entitlements  func(childComplexity int) int
-		ID            func(childComplexity int) int
-		Labels        func(childComplexity int) int
-		LogoURL       func(childComplexity int) int
-		Name          func(childComplexity int) int
-		Plan          func(childComplexity int) int
-		PlanExpiresAt func(childComplexity int) int
-		PlanLapsedAt  func(childComplexity int) int
-		SeatLimit     func(childComplexity int) int
-		Teams         func(childComplexity int) int
-		URLKey        func(childComplexity int) int
-		UpdatedAt     func(childComplexity int) int
-		Users         func(childComplexity int) int
+		ArchivedAt                        func(childComplexity int) int
+		CreatedAt                         func(childComplexity int) int
+		Entitlements                      func(childComplexity int) int
+		ID                                func(childComplexity int) int
+		Labels                            func(childComplexity int) int
+		LogoURL                           func(childComplexity int) int
+		Name                              func(childComplexity int) int
+		Plan                              func(childComplexity int) int
+		PlanExpiresAt                     func(childComplexity int) int
+		PlanLapsedAt                      func(childComplexity int) int
+		ProjectUpdateReminderHour         func(childComplexity int) int
+		ProjectUpdateReminderIntervalDays func(childComplexity int) int
+		ProjectUpdateReminderWeekday      func(childComplexity int) int
+		SeatLimit                         func(childComplexity int) int
+		Teams                             func(childComplexity int) int
+		URLKey                            func(childComplexity int) int
+		UpdatedAt                         func(childComplexity int) int
+		Users                             func(childComplexity int) int
 	}
 
 	WorkspacePayload struct {
@@ -4194,6 +4201,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Project.Teams(childComplexity), true
+	case "Project.updateReminderHour":
+		if e.ComplexityRoot.Project.UpdateReminderHour == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.UpdateReminderHour(childComplexity), true
+	case "Project.updateReminderIntervalDays":
+		if e.ComplexityRoot.Project.UpdateReminderIntervalDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.UpdateReminderIntervalDays(childComplexity), true
+	case "Project.updateReminderWeekday":
+		if e.ComplexityRoot.Project.UpdateReminderWeekday == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.UpdateReminderWeekday(childComplexity), true
+	case "Project.updateSchedule":
+		if e.ComplexityRoot.Project.UpdateSchedule == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.UpdateSchedule(childComplexity), true
 	case "Project.updatedAt":
 		if e.ComplexityRoot.Project.UpdatedAt == nil {
 			break
@@ -6154,6 +6185,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Workspace.PlanLapsedAt(childComplexity), true
+	case "Workspace.projectUpdateReminderHour":
+		if e.ComplexityRoot.Workspace.ProjectUpdateReminderHour == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Workspace.ProjectUpdateReminderHour(childComplexity), true
+	case "Workspace.projectUpdateReminderIntervalDays":
+		if e.ComplexityRoot.Workspace.ProjectUpdateReminderIntervalDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Workspace.ProjectUpdateReminderIntervalDays(childComplexity), true
+	case "Workspace.projectUpdateReminderWeekday":
+		if e.ComplexityRoot.Workspace.ProjectUpdateReminderWeekday == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Workspace.ProjectUpdateReminderWeekday(childComplexity), true
 	case "Workspace.seatLimit":
 		if e.ComplexityRoot.Workspace.SeatLimit == nil {
 			break
@@ -6471,6 +6520,12 @@ type Workspace {
   planLapsedAt: Time
   """Overrides the plan's default seat count. Null means whatever the plan says."""
   seatLimit: Int
+  """Default cadence for project update reminders (staleness + future delivery)."""
+  projectUpdateReminderIntervalDays: Int!
+  """0 = Sunday through 6 = Saturday."""
+  projectUpdateReminderWeekday: Int!
+  """Hour of day in the lead's timezone when reminders would send (0–23)."""
+  projectUpdateReminderHour: Int!
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
@@ -7319,6 +7374,12 @@ enum ProjectStatusCategory {
   CANCELED
 }
 
+enum ProjectUpdateSchedule {
+  default
+  never
+  custom
+}
+
 enum TimeframeGranularity {
   DAY
   MONTH
@@ -7358,6 +7419,11 @@ type Project {
   startDateGranularity: TimeframeGranularity
   targetDate: String
   targetDateGranularity: TimeframeGranularity
+  """Workspace default, custom cadence, or never expect updates."""
+  updateSchedule: ProjectUpdateSchedule!
+  updateReminderIntervalDays: Int
+  updateReminderWeekday: Int
+  updateReminderHour: Int
   archivedAt: Time
   deletedAt: Time
   deletedBy: UUID
@@ -7466,6 +7532,10 @@ input UpdateProjectInput {
   """Place directly below this project in the same priority group. Omit to append."""
   afterProjectId: UUID
   moveToTop: Boolean
+  updateSchedule: ProjectUpdateSchedule
+  updateReminderIntervalDays: Int
+  updateReminderWeekday: Int
+  updateReminderHour: Int
 }
 
 input CreateProjectMilestoneInput {
@@ -7986,6 +8056,9 @@ input UpdateProfileInput {
 input UpdateWorkspaceInput {
   name: String
   logoUrl: String
+  projectUpdateReminderIntervalDays: Int
+  projectUpdateReminderWeekday: Int
+  projectUpdateReminderHour: Int
 }
 
 # ---------------------------------------------------------------- root
@@ -9122,6 +9195,14 @@ func (ec *executionContext) childFields_Project(ctx context.Context, field graph
 		return ec.fieldContext_Project_targetDate(ctx, field)
 	case "targetDateGranularity":
 		return ec.fieldContext_Project_targetDateGranularity(ctx, field)
+	case "updateSchedule":
+		return ec.fieldContext_Project_updateSchedule(ctx, field)
+	case "updateReminderIntervalDays":
+		return ec.fieldContext_Project_updateReminderIntervalDays(ctx, field)
+	case "updateReminderWeekday":
+		return ec.fieldContext_Project_updateReminderWeekday(ctx, field)
+	case "updateReminderHour":
+		return ec.fieldContext_Project_updateReminderHour(ctx, field)
 	case "archivedAt":
 		return ec.fieldContext_Project_archivedAt(ctx, field)
 	case "deletedAt":
@@ -9862,6 +9943,12 @@ func (ec *executionContext) childFields_Workspace(ctx context.Context, field gra
 		return ec.fieldContext_Workspace_planLapsedAt(ctx, field)
 	case "seatLimit":
 		return ec.fieldContext_Workspace_seatLimit(ctx, field)
+	case "projectUpdateReminderIntervalDays":
+		return ec.fieldContext_Workspace_projectUpdateReminderIntervalDays(ctx, field)
+	case "projectUpdateReminderWeekday":
+		return ec.fieldContext_Workspace_projectUpdateReminderWeekday(ctx, field)
+	case "projectUpdateReminderHour":
+		return ec.fieldContext_Workspace_projectUpdateReminderHour(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Workspace_createdAt(ctx, field)
 	case "updatedAt":
@@ -25515,6 +25602,98 @@ func (ec *executionContext) fieldContext_Project_targetDateGranularity(_ context
 	return graphql.NewScalarFieldContext("Project", field, false, false, errors.New("field of type TimeframeGranularity does not have child fields"))
 }
 
+func (ec *executionContext) _Project_updateSchedule(ctx context.Context, field graphql.CollectedField, obj *Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_updateSchedule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdateSchedule, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v ProjectUpdateSchedule) graphql.Marshaler {
+			return ec.marshalNProjectUpdateSchedule2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateSchedule(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_updateSchedule(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, errors.New("field of type ProjectUpdateSchedule does not have child fields"))
+}
+
+func (ec *executionContext) _Project_updateReminderIntervalDays(ctx context.Context, field graphql.CollectedField, obj *Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_updateReminderIntervalDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdateReminderIntervalDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Project_updateReminderIntervalDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Project_updateReminderWeekday(ctx context.Context, field graphql.CollectedField, obj *Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_updateReminderWeekday(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdateReminderWeekday, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Project_updateReminderWeekday(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Project_updateReminderHour(ctx context.Context, field graphql.CollectedField, obj *Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_updateReminderHour(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdateReminderHour, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Project_updateReminderHour(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Project_archivedAt(ctx context.Context, field graphql.CollectedField, obj *Project) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -33687,6 +33866,75 @@ func (ec *executionContext) fieldContext_Workspace_seatLimit(_ context.Context, 
 	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _Workspace_projectUpdateReminderIntervalDays(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Workspace_projectUpdateReminderIntervalDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectUpdateReminderIntervalDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Workspace_projectUpdateReminderIntervalDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Workspace_projectUpdateReminderWeekday(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Workspace_projectUpdateReminderWeekday(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectUpdateReminderWeekday, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Workspace_projectUpdateReminderWeekday(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Workspace_projectUpdateReminderHour(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Workspace_projectUpdateReminderHour(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectUpdateReminderHour, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Workspace_projectUpdateReminderHour(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Workspace_createdAt(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -36967,7 +37215,7 @@ func (ec *executionContext) unmarshalInputUpdateProjectInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "name", "summary", "description", "icon", "color", "statusId", "priority", "leadId", "clearLead", "startDate", "startDateGranularity", "clearStart", "targetDate", "targetDateGranularity", "clearTarget", "afterProjectId", "moveToTop"}
+	fieldsInOrder := [...]string{"id", "name", "summary", "description", "icon", "color", "statusId", "priority", "leadId", "clearLead", "startDate", "startDateGranularity", "clearStart", "targetDate", "targetDateGranularity", "clearTarget", "afterProjectId", "moveToTop", "updateSchedule", "updateReminderIntervalDays", "updateReminderWeekday", "updateReminderHour"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -37100,6 +37348,34 @@ func (ec *executionContext) unmarshalInputUpdateProjectInput(ctx context.Context
 				return it, err
 			}
 			it.MoveToTop = data
+		case "updateSchedule":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updateSchedule"))
+			data, err := ec.unmarshalOProjectUpdateSchedule2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateSchedule(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdateSchedule = data
+		case "updateReminderIntervalDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updateReminderIntervalDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdateReminderIntervalDays = data
+		case "updateReminderWeekday":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updateReminderWeekday"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdateReminderWeekday = data
+		case "updateReminderHour":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updateReminderHour"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdateReminderHour = data
 		}
 	}
 	return it, nil
@@ -37847,7 +38123,7 @@ func (ec *executionContext) unmarshalInputUpdateWorkspaceInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "logoUrl"}
+	fieldsInOrder := [...]string{"name", "logoUrl", "projectUpdateReminderIntervalDays", "projectUpdateReminderWeekday", "projectUpdateReminderHour"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -37868,6 +38144,27 @@ func (ec *executionContext) unmarshalInputUpdateWorkspaceInput(ctx context.Conte
 				return it, err
 			}
 			it.LogoURL = data
+		case "projectUpdateReminderIntervalDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectUpdateReminderIntervalDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectUpdateReminderIntervalDays = data
+		case "projectUpdateReminderWeekday":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectUpdateReminderWeekday"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectUpdateReminderWeekday = data
+		case "projectUpdateReminderHour":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectUpdateReminderHour"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectUpdateReminderHour = data
 		}
 	}
 	return it, nil
@@ -41749,6 +42046,26 @@ func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "updateSchedule":
+			out.Values[i] = ec._Project_updateSchedule(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateReminderIntervalDays":
+			out.Values[i] = ec._Project_updateReminderIntervalDays(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "updateReminderWeekday":
+			out.Values[i] = ec._Project_updateReminderWeekday(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "updateReminderHour":
+			out.Values[i] = ec._Project_updateReminderHour(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "archivedAt":
 			out.Values[i] = ec._Project_archivedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -45412,6 +45729,21 @@ func (ec *executionContext) _Workspace(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "projectUpdateReminderIntervalDays":
+			out.Values[i] = ec._Workspace_projectUpdateReminderIntervalDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectUpdateReminderWeekday":
+			out.Values[i] = ec._Workspace_projectUpdateReminderWeekday(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectUpdateReminderHour":
+			out.Values[i] = ec._Workspace_projectUpdateReminderHour(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createdAt":
 			out.Values[i] = ec._Workspace_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -47246,6 +47578,16 @@ func (ec *executionContext) marshalNProjectUpdatePayload2ᚖgithubᚗcomᚋpeixo
 	return ec._ProjectUpdatePayload(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNProjectUpdateSchedule2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateSchedule(ctx context.Context, v any) (ProjectUpdateSchedule, error) {
+	var res ProjectUpdateSchedule
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNProjectUpdateSchedule2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateSchedule(ctx context.Context, sel ast.SelectionSet, v ProjectUpdateSchedule) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNPurgePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPurgePayload(ctx context.Context, sel ast.SelectionSet, v PurgePayload) graphql.Marshaler {
 	return ec._PurgePayload(ctx, sel, &v)
 }
@@ -48309,6 +48651,22 @@ func (ec *executionContext) unmarshalOProjectUpdateHealth2ᚖgithubᚗcomᚋpeix
 }
 
 func (ec *executionContext) marshalOProjectUpdateHealth2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateHealth(ctx context.Context, sel ast.SelectionSet, v *ProjectUpdateHealth) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOProjectUpdateSchedule2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateSchedule(ctx context.Context, v any) (*ProjectUpdateSchedule, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(ProjectUpdateSchedule)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOProjectUpdateSchedule2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateSchedule(ctx context.Context, sel ast.SelectionSet, v *ProjectUpdateSchedule) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

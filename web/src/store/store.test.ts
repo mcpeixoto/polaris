@@ -38,6 +38,9 @@ function workspace(): Workspace {
     name: 'Polaris',
     urlKey: 'polaris',
     plan: 'free',
+    projectUpdateReminderIntervalDays: 7,
+    projectUpdateReminderWeekday: 3,
+    projectUpdateReminderHour: 9,
     createdAt: NOW,
     updatedAt: NOW,
   };
