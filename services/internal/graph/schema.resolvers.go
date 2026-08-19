@@ -3793,6 +3793,67 @@ func (r *queryResolver) GithubTeamAutomation(ctx context.Context, teamID uuid.UU
 	return &out, nil
 }
 
+// CreateDraft is the resolver for the createDraft field.
+func (r *mutationResolver) CreateDraft(ctx context.Context, input generated.CreateDraftInput) (*generated.DraftPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	draft, version, err := r.Svc.CreateDraft(ctx, p, domain.CreateDraftInput{
+		ID:      input.ID,
+		Kind:    draftKindFromWire(input.Kind),
+		Payload: input.Payload,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toDraft(draft)
+	return &generated.DraftPayload{Version: int(version), Draft: &out}, nil
+}
+
+// UpdateDraft is the resolver for the updateDraft field.
+func (r *mutationResolver) UpdateDraft(ctx context.Context, input generated.UpdateDraftInput) (*generated.DraftPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	draft, version, err := r.Svc.UpdateDraft(ctx, p, domain.UpdateDraftInput{
+		ID:      input.ID,
+		Payload: input.Payload,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toDraft(draft)
+	return &generated.DraftPayload{Version: int(version), Draft: &out}, nil
+}
+
+// DeleteDraft is the resolver for the deleteDraft field.
+func (r *mutationResolver) DeleteDraft(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	deleted, version, err := r.Svc.DeleteDraft(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
+}
+
+// Drafts is the resolver for the drafts field.
+func (r *queryResolver) Drafts(ctx context.Context) ([]generated.Draft, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListDrafts(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toDrafts(rows), nil
+}
+
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 

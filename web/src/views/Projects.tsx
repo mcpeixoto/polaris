@@ -12,8 +12,9 @@ import { useCallback, useMemo, useState, type DragEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { useKeymap } from '~/app/keymap';
+import { useActions, useKeymap } from '~/app/keymap';
 import { Avatar, Button, EmptyState, LabelChip, PriorityIcon, priorityLabel } from '~/components';
+import { downloadCsv, exportCap, projectsToCsv, type ExportRole } from '~/features/export/csv';
 import { report } from '~/features/issue/mutations';
 import {
   matchesDependencyFilter,
@@ -33,6 +34,7 @@ import { compareProjectsByPriority } from '~/features/projects/projectHelpers';
 import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewer } from '~/hooks/useViewer';
 import { PRIORITY_LEVELS } from '~/components/PriorityIcon';
 import type { Project, ProjectLabel, ProjectStatus, Store, UUID } from '~/store';
 import styles from './Projects.module.css';
@@ -61,6 +63,7 @@ export function Projects() {
   const engine = useEngine();
   const { teamKey } = useParams<{ teamKey?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const viewer = useViewer();
   const { registry, context } = useKeymap();
   const create = () => registry.invoke('project.create', { source: 'menu', context });
   const displayTrigger = useMenuTrigger();
@@ -158,6 +161,25 @@ export function Projects() {
       }
     },
     [draggingId, engine],
+  );
+
+  useActions(
+    [
+      {
+        id: 'projects.exportCsv',
+        title: 'Export projects as CSV',
+        group: 'Projects',
+        run: () => {
+          const role: ExportRole = viewer?.role ?? 'member';
+          const cap = exportCap(role, 'projects');
+          if (cap === 0) return;
+          const ids = groups.flatMap((group) => group.rows).slice(0, cap).map((row) => row.id);
+          const slug = heading.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-');
+          downloadCsv(`${slug || 'projects'}.csv`, projectsToCsv(engine.store, ids));
+        },
+      },
+    ],
+    [engine, groups, heading, viewer],
   );
 
   return (

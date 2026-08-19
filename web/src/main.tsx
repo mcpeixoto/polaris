@@ -15,12 +15,14 @@ import { createRoot } from 'react-dom/client';
 
 import { App } from './app/App';
 import { applyTheme, getStoredTheme, watchSystemTheme } from './styles/theme';
+import { applyPrefs } from './features/prefs/prefs';
 
 // Applied before the first React render so a dark-mode user never sees a white flash.
 // index.html sets the attribute inline for the same reason; this call re-applies it once
 // the module graph is up and takes over the system-preference subscription.
 applyTheme(getStoredTheme());
 watchSystemTheme(() => applyTheme(getStoredTheme()));
+applyPrefs();
 
 const container = document.getElementById('root');
 if (!container) {
