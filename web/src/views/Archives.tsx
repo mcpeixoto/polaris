@@ -79,7 +79,10 @@ export function Archives() {
           if (controller.signal.aborted) return;
           setIssues({
             phase: 'failed',
-            message: failure instanceof ApiError ? failure.message : 'Archives could not be loaded just now.',
+            message:
+              failure instanceof ApiError
+                ? failure.message
+                : 'Archives could not be loaded just now.',
           });
         });
     } else if (tab === 'cycles') {
@@ -92,7 +95,10 @@ export function Archives() {
           if (controller.signal.aborted) return;
           setCycles({
             phase: 'failed',
-            message: failure instanceof ApiError ? failure.message : 'Archives could not be loaded just now.',
+            message:
+              failure instanceof ApiError
+                ? failure.message
+                : 'Archives could not be loaded just now.',
           });
         });
     } else if (tab === 'projects') {
@@ -105,7 +111,10 @@ export function Archives() {
           if (controller.signal.aborted) return;
           setProjects({
             phase: 'failed',
-            message: failure instanceof ApiError ? failure.message : 'Archives could not be loaded just now.',
+            message:
+              failure instanceof ApiError
+                ? failure.message
+                : 'Archives could not be loaded just now.',
           });
         });
     } else {
@@ -120,7 +129,10 @@ export function Archives() {
           if (controller.signal.aborted) return;
           setDeleted({
             phase: 'failed',
-            message: failure instanceof ApiError ? failure.message : 'Recently deleted could not be loaded just now.',
+            message:
+              failure instanceof ApiError
+                ? failure.message
+                : 'Recently deleted could not be loaded just now.',
           });
         });
     }
@@ -152,7 +164,9 @@ export function Archives() {
       }
       setSelected(null);
     } catch (failure) {
-      setError(failure instanceof ApiError ? failure.message : 'That could not be restored just now.');
+      setError(
+        failure instanceof ApiError ? failure.message : 'That could not be restored just now.',
+      );
     } finally {
       setRestoring(null);
     }
@@ -243,10 +257,7 @@ export function Archives() {
         ) : null}
 
         {load.phase === 'ready' && load.rows.length === 0 ? (
-          <EmptyState
-            title={emptyTitle(tab)}
-            description={emptyDescription(tab)}
-          />
+          <EmptyState title={emptyTitle(tab)} description={emptyDescription(tab)} />
         ) : null}
 
         {load.phase === 'ready' && load.rows.length > 0 ? (
@@ -331,11 +342,7 @@ function ArchiveRow({
   onRestore: () => void;
 }) {
   return (
-    <tr
-      className={styles.row}
-      aria-selected={selected}
-      onClick={() => onSelect(id)}
-    >
+    <tr className={styles.row} aria-selected={selected} onClick={() => onSelect(id)}>
       <th scope="row" className={styles.issue}>
         <span className={styles.identifier}>{label}</span>
         {title !== '' ? <span className={styles.issueTitle}>{title}</span> : null}
@@ -361,7 +368,9 @@ function ArchiveRow({
 }
 
 function drop<T extends { id: UUID }>(load: Load<T>, id: UUID): Load<T> {
-  return load.phase === 'ready' ? { phase: 'ready', rows: load.rows.filter((row) => row.id !== id) } : load;
+  return load.phase === 'ready'
+    ? { phase: 'ready', rows: load.rows.filter((row) => row.id !== id) }
+    : load;
 }
 
 function emptyTitle(tab: Tab): string {

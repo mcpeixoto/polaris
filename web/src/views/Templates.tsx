@@ -389,7 +389,9 @@ interface TemplateListRowProps {
 
 function TemplateListRow({ row, onEdit, onArchive, onConvert }: TemplateListRowProps) {
   const copyUrl = () => {
-    void navigator.clipboard?.writeText(buildCreateURL({ teamKey: row.teamKey, template: row.name }));
+    void navigator.clipboard?.writeText(
+      buildCreateURL({ teamKey: row.teamKey, template: row.name }),
+    );
   };
   return (
     <div className={styles.row}>

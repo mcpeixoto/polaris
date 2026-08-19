@@ -78,9 +78,11 @@ export function parseCreateURL(
 
   const milestone = pick('milestone') ?? pick('projectMilestone');
   const labels = pick('labels') ?? pick('label');
-  const team = pick('team') ?? (teamKeyFromPath === null || teamKeyFromPath === undefined || teamKeyFromPath === ''
-    ? undefined
-    : teamKeyFromPath);
+  const team =
+    pick('team') ??
+    (teamKeyFromPath === null || teamKeyFromPath === undefined || teamKeyFromPath === ''
+      ? undefined
+      : teamKeyFromPath);
 
   return {
     ...(pick('title') === undefined ? null : { title: pick('title') }),
@@ -169,7 +171,8 @@ export function buildCreateURL(input: {
   if (input.assignee) query.set('assignee', input.assignee);
   if (input.estimate !== undefined) query.set('estimate', String(input.estimate));
   if (input.cycle) query.set('cycle', input.cycle);
-  if (input.labels !== undefined && input.labels.length > 0) query.set('labels', input.labels.join(','));
+  if (input.labels !== undefined && input.labels.length > 0)
+    query.set('labels', input.labels.join(','));
   if (input.project) query.set('project', input.project);
   if (input.template) query.set('template', input.template);
   const encoded = query.toString();
@@ -218,7 +221,11 @@ function resolveAssignee(
   return undefined;
 }
 
-function resolveProject(store: Store, raw: string | undefined, teamId: UUID | undefined): UUID | undefined {
+function resolveProject(
+  store: Store,
+  raw: string | undefined,
+  teamId: UUID | undefined,
+): UUID | undefined {
   if (raw === undefined) return undefined;
   const folded = raw.toLowerCase();
   for (const project of store.projects.values()) {
@@ -247,12 +254,17 @@ function resolveCycle(store: Store, teamId: UUID, raw: string | undefined): UUID
   return undefined;
 }
 
-function resolveTemplate(store: Store, raw: string | undefined, teamId: UUID | undefined): UUID | undefined {
+function resolveTemplate(
+  store: Store,
+  raw: string | undefined,
+  teamId: UUID | undefined,
+): UUID | undefined {
   if (raw === undefined) return undefined;
   const folded = raw.toLowerCase();
   for (const template of store.issueTemplates.values()) {
     if (template.archivedAt !== undefined) continue;
-    if (teamId !== undefined && template.teamId !== undefined && template.teamId !== teamId) continue;
+    if (teamId !== undefined && template.teamId !== undefined && template.teamId !== teamId)
+      continue;
     if (template.id === raw || template.name.toLowerCase() === folded) return template.id;
   }
   return undefined;
@@ -284,7 +296,11 @@ function resolveLabels(
   return ids.length === 0 ? undefined : ids;
 }
 
-function resolveMilestone(store: Store, projectId: UUID, raw: string | undefined): UUID | undefined {
+function resolveMilestone(
+  store: Store,
+  projectId: UUID,
+  raw: string | undefined,
+): UUID | undefined {
   if (raw === undefined) return undefined;
   const folded = raw.toLowerCase();
   for (const milestone of store.projectMilestones.values()) {

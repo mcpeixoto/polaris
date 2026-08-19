@@ -128,14 +128,21 @@ export function useView({
 
   const view = useLiveQuery(
     (store) =>
-      computeView(store, issues(store), filter, display, {
-        // Read here rather than per render: a wall clock that changed identity every
-        // render would re-run this query sixty times a second to produce the same answer.
-        // The consequence is that a view left open across midnight keeps yesterday's
-        // "due today" until something — a keystroke, a delta — moves.
-        now: now ?? Date.now(),
-        timezone,
-      }, sourceFilter),
+      computeView(
+        store,
+        issues(store),
+        filter,
+        display,
+        {
+          // Read here rather than per render: a wall clock that changed identity every
+          // render would re-run this query sixty times a second to produce the same answer.
+          // The consequence is that a view left open across midnight keeps yesterday's
+          // "due today" until something — a keystroke, a delta — moves.
+          now: now ?? Date.now(),
+          timezone,
+        },
+        sourceFilter,
+      ),
     VIEW_DEPS,
     [
       raw,

@@ -10,7 +10,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createIssue, updateIssue } from '~/features/issue/mutations';
-import { Store, type Change, type Entity, type EntityType, type Issue, type Team, type WorkflowState } from '~/store';
+import {
+  Store,
+  type Change,
+  type Entity,
+  type EntityType,
+  type Issue,
+  type Team,
+  type WorkflowState,
+} from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
 import {
@@ -102,7 +110,9 @@ describe('leaving triage', () => {
       change(40, 'team', TEAM, { ...team(), triageRequirePriority: true }),
     ]);
     expect(requiresPriorityToLeave(engine, [ISSUE])).toBe(true);
-    engine.store.applyChanges([change(41, 'issue', ISSUE, { ...issue(ISSUE, TRIAGE), priority: 2 })]);
+    engine.store.applyChanges([
+      change(41, 'issue', ISSUE, { ...issue(ISSUE, TRIAGE), priority: 2 }),
+    ]);
     expect(requiresPriorityToLeave(engine, [ISSUE])).toBe(false);
   });
 });
@@ -111,7 +121,10 @@ describe('createIssue from triage', () => {
   it('lands in the triage status when fromTriage is set', async () => {
     mutate.mockResolvedValue({ createIssue: { issue: issue('new', TRIAGE) } });
     await createIssue(engine, { teamId: TEAM, title: 'Filed in the inbox', fromTriage: true });
-    const variables = mutate.mock.calls[0]?.[0].variables.input as { fromTriage?: boolean; stateId?: string };
+    const variables = mutate.mock.calls[0]?.[0].variables.input as {
+      fromTriage?: boolean;
+      stateId?: string;
+    };
     expect(variables.fromTriage).toBe(true);
     expect(variables.stateId).toBeUndefined();
   });

@@ -140,7 +140,10 @@ export function Drafts() {
       </header>
 
       {load.phase === 'loading' && local.length === 0 ? (
-        <EmptyState title="Loading drafts" description="Saved drafts come from the server; local ones are already here." />
+        <EmptyState
+          title="Loading drafts"
+          description="Saved drafts come from the server; local ones are already here."
+        />
       ) : empty ? (
         <EmptyState
           title="Nothing unsent"
@@ -156,12 +159,16 @@ export function Drafts() {
           {local.length > 0 && (
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}>On this device</h2>
-              <p className={styles.sectionNote}>Cleared by logout or a restart. Save one to keep it.</p>
+              <p className={styles.sectionNote}>
+                Cleared by logout or a restart. Save one to keep it.
+              </p>
               <ul className={styles.list}>
                 {local.map((draft) => (
                   <li key={localKey(draft)} className={styles.savedRow}>
                     <button type="button" className={styles.row} onClick={() => resumeLocal(draft)}>
-                      <span className={styles.kind}>{draft.kind === 'issue' ? 'Issue' : 'Comment'}</span>
+                      <span className={styles.kind}>
+                        {draft.kind === 'issue' ? 'Issue' : 'Comment'}
+                      </span>
                       <span className={styles.name}>
                         {draft.kind === 'issue'
                           ? draft.title.trim() || 'Untitled issue'
@@ -194,12 +201,16 @@ export function Drafts() {
           {saved.length > 0 && (
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}>Saved</h2>
-              <p className={styles.sectionNote}>Kept for six months, on every device you sign in on.</p>
+              <p className={styles.sectionNote}>
+                Kept for six months, on every device you sign in on.
+              </p>
               <ul className={styles.list}>
                 {saved.map((draft) => (
                   <li key={draft.id} className={styles.savedRow}>
                     <button type="button" className={styles.row} onClick={() => resumeSaved(draft)}>
-                      <span className={styles.kind}>{draft.kind === 'issue' ? 'Issue' : 'Comment'}</span>
+                      <span className={styles.kind}>
+                        {draft.kind === 'issue' ? 'Issue' : 'Comment'}
+                      </span>
                       <span className={styles.name}>{draftTitle(draft)}</span>
                       <span className={styles.when} title={exact(draft.updatedAt)}>
                         {when(draft.updatedAt)}

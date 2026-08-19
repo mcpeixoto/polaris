@@ -36,7 +36,9 @@ export function ExportSettings() {
     }
     downloadCsv('issues.csv', issuesToCsv(engine.store, ids));
     if (engine.store.issues.size > cap) {
-      setMessage(`Exported the first ${cap} issues. Narrow a view and export from there for the rest.`);
+      setMessage(
+        `Exported the first ${cap} issues. Narrow a view and export from there for the rest.`,
+      );
     }
   };
 
@@ -61,8 +63,8 @@ export function ExportSettings() {
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Workspace issues</h2>
           <p className={styles.sectionNote}>
-            A CSV of every issue this client can see. Views and project lists also export from
-            the command menu — those files follow the filter you are looking at.
+            A CSV of every issue this client can see. Views and project lists also export from the
+            command menu — those files follow the filter you are looking at.
           </p>
           {cap === 0 ? (
             <EmptyState

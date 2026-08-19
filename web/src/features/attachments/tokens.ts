@@ -7,8 +7,17 @@ import { when } from '~/features/time';
 
 const TOKEN = /\{([A-Za-z_][A-Za-z0-9_]*)__(since|relativeTimestamp)\}/g;
 
-export function formatSubtitle(subtitle: string, metadata: unknown, now: Date = new Date()): string {
-  if (subtitle === '' || metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) {
+export function formatSubtitle(
+  subtitle: string,
+  metadata: unknown,
+  now: Date = new Date(),
+): string {
+  if (
+    subtitle === '' ||
+    metadata === null ||
+    typeof metadata !== 'object' ||
+    Array.isArray(metadata)
+  ) {
     return subtitle;
   }
   const bag = metadata as Record<string, unknown>;

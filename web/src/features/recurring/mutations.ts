@@ -183,9 +183,8 @@ export async function createRecurringIssue(
     updatedAt: now,
   };
 
-  const source = input.sourceIssueId === undefined
-    ? undefined
-    : engine.store.get('issue', input.sourceIssueId);
+  const source =
+    input.sourceIssueId === undefined ? undefined : engine.store.get('issue', input.sourceIssueId);
 
   const optimistic: EntityPatch[] = [
     { type: 'recurringIssue', id, before: null, after: provisional },

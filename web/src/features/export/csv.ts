@@ -166,7 +166,8 @@ function projectRow(store: Store, project: Project | undefined): string[] | null
   const milestones: string[] = [];
   for (const id of store.projectMilestoneIdsFor(project.id)) {
     const milestone = store.projectMilestones.get(id);
-    if (milestone !== undefined && milestone.archivedAt === undefined) milestones.push(milestone.name);
+    if (milestone !== undefined && milestone.archivedAt === undefined)
+      milestones.push(milestone.name);
   }
 
   const members: string[] = [];

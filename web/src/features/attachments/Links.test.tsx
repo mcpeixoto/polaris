@@ -55,8 +55,22 @@ function seeded(): Store {
     updatedAt: AT,
   };
   store.applyChanges([
-    { v: 1, type: 'team', id: team.id, op: 'upsert', actor: { type: 'system' }, payload: team } as Change,
-    { v: 2, type: 'issue', id: issue.id, op: 'upsert', actor: { type: 'system' }, payload: issue } as Change,
+    {
+      v: 1,
+      type: 'team',
+      id: team.id,
+      op: 'upsert',
+      actor: { type: 'system' },
+      payload: team,
+    } as Change,
+    {
+      v: 2,
+      type: 'issue',
+      id: issue.id,
+      op: 'upsert',
+      actor: { type: 'system' },
+      payload: issue,
+    } as Change,
     {
       v: 3,
       type: 'attachment',

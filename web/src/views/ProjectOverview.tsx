@@ -17,12 +17,11 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { ProjectUpdateHealth } from '~/store';
 import styles from './ProjectOverview.module.css';
 
-const HEALTH_OPTIONS: readonly { readonly value: ProjectUpdateHealth; readonly label: string }[] =
-  [
-    { value: 'on_track', label: 'On track' },
-    { value: 'at_risk', label: 'At risk' },
-    { value: 'off_track', label: 'Off track' },
-  ];
+const HEALTH_OPTIONS: readonly { readonly value: ProjectUpdateHealth; readonly label: string }[] = [
+  { value: 'on_track', label: 'On track' },
+  { value: 'at_risk', label: 'At risk' },
+  { value: 'off_track', label: 'Off track' },
+];
 
 export function ProjectOverview() {
   const engine = useEngine();

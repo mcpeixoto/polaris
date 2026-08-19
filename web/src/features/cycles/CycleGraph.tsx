@@ -24,9 +24,7 @@ export function CycleGraph({ cycleId }: CycleGraphProps) {
   const paths = useMemo(() => (data === null ? null : toPaths(data)), [data]);
 
   if (data === null || paths === null || data.points.length < 2) {
-    return (
-      <p className={styles.muted}>Not enough data to chart this cycle yet.</p>
-    );
+    return <p className={styles.muted}>Not enough data to chart this cycle yet.</p>;
   }
 
   const unit = data.unitLabel === 'issues' ? 'issues' : 'points';

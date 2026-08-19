@@ -302,10 +302,7 @@ export class KeymapRegistry<Ctx extends ActionContext = ActionContext> {
         return true;
       }
       this.lastMatched = { action, key: chord.key };
-      this.dispatch(
-        action,
-        this.dispatchContext(actionCtx, result.binding.context, event),
-      );
+      this.dispatch(action, this.dispatchContext(actionCtx, result.binding.context, event));
       return true;
     }
     this.lastMatched = null;

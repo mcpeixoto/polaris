@@ -133,9 +133,7 @@ function SignedInShell() {
 
   return (
     <AppShell
-      renderCreateIssue={({ onClose, seed }) => (
-        <CreateIssueModal onClose={onClose} seed={seed} />
-      )}
+      renderCreateIssue={({ onClose, seed }) => <CreateIssueModal onClose={onClose} seed={seed} />}
       renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
       renderCreateInitiative={({ onClose }) => <CreateInitiativeModal onClose={onClose} />}
     >

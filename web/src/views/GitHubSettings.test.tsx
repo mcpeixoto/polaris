@@ -54,9 +54,7 @@ describe('GitHubSettings', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'GitHub' })).toBeTruthy();
     });
-    expect(
-      screen.getByText(/Connect with GitHub stays off/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/Connect with GitHub stays off/i)).toBeTruthy();
     expect(screen.getByLabelText('GitHub username')).toBeTruthy();
   });
 });

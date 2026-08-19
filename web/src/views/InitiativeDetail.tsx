@@ -39,7 +39,9 @@ export function InitiativeDetail() {
 
   const ownerName = useLiveQuery(
     (store) =>
-      initiative?.ownerId === undefined ? null : (store.users.get(initiative.ownerId)?.name ?? null),
+      initiative?.ownerId === undefined
+        ? null
+        : (store.users.get(initiative.ownerId)?.name ?? null),
     ['user', 'initiative'],
     [initiativeId, initiative?.ownerId ?? ''],
   );
@@ -50,10 +52,7 @@ export function InitiativeDetail() {
     [initiativeId],
   );
 
-  const linkedProjectIds = useMemo(
-    () => new Set(projects.map((row) => row.projectId)),
-    [projects],
-  );
+  const linkedProjectIds = useMemo(() => new Set(projects.map((row) => row.projectId)), [projects]);
 
   const availableProjects = useLiveQuery(
     (store) =>
@@ -153,7 +152,9 @@ export function InitiativeDetail() {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Projects</h2>
         {projects.length === 0 ? (
-          <p className={styles.muted}>No projects linked yet. Add contributing work streams below.</p>
+          <p className={styles.muted}>
+            No projects linked yet. Add contributing work streams below.
+          </p>
         ) : (
           <ul className={styles.projectList}>
             {projects.map((row) => (

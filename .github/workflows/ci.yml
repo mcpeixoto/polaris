@@ -199,6 +199,13 @@ jobs:
   secrets:
     name: Secret scan
     runs-on: ubuntu-latest
+    # The workflow default is contents:read. gitleaks-action on pull_request
+    # lists PR commits (pull-requests:read) and comments the summary
+    # (pull-requests:write). Without this it 403s on PRs and the check is
+    # red even when nothing leaked — which is what happened on #1–#5.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }

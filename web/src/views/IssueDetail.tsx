@@ -54,16 +54,16 @@ import { Relations, SubIssues } from '~/features/issue/relations';
 import { Links } from '~/features/attachments/Links';
 import { browserTimezone } from '~/features/locale';
 import { RecurringDialog } from '~/features/recurring/RecurringDialog';
-import { CADENCE_LABELS, createRecurringIssue, propertiesOfIssue } from '~/features/recurring/mutations';
+import {
+  CADENCE_LABELS,
+  createRecurringIssue,
+  propertiesOfIssue,
+} from '~/features/recurring/mutations';
 import { restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { exact, when } from '~/features/time';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
-import {
-  clearCommentDraft,
-  readCommentDrafts,
-  writeCommentDraft,
-} from '~/features/drafts/local';
+import { clearCommentDraft, readCommentDrafts, writeCommentDraft } from '~/features/drafts/local';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId } from '~/hooks/useViewer';

@@ -80,7 +80,9 @@ export function markIssuesDuplicate(
   ids: readonly UUID[],
   canonicalId: UUID,
 ): Promise<void> {
-  return all(ids.filter((id) => id !== canonicalId).map((id) => markIssueDuplicate(engine, id, canonicalId)));
+  return all(
+    ids.filter((id) => id !== canonicalId).map((id) => markIssueDuplicate(engine, id, canonicalId)),
+  );
 }
 
 export async function markIssueDuplicate(
@@ -118,11 +120,7 @@ export async function markIssueDuplicate(
   });
 }
 
-export function snoozeIssues(
-  engine: SyncEngine,
-  ids: readonly UUID[],
-  until: Date,
-): Promise<void> {
+export function snoozeIssues(engine: SyncEngine, ids: readonly UUID[], until: Date): Promise<void> {
   return all(ids.map((id) => snoozeIssue(engine, id, until)));
 }
 

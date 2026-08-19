@@ -71,9 +71,13 @@ export function Links({ issueId }: { issueId: UUID }) {
           {rows.map((row) => (
             <li key={row.id} className={styles.row}>
               <a className={styles.link} href={row.url} target="_blank" rel="noreferrer">
-                <span className={styles.linkTitle}>{row.title === '' ? hostOf(row.url) : row.title}</span>
+                <span className={styles.linkTitle}>
+                  {row.title === '' ? hostOf(row.url) : row.title}
+                </span>
                 {row.subtitle !== undefined && row.subtitle !== '' ? (
-                  <span className={styles.subtitle}>{formatSubtitle(row.subtitle, row.metadata)}</span>
+                  <span className={styles.subtitle}>
+                    {formatSubtitle(row.subtitle, row.metadata)}
+                  </span>
                 ) : (
                   <span className={styles.subtitle}>{hostOf(row.url)}</span>
                 )}

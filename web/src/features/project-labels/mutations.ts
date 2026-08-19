@@ -1,5 +1,12 @@
 import { fromWire } from '~/gql/enums';
-import { uuidv7, type EntityPatch, type ProjectLabel, type ProjectLabelLink, type Store, type UUID } from '~/store';
+import {
+  uuidv7,
+  type EntityPatch,
+  type ProjectLabel,
+  type ProjectLabelLink,
+  type Store,
+  type UUID,
+} from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -20,7 +27,10 @@ export interface NewProjectLabel {
   readonly description?: string | undefined;
 }
 
-export async function createProjectLabel(engine: SyncEngine, input: NewProjectLabel): Promise<UUID> {
+export async function createProjectLabel(
+  engine: SyncEngine,
+  input: NewProjectLabel,
+): Promise<UUID> {
   const store = engine.store;
   const name = input.name.trim();
   if (name === '') return '';

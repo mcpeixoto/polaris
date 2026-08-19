@@ -266,167 +266,167 @@ export function AppShell({
 
   return (
     <CreateIssueProvider value={{ open: openCreate }}>
-    <div className={styles.shell}>
-      <nav className={styles.sidebar} aria-label="Workspace">
-        <div className={styles.workspace}>
-          <button
-            type="button"
-            className={styles.workspaceSwitch}
-            {...workspaceMenu.props}
-            aria-label="Switch workspace"
-          >
-            <span className={styles.workspaceMark} aria-hidden="true">
-              {(workspace?.name ?? 'P').slice(0, 1).toUpperCase()}
-            </span>
-            <span className={styles.workspaceName}>{workspace?.name ?? 'Polaris'}</span>
-          </button>
-          <ConnectionIndicator />
-          <Menu
-            open={workspaceMenu.open}
-            onClose={workspaceMenu.hide}
-            trigger={workspaceMenu.ref}
-            label="Workspaces"
-            items={workspaceItems}
-          />
-        </div>
-
-        <div className={styles.section}>
-          <NavLink to="/my-issues" className={navClass}>
-            <NavGlyph name="issues" />
-            <span className={styles.navLabel}>My Issues</span>
-          </NavLink>
-          <NavLink to="/inbox" className={navClass}>
-            <NavGlyph name="inbox" />
-            <span className={styles.navLabel}>Inbox</span>
-          </NavLink>
-          <NavLink to="/drafts" className={navClass}>
-            <NavGlyph name="drafts" />
-            <span className={styles.navLabel}>Drafts</span>
-          </NavLink>
-          <NavLink to="/search" className={navClass}>
-            <NavGlyph name="search" />
-            <span className={styles.navLabel}>Search</span>
-          </NavLink>
-          <NavLink to="/projects" className={() => navClass({ isActive: onProjects })}>
-            <NavGlyph name="project" />
-            <span className={styles.navLabel}>Projects</span>
-          </NavLink>
-          <NavLink to="/initiatives" className={() => navClass({ isActive: onInitiatives })}>
-            <NavGlyph name="initiative" />
-            <span className={styles.navLabel}>Initiatives</span>
-          </NavLink>
-          <NavLink to={cyclesPath} className={() => navClass({ isActive: onCycles })}>
-            <NavGlyph name="cycle" />
-            <span className={styles.navLabel}>Cycles</span>
-          </NavLink>
-        </div>
-
-        {favorites.length > 0 && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>Favourites</h2>
-            {favorites.map((favorite) => (
-              <NavLink key={favorite.id} to={favorite.to} className={navClass}>
-                {favorite.prefix !== null && (
-                  <span className={styles.teamKey}>{favorite.prefix}</span>
-                )}
-                <span className={styles.navLabel}>{favorite.label}</span>
-              </NavLink>
-            ))}
-          </div>
-        )}
-
-        <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>Teams</h2>
-          {teamTree.roots.map((team) => (
-            <TeamNavItems
-              key={team.id}
-              team={team}
-              depth={0}
-              childrenByParent={teamTree.childrenByParent}
+      <div className={styles.shell}>
+        <nav className={styles.sidebar} aria-label="Workspace">
+          <div className={styles.workspace}>
+            <button
+              type="button"
+              className={styles.workspaceSwitch}
+              {...workspaceMenu.props}
+              aria-label="Switch workspace"
+            >
+              <span className={styles.workspaceMark} aria-hidden="true">
+                {(workspace?.name ?? 'P').slice(0, 1).toUpperCase()}
+              </span>
+              <span className={styles.workspaceName}>{workspace?.name ?? 'Polaris'}</span>
+            </button>
+            <ConnectionIndicator />
+            <Menu
+              open={workspaceMenu.open}
+              onClose={workspaceMenu.hide}
+              trigger={workspaceMenu.ref}
+              label="Workspaces"
+              items={workspaceItems}
             />
-          ))}
-        </div>
+          </div>
 
-        {views.length > 0 && (
           <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>Views</h2>
-            {views.map((view) => (
-              <NavLink key={view.id} to={viewPath(view)} className={navClass}>
-                <NavGlyph name="view" />
-                <span className={styles.navLabel}>{view.name}</span>
-              </NavLink>
+            <NavLink to="/my-issues" className={navClass}>
+              <NavGlyph name="issues" />
+              <span className={styles.navLabel}>My Issues</span>
+            </NavLink>
+            <NavLink to="/inbox" className={navClass}>
+              <NavGlyph name="inbox" />
+              <span className={styles.navLabel}>Inbox</span>
+            </NavLink>
+            <NavLink to="/drafts" className={navClass}>
+              <NavGlyph name="drafts" />
+              <span className={styles.navLabel}>Drafts</span>
+            </NavLink>
+            <NavLink to="/search" className={navClass}>
+              <NavGlyph name="search" />
+              <span className={styles.navLabel}>Search</span>
+            </NavLink>
+            <NavLink to="/projects" className={() => navClass({ isActive: onProjects })}>
+              <NavGlyph name="project" />
+              <span className={styles.navLabel}>Projects</span>
+            </NavLink>
+            <NavLink to="/initiatives" className={() => navClass({ isActive: onInitiatives })}>
+              <NavGlyph name="initiative" />
+              <span className={styles.navLabel}>Initiatives</span>
+            </NavLink>
+            <NavLink to={cyclesPath} className={() => navClass({ isActive: onCycles })}>
+              <NavGlyph name="cycle" />
+              <span className={styles.navLabel}>Cycles</span>
+            </NavLink>
+          </div>
+
+          {favorites.length > 0 && (
+            <div className={styles.section}>
+              <h2 className={styles.sectionTitle}>Favourites</h2>
+              {favorites.map((favorite) => (
+                <NavLink key={favorite.id} to={favorite.to} className={navClass}>
+                  {favorite.prefix !== null && (
+                    <span className={styles.teamKey}>{favorite.prefix}</span>
+                  )}
+                  <span className={styles.navLabel}>{favorite.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          )}
+
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Teams</h2>
+            {teamTree.roots.map((team) => (
+              <TeamNavItems
+                key={team.id}
+                team={team}
+                depth={0}
+                childrenByParent={teamTree.childrenByParent}
+              />
             ))}
           </div>
-        )}
 
-        <div className={styles.spacer} />
+          {views.length > 0 && (
+            <div className={styles.section}>
+              <h2 className={styles.sectionTitle}>Views</h2>
+              {views.map((view) => (
+                <NavLink key={view.id} to={viewPath(view)} className={navClass}>
+                  <NavGlyph name="view" />
+                  <span className={styles.navLabel}>{view.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          )}
 
-        <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>Workspace</h2>
-          <NavLink to="/settings/preferences" className={navClass}>
-            <NavGlyph name="prefs" />
-            <span className={styles.navLabel}>Preferences</span>
-          </NavLink>
-          <NavLink to="/settings/members" className={navClass}>
-            <NavGlyph name="members" />
-            <span className={styles.navLabel}>Members</span>
-          </NavLink>
-          <NavLink to="/settings/labels" className={navClass}>
-            <NavGlyph name="labels" />
-            <span className={styles.navLabel}>Labels</span>
-          </NavLink>
-          <NavLink to="/settings/project-labels" className={navClass}>
-            <NavGlyph name="labels" />
-            <span className={styles.navLabel}>Project labels</span>
-          </NavLink>
-          <NavLink to="/settings/project-updates" className={navClass}>
-            <NavGlyph name="bell" />
-            <span className={styles.navLabel}>Project updates</span>
-          </NavLink>
-          <NavLink to="/settings/notifications" className={navClass}>
-            <NavGlyph name="bell" />
-            <span className={styles.navLabel}>Notifications</span>
-          </NavLink>
-          <NavLink to="/settings/templates" className={navClass}>
-            <NavGlyph name="template" />
-            <span className={styles.navLabel}>Templates</span>
-          </NavLink>
-          <NavLink to="/settings/api-keys" className={navClass}>
-            <NavGlyph name="key" />
-            <span className={styles.navLabel}>API keys</span>
-          </NavLink>
-          <NavLink to="/settings/webhooks" className={navClass}>
-            <NavGlyph name="webhook" />
-            <span className={styles.navLabel}>Webhooks</span>
-          </NavLink>
-          <NavLink to="/settings/github" className={navClass}>
-            <NavGlyph name="github" />
-            <span className={styles.navLabel}>GitHub</span>
-          </NavLink>
-          <NavLink to="/settings/export" className={navClass}>
-            <NavGlyph name="export" />
-            <span className={styles.navLabel}>Export</span>
-          </NavLink>
-          <NavLink to="/settings/trash" className={navClass}>
-            <NavGlyph name="trash" />
-            <span className={styles.navLabel}>Trash</span>
-          </NavLink>
-          <NavLink to="/settings/deleted-teams" className={navClass}>
-            <NavGlyph name="trash" />
-            <span className={styles.navLabel}>Deleted teams</span>
-          </NavLink>
-        </div>
-      </nav>
+          <div className={styles.spacer} />
 
-      <main className={styles.main}>{children}</main>
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Workspace</h2>
+            <NavLink to="/settings/preferences" className={navClass}>
+              <NavGlyph name="prefs" />
+              <span className={styles.navLabel}>Preferences</span>
+            </NavLink>
+            <NavLink to="/settings/members" className={navClass}>
+              <NavGlyph name="members" />
+              <span className={styles.navLabel}>Members</span>
+            </NavLink>
+            <NavLink to="/settings/labels" className={navClass}>
+              <NavGlyph name="labels" />
+              <span className={styles.navLabel}>Labels</span>
+            </NavLink>
+            <NavLink to="/settings/project-labels" className={navClass}>
+              <NavGlyph name="labels" />
+              <span className={styles.navLabel}>Project labels</span>
+            </NavLink>
+            <NavLink to="/settings/project-updates" className={navClass}>
+              <NavGlyph name="bell" />
+              <span className={styles.navLabel}>Project updates</span>
+            </NavLink>
+            <NavLink to="/settings/notifications" className={navClass}>
+              <NavGlyph name="bell" />
+              <span className={styles.navLabel}>Notifications</span>
+            </NavLink>
+            <NavLink to="/settings/templates" className={navClass}>
+              <NavGlyph name="template" />
+              <span className={styles.navLabel}>Templates</span>
+            </NavLink>
+            <NavLink to="/settings/api-keys" className={navClass}>
+              <NavGlyph name="key" />
+              <span className={styles.navLabel}>API keys</span>
+            </NavLink>
+            <NavLink to="/settings/webhooks" className={navClass}>
+              <NavGlyph name="webhook" />
+              <span className={styles.navLabel}>Webhooks</span>
+            </NavLink>
+            <NavLink to="/settings/github" className={navClass}>
+              <NavGlyph name="github" />
+              <span className={styles.navLabel}>GitHub</span>
+            </NavLink>
+            <NavLink to="/settings/export" className={navClass}>
+              <NavGlyph name="export" />
+              <span className={styles.navLabel}>Export</span>
+            </NavLink>
+            <NavLink to="/settings/trash" className={navClass}>
+              <NavGlyph name="trash" />
+              <span className={styles.navLabel}>Trash</span>
+            </NavLink>
+            <NavLink to="/settings/deleted-teams" className={navClass}>
+              <NavGlyph name="trash" />
+              <span className={styles.navLabel}>Deleted teams</span>
+            </NavLink>
+          </div>
+        </nav>
 
-      <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
-      <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
-      {createOpen && renderCreateIssue?.({ onClose: closeCreate, seed: createSeed })}
-      {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
-      {createInitiativeOpen &&
-        renderCreateInitiative?.({ onClose: () => setCreateInitiativeOpen(false) })}
-    </div>
+        <main className={styles.main}>{children}</main>
+
+        <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
+        <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+        {createOpen && renderCreateIssue?.({ onClose: closeCreate, seed: createSeed })}
+        {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
+        {createInitiativeOpen &&
+          renderCreateInitiative?.({ onClose: () => setCreateInitiativeOpen(false) })}
+      </div>
     </CreateIssueProvider>
   );
 }
@@ -467,7 +467,7 @@ function TeamNavItems({
   return (
     <>
       <NavLink
-        to={`/team/${team.key}`}
+        to={`/team/${team.key}/home`}
         className={navClass}
         style={
           depth > 0 ? { paddingInlineStart: `calc(var(--space-3) * ${depth + 1})` } : undefined
@@ -591,7 +591,10 @@ function glyphPath(name: NavGlyphName) {
     case 'drafts':
       return (
         <>
-          <path d="M4.5 2.5h5.2L13.5 6.3V13a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3.5 13V4A1.5 1.5 0 0 1 4.5 2.5Z" {...stroke} />
+          <path
+            d="M4.5 2.5h5.2L13.5 6.3V13a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3.5 13V4A1.5 1.5 0 0 1 4.5 2.5Z"
+            {...stroke}
+          />
           <path d="M9.5 2.5V6h3.5M6 9h4M6 11.5h2.5" {...stroke} />
         </>
       );
