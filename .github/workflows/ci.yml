@@ -126,6 +126,10 @@ jobs:
       # mode — an invitation is redeemed on the register call whether or not open signup is
       # allowed.
       POLARIS_REGISTRATION_MODE: open
+      # POLARIS_ENV=development would otherwise mint a loopback session for
+      # whoever owns the oldest workspace. The suite drives the sign-in form
+      # and invitation links; auto-login hides both.
+      POLARIS_DEV_AUTOLOGIN: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

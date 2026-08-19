@@ -103,7 +103,23 @@ export function credentialsMode(): RequestCredentials {
  * never sends the request.
  */
 export function shouldAttemptDevSession(): boolean {
-  return isLoopbackHostname(clientHostname());
+  return isLoopbackHostname(clientHostname()) && !isAnonymousAuthPath(currentPathname());
+}
+
+/**
+ * Surfaces that must stay signed-out even on loopback.
+ *
+ * Laptop auto-login is for a reload of the tracker, not for `/signin`, `/signup`,
+ * or an invitation link. Minting a session there hides the form Playwright (and
+ * a person following an email) is about to fill.
+ */
+export function isAnonymousAuthPath(pathname: string): boolean {
+  return (
+    pathname === '/signin' ||
+    pathname === '/signup' ||
+    pathname === '/welcome' ||
+    pathname.startsWith('/invite/')
+  );
 }
 
 export function isLoopbackHostname(host: string): boolean {
@@ -123,6 +139,11 @@ function clientHostname(): string {
   }
   if (typeof location === 'undefined') return '';
   return location.hostname;
+}
+
+function currentPathname(): string {
+  if (typeof location === 'undefined') return '';
+  return location.pathname;
 }
 
 /**
