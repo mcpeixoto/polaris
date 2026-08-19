@@ -74,6 +74,7 @@ export class KeymapRegistry<Ctx extends ActionContext = ActionContext> {
   private readonly matcher: SequenceMatcher;
   private readonly onError: (error: unknown, action: Action<Ctx>) => void;
   private lastHandledContext: Context = 'global';
+  private lastMatched: { action: Action<Ctx>; key: string } | null = null;
 
   constructor(options: KeymapOptions<Ctx> = {}) {
     this.platform = options.platform ?? detectPlatform();
@@ -296,13 +297,41 @@ export class KeymapRegistry<Ctx extends ActionContext = ActionContext> {
 
     const result = this.matcher.feed(chord, candidates);
     if (result.type === 'match') {
+      const action = result.binding.action;
+      if (event.repeat === true && action.ignoreRepeat) {
+        return true;
+      }
+      this.lastMatched = { action, key: chord.key };
       this.dispatch(
-        result.binding.action,
+        action,
         this.dispatchContext(actionCtx, result.binding.context, event),
       );
       return true;
     }
+    this.lastMatched = null;
     return result.type === 'pending';
+  }
+
+  /**
+   * handleKeyUp completes a hold: Peek's Space opens on the way down and decides on the
+   * way up whether the preview was a tap (keep) or a hold (put away).
+   *
+   * Returns whether an action ran, not whether to preventDefault — a keyup is not a
+   * shortcut of its own, and swallowing it would steal the event from whoever is typing.
+   */
+  handleKeyUp(event: KeyboardEventLike, activeContext: Context, actionCtx: Ctx): boolean {
+    const pending = this.lastMatched;
+    if (pending === null || pending.action.keyup === undefined) return false;
+    const chord = chordFromEvent(event);
+    if (chord.key !== pending.key) return false;
+    this.lastMatched = null;
+    const ctx = this.dispatchContext(actionCtx, activeContext, event);
+    try {
+      pending.action.keyup(ctx);
+    } catch (error) {
+      this.onError(error, pending.action);
+    }
+    return true;
   }
 
   /**

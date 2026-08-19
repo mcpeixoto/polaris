@@ -85,8 +85,15 @@
   white-space: nowrap;
 }
 
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
 .scroller {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   /* The list is a scroll trap on purpose: a flick that reaches the end must not start

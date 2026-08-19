@@ -82,8 +82,23 @@ export function KeymapProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target) && !isGlobalChord(event)) return;
+      const chord = chordFromEvent(event);
+      const actionCtx: ActionContext = {
+        source: 'key',
+        context: registry.activeContext,
+        event: chord ? event : undefined,
+      };
+      registry.handleKeyUp(event, registry.activeContext, actionCtx);
+    };
+
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKeyUp);
+    };
   }, [registry]);
 
   const value = useMemo<KeymapValue>(

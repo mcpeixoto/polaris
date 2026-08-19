@@ -21,7 +21,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | API | GraphQL over the whole domain, one contract in `schema/schema.graphql`, complexity scored by the published model |
 | Auth | Argon2id, rotating refresh tokens, HttpOnly cookies, invitations |
 | Client store | IndexedDB replica (schema 5), in-memory indexes, durable outbox, optimistic mutations |
-| Keyboard | One registry; the command menu and help overlay are views over it |
+| Keyboard | One registry; the command menu and help overlay are views over it. Peek is `Space` |
 | Projects | Workspace and team lists, project issue view, `Shift+P` picker, `C` files into the open project |
 | Cycles | Team cadence, auto-created windows, rollover and auto-add, `G C` / `Shift+C`, `C` files into the open cycle |
 | Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |
@@ -37,7 +37,7 @@ make seed        # a realistic workspace
 make api         # and, in other terminals: make sync, make web
 ```
 
-See [`docs/07-milestones/00-milestone-0.md`](docs/07-milestones/00-milestone-0.md), [`01-milestone-1.md`](docs/07-milestones/01-milestone-1.md), [`02-milestone-2.md`](docs/07-milestones/02-milestone-2.md) and [`03-cycles.md`](docs/07-milestones/03-cycles.md) for the scope freezes and the acceptance tests that define done. Each of the M1 ten names the test that proves it, and `services/internal/acceptance/m1_test.go` fails if one loses its proof.
+See [`docs/07-milestones/00-milestone-0.md`](docs/07-milestones/00-milestone-0.md), [`01-milestone-1.md`](docs/07-milestones/01-milestone-1.md), [`02-milestone-2.md`](docs/07-milestones/02-milestone-2.md), [`03-cycles.md`](docs/07-milestones/03-cycles.md) and [`04-peek.md`](docs/07-milestones/04-peek.md) for the scope freezes and the acceptance tests that define done. Each of the M1 ten names the test that proves it, and `services/internal/acceptance/m1_test.go` fails if one loses its proof.
 
 ## Where the requirements came from
 
