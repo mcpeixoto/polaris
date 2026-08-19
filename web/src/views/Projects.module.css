@@ -35,7 +35,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: var(--space-4) minmax(0, 1fr) 14ch 16ch 8ch;
+  grid-template-columns: var(--space-4) minmax(0, 1fr) 14ch 12ch 16ch 8ch;
   align-items: center;
   gap: var(--space-3);
   height: var(--row-height);
@@ -86,6 +86,8 @@
 }
 
 .status,
+.health,
+.healthMuted,
 .lead,
 .leadMuted,
 .count {
@@ -115,6 +117,7 @@
 }
 
 .leadMuted,
+.healthMuted,
 .count {
   color: var(--text-tertiary);
 }

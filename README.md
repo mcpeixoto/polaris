@@ -8,21 +8,21 @@ job is to keep that replica true.
 The repository holds a **complete functional scope** — the features, how they depend on each
 other, what the data model has to look like, what the integrations do, what the API surface
 is — and the implementation of it, currently through **Milestone 1** plus **Projects v1**,
-**Cycles v1**, **Triage v1**, **Archives v1**, **Attachments v1**, **Webhooks v1**, **Documents v1** and **Initiatives v1** (the first slices of Milestone 2).
+**Cycles v1**, **Triage v1**, **Archives v1**, **Attachments v1**, **Webhooks v1**, **Documents v1**, **Initiatives v1** and **Project updates v1** (the first slices of Milestone 2).
 
 ## What runs today
 
-Backend and web client are both complete through Milestone 1 and tested end to end, in the browser as well as in unit tests. Projects v1, Cycles v1, Peek, Triage v1, Archives v1, Attachments v1, Webhooks v1, Documents v1 and Initiatives v1 sit on the same visual system as the rest of the web app (dense list/detail, compact pickers, command menu). The desktop shell packages and runs on macOS, Windows and Linux.
+Backend and web client are both complete through Milestone 1 and tested end to end, in the browser as well as in unit tests. Projects v1, Cycles v1, Peek, Triage v1, Archives v1, Attachments v1, Webhooks v1, Documents v1, Initiatives v1 and Project updates v1 sit on the same visual system as the rest of the web app (dense list/detail, compact pickers, command menu). The desktop shell packages and runs on macOS, Windows and Linux.
 
 | Working | |
 |---|---|
-| Schema | 30 migrations, including documents, webhooks, attachments, auto-close/archive, triage, cycles, projects, statuses, teams, members and milestones; monthly-partitioned change log, UUIDv7 |
+| Schema | 32 migrations, including project updates, initiatives, documents, webhooks, attachments, auto-close/archive, triage, cycles, projects, statuses, teams, members and milestones; monthly-partitioned change log, UUIDv7 |
 | Sync engine | Gapless per-workspace versions, NDJSON bootstrap, WebSocket hub, resume, revoke, backpressure |
 | API | GraphQL over the whole domain, one contract in `schema/schema.graphql`, complexity scored by the published model |
 | Auth | Argon2id, rotating refresh tokens, HttpOnly cookies, invitations |
-| Client store | IndexedDB replica (schema 10), in-memory indexes, durable outbox, optimistic mutations |
+| Client store | IndexedDB replica (schema 11), in-memory indexes, durable outbox, optimistic mutations |
 | Keyboard | One registry; the command menu and help overlay are views over it. Peek is `Space`; triage is `G T` / `1` `2` `3` `H`; archives is `G X` / `#`; add link is `⌘⇧U` |
-| Projects | Workspace and team lists, project issue view, `Shift+P` picker, `C` files into the open project |
+| Projects | Workspace and team lists with health from latest update, overview/issues/activity tabs, `Shift+P` picker, `C` files into the open project |
 | Cycles | Team cadence, auto-created windows, rollover and auto-add, `G C` / `Shift+C`, `C` files into the open cycle |
 | Triage | Per-team intake status, hidden from ordinary views, accept / duplicate / decline / snooze |
 | Archives | Auto-close and auto-archive with parent/sub/project blocking; on-demand archives page |
@@ -30,6 +30,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Webhooks | Admin HTTPS subscriptions, HMAC-SHA256 of the raw body, SSRF pin, 1m/1h/6h then disable — Settings → Webhooks, `N` to create |
 | Documents | Team and project markdown docs, `/team/:key/documents`, `/document/:id`, archive and soft-delete on the sync stream |
 | Initiatives | Workspace objectives grouping curated projects, `/initiatives`, `/initiative/:id`, status/owner/target date on the sync stream |
+| Project updates | Health plus markdown status posts, Overview compose and Activity history, derived health on project list — client schema 11 |
 | Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |
 | Desktop | Electron shell for macOS, Windows and Linux; per-architecture builds, auto-update, deep links |
 | Notifications | Inbox, unread badge, subscriptions, coalescing fan-out, digest email |

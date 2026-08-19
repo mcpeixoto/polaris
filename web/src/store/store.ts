@@ -31,6 +31,7 @@ import {
   type IssueTemplate,
   type Initiative,
   type InitiativeProject,
+  type ProjectUpdate,
   type Label,
   type Notification,
   type Project,
@@ -148,6 +149,7 @@ export class Store {
     projectMilestone: new Map(),
     initiative: new Map(),
     initiativeProject: new Map(),
+    projectUpdate: new Map(),
     cycle: new Map(),
     issue: new Map(),
     issueLabel: new Map(),
@@ -200,6 +202,7 @@ export class Store {
   private readonly projectMemberOf = new SetIndex<UUID>();
   private readonly projectMilestoneOf = new SetIndex<UUID>();
   private readonly initiativeProjectOf = new SetIndex<UUID>();
+  private readonly projectUpdateOf = new SetIndex<UUID>();
   private readonly cycleTeam = new SetIndex<UUID>();
   /** Keyed by user and view key together; see `preferenceKey`. */
   private readonly preferenceKeys = new Map<string, UUID>();
@@ -323,6 +326,10 @@ export class Store {
     return this.tables.initiativeProject as ReadonlyMap<UUID, InitiativeProject>;
   }
 
+  get projectUpdates(): ReadonlyMap<UUID, ProjectUpdate> {
+    return this.tables.projectUpdate as ReadonlyMap<UUID, ProjectUpdate>;
+  }
+
   get cycles(): ReadonlyMap<UUID, Cycle> {
     return this.tables.cycle as ReadonlyMap<UUID, Cycle>;
   }
@@ -416,6 +423,10 @@ export class Store {
 
   initiativeProjectIdsFor(initiativeId: UUID): ReadonlySet<UUID> {
     return this.initiativeProjectOf.get(initiativeId);
+  }
+
+  projectUpdateIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectUpdateOf.get(projectId);
   }
 
   cycleIdsFor(teamId: UUID): ReadonlySet<UUID> {
@@ -728,6 +739,7 @@ export class Store {
     this.projectMemberOf.clear();
     this.projectMilestoneOf.clear();
     this.initiativeProjectOf.clear();
+    this.projectUpdateOf.clear();
     this.cycleTeam.clear();
     this.preferenceKeys.clear();
     this.currentVersion = 0;
@@ -1022,6 +1034,13 @@ export class Store {
         this.initiativeProjectOf.add(link.initiativeId, link.id);
         break;
       }
+      case 'projectUpdate':
+        this.fileByProject(
+          this.projectUpdateOf,
+          previous as ProjectUpdate | undefined,
+          next as ProjectUpdate,
+        );
+        break;
       case 'cycle': {
         const cycle = next as Cycle;
         const before = previous as Cycle | undefined;
@@ -1119,6 +1138,9 @@ export class Store {
         this.initiativeProjectOf.remove(link.initiativeId, link.id);
         break;
       }
+      case 'projectUpdate':
+        this.unfileByProject(this.projectUpdateOf, entity as ProjectUpdate);
+        break;
       case 'cycle': {
         const cycle = entity as Cycle;
         this.cycleTeam.remove(cycle.teamId, cycle.id);

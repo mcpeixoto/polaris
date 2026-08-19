@@ -24,7 +24,10 @@ import { IssueList } from '~/views/IssueList';
 import { MemberSettings } from '~/views/MemberSettings';
 import { MyIssues } from '~/views/MyIssues';
 import { NotificationSettings } from '~/views/NotificationSettings';
-import { ProjectDetail } from '~/views/ProjectDetail';
+import { ProjectShell } from '~/views/ProjectShell';
+import { ProjectOverview } from '~/views/ProjectOverview';
+import { ProjectIssues } from '~/views/ProjectIssues';
+import { ProjectActivity } from '~/views/ProjectActivity';
 import { Projects } from '~/views/Projects';
 import { CycleDetail } from '~/views/CycleDetail';
 import { Cycles } from '~/views/Cycles';
@@ -105,7 +108,11 @@ export function App() {
               <Route path="/team/:teamKey/documents" element={<Documents />} />
               <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
               <Route path="/issue/:identifier" element={<IssueDetail />} />
-              <Route path="/project/:projectId" element={<ProjectDetail />} />
+              <Route path="/project/:projectId" element={<ProjectShell />}>
+                <Route index element={<ProjectOverview />} />
+                <Route path="issues" element={<ProjectIssues />} />
+                <Route path="activity" element={<ProjectActivity />} />
+              </Route>
               <Route path="/project/:projectId/documents" element={<Documents />} />
               <Route path="/document/:documentId" element={<DocumentDetail />} />
               <Route path="/cycle/:cycleId" element={<CycleDetail />} />

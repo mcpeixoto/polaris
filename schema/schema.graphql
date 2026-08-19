@@ -743,6 +743,34 @@ type DocumentPayload implements MutationResult {
   document: Document!
 }
 
+enum ProjectUpdateHealth {
+  ON_TRACK
+  AT_RISK
+  OFF_TRACK
+}
+
+"""A status post on a project — health plus narrative markdown."""
+type ProjectUpdate {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  health: ProjectUpdateHealth!
+  body: String!
+  authorId: UUID!
+  editedAt: Time
+  deletedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+
+  author: User
+  project: Project
+}
+
+type ProjectUpdatePayload implements MutationResult {
+  version: Int!
+  projectUpdate: ProjectUpdate!
+}
+
 enum InitiativeStatus {
   PROPOSED
   PLANNED
@@ -1507,6 +1535,18 @@ input UpdateDocumentInput {
   body: String
 }
 
+input CreateProjectUpdateInput {
+  projectId: UUID!
+  health: ProjectUpdateHealth!
+  body: String
+}
+
+input UpdateProjectUpdateInput {
+  id: UUID!
+  health: ProjectUpdateHealth
+  body: String
+}
+
 input CreateInitiativeInput {
   name: String!
   description: String
@@ -1623,6 +1663,9 @@ type Query {
 
   document(id: UUID!): Document
 
+  projectUpdate(id: UUID!): ProjectUpdate
+  projectUpdates(projectId: UUID!): [ProjectUpdate!]!
+
   initiatives: [Initiative!]!
   initiative(id: UUID!): Initiative
 }
@@ -1653,6 +1696,10 @@ type Mutation {
   updateDocument(input: UpdateDocumentInput!, clientId: UUID, opId: UUID): DocumentPayload! @idempotent
   archiveDocument(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   deleteDocument(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createProjectUpdate(input: CreateProjectUpdateInput!, clientId: UUID, opId: UUID): ProjectUpdatePayload! @idempotent
+  updateProjectUpdate(input: UpdateProjectUpdateInput!, clientId: UUID, opId: UUID): ProjectUpdatePayload! @idempotent
+  deleteProjectUpdate(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createInitiative(input: CreateInitiativeInput!, clientId: UUID, opId: UUID): InitiativePayload! @idempotent
   updateInitiative(input: UpdateInitiativeInput!, clientId: UUID, opId: UUID): InitiativePayload! @idempotent

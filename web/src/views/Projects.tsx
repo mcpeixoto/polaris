@@ -9,8 +9,10 @@ import { Link, useParams } from 'react-router';
 
 import { useKeymap } from '~/app/keymap';
 import { Avatar, Button, EmptyState } from '~/components';
+import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
+import { latestProjectUpdate } from '~/features/project-updates/helpers';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { ProjectStatus, Store, UUID } from '~/store';
+import type { ProjectStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
 import styles from './Projects.module.css';
 
 interface ProjectRow {
@@ -20,6 +22,7 @@ interface ProjectRow {
   readonly color: string;
   readonly statusName: string;
   readonly statusColor: string;
+  readonly health: ProjectUpdateHealth | undefined;
   readonly leadName: string | null;
   readonly leadId: UUID | undefined;
   readonly issueCount: number;
@@ -41,7 +44,7 @@ export function Projects() {
 
   const rows = useLiveQuery(
     (store) => listProjects(store, team?.id),
-    ['project', 'projectStatus', 'projectTeam', 'projectMember', 'issue', 'user'],
+    ['project', 'projectStatus', 'projectTeam', 'projectMember', 'projectUpdate', 'issue', 'user'],
     [team?.id ?? ''],
   );
 
@@ -90,6 +93,13 @@ export function Projects() {
                   />
                   {row.statusName}
                 </span>
+                {row.health === undefined ? (
+                  <span className={styles.healthMuted}>No update</span>
+                ) : (
+                  <span className={styles.health}>
+                    <ProjectHealthBadge health={row.health} compact />
+                  </span>
+                )}
                 {row.leadName === null ? (
                   <span className={styles.leadMuted}>No lead</span>
                 ) : (
@@ -129,6 +139,7 @@ function listProjects(store: Store, teamId: UUID | undefined): ProjectRow[] {
       color: project.color,
       statusName: status?.name ?? 'No status',
       statusColor: status?.color ?? project.color,
+      health: latestProjectUpdate(store, project.id)?.health,
       leadName: lead?.displayName ?? null,
       leadId: project.leadId,
       issueCount: store.index.byProject(project.id).size,

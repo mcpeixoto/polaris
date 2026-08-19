@@ -278,6 +278,12 @@ type CreateProjectStatusInput struct {
 	IsDefault   *bool                 `json:"isDefault,omitempty"`
 }
 
+type CreateProjectUpdateInput struct {
+	ProjectID uuid.UUID           `json:"projectId"`
+	Health    ProjectUpdateHealth `json:"health"`
+	Body      *string             `json:"body,omitempty"`
+}
+
 type CreateTeamInput struct {
 	Key         string  `json:"key"`
 	Name        string  `json:"name"`
@@ -868,6 +874,29 @@ type ProjectTeamPayload struct {
 
 func (ProjectTeamPayload) IsMutationResult() {}
 
+// A status post on a project — health plus narrative markdown.
+type ProjectUpdate struct {
+	ID          uuid.UUID           `json:"id"`
+	WorkspaceID uuid.UUID           `json:"workspaceId"`
+	ProjectID   uuid.UUID           `json:"projectId"`
+	Health      ProjectUpdateHealth `json:"health"`
+	Body        string              `json:"body"`
+	AuthorID    uuid.UUID           `json:"authorId"`
+	EditedAt    *time.Time          `json:"editedAt,omitempty"`
+	DeletedAt   *time.Time          `json:"deletedAt,omitempty"`
+	CreatedAt   time.Time           `json:"createdAt"`
+	UpdatedAt   time.Time           `json:"updatedAt"`
+	Author      *User               `json:"author,omitempty"`
+	Project     *Project            `json:"project,omitempty"`
+}
+
+type ProjectUpdatePayload struct {
+	Version       int            `json:"version"`
+	ProjectUpdate *ProjectUpdate `json:"projectUpdate"`
+}
+
+func (ProjectUpdatePayload) IsMutationResult() {}
+
 // What a purge destroyed.
 //
 // A list of ids rather than a single one, and no entities: after this response the rows named
@@ -1123,6 +1152,12 @@ type UpdateProjectStatusInput struct {
 	Color       *string                `json:"color,omitempty"`
 	Category    *ProjectStatusCategory `json:"category,omitempty"`
 	IsDefault   *bool                  `json:"isDefault,omitempty"`
+}
+
+type UpdateProjectUpdateInput struct {
+	ID     uuid.UUID            `json:"id"`
+	Health *ProjectUpdateHealth `json:"health,omitempty"`
+	Body   *string              `json:"body,omitempty"`
 }
 
 type UpdateTeamArchiveInput struct {
@@ -1822,6 +1857,63 @@ func (e *ProjectStatusCategory) UnmarshalJSON(b []byte) error {
 }
 
 func (e ProjectStatusCategory) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ProjectUpdateHealth string
+
+const (
+	ProjectUpdateHealthOnTrack  ProjectUpdateHealth = "ON_TRACK"
+	ProjectUpdateHealthAtRisk   ProjectUpdateHealth = "AT_RISK"
+	ProjectUpdateHealthOffTrack ProjectUpdateHealth = "OFF_TRACK"
+)
+
+var AllProjectUpdateHealth = []ProjectUpdateHealth{
+	ProjectUpdateHealthOnTrack,
+	ProjectUpdateHealthAtRisk,
+	ProjectUpdateHealthOffTrack,
+}
+
+func (e ProjectUpdateHealth) IsValid() bool {
+	switch e {
+	case ProjectUpdateHealthOnTrack, ProjectUpdateHealthAtRisk, ProjectUpdateHealthOffTrack:
+		return true
+	}
+	return false
+}
+
+func (e ProjectUpdateHealth) String() string {
+	return string(e)
+}
+
+func (e *ProjectUpdateHealth) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ProjectUpdateHealth(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ProjectUpdateHealth", str)
+	}
+	return nil
+}
+
+func (e ProjectUpdateHealth) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ProjectUpdateHealth) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ProjectUpdateHealth) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

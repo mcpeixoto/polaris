@@ -436,6 +436,19 @@ type ProjectTeam struct {
 	CreatedAt   time.Time
 }
 
+type ProjectUpdate struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ProjectID   uuid.UUID
+	Health      string
+	Body        string
+	AuthorID    uuid.UUID
+	EditedAt    *time.Time
+	DeletedAt   *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Team struct {
 	ID                    uuid.UUID
 	WorkspaceID           uuid.UUID
