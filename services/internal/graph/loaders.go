@@ -848,6 +848,16 @@ func (r *Resolver) hydrateTeam(ctx context.Context, p *authz.Principal, sel sele
 		out.Cycles = toCycles(cycles)
 	}
 
+	if sel.has("subTeams") {
+		children, err := r.Svc.ListSubTeams(ctx, p, team.ID)
+		if err != nil {
+			return generated.Team{}, err
+		}
+		if out.SubTeams, err = r.hydrateTeams(ctx, p, sel.childOrNone("subTeams", "Team"), children); err != nil {
+			return generated.Team{}, err
+		}
+	}
+
 	return out, nil
 }
 

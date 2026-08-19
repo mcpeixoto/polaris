@@ -14,7 +14,7 @@ import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-
  * Learn more about it here: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client#reducing-bundle-size
  */
 type Documents = {
-    "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        lapsed\n      }\n    }\n  }\n": typeof types.EntitlementsDocument,
+    "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        lapsed\n      }\n    }\n  }\n": typeof types.EntitlementsDocument,
     "\n  query Invites {\n    invites {\n      id\n      email\n      role\n      invitedBy\n      teamIds\n      expiresAt\n      createdAt\n    }\n  }\n": typeof types.InvitesDocument,
     "\n  mutation InviteToWorkspace($input: InviteInput!) {\n    inviteToWorkspace(input: $input) {\n      id\n      email\n      role\n      expiresAt\n      token\n    }\n  }\n": typeof types.InviteToWorkspaceDocument,
     "\n  mutation RevokeInvite($id: UUID!) {\n    revokeInvite(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.RevokeInviteDocument,
@@ -113,6 +113,7 @@ type Documents = {
     "\n  \n  mutation UnretireTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    unretireTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": typeof types.UnretireTeamDocument,
     "\n  mutation DeleteTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteTeamDocument,
     "\n  \n  mutation RestoreTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": typeof types.RestoreTeamDocument,
+    "\n  \n  mutation MoveTeam($teamId: UUID!, $parentTeamId: UUID, $clientId: UUID!, $opId: UUID!) {\n    moveTeam(teamId: $teamId, parentTeamId: $parentTeamId, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": typeof types.MoveTeamDocument,
     "\n  fragment IssueTemplateFields on IssueTemplate {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    title\n    body\n    properties\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.IssueTemplateFieldsFragmentDoc,
     "\n  \n  mutation CreateIssueTemplate($input: CreateIssueTemplateInput!) {\n    createIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": typeof types.CreateIssueTemplateDocument,
     "\n  \n  mutation UpdateIssueTemplate($input: UpdateIssueTemplateInput!) {\n    updateIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": typeof types.UpdateIssueTemplateDocument,
@@ -170,7 +171,7 @@ type Documents = {
     "\n  \n  mutation UpdateProfile($input: UpdateProfileInput!) {\n    updateProfile(input: $input) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.UpdateProfileDocument,
 };
 const documents: Documents = {
-    "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        lapsed\n      }\n    }\n  }\n": types.EntitlementsDocument,
+    "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        lapsed\n      }\n    }\n  }\n": types.EntitlementsDocument,
     "\n  query Invites {\n    invites {\n      id\n      email\n      role\n      invitedBy\n      teamIds\n      expiresAt\n      createdAt\n    }\n  }\n": types.InvitesDocument,
     "\n  mutation InviteToWorkspace($input: InviteInput!) {\n    inviteToWorkspace(input: $input) {\n      id\n      email\n      role\n      expiresAt\n      token\n    }\n  }\n": types.InviteToWorkspaceDocument,
     "\n  mutation RevokeInvite($id: UUID!) {\n    revokeInvite(id: $id) {\n      version\n      id\n    }\n  }\n": types.RevokeInviteDocument,
@@ -269,6 +270,7 @@ const documents: Documents = {
     "\n  \n  mutation UnretireTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    unretireTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": types.UnretireTeamDocument,
     "\n  mutation DeleteTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.DeleteTeamDocument,
     "\n  \n  mutation RestoreTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": types.RestoreTeamDocument,
+    "\n  \n  mutation MoveTeam($teamId: UUID!, $parentTeamId: UUID, $clientId: UUID!, $opId: UUID!) {\n    moveTeam(teamId: $teamId, parentTeamId: $parentTeamId, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": types.MoveTeamDocument,
     "\n  fragment IssueTemplateFields on IssueTemplate {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    title\n    body\n    properties\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.IssueTemplateFieldsFragmentDoc,
     "\n  \n  mutation CreateIssueTemplate($input: CreateIssueTemplateInput!) {\n    createIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": types.CreateIssueTemplateDocument,
     "\n  \n  mutation UpdateIssueTemplate($input: UpdateIssueTemplateInput!) {\n    updateIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": types.UpdateIssueTemplateDocument,
@@ -343,7 +345,7 @@ export function graphql(source: string): unknown;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        lapsed\n      }\n    }\n  }\n"): (typeof documents)["\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        lapsed\n      }\n    }\n  }\n"];
+export function graphql(source: "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        lapsed\n      }\n    }\n  }\n"): (typeof documents)["\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        lapsed\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -736,6 +738,10 @@ export function graphql(source: "\n  mutation DeleteTeam($id: UUID!, $clientId: 
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  \n  mutation RestoreTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation RestoreTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation MoveTeam($teamId: UUID!, $parentTeamId: UUID, $clientId: UUID!, $opId: UUID!) {\n    moveTeam(teamId: $teamId, parentTeamId: $parentTeamId, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation MoveTeam($teamId: UUID!, $parentTeamId: UUID, $clientId: UUID!, $opId: UUID!) {\n    moveTeam(teamId: $teamId, parentTeamId: $parentTeamId, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

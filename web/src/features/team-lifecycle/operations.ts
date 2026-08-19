@@ -62,3 +62,15 @@ export const RESTORE_TEAM = /* GraphQL */ `
     }
   }
 `;
+
+export const MOVE_TEAM = /* GraphQL */ `
+  ${TEAM_FIELDS}
+  mutation MoveTeam($teamId: UUID!, $parentTeamId: UUID, $clientId: UUID!, $opId: UUID!) {
+    moveTeam(teamId: $teamId, parentTeamId: $parentTeamId, clientId: $clientId, opId: $opId) {
+      version
+      team {
+        ...TeamFields
+      }
+    }
+  }
+`;

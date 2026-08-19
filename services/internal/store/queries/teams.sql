@@ -197,6 +197,38 @@ ORDER BY deleted_at DESC;
 SELECT count(*) FROM team
 WHERE parent_team_id = sqlc.arg(team_id) AND deleted_at IS NULL;
 
+-- name: ListChildTeams :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+FROM team
+WHERE parent_team_id = sqlc.arg(parent_team_id) AND deleted_at IS NULL
+ORDER BY key;
+
+-- name: UpdateTeamParent :one
+UPDATE team
+SET parent_team_id = sqlc.narg(parent_team_id),
+    private        = COALESCE(sqlc.narg(private), private)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: SetTeamsPrivate :execrows
+UPDATE team
+SET private = true
+WHERE id = ANY(sqlc.arg(ids)::uuid[]) AND deleted_at IS NULL AND NOT private;
+
 -- SoftDeleteIssuesInTeam runs when a team is deleted so its issues can be restored together.
 --
 -- name: SoftDeleteIssuesInTeam :execrows

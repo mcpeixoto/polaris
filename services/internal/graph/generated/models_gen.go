@@ -344,6 +344,8 @@ type CreateTeamInput struct {
 	Color       *string `json:"color,omitempty"`
 	Timezone    *string `json:"timezone,omitempty"`
 	Private     *bool   `json:"private,omitempty"`
+	// When set, creates a sub-team under this parent.
+	ParentTeamID *uuid.UUID `json:"parentTeamId,omitempty"`
 }
 
 type CreateViewInput struct {
@@ -447,10 +449,14 @@ type Entitlements struct {
 	// How far back the change stream is queryable, in days.
 	HistoryDays  *int `json:"historyDays,omitempty"`
 	PrivateTeams bool `json:"privateTeams"`
-	CustomViews  bool `json:"customViews"`
-	APIKeys      bool `json:"apiKeys"`
-	Sso          bool `json:"sso"`
-	AuditLog     bool `json:"auditLog"`
+	// Business+: one level of sub-teams under a top-level parent.
+	SubTeams bool `json:"subTeams"`
+	// Enterprise: sub-teams nested up to five levels deep.
+	MultiLevelSubTeams bool `json:"multiLevelSubTeams"`
+	CustomViews        bool `json:"customViews"`
+	APIKeys            bool `json:"apiKeys"`
+	Sso                bool `json:"sso"`
+	AuditLog           bool `json:"auditLog"`
 	// Set while a paid plan is lapsed: reads work, gated writes do not.
 	Lapsed bool `json:"lapsed"`
 }
@@ -1237,7 +1243,9 @@ type Team struct {
 	// When the team was deleted. Only ever set on a row `deletedTeams` returned: the sync stream
 	// carries a delete rather than the row, so a client holding a team with this set is holding
 	// something it should already have dropped.
-	DeletedAt *time.Time       `json:"deletedAt,omitempty"`
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+	// Direct child teams, in key order.
+	SubTeams  []Team           `json:"subTeams"`
 	States    []WorkflowState  `json:"states"`
 	Members   []TeamMembership `json:"members"`
 	Issues    []Issue          `json:"issues"`

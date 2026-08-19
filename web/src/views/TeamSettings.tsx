@@ -48,6 +48,7 @@ import {
   updateTeam,
 } from '~/features/team/mutations';
 import { deleteTeam, retireTeam, unretireTeam } from '~/features/team-lifecycle/mutations';
+import { moveTeam } from '~/features/team-lifecycle/move';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { CATEGORY_ORDER, type StateCategory, type Store, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -68,6 +69,7 @@ interface TeamView {
   readonly name: string;
   readonly private: boolean;
   readonly retiredAt?: string;
+  readonly parentTeamId?: UUID;
   readonly cyclesEnabled: boolean;
   readonly cycleDurationWeeks: number;
   readonly cycleCooldownWeeks: number;
@@ -263,6 +265,11 @@ export function TeamSettings() {
             />
           </section>
         </fieldset>
+
+        <ParentTeamSettings
+          team={team}
+          onMove={(parentTeamId) => run(moveTeam(engine, team.id, parentTeamId))}
+        />
 
         <DangerZone
           team={team}
@@ -779,6 +786,108 @@ function Chevron({ up = false }: { up?: boolean }) {
 }
 
 /**
+ * Nest this team under a parent, or make it top-level again.
+ */
+function ParentTeamSettings({
+  team,
+  onMove,
+}: {
+  team: TeamView;
+  onMove: (parentTeamId: UUID | null) => void;
+}) {
+  const candidates = useLiveQuery(
+    (store) =>
+      [...store.teams.values()]
+        .filter(
+          (candidate) =>
+            candidate.id !== team.id &&
+            candidate.parentTeamId === undefined &&
+            candidate.retiredAt === undefined,
+        )
+        .sort((a, b) => a.key.localeCompare(b.key)),
+    ['team'],
+    [team.id],
+  );
+
+  const parent = useLiveQuery(
+    (store) => (team.parentTeamId === undefined ? null : store.get('team', team.parentTeamId)),
+    ['team'],
+    [team.parentTeamId],
+  );
+
+  const subTeams = useLiveQuery(
+    (store) =>
+      [...store.teams.values()]
+        .filter((candidate) => candidate.parentTeamId === team.id)
+        .sort((a, b) => a.key.localeCompare(b.key)),
+    ['team'],
+    [team.id],
+  );
+
+  const [parentId, setParentId] = useState(team.parentTeamId ?? '');
+  const entitlements = useEntitlements();
+  const block = featureBlock(entitlements, 'subTeams');
+
+  return (
+    <section className={styles.section} aria-labelledby="parent-heading">
+      <h2 className={styles.sectionTitle} id="parent-heading">
+        Parent team
+      </h2>
+      <p className={styles.sectionHint}>
+        Sub-teams inherit private visibility from a private parent. Parent team owners are added as
+        owners here automatically.
+      </p>
+
+      {parent === null && team.parentTeamId !== undefined ? (
+        <p className={styles.sectionHint}>Parent team is no longer in your replica.</p>
+      ) : parent !== null && parent !== undefined ? (
+        <p className={styles.sectionHint}>
+          Nested under <strong>{parent.name}</strong> ({parent.key}).
+        </p>
+      ) : (
+        <p className={styles.sectionHint}>This is a top-level team.</p>
+      )}
+
+      <div className={styles.parentFields}>
+        <Select
+          label="Move under"
+          value={parentId}
+          disabled={block !== null}
+          onChange={(event) => setParentId(event.target.value)}
+        >
+          <option value="">Top level (no parent)</option>
+          {candidates.map((candidate) => (
+            <option key={candidate.id} value={candidate.id}>
+              {candidate.key} — {candidate.name}
+            </option>
+          ))}
+        </Select>
+        <Button
+          onClick={() => onMove(parentId === '' ? null : (parentId as UUID))}
+          disabled={block !== null || parentId === (team.parentTeamId ?? '')}
+          title={block ?? undefined}
+        >
+          Save parent
+        </Button>
+      </div>
+      {block !== null ? <p className={styles.sectionHint}>{block}</p> : null}
+
+      {subTeams.length > 0 ? (
+        <ul className={styles.subTeamList}>
+          {subTeams.map((child) => (
+            <li key={child.id}>
+              <Link to={`/team/${child.key}/settings`}>
+                {child.key} — {child.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+/**
  * Retire, restore, or delete the team. Lifecycle actions stay outside the read-only
  * fieldset because unretire and delete must remain reachable on a retired team.
  */
@@ -884,6 +993,7 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     name: team.name,
     private: team.private,
     retiredAt: team.retiredAt,
+    parentTeamId: team.parentTeamId,
     cyclesEnabled: team.cyclesEnabled,
     cycleDurationWeeks: team.cycleDurationWeeks,
     cycleCooldownWeeks: team.cycleCooldownWeeks,

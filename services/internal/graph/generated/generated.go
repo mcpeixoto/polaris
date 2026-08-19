@@ -167,17 +167,19 @@ type ComplexityRoot struct {
 	}
 
 	Entitlements struct {
-		APIKeys      func(childComplexity int) int
-		AuditLog     func(childComplexity int) int
-		CustomViews  func(childComplexity int) int
-		HistoryDays  func(childComplexity int) int
-		Lapsed       func(childComplexity int) int
-		Plan         func(childComplexity int) int
-		PrivateTeams func(childComplexity int) int
-		SeatLimit    func(childComplexity int) int
-		SeatsUsed    func(childComplexity int) int
-		Sso          func(childComplexity int) int
-		TeamLimit    func(childComplexity int) int
+		APIKeys            func(childComplexity int) int
+		AuditLog           func(childComplexity int) int
+		CustomViews        func(childComplexity int) int
+		HistoryDays        func(childComplexity int) int
+		Lapsed             func(childComplexity int) int
+		MultiLevelSubTeams func(childComplexity int) int
+		Plan               func(childComplexity int) int
+		PrivateTeams       func(childComplexity int) int
+		SeatLimit          func(childComplexity int) int
+		SeatsUsed          func(childComplexity int) int
+		Sso                func(childComplexity int) int
+		SubTeams           func(childComplexity int) int
+		TeamLimit          func(childComplexity int) int
 	}
 
 	Favorite struct {
@@ -527,6 +529,7 @@ type ComplexityRoot struct {
 		MarkAllNotificationsRead       func(childComplexity int) int
 		MarkIssueDuplicate             func(childComplexity int, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		MarkNotificationRead           func(childComplexity int, id uuid.UUID, read bool) int
+		MoveTeam                       func(childComplexity int, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		PurgeDeletedIssues             func(childComplexity int, before *time.Time) int
 		RemoveFavorite                 func(childComplexity int, kind FavoriteKind, targetID uuid.UUID) int
 		RemoveInitiativeProject        func(childComplexity int, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -948,6 +951,7 @@ type ComplexityRoot struct {
 		Private               func(childComplexity int) int
 		RetiredAt             func(childComplexity int) int
 		States                func(childComplexity int) int
+		SubTeams              func(childComplexity int) int
 		Templates             func(childComplexity int) int
 		Timezone              func(childComplexity int) int
 		TriageEnabled         func(childComplexity int) int
@@ -1169,6 +1173,7 @@ type MutationResolver interface {
 	RemoveInitiativeProject(ctx context.Context, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateTeam(ctx context.Context, input CreateTeamInput) (*TeamPayload, error)
 	UpdateTeam(ctx context.Context, input UpdateTeamInput) (*TeamPayload, error)
+	MoveTeam(ctx context.Context, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
 	RetireTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
 	UnretireTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
 	DeleteTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
@@ -1868,6 +1873,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Entitlements.Lapsed(childComplexity), true
+	case "Entitlements.multiLevelSubTeams":
+		if e.ComplexityRoot.Entitlements.MultiLevelSubTeams == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Entitlements.MultiLevelSubTeams(childComplexity), true
 	case "Entitlements.plan":
 		if e.ComplexityRoot.Entitlements.Plan == nil {
 			break
@@ -1898,6 +1909,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Entitlements.Sso(childComplexity), true
+	case "Entitlements.subTeams":
+		if e.ComplexityRoot.Entitlements.SubTeams == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Entitlements.SubTeams(childComplexity), true
 	case "Entitlements.teamLimit":
 		if e.ComplexityRoot.Entitlements.TeamLimit == nil {
 			break
@@ -3881,6 +3898,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MarkNotificationRead(childComplexity, args["id"].(uuid.UUID), args["read"].(bool)), true
+	case "Mutation.moveTeam":
+		if e.ComplexityRoot.Mutation.MoveTeam == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_moveTeam_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MoveTeam(childComplexity, args["teamId"].(uuid.UUID), args["parentTeamId"].(*uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.purgeDeletedIssues":
 		if e.ComplexityRoot.Mutation.PurgeDeletedIssues == nil {
 			break
@@ -6314,6 +6342,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Team.States(childComplexity), true
+	case "Team.subTeams":
+		if e.ComplexityRoot.Team.SubTeams == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.SubTeams(childComplexity), true
 	case "Team.templates":
 		if e.ComplexityRoot.Team.Templates == nil {
 			break
@@ -7419,6 +7453,10 @@ type Entitlements {
   """How far back the change stream is queryable, in days."""
   historyDays: Int
   privateTeams: Boolean!
+  """Business+: one level of sub-teams under a top-level parent."""
+  subTeams: Boolean!
+  """Enterprise: sub-teams nested up to five levels deep."""
+  multiLevelSubTeams: Boolean!
   customViews: Boolean!
   apiKeys: Boolean!
   sso: Boolean!
@@ -7507,6 +7545,9 @@ type Team {
   something it should already have dropped.
   """
   deletedAt: Time
+
+  """Direct child teams, in key order."""
+  subTeams: [Team!]!
 
   states: [WorkflowState!]!
   members: [TeamMembership!]!
@@ -9020,6 +9061,8 @@ input CreateTeamInput {
   color: String
   timezone: String
   private: Boolean
+  """When set, creates a sub-team under this parent."""
+  parentTeamId: UUID
 }
 
 input UpdateTeamInput {
@@ -9291,6 +9334,8 @@ type Mutation {
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!
+  """Nest under a parent, or pass null to make a top-level team."""
+  moveTeam(teamId: UUID!, parentTeamId: UUID, clientId: UUID, opId: UUID): TeamPayload! @idempotent
   """Freezes a team: read-only issues and settings, hidden from sidebars. Restorable any time."""
   retireTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
   """Brings a retired team back to active use."""
@@ -9727,6 +9772,10 @@ func (ec *executionContext) childFields_Entitlements(ctx context.Context, field 
 		return ec.fieldContext_Entitlements_historyDays(ctx, field)
 	case "privateTeams":
 		return ec.fieldContext_Entitlements_privateTeams(ctx, field)
+	case "subTeams":
+		return ec.fieldContext_Entitlements_subTeams(ctx, field)
+	case "multiLevelSubTeams":
+		return ec.fieldContext_Entitlements_multiLevelSubTeams(ctx, field)
 	case "customViews":
 		return ec.fieldContext_Entitlements_customViews(ctx, field)
 	case "apiKeys":
@@ -10917,6 +10966,8 @@ func (ec *executionContext) childFields_Team(ctx context.Context, field graphql.
 		return ec.fieldContext_Team_archivedAt(ctx, field)
 	case "deletedAt":
 		return ec.fieldContext_Team_deletedAt(ctx, field)
+	case "subTeams":
+		return ec.fieldContext_Team_subTeams(ctx, field)
 	case "states":
 		return ec.fieldContext_Team_states(ctx, field)
 	case "members":
@@ -13066,6 +13117,44 @@ func (ec *executionContext) field_Mutation_markNotificationRead_args(ctx context
 		return nil, err
 	}
 	args["read"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_moveTeam_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "parentTeamId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["parentTeamId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
 	return args, nil
 }
 
@@ -16971,6 +17060,52 @@ func (ec *executionContext) _Entitlements_privateTeams(ctx context.Context, fiel
 	)
 }
 func (ec *executionContext) fieldContext_Entitlements_privateTeams(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Entitlements", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Entitlements_subTeams(ctx context.Context, field graphql.CollectedField, obj *Entitlements) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Entitlements_subTeams(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SubTeams, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Entitlements_subTeams(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Entitlements", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Entitlements_multiLevelSubTeams(ctx context.Context, field graphql.CollectedField, obj *Entitlements) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Entitlements_multiLevelSubTeams(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MultiLevelSubTeams, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Entitlements_multiLevelSubTeams(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Entitlements", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -23692,6 +23827,63 @@ func (ec *executionContext) fieldContext_Mutation_updateTeam(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateTeam_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_moveTeam(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_moveTeam(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MoveTeam(ctx, fc.Args["teamId"].(uuid.UUID), fc.Args["parentTeamId"].(*uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *TeamPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *TeamPayload) graphql.Marshaler {
+			return ec.marshalNTeamPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_moveTeam(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TeamPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_moveTeam_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -35608,6 +35800,38 @@ func (ec *executionContext) fieldContext_Team_deletedAt(_ context.Context, field
 	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _Team_subTeams(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_subTeams(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SubTeams, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []Team) graphql.Marshaler {
+			return ec.marshalNTeam2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_subTeams(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Team",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Team(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Team_states(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -41134,7 +41358,7 @@ func (ec *executionContext) unmarshalInputCreateTeamInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"key", "name", "description", "icon", "color", "timezone", "private"}
+	fieldsInOrder := [...]string{"key", "name", "description", "icon", "color", "timezone", "private", "parentTeamId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -41190,6 +41414,13 @@ func (ec *executionContext) unmarshalInputCreateTeamInput(ctx context.Context, o
 				return it, err
 			}
 			it.Private = data
+		case "parentTeamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentTeamId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentTeamID = data
 		}
 	}
 	return it, nil
@@ -44614,6 +44845,16 @@ func (ec *executionContext) _Entitlements(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "subTeams":
+			out.Values[i] = ec._Entitlements_subTeams(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "multiLevelSubTeams":
+			out.Values[i] = ec._Entitlements_multiLevelSubTeams(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "customViews":
 			out.Values[i] = ec._Entitlements_customViews(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -46722,6 +46963,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateTeam":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateTeam(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "moveTeam":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_moveTeam(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -50749,6 +50997,11 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 		case "deletedAt":
 			out.Values[i] = ec._Team_deletedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "subTeams":
+			out.Values[i] = ec._Team_subTeams(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "states":

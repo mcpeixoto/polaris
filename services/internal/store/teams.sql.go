@@ -330,6 +330,74 @@ func (q *Queries) IsTeamMember(ctx context.Context, arg IsTeamMemberParams) (boo
 	return exists, err
 }
 
+const listChildTeams = `-- name: ListChildTeams :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+FROM team
+WHERE parent_team_id = $1 AND deleted_at IS NULL
+ORDER BY key
+`
+
+func (q *Queries) ListChildTeams(ctx context.Context, parentTeamID *uuid.UUID) ([]Team, error) {
+	rows, err := q.db.Query(ctx, listChildTeams, parentTeamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Team{}
+	for rows.Next() {
+		var i Team
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Key,
+			&i.Name,
+			&i.Description,
+			&i.Icon,
+			&i.Color,
+			&i.Timezone,
+			&i.ParentTeamID,
+			&i.Private,
+			&i.IssueCounter,
+			&i.Settings,
+			&i.RetiredAt,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EstimateScale,
+			&i.EstimateAllowZero,
+			&i.EstimateExtended,
+			&i.CyclesEnabled,
+			&i.CycleDurationWeeks,
+			&i.CycleCooldownWeeks,
+			&i.CycleStartDay,
+			&i.CycleUpcomingCount,
+			&i.CycleAutoAddStarted,
+			&i.CycleAutoAddCompleted,
+			&i.TriageEnabled,
+			&i.TriageRequirePriority,
+			&i.AutoCloseDays,
+			&i.AutoArchiveDays,
+			&i.AutoCloseParent,
+			&i.AutoCloseChildren,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDeletedTeams = `-- name: ListDeletedTeams :many
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,
@@ -978,6 +1046,20 @@ func (q *Queries) RetireTeam(ctx context.Context, id uuid.UUID) (Team, error) {
 	return i, err
 }
 
+const setTeamsPrivate = `-- name: SetTeamsPrivate :execrows
+UPDATE team
+SET private = true
+WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL AND NOT private
+`
+
+func (q *Queries) SetTeamsPrivate(ctx context.Context, ids []uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, setTeamsPrivate, ids)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const softDeleteIssuesInTeam = `-- name: SoftDeleteIssuesInTeam :execrows
 UPDATE issue
 SET deleted_at = now(), deleted_by = $1
@@ -1386,6 +1468,68 @@ func (q *Queries) UpdateTeamEstimates(ctx context.Context, arg UpdateTeamEstimat
 		arg.EstimateExtended,
 		arg.ID,
 	)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.Color,
+		&i.Timezone,
+		&i.ParentTeamID,
+		&i.Private,
+		&i.IssueCounter,
+		&i.Settings,
+		&i.RetiredAt,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EstimateScale,
+		&i.EstimateAllowZero,
+		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
+		&i.TriageEnabled,
+		&i.TriageRequirePriority,
+		&i.AutoCloseDays,
+		&i.AutoArchiveDays,
+		&i.AutoCloseParent,
+		&i.AutoCloseChildren,
+	)
+	return i, err
+}
+
+const updateTeamParent = `-- name: UpdateTeamParent :one
+UPDATE team
+SET parent_team_id = $1,
+    private        = COALESCE($2, private)
+WHERE id = $3 AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+`
+
+type UpdateTeamParentParams struct {
+	ParentTeamID *uuid.UUID
+	Private      *bool
+	ID           uuid.UUID
+}
+
+func (q *Queries) UpdateTeamParent(ctx context.Context, arg UpdateTeamParentParams) (Team, error) {
+	row := q.db.QueryRow(ctx, updateTeamParent, arg.ParentTeamID, arg.Private, arg.ID)
 	var i Team
 	err := row.Scan(
 		&i.ID,
