@@ -1,12 +1,12 @@
 /**
- * Cycle writes: the cadence lives on the team, so this is one mutation rather than a
- * create-cycle form. Enabling creates the current window and the upcoming ones; the worker
- * keeps them rolling.
+ * Cycle writes: cadence on the team, and per-window edits on individual cycles.
  */
 
 import { UPDATE_TEAM_CYCLES } from '~/gql/operations';
-import type { Team, UUID } from '~/store';
+import type { Cycle, Team, UUID } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
+
+import { START_CYCLE_TODAY, UPDATE_CYCLE } from './operations';
 
 export interface CycleCadence {
   readonly enabled?: boolean | undefined;
@@ -33,7 +33,9 @@ export async function updateTeamCycles(
     ...(cadence.cooldownWeeks === undefined ? null : { cycleCooldownWeeks: cadence.cooldownWeeks }),
     ...(cadence.startDay === undefined ? null : { cycleStartDay: cadence.startDay }),
     ...(cadence.upcomingCount === undefined ? null : { cycleUpcomingCount: cadence.upcomingCount }),
-    ...(cadence.autoAddStarted === undefined ? null : { cycleAutoAddStarted: cadence.autoAddStarted }),
+    ...(cadence.autoAddStarted === undefined
+      ? null
+      : { cycleAutoAddStarted: cadence.autoAddStarted }),
     ...(cadence.autoAddCompleted === undefined
       ? null
       : { cycleAutoAddCompleted: cadence.autoAddCompleted }),
@@ -50,12 +52,78 @@ export async function updateTeamCycles(
         ...(cadence.cooldownWeeks === undefined ? null : { cooldownWeeks: cadence.cooldownWeeks }),
         ...(cadence.startDay === undefined ? null : { startDay: cadence.startDay }),
         ...(cadence.upcomingCount === undefined ? null : { upcomingCount: cadence.upcomingCount }),
-        ...(cadence.autoAddStarted === undefined ? null : { autoAddStarted: cadence.autoAddStarted }),
+        ...(cadence.autoAddStarted === undefined
+          ? null
+          : { autoAddStarted: cadence.autoAddStarted }),
         ...(cadence.autoAddCompleted === undefined
           ? null
           : { autoAddCompleted: cadence.autoAddCompleted }),
       },
     },
     optimistic: [{ type: 'team', id: teamId, before, after }],
+  });
+}
+
+export interface CycleEdit {
+  readonly name?: string;
+  readonly description?: string | null;
+  readonly clearDescription?: boolean;
+  readonly startsAt?: string;
+  readonly endsAt?: string;
+}
+
+export async function updateCycle(
+  engine: SyncEngine,
+  cycleId: UUID,
+  edit: CycleEdit,
+): Promise<void> {
+  const before = engine.store.get('cycle', cycleId);
+  if (before === undefined) return;
+
+  const after: Cycle = {
+    ...before,
+    ...(edit.name === undefined ? null : { name: edit.name }),
+    ...(edit.description === undefined && edit.clearDescription !== true
+      ? null
+      : { description: edit.clearDescription ? undefined : (edit.description ?? undefined) }),
+    ...(edit.startsAt === undefined ? null : { startsAt: edit.startsAt }),
+    ...(edit.endsAt === undefined ? null : { endsAt: edit.endsAt }),
+    updatedAt: new Date().toISOString(),
+  };
+
+  await engine.mutate({
+    mutation: UPDATE_CYCLE,
+    variables: {
+      input: {
+        id: cycleId,
+        ...(edit.name === undefined ? null : { name: edit.name }),
+        ...(edit.description === undefined ? null : { description: edit.description }),
+        ...(edit.clearDescription === true ? { clearDescription: true } : null),
+        ...(edit.startsAt === undefined ? null : { startsAt: edit.startsAt }),
+        ...(edit.endsAt === undefined ? null : { endsAt: edit.endsAt }),
+      },
+    },
+    optimistic: [{ type: 'cycle', id: cycleId, before, after }],
+  });
+}
+
+export async function startCycleToday(engine: SyncEngine, cycleId: UUID): Promise<void> {
+  const before = engine.store.get('cycle', cycleId);
+  if (before === undefined) return;
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const durationMs = Date.parse(before.endsAt) - Date.parse(before.startsAt);
+  const after: Cycle = {
+    ...before,
+    startsAt: todayStart,
+    endsAt: new Date(Date.parse(todayStart) + durationMs).toISOString(),
+    updatedAt: now.toISOString(),
+  };
+
+  await engine.mutate({
+    mutation: START_CYCLE_TODAY,
+    variables: { id: cycleId },
+    optimistic: [{ type: 'cycle', id: cycleId, before, after }],
   });
 }

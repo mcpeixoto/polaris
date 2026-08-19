@@ -8,6 +8,7 @@ package graph
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -1139,6 +1140,49 @@ func (r *mutationResolver) UpdateTeamCycles(ctx context.Context, input generated
 		return nil, PresentError(ctx, err)
 	}
 	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
+// UpdateCycle is the resolver for the updateCycle field.
+func (r *mutationResolver) UpdateCycle(ctx context.Context, input generated.UpdateCycleInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.CyclePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	cycle, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"input": input},
+		func(ctx context.Context) (model.Cycle, int64, error) {
+			return r.Svc.UpdateCycle(ctx, p, domain.UpdateCycleInput{
+				ID:               input.ID,
+				Name:             input.Name,
+				Description:      input.Description,
+				ClearDescription: deref(input.ClearDescription),
+				StartsAt:         input.StartsAt,
+				EndsAt:           input.EndsAt,
+			})
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toCycle(cycle)
+	return &generated.CyclePayload{Version: int(version), Cycle: &out}, nil
+}
+
+// StartCycleToday is the resolver for the startCycleToday field.
+func (r *mutationResolver) StartCycleToday(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.CyclePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	cycle, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (model.Cycle, int64, error) {
+			return r.Svc.StartCycleToday(ctx, p, id)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toCycle(cycle)
+	return &generated.CyclePayload{Version: int(version), Cycle: &out}, nil
 }
 
 // UpdateTeamTriage is the resolver for the updateTeamTriage field.

@@ -17,11 +17,7 @@ import styles from './CycleDetail.module.css';
 export function CycleDetail() {
   const navigate = useNavigate();
   const { cycleId = '' } = useParams<{ cycleId: string }>();
-  const cycle = useLiveQuery(
-    (store) => store.cycles.get(cycleId) ?? null,
-    ['cycle'],
-    [cycleId],
-  );
+  const cycle = useLiveQuery((store) => store.cycles.get(cycleId) ?? null, ['cycle'], [cycleId]);
 
   const source = useMemo<IssueListSource | null>(
     () => (cycle === null ? null : { kind: 'cycle', cycleId: cycle.id }),

@@ -1727,6 +1727,17 @@ input UpdateTeamCyclesInput {
   autoAddCompleted: Boolean
 }
 
+input UpdateCycleInput {
+  id: UUID!
+  name: String
+  description: String
+  clearDescription: Boolean
+  """Upcoming cycles only. Past and current starts are immutable."""
+  startsAt: Time
+  """Current and upcoming cycles. Past ends are immutable."""
+  endsAt: Time
+}
+
 input UpdateTeamTriageInput {
   teamId: UUID!
   enabled: Boolean
@@ -2115,6 +2126,9 @@ type Mutation {
 
   updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
   updateTeamCycles(input: UpdateTeamCyclesInput!): TeamPayload!
+  updateCycle(input: UpdateCycleInput!, clientId: UUID, opId: UUID): CyclePayload! @idempotent
+  """Pull the next upcoming cycle forward to midnight today in the team's timezone. Irreversible."""
+  startCycleToday(id: UUID!, clientId: UUID, opId: UUID): CyclePayload! @idempotent
   updateTeamTriage(input: UpdateTeamTriageInput!): TeamPayload!
   updateTeamArchive(input: UpdateTeamArchiveInput!): TeamPayload!
 

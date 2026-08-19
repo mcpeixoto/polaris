@@ -1286,6 +1286,17 @@ type UpdateAttachmentInput struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 
+type UpdateCycleInput struct {
+	ID               uuid.UUID `json:"id"`
+	Name             *string   `json:"name,omitempty"`
+	Description      *string   `json:"description,omitempty"`
+	ClearDescription *bool     `json:"clearDescription,omitempty"`
+	// Upcoming cycles only. Past and current starts are immutable.
+	StartsAt *time.Time `json:"startsAt,omitempty"`
+	// Current and upcoming cycles. Past ends are immutable.
+	EndsAt *time.Time `json:"endsAt,omitempty"`
+}
+
 type UpdateDocumentInput struct {
 	ID    uuid.UUID `json:"id"`
 	Title *string   `json:"title,omitempty"`

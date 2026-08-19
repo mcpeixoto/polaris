@@ -40,6 +40,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Private teams | Team visibility toggle in settings, privatize cleanup, initiative project filtering, admin team directory — client schema 21; no migration |
 | Team lifecycle | Retire/unretire, delete/restore (30 days), deleted-teams settings screen, retired teams hidden from sidebar, read-only projects — client schema 21; migration `000044` |
 | Sub-teams | Nest/move teams, private inheritance, parent-owner sync, depth limits by plan, nested sidebar — client schema 21; no migration |
+| Cycle editing | Edit dates and names, start cycle today, pause/cooldown gaps on Cycles page — client schema 21; no migration |
 | Project update reminders | Workspace cadence settings, per-project schedule, staleness on list and shell — client schema 18; migration `000041` |
 | Project priority | Five-level scale, P shortcut, grouped/drag reorder on `/projects` |
 | Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |
