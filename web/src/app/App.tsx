@@ -15,6 +15,7 @@ import { LabelSettings } from '~/features/labels/LabelSettings';
 import { UndoToast } from '~/features/undo/UndoToast';
 import { AcceptInvite } from '~/views/AcceptInvite';
 import { ApiKeys } from '~/views/ApiKeys';
+import { Webhooks } from '~/views/Webhooks';
 import { ConnectServer } from '~/views/ConnectServer';
 import { CreateWorkspace } from '~/views/CreateWorkspace';
 import { Inbox } from '~/views/Inbox';
@@ -102,6 +103,7 @@ export function App() {
               <Route path="/settings/notifications" element={<NotificationSettings />} />
               <Route path="/settings/templates" element={<Templates />} />
               <Route path="/settings/api-keys" element={<ApiKeys />} />
+              <Route path="/settings/webhooks" element={<Webhooks />} />
               <Route path="/settings/trash" element={<Trash />} />
               {/* Unknown paths go somewhere useful rather than to a dead end. A stale
                   bookmark to a renamed team should land the user in their own work. */}

@@ -725,3 +725,42 @@ func TestAttachmentSchemaInvariants(t *testing.T) {
 		wantErr: "attachment_url_not_blank",
 	}})
 }
+
+func TestWebhookSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "a workspace webhook covering public teams is accepted",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, all_public_teams, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000aa', ` + ws + `, ` + userAda + `,
+		              'https://hooks.example.com/polaris', 'whsec_test', true, ARRAY['Issue'])`,
+	}, {
+		name: "the same URL on a single team is accepted",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, team_id, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000ab', ` + ws + `, ` + userAda + `,
+		              'https://hooks.example.com/polaris', 'whsec_test', ` + engID + `, ARRAY['Issue'])`,
+	}, {
+		name: "both a team and allPublicTeams is refused",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, all_public_teams, team_id, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000ac', ` + ws + `, ` + userAda + `,
+		              'https://hooks.example.com/polaris', 'whsec_test', true, ` + engID + `, ARRAY['Issue'])`,
+		wantErr: "webhook_scope_xor",
+	}, {
+		name: "neither a team nor allPublicTeams is refused",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000ad', ` + ws + `, ` + userAda + `,
+		              'https://hooks.example.com/polaris', 'whsec_test', ARRAY['Issue'])`,
+		wantErr: "webhook_scope_xor",
+	}, {
+		name: "http is refused",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, all_public_teams, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000ae', ` + ws + `, ` + userAda + `,
+		              'http://hooks.example.com/polaris', 'whsec_test', true, ARRAY['Issue'])`,
+		wantErr: "webhook_url_http",
+	}, {
+		name: "an empty resource type list is refused",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, all_public_teams, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000af', ` + ws + `, ` + userAda + `,
+		              'https://hooks.example.com/polaris', 'whsec_test', true, ARRAY[]::text[])`,
+		wantErr: "webhook_resource_types_not_empty",
+	}})
+}

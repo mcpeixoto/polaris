@@ -213,7 +213,7 @@ describe('the settings section', () => {
   /** Only this level can prove every screen built for M1 is actually reachable. */
   it('links to every workspace screen', () => {
     renderShell(seeded());
-    for (const name of ['Members', 'Labels', 'Notifications', 'Templates', 'API keys', 'Trash']) {
+    for (const name of ['Members', 'Labels', 'Notifications', 'Templates', 'API keys', 'Webhooks', 'Trash']) {
       expect(screen.getByRole('link', { name }), `${name} is not reachable`).toBeTruthy();
     }
     for (const name of ['My Issues', 'Inbox', 'Search']) {

@@ -72,6 +72,12 @@ const (
 	// Guests are excluded because a key acts as its owner and a guest's access is meant to
 	// be narrow and reviewable, which a long-lived token is not.
 	ActionAPIKeyManage Action = "api_key.manage"
+
+	// Outbound webhooks are a workspace-wide push of whatever they subscribe to, including
+	// private-team data if scoped onto that team. Creating or reading one is therefore an
+	// admin action: a member minting a URL that receives every issue is an exfiltration
+	// path nobody would review.
+	ActionWebhookManage Action = "webhook.manage"
 )
 
 // AllActions exists so a test can assert that every action is classified.
@@ -91,7 +97,7 @@ var AllActions = []Action{
 	ActionWorkspaceViewManage, ActionTeamViewManage,
 	ActionWorkspaceTemplateManage, ActionTeamTemplateManage,
 	ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete, ActionProjectStatusManage,
-	ActionAPIKeyManage,
+	ActionAPIKeyManage, ActionWebhookManage,
 }
 
 // Deliberately absent: notifications, subscriptions, favourites and view preferences.
@@ -141,7 +147,8 @@ func Can(p *Principal, a Action) bool {
 		// everybody's pickers. That reach is what makes them an admin action while their
 		// team-scoped equivalents are not.
 		ActionWorkspaceLabelManage, ActionWorkspaceViewManage, ActionWorkspaceTemplateManage,
-		ActionProjectStatusManage:
+		ActionProjectStatusManage,
+		ActionWebhookManage:
 		return p.Role.IsAdmin()
 
 	case ActionTeamJoin, ActionAPIKeyManage, ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete:

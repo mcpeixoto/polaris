@@ -64,6 +64,9 @@ var serverSideOnly = map[string]string{
 	// scheduled" is how it stops meaning anything.
 	"FanOutAll":                  "worker cron: derives inbox rows from change_log",
 	"FanOut":                     "internal: one workspace's pass, called by FanOutAll",
+	"FanOutWebhooksAll":          "worker cron: queues webhook deliveries from change_log",
+	"FanOutWebhooks":             "internal: one workspace's pass, called by FanOutWebhooksAll",
+	"DeliverDueWebhooks":         "worker cron: POSTs signed webhook deliveries",
 	"DeliverNotificationDigests": "worker cron: sends the digest mail",
 	"AdvanceCycles":              "worker cron: closes ended cycles, rolls work, auto-adds",
 	"AutoCloseIssues":            "worker cron: closes stale open issues per team period",

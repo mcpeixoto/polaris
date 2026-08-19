@@ -1,0 +1,66 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { EngineProvider } from '~/app/context';
+import { KeymapProvider } from '~/app/keymap';
+import type { WebhookSummary } from '~/features/webhooks/mutations';
+import { Store } from '~/store';
+import { gql } from '~/sync/api';
+import type { SyncEngine } from '~/sync/engine';
+
+import { Webhooks } from './Webhooks';
+
+vi.mock('~/sync/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~/sync/api')>();
+  return { ...actual, gql: vi.fn() };
+});
+
+const sent = vi.mocked(gql);
+
+let listing: WebhookSummary[] = [];
+
+function hook(id: string, over: Partial<WebhookSummary> = {}): WebhookSummary {
+  return {
+    id,
+    url: 'https://hooks.example.com/polaris',
+    enabled: true,
+    allPublicTeams: true,
+    teamId: null,
+    resourceTypes: ['Issue'],
+    consecutiveFailures: 0,
+    disabledAt: null,
+    createdAt: '2026-01-01T00:00:00Z',
+    ...over,
+  };
+}
+
+function answer(query: string): unknown {
+  if (query.includes('query Webhooks')) return { webhooks: listing };
+  return {};
+}
+
+beforeEach(() => {
+  listing = [hook('wh-1')];
+  sent.mockReset();
+  sent.mockImplementation(async (query: string) => answer(query) as never);
+});
+
+describe('Webhooks', () => {
+  it('lists a webhook from the query, not a spinner', async () => {
+    const engine = { store: new Store('w1'), mutate: vi.fn() } as unknown as SyncEngine;
+    render(
+      <MemoryRouter>
+        <KeymapProvider>
+          <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+            <Webhooks />
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Webhooks' })).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByText('https://hooks.example.com/polaris')).toBeTruthy();
+    });
+  });
+});

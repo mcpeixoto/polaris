@@ -446,6 +446,54 @@ func toAPIKeys(rows []model.APIKey) []generated.APIKey {
 	return out
 }
 
+func toWebhook(w model.Webhook) generated.Webhook {
+	return generated.Webhook{
+		ID:                  w.ID,
+		WorkspaceID:         w.WorkspaceID,
+		CreatorID:           w.CreatorID,
+		URL:                 w.URL,
+		Enabled:             w.Enabled,
+		AllPublicTeams:      w.AllPublicTeams,
+		TeamID:              w.TeamID,
+		ResourceTypes:       w.ResourceTypes,
+		ConsecutiveFailures: w.ConsecutiveFailures,
+		DisabledAt:          w.DisabledAt,
+		CreatedAt:           w.CreatedAt,
+		UpdatedAt:           w.UpdatedAt,
+	}
+}
+
+func toWebhooks(rows []model.Webhook) []generated.Webhook {
+	out := make([]generated.Webhook, 0, len(rows))
+	for _, w := range rows {
+		out = append(out, toWebhook(w))
+	}
+	return out
+}
+
+func toWebhookDelivery(d model.WebhookDelivery) generated.WebhookDelivery {
+	return generated.WebhookDelivery{
+		ID:             d.ID,
+		WebhookID:      d.WebhookID,
+		ChangeVersion:  int(d.ChangeVersion),
+		EntityType:     d.EntityType,
+		Attempt:        d.Attempt,
+		LastStatus:     d.LastStatus,
+		LastError:      d.LastError,
+		LastDurationMs: d.LastDurationMs,
+		DeliveredAt:    d.DeliveredAt,
+		CreatedAt:      d.CreatedAt,
+	}
+}
+
+func toWebhookDeliveries(rows []model.WebhookDelivery) []generated.WebhookDelivery {
+	out := make([]generated.WebhookDelivery, 0, len(rows))
+	for _, d := range rows {
+		out = append(out, toWebhookDelivery(d))
+	}
+	return out
+}
+
 // --------------------------------------------------------------------------------- invites
 
 func toInvite(i model.Invite) (generated.Invite, error) {

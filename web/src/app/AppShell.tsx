@@ -285,6 +285,10 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
             <NavGlyph name="key" />
             <span className={styles.navLabel}>API keys</span>
           </NavLink>
+          <NavLink to="/settings/webhooks" className={navClass}>
+            <NavGlyph name="webhook" />
+            <span className={styles.navLabel}>Webhooks</span>
+          </NavLink>
           <NavLink to="/settings/trash" className={navClass}>
             <NavGlyph name="trash" />
             <span className={styles.navLabel}>Trash</span>
@@ -321,6 +325,7 @@ type NavGlyphName =
   | 'bell'
   | 'template'
   | 'key'
+  | 'webhook'
   | 'trash';
 
 function NavGlyph({ name }: { name: NavGlyphName }) {
@@ -423,6 +428,14 @@ function glyphPath(name: NavGlyphName) {
         <>
           <circle cx="6" cy="8" r="2.5" {...stroke} />
           <path d="M8.2 8H14v2.2M11.5 8v2.2" {...stroke} />
+        </>
+      );
+    case 'webhook':
+      return (
+        <>
+          <circle cx="4.5" cy="8" r="2" {...stroke} />
+          <path d="M6.5 8h3" {...stroke} />
+          <path d="M9.5 5.5 12 8l-2.5 2.5" {...stroke} />
         </>
       );
     case 'trash':
