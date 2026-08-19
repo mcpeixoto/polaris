@@ -1342,6 +1342,7 @@ function corpusIdsOf(
   if (source.kind === 'view') {
     const view = store.views.get(source.viewId);
     if (view === undefined) return null;
+    if (view.projectId !== undefined) return store.index.byProject(view.projectId);
     return view.teamId === undefined ? store.index.active() : store.index.byTeam(view.teamId);
   }
   return teamId === undefined ? null : store.index.byTeam(teamId);

@@ -501,6 +501,8 @@ export interface View {
   readonly teamId?: UUID;
   /** Absent means shared. Set means it is that person's private view. */
   readonly ownerId?: UUID;
+  /** Set means the view is attached as a tab on this project. */
+  readonly projectId?: UUID;
   readonly name: string;
   readonly description?: string;
   readonly icon?: string;

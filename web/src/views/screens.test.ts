@@ -64,6 +64,7 @@ const HEADING_FROM_A_WRAPPER: Record<string, string> = {
   ProjectShell: 'renders the project name as h1 for nested tabs',
   ProjectOverview: 'ProjectShell renders the h1 for nested project tabs',
   ProjectIssues: 'ProjectShell renders the h1; IssueList fills the issues tab',
+  ProjectAttachedView: 'ProjectShell renders the h1; IssueList fills the view tab',
   ProjectActivity: 'ProjectShell renders the h1 for nested project tabs',
   CycleDetail: 'renders IssueList, which carries the heading',
   Triage: 'renders IssueList, which carries the heading',

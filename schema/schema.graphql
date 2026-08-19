@@ -527,6 +527,8 @@ type View {
   teamId: UUID
   """Null means shared. Set means it is that person's private view."""
   ownerId: UUID
+  """Set means the view is attached as a tab on this project."""
+  projectId: UUID
   name: String!
   description: String
   icon: String
@@ -1368,6 +1370,8 @@ input UpdateLabelInput {
 
 input CreateViewInput {
   teamId: UUID
+  """Attaches the view as a tab on this project rather than in a sidebar."""
+  projectId: UUID
   """True keeps the view private to its creator."""
   private: Boolean
   name: String!

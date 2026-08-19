@@ -62,7 +62,7 @@ func (q *Queries) AddFavorite(ctx context.Context, arg AddFavoriteParams) (Favor
 const archiveView = `-- name: ArchiveView :one
 UPDATE view SET archived_at = now()
 WHERE id = $1 AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, owner_id, name, description, icon, color,
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
           filter, display, position, created_by, archived_at, created_at, updated_at
 `
 
@@ -71,6 +71,7 @@ type ArchiveViewRow struct {
 	WorkspaceID uuid.UUID
 	TeamID      *uuid.UUID
 	OwnerID     *uuid.UUID
+	ProjectID   *uuid.UUID
 	Name        string
 	Description *string
 	Icon        *string
@@ -95,6 +96,7 @@ func (q *Queries) ArchiveView(ctx context.Context, id uuid.UUID) (ArchiveViewRow
 		&i.WorkspaceID,
 		&i.TeamID,
 		&i.OwnerID,
+		&i.ProjectID,
 		&i.Name,
 		&i.Description,
 		&i.Icon,
@@ -112,12 +114,13 @@ func (q *Queries) ArchiveView(ctx context.Context, id uuid.UUID) (ArchiveViewRow
 
 const createView = `-- name: CreateView :one
 
-INSERT INTO view (id, workspace_id, team_id, owner_id, name, description, icon, color,
+INSERT INTO view (id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
                   filter, display, position, created_by)
 VALUES ($1, $2, $3, $4,
         $5, $6, $7, $8,
-        $9, $10, $11, $12)
-RETURNING id, workspace_id, team_id, owner_id, name, description, icon, color,
+        $9, $10, $11, $12,
+        $13)
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
           filter, display, position, created_by, archived_at, created_at, updated_at
 `
 
@@ -126,6 +129,7 @@ type CreateViewParams struct {
 	WorkspaceID uuid.UUID
 	TeamID      *uuid.UUID
 	OwnerID     *uuid.UUID
+	ProjectID   *uuid.UUID
 	Name        string
 	Description *string
 	Icon        *string
@@ -141,6 +145,7 @@ type CreateViewRow struct {
 	WorkspaceID uuid.UUID
 	TeamID      *uuid.UUID
 	OwnerID     *uuid.UUID
+	ProjectID   *uuid.UUID
 	Name        string
 	Description *string
 	Icon        *string
@@ -161,6 +166,7 @@ func (q *Queries) CreateView(ctx context.Context, arg CreateViewParams) (CreateV
 		arg.WorkspaceID,
 		arg.TeamID,
 		arg.OwnerID,
+		arg.ProjectID,
 		arg.Name,
 		arg.Description,
 		arg.Icon,
@@ -176,6 +182,7 @@ func (q *Queries) CreateView(ctx context.Context, arg CreateViewParams) (CreateV
 		&i.WorkspaceID,
 		&i.TeamID,
 		&i.OwnerID,
+		&i.ProjectID,
 		&i.Name,
 		&i.Description,
 		&i.Icon,
@@ -226,7 +233,7 @@ func (q *Queries) GetLastFavoritePosition(ctx context.Context, userID uuid.UUID)
 
 const getLastViewPosition = `-- name: GetLastViewPosition :one
 SELECT position FROM view
-WHERE workspace_id = $1 AND archived_at IS NULL
+WHERE workspace_id = $1 AND project_id IS NULL AND archived_at IS NULL
 ORDER BY position DESC
 LIMIT 1
 `
@@ -238,8 +245,22 @@ func (q *Queries) GetLastViewPosition(ctx context.Context, workspaceID uuid.UUID
 	return position, err
 }
 
+const getLastViewPositionForProject = `-- name: GetLastViewPositionForProject :one
+SELECT position FROM view
+WHERE project_id = $1 AND archived_at IS NULL
+ORDER BY position DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLastViewPositionForProject(ctx context.Context, projectID *uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getLastViewPositionForProject, projectID)
+	var position string
+	err := row.Scan(&position)
+	return position, err
+}
+
 const getView = `-- name: GetView :one
-SELECT id, workspace_id, team_id, owner_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
 WHERE id = $1
@@ -250,6 +271,7 @@ type GetViewRow struct {
 	WorkspaceID uuid.UUID
 	TeamID      *uuid.UUID
 	OwnerID     *uuid.UUID
+	ProjectID   *uuid.UUID
 	Name        string
 	Description *string
 	Icon        *string
@@ -271,6 +293,7 @@ func (q *Queries) GetView(ctx context.Context, id uuid.UUID) (GetViewRow, error)
 		&i.WorkspaceID,
 		&i.TeamID,
 		&i.OwnerID,
+		&i.ProjectID,
 		&i.Name,
 		&i.Description,
 		&i.Icon,
@@ -289,6 +312,7 @@ func (q *Queries) GetView(ctx context.Context, id uuid.UUID) (GetViewRow, error)
 const getViewPositionAfter = `-- name: GetViewPositionAfter :one
 SELECT position FROM view
 WHERE workspace_id = $1
+  AND project_id IS NULL
   AND position > $2
   AND archived_at IS NULL
 ORDER BY position
@@ -300,10 +324,32 @@ type GetViewPositionAfterParams struct {
 	Position    string
 }
 
-// Positions are compared across every view in the workspace, which is the order the
+// Positions are compared across every sidebar view in the workspace, which is the order the
 // sidebar renders them in after the visibility filter has been applied.
 func (q *Queries) GetViewPositionAfter(ctx context.Context, arg GetViewPositionAfterParams) (string, error) {
 	row := q.db.QueryRow(ctx, getViewPositionAfter, arg.WorkspaceID, arg.Position)
+	var position string
+	err := row.Scan(&position)
+	return position, err
+}
+
+const getViewPositionAfterForProject = `-- name: GetViewPositionAfterForProject :one
+SELECT position FROM view
+WHERE project_id = $1
+  AND position > $2
+  AND archived_at IS NULL
+ORDER BY position
+LIMIT 1
+`
+
+type GetViewPositionAfterForProjectParams struct {
+	ProjectID *uuid.UUID
+	Position  string
+}
+
+// Positions on a project's tabs are compared only within that project.
+func (q *Queries) GetViewPositionAfterForProject(ctx context.Context, arg GetViewPositionAfterForProjectParams) (string, error) {
+	row := q.db.QueryRow(ctx, getViewPositionAfterForProject, arg.ProjectID, arg.Position)
 	var position string
 	err := row.Scan(&position)
 	return position, err
@@ -445,11 +491,12 @@ func (q *Queries) ListViewPreferences(ctx context.Context, arg ListViewPreferenc
 }
 
 const listViewsForUser = `-- name: ListViewsForUser :many
-SELECT id, workspace_id, team_id, owner_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
 WHERE workspace_id = $1
   AND archived_at IS NULL
+  AND project_id IS NULL
   AND (team_id IS NULL OR team_id = ANY($2::uuid[]))
   AND (owner_id IS NULL OR owner_id = $3)
 ORDER BY position
@@ -466,6 +513,7 @@ type ListViewsForUserRow struct {
 	WorkspaceID uuid.UUID
 	TeamID      *uuid.UUID
 	OwnerID     *uuid.UUID
+	ProjectID   *uuid.UUID
 	Name        string
 	Description *string
 	Icon        *string
@@ -479,10 +527,9 @@ type ListViewsForUserRow struct {
 	UpdatedAt   time.Time
 }
 
-// ListViewsForUser is the visibility rule, stated once: a view with no team spans the
-// workspace, a view with a team belongs to that team's sidebar, and a view with an owner
-// is private to them. Writing it here rather than filtering in Go is what keeps the
-// bootstrap snapshot and the live change scope agreeing about who may see a view.
+// ListViewsForUser is the sidebar visibility rule, stated once: workspace views, team views,
+// and the caller's private views. Project-attached views are omitted — they live as tabs on
+// a project, not in the sidebar.
 func (q *Queries) ListViewsForUser(ctx context.Context, arg ListViewsForUserParams) ([]ListViewsForUserRow, error) {
 	rows, err := q.db.Query(ctx, listViewsForUser, arg.WorkspaceID, arg.TeamIds, arg.UserID)
 	if err != nil {
@@ -497,6 +544,7 @@ func (q *Queries) ListViewsForUser(ctx context.Context, arg ListViewsForUserPara
 			&i.WorkspaceID,
 			&i.TeamID,
 			&i.OwnerID,
+			&i.ProjectID,
 			&i.Name,
 			&i.Description,
 			&i.Icon,
@@ -562,10 +610,20 @@ WHERE f.workspace_id = $1
       WHERE v.id = f.target_id
         AND v.workspace_id = $1
         AND v.archived_at IS NULL
-        AND (v.team_id IS NULL OR v.team_id = ANY($4::uuid[]))
-        AND (v.owner_id = $2
-             OR (v.owner_id IS NULL
-                 AND (v.team_id IS NOT NULL OR $5::boolean)))))
+        AND (
+          (v.project_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM project_team visible
+            WHERE visible.project_id = v.project_id
+              AND visible.team_id = ANY($4::uuid[])
+          ))
+          OR (
+            v.project_id IS NULL
+            AND (v.team_id IS NULL OR v.team_id = ANY($4::uuid[]))
+            AND (v.owner_id = $2
+                 OR (v.owner_id IS NULL
+                     AND (v.team_id IS NOT NULL OR $5::boolean)))
+          )
+        )))
     OR (f.kind = 'team' AND EXISTS (
       SELECT 1 FROM team t
       WHERE t.id = f.target_id
@@ -709,17 +767,27 @@ func (q *Queries) StreamViewPreferencesForBootstrap(ctx context.Context, arg Str
 }
 
 const streamViewsForBootstrap = `-- name: StreamViewsForBootstrap :many
-SELECT id, workspace_id, team_id, owner_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
-WHERE workspace_id = $1
-  AND archived_at IS NULL
-  AND (team_id IS NULL OR team_id = ANY($2::uuid[]))
-  AND (owner_id = $3
-       OR (owner_id IS NULL
-           AND (team_id IS NOT NULL OR $4::boolean)))
-  AND id > $5
-ORDER BY id
+WHERE view.workspace_id = $1
+  AND view.archived_at IS NULL
+  AND (
+    (view.project_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM project_team visible
+      WHERE visible.project_id = view.project_id
+        AND visible.team_id = ANY($2::uuid[])
+    ))
+    OR (
+      view.project_id IS NULL
+      AND (view.team_id IS NULL OR view.team_id = ANY($2::uuid[]))
+      AND (view.owner_id = $3
+           OR (view.owner_id IS NULL
+               AND (view.team_id IS NOT NULL OR $4::boolean)))
+    )
+  )
+  AND view.id > $5
+ORDER BY view.id
 LIMIT $6
 `
 
@@ -737,6 +805,7 @@ type StreamViewsForBootstrapRow struct {
 	WorkspaceID uuid.UUID
 	TeamID      *uuid.UUID
 	OwnerID     *uuid.UUID
+	ProjectID   *uuid.UUID
 	Name        string
 	Description *string
 	Icon        *string
@@ -753,9 +822,9 @@ type StreamViewsForBootstrapRow struct {
 // StreamViewsForBootstrap is ListViewsForUser as the snapshot needs it: keyset-paginated,
 // and with the guest arm the listing above leaves to Go stated here instead.
 //
-// The three-way rule is scopeForView's — an owner makes the view personal, a team makes it
-// the team's, and neither makes it the workspace's — so this and the change scope agree
-// about who may see a view.
+// The four-way rule is scopeForView's — an owner makes the view personal, a project makes
+// it the project's, a team makes it the team's, and none of those makes it the workspace's —
+// so this and the change scope agree about who may see a view.
 //
 // The team clause applies to private views too, and that is not a mistake. A private view
 // anchored to a team travels under its owner's scope, so nothing revokes it when the owner
@@ -785,6 +854,7 @@ func (q *Queries) StreamViewsForBootstrap(ctx context.Context, arg StreamViewsFo
 			&i.WorkspaceID,
 			&i.TeamID,
 			&i.OwnerID,
+			&i.ProjectID,
 			&i.Name,
 			&i.Description,
 			&i.Icon,
@@ -817,7 +887,7 @@ SET name        = COALESCE($1, name),
     display     = COALESCE($6, display),
     position    = COALESCE($7, position)
 WHERE id = $8 AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, owner_id, name, description, icon, color,
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
           filter, display, position, created_by, archived_at, created_at, updated_at
 `
 
@@ -837,6 +907,7 @@ type UpdateViewRow struct {
 	WorkspaceID uuid.UUID
 	TeamID      *uuid.UUID
 	OwnerID     *uuid.UUID
+	ProjectID   *uuid.UUID
 	Name        string
 	Description *string
 	Icon        *string
@@ -867,6 +938,7 @@ func (q *Queries) UpdateView(ctx context.Context, arg UpdateViewParams) (UpdateV
 		&i.WorkspaceID,
 		&i.TeamID,
 		&i.OwnerID,
+		&i.ProjectID,
 		&i.Name,
 		&i.Description,
 		&i.Icon,

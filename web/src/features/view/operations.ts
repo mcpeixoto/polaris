@@ -25,6 +25,7 @@ export const VIEW_FIELDS = /* GraphQL */ `
     id
     workspaceId
     teamId
+    projectId
     ownerId
     name
     description

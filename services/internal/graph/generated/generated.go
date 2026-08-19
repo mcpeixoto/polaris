@@ -843,6 +843,7 @@ type ComplexityRoot struct {
 		Name        func(childComplexity int) int
 		OwnerID     func(childComplexity int) int
 		Position    func(childComplexity int) int
+		ProjectID   func(childComplexity int) int
 		TeamID      func(childComplexity int) int
 		UpdatedAt   func(childComplexity int) int
 		WorkspaceID func(childComplexity int) int
@@ -5453,6 +5454,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.View.Position(childComplexity), true
+	case "View.projectId":
+		if e.ComplexityRoot.View.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.View.ProjectID(childComplexity), true
 	case "View.teamId":
 		if e.ComplexityRoot.View.TeamID == nil {
 			break
@@ -6586,6 +6593,8 @@ type View {
   teamId: UUID
   """Null means shared. Set means it is that person's private view."""
   ownerId: UUID
+  """Set means the view is attached as a tab on this project."""
+  projectId: UUID
   name: String!
   description: String
   icon: String
@@ -7427,6 +7436,8 @@ input UpdateLabelInput {
 
 input CreateViewInput {
   teamId: UUID
+  """Attaches the view as a tab on this project rather than in a sidebar."""
+  projectId: UUID
   """True keeps the view private to its creator."""
   private: Boolean
   name: String!
@@ -9230,6 +9241,8 @@ func (ec *executionContext) childFields_View(ctx context.Context, field graphql.
 		return ec.fieldContext_View_teamId(ctx, field)
 	case "ownerId":
 		return ec.fieldContext_View_ownerId(ctx, field)
+	case "projectId":
+		return ec.fieldContext_View_projectId(ctx, field)
 	case "name":
 		return ec.fieldContext_View_name(ctx, field)
 	case "description":
@@ -30478,6 +30491,29 @@ func (ec *executionContext) fieldContext_View_ownerId(_ context.Context, field g
 	return graphql.NewScalarFieldContext("View", field, false, false, errors.New("field of type UUID does not have child fields"))
 }
 
+func (ec *executionContext) _View_projectId(ctx context.Context, field graphql.CollectedField, obj *View) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_View_projectId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_View_projectId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("View", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
 func (ec *executionContext) _View_name(ctx context.Context, field graphql.CollectedField, obj *View) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34660,7 +34696,7 @@ func (ec *executionContext) unmarshalInputCreateViewInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"teamId", "private", "name", "description", "icon", "color", "filter", "display"}
+	fieldsInOrder := [...]string{"teamId", "projectId", "private", "name", "description", "icon", "color", "filter", "display"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -34674,6 +34710,13 @@ func (ec *executionContext) unmarshalInputCreateViewInput(ctx context.Context, o
 				return it, err
 			}
 			it.TeamID = data
+		case "projectId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
 		case "private":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("private"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -42787,6 +42830,11 @@ func (ec *executionContext) _View(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "ownerId":
 			out.Values[i] = ec._View_ownerId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "projectId":
+			out.Values[i] = ec._View_projectId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

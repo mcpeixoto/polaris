@@ -1,31 +1,32 @@
 -- Saved views, the display preferences of the views that have no row, and favourites.
 
 -- name: CreateView :one
-INSERT INTO view (id, workspace_id, team_id, owner_id, name, description, icon, color,
+INSERT INTO view (id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
                   filter, display, position, created_by)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.narg(team_id), sqlc.narg(owner_id),
-        sqlc.arg(name), sqlc.narg(description), sqlc.narg(icon), sqlc.narg(color),
-        sqlc.arg(filter), sqlc.arg(display), sqlc.arg(position), sqlc.narg(created_by))
-RETURNING id, workspace_id, team_id, owner_id, name, description, icon, color,
+        sqlc.narg(project_id), sqlc.arg(name), sqlc.narg(description), sqlc.narg(icon),
+        sqlc.narg(color), sqlc.arg(filter), sqlc.arg(display), sqlc.arg(position),
+        sqlc.narg(created_by))
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
           filter, display, position, created_by, archived_at, created_at, updated_at;
 
 -- name: GetView :one
-SELECT id, workspace_id, team_id, owner_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
 WHERE id = $1;
 
--- ListViewsForUser is the visibility rule, stated once: a view with no team spans the
--- workspace, a view with a team belongs to that team's sidebar, and a view with an owner
--- is private to them. Writing it here rather than filtering in Go is what keeps the
--- bootstrap snapshot and the live change scope agreeing about who may see a view.
+-- ListViewsForUser is the sidebar visibility rule, stated once: workspace views, team views,
+-- and the caller's private views. Project-attached views are omitted — they live as tabs on
+-- a project, not in the sidebar.
 --
 -- name: ListViewsForUser :many
-SELECT id, workspace_id, team_id, owner_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND archived_at IS NULL
+  AND project_id IS NULL
   AND (team_id IS NULL OR team_id = ANY(sqlc.arg(team_ids)::uuid[]))
   AND (owner_id IS NULL OR owner_id = sqlc.arg(user_id))
 ORDER BY position;
@@ -33,9 +34,9 @@ ORDER BY position;
 -- StreamViewsForBootstrap is ListViewsForUser as the snapshot needs it: keyset-paginated,
 -- and with the guest arm the listing above leaves to Go stated here instead.
 --
--- The three-way rule is scopeForView's — an owner makes the view personal, a team makes it
--- the team's, and neither makes it the workspace's — so this and the change scope agree
--- about who may see a view.
+-- The four-way rule is scopeForView's — an owner makes the view personal, a project makes
+-- it the project's, a team makes it the team's, and none of those makes it the workspace's —
+-- so this and the change scope agree about who may see a view.
 --
 -- The team clause applies to private views too, and that is not a mistake. A private view
 -- anchored to a team travels under its owner's scope, so nothing revokes it when the owner
@@ -46,17 +47,27 @@ ORDER BY position;
 -- removal happen does not have.
 --
 -- name: StreamViewsForBootstrap :many
-SELECT id, workspace_id, team_id, owner_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
-WHERE workspace_id = sqlc.arg(workspace_id)
-  AND archived_at IS NULL
-  AND (team_id IS NULL OR team_id = ANY(sqlc.arg(team_ids)::uuid[]))
-  AND (owner_id = sqlc.arg(user_id)
-       OR (owner_id IS NULL
-           AND (team_id IS NOT NULL OR sqlc.arg(include_workspace_scoped)::boolean)))
-  AND id > sqlc.arg(after_id)
-ORDER BY id
+WHERE view.workspace_id = sqlc.arg(workspace_id)
+  AND view.archived_at IS NULL
+  AND (
+    (view.project_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM project_team visible
+      WHERE visible.project_id = view.project_id
+        AND visible.team_id = ANY(sqlc.arg(team_ids)::uuid[])
+    ))
+    OR (
+      view.project_id IS NULL
+      AND (view.team_id IS NULL OR view.team_id = ANY(sqlc.arg(team_ids)::uuid[]))
+      AND (view.owner_id = sqlc.arg(user_id)
+           OR (view.owner_id IS NULL
+               AND (view.team_id IS NOT NULL OR sqlc.arg(include_workspace_scoped)::boolean)))
+    )
+  )
+  AND view.id > sqlc.arg(after_id)
+ORDER BY view.id
 LIMIT sqlc.arg(page_size);
 
 -- name: UpdateView :one
@@ -69,7 +80,7 @@ SET name        = COALESCE(sqlc.narg(name), name),
     display     = COALESCE(sqlc.narg(display), display),
     position    = COALESCE(sqlc.narg(position), position)
 WHERE id = sqlc.arg(id) AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, owner_id, name, description, icon, color,
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
           filter, display, position, created_by, archived_at, created_at, updated_at;
 
 -- Deleting a view archives it. Favourites and view_preference rows point at views by id
@@ -79,15 +90,16 @@ RETURNING id, workspace_id, team_id, owner_id, name, description, icon, color,
 -- name: ArchiveView :one
 UPDATE view SET archived_at = now()
 WHERE id = $1 AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, owner_id, name, description, icon, color,
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
           filter, display, position, created_by, archived_at, created_at, updated_at;
 
--- Positions are compared across every view in the workspace, which is the order the
+-- Positions are compared across every sidebar view in the workspace, which is the order the
 -- sidebar renders them in after the visibility filter has been applied.
 --
 -- name: GetViewPositionAfter :one
 SELECT position FROM view
 WHERE workspace_id = sqlc.arg(workspace_id)
+  AND project_id IS NULL
   AND position > sqlc.arg(position)
   AND archived_at IS NULL
 ORDER BY position
@@ -95,7 +107,23 @@ LIMIT 1;
 
 -- name: GetLastViewPosition :one
 SELECT position FROM view
-WHERE workspace_id = $1 AND archived_at IS NULL
+WHERE workspace_id = $1 AND project_id IS NULL AND archived_at IS NULL
+ORDER BY position DESC
+LIMIT 1;
+
+-- Positions on a project's tabs are compared only within that project.
+--
+-- name: GetViewPositionAfterForProject :one
+SELECT position FROM view
+WHERE project_id = sqlc.arg(project_id)
+  AND position > sqlc.arg(position)
+  AND archived_at IS NULL
+ORDER BY position
+LIMIT 1;
+
+-- name: GetLastViewPositionForProject :one
+SELECT position FROM view
+WHERE project_id = $1 AND archived_at IS NULL
 ORDER BY position DESC
 LIMIT 1;
 
@@ -194,10 +222,20 @@ WHERE f.workspace_id = sqlc.arg(workspace_id)
       WHERE v.id = f.target_id
         AND v.workspace_id = sqlc.arg(workspace_id)
         AND v.archived_at IS NULL
-        AND (v.team_id IS NULL OR v.team_id = ANY(sqlc.arg(team_ids)::uuid[]))
-        AND (v.owner_id = sqlc.arg(user_id)
-             OR (v.owner_id IS NULL
-                 AND (v.team_id IS NOT NULL OR sqlc.arg(include_workspace_scoped)::boolean)))))
+        AND (
+          (v.project_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM project_team visible
+            WHERE visible.project_id = v.project_id
+              AND visible.team_id = ANY(sqlc.arg(team_ids)::uuid[])
+          ))
+          OR (
+            v.project_id IS NULL
+            AND (v.team_id IS NULL OR v.team_id = ANY(sqlc.arg(team_ids)::uuid[]))
+            AND (v.owner_id = sqlc.arg(user_id)
+                 OR (v.owner_id IS NULL
+                     AND (v.team_id IS NOT NULL OR sqlc.arg(include_workspace_scoped)::boolean)))
+          )
+        )))
     OR (f.kind = 'team' AND EXISTS (
       SELECT 1 FROM team t
       WHERE t.id = f.target_id

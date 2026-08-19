@@ -8,6 +8,7 @@ import { Button, EmptyState } from '~/components';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { latestProjectUpdate } from '~/features/project-updates/helpers';
 import { ProjectProperties } from '~/features/projects/properties';
+import { ProjectViewTabs } from '~/features/projects/attachedViews';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import styles from './ProjectShell.module.css';
 
@@ -60,6 +61,7 @@ export function ProjectShell() {
           <NavLink to={`${base}/issues`} className={tabClass}>
             Issues
           </NavLink>
+          <ProjectViewTabs projectId={project.id} base={base} />
           <NavLink to={`${base}/activity`} className={tabClass}>
             Activity
           </NavLink>

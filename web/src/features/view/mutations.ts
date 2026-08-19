@@ -56,6 +56,8 @@ export interface NewView {
   readonly description?: string | undefined;
   /** Absent makes it a workspace view, offered everywhere. */
   readonly teamId?: UUID | undefined;
+  /** Attaches the view as a tab on this project. */
+  readonly projectId?: UUID | undefined;
   /**
    * Keeps the view to its creator.
    *
@@ -77,6 +79,7 @@ export interface ViewFields {
   readonly color?: string | undefined;
   readonly filter?: FilterNode | undefined;
   readonly display?: DisplayOptions | undefined;
+  readonly afterViewId?: UUID | undefined;
 }
 
 /** Saves the current filter and display options as a named view, returning its local id. */
@@ -90,6 +93,7 @@ export async function createView(engine: SyncEngine, input: NewView): Promise<UU
     id: uuidv7(),
     workspaceId: store.workspaceId,
     ...(input.teamId === undefined ? null : { teamId: input.teamId }),
+    ...(input.projectId === undefined ? null : { projectId: input.projectId }),
     // A private view has an owner; a shared one has none. The optimistic row has to agree
     // with that rule or the sidebar shows the view in the wrong section for one round trip.
     ...(input.private === true && input.ownerId !== undefined ? { ownerId: input.ownerId } : null),
@@ -99,7 +103,7 @@ export async function createView(engine: SyncEngine, input: NewView): Promise<UU
     ...(input.color === undefined ? null : { color: input.color }),
     filter: input.filter,
     display: input.display ?? {},
-    position: lastViewPosition(store, input.teamId),
+    position: lastViewPosition(store, input.teamId, input.projectId),
     ...(input.ownerId === undefined ? null : { createdBy: input.ownerId }),
     createdAt: now,
     updatedAt: now,
@@ -113,6 +117,7 @@ export async function createView(engine: SyncEngine, input: NewView): Promise<UU
           name,
           filter: input.filter,
           ...(input.teamId === undefined ? null : { teamId: input.teamId }),
+          ...(input.projectId === undefined ? null : { projectId: input.projectId }),
           ...(input.private === undefined ? null : { private: input.private }),
           ...(input.description === undefined ? null : { description: input.description }),
           ...(input.icon === undefined ? null : { icon: input.icon }),
@@ -157,6 +162,7 @@ export async function updateView(engine: SyncEngine, id: UUID, fields: ViewField
         ...(fields.color === undefined ? null : { color: fields.color }),
         ...(fields.filter === undefined ? null : { filter: fields.filter }),
         ...(fields.display === undefined ? null : { display: fields.display }),
+        ...(fields.afterViewId === undefined ? null : { afterViewId: fields.afterViewId }),
       },
     },
     optimistic: [{ type: 'view', id, before, after }],
@@ -378,10 +384,20 @@ function swapPreference(store: Store, provisionalId: UUID, wire: ViewPreference)
  * character that sorts after it. Cheap, correct under `COLLATE "C"`, and it never needs to
  * renumber anything.
  */
-function lastViewPosition(store: Store, teamId: UUID | undefined): string {
+function lastViewPosition(
+  store: Store,
+  teamId: UUID | undefined,
+  projectId: UUID | undefined,
+): string {
   let highest = '';
   for (const view of store.views.values()) {
-    if (view.teamId !== teamId) continue;
+    if (projectId !== undefined) {
+      if (view.projectId !== projectId) continue;
+    } else if (view.projectId !== undefined) {
+      continue;
+    } else if (view.teamId !== teamId) {
+      continue;
+    }
     if (view.position > highest) highest = view.position;
   }
   return `${highest}z`;

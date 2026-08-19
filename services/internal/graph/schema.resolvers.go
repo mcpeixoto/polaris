@@ -1464,6 +1464,7 @@ func (r *mutationResolver) CreateView(ctx context.Context, input generated.Creat
 
 	view, version, err := r.Svc.CreateView(ctx, p, domain.CreateViewInput{
 		TeamID:      input.TeamID,
+		ProjectID:   input.ProjectID,
 		Private:     deref(input.Private),
 		Name:        input.Name,
 		Description: input.Description,

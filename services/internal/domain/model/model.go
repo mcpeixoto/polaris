@@ -117,8 +117,8 @@ type Team struct {
 
 	// Triage is a status category and a per-team switch. Off, new issues land in the
 	// default status; on, outsiders and the inbox itself file into the triage status.
-	TriageEnabled          bool `json:"triageEnabled"`
-	TriageRequirePriority  bool `json:"triageRequirePriority"`
+	TriageEnabled         bool `json:"triageEnabled"`
+	TriageRequirePriority bool `json:"triageRequirePriority"`
 
 	// Auto-close and auto-archive periods, in days. Zero is off. The parent/child
 	// flags close a parent when its last sub-issue is done, and the reverse.
@@ -434,6 +434,8 @@ type View struct {
 	WorkspaceID uuid.UUID `json:"workspaceId"`
 	// TeamID nil means the view spans the workspace.
 	TeamID *uuid.UUID `json:"teamId,omitempty"`
+	// ProjectID set means the view is attached as a tab on that project.
+	ProjectID *uuid.UUID `json:"projectId,omitempty"`
 	// OwnerID nil means shared. Set means it is that person's private view, and its
 	// change rows carry a user scope.
 	OwnerID *uuid.UUID `json:"ownerId,omitempty"`
@@ -630,11 +632,11 @@ type Attachment struct {
 }
 
 const (
-	InitiativeStatusProposed   = "proposed"
-	InitiativeStatusPlanned    = "planned"
-	InitiativeStatusActive     = "active"
-	InitiativeStatusCompleted  = "completed"
-	InitiativeStatusCanceled   = "canceled"
+	InitiativeStatusProposed  = "proposed"
+	InitiativeStatusPlanned   = "planned"
+	InitiativeStatusActive    = "active"
+	InitiativeStatusCompleted = "completed"
+	InitiativeStatusCanceled  = "canceled"
 )
 
 // Initiative groups a manually curated set of projects around one objective.
@@ -659,11 +661,11 @@ type Initiative struct {
 }
 
 type InitiativeProject struct {
-	ID            uuid.UUID `json:"id"`
-	WorkspaceID   uuid.UUID `json:"workspaceId"`
-	InitiativeID  uuid.UUID `json:"initiativeId"`
-	ProjectID     uuid.UUID `json:"projectId"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID           uuid.UUID `json:"id"`
+	WorkspaceID  uuid.UUID `json:"workspaceId"`
+	InitiativeID uuid.UUID `json:"initiativeId"`
+	ProjectID    uuid.UUID `json:"projectId"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
 
 // Document is long-form markdown attached to a team or a project. The body is plain markdown
@@ -708,11 +710,11 @@ type ProjectUpdate struct {
 // ProjectDependency is an end→start link: the blocking project must finish before the
 // blocked project may start.
 type ProjectDependency struct {
-	ID                 uuid.UUID `json:"id"`
-	WorkspaceID        uuid.UUID `json:"workspaceId"`
-	BlockingProjectID  uuid.UUID `json:"blockingProjectId"`
-	BlockedProjectID   uuid.UUID `json:"blockedProjectId"`
-	CreatedAt          time.Time `json:"createdAt"`
+	ID                uuid.UUID `json:"id"`
+	WorkspaceID       uuid.UUID `json:"workspaceId"`
+	BlockingProjectID uuid.UUID `json:"blockingProjectId"`
+	BlockedProjectID  uuid.UUID `json:"blockedProjectId"`
+	CreatedAt         time.Time `json:"createdAt"`
 }
 
 type IssueHistoryEntry struct {
@@ -805,10 +807,10 @@ type Project struct {
 	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
 	SortOrder   string     `json:"sortOrder"`
 
-	StartDate              *Date   `json:"startDate,omitempty"`
-	StartDateGranularity   *string `json:"startDateGranularity,omitempty"`
-	TargetDate             *Date   `json:"targetDate,omitempty"`
-	TargetDateGranularity  *string `json:"targetDateGranularity,omitempty"`
+	StartDate             *Date   `json:"startDate,omitempty"`
+	StartDateGranularity  *string `json:"startDateGranularity,omitempty"`
+	TargetDate            *Date   `json:"targetDate,omitempty"`
+	TargetDateGranularity *string `json:"targetDateGranularity,omitempty"`
 
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
 	DeletedAt  *time.Time `json:"deletedAt,omitempty"`
@@ -848,4 +850,3 @@ type ProjectMilestone struct {
 	UpdatedAt   time.Time  `json:"updatedAt"`
 	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
 }
-
