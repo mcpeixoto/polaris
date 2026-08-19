@@ -7,7 +7,7 @@
  */
 
 import { useEffect } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 
 import { onDeepLink } from '~/platform/runtime';
 import { hasServer } from '~/sync/endpoint';
@@ -45,6 +45,7 @@ import { Search } from '~/views/Search';
 import { Templates } from '~/views/Templates';
 import { TeamHome } from '~/views/TeamHome';
 import { TeamSettings } from '~/views/TeamSettings';
+import { Landing } from '~/views/Landing';
 import { SignIn } from '~/views/SignIn';
 import { SignUp } from '~/views/SignUp';
 import { Archives } from '~/views/Archives';
@@ -81,11 +82,19 @@ export function App() {
         <Boot
           renderSignedOut={({ onSignedIn }) => (
             <Routes>
+              <Route path="/" element={<Landing />} />
+              {/* Same page, bookmarkable even after a tester has a session — see
+                  SignedInShell. Anonymous `/` is the marketing surface; authenticated `/`
+                  is still the first team's issue list. */}
+              <Route path="/welcome" element={<Landing />} />
+              <Route path="/signin" element={<SignIn onSignedIn={onSignedIn} />} />
               <Route path="/signup" element={<SignUp onSignedIn={onSignedIn} />} />
               {/* The invitation link is followed from an email, so it has to survive
                   landing on a signed-out browser rather than bouncing to /signin and
                   losing the token. */}
               <Route path="/invite/:token" element={<AcceptInvite onAccepted={onSignedIn} />} />
+              {/* Unknown paths stay on sign-in so a deep link like /team/ENG is still
+                  the URL after the session is restored. */}
               <Route path="*" element={<SignIn onSignedIn={onSignedIn} />} />
             </Routes>
           )}
@@ -97,61 +106,7 @@ export function App() {
           )}
         >
           <DeepLinks />
-          <AppShell
-            renderCreateIssue={({ onClose, seed }) => (
-              <CreateIssueModal onClose={onClose} seed={seed} />
-            )}
-            renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
-            renderCreateInitiative={({ onClose }) => <CreateInitiativeModal onClose={onClose} />}
-          >
-            <Routes>
-              <Route path="/" element={<HomeRedirect />} />
-              <Route path="/my-issues" element={<MyIssues />} />
-              <Route path="/inbox" element={<Inbox />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/drafts" element={<Drafts />} />
-              <Route path="/new" element={<CreateIssueFromUrl />} />
-              <Route path="/projects" element={<Projects />} />
-              <Route path="/initiatives" element={<Initiatives />} />
-              <Route path="/initiative/:initiativeId" element={<InitiativeDetail />} />
-              <Route path="/view/:viewId" element={<SavedView />} />
-              <Route path="/team/:teamKey" element={<IssueList />} />
-              <Route path="/team/:teamKey/home" element={<TeamHome />} />
-              <Route path="/team/:teamKey/new" element={<CreateIssueFromUrl />} />
-              <Route path="/team/:teamKey/projects" element={<Projects />} />
-              <Route path="/team/:teamKey/cycles" element={<Cycles />} />
-              <Route path="/team/:teamKey/triage" element={<Triage />} />
-              <Route path="/team/:teamKey/archives" element={<Archives />} />
-              <Route path="/team/:teamKey/documents" element={<Documents />} />
-              <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
-              <Route path="/issue/:identifier" element={<IssueDetail />} />
-              <Route path="/project/:projectId" element={<ProjectShell />}>
-                <Route index element={<ProjectOverview />} />
-                <Route path="issues" element={<ProjectIssues />} />
-                <Route path="view/:viewId" element={<ProjectAttachedView />} />
-                <Route path="activity" element={<ProjectActivity />} />
-              </Route>
-              <Route path="/project/:projectId/documents" element={<Documents />} />
-              <Route path="/document/:documentId" element={<DocumentDetail />} />
-              <Route path="/cycle/:cycleId" element={<CycleDetail />} />
-              <Route path="/settings/members" element={<MemberSettings />} />
-              <Route path="/settings/labels" element={<LabelSettings />} />
-              <Route path="/settings/project-labels" element={<ProjectLabelSettings />} />
-              <Route path="/settings/project-updates" element={<ProjectUpdateSettings />} />
-              <Route path="/settings/notifications" element={<NotificationSettings />} />
-              <Route path="/settings/preferences" element={<Preferences />} />
-              <Route path="/settings/templates" element={<Templates />} />
-              <Route path="/settings/api-keys" element={<ApiKeys />} />
-              <Route path="/settings/webhooks" element={<Webhooks />} />
-              <Route path="/settings/github" element={<GitHubSettings />} />
-              <Route path="/settings/export" element={<ExportSettings />} />
-              <Route path="/settings/trash" element={<Trash />} />
-              <Route path="/settings/deleted-teams" element={<DeletedTeams />} />
-              {/* Unknown paths go somewhere useful rather than to a dead end. A stale
-                  bookmark to a renamed team should land the user in their own work. */}
-              <Route path="*" element={<HomeRedirect />} />
-            </Routes>
-          </AppShell>
+          <SignedInShell />
           {/*
             Mounted once, outside the routes, because an undo has to outlive the screen the
             action was taken on: deleting an issue from its own detail page navigates away,
@@ -163,6 +118,75 @@ export function App() {
         </Boot>
       </KeymapProvider>
     </BrowserRouter>
+  );
+}
+
+/**
+ * Workspace chrome, or the marketing page at `/welcome`.
+ *
+ * Authenticated `/` still honours Preferences (first team, My Issues, Inbox, Drafts).
+ * `/welcome` is the way to look at the poster while signed in, without signing out.
+ */
+function SignedInShell() {
+  const { pathname } = useLocation();
+  if (pathname === '/welcome') return <Landing />;
+
+  return (
+    <AppShell
+      renderCreateIssue={({ onClose, seed }) => (
+        <CreateIssueModal onClose={onClose} seed={seed} />
+      )}
+      renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
+      renderCreateInitiative={({ onClose }) => <CreateInitiativeModal onClose={onClose} />}
+    >
+      <Routes>
+        <Route path="/" element={<HomeRedirect />} />
+        <Route path="/my-issues" element={<MyIssues />} />
+        <Route path="/inbox" element={<Inbox />} />
+        <Route path="/search" element={<Search />} />
+        <Route path="/drafts" element={<Drafts />} />
+        <Route path="/new" element={<CreateIssueFromUrl />} />
+        <Route path="/projects" element={<Projects />} />
+        <Route path="/initiatives" element={<Initiatives />} />
+        <Route path="/initiative/:initiativeId" element={<InitiativeDetail />} />
+        <Route path="/view/:viewId" element={<SavedView />} />
+        <Route path="/team/:teamKey" element={<IssueList />} />
+        <Route path="/team/:teamKey/home" element={<TeamHome />} />
+        <Route path="/team/:teamKey/new" element={<CreateIssueFromUrl />} />
+        <Route path="/team/:teamKey/projects" element={<Projects />} />
+        <Route path="/team/:teamKey/cycles" element={<Cycles />} />
+        <Route path="/team/:teamKey/triage" element={<Triage />} />
+        <Route path="/team/:teamKey/archives" element={<Archives />} />
+        <Route path="/team/:teamKey/documents" element={<Documents />} />
+        <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
+        <Route path="/issue/:identifier" element={<IssueDetail />} />
+        <Route path="/project/:projectId" element={<ProjectShell />}>
+          <Route index element={<ProjectOverview />} />
+          <Route path="issues" element={<ProjectIssues />} />
+          <Route path="view/:viewId" element={<ProjectAttachedView />} />
+          <Route path="activity" element={<ProjectActivity />} />
+        </Route>
+        <Route path="/project/:projectId/documents" element={<Documents />} />
+        <Route path="/document/:documentId" element={<DocumentDetail />} />
+        <Route path="/cycle/:cycleId" element={<CycleDetail />} />
+        <Route path="/settings/members" element={<MemberSettings />} />
+        <Route path="/settings/labels" element={<LabelSettings />} />
+        <Route path="/settings/project-labels" element={<ProjectLabelSettings />} />
+        <Route path="/settings/project-updates" element={<ProjectUpdateSettings />} />
+        <Route path="/settings/notifications" element={<NotificationSettings />} />
+        <Route path="/settings/preferences" element={<Preferences />} />
+        <Route path="/settings/templates" element={<Templates />} />
+        <Route path="/settings/api-keys" element={<ApiKeys />} />
+        <Route path="/settings/webhooks" element={<Webhooks />} />
+        <Route path="/settings/github" element={<GitHubSettings />} />
+        <Route path="/settings/export" element={<ExportSettings />} />
+        <Route path="/settings/trash" element={<Trash />} />
+        <Route path="/settings/deleted-teams" element={<DeletedTeams />} />
+        {/* Unknown paths go somewhere useful rather than to a dead end. A stale
+            bookmark to a renamed team should land the user in their own work. */}
+        <Route path="*" element={<HomeRedirect />} />
+      </Routes>
+    </AppShell>
   );
 }
 
@@ -184,8 +208,9 @@ function HomeRedirect() {
 /**
  * Sends the user to their first team's issue list.
  *
- * The landing page is a real list rather than an empty dashboard, because in M0 the issue
- * list IS the product and anything else is a screen to click through on the way to it.
+ * Authenticated `/` is a real list rather than an empty dashboard, because the issue list
+ * IS the product and anything else is a screen to click through on the way to it. The
+ * marketing page lives on anonymous `/` and on `/welcome`.
  */
 function FirstTeam() {
   const teams = useQuery(
