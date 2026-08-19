@@ -66,7 +66,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: var(--space-4) minmax(0, 1fr) 12ch 14ch 12ch 16ch 8ch;
+  grid-template-columns: var(--space-4) minmax(0, 1fr) 12ch 14ch 12ch 16ch 18ch 8ch;
   align-items: center;
   gap: var(--space-3);
   height: var(--row-height);
@@ -130,11 +130,24 @@
 .healthMuted,
 .lead,
 .leadMuted,
+.labels,
+.labelMuted,
 .count {
   overflow: hidden;
   color: var(--text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.labels {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.labelMuted {
+  color: var(--text-tertiary);
 }
 
 .priority {

@@ -703,6 +703,37 @@ export interface ProjectDependency {
   readonly createdAt: Timestamp;
 }
 
+/**
+ * Workspace taxonomy for labelling projects — separate from issue labels.
+ *
+ * Both a label and a group of labels: a group is a label with `isGroup` set. Nesting is
+ * one level deep, matching issue labels.
+ */
+export interface ProjectLabel {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly parentId?: UUID;
+  readonly isGroup: boolean;
+  readonly name: string;
+  readonly description?: string;
+  readonly color: string;
+  readonly position: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+/** One project label applied to one project, as its own replicated row. */
+export interface ProjectLabelLink {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly labelId: UUID;
+  readonly groupId?: UUID;
+  readonly createdBy?: UUID;
+  readonly createdAt: Timestamp;
+}
+
 export interface Cycle {
   readonly id: UUID;
   readonly workspaceId: UUID;
@@ -744,6 +775,8 @@ export interface EntityByType {
   initiativeProject: InitiativeProject;
   projectUpdate: ProjectUpdate;
   projectDependency: ProjectDependency;
+  projectLabel: ProjectLabel;
+  projectLabelLink: ProjectLabelLink;
   cycle: Cycle;
   issue: Issue;
   issueLabel: IssueLabel;
@@ -787,6 +820,8 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'initiativeProject',
   'projectUpdate',
   'projectDependency',
+  'projectLabel',
+  'projectLabelLink',
   // Before issues: an issue may name a cycle.
   'cycle',
   'issue',

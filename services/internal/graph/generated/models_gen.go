@@ -263,6 +263,15 @@ type CreateProjectInput struct {
 	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
 }
 
+type CreateProjectLabelInput struct {
+	ParentID     *uuid.UUID `json:"parentId,omitempty"`
+	IsGroup      *bool      `json:"isGroup,omitempty"`
+	Name         string     `json:"name"`
+	Description  *string    `json:"description,omitempty"`
+	Color        *string    `json:"color,omitempty"`
+	AfterLabelID *uuid.UUID `json:"afterLabelId,omitempty"`
+}
+
 type CreateProjectMilestoneInput struct {
 	ProjectID   uuid.UUID `json:"projectId"`
 	Name        string    `json:"name"`
@@ -814,6 +823,46 @@ type ProjectDependencyPayload struct {
 
 func (ProjectDependencyPayload) IsMutationResult() {}
 
+// Workspace taxonomy for labelling projects — separate from issue labels.
+type ProjectLabel struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ParentID    *uuid.UUID `json:"parentId,omitempty"`
+	IsGroup     bool       `json:"isGroup"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	Color       string     `json:"color"`
+	Position    string     `json:"position"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+}
+
+// One project label applied to one project.
+type ProjectLabelLink struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ProjectID   uuid.UUID  `json:"projectId"`
+	LabelID     uuid.UUID  `json:"labelId"`
+	GroupID     *uuid.UUID `json:"groupId,omitempty"`
+	CreatedBy   *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+}
+
+type ProjectLabelLinkPayload struct {
+	Version          int               `json:"version"`
+	ProjectLabelLink *ProjectLabelLink `json:"projectLabelLink"`
+}
+
+func (ProjectLabelLinkPayload) IsMutationResult() {}
+
+type ProjectLabelPayload struct {
+	Version      int           `json:"version"`
+	ProjectLabel *ProjectLabel `json:"projectLabel"`
+}
+
+func (ProjectLabelPayload) IsMutationResult() {}
+
 type ProjectMember struct {
 	ID          uuid.UUID `json:"id"`
 	WorkspaceID uuid.UUID `json:"workspaceId"`
@@ -1158,6 +1207,16 @@ type UpdateProjectInput struct {
 	// Place directly below this project in the same priority group. Omit to append.
 	AfterProjectID *uuid.UUID `json:"afterProjectId,omitempty"`
 	MoveToTop      *bool      `json:"moveToTop,omitempty"`
+}
+
+type UpdateProjectLabelInput struct {
+	ID           uuid.UUID  `json:"id"`
+	Name         *string    `json:"name,omitempty"`
+	Description  *string    `json:"description,omitempty"`
+	Color        *string    `json:"color,omitempty"`
+	ParentID     *uuid.UUID `json:"parentId,omitempty"`
+	ClearParent  *bool      `json:"clearParent,omitempty"`
+	AfterLabelID *uuid.UUID `json:"afterLabelId,omitempty"`
 }
 
 type UpdateProjectMilestoneInput struct {

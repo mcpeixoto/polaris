@@ -23,6 +23,7 @@ export {
   IssueIndex,
   LabelIndex,
   NotificationIndex,
+  ProjectLabelIndex,
   RelationIndex,
   SetIndex,
 } from './indexes';
@@ -90,6 +91,8 @@ export type {
   ProjectUpdate,
   ProjectUpdateHealth,
   ProjectDependency,
+  ProjectLabel,
+  ProjectLabelLink,
   ProjectStatus,
   ProjectStatusCategory,
   ProjectTeam,

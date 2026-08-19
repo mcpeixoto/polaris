@@ -314,6 +314,13 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	if _, _, err := svc.AddProjectDependency(ctx, p, blocker.ID, project.ID); err != nil {
 		t.Fatalf("projectDependency: %v", err)
 	}
+	pl, _, err := svc.CreateProjectLabel(ctx, p, domain.CreateProjectLabelInput{Name: "Strategic"})
+	if err != nil {
+		t.Fatalf("projectLabel: %v", err)
+	}
+	if _, _, err := svc.AddProjectLabel(ctx, p, project.ID, pl.ID); err != nil {
+		t.Fatalf("projectLabelLink: %v", err)
+	}
 
 	// The watcher subscribes and then hears about somebody else's edit, which is the only
 	// way to make a `notification` row exist without writing one by hand.

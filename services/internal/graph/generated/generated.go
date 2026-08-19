@@ -427,6 +427,7 @@ type ComplexityRoot struct {
 		AddInitiativeProject     func(childComplexity int, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddIssueLabel            func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddProjectDependency     func(childComplexity int, blockingProjectID uuid.UUID, blockedProjectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		AddProjectLabel          func(childComplexity int, projectID uuid.UUID, labelID uuid.UUID) int
 		AddProjectMember         func(childComplexity int, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddProjectTeam           func(childComplexity int, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddTeamMember            func(childComplexity int, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) int
@@ -437,6 +438,7 @@ type ComplexityRoot struct {
 		ArchiveIssueTemplate     func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveLabel             func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveProject           func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
+		ArchiveProjectLabel      func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveProjectStatus     func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveWorkflowState     func(childComplexity int, id uuid.UUID, archived bool) int
 		BulkUpdateIssues         func(childComplexity int, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -450,6 +452,7 @@ type ComplexityRoot struct {
 		CreateIssueTemplate      func(childComplexity int, input CreateIssueTemplateInput) int
 		CreateLabel              func(childComplexity int, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateProject            func(childComplexity int, input CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateProjectLabel       func(childComplexity int, input CreateProjectLabelInput) int
 		CreateProjectMilestone   func(childComplexity int, input CreateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateProjectStatus      func(childComplexity int, input CreateProjectStatusInput) int
 		CreateProjectUpdate      func(childComplexity int, input CreateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -479,6 +482,7 @@ type ComplexityRoot struct {
 		RemoveInitiativeProject  func(childComplexity int, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveIssueLabel         func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveProjectDependency  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RemoveProjectLabel       func(childComplexity int, projectID uuid.UUID, labelID uuid.UUID) int
 		RemoveProjectMember      func(childComplexity int, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveProjectTeam        func(childComplexity int, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveTeamMember         func(childComplexity int, teamID uuid.UUID, userID uuid.UUID) int
@@ -504,6 +508,7 @@ type ComplexityRoot struct {
 		UpdateNotificationPrefs  func(childComplexity int, prefs json.RawMessage) int
 		UpdateProfile            func(childComplexity int, input UpdateProfileInput) int
 		UpdateProject            func(childComplexity int, input UpdateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateProjectLabel       func(childComplexity int, input UpdateProjectLabelInput) int
 		UpdateProjectMilestone   func(childComplexity int, input UpdateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateProjectStatus      func(childComplexity int, input UpdateProjectStatusInput) int
 		UpdateProjectUpdate      func(childComplexity int, input UpdateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -590,6 +595,40 @@ type ComplexityRoot struct {
 	ProjectDependencyPayload struct {
 		ProjectDependency func(childComplexity int) int
 		Version           func(childComplexity int) int
+	}
+
+	ProjectLabel struct {
+		ArchivedAt  func(childComplexity int) int
+		Color       func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		IsGroup     func(childComplexity int) int
+		Name        func(childComplexity int) int
+		ParentID    func(childComplexity int) int
+		Position    func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	ProjectLabelLink struct {
+		CreatedAt   func(childComplexity int) int
+		CreatedBy   func(childComplexity int) int
+		GroupID     func(childComplexity int) int
+		ID          func(childComplexity int) int
+		LabelID     func(childComplexity int) int
+		ProjectID   func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	ProjectLabelLinkPayload struct {
+		ProjectLabelLink func(childComplexity int) int
+		Version          func(childComplexity int) int
+	}
+
+	ProjectLabelPayload struct {
+		ProjectLabel func(childComplexity int) int
+		Version      func(childComplexity int) int
 	}
 
 	ProjectMember struct {
@@ -716,6 +755,8 @@ type ComplexityRoot struct {
 		Project                      func(childComplexity int, id uuid.UUID) int
 		ProjectDependenciesBlockedBy func(childComplexity int, projectID uuid.UUID) int
 		ProjectDependenciesBlocking  func(childComplexity int, projectID uuid.UUID) int
+		ProjectLabel                 func(childComplexity int, id uuid.UUID) int
+		ProjectLabels                func(childComplexity int) int
 		ProjectStatuses              func(childComplexity int) int
 		ProjectUpdate                func(childComplexity int, id uuid.UUID) int
 		ProjectUpdates               func(childComplexity int, projectID uuid.UUID) int
@@ -1026,6 +1067,11 @@ type MutationResolver interface {
 	ArchiveLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
 	AddIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssueLabelPayload, error)
 	RemoveIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	CreateProjectLabel(ctx context.Context, input CreateProjectLabelInput) (*ProjectLabelPayload, error)
+	UpdateProjectLabel(ctx context.Context, input UpdateProjectLabelInput) (*ProjectLabelPayload, error)
+	ArchiveProjectLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
+	AddProjectLabel(ctx context.Context, projectID uuid.UUID, labelID uuid.UUID) (*ProjectLabelLinkPayload, error)
+	RemoveProjectLabel(ctx context.Context, projectID uuid.UUID, labelID uuid.UUID) (*DeletePayload, error)
 	CreateIssueRelation(ctx context.Context, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) (*IssueRelationPayload, error)
 	DeleteIssueRelation(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	SetIssueSubscription(ctx context.Context, issueID uuid.UUID, subscribed bool) (*SubscriptionPayload, error)
@@ -1080,6 +1126,8 @@ type QueryResolver interface {
 	IssueHistory(ctx context.Context, issueID uuid.UUID) ([]IssueHistoryEntry, error)
 	Labels(ctx context.Context) ([]Label, error)
 	Label(ctx context.Context, id uuid.UUID) (*Label, error)
+	ProjectLabels(ctx context.Context) ([]ProjectLabel, error)
+	ProjectLabel(ctx context.Context, id uuid.UUID) (*ProjectLabel, error)
 	Views(ctx context.Context) ([]View, error)
 	View(ctx context.Context, id uuid.UUID) (*View, error)
 	ViewPreferences(ctx context.Context) ([]ViewPreference, error)
@@ -2843,6 +2891,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AddProjectDependency(childComplexity, args["blockingProjectId"].(uuid.UUID), args["blockedProjectId"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.addProjectLabel":
+		if e.ComplexityRoot.Mutation.AddProjectLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addProjectLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AddProjectLabel(childComplexity, args["projectId"].(uuid.UUID), args["labelId"].(uuid.UUID)), true
 	case "Mutation.addProjectMember":
 		if e.ComplexityRoot.Mutation.AddProjectMember == nil {
 			break
@@ -2953,6 +3012,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ArchiveProject(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.archiveProjectLabel":
+		if e.ComplexityRoot.Mutation.ArchiveProjectLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveProjectLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ArchiveProjectLabel(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
 	case "Mutation.archiveProjectStatus":
 		if e.ComplexityRoot.Mutation.ArchiveProjectStatus == nil {
 			break
@@ -3096,6 +3166,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateProject(childComplexity, args["input"].(CreateProjectInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createProjectLabel":
+		if e.ComplexityRoot.Mutation.CreateProjectLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createProjectLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateProjectLabel(childComplexity, args["input"].(CreateProjectLabelInput)), true
 	case "Mutation.createProjectMilestone":
 		if e.ComplexityRoot.Mutation.CreateProjectMilestone == nil {
 			break
@@ -3410,6 +3491,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RemoveProjectDependency(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.removeProjectLabel":
+		if e.ComplexityRoot.Mutation.RemoveProjectLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeProjectLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RemoveProjectLabel(childComplexity, args["projectId"].(uuid.UUID), args["labelId"].(uuid.UUID)), true
 	case "Mutation.removeProjectMember":
 		if e.ComplexityRoot.Mutation.RemoveProjectMember == nil {
 			break
@@ -3685,6 +3777,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateProject(childComplexity, args["input"].(UpdateProjectInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.updateProjectLabel":
+		if e.ComplexityRoot.Mutation.UpdateProjectLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateProjectLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateProjectLabel(childComplexity, args["input"].(UpdateProjectLabelInput)), true
 	case "Mutation.updateProjectMilestone":
 		if e.ComplexityRoot.Mutation.UpdateProjectMilestone == nil {
 			break
@@ -4159,6 +4262,142 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProjectDependencyPayload.Version(childComplexity), true
+
+	case "ProjectLabel.archivedAt":
+		if e.ComplexityRoot.ProjectLabel.ArchivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.ArchivedAt(childComplexity), true
+	case "ProjectLabel.color":
+		if e.ComplexityRoot.ProjectLabel.Color == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.Color(childComplexity), true
+	case "ProjectLabel.createdAt":
+		if e.ComplexityRoot.ProjectLabel.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.CreatedAt(childComplexity), true
+	case "ProjectLabel.description":
+		if e.ComplexityRoot.ProjectLabel.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.Description(childComplexity), true
+	case "ProjectLabel.id":
+		if e.ComplexityRoot.ProjectLabel.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.ID(childComplexity), true
+	case "ProjectLabel.isGroup":
+		if e.ComplexityRoot.ProjectLabel.IsGroup == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.IsGroup(childComplexity), true
+	case "ProjectLabel.name":
+		if e.ComplexityRoot.ProjectLabel.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.Name(childComplexity), true
+	case "ProjectLabel.parentId":
+		if e.ComplexityRoot.ProjectLabel.ParentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.ParentID(childComplexity), true
+	case "ProjectLabel.position":
+		if e.ComplexityRoot.ProjectLabel.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.Position(childComplexity), true
+	case "ProjectLabel.updatedAt":
+		if e.ComplexityRoot.ProjectLabel.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.UpdatedAt(childComplexity), true
+	case "ProjectLabel.workspaceId":
+		if e.ComplexityRoot.ProjectLabel.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabel.WorkspaceID(childComplexity), true
+
+	case "ProjectLabelLink.createdAt":
+		if e.ComplexityRoot.ProjectLabelLink.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelLink.CreatedAt(childComplexity), true
+	case "ProjectLabelLink.createdBy":
+		if e.ComplexityRoot.ProjectLabelLink.CreatedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelLink.CreatedBy(childComplexity), true
+	case "ProjectLabelLink.groupId":
+		if e.ComplexityRoot.ProjectLabelLink.GroupID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelLink.GroupID(childComplexity), true
+	case "ProjectLabelLink.id":
+		if e.ComplexityRoot.ProjectLabelLink.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelLink.ID(childComplexity), true
+	case "ProjectLabelLink.labelId":
+		if e.ComplexityRoot.ProjectLabelLink.LabelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelLink.LabelID(childComplexity), true
+	case "ProjectLabelLink.projectId":
+		if e.ComplexityRoot.ProjectLabelLink.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelLink.ProjectID(childComplexity), true
+	case "ProjectLabelLink.workspaceId":
+		if e.ComplexityRoot.ProjectLabelLink.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelLink.WorkspaceID(childComplexity), true
+
+	case "ProjectLabelLinkPayload.projectLabelLink":
+		if e.ComplexityRoot.ProjectLabelLinkPayload.ProjectLabelLink == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelLinkPayload.ProjectLabelLink(childComplexity), true
+	case "ProjectLabelLinkPayload.version":
+		if e.ComplexityRoot.ProjectLabelLinkPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelLinkPayload.Version(childComplexity), true
+
+	case "ProjectLabelPayload.projectLabel":
+		if e.ComplexityRoot.ProjectLabelPayload.ProjectLabel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelPayload.ProjectLabel(childComplexity), true
+	case "ProjectLabelPayload.version":
+		if e.ComplexityRoot.ProjectLabelPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectLabelPayload.Version(childComplexity), true
 
 	case "ProjectMember.createdAt":
 		if e.ComplexityRoot.ProjectMember.CreatedAt == nil {
@@ -4800,6 +5039,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ProjectDependenciesBlocking(childComplexity, args["projectId"].(uuid.UUID)), true
+	case "Query.projectLabel":
+		if e.ComplexityRoot.Query.ProjectLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectLabel(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.projectLabels":
+		if e.ComplexityRoot.Query.ProjectLabels == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.ProjectLabels(childComplexity), true
 	case "Query.projectStatuses":
 		if e.ComplexityRoot.Query.ProjectStatuses == nil {
 			break
@@ -5960,6 +6216,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateIssueTemplateInput,
 		ec.unmarshalInputCreateLabelInput,
 		ec.unmarshalInputCreateProjectInput,
+		ec.unmarshalInputCreateProjectLabelInput,
 		ec.unmarshalInputCreateProjectMilestoneInput,
 		ec.unmarshalInputCreateProjectStatusInput,
 		ec.unmarshalInputCreateProjectUpdateInput,
@@ -5977,6 +6234,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateLabelInput,
 		ec.unmarshalInputUpdateProfileInput,
 		ec.unmarshalInputUpdateProjectInput,
+		ec.unmarshalInputUpdateProjectLabelInput,
 		ec.unmarshalInputUpdateProjectMilestoneInput,
 		ec.unmarshalInputUpdateProjectStatusInput,
 		ec.unmarshalInputUpdateProjectUpdateInput,
@@ -6525,6 +6783,32 @@ type IssueLabel {
   label: Label!
 }
 
+"""Workspace taxonomy for labelling projects — separate from issue labels."""
+type ProjectLabel {
+  id: UUID!
+  workspaceId: UUID!
+  parentId: UUID
+  isGroup: Boolean!
+  name: String!
+  description: String
+  color: String!
+  position: String!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+"""One project label applied to one project."""
+type ProjectLabelLink {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  labelId: UUID!
+  groupId: UUID
+  createdBy: UUID
+  createdAt: Time!
+}
+
 type IssueRelation {
   id: UUID!
   workspaceId: UUID!
@@ -6974,6 +7258,16 @@ type LabelPayload implements MutationResult {
 type IssueLabelPayload implements MutationResult {
   version: Int!
   issueLabel: IssueLabel!
+}
+
+type ProjectLabelPayload implements MutationResult {
+  version: Int!
+  projectLabel: ProjectLabel!
+}
+
+type ProjectLabelLinkPayload implements MutationResult {
+  version: Int!
+  projectLabelLink: ProjectLabelLink!
 }
 
 type IssueRelationPayload implements MutationResult {
@@ -7434,6 +7728,25 @@ input UpdateLabelInput {
   afterLabelId: UUID
 }
 
+input CreateProjectLabelInput {
+  parentId: UUID
+  isGroup: Boolean
+  name: String!
+  description: String
+  color: String
+  afterLabelId: UUID
+}
+
+input UpdateProjectLabelInput {
+  id: UUID!
+  name: String
+  description: String
+  color: String
+  parentId: UUID
+  clearParent: Boolean
+  afterLabelId: UUID
+}
+
 input CreateViewInput {
   teamId: UUID
   """Attaches the view as a tab on this project rather than in a sidebar."""
@@ -7701,6 +8014,10 @@ type Query {
   labels: [Label!]!
   label(id: UUID!): Label
 
+  """Every project label in the workspace."""
+  projectLabels: [ProjectLabel!]!
+  projectLabel(id: UUID!): ProjectLabel
+
   """Saved views the caller can see: shared ones in scope, plus their own private ones."""
   views: [View!]!
   view(id: UUID!): View
@@ -7880,6 +8197,14 @@ type Mutation {
   """
   addIssueLabel(issueId: UUID!, labelId: UUID!, clientId: UUID, opId: UUID): IssueLabelPayload! @idempotent
   removeIssueLabel(issueId: UUID!, labelId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  # ---- project labels
+
+  createProjectLabel(input: CreateProjectLabelInput!): ProjectLabelPayload!
+  updateProjectLabel(input: UpdateProjectLabelInput!): ProjectLabelPayload!
+  archiveProjectLabel(id: UUID!, archived: Boolean!): DeletePayload!
+  addProjectLabel(projectId: UUID!, labelId: UUID!): ProjectLabelLinkPayload!
+  removeProjectLabel(projectId: UUID!, labelId: UUID!): DeletePayload!
 
   # ---- relations
 
@@ -8853,6 +9178,74 @@ func (ec *executionContext) childFields_ProjectDependencyPayload(ctx context.Con
 	return nil, fmt.Errorf("no field named %q was found under type ProjectDependencyPayload", field.Name)
 }
 
+func (ec *executionContext) childFields_ProjectLabel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_ProjectLabel_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_ProjectLabel_workspaceId(ctx, field)
+	case "parentId":
+		return ec.fieldContext_ProjectLabel_parentId(ctx, field)
+	case "isGroup":
+		return ec.fieldContext_ProjectLabel_isGroup(ctx, field)
+	case "name":
+		return ec.fieldContext_ProjectLabel_name(ctx, field)
+	case "description":
+		return ec.fieldContext_ProjectLabel_description(ctx, field)
+	case "color":
+		return ec.fieldContext_ProjectLabel_color(ctx, field)
+	case "position":
+		return ec.fieldContext_ProjectLabel_position(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_ProjectLabel_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_ProjectLabel_updatedAt(ctx, field)
+	case "archivedAt":
+		return ec.fieldContext_ProjectLabel_archivedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectLabel", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectLabelLink(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_ProjectLabelLink_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_ProjectLabelLink_workspaceId(ctx, field)
+	case "projectId":
+		return ec.fieldContext_ProjectLabelLink_projectId(ctx, field)
+	case "labelId":
+		return ec.fieldContext_ProjectLabelLink_labelId(ctx, field)
+	case "groupId":
+		return ec.fieldContext_ProjectLabelLink_groupId(ctx, field)
+	case "createdBy":
+		return ec.fieldContext_ProjectLabelLink_createdBy(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_ProjectLabelLink_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectLabelLink", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectLabelLinkPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_ProjectLabelLinkPayload_version(ctx, field)
+	case "projectLabelLink":
+		return ec.fieldContext_ProjectLabelLinkPayload_projectLabelLink(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectLabelLinkPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectLabelPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_ProjectLabelPayload_version(ctx, field)
+	case "projectLabel":
+		return ec.fieldContext_ProjectLabelPayload_projectLabel(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectLabelPayload", field.Name)
+}
+
 func (ec *executionContext) childFields_ProjectMember(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -9787,6 +10180,28 @@ func (ec *executionContext) field_Mutation_addProjectDependency_args(ctx context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_addProjectLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["projectId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "labelId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["labelId"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_addProjectMember_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -10068,6 +10483,28 @@ func (ec *executionContext) field_Mutation_archiveIssue_args(ctx context.Context
 }
 
 func (ec *executionContext) field_Mutation_archiveLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_archiveProjectLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -10452,6 +10889,20 @@ func (ec *executionContext) field_Mutation_createLabel_args(ctx context.Context,
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createProjectLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateProjectLabelInput, error) {
+			return ec.unmarshalNCreateProjectLabelInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectLabelInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -11173,6 +11624,28 @@ func (ec *executionContext) field_Mutation_removeProjectDependency_args(ctx cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_removeProjectLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["projectId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "labelId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["labelId"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_removeProjectMember_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11789,6 +12262,20 @@ func (ec *executionContext) field_Mutation_updateProfile_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateProjectLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateProjectLabelInput, error) {
+			return ec.unmarshalNUpdateProjectLabelInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectLabelInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateProjectMilestone_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -12326,6 +12813,20 @@ func (ec *executionContext) field_Query_projectDependenciesBlocking_args(ctx con
 		return nil, err
 	}
 	args["projectId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -22145,6 +22646,226 @@ func (ec *executionContext) fieldContext_Mutation_removeIssueLabel(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createProjectLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createProjectLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateProjectLabel(ctx, fc.Args["input"].(CreateProjectLabelInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectLabelPayload) graphql.Marshaler {
+			return ec.marshalNProjectLabelPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createProjectLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectLabelPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createProjectLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateProjectLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateProjectLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateProjectLabel(ctx, fc.Args["input"].(UpdateProjectLabelInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectLabelPayload) graphql.Marshaler {
+			return ec.marshalNProjectLabelPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateProjectLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectLabelPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateProjectLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveProjectLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_archiveProjectLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ArchiveProjectLabel(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_archiveProjectLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveProjectLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_addProjectLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_addProjectLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AddProjectLabel(ctx, fc.Args["projectId"].(uuid.UUID), fc.Args["labelId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectLabelLinkPayload) graphql.Marshaler {
+			return ec.marshalNProjectLabelLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelLinkPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_addProjectLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectLabelLinkPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addProjectLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeProjectLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_removeProjectLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RemoveProjectLabel(ctx, fc.Args["projectId"].(uuid.UUID), fc.Args["labelId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_removeProjectLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeProjectLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createIssueRelation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25335,6 +26056,530 @@ func (ec *executionContext) fieldContext_ProjectDependencyPayload_projectDepende
 	return fc, nil
 }
 
+func (ec *executionContext) _ProjectLabel_id(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabel_workspaceId(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabel_parentId(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_parentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ParentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_parentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabel_isGroup(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_isGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsGroup, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_isGroup(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabel_name(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabel_description(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabel_color(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_color(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Color, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_color(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabel_position(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabel_createdAt(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabel_updatedAt(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabel_archivedAt(ctx context.Context, field graphql.CollectedField, obj *ProjectLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabel_archivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabel_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabel", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabelLink_id(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelLink_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelLink_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabelLink_workspaceId(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelLink_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelLink_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabelLink_projectId(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelLink_projectId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelLink_projectId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabelLink_labelId(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelLink_labelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LabelID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelLink_labelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabelLink_groupId(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelLink_groupId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GroupID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelLink_groupId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabelLink_createdBy(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelLink_createdBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelLink_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabelLink_createdAt(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelLink_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelLink_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabelLink", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabelLinkPayload_version(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelLinkPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelLinkPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabelLinkPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabelLinkPayload_projectLabelLink(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelLinkPayload_projectLabelLink(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectLabelLink, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectLabelLink) graphql.Marshaler {
+			return ec.marshalNProjectLabelLink2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelLink(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelLinkPayload_projectLabelLink(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectLabelLinkPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectLabelLink(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectLabelPayload_version(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectLabelPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectLabelPayload_projectLabel(ctx context.Context, field graphql.CollectedField, obj *ProjectLabelPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectLabelPayload_projectLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectLabel, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectLabel) graphql.Marshaler {
+			return ec.marshalNProjectLabel2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabel(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectLabelPayload_projectLabel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectLabelPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectLabel(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProjectMember_id(ctx context.Context, field graphql.CollectedField, obj *ProjectMember) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27399,6 +28644,82 @@ func (ec *executionContext) fieldContext_Query_label(ctx context.Context, field 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_label_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projectLabels(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_projectLabels(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().ProjectLabels(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []ProjectLabel) graphql.Marshaler {
+			return ec.marshalNProjectLabel2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_projectLabels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectLabel(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projectLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_projectLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectLabel(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectLabel) graphql.Marshaler {
+			return ec.marshalOProjectLabel2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabel(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_projectLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectLabel(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -34460,6 +35781,71 @@ func (ec *executionContext) unmarshalInputCreateProjectInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateProjectLabelInput(ctx context.Context, obj any) (CreateProjectLabelInput, error) {
+	var it CreateProjectLabelInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"parentId", "isGroup", "name", "description", "color", "afterLabelId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "parentId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentID = data
+		case "isGroup":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isGroup"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsGroup = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "color":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("color"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Color = data
+		case "afterLabelId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("afterLabelId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AfterLabelID = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateProjectMilestoneInput(ctx context.Context, obj any) (CreateProjectMilestoneInput, error) {
 	var it CreateProjectMilestoneInput
 	if obj == nil {
@@ -35719,6 +37105,78 @@ func (ec *executionContext) unmarshalInputUpdateProjectInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateProjectLabelInput(ctx context.Context, obj any) (UpdateProjectLabelInput, error) {
+	var it UpdateProjectLabelInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name", "description", "color", "parentId", "clearParent", "afterLabelId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "color":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("color"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Color = data
+		case "parentId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentID = data
+		case "clearParent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearParent"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearParent = data
+		case "afterLabelId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("afterLabelId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AfterLabelID = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateProjectMilestoneInput(ctx context.Context, obj any) (UpdateProjectMilestoneInput, error) {
 	var it UpdateProjectMilestoneInput
 	if obj == nil {
@@ -36542,6 +38000,20 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._ProjectMemberPayload(ctx, sel, obj)
+	case ProjectLabelPayload:
+		return ec._ProjectLabelPayload(ctx, sel, &obj)
+	case *ProjectLabelPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectLabelPayload(ctx, sel, obj)
+	case ProjectLabelLinkPayload:
+		return ec._ProjectLabelLinkPayload(ctx, sel, &obj)
+	case *ProjectLabelLinkPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectLabelLinkPayload(ctx, sel, obj)
 	case ProjectDependencyPayload:
 		return ec._ProjectDependencyPayload(ctx, sel, &obj)
 	case *ProjectDependencyPayload:
@@ -39671,6 +41143,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createProjectLabel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createProjectLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateProjectLabel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateProjectLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveProjectLabel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveProjectLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addProjectLabel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addProjectLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeProjectLabel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeProjectLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createIssueRelation":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createIssueRelation(ctx, field)
@@ -40405,6 +41912,248 @@ func (ec *executionContext) _ProjectDependencyPayload(ctx context.Context, sel a
 			}
 		case "projectDependency":
 			out.Values[i] = ec._ProjectDependencyPayload_projectDependency(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectLabelImplementors = []string{"ProjectLabel"}
+
+func (ec *executionContext) _ProjectLabel(ctx context.Context, sel ast.SelectionSet, obj *ProjectLabel) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectLabelImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectLabel")
+		case "id":
+			out.Values[i] = ec._ProjectLabel_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._ProjectLabel_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "parentId":
+			out.Values[i] = ec._ProjectLabel_parentId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "isGroup":
+			out.Values[i] = ec._ProjectLabel_isGroup(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._ProjectLabel_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._ProjectLabel_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "color":
+			out.Values[i] = ec._ProjectLabel_color(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._ProjectLabel_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ProjectLabel_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._ProjectLabel_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archivedAt":
+			out.Values[i] = ec._ProjectLabel_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectLabelLinkImplementors = []string{"ProjectLabelLink"}
+
+func (ec *executionContext) _ProjectLabelLink(ctx context.Context, sel ast.SelectionSet, obj *ProjectLabelLink) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectLabelLinkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectLabelLink")
+		case "id":
+			out.Values[i] = ec._ProjectLabelLink_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._ProjectLabelLink_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectId":
+			out.Values[i] = ec._ProjectLabelLink_projectId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "labelId":
+			out.Values[i] = ec._ProjectLabelLink_labelId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "groupId":
+			out.Values[i] = ec._ProjectLabelLink_groupId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdBy":
+			out.Values[i] = ec._ProjectLabelLink_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ProjectLabelLink_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectLabelLinkPayloadImplementors = []string{"ProjectLabelLinkPayload", "MutationResult"}
+
+func (ec *executionContext) _ProjectLabelLinkPayload(ctx context.Context, sel ast.SelectionSet, obj *ProjectLabelLinkPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectLabelLinkPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectLabelLinkPayload")
+		case "version":
+			out.Values[i] = ec._ProjectLabelLinkPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectLabelLink":
+			out.Values[i] = ec._ProjectLabelLinkPayload_projectLabelLink(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectLabelPayloadImplementors = []string{"ProjectLabelPayload", "MutationResult"}
+
+func (ec *executionContext) _ProjectLabelPayload(ctx context.Context, sel ast.SelectionSet, obj *ProjectLabelPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectLabelPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectLabelPayload")
+		case "version":
+			out.Values[i] = ec._ProjectLabelPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectLabel":
+			out.Values[i] = ec._ProjectLabelPayload_projectLabel(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -41463,6 +43212,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_label(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectLabels":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectLabels(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectLabel":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectLabel(ctx, field)
 				if res == graphql.RequiredNull {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -44372,6 +46165,11 @@ func (ec *executionContext) unmarshalNCreateProjectInput2githubᚗcomᚋpeixotol
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateProjectLabelInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectLabelInput(ctx context.Context, v any) (CreateProjectLabelInput, error) {
+	res, err := ec.unmarshalInputCreateProjectLabelInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateProjectMilestoneInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectMilestoneInput(ctx context.Context, v any) (CreateProjectMilestoneInput, error) {
 	res, err := ec.unmarshalInputCreateProjectMilestoneInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -45126,6 +46924,74 @@ func (ec *executionContext) marshalNProjectDependencyPayload2ᚖgithubᚗcomᚋp
 	return ec._ProjectDependencyPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNProjectLabel2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabel(ctx context.Context, sel ast.SelectionSet, v ProjectLabel) graphql.Marshaler {
+	return ec._ProjectLabel(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProjectLabel2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelᚄ(ctx context.Context, sel ast.SelectionSet, v []ProjectLabel) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProjectLabel2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabel(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProjectLabel2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabel(ctx context.Context, sel ast.SelectionSet, v *ProjectLabel) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectLabel(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectLabelLink2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelLink(ctx context.Context, sel ast.SelectionSet, v *ProjectLabelLink) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectLabelLink(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectLabelLinkPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelLinkPayload(ctx context.Context, sel ast.SelectionSet, v ProjectLabelLinkPayload) graphql.Marshaler {
+	return ec._ProjectLabelLinkPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProjectLabelLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelLinkPayload(ctx context.Context, sel ast.SelectionSet, v *ProjectLabelLinkPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectLabelLinkPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectLabelPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelPayload(ctx context.Context, sel ast.SelectionSet, v ProjectLabelPayload) graphql.Marshaler {
+	return ec._ProjectLabelPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProjectLabelPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelPayload(ctx context.Context, sel ast.SelectionSet, v *ProjectLabelPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectLabelPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNProjectMember2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectMember(ctx context.Context, sel ast.SelectionSet, v ProjectMember) graphql.Marshaler {
 	return ec._ProjectMember(ctx, sel, &v)
 }
@@ -45698,6 +47564,11 @@ func (ec *executionContext) unmarshalNUpdateProfileInput2githubᚗcomᚋpeixotol
 
 func (ec *executionContext) unmarshalNUpdateProjectInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectInput(ctx context.Context, v any) (UpdateProjectInput, error) {
 	res, err := ec.unmarshalInputUpdateProjectInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateProjectLabelInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectLabelInput(ctx context.Context, v any) (UpdateProjectLabelInput, error) {
+	res, err := ec.unmarshalInputUpdateProjectLabelInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -46389,6 +48260,13 @@ func (ec *executionContext) marshalOProject2ᚖgithubᚗcomᚋpeixotolabsᚋpola
 		return graphql.Null
 	}
 	return ec._Project(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOProjectLabel2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabel(ctx context.Context, sel ast.SelectionSet, v *ProjectLabel) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ProjectLabel(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOProjectMilestone2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectMilestone(ctx context.Context, sel ast.SelectionSet, v *ProjectMilestone) graphql.Marshaler {

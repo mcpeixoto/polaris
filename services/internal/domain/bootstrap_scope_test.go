@@ -53,6 +53,8 @@ type scene struct {
 	openDocument                                  uuid.UUID
 	openProjectUpdate                             uuid.UUID
 	openProjectDependency                         uuid.UUID
+	openProjectLabel                              uuid.UUID
+	openProjectLabelLink                          uuid.UUID
 	openInitiative                                uuid.UUID
 	openInitiativeProject                         uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
@@ -232,6 +234,19 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		t.Fatalf("create the project dependency: %v", err)
 	}
 	s.openProjectDependency = dep.ID
+
+	pl, _, err := svc.CreateProjectLabel(ctx, s.alice, domain.CreateProjectLabelInput{
+		Name: "Platform",
+	})
+	if err != nil {
+		t.Fatalf("create the project label: %v", err)
+	}
+	s.openProjectLabel = pl.ID
+	linkRow, _, err := svc.AddProjectLabel(ctx, s.alice, project.ID, pl.ID)
+	if err != nil {
+		t.Fatalf("apply the project label: %v", err)
+	}
+	s.openProjectLabelLink = linkRow.ID
 
 	// Favourites: alice pins something out of the private team and something workspace-wide,
 	// bob pins the team they share. A favourite carries only its owner's scope, which is what
@@ -461,6 +476,8 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "document", s.openDocument},
 		{bobName, "projectUpdate", s.openProjectUpdate},
 		{bobName, "projectDependency", s.openProjectDependency},
+		{bobName, "projectLabel", s.openProjectLabel},
+		{bobName, "projectLabelLink", s.openProjectLabelLink},
 		{bobName, "initiative", s.openInitiative},
 		{bobName, "initiativeProject", s.openInitiativeProject},
 		{bobName, "favorite", s.bobsFavorite},
@@ -469,6 +486,8 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{gretaName, "document", s.openDocument},
 		{gretaName, "projectUpdate", s.openProjectUpdate},
 		{gretaName, "projectDependency", s.openProjectDependency},
+		{gretaName, "projectLabel", s.openProjectLabel},
+		{gretaName, "projectLabelLink", s.openProjectLabelLink},
 		{gretaName, "initiative", s.openInitiative},
 		{gretaName, "initiativeProject", s.openInitiativeProject},
 		{samName, "label", s.workspaceLabel},
@@ -557,6 +576,9 @@ func TestStreamBootstrap_CarriesEveryReplicatedTypeInTheClientsOrder(t *testing.
 	if position(order.types, "issueLabel") < position(order.types, "label") {
 		t.Error("label applications are emitted before the labels they name — the exact " +
 			"ordering bug this snapshot had, arrived at from the other direction")
+	}
+	if position(order.types, "projectLabelLink") < position(order.types, "projectLabel") {
+		t.Error("project label applications are emitted before the project labels they name")
 	}
 }
 
