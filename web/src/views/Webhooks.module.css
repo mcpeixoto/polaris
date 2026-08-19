@@ -1,0 +1,273 @@
+/*
+ * Outbound webhooks.
+ *
+ * Same density bargain as API keys: rare decisions, one of them irreversible (the secret
+ * is shown once), so the listing is a table rather than a grid of cards.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-6) var(--space-8);
+  max-width: 110ch;
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-6);
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.sectionHint {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * A failed fetch, with its way out beside it.
+ *
+ * Takes the urgent pair rather than a --danger role, which the token layer does not have —
+ * the same bargain MemberSettings and Field.module.css make, and for the same reason: that
+ * pair is the only red already tuned against both page colours.
+ */
+.failure {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  color: var(--priority-urgent);
+}
+
+.failureText {
+  margin: 0;
+  flex: 1;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-10) 0;
+  color: var(--text-tertiary);
+}
+
+/* --- the listing ------------------------------------------------------------ */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+/*
+ * Not hidden, and the reason is the same one Members gives. The sentence explaining that
+ * revoked keys stay at the bottom is what somebody reads before they wonder where a key went,
+ * and it is the same sentence a screen reader announces on entering the table.
+ */
+.caption {
+  padding-bottom: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+.table th,
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: start;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table thead th {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.keyCell {
+  font-weight: var(--font-weight-normal);
+}
+
+/* The stack lives in a span rather than on the cell: a `display: flex` table cell stops
+   being a table cell, and the column it was holding open collapses. */
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The one fragment of a token that is ever drawn. Monospaced because it is compared by eye
+   against a string in a configuration file, and a proportional font makes that harder. */
+.prefix {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.scopes {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.unscoped,
+.never {
+  color: var(--text-tertiary);
+}
+
+/*
+ * A revoked key is dimmed rather than removed. Somebody auditing this screen is asking when
+ * a credential stopped working, and a row that vanished answers by looking exactly like a row
+ * that never existed.
+ */
+.revokedRow {
+  color: var(--text-tertiary);
+}
+
+.actions {
+  text-align: end;
+}
+
+/*
+ * Available to a screen reader, absent from the page. `display: none` would take it out of
+ * the accessibility tree as well, which is the whole thing this class exists not to do — the
+ * actions column needs a header a table navigator can announce and a sighted reader does not
+ * need to see.
+ */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- the dialog -------------------------------------------------------------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.scopeSet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.hint,
+.detail {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.detail {
+  margin-top: var(--space-3);
+}
+
+/* Trails its scope's name on the same line, so the checkbox is one sentence rather than a
+   label with a paragraph hanging under it. */
+.scopeDetail {
+  color: var(--text-tertiary);
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * The answer to a dismissal the dialog declined to obey.
+ *
+ * Amber and not red: nothing has gone wrong, and the user has not made a mistake — they are
+ * being told the token is still there and what the way out is. A red panel would read as a
+ * failure and send somebody looking for what they broke.
+ */
+.nudge {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-medium) 14%, transparent);
+  color: var(--priority-medium);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

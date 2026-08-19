@@ -15,13 +15,21 @@ VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(key), sqlc.arg(name),
 RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           parent_team_id, private, issue_counter, settings,
           retired_at, archived_at, deleted_at, created_at, updated_at,
-          estimate_scale, estimate_allow_zero, estimate_extended;
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
 
 -- name: GetTeam :one
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,
        retired_at, archived_at, deleted_at, created_at, updated_at,
-       estimate_scale, estimate_allow_zero, estimate_extended
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
 FROM team
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -29,7 +37,11 @@ WHERE id = $1 AND deleted_at IS NULL;
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,
        retired_at, archived_at, deleted_at, created_at, updated_at,
-       estimate_scale, estimate_allow_zero, estimate_extended
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
 FROM team
 WHERE workspace_id = sqlc.arg(workspace_id) AND key = sqlc.arg(key) AND deleted_at IS NULL;
 
@@ -37,7 +49,11 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND key = sqlc.arg(key) AND deleted_
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,
        retired_at, archived_at, deleted_at, created_at, updated_at,
-       estimate_scale, estimate_allow_zero, estimate_extended
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
 FROM team
 WHERE workspace_id = $1 AND deleted_at IS NULL
 ORDER BY key;
@@ -71,7 +87,11 @@ WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           parent_team_id, private, issue_counter, settings,
           retired_at, archived_at, deleted_at, created_at, updated_at,
-          estimate_scale, estimate_allow_zero, estimate_extended;
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
 
 -- UpdateTeamEstimates is separate from UpdateTeam because the three settings are one
 -- decision: allow_zero and extended only mean anything relative to a scale, and letting a
@@ -87,7 +107,11 @@ WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           parent_team_id, private, issue_counter, settings,
           retired_at, archived_at, deleted_at, created_at, updated_at,
-          estimate_scale, estimate_allow_zero, estimate_extended;
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
 
 -- AllocateIssueNumber takes a row lock on the team for the rest of the transaction.
 --
@@ -101,8 +125,123 @@ UPDATE team SET issue_counter = issue_counter + 1
 WHERE id = $1
 RETURNING issue_counter;
 
--- name: SoftDeleteTeam :exec
-UPDATE team SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL;
+-- name: SoftDeleteTeam :one
+UPDATE team SET deleted_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: RetireTeam :one
+UPDATE team
+SET retired_at = now()
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL AND retired_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: UnretireTeam :one
+UPDATE team
+SET retired_at = NULL
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL AND retired_at IS NOT NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: RestoreTeam :one
+UPDATE team
+SET deleted_at = NULL, retired_at = NULL
+WHERE id = sqlc.arg(id)
+  AND deleted_at IS NOT NULL
+  AND deleted_at >= sqlc.arg(deleted_after)
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: ListDeletedTeams :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+FROM team
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND deleted_at IS NOT NULL
+  AND deleted_at >= sqlc.arg(deleted_after)
+ORDER BY deleted_at DESC;
+
+-- name: CountChildTeams :one
+SELECT count(*) FROM team
+WHERE parent_team_id = sqlc.arg(team_id) AND deleted_at IS NULL;
+
+-- name: ListChildTeams :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+FROM team
+WHERE parent_team_id = sqlc.arg(parent_team_id) AND deleted_at IS NULL
+ORDER BY key;
+
+-- name: UpdateTeamParent :one
+UPDATE team
+SET parent_team_id = sqlc.narg(parent_team_id),
+    private        = COALESCE(sqlc.narg(private), private)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: SetTeamsPrivate :execrows
+UPDATE team
+SET private = true
+WHERE id = ANY(sqlc.arg(ids)::uuid[]) AND deleted_at IS NULL AND NOT private;
+
+-- SoftDeleteIssuesInTeam runs when a team is deleted so its issues can be restored together.
+--
+-- name: SoftDeleteIssuesInTeam :execrows
+UPDATE issue
+SET deleted_at = now(), deleted_by = sqlc.narg(deleted_by)
+WHERE team_id = sqlc.arg(team_id) AND deleted_at IS NULL;
+
+-- name: RestoreIssuesInTeam :execrows
+UPDATE issue
+SET deleted_at = NULL, deleted_by = NULL
+WHERE team_id = sqlc.arg(team_id)
+  AND deleted_at IS NOT NULL
+  AND deleted_at >= sqlc.arg(deleted_after);
 
 -- name: AddTeamMember :one
 INSERT INTO team_membership (id, workspace_id, team_id, user_id, role)
@@ -152,3 +291,106 @@ WHERE workspace_id = $1;
 SELECT EXISTS (
   SELECT 1 FROM team_membership WHERE team_id = sqlc.arg(team_id) AND user_id = sqlc.arg(user_id)
 );
+
+-- UpdateTeamCycles is the cadence, kept apart from UpdateTeam for the same reason
+-- estimates are: enabling, duration, cooldown, start day and upcoming count are one
+-- decision, and a partial write that turns cycles on without a duration would leave a
+-- team in a state the CHECKs allow and the product does not.
+
+-- name: UpdateTeamCycles :one
+UPDATE team
+SET cycles_enabled            = COALESCE(sqlc.narg(cycles_enabled), cycles_enabled),
+    cycle_duration_weeks      = COALESCE(sqlc.narg(cycle_duration_weeks), cycle_duration_weeks),
+    cycle_cooldown_weeks      = COALESCE(sqlc.narg(cycle_cooldown_weeks), cycle_cooldown_weeks),
+    cycle_start_day           = COALESCE(sqlc.narg(cycle_start_day), cycle_start_day),
+    cycle_upcoming_count      = COALESCE(sqlc.narg(cycle_upcoming_count), cycle_upcoming_count),
+    cycle_auto_add_started    = COALESCE(sqlc.narg(cycle_auto_add_started), cycle_auto_add_started),
+    cycle_auto_add_completed  = COALESCE(sqlc.narg(cycle_auto_add_completed), cycle_auto_add_completed)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: ListTeamsWithCyclesEnabled :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+FROM team
+WHERE cycles_enabled AND deleted_at IS NULL AND archived_at IS NULL AND retired_at IS NULL
+ORDER BY workspace_id, key;
+
+-- UpdateTeamTriage is the intake switch, kept apart from UpdateTeam for the same reason
+-- estimates and cycles are: enabling creates the reserved statuses, and a partial write
+-- that flipped the flag without them would leave a team that claims to have a queue and
+-- has nowhere to put it.
+--
+-- name: UpdateTeamTriage :one
+UPDATE team
+SET triage_enabled           = COALESCE(sqlc.narg(triage_enabled), triage_enabled),
+    triage_require_priority  = COALESCE(sqlc.narg(triage_require_priority), triage_require_priority)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- UpdateTeamArchive is the close/archive periods and the parent/child automations.
+-- Kept apart from UpdateTeam so a settings form that only touches intake cannot
+-- accidentally rewrite the team's name.
+--
+-- name: UpdateTeamArchive :one
+UPDATE team
+SET auto_close_days      = COALESCE(sqlc.narg(auto_close_days), auto_close_days),
+    auto_archive_days    = COALESCE(sqlc.narg(auto_archive_days), auto_archive_days),
+    auto_close_parent    = COALESCE(sqlc.narg(auto_close_parent), auto_close_parent),
+    auto_close_children  = COALESCE(sqlc.narg(auto_close_children), auto_close_children)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: ListTeamsWithAutoClose :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+FROM team
+WHERE auto_close_days > 0 AND deleted_at IS NULL AND archived_at IS NULL AND retired_at IS NULL
+ORDER BY workspace_id, key;
+
+-- name: ListTeamsWithAutoArchive :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+FROM team
+WHERE auto_archive_days > 0 AND deleted_at IS NULL AND archived_at IS NULL AND retired_at IS NULL
+ORDER BY workspace_id, key;
+

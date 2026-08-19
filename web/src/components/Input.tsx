@@ -13,6 +13,11 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   prefix?: ReactNode | undefined;
   /** Inside the box, after the text. A unit, a counter, a clear button. */
   suffix?: ReactNode | undefined;
+  /**
+   * `plain` is an unboxed field: no border, no fill, used where the text *is* the page
+   * (a create-issue title, an issue heading). The default is a form control.
+   */
+  surface?: 'boxed' | 'plain' | undefined;
   /** Applies to the field — label, control and message — not to the input element. */
   className?: string | undefined;
   ref?: Ref<HTMLInputElement> | undefined;
@@ -37,6 +42,7 @@ export function Input({
   error,
   prefix,
   suffix,
+  surface = 'boxed',
   className,
   id,
   ...rest
@@ -53,7 +59,15 @@ export function Input({
       error={error}
       className={className}
     >
-      <div className={[styles.box, invalid ? styles.invalid : null].filter(Boolean).join(' ')}>
+      <div
+        className={[
+          styles.box,
+          surface === 'plain' ? styles.plain : null,
+          invalid ? styles.invalid : null,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         {prefix === undefined ? null : <span className={styles.affix}>{prefix}</span>}
         <input
           {...rest}

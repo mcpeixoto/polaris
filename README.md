@@ -7,20 +7,42 @@ job is to keep that replica true.
 
 The repository holds a **complete functional scope** — the features, how they depend on each
 other, what the data model has to look like, what the integrations do, what the API surface
-is — and the implementation of it, currently through **Milestone 1**.
+is — and the implementation of it, currently through **Milestone 1** plus **Projects v1**,
+**Cycles v1**, **Triage v1**, **Archives v1**, **Attachments v1**, **Webhooks v1**, **Documents v1**, **Initiatives v1** and **Project updates v1** (the first slices of Milestone 2).
 
 ## What runs today
 
-Backend and web client are both complete through Milestone 1 and tested end to end, in the browser as well as in unit tests. The desktop shell packages and runs on macOS, Windows and Linux.
+Backend and web client are both complete through Milestone 1 and tested end to end, in the browser as well as in unit tests. Projects v1, Cycles v1, Peek, Triage v1, Archives v1, Attachments v1, Webhooks v1, Documents v1, Initiatives v1 and Project updates v1 sit on the same visual system as the rest of the web app (dense list/detail, compact pickers, command menu). The desktop shell packages and runs on macOS, Windows and Linux.
 
 | Working | |
 |---|---|
-| Schema | 23 migrations, 34 tables, monthly-partitioned change log, UUIDv7 |
+| Schema | 44 migrations, including team lifecycle index, project templates, form templates, project update reminder cadence, project labels, attached project views, project dependencies, project updates, initiatives, documents, webhooks, attachments, auto-close/archive, triage, cycles, projects, statuses, teams, members and milestones; monthly-partitioned change log, UUIDv7 |
 | Sync engine | Gapless per-workspace versions, NDJSON bootstrap, WebSocket hub, resume, revoke, backpressure |
 | API | GraphQL over the whole domain, one contract in `schema/schema.graphql`, complexity scored by the published model |
 | Auth | Argon2id, rotating refresh tokens, HttpOnly cookies, invitations |
-| Client store | IndexedDB replica, in-memory indexes, durable outbox, optimistic mutations |
-| Keyboard | One registry; the command menu and help overlay are views over it |
+| Client store | IndexedDB replica (schema 21), in-memory indexes, durable outbox, optimistic mutations |
+| Keyboard | One registry; the command menu and help overlay are views over it. Peek is `Space`; triage is `G T` / `1` `2` `3` `H`; archives is `G X` / `#`; add link is `⌘⇧U` |
+| Projects | Workspace and team lists with health from latest update, Display → Timeline (bars, deps, milestones), overview graph/issues/activity tabs, `Shift+P` picker, `C` files into the open project |
+| Cycles | Team cadence, auto-created windows, rollover and auto-add, cycle graph on detail, `G C` / `Shift+C`, `C` files into the open cycle |
+| Triage | Per-team intake status, hidden from ordinary views, accept / duplicate / decline / snooze |
+| Archives | Auto-close and auto-archive with parent/sub/project blocking; on-demand archives page |
+| Attachments | URL-idempotent link cards on issues, `attachmentsForURL`, duplicate merge moves unique URLs |
+| Webhooks | Admin HTTPS subscriptions, HMAC-SHA256 of the raw body, SSRF pin, 1m/1h/6h then disable — Settings → Webhooks, `N` to create |
+| Documents | Team and project markdown docs, `/team/:key/documents`, `/document/:id`, archive and soft-delete on the sync stream |
+| Initiatives | Workspace objectives grouping curated projects, `/initiatives`, `/initiative/:id`, status/owner/target date on the sync stream |
+| Project updates | Health plus markdown status posts, Overview compose and Activity history, derived health on project list |
+| Project dependencies | End→start Blocked by / Blocking on Overview and sidebar, command menu, list filters, timeline lines — client schema 12 |
+| Project timeline | Display → Timeline on `/projects`: Gantt bars, dependency lines, milestones, zoom — web-only, no migration |
+| Attached project views | Saved filters as reorderable tabs on the project shell, + to create, copy link / favorite / rename / delete — client schema 13 |
+| Project labels | Workspace taxonomy with groups, picker on project sidebar, chips on `/projects` — client schema 14 |
+| Form templates | Structured intake templates with fields; form tab on Templates settings and form fill in create-issue — client schema 19; migration `000042` |
+| Project templates | Prefilled projects with milestones and starter issues; project tab on Templates settings and picker in create-project — client schema 21; migration `000043` |
+| Private teams | Team visibility toggle in settings, privatize cleanup, initiative project filtering, admin team directory — client schema 21; no migration |
+| Team lifecycle | Retire/unretire, delete/restore (30 days), deleted-teams settings screen, retired teams hidden from sidebar, read-only projects — client schema 21; migration `000044` |
+| Sub-teams | Nest/move teams, private inheritance, parent-owner sync, depth limits by plan, nested sidebar — client schema 21; no migration |
+| Cycle editing | Edit dates and names, start cycle today, pause/cooldown gaps on Cycles page — client schema 21; no migration |
+| Project update reminders | Workspace cadence settings, per-project schedule, staleness on list and shell — client schema 18; migration `000041` |
+| Project priority | Five-level scale, P shortcut, grouped/drag reorder on `/projects` |
 | Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |
 | Desktop | Electron shell for macOS, Windows and Linux; per-architecture builds, auto-update, deep links |
 | Notifications | Inbox, unread badge, subscriptions, coalescing fan-out, digest email |
@@ -34,7 +56,7 @@ make seed        # a realistic workspace
 make api         # and, in other terminals: make sync, make web
 ```
 
-See [`docs/07-milestones/00-milestone-0.md`](docs/07-milestones/00-milestone-0.md) and [`01-milestone-1.md`](docs/07-milestones/01-milestone-1.md) for the scope freezes and the acceptance tests that define done. Each of the M1 ten names the test that proves it, and `services/internal/acceptance/m1_test.go` fails if one loses its proof.
+See [`docs/07-milestones/00-milestone-0.md`](docs/07-milestones/00-milestone-0.md), [`01-milestone-1.md`](docs/07-milestones/01-milestone-1.md), [`02-milestone-2.md`](docs/07-milestones/02-milestone-2.md), [`03-cycles.md`](docs/07-milestones/03-cycles.md), [`04-peek.md`](docs/07-milestones/04-peek.md) and [`05-triage.md`](docs/07-milestones/05-triage.md) for the scope freezes and the acceptance tests that define done. Each of the M1 ten names the test that proves it, and `services/internal/acceptance/m1_test.go` fails if one loses its proof.
 
 ## Where the requirements came from
 

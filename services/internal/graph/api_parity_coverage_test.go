@@ -64,7 +64,13 @@ var serverSideOnly = map[string]string{
 	// scheduled" is how it stops meaning anything.
 	"FanOutAll":                  "worker cron: derives inbox rows from change_log",
 	"FanOut":                     "internal: one workspace's pass, called by FanOutAll",
+	"FanOutWebhooksAll":          "worker cron: queues webhook deliveries from change_log",
+	"FanOutWebhooks":             "internal: one workspace's pass, called by FanOutWebhooksAll",
+	"DeliverDueWebhooks":         "worker cron: POSTs signed webhook deliveries",
 	"DeliverNotificationDigests": "worker cron: sends the digest mail",
+	"AdvanceCycles":              "worker cron: closes ended cycles, rolls work, auto-adds",
+	"AutoCloseIssues":            "worker cron: closes stale open issues per team period",
+	"AutoArchive":                "worker cron: archives stale closed issues, projects and cycles",
 	"SubscribeOnAction":          "internal: called by the write paths that auto-subscribe",
 	"AuthenticateApiKey":         "auth middleware: exchanging a token for a principal is not a mutation a caller performs",
 	"DB":                         "accessor: hands the pool to the bootstrap and the sync hub",
@@ -148,11 +154,7 @@ func TestAPIParity_TheVerbListDoesNotSilentlySkipWrites(t *testing.T) {
 	// Writes that reach the public API only because somebody also wrote the schema field
 	// by hand. Every one of these is exposed today; none is checked by the parity test.
 	known := map[string]bool{
-		"BulkUpdateIssues":         true,
-		"RestoreIssue":             true,
-		"MarkNotificationRead":     true,
-		"MarkAllNotificationsRead": true,
-		"SnoozeNotification":       true,
+		"BulkUpdateIssues": true,
 	}
 
 	svcType := reflect.TypeOf(&domain.Service{})

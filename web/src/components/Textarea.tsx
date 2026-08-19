@@ -11,6 +11,11 @@ export interface TextareaProps extends Omit<
   hideLabel?: boolean | undefined;
   hint?: string | undefined;
   error?: string | undefined;
+  /**
+   * `plain` drops the boxed control surface, for a description that should read as a
+   * document rather than as a form field.
+   */
+  surface?: 'boxed' | 'plain' | undefined;
   /** The height at rest, in lines. The box never shrinks below it. */
   minRows?: number | undefined;
   /** Where growing stops and scrolling starts, in lines. */
@@ -41,6 +46,7 @@ export function Textarea({
   hideLabel,
   hint,
   error,
+  surface = 'boxed',
   minRows = 1,
   maxRows,
   className,
@@ -109,7 +115,13 @@ export function Textarea({
         ref={attachRef}
         id={ids.controlId}
         rows={minRows}
-        className={[styles.textarea, invalid ? styles.invalid : null].filter(Boolean).join(' ')}
+        className={[
+          styles.textarea,
+          surface === 'plain' ? styles.plain : null,
+          invalid ? styles.invalid : null,
+        ]
+          .filter(Boolean)
+          .join(' ')}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={fieldDescribedBy(ids, { hint, error }, rest['aria-describedby'])}
         onInput={(event) => {

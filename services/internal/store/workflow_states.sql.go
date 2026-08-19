@@ -151,6 +151,41 @@ func (q *Queries) GetWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowS
 	return i, err
 }
 
+const getWorkflowStateByTeamAndCategory = `-- name: GetWorkflowStateByTeamAndCategory :one
+SELECT id, workspace_id, team_id, name, description, color, category, position,
+       is_default, is_system, archived_at, created_at, updated_at
+FROM workflow_state
+WHERE team_id = $1 AND category = $2
+`
+
+type GetWorkflowStateByTeamAndCategoryParams struct {
+	TeamID   uuid.UUID
+	Category string
+}
+
+// Includes archived rows: the singleton unique index is not partial on archived_at, so
+// re-enabling triage must revive the existing status rather than insert a second one.
+func (q *Queries) GetWorkflowStateByTeamAndCategory(ctx context.Context, arg GetWorkflowStateByTeamAndCategoryParams) (WorkflowState, error) {
+	row := q.db.QueryRow(ctx, getWorkflowStateByTeamAndCategory, arg.TeamID, arg.Category)
+	var i WorkflowState
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.TeamID,
+		&i.Name,
+		&i.Description,
+		&i.Color,
+		&i.Category,
+		&i.Position,
+		&i.IsDefault,
+		&i.IsSystem,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listWorkflowStatesForTeam = `-- name: ListWorkflowStatesForTeam :many
 SELECT id, workspace_id, team_id, name, description, color, category, position,
        is_default, is_system, archived_at, created_at, updated_at

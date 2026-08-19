@@ -35,9 +35,22 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
-import { Avatar, Badge, Button, EmptyState, PriorityIcon, StateIcon, Tooltip } from '~/components';
+import { Avatar, Badge, Button, EmptyState, LabelChip, Menu, PriorityIcon, StateIcon, Tooltip } from '~/components';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import { CyclePicker } from '~/features/cycles/CyclePicker';
+import { Peek } from '~/features/peek/Peek';
+import { ProjectPicker } from '~/features/projects/ProjectPicker';
+import { DuplicatePicker } from '~/features/triage/DuplicatePicker';
+import {
+  acceptTriageIssues,
+  declineTriageIssues,
+  markIssuesDuplicate,
+  requiresPriorityToLeave,
+  snoozeIssues,
+} from '~/features/triage/mutations';
+import { snoozeItems } from '~/features/triage/snooze';
+import { isSnoozed, useTriageClock } from '~/features/triage/wake';
 import { Board } from '~/features/view/ui/Board';
 import { DisplayMenu } from '~/features/view/ui/DisplayMenu';
 import { FilterBar } from '~/features/view/ui/FilterBar';
@@ -93,6 +106,24 @@ export type IssueListSource =
       readonly includeCompleted?: boolean | undefined;
     }
   | {
+      readonly kind: 'project';
+      readonly projectId: UUID;
+    }
+  | {
+      readonly kind: 'cycle';
+      readonly cycleId: UUID;
+    }
+  | {
+      /**
+       * The team's triage inbox.
+       *
+       * A status category, not a saved view: the source names `stateCategory` so the
+       * grammar's default hide turns off, and the layout stays a list so `H` can snooze.
+       */
+      readonly kind: 'triage';
+      readonly teamId: UUID;
+    }
+  | {
       /**
        * A saved view.
        *
@@ -145,6 +176,9 @@ interface ListScope {
 /** The default, and a module constant so an inline object does not defeat the query cache. */
 const TEAM_SOURCE: IssueListSource = { kind: 'team' };
 
+/** Names the category so the grammar's default hide of triage turns off. */
+const TRIAGE_SOURCE_FILTER: FilterNode = { field: 'stateCategory', op: 'eq', values: ['triage'] };
+
 /**
  * The virtualiser's opening guess at a row's height, in pixels.
  *
@@ -158,6 +192,9 @@ const ESTIMATED_HEADER_PX = 36;
 /** Rows kept mounted beyond the viewport, so a held-down `J` never outruns the renderer. */
 const OVERSCAN = 12;
 
+/** A Space tap keeps Peek; a hold longer than this puts it away on release. */
+const PEEK_HOLD_MS = 280;
+
 /** What the registered actions call. Named so the ref's type is a contract, not an inference. */
 interface ListCommands {
   move(delta: number): void;
@@ -166,11 +203,24 @@ interface ListCommands {
   selectAll(): void;
   clearSelection(): void;
   hasSelection(): boolean;
+  hasRows(): boolean;
   open(): void;
   archive(): void;
   pickStatus(): void;
   pickAssignee(): void;
   pickPriority(): void;
+  pickProject(): void;
+  pickCycle(): void;
+  peekOpen(): boolean;
+  pressPeek(): void;
+  togglePeek(): void;
+  releasePeek(): void;
+  closePeek(): void;
+  acceptTriage(): void;
+  declineTriage(): void;
+  pickDuplicate(): void;
+  pickSnooze(): void;
+  inTriage(): boolean;
 }
 
 export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}) {
@@ -187,16 +237,25 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       ? `team:${teamKey}`
       : source.kind === 'assignee'
         ? `assignee:${source.userId}`
-        : `view:${source.viewId}`;
+        : source.kind === 'project'
+          ? `project:${source.projectId}`
+          : source.kind === 'cycle'
+            ? `cycle:${source.cycleId}`
+            : source.kind === 'triage'
+              ? `triage:${source.teamId}`
+              : `view:${source.viewId}`;
   const includeCompleted = source.kind === 'assignee' && source.includeCompleted === true;
+  const inTriage = source.kind === 'triage';
 
   const scope = useLiveQuery(
     (store) => scopeOf(store, source, teamKey, heading),
     // `view` too, because a saved view supplies the heading and the team a view-sourced list
     // is scoped to — renaming the view has to move this heading.
-    ['team', 'view'],
+    ['team', 'view', 'cycle'],
     [sourceKey, heading],
   );
+
+  const now = useTriageClock(scope.team?.id, inTriage);
 
   /**
    * The filter, the display options and the issues that fall out of them.
@@ -207,9 +266,11 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
    * that is `useView`, and is the same code the board and the saved views run.
    */
   const view = useView({
-    issues: (store) => corpusOf(store, source, scope.team?.id, includeCompleted),
-    inputs: [sourceKey, scope.team?.id ?? '', includeCompleted],
+    issues: (store) => corpusOf(store, source, scope.team?.id, includeCompleted, now),
+    inputs: [sourceKey, scope.team?.id ?? '', includeCompleted, now],
     timezone: scope.timezone,
+    now: inTriage ? now : undefined,
+    sourceFilter: inTriage ? TRIAGE_SOURCE_FILTER : undefined,
   });
 
   const groups = view.groups;
@@ -263,7 +324,19 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const status = useMenuTrigger();
   const assignee = useMenuTrigger();
   const priority = useMenuTrigger();
+  const project = useMenuTrigger();
+  const cycle = useMenuTrigger();
   const display = useMenuTrigger();
+  const duplicate = useMenuTrigger();
+  const snooze = useMenuTrigger();
+  const [peekOpen, setPeekOpen] = useState(false);
+  const peekOpenRef = useRef(false);
+  const peekHoldAt = useRef<number | null>(null);
+
+  const setPeek = (open: boolean) => {
+    peekOpenRef.current = open;
+    setPeekOpen(open);
+  };
 
   /**
    * What a command acts on: the selection when there is one, the cursor row otherwise.
@@ -276,6 +349,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     () => (selection.size > 0 ? selection.ordered : cursorId === null ? [] : [cursorId]),
     [selection.size, selection.ordered, cursorId],
   );
+  const excludeFromDuplicate = useMemo(() => new Set(targets), [targets]);
 
   const scrollToRow = useCallback(
     (id: UUID) => {
@@ -299,11 +373,24 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     selectAll: () => {},
     clearSelection: () => {},
     hasSelection: () => false,
+    hasRows: () => false,
     open: () => {},
     archive: () => {},
     pickStatus: () => {},
     pickAssignee: () => {},
     pickPriority: () => {},
+    pickProject: () => {},
+    pickCycle: () => {},
+    peekOpen: () => false,
+    pressPeek: () => {},
+    togglePeek: () => {},
+    releasePeek: () => {},
+    closePeek: () => {},
+    acceptTriage: () => {},
+    declineTriage: () => {},
+    pickDuplicate: () => {},
+    pickSnooze: () => {},
+    inTriage: () => false,
   });
 
   const step = (delta: number): UUID | null => {
@@ -334,6 +421,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     selectAll: () => selection.selectAll(),
     clearSelection: () => selection.clear(),
     hasSelection: () => selection.size > 0,
+    hasRows: () => ids.length > 0,
     open: () => {
       if (cursorId === null) return;
       const issue = engine.store.get('issue', cursorId);
@@ -351,6 +439,57 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     },
     pickAssignee: assignee.show,
     pickPriority: priority.show,
+    pickProject: project.show,
+    pickCycle: cycle.show,
+    peekOpen: () => peekOpenRef.current,
+    pressPeek: () => {
+      if (peekOpenRef.current) {
+        setPeek(false);
+        peekHoldAt.current = null;
+        return;
+      }
+      setPeek(true);
+      peekHoldAt.current = Date.now();
+    },
+    togglePeek: () => setPeek(!peekOpenRef.current),
+    releasePeek: () => {
+      const at = peekHoldAt.current;
+      peekHoldAt.current = null;
+      if (at !== null && Date.now() - at >= PEEK_HOLD_MS) setPeek(false);
+    },
+    closePeek: () => {
+      peekHoldAt.current = null;
+      setPeek(false);
+    },
+    acceptTriage: () => {
+      if (targets.length === 0) return;
+      if (requiresPriorityToLeave(engine, targets)) {
+        priority.show();
+        return;
+      }
+      acceptTriageIssues(engine, targets).catch(report);
+    },
+    declineTriage: () => {
+      if (targets.length === 0) return;
+      if (requiresPriorityToLeave(engine, targets)) {
+        priority.show();
+        return;
+      }
+      declineTriageIssues(engine, targets).catch(report);
+    },
+    pickDuplicate: () => {
+      if (targets.length === 0) return;
+      if (requiresPriorityToLeave(engine, targets)) {
+        priority.show();
+        return;
+      }
+      duplicate.show();
+    },
+    pickSnooze: () => {
+      if (targets.length === 0) return;
+      snooze.show();
+    },
+    inTriage: () => inTriage,
   };
 
   useKeyContext('list');
@@ -418,8 +557,32 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         hidden: true,
         // Disabled is treated as unbound, so with nothing selected Escape falls through to
         // the shell's dismiss instead of being swallowed by a command with nothing to do.
-        enabled: () => commands.current.hasSelection(),
+        enabled: () => commands.current.hasSelection() && !commands.current.peekOpen(),
         run: () => commands.current.clearSelection(),
+      },
+      {
+        id: 'issueList.peek',
+        title: 'Peek issue',
+        keys: ['space'],
+        when: 'list',
+        group: 'Issues',
+        ignoreRepeat: true,
+        enabled: () => commands.current.hasRows(),
+        run: (ctx) => {
+          if (ctx.source === 'key') commands.current.pressPeek();
+          else commands.current.togglePeek();
+        },
+        keyup: () => commands.current.releasePeek(),
+      },
+      {
+        id: 'issueList.peek.close',
+        title: 'Close peek',
+        keys: ['Escape'],
+        when: 'list',
+        group: 'Issues',
+        hidden: true,
+        enabled: () => commands.current.peekOpen(),
+        run: () => commands.current.closePeek(),
       },
       {
         id: 'issueList.open',
@@ -452,6 +615,58 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         when: 'list',
         group: 'Issues',
         run: () => commands.current.pickPriority(),
+      },
+      {
+        id: 'issueList.project',
+        title: 'Set project',
+        keys: ['shift+p'],
+        when: 'list',
+        group: 'Issues',
+        run: () => commands.current.pickProject(),
+      },
+      {
+        id: 'issueList.cycle',
+        title: 'Set cycle',
+        keys: ['shift+c'],
+        when: 'list',
+        group: 'Issues',
+        run: () => commands.current.pickCycle(),
+      },
+      {
+        id: 'issueList.triageAccept',
+        title: 'Accept from triage',
+        keys: ['1'],
+        when: 'list',
+        group: 'Triage',
+        enabled: () => commands.current.inTriage() && commands.current.hasRows(),
+        run: () => commands.current.acceptTriage(),
+      },
+      {
+        id: 'issueList.triageDuplicate',
+        title: 'Mark as duplicate',
+        keys: ['2'],
+        when: 'list',
+        group: 'Triage',
+        enabled: () => commands.current.inTriage() && commands.current.hasRows(),
+        run: () => commands.current.pickDuplicate(),
+      },
+      {
+        id: 'issueList.triageDecline',
+        title: 'Decline from triage',
+        keys: ['3'],
+        when: 'list',
+        group: 'Triage',
+        enabled: () => commands.current.inTriage() && commands.current.hasRows(),
+        run: () => commands.current.declineTriage(),
+      },
+      {
+        id: 'issueList.triageSnooze',
+        title: 'Snooze triage issue',
+        keys: ['h'],
+        when: 'list',
+        group: 'Triage',
+        enabled: () => commands.current.inTriage() && commands.current.hasRows(),
+        run: () => commands.current.pickSnooze(),
       },
       {
         id: 'issueList.archive',
@@ -488,14 +703,28 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
      * missing the noun, reads as a broken page rather than as a permission.
      */
     const missingView = source.kind === 'view';
+    const missingProject = source.kind === 'project';
+    const missingCycle = source.kind === 'cycle';
     return (
       <div className={styles.screen}>
         <EmptyState
-          title={missingView ? 'No such view' : 'No such team'}
+          title={
+            missingView
+              ? 'No such view'
+              : missingProject
+                ? 'No such project'
+                : missingCycle
+                  ? 'No such cycle'
+                  : 'No such team'
+          }
           description={
             missingView
               ? 'This view has been deleted, or it belongs to a team you are not in. Ask whoever sent you the link to add you to it.'
-              : `Nothing in this workspace has the key ${teamKey}.`
+              : missingProject
+                ? 'This project has been deleted, or it belongs to a team you are not in.'
+                : missingCycle
+                  ? 'This cycle has been removed, or it belongs to a team you are not in.'
+                  : `Nothing in this workspace has the key ${teamKey}.`
           }
         />
       </div>
@@ -508,7 +737,14 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   // Telling somebody their team is empty when they have just typed four clauses is the kind
   // of wrong that makes people distrust the filter rather than fix it.
   const filtered = !isEmptyFilter(view.filter);
-  const picking = status.open || assignee.open || priority.open;
+  const picking =
+    status.open ||
+    assignee.open ||
+    priority.open ||
+    project.open ||
+    cycle.open ||
+    duplicate.open ||
+    snooze.open;
   const shared = picking ? sharedProperties(engine.store, targets) : NOTHING_SHARED;
   const canAct = targets.length > 0;
   // Statuses belong to a team, so a selection spanning two of them has no correct set to
@@ -548,9 +784,20 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         {team === null ? null : (
           // A link and not a button: it goes somewhere, so it should be announced as a link,
           // open in a new tab on a middle click, and be copyable from a context menu.
-          <Link className={styles.link} to={`/team/${team.key}/settings`}>
-            Team settings
-          </Link>
+          <>
+            <Link className={styles.link} to={`/team/${team.key}/projects`}>
+              Projects
+            </Link>
+            <Link className={styles.link} to={`/team/${team.key}/cycles`}>
+              Cycles
+            </Link>
+            <Link className={styles.link} to={`/team/${team.key}/triage`}>
+              Triage
+            </Link>
+            <Link className={styles.link} to={`/team/${team.key}/settings`}>
+              Team settings
+            </Link>
+          </>
         )}
       </header>
 
@@ -607,6 +854,40 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             Priority
           </Button>
         </Tooltip>
+        <Tooltip label="Set project" keys="shift+p">
+          <Button {...project.props} disabled={!canAct}>
+            Project
+          </Button>
+        </Tooltip>
+        <Tooltip label="Set cycle" keys="shift+c">
+          <Button {...cycle.props} disabled={!canAct}>
+            Cycle
+          </Button>
+        </Tooltip>
+        {inTriage ? (
+          <>
+            <Tooltip label="Accept" keys="1">
+              <Button variant="primary" disabled={!canAct} onClick={() => commands.current.acceptTriage()}>
+                Accept
+              </Button>
+            </Tooltip>
+            <Tooltip label="Mark as duplicate" keys="2">
+              <Button {...duplicate.props} disabled={!canAct}>
+                Duplicate
+              </Button>
+            </Tooltip>
+            <Tooltip label="Decline" keys="3">
+              <Button disabled={!canAct} onClick={() => commands.current.declineTriage()}>
+                Decline
+              </Button>
+            </Tooltip>
+            <Tooltip label="Snooze" keys="h">
+              <Button {...snooze.props} disabled={!canAct}>
+                Snooze
+              </Button>
+            </Tooltip>
+          </>
+        ) : null}
         <Tooltip label="Archive" keys="e">
           <Button
             variant="ghost"
@@ -639,17 +920,71 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         onClose={priority.hide}
         trigger={priority.ref}
         value={shared.priority}
-        onSelect={(level) => updateIssues(engine, targets, { priority: level }).catch(report)}
+        onSelect={(priority) => updateIssues(engine, targets, { priority }).catch(report)}
+      />
+      <ProjectPicker
+        open={project.open}
+        onClose={project.hide}
+        trigger={project.ref}
+        teamIds={shared.teamId === undefined ? [] : [shared.teamId]}
+        value={shared.projectId}
+        onSelect={(projectId) => updateIssues(engine, targets, { projectId }).catch(report)}
+      />
+      <CyclePicker
+        open={cycle.open}
+        onClose={cycle.hide}
+        trigger={cycle.ref}
+        teamId={shared.teamId}
+        value={shared.cycleId}
+        onSelect={(cycleId) => updateIssues(engine, targets, { cycleId }).catch(report)}
+      />
+      <DuplicatePicker
+        open={duplicate.open}
+        onClose={duplicate.hide}
+        trigger={duplicate.ref}
+        teamId={shared.teamId ?? scope.team?.id}
+        exclude={excludeFromDuplicate}
+        onSelect={(canonicalId) => {
+          duplicate.hide();
+          markIssuesDuplicate(engine, targets, canonicalId).catch(report);
+        }}
+      />
+      <Menu
+        open={snooze.open}
+        onClose={snooze.hide}
+        trigger={snooze.ref}
+        label="Snooze until"
+        items={snoozeItems((until) => {
+          snooze.hide();
+          snoozeIssues(engine, targets, until).catch(report);
+        })}
       />
 
+      <div className={styles.body}>
       {rows.length === 0 ? (
         <EmptyState
           className={styles.empty}
-          title={filtered ? 'Nothing matches this filter' : 'No issues in this team yet'}
+          title={
+            filtered
+              ? 'Nothing matches this filter'
+              : source.kind === 'project'
+                ? 'No issues in this project yet'
+                : source.kind === 'cycle'
+                  ? 'No issues in this cycle yet'
+                  : source.kind === 'triage'
+                    ? 'Inbox is clear'
+                    : 'No issues in this team yet'
+          }
           description={
             filtered
               ? 'Every issue here is excluded by a clause in the filter bar above.'
-              : 'Everything the team is working on will live here.'
+              : source.kind === 'project'
+                ? 'Press C to file the first one. It will land in this project the moment you save.'
+                : source.kind === 'cycle'
+                  ? 'Press C to file the first one. It will land in this cycle the moment you save.'
+                  : source.kind === 'triage'
+                    ? 'Unreviewed work from outside the team lands here. Press C to file into triage, or 1 / 2 / 3 / H to accept, merge, decline or snooze.'
+                    : 'Press C to file the first one. It will land here the moment you save.'
           }
           action={
             filtered ? (
@@ -666,7 +1001,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             )
           }
         />
-      ) : view.display.layout === 'board' ? (
+      ) : !inTriage && view.display.layout === 'board' ? (
         <Board
           groups={groups}
           display={view.display}
@@ -721,6 +1056,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
           </div>
         </div>
       )}
+      {peekOpen ? <Peek issueId={cursorId} /> : null}
+      </div>
     </div>
   );
 }
@@ -788,6 +1125,13 @@ const IssueRow = memo(function IssueRow({
       const state = store.workflowStates.get(found.stateId);
       const assignee =
         found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
+      const labels: { id: UUID; name: string; color: string }[] = [];
+      for (const labelId of store.labelIdsFor(found.id)) {
+        const label = store.get('label', labelId);
+        if (label === undefined) continue;
+        labels.push({ id: label.id, name: label.name, color: label.color });
+      }
+      labels.sort((a, b) => a.name.localeCompare(b.name));
       return {
         identifier: store.identifierOf(found),
         title: found.title,
@@ -798,9 +1142,10 @@ const IssueRow = memo(function IssueRow({
         assigneeId: assignee?.id ?? null,
         assigneeName: assignee?.displayName ?? null,
         assigneeAvatar: assignee?.avatarUrl ?? null,
+        labels,
       };
     },
-    ['issue', 'team', 'user', 'workflowState'],
+    ['issue', 'team', 'user', 'workflowState', 'label', 'issueLabel'],
     [id],
   );
 
@@ -825,20 +1170,33 @@ const IssueRow = memo(function IssueRow({
         else onOpen(issue.identifier);
       }}
     >
-      <PriorityIcon priority={issue.priority} decorative />
+      <StateIcon
+        category={issue.stateCategory}
+        color={issue.stateColor}
+        label={issue.stateName}
+      />
       <span className={styles.identifier}>{issue.identifier}</span>
-      <StateIcon category={issue.stateCategory} color={issue.stateColor} label={issue.stateName} />
       <span className={styles.rowTitle}>{issue.title}</span>
-      {issue.assigneeName === null ? (
-        <span className={styles.unassigned} aria-label="Unassigned" role="img" />
-      ) : (
-        <Avatar
-          name={issue.assigneeName}
-          src={issue.assigneeAvatar}
-          size="xs"
-          colorKey={issue.assigneeId ?? issue.assigneeName}
-        />
+      {issue.labels.length > 0 && (
+        <span className={styles.labels}>
+          {issue.labels.slice(0, 3).map((label) => (
+            <LabelChip key={label.id} name={label.name} color={label.color} compact />
+          ))}
+        </span>
       )}
+      <span className={styles.meta}>
+        <PriorityIcon priority={issue.priority} decorative />
+        {issue.assigneeName === null ? (
+          <span className={styles.unassigned} aria-label="Unassigned" role="img" />
+        ) : (
+          <Avatar
+            name={issue.assigneeName}
+            src={issue.assigneeAvatar}
+            size="xs"
+            colorKey={issue.assigneeId ?? issue.assigneeName}
+          />
+        )}
+      </span>
     </div>
   );
 });
@@ -873,6 +1231,34 @@ function scopeOf(
   // are absent from this list rather than guessed at.
   if (source.kind === 'assignee') {
     return { heading: heading ?? 'My Issues', team: null, timezone: browserTimezone() };
+  }
+
+  if (source.kind === 'project') {
+    const project = store.projects.get(source.projectId);
+    if (project === undefined) return { heading: null, team: null, timezone: browserTimezone() };
+    return { heading: heading ?? project.name, team: null, timezone: browserTimezone() };
+  }
+
+  if (source.kind === 'cycle') {
+    const cycle = store.cycles.get(source.cycleId);
+    if (cycle === undefined) return { heading: null, team: null, timezone: browserTimezone() };
+    const team = store.teams.get(cycle.teamId);
+    return {
+      heading: heading ?? cycle.name,
+      team:
+        team === undefined ? null : { id: team.id, key: team.key, name: team.name },
+      timezone: team?.timezone ?? browserTimezone(),
+    };
+  }
+
+  if (source.kind === 'triage') {
+    const team = store.teams.get(source.teamId);
+    if (team === undefined) return { heading: null, team: null, timezone: browserTimezone() };
+    return {
+      heading: heading ?? `${team.name} triage`,
+      team: { id: team.id, key: team.key, name: team.name },
+      timezone: team.timezone,
+    };
   }
 
   if (source.kind === 'view') {
@@ -919,6 +1305,7 @@ function* corpusOf(
   source: IssueListSource,
   teamId: UUID | undefined,
   includeCompleted: boolean,
+  now: number,
 ): Generator<Issue> {
   const ids = corpusIdsOf(store, source, teamId);
   if (ids === null) return;
@@ -930,6 +1317,7 @@ function* corpusOf(
       const category = store.workflowStates.get(issue.stateId)?.category;
       if (category === 'completed' || category === 'canceled') continue;
     }
+    if (source.kind === 'triage' && isSnoozed(issue.snoozedUntil, now)) continue;
     yield issue;
   }
 }
@@ -948,9 +1336,13 @@ function corpusIdsOf(
   teamId: UUID | undefined,
 ): ReadonlySet<UUID> | null {
   if (source.kind === 'assignee') return store.index.byAssignee(source.userId);
+  if (source.kind === 'project') return store.index.byProject(source.projectId);
+  if (source.kind === 'cycle') return store.index.byCycle(source.cycleId);
+  if (source.kind === 'triage') return store.index.byTeam(source.teamId);
   if (source.kind === 'view') {
     const view = store.views.get(source.viewId);
     if (view === undefined) return null;
+    if (view.projectId !== undefined) return store.index.byProject(view.projectId);
     return view.teamId === undefined ? store.index.active() : store.index.byTeam(view.teamId);
   }
   return teamId === undefined ? null : store.index.byTeam(teamId);
@@ -995,6 +1387,8 @@ interface SharedProperties {
    * disabled rather than offering one team's statuses for another team's issues.
    */
   readonly teamId: UUID | undefined;
+  readonly projectId: UUID | null | undefined;
+  readonly cycleId: UUID | null | undefined;
 }
 
 /** Nothing in common — which is also the right answer for an empty target set. */
@@ -1003,6 +1397,8 @@ const NOTHING_SHARED: SharedProperties = {
   stateId: undefined,
   assigneeId: undefined,
   priority: undefined,
+  projectId: undefined,
+  cycleId: undefined,
 };
 
 /**
@@ -1020,6 +1416,8 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
   let assigneeId: UUID | null | undefined;
   let priority: number | undefined;
   let teamId: UUID | undefined;
+  let projectId: UUID | null | undefined;
+  let cycleId: UUID | null | undefined;
   let first = true;
 
   for (const id of targets) {
@@ -1030,6 +1428,8 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
       assigneeId = issue.assigneeId ?? null;
       priority = issue.priority;
       teamId = issue.teamId;
+      projectId = issue.projectId ?? null;
+      cycleId = issue.cycleId ?? null;
       first = false;
       continue;
     }
@@ -1037,8 +1437,10 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
     if (assigneeId !== (issue.assigneeId ?? null)) assigneeId = undefined;
     if (priority !== issue.priority) priority = undefined;
     if (teamId !== issue.teamId) teamId = undefined;
+    if (projectId !== (issue.projectId ?? null)) projectId = undefined;
+    if (cycleId !== (issue.cycleId ?? null)) cycleId = undefined;
   }
-  return { stateId, assigneeId, priority, teamId };
+  return { stateId, assigneeId, priority, teamId, projectId, cycleId };
 }
 
 function ArchiveGlyph() {

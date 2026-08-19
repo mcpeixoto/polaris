@@ -8,7 +8,14 @@ import {
   type Snapshot,
   type WriteBatch,
 } from './db';
-import { IssueIndex, LabelIndex, NotificationIndex, RelationIndex, SetIndex } from './indexes';
+import {
+  IssueIndex,
+  LabelIndex,
+  NotificationIndex,
+  ProjectLabelIndex,
+  RelationIndex,
+  SetIndex,
+} from './indexes';
 import type { OptimisticPatch } from './outbox';
 import { queryIssues, type IssueQuery, type IssueQueryResult } from './query';
 import {
@@ -17,6 +24,9 @@ import {
   issueIdentifier,
   type Change,
   type Comment,
+  type Attachment,
+  type Document,
+  type Cycle,
   type Entity,
   type EntityOf,
   type EntityType,
@@ -26,8 +36,24 @@ import {
   type IssueRelation,
   type IssueSubscription,
   type IssueTemplate,
+  type FormTemplate,
+  type FormTemplateField,
+  type ProjectTemplate,
+  type ProjectTemplateMilestone,
+  type ProjectTemplateIssue,
+  type Initiative,
+  type InitiativeProject,
+  type ProjectUpdate,
+  type ProjectDependency,
+  type ProjectLabel,
+  type ProjectLabelLink,
   type Label,
   type Notification,
+  type Project,
+  type ProjectMember,
+  type ProjectMilestone,
+  type ProjectStatus,
+  type ProjectTeam,
   type Team,
   type TeamMembership,
   type Timestamp,
@@ -131,9 +157,28 @@ export class Store {
     workflowState: new Map(),
     label: new Map(),
     issueTemplate: new Map(),
+    formTemplate: new Map(),
+    formTemplateField: new Map(),
+    projectTemplate: new Map(),
+    projectTemplateMilestone: new Map(),
+    projectTemplateIssue: new Map(),
+    projectStatus: new Map(),
+    project: new Map(),
+    projectTeam: new Map(),
+    projectMember: new Map(),
+    projectMilestone: new Map(),
+    initiative: new Map(),
+    initiativeProject: new Map(),
+    projectUpdate: new Map(),
+    projectDependency: new Map(),
+    projectLabel: new Map(),
+    projectLabelLink: new Map(),
+    cycle: new Map(),
     issue: new Map(),
     issueLabel: new Map(),
     issueRelation: new Map(),
+    attachment: new Map(),
+    document: new Map(),
     comment: new Map(),
     issueSubscription: new Map(),
     notification: new Map(),
@@ -147,10 +192,14 @@ export class Store {
 
   /** Public for the same reason: a filtered list resolves every row's labels per frame. */
   readonly labelIndex = new LabelIndex();
+  readonly projectLabelIndex = new ProjectLabelIndex();
   readonly relationIndex = new RelationIndex();
   readonly notificationIndex = new NotificationIndex();
 
   private readonly commentIssue = new SetIndex<UUID>();
+  private readonly attachmentIssue = new SetIndex<UUID>();
+  private readonly documentTeam = new SetIndex<UUID>();
+  private readonly documentProject = new SetIndex<UUID>();
   private readonly stateTeam = new SetIndex<UUID>();
   private readonly membershipTeam = new SetIndex<UUID>();
   private readonly membershipUser = new SetIndex<UUID>();
@@ -162,7 +211,13 @@ export class Store {
    */
   private readonly labelTeam = new SetIndex<UUID>();
   private readonly templateTeam = new SetIndex<UUID>();
+  private readonly formTemplateTeam = new SetIndex<UUID>();
+  private readonly formTemplateFieldOf = new SetIndex<UUID>();
+  private readonly projectTemplateTeam = new SetIndex<UUID>();
+  private readonly projectTemplateMilestoneOf = new SetIndex<UUID>();
+  private readonly projectTemplateIssueOf = new SetIndex<UUID>();
   private readonly viewTeam = new SetIndex<UUID>();
+  private readonly viewProject = new SetIndex<UUID>();
   private readonly subscriptionIssue = new SetIndex<UUID>();
   private readonly subscriptionUser = new SetIndex<UUID>();
   /**
@@ -173,6 +228,14 @@ export class Store {
    */
   private readonly subscriberUsers = new SetIndex<UUID>();
   private readonly favoriteTarget = new SetIndex<UUID>();
+  private readonly projectTeamOf = new SetIndex<UUID>();
+  private readonly projectMemberOf = new SetIndex<UUID>();
+  private readonly projectMilestoneOf = new SetIndex<UUID>();
+  private readonly initiativeProjectOf = new SetIndex<UUID>();
+  private readonly projectUpdateOf = new SetIndex<UUID>();
+  private readonly projectDependencyBlockingOf = new SetIndex<UUID>();
+  private readonly projectDependencyBlockedByOf = new SetIndex<UUID>();
+  private readonly cycleTeam = new SetIndex<UUID>();
   /** Keyed by user and view key together; see `preferenceKey`. */
   private readonly preferenceKeys = new Map<string, UUID>();
 
@@ -251,12 +314,88 @@ export class Store {
     return this.tables.comment as ReadonlyMap<UUID, Comment>;
   }
 
+  get attachments(): ReadonlyMap<UUID, Attachment> {
+    return this.tables.attachment as ReadonlyMap<UUID, Attachment>;
+  }
+
+  get documents(): ReadonlyMap<UUID, Document> {
+    return this.tables.document as ReadonlyMap<UUID, Document>;
+  }
+
   get labels(): ReadonlyMap<UUID, Label> {
     return this.tables.label as ReadonlyMap<UUID, Label>;
   }
 
   get issueTemplates(): ReadonlyMap<UUID, IssueTemplate> {
     return this.tables.issueTemplate as ReadonlyMap<UUID, IssueTemplate>;
+  }
+
+  get formTemplates(): ReadonlyMap<UUID, FormTemplate> {
+    return this.tables.formTemplate as ReadonlyMap<UUID, FormTemplate>;
+  }
+
+  get formTemplateFields(): ReadonlyMap<UUID, FormTemplateField> {
+    return this.tables.formTemplateField as ReadonlyMap<UUID, FormTemplateField>;
+  }
+
+  get projectTemplates(): ReadonlyMap<UUID, ProjectTemplate> {
+    return this.tables.projectTemplate as ReadonlyMap<UUID, ProjectTemplate>;
+  }
+
+  get projectTemplateMilestones(): ReadonlyMap<UUID, ProjectTemplateMilestone> {
+    return this.tables.projectTemplateMilestone as ReadonlyMap<UUID, ProjectTemplateMilestone>;
+  }
+
+  get projectTemplateIssues(): ReadonlyMap<UUID, ProjectTemplateIssue> {
+    return this.tables.projectTemplateIssue as ReadonlyMap<UUID, ProjectTemplateIssue>;
+  }
+
+  get projectStatuses(): ReadonlyMap<UUID, ProjectStatus> {
+    return this.tables.projectStatus as ReadonlyMap<UUID, ProjectStatus>;
+  }
+
+  get projects(): ReadonlyMap<UUID, Project> {
+    return this.tables.project as ReadonlyMap<UUID, Project>;
+  }
+
+  get projectTeams(): ReadonlyMap<UUID, ProjectTeam> {
+    return this.tables.projectTeam as ReadonlyMap<UUID, ProjectTeam>;
+  }
+
+  get projectMembers(): ReadonlyMap<UUID, ProjectMember> {
+    return this.tables.projectMember as ReadonlyMap<UUID, ProjectMember>;
+  }
+
+  get projectMilestones(): ReadonlyMap<UUID, ProjectMilestone> {
+    return this.tables.projectMilestone as ReadonlyMap<UUID, ProjectMilestone>;
+  }
+
+  get initiatives(): ReadonlyMap<UUID, Initiative> {
+    return this.tables.initiative as ReadonlyMap<UUID, Initiative>;
+  }
+
+  get initiativeProjects(): ReadonlyMap<UUID, InitiativeProject> {
+    return this.tables.initiativeProject as ReadonlyMap<UUID, InitiativeProject>;
+  }
+
+  get projectUpdates(): ReadonlyMap<UUID, ProjectUpdate> {
+    return this.tables.projectUpdate as ReadonlyMap<UUID, ProjectUpdate>;
+  }
+
+  get projectDependencies(): ReadonlyMap<UUID, ProjectDependency> {
+    return this.tables.projectDependency as ReadonlyMap<UUID, ProjectDependency>;
+  }
+
+  get projectLabels(): ReadonlyMap<UUID, ProjectLabel> {
+    return this.tables.projectLabel as ReadonlyMap<UUID, ProjectLabel>;
+  }
+
+  get projectLabelLinks(): ReadonlyMap<UUID, ProjectLabelLink> {
+    return this.tables.projectLabelLink as ReadonlyMap<UUID, ProjectLabelLink>;
+  }
+
+  get cycles(): ReadonlyMap<UUID, Cycle> {
+    return this.tables.cycle as ReadonlyMap<UUID, Cycle>;
   }
 
   get issueLabels(): ReadonlyMap<UUID, IssueLabel> {
@@ -295,6 +434,18 @@ export class Store {
     return this.commentIssue.get(issueId);
   }
 
+  attachmentIdsFor(issueId: UUID): ReadonlySet<UUID> {
+    return this.attachmentIssue.get(issueId);
+  }
+
+  documentIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
+    return this.documentTeam.get(teamId);
+  }
+
+  documentIdsForProject(projectId: UUID): ReadonlySet<UUID> {
+    return this.documentProject.get(projectId);
+  }
+
   workflowStateIdsFor(teamId: UUID): ReadonlySet<UUID> {
     return this.stateTeam.get(teamId);
   }
@@ -322,6 +473,54 @@ export class Store {
     return this.labelIndex.issueIdsWith(labelId);
   }
 
+  /** The project labels on a project. */
+  projectLabelIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectLabelIndex.labelIdsFor(projectId);
+  }
+
+  projectIdsWithProjectLabel(labelId: UUID): ReadonlySet<UUID> {
+    return this.projectLabelIndex.projectIdsWith(labelId);
+  }
+
+  /** `projectLabelLink` rows when the application itself is needed. */
+  projectLabelLinkIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectLabelIndex.rowIdsForProject(projectId);
+  }
+
+  projectTeamIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectTeamOf.get(projectId);
+  }
+
+  projectMemberIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectMemberOf.get(projectId);
+  }
+
+  projectMilestoneIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectMilestoneOf.get(projectId);
+  }
+
+  initiativeProjectIdsFor(initiativeId: UUID): ReadonlySet<UUID> {
+    return this.initiativeProjectOf.get(initiativeId);
+  }
+
+  projectUpdateIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectUpdateOf.get(projectId);
+  }
+
+  /** Dependencies where this project blocks others. */
+  projectDependencyBlockingIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectDependencyBlockingOf.get(projectId);
+  }
+
+  /** Dependencies where this project is blocked by others. */
+  projectDependencyBlockedByIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectDependencyBlockedByOf.get(projectId);
+  }
+
+  cycleIdsFor(teamId: UUID): ReadonlySet<UUID> {
+    return this.cycleTeam.get(teamId);
+  }
+
   /** `issueLabel` rows, when the application itself is needed rather than the label. */
   issueLabelIdsFor(issueId: UUID): ReadonlySet<UUID> {
     return this.labelIndex.rowIdsForIssue(issueId);
@@ -336,8 +535,32 @@ export class Store {
     return this.templateTeam.get(teamId);
   }
 
+  formTemplateIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
+    return this.formTemplateTeam.get(teamId);
+  }
+
+  formTemplateFieldIdsFor(formTemplateId: UUID): ReadonlySet<UUID> {
+    return this.formTemplateFieldOf.get(formTemplateId);
+  }
+
+  projectTemplateIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
+    return this.projectTemplateTeam.get(teamId);
+  }
+
+  projectTemplateMilestoneIdsFor(projectTemplateId: UUID): ReadonlySet<UUID> {
+    return this.projectTemplateMilestoneOf.get(projectTemplateId);
+  }
+
+  projectTemplateIssueIdsFor(projectTemplateId: UUID): ReadonlySet<UUID> {
+    return this.projectTemplateIssueOf.get(projectTemplateId);
+  }
+
   viewIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
     return this.viewTeam.get(teamId);
+  }
+
+  viewIdsForProject(projectId: UUID): ReadonlySet<UUID> {
+    return this.viewProject.get(projectId);
   }
 
   /** Sub-issues of an issue; `null` asks for the issues that have no parent. */
@@ -608,19 +831,37 @@ export class Store {
     for (const type of ENTITY_TYPES) this.tables[type].clear();
     this.index.clear();
     this.labelIndex.clear();
+    this.projectLabelIndex.clear();
     this.relationIndex.clear();
     this.notificationIndex.clear();
     this.commentIssue.clear();
+    this.attachmentIssue.clear();
+    this.documentTeam.clear();
+    this.documentProject.clear();
     this.stateTeam.clear();
     this.membershipTeam.clear();
     this.membershipUser.clear();
     this.labelTeam.clear();
     this.templateTeam.clear();
+    this.formTemplateTeam.clear();
+    this.formTemplateFieldOf.clear();
+    this.projectTemplateTeam.clear();
+    this.projectTemplateMilestoneOf.clear();
+    this.projectTemplateIssueOf.clear();
     this.viewTeam.clear();
+    this.viewProject.clear();
     this.subscriptionIssue.clear();
     this.subscriptionUser.clear();
     this.subscriberUsers.clear();
     this.favoriteTarget.clear();
+    this.projectTeamOf.clear();
+    this.projectMemberOf.clear();
+    this.projectMilestoneOf.clear();
+    this.initiativeProjectOf.clear();
+    this.projectUpdateOf.clear();
+    this.projectDependencyBlockingOf.clear();
+    this.projectDependencyBlockedByOf.clear();
+    this.cycleTeam.clear();
     this.preferenceKeys.clear();
     this.currentVersion = 0;
     this.bootstrappedAt = null;
@@ -680,13 +921,42 @@ export class Store {
         for (const templateId of [...this.templateTeam.get(id)]) {
           this.forget('issueTemplate', templateId, deletes, touched);
         }
+        for (const formTemplateId of [...this.formTemplateTeam.get(id)]) {
+          this.forget('formTemplate', formTemplateId, deletes, touched);
+        }
+        for (const projectTemplateId of [...this.projectTemplateTeam.get(id)]) {
+          this.forget('projectTemplate', projectTemplateId, deletes, touched);
+        }
         for (const viewId of [...this.viewTeam.get(id)]) {
           this.forget('view', viewId, deletes, touched);
+        }
+        for (const cycleId of [...this.cycleTeam.get(id)]) {
+          this.forget('cycle', cycleId, deletes, touched);
+        }
+        break;
+      case 'project':
+        for (const rowId of [...this.projectTeamOf.get(id)]) {
+          this.forget('projectTeam', rowId, deletes, touched);
+        }
+        for (const rowId of [...this.projectMemberOf.get(id)]) {
+          this.forget('projectMember', rowId, deletes, touched);
+        }
+        for (const rowId of [...this.projectMilestoneOf.get(id)]) {
+          this.forget('projectMilestone', rowId, deletes, touched);
+        }
+        for (const viewId of [...this.viewProject.get(id)]) {
+          this.forget('view', viewId, deletes, touched);
+        }
+        for (const rowId of [...this.projectLabelIndex.rowIdsForProject(id)]) {
+          this.forget('projectLabelLink', rowId, deletes, touched);
         }
         break;
       case 'issue':
         for (const commentId of [...this.commentIssue.get(id)]) {
           this.forget('comment', commentId, deletes, touched);
+        }
+        for (const attachmentId of [...this.attachmentIssue.get(id)]) {
+          this.forget('attachment', attachmentId, deletes, touched);
         }
         for (const rowId of [...this.labelIndex.rowIdsForIssue(id)]) {
           this.forget('issueLabel', rowId, deletes, touched);
@@ -712,6 +982,19 @@ export class Store {
       case 'label':
         for (const rowId of [...this.labelIndex.rowIdsForLabel(id)]) {
           this.forget('issueLabel', rowId, deletes, touched);
+        }
+        break;
+      case 'projectLabel':
+        for (const rowId of [...this.projectLabelIndex.rowIdsForLabel(id)]) {
+          this.forget('projectLabelLink', rowId, deletes, touched);
+        }
+        break;
+      case 'projectTemplate':
+        for (const milestoneId of [...this.projectTemplateMilestoneOf.get(id)]) {
+          this.forget('projectTemplateMilestone', milestoneId, deletes, touched);
+        }
+        for (const issueId of [...this.projectTemplateIssueOf.get(id)]) {
+          this.forget('projectTemplateIssue', issueId, deletes, touched);
         }
         break;
       default:
@@ -759,6 +1042,30 @@ export class Store {
         this.commentIssue.add(comment.issueId, comment.id);
         break;
       }
+      case 'attachment': {
+        const attachment = next as Attachment;
+        const before = previous as Attachment | undefined;
+        if (before !== undefined && before.issueId !== attachment.issueId) {
+          this.attachmentIssue.remove(before.issueId, before.id);
+        }
+        this.attachmentIssue.add(attachment.issueId, attachment.id);
+        break;
+      }
+      case 'document': {
+        const document = next as Document;
+        const before = previous as Document | undefined;
+        if (before !== undefined) {
+          this.documentTeam.remove(before.teamId, before.id);
+          if (before.projectId !== undefined) {
+            this.documentProject.remove(before.projectId, before.id);
+          }
+        }
+        this.documentTeam.add(document.teamId, document.id);
+        if (document.projectId !== undefined) {
+          this.documentProject.add(document.projectId, document.id);
+        }
+        break;
+      }
       case 'workflowState': {
         const state = next as WorkflowState;
         const before = previous as WorkflowState | undefined;
@@ -789,14 +1096,62 @@ export class Store {
           next as IssueTemplate,
         );
         break;
+      case 'formTemplate':
+        this.fileByTeam(
+          this.formTemplateTeam,
+          previous as FormTemplate | undefined,
+          next as FormTemplate,
+        );
+        break;
+      case 'formTemplateField': {
+        const row = next as FormTemplateField;
+        const before = previous as FormTemplateField | undefined;
+        if (before !== undefined) {
+          this.formTemplateFieldOf.remove(before.formTemplateId, before.id);
+        }
+        this.formTemplateFieldOf.add(row.formTemplateId, row.id);
+        break;
+      }
+      case 'projectTemplate':
+        this.fileByTeam(
+          this.projectTemplateTeam,
+          previous as ProjectTemplate | undefined,
+          next as ProjectTemplate,
+        );
+        break;
+      case 'projectTemplateMilestone': {
+        const row = next as ProjectTemplateMilestone;
+        const before = previous as ProjectTemplateMilestone | undefined;
+        if (before !== undefined) {
+          this.projectTemplateMilestoneOf.remove(before.projectTemplateId, before.id);
+        }
+        this.projectTemplateMilestoneOf.add(row.projectTemplateId, row.id);
+        break;
+      }
+      case 'projectTemplateIssue': {
+        const row = next as ProjectTemplateIssue;
+        const before = previous as ProjectTemplateIssue | undefined;
+        if (before !== undefined) {
+          this.projectTemplateIssueOf.remove(before.projectTemplateId, before.id);
+        }
+        this.projectTemplateIssueOf.add(row.projectTemplateId, row.id);
+        break;
+      }
       case 'view':
-        this.fileByTeam(this.viewTeam, previous as View | undefined, next as View);
+        this.fileView(previous as View | undefined, next as View);
         break;
       case 'issueLabel': {
         const row = next as IssueLabel;
         const before = previous as IssueLabel | undefined;
         if (before === undefined) this.labelIndex.add(row);
         else this.labelIndex.update(before, row);
+        break;
+      }
+      case 'projectLabelLink': {
+        const row = next as ProjectLabelLink;
+        const before = previous as ProjectLabelLink | undefined;
+        if (before === undefined) this.projectLabelIndex.add(row);
+        else this.projectLabelIndex.update(before, row);
         break;
       }
       case 'issueRelation': {
@@ -847,6 +1202,67 @@ export class Store {
         this.favoriteTarget.add(row.targetId, row.id);
         break;
       }
+      case 'projectTeam':
+        this.fileByProject(
+          this.projectTeamOf,
+          previous as ProjectTeam | undefined,
+          next as ProjectTeam,
+        );
+        break;
+      case 'projectMember':
+        this.fileByProject(
+          this.projectMemberOf,
+          previous as ProjectMember | undefined,
+          next as ProjectMember,
+        );
+        break;
+      case 'projectMilestone':
+        this.fileByProject(
+          this.projectMilestoneOf,
+          previous as ProjectMilestone | undefined,
+          next as ProjectMilestone,
+        );
+        break;
+      case 'initiativeProject': {
+        const link = next as InitiativeProject;
+        const before = previous as InitiativeProject | undefined;
+        if (before !== undefined && before.initiativeId !== link.initiativeId) {
+          this.initiativeProjectOf.remove(before.initiativeId, before.id);
+        }
+        this.initiativeProjectOf.add(link.initiativeId, link.id);
+        break;
+      }
+      case 'projectUpdate':
+        this.fileByProject(
+          this.projectUpdateOf,
+          previous as ProjectUpdate | undefined,
+          next as ProjectUpdate,
+        );
+        break;
+      case 'projectDependency': {
+        const dep = next as ProjectDependency;
+        const before = previous as ProjectDependency | undefined;
+        if (before !== undefined) {
+          if (before.blockingProjectId !== dep.blockingProjectId) {
+            this.projectDependencyBlockingOf.remove(before.blockingProjectId, before.id);
+          }
+          if (before.blockedProjectId !== dep.blockedProjectId) {
+            this.projectDependencyBlockedByOf.remove(before.blockedProjectId, before.id);
+          }
+        }
+        this.projectDependencyBlockingOf.add(dep.blockingProjectId, dep.id);
+        this.projectDependencyBlockedByOf.add(dep.blockedProjectId, dep.id);
+        break;
+      }
+      case 'cycle': {
+        const cycle = next as Cycle;
+        const before = previous as Cycle | undefined;
+        if (before !== undefined && before.teamId !== cycle.teamId) {
+          this.cycleTeam.remove(before.teamId, before.id);
+        }
+        this.cycleTeam.add(cycle.teamId, cycle.id);
+        break;
+      }
       default:
         break;
     }
@@ -860,6 +1276,19 @@ export class Store {
       case 'comment': {
         const comment = entity as Comment;
         this.commentIssue.remove(comment.issueId, comment.id);
+        break;
+      }
+      case 'attachment': {
+        const attachment = entity as Attachment;
+        this.attachmentIssue.remove(attachment.issueId, attachment.id);
+        break;
+      }
+      case 'document': {
+        const document = entity as Document;
+        this.documentTeam.remove(document.teamId, document.id);
+        if (document.projectId !== undefined) {
+          this.documentProject.remove(document.projectId, document.id);
+        }
         break;
       }
       case 'workflowState': {
@@ -879,11 +1308,35 @@ export class Store {
       case 'issueTemplate':
         this.unfileByTeam(this.templateTeam, entity as IssueTemplate);
         break;
+      case 'formTemplate':
+        this.unfileByTeam(this.formTemplateTeam, entity as FormTemplate);
+        break;
+      case 'formTemplateField': {
+        const row = entity as FormTemplateField;
+        this.formTemplateFieldOf.remove(row.formTemplateId, row.id);
+        break;
+      }
+      case 'projectTemplate':
+        this.unfileByTeam(this.projectTemplateTeam, entity as ProjectTemplate);
+        break;
+      case 'projectTemplateMilestone': {
+        const row = entity as ProjectTemplateMilestone;
+        this.projectTemplateMilestoneOf.remove(row.projectTemplateId, row.id);
+        break;
+      }
+      case 'projectTemplateIssue': {
+        const row = entity as ProjectTemplateIssue;
+        this.projectTemplateIssueOf.remove(row.projectTemplateId, row.id);
+        break;
+      }
       case 'view':
-        this.unfileByTeam(this.viewTeam, entity as View);
+        this.unfileView(entity as View);
         break;
       case 'issueLabel':
         this.labelIndex.remove(entity as IssueLabel);
+        break;
+      case 'projectLabelLink':
+        this.projectLabelIndex.remove(entity as ProjectLabelLink);
         break;
       case 'issueRelation':
         this.relationIndex.remove(entity as IssueRelation);
@@ -906,6 +1359,34 @@ export class Store {
       case 'favorite': {
         const row = entity as Favorite;
         this.favoriteTarget.remove(row.targetId, row.id);
+        break;
+      }
+      case 'projectTeam':
+        this.unfileByProject(this.projectTeamOf, entity as ProjectTeam);
+        break;
+      case 'projectMember':
+        this.unfileByProject(this.projectMemberOf, entity as ProjectMember);
+        break;
+      case 'projectMilestone':
+        this.unfileByProject(this.projectMilestoneOf, entity as ProjectMilestone);
+        break;
+      case 'initiativeProject': {
+        const link = entity as InitiativeProject;
+        this.initiativeProjectOf.remove(link.initiativeId, link.id);
+        break;
+      }
+      case 'projectUpdate':
+        this.unfileByProject(this.projectUpdateOf, entity as ProjectUpdate);
+        break;
+      case 'projectDependency': {
+        const dep = entity as ProjectDependency;
+        this.projectDependencyBlockingOf.remove(dep.blockingProjectId, dep.id);
+        this.projectDependencyBlockedByOf.remove(dep.blockedProjectId, dep.id);
+        break;
+      }
+      case 'cycle': {
+        const cycle = entity as Cycle;
+        this.cycleTeam.remove(cycle.teamId, cycle.id);
         break;
       }
       default:
@@ -931,6 +1412,33 @@ export class Store {
 
   private unfileByTeam(index: SetIndex<UUID>, entity: TeamScoped): void {
     if (entity.teamId !== undefined) index.remove(entity.teamId, entity.id);
+  }
+
+  /** Indexes a view under its project tab set or its team sidebar bucket. */
+  private fileView(previous: View | undefined, next: View): void {
+    if (previous !== undefined) this.unfileView(previous);
+    if (next.projectId !== undefined) this.viewProject.add(next.projectId, next.id);
+    else if (next.teamId !== undefined) this.viewTeam.add(next.teamId, next.id);
+  }
+
+  private unfileView(entity: View): void {
+    if (entity.projectId !== undefined) this.viewProject.remove(entity.projectId, entity.id);
+    else if (entity.teamId !== undefined) this.viewTeam.remove(entity.teamId, entity.id);
+  }
+
+  private fileByProject(
+    index: SetIndex<UUID>,
+    previous: ProjectScoped | undefined,
+    next: ProjectScoped,
+  ): void {
+    if (previous !== undefined && previous.projectId !== next.projectId) {
+      index.remove(previous.projectId, previous.id);
+    }
+    index.add(next.projectId, next.id);
+  }
+
+  private unfileByProject(index: SetIndex<UUID>, entity: ProjectScoped): void {
+    index.remove(entity.projectId, entity.id);
   }
 
   /**
@@ -969,6 +1477,12 @@ export class Store {
 interface TeamScoped {
   readonly id: UUID;
   readonly teamId?: UUID;
+}
+
+/** Teams, members and milestones of a project: each names the project it belongs to. */
+interface ProjectScoped {
+  readonly id: UUID;
+  readonly projectId: UUID;
 }
 
 /**

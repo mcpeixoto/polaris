@@ -12,9 +12,12 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-route
 import { onDeepLink } from '~/platform/runtime';
 import { hasServer } from '~/sync/endpoint';
 import { LabelSettings } from '~/features/labels/LabelSettings';
+import { ProjectLabelSettings } from '~/features/project-labels/ProjectLabelSettings';
+import { ProjectUpdateSettings } from '~/views/ProjectUpdateSettings';
 import { UndoToast } from '~/features/undo/UndoToast';
 import { AcceptInvite } from '~/views/AcceptInvite';
 import { ApiKeys } from '~/views/ApiKeys';
+import { Webhooks } from '~/views/Webhooks';
 import { ConnectServer } from '~/views/ConnectServer';
 import { CreateWorkspace } from '~/views/CreateWorkspace';
 import { Inbox } from '~/views/Inbox';
@@ -23,14 +26,31 @@ import { IssueList } from '~/views/IssueList';
 import { MemberSettings } from '~/views/MemberSettings';
 import { MyIssues } from '~/views/MyIssues';
 import { NotificationSettings } from '~/views/NotificationSettings';
+import { ProjectShell } from '~/views/ProjectShell';
+import { ProjectOverview } from '~/views/ProjectOverview';
+import { ProjectIssues } from '~/views/ProjectIssues';
+import { ProjectAttachedView } from '~/views/ProjectAttachedView';
+import { ProjectActivity } from '~/views/ProjectActivity';
+import { Projects } from '~/views/Projects';
+import { CycleDetail } from '~/views/CycleDetail';
+import { Cycles } from '~/views/Cycles';
+import { Triage } from '~/views/Triage';
 import { SavedView } from '~/views/SavedView';
 import { Search } from '~/views/Search';
 import { Templates } from '~/views/Templates';
+import { TeamSettings } from '~/views/TeamSettings';
 import { SignIn } from '~/views/SignIn';
 import { SignUp } from '~/views/SignUp';
-import { TeamSettings } from '~/views/TeamSettings';
+import { Archives } from '~/views/Archives';
 import { Trash } from '~/views/Trash';
+import { DeletedTeams } from '~/views/DeletedTeams';
+import { DocumentDetail } from '~/views/DocumentDetail';
+import { Documents } from '~/views/Documents';
+import { Initiatives } from '~/views/Initiatives';
+import { InitiativeDetail } from '~/views/InitiativeDetail';
 import { CreateIssueModal } from '~/features/issue/CreateIssueModal';
+import { CreateProjectModal } from '~/features/projects/CreateProjectModal';
+import { CreateInitiativeModal } from '~/features/initiatives/CreateInitiativeModal';
 
 import { useQuery } from './context';
 import { AppShell } from './AppShell';
@@ -70,22 +90,47 @@ export function App() {
           )}
         >
           <DeepLinks />
-          <AppShell renderCreateIssue={({ onClose }) => <CreateIssueModal onClose={onClose} />}>
+          <AppShell
+            renderCreateIssue={({ onClose }) => <CreateIssueModal onClose={onClose} />}
+            renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
+            renderCreateInitiative={({ onClose }) => <CreateInitiativeModal onClose={onClose} />}
+          >
             <Routes>
               <Route path="/" element={<FirstTeam />} />
               <Route path="/my-issues" element={<MyIssues />} />
               <Route path="/inbox" element={<Inbox />} />
               <Route path="/search" element={<Search />} />
+              <Route path="/projects" element={<Projects />} />
+              <Route path="/initiatives" element={<Initiatives />} />
+              <Route path="/initiative/:initiativeId" element={<InitiativeDetail />} />
               <Route path="/view/:viewId" element={<SavedView />} />
               <Route path="/team/:teamKey" element={<IssueList />} />
+              <Route path="/team/:teamKey/projects" element={<Projects />} />
+              <Route path="/team/:teamKey/cycles" element={<Cycles />} />
+              <Route path="/team/:teamKey/triage" element={<Triage />} />
+              <Route path="/team/:teamKey/archives" element={<Archives />} />
+              <Route path="/team/:teamKey/documents" element={<Documents />} />
               <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
               <Route path="/issue/:identifier" element={<IssueDetail />} />
+              <Route path="/project/:projectId" element={<ProjectShell />}>
+                <Route index element={<ProjectOverview />} />
+                <Route path="issues" element={<ProjectIssues />} />
+                <Route path="view/:viewId" element={<ProjectAttachedView />} />
+                <Route path="activity" element={<ProjectActivity />} />
+              </Route>
+              <Route path="/project/:projectId/documents" element={<Documents />} />
+              <Route path="/document/:documentId" element={<DocumentDetail />} />
+              <Route path="/cycle/:cycleId" element={<CycleDetail />} />
               <Route path="/settings/members" element={<MemberSettings />} />
               <Route path="/settings/labels" element={<LabelSettings />} />
+              <Route path="/settings/project-labels" element={<ProjectLabelSettings />} />
+              <Route path="/settings/project-updates" element={<ProjectUpdateSettings />} />
               <Route path="/settings/notifications" element={<NotificationSettings />} />
               <Route path="/settings/templates" element={<Templates />} />
               <Route path="/settings/api-keys" element={<ApiKeys />} />
+              <Route path="/settings/webhooks" element={<Webhooks />} />
               <Route path="/settings/trash" element={<Trash />} />
+              <Route path="/settings/deleted-teams" element={<DeletedTeams />} />
               {/* Unknown paths go somewhere useful rather than to a dead end. A stale
                   bookmark to a renamed team should land the user in their own work. */}
               <Route path="*" element={<FirstTeam />} />

@@ -171,3 +171,14 @@ func VisibleEntity(p *Principal, entityID uuid.UUID, s Scope) bool {
 	_, shared := p.SharedEntities[entityID]
 	return shared
 }
+
+// TeamListable is whether a team row may appear in directory queries.
+//
+// Admins see private teams they have not joined so settings can discover and manage them;
+// issue content still requires membership via Visible.
+func TeamListable(p *Principal, teamID uuid.UUID, private bool) bool {
+	if Visible(p, TeamScope(teamID, private)) {
+		return true
+	}
+	return private && p != nil && p.Role.IsAdmin()
+}

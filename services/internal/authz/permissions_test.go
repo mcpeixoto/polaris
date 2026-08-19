@@ -28,7 +28,7 @@ func principal(role Role, teams ...uuid.UUID) *Principal {
 // somebody adding an action to come back and classify it rather than only appending to
 // the const block.
 func TestEveryActionIsClassified(t *testing.T) {
-	const want = 26
+	const want = 31
 	if len(AllActions) != want {
 		t.Fatalf("AllActions has %d entries, expected %d — a new action must be added to "+
 			"AllActions and to teamScoped if it is team-scoped", len(AllActions), want)
@@ -115,6 +115,9 @@ func TestGuestsAreScopedNotWeakened(t *testing.T) {
 	// guest's access is meant to be.
 	if Can(guest, ActionAPIKeyManage) {
 		t.Error("a guest must not mint API keys")
+	}
+	if Can(guest, ActionWebhookManage) {
+		t.Error("a guest must not create webhooks — they push workspace data to a URL")
 	}
 	if Can(guest, ActionTeamJoin) {
 		t.Error("a guest must not add themselves to teams")

@@ -7,6 +7,7 @@ import type { EntityPatch } from './outbox';
 import { subIssueProgress } from './query';
 import { sameResult, Store } from './store';
 import type {
+  Attachment,
   Change,
   Comment,
   Entity,
@@ -37,6 +38,9 @@ function workspace(): Workspace {
     name: 'Polaris',
     urlKey: 'polaris',
     plan: 'free',
+    projectUpdateReminderIntervalDays: 7,
+    projectUpdateReminderWeekday: 3,
+    projectUpdateReminderHour: 9,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -68,6 +72,19 @@ function team(id: UUID, key: string): Team {
     estimateScale: 'none',
     estimateAllowZero: false,
     estimateExtended: false,
+    cyclesEnabled: false,
+    cycleDurationWeeks: 1,
+    cycleCooldownWeeks: 0,
+    cycleStartDay: 'monday',
+    cycleUpcomingCount: 2,
+    cycleAutoAddStarted: false,
+    cycleAutoAddCompleted: false,
+    triageEnabled: false,
+    triageRequirePriority: false,
+    autoCloseDays: 0,
+    autoArchiveDays: 0,
+    autoCloseParent: false,
+    autoCloseChildren: false,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -127,6 +144,19 @@ function comment(id: UUID, issueId: UUID): Comment {
     issueId,
     body: 'looks good',
     actor: { type: 'user', id: 'u1' },
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function attachment(id: UUID, issueId: UUID): Attachment {
+  return {
+    id,
+    workspaceId: 'w1',
+    issueId,
+    teamId: 't1',
+    url: 'https://github.com/acme/app/pull/1',
+    title: 'PR 1',
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -285,6 +315,7 @@ async function seeded(): Promise<Store> {
     { type: 'issue', entity: issue('i1', { teamId: 't1', stateId: 's1', assigneeId: 'u1' }) },
     { type: 'issue', entity: issue('i2', { teamId: 't2', stateId: 's2', number: 1 }) },
     { type: 'comment', entity: comment('c1', 'i1') },
+    { type: 'attachment', entity: attachment('a1', 'i1') },
     // Workspace labels, one team label, and the team-scoped entities that have to follow
     // their team out of the replica when access to it goes.
     { type: 'label', entity: label('bug') },
@@ -402,7 +433,13 @@ describe('Store.applyChanges', () => {
         'a comment must not outlive the issue it hangs off; nothing can ever read it again',
       );
     }
+    if (store.attachments.size !== 0) {
+      throw new Error(
+        'an attachment must not outlive the issue it hangs off; a dangling link has nowhere to open',
+      );
+    }
     expect(store.commentIdsFor('i1').size).toBe(0);
+    expect(store.attachmentIdsFor('i1').size).toBe(0);
   });
 
   it('revokes an entity out of every index, leaving no readable copy', async () => {

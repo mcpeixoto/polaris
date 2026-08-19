@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/peixotolabs/polaris/services/internal/authz"
@@ -218,6 +219,62 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 		t.Fatalf("issueTemplate: %v", err)
 	}
 
+	formTpl, _, err := svc.CreateFormTemplate(ctx, p, domain.CreateFormTemplateInput{
+		TeamID: &f.TeamID, Name: "Intake form",
+	})
+	if err != nil {
+		t.Fatalf("formTemplate: %v", err)
+	}
+	if _, _, err := svc.CreateFormTemplateField(ctx, p, domain.CreateFormTemplateFieldInput{
+		FormTemplateID: formTpl.ID,
+		FieldType:      model.FormFieldText,
+		Label:          "Summary",
+	}); err != nil {
+		t.Fatalf("formTemplateField: %v", err)
+	}
+
+	projTpl, _, err := svc.CreateProjectTemplate(ctx, p, domain.CreateProjectTemplateInput{
+		TeamID: &f.TeamID, Name: "Launch kit", Summary: "Ship it",
+	})
+	if err != nil {
+		t.Fatalf("projectTemplate: %v", err)
+	}
+	if _, _, err := svc.CreateProjectTemplateMilestone(ctx, p, domain.CreateProjectTemplateMilestoneInput{
+		ProjectTemplateID: projTpl.ID, Name: "Beta",
+	}); err != nil {
+		t.Fatalf("projectTemplateMilestone: %v", err)
+	}
+	if _, _, err := svc.CreateProjectTemplateIssue(ctx, p, domain.CreateProjectTemplateIssueInput{
+		ProjectTemplateID: projTpl.ID, Title: "Kickoff",
+	}); err != nil {
+		t.Fatalf("projectTemplateIssue: %v", err)
+	}
+
+	if _, _, err := svc.CreateProjectStatus(ctx, p, domain.CreateProjectStatusInput{
+		Name: "Paused", Category: model.ProjectCategoryPlanned,
+	}); err != nil {
+		t.Fatalf("projectStatus: %v", err)
+	}
+
+	project, _, err := svc.CreateProject(ctx, p, domain.CreateProjectInput{
+		Name: "Scoped", TeamIDs: []uuid.UUID{f.TeamID}, MemberIDs: []uuid.UUID{p.UserID},
+	})
+	if err != nil {
+		t.Fatalf("project: %v", err)
+	}
+	if _, _, err := svc.CreateProjectMilestone(ctx, p, domain.CreateProjectMilestoneInput{
+		ProjectID: project.ID, Name: "Beta",
+	}); err != nil {
+		t.Fatalf("projectMilestone: %v", err)
+	}
+
+	on := true
+	if _, _, err := svc.UpdateTeamCycles(ctx, p, domain.UpdateTeamCyclesInput{
+		TeamID: f.TeamID, Enabled: &on,
+	}); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
 	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
 		TeamID: f.TeamID, Title: "The scoped one",
 	})
@@ -243,6 +300,57 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 		IssueID: issue.ID, Body: "Scoped comment",
 	}); err != nil {
 		t.Fatalf("comment: %v", err)
+	}
+	if _, _, err := svc.CreateAttachment(ctx, p, domain.CreateAttachmentInput{
+		IssueID: issue.ID, URL: "https://github.com/acme/app/pull/1", Title: "PR 1",
+	}); err != nil {
+		t.Fatalf("attachment: %v", err)
+	}
+	if _, _, err := svc.CreateDocument(ctx, p, domain.CreateDocumentInput{
+		TeamID: f.TeamID, Title: "Runbook",
+	}); err != nil {
+		t.Fatalf("document: %v", err)
+	}
+	if _, _, err := svc.CreateInitiative(ctx, p, domain.CreateInitiativeInput{
+		Name: "Reliability",
+	}); err != nil {
+		t.Fatalf("initiative: %v", err)
+	}
+	project, _, err = svc.CreateProject(ctx, p, domain.CreateProjectInput{
+		Name: "Launch pad", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("project for initiative link: %v", err)
+	}
+	initRows, err := svc.ListInitiatives(ctx, p)
+	if err != nil || len(initRows) == 0 {
+		t.Fatalf("list initiatives: %v", err)
+	}
+	if _, _, err := svc.AddInitiativeProject(ctx, p, initRows[0].ID, project.ID); err != nil {
+		t.Fatalf("initiativeProject: %v", err)
+	}
+	if _, _, err := svc.CreateProjectUpdate(ctx, p, domain.CreateProjectUpdateInput{
+		ProjectID: project.ID,
+		Health:    model.ProjectUpdateHealthAtRisk,
+		Body:      "Scope creep",
+	}); err != nil {
+		t.Fatalf("projectUpdate: %v", err)
+	}
+	blocker, _, err := svc.CreateProject(ctx, p, domain.CreateProjectInput{
+		Name: "Foundation", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("blocking project: %v", err)
+	}
+	if _, _, err := svc.AddProjectDependency(ctx, p, blocker.ID, project.ID); err != nil {
+		t.Fatalf("projectDependency: %v", err)
+	}
+	pl, _, err := svc.CreateProjectLabel(ctx, p, domain.CreateProjectLabelInput{Name: "Strategic"})
+	if err != nil {
+		t.Fatalf("projectLabel: %v", err)
+	}
+	if _, _, err := svc.AddProjectLabel(ctx, p, project.ID, pl.ID); err != nil {
+		t.Fatalf("projectLabelLink: %v", err)
 	}
 
 	// The watcher subscribes and then hears about somebody else's edit, which is the only

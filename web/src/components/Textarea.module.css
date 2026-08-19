@@ -10,6 +10,18 @@
   line-height: var(--line-height-normal);
 }
 
+.plain {
+  border-color: transparent;
+  background-color: transparent;
+  padding: var(--space-1) 0;
+}
+
+.plain:focus,
+.plain:focus-within {
+  border-color: transparent;
+  outline: none;
+}
+
 .invalid {
   composes: controlInvalid from './Field.module.css';
 }

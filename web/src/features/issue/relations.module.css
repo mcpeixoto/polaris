@@ -40,8 +40,6 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-none);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 /* The rollup's numbers, beside the ring rather than inside it: 1/2 is quicker to read than an

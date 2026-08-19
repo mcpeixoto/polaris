@@ -50,6 +50,13 @@ type scene struct {
 	workspaceView, privateTeamView, alicesOwnView uuid.UUID
 	alicesPreference                              uuid.UUID
 	openIssue, blockedIssue, privateIssue         uuid.UUID
+	openDocument                                  uuid.UUID
+	openProjectUpdate                             uuid.UUID
+	openProjectDependency                         uuid.UUID
+	openProjectLabel                              uuid.UUID
+	openProjectLabelLink                          uuid.UUID
+	openInitiative                                uuid.UUID
+	openInitiativeProject                         uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
 	bobsFavorite                                  uuid.UUID
 
@@ -115,6 +122,66 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	s.workspaceTemplate = template("Incident", nil)
 	s.privateTemplate = template("Design review", &design.ID)
 
+	formTemplate := func(name string, teamID *uuid.UUID) uuid.UUID {
+		row, _, err := svc.CreateFormTemplate(ctx, s.alice, domain.CreateFormTemplateInput{
+			TeamID: teamID, Name: name,
+		})
+		if err != nil {
+			t.Fatalf("create form template %q: %v", name, err)
+		}
+		if _, _, err := svc.CreateFormTemplateField(ctx, s.alice, domain.CreateFormTemplateFieldInput{
+			FormTemplateID: row.ID,
+			FieldType:      model.FormFieldText,
+			Label:          "Details",
+		}); err != nil {
+			t.Fatalf("create form template field for %q: %v", name, err)
+		}
+		return row.ID
+	}
+	formTemplate("Bug intake", nil)
+	formTemplate("Design intake", &design.ID)
+
+	projectTemplate := func(name string, teamID *uuid.UUID) uuid.UUID {
+		row, _, err := svc.CreateProjectTemplate(ctx, s.alice, domain.CreateProjectTemplateInput{
+			TeamID: teamID, Name: name, Summary: "Default summary",
+		})
+		if err != nil {
+			t.Fatalf("create project template %q: %v", name, err)
+		}
+		if _, _, err := svc.CreateProjectTemplateMilestone(ctx, s.alice, domain.CreateProjectTemplateMilestoneInput{
+			ProjectTemplateID: row.ID, Name: "Milestone",
+		}); err != nil {
+			t.Fatalf("create project template milestone for %q: %v", name, err)
+		}
+		if _, _, err := svc.CreateProjectTemplateIssue(ctx, s.alice, domain.CreateProjectTemplateIssueInput{
+			ProjectTemplateID: row.ID, Title: "Starter issue",
+		}); err != nil {
+			t.Fatalf("create project template issue for %q: %v", name, err)
+		}
+		return row.ID
+	}
+	projectTemplate("Product launch", nil)
+	projectTemplate("Design rollout", &design.ID)
+
+	project, _, err := svc.CreateProject(ctx, s.alice, domain.CreateProjectInput{
+		Name: "Shipping", TeamIDs: []uuid.UUID{f.TeamID}, MemberIDs: []uuid.UUID{s.alice.UserID},
+	})
+	if err != nil {
+		t.Fatalf("create the open project: %v", err)
+	}
+	if _, _, err := svc.CreateProjectMilestone(ctx, s.alice, domain.CreateProjectMilestoneInput{
+		ProjectID: project.ID, Name: "Beta",
+	}); err != nil {
+		t.Fatalf("create the milestone: %v", err)
+	}
+
+	on := true
+	if _, _, err := svc.UpdateTeamCycles(ctx, s.alice, domain.UpdateTeamCyclesInput{
+		TeamID: f.TeamID, Enabled: &on,
+	}); err != nil {
+		t.Fatalf("enable cycles: %v", err)
+	}
+
 	view := func(in domain.CreateViewInput) uuid.UUID {
 		row, _, err := svc.CreateView(ctx, s.alice, in)
 		if err != nil {
@@ -161,6 +228,66 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		model.RelationBlocks); err != nil {
 		t.Fatalf("create the relation: %v", err)
 	}
+	if _, _, err := svc.CreateAttachment(ctx, s.alice, domain.CreateAttachmentInput{
+		IssueID: s.openIssue, URL: "https://github.com/acme/app/pull/1", Title: "PR 1",
+	}); err != nil {
+		t.Fatalf("create the attachment: %v", err)
+	}
+	doc, _, err := svc.CreateDocument(ctx, s.alice, domain.CreateDocumentInput{
+		TeamID: f.TeamID, Title: "Team runbook", Body: "How we ship",
+	})
+	if err != nil {
+		t.Fatalf("create the document: %v", err)
+	}
+	s.openDocument = doc.ID
+
+	update, _, err := svc.CreateProjectUpdate(ctx, s.alice, domain.CreateProjectUpdateInput{
+		ProjectID: project.ID,
+		Health:    model.ProjectUpdateHealthOnTrack,
+		Body:      "Shipping on schedule",
+	})
+	if err != nil {
+		t.Fatalf("create the project update: %v", err)
+	}
+	s.openProjectUpdate = update.ID
+
+	init, _, err := svc.CreateInitiative(ctx, s.alice, domain.CreateInitiativeInput{
+		Name: "Platform reliability",
+	})
+	if err != nil {
+		t.Fatalf("create the initiative: %v", err)
+	}
+	s.openInitiative = init.ID
+	link, _, err := svc.AddInitiativeProject(ctx, s.alice, init.ID, project.ID)
+	if err != nil {
+		t.Fatalf("link the project: %v", err)
+	}
+	s.openInitiativeProject = link.ID
+
+	blocker, _, err := svc.CreateProject(ctx, s.alice, domain.CreateProjectInput{
+		Name: "Platform foundation", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("create the blocking project: %v", err)
+	}
+	dep, _, err := svc.AddProjectDependency(ctx, s.alice, blocker.ID, project.ID)
+	if err != nil {
+		t.Fatalf("create the project dependency: %v", err)
+	}
+	s.openProjectDependency = dep.ID
+
+	pl, _, err := svc.CreateProjectLabel(ctx, s.alice, domain.CreateProjectLabelInput{
+		Name: "Platform",
+	})
+	if err != nil {
+		t.Fatalf("create the project label: %v", err)
+	}
+	s.openProjectLabel = pl.ID
+	linkRow, _, err := svc.AddProjectLabel(ctx, s.alice, project.ID, pl.ID)
+	if err != nil {
+		t.Fatalf("apply the project label: %v", err)
+	}
+	s.openProjectLabelLink = linkRow.ID
 
 	// Favourites: alice pins something out of the private team and something workspace-wide,
 	// bob pins the team they share. A favourite carries only its owner's scope, which is what
@@ -387,9 +514,23 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{aliceName, "issue", s.privateIssue},
 		{bobName, "label", s.workspaceLabel},
 		{bobName, "issue", s.openIssue},
+		{bobName, "document", s.openDocument},
+		{bobName, "projectUpdate", s.openProjectUpdate},
+		{bobName, "projectDependency", s.openProjectDependency},
+		{bobName, "projectLabel", s.openProjectLabel},
+		{bobName, "projectLabelLink", s.openProjectLabelLink},
+		{bobName, "initiative", s.openInitiative},
+		{bobName, "initiativeProject", s.openInitiativeProject},
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},
 		{gretaName, "issue", s.openIssue},
+		{gretaName, "document", s.openDocument},
+		{gretaName, "projectUpdate", s.openProjectUpdate},
+		{gretaName, "projectDependency", s.openProjectDependency},
+		{gretaName, "projectLabel", s.openProjectLabel},
+		{gretaName, "projectLabelLink", s.openProjectLabelLink},
+		{gretaName, "initiative", s.openInitiative},
+		{gretaName, "initiativeProject", s.openInitiativeProject},
 		{samName, "label", s.workspaceLabel},
 		{samName, "issueTemplate", s.workspaceTemplate},
 		{samName, "view", s.workspaceView},
@@ -476,6 +617,9 @@ func TestStreamBootstrap_CarriesEveryReplicatedTypeInTheClientsOrder(t *testing.
 	if position(order.types, "issueLabel") < position(order.types, "label") {
 		t.Error("label applications are emitted before the labels they name — the exact " +
 			"ordering bug this snapshot had, arrived at from the other direction")
+	}
+	if position(order.types, "projectLabelLink") < position(order.types, "projectLabel") {
+		t.Error("project label applications are emitted before the project labels they name")
 	}
 }
 

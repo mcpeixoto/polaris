@@ -55,6 +55,11 @@ type Workspace struct {
 	// SeatLimit overrides the plan's default seat count. nil means "whatever the plan says".
 	SeatLimit *int `json:"seatLimit,omitempty"`
 
+	// Default cadence for project update reminders (display + staleness; delivery is later).
+	ProjectUpdateReminderIntervalDays int `json:"projectUpdateReminderIntervalDays"`
+	ProjectUpdateReminderWeekday      int `json:"projectUpdateReminderWeekday"`
+	ProjectUpdateReminderHour         int `json:"projectUpdateReminderHour"`
+
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
@@ -104,10 +109,35 @@ type Team struct {
 	EstimateAllowZero bool   `json:"estimateAllowZero"`
 	EstimateExtended  bool   `json:"estimateExtended"`
 
+	// Cadence. Off by default; turning it on creates the current cycle and the
+	// configured number of upcoming ones. A cooldown is a gap between cycles, not a
+	// cycle, which is why it is a duration here rather than a row.
+	CyclesEnabled         bool   `json:"cyclesEnabled"`
+	CycleDurationWeeks    int    `json:"cycleDurationWeeks"`
+	CycleCooldownWeeks    int    `json:"cycleCooldownWeeks"`
+	CycleStartDay         string `json:"cycleStartDay"`
+	CycleUpcomingCount    int    `json:"cycleUpcomingCount"`
+	CycleAutoAddStarted   bool   `json:"cycleAutoAddStarted"`
+	CycleAutoAddCompleted bool   `json:"cycleAutoAddCompleted"`
+
+	// Triage is a status category and a per-team switch. Off, new issues land in the
+	// default status; on, outsiders and the inbox itself file into the triage status.
+	TriageEnabled         bool `json:"triageEnabled"`
+	TriageRequirePriority bool `json:"triageRequirePriority"`
+
+	// Auto-close and auto-archive periods, in days. Zero is off. The parent/child
+	// flags close a parent when its last sub-issue is done, and the reverse.
+	AutoCloseDays     int  `json:"autoCloseDays"`
+	AutoArchiveDays   int  `json:"autoArchiveDays"`
+	AutoCloseParent   bool `json:"autoCloseParent"`
+	AutoCloseChildren bool `json:"autoCloseChildren"`
+
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	RetiredAt  *time.Time `json:"retiredAt,omitempty"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+	// DeletedAt is only populated on deletedTeams rows, like Issue.deletedAt on deletedIssues.
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 }
 
 // EstimateScale values. "none" means the team does not estimate, which is not the same as
@@ -128,6 +158,23 @@ type TeamMembership struct {
 	Role        string    `json:"role"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// Cycle is a dated window on a team. Cooldown is a gap between cycles, not a row, so
+// there is never a cycle whose job is "wait" — issues can only sit in a real window.
+type Cycle struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      uuid.UUID  `json:"teamId"`
+	Number      int        `json:"number"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	StartsAt    time.Time  `json:"startsAt"`
+	EndsAt      time.Time  `json:"endsAt"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
 type WorkflowState struct {
@@ -184,6 +231,22 @@ type Issue struct {
 	// TemplateID records which template made this issue. Not for display: for the
 	// question "is this template still worth having", which nothing else can answer.
 	TemplateID *uuid.UUID `json:"templateId,omitempty"`
+	// FormTemplateID records which form template made this issue — parallel provenance
+	// for intake reporting.
+	FormTemplateID *uuid.UUID `json:"formTemplateId,omitempty"`
+
+	// At most one project, as a column rather than a join: two projects on one issue is
+	// a state the schema cannot represent. A milestone implies its project.
+	ProjectID          *uuid.UUID `json:"projectId,omitempty"`
+	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
+	CycleID            *uuid.UUID `json:"cycleId,omitempty"`
+
+	// Hidden from the triage inbox until this instant, or until the next edit or comment,
+	// whichever comes first. Nil means not snoozed.
+	SnoozedUntil *time.Time `json:"snoozedUntil,omitempty"`
+
+	// Set when the auto-close engine moved this issue to a closed status. Cleared on reopen.
+	AutoClosedAt *time.Time `json:"autoClosedAt,omitempty"`
 
 	StartedAt   *time.Time `json:"startedAt,omitempty"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
@@ -279,6 +342,34 @@ type IssueLabel struct {
 	GroupID   *uuid.UUID `json:"groupId,omitempty"`
 	CreatedBy *uuid.UUID `json:"createdBy,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
+}
+
+// ProjectLabel is both a label and a group of labels for projects. Workspace-scoped only.
+type ProjectLabel struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ParentID    *uuid.UUID `json:"parentId,omitempty"`
+	IsGroup     bool       `json:"isGroup"`
+
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Color       string  `json:"color"`
+	Position    string  `json:"position"`
+
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
+// ProjectLabelLink is one project label applied to one project.
+type ProjectLabelLink struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ProjectID   uuid.UUID  `json:"projectId"`
+	LabelID     uuid.UUID  `json:"labelId"`
+	GroupID     *uuid.UUID `json:"groupId,omitempty"`
+	CreatedBy   *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
 }
 
 // IssueRelation links two issues.
@@ -381,6 +472,8 @@ type View struct {
 	WorkspaceID uuid.UUID `json:"workspaceId"`
 	// TeamID nil means the view spans the workspace.
 	TeamID *uuid.UUID `json:"teamId,omitempty"`
+	// ProjectID set means the view is attached as a tab on that project.
+	ProjectID *uuid.UUID `json:"projectId,omitempty"`
 	// OwnerID nil means shared. Set means it is that person's private view, and its
 	// change rows carry a user scope.
 	OwnerID *uuid.UUID `json:"ownerId,omitempty"`
@@ -460,6 +553,105 @@ type IssueTemplate struct {
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
 }
 
+// FormTemplateFieldType names a field kind in a form template.
+type FormTemplateFieldType string
+
+const (
+	FormFieldText         FormTemplateFieldType = "text"
+	FormFieldLongText     FormTemplateFieldType = "long_text"
+	FormFieldDropdown     FormTemplateFieldType = "dropdown"
+	FormFieldCheckboxes   FormTemplateFieldType = "checkboxes"
+	FormFieldDate         FormTemplateFieldType = "date"
+	FormFieldFileUpload   FormTemplateFieldType = "file_upload"
+	FormFieldInstructions FormTemplateFieldType = "instructions"
+	FormFieldLabelGroup   FormTemplateFieldType = "label_group"
+	FormFieldPriority     FormTemplateFieldType = "priority"
+	FormFieldTitle        FormTemplateFieldType = "title"
+	FormFieldDueDate      FormTemplateFieldType = "due_date"
+)
+
+// FormTemplate is a structured intake template.
+type FormTemplate struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      *uuid.UUID `json:"teamId,omitempty"`
+
+	Name        string          `json:"name"`
+	Description *string         `json:"description,omitempty"`
+	Properties  json.RawMessage `json:"properties"`
+
+	Position string `json:"position"`
+
+	CreatedBy  *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
+// FormTemplateField is one input in a form template.
+type FormTemplateField struct {
+	ID             uuid.UUID             `json:"id"`
+	WorkspaceID    uuid.UUID             `json:"workspaceId"`
+	FormTemplateID uuid.UUID             `json:"formTemplateId"`
+	FieldType      FormTemplateFieldType `json:"fieldType"`
+	Label          string                `json:"label"`
+	Description    *string               `json:"description,omitempty"`
+	Required       bool                  `json:"required"`
+	SortOrder      string                `json:"sortOrder"`
+	Config         json.RawMessage       `json:"config"`
+	CreatedAt      time.Time             `json:"createdAt"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
+}
+
+// ProjectTemplate prefills a project with milestones and starter issues.
+type ProjectTemplate struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      *uuid.UUID `json:"teamId,omitempty"`
+
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Summary     string  `json:"summary"`
+	Body        string  `json:"body"`
+	// Properties keys match createProject: statusId, priority, leadId, color, icon,
+	// teamIds, memberIds, startDate, targetDate, initiativeIds.
+	Properties json.RawMessage `json:"properties"`
+
+	Position string `json:"position"`
+
+	CreatedBy  *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
+// ProjectTemplateMilestone is a milestone to create when the template is applied.
+type ProjectTemplateMilestone struct {
+	ID                uuid.UUID `json:"id"`
+	WorkspaceID       uuid.UUID `json:"workspaceId"`
+	ProjectTemplateID uuid.UUID `json:"projectTemplateId"`
+	Name              string    `json:"name"`
+	Description       *string   `json:"description,omitempty"`
+	TargetDate        *Date     `json:"targetDate,omitempty"`
+	SortOrder         string    `json:"sortOrder"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+}
+
+// ProjectTemplateIssue is a starter issue to create when the template is applied.
+type ProjectTemplateIssue struct {
+	ID                uuid.UUID       `json:"id"`
+	WorkspaceID       uuid.UUID       `json:"workspaceId"`
+	ProjectTemplateID uuid.UUID       `json:"projectTemplateId"`
+	ParentID          *uuid.UUID      `json:"parentId,omitempty"`
+	Title             string          `json:"title"`
+	Description       string          `json:"description"`
+	Properties        json.RawMessage `json:"properties"`
+	SortOrder         string          `json:"sortOrder"`
+	CreatedAt         time.Time       `json:"createdAt"`
+	UpdatedAt         time.Time       `json:"updatedAt"`
+}
+
 // APIKey is a personal key, which acts as its owner.
 //
 // Deliberately NOT on the sync stream. Every other entity here is replicated because it is
@@ -484,6 +676,43 @@ type APIKey struct {
 	RevokedAt  *time.Time `json:"revokedAt,omitempty"`
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
+}
+
+// Webhook is an outbound HTTPS subscription.
+//
+// Not on the sync stream: it is an admin settings row that carries a signing secret we
+// have to keep in order to sign deliveries. Replicating it would put a live credential
+// on every device. The secret itself is absent here for the same reason APIKey has no
+// token — it exists in the create response and in the database column the delivery path
+// reads, and nowhere a listing or a replica can see it.
+type Webhook struct {
+	ID                  uuid.UUID  `json:"id"`
+	WorkspaceID         uuid.UUID  `json:"workspaceId"`
+	CreatorID           uuid.UUID  `json:"creatorId"`
+	URL                 string     `json:"url"`
+	Enabled             bool       `json:"enabled"`
+	AllPublicTeams      bool       `json:"allPublicTeams"`
+	TeamID              *uuid.UUID `json:"teamId,omitempty"`
+	ResourceTypes       []string   `json:"resourceTypes"`
+	ConsecutiveFailures int        `json:"consecutiveFailures"`
+	DisabledAt          *time.Time `json:"disabledAt,omitempty"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
+}
+
+// WebhookDelivery is one attempt log an admin can read to self-diagnose. The signed body
+// is not here: a listing of payloads is a second copy of every issue that went out.
+type WebhookDelivery struct {
+	ID             uuid.UUID  `json:"id"`
+	WebhookID      uuid.UUID  `json:"webhookId"`
+	ChangeVersion  int64      `json:"changeVersion"`
+	EntityType     string     `json:"entityType"`
+	Attempt        int        `json:"attempt"`
+	LastStatus     *int       `json:"lastStatus,omitempty"`
+	LastError      *string    `json:"lastError,omitempty"`
+	LastDurationMs *int       `json:"lastDurationMs,omitempty"`
+	DeliveredAt    *time.Time `json:"deliveredAt,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
 }
 
 // Invite is an outstanding invitation to the workspace.
@@ -520,6 +749,109 @@ type Comment struct {
 	ResolvedBy  *uuid.UUID `json:"resolvedBy,omitempty"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
+// Attachment is a link card on an issue. The URL is unique per issue: posting the same
+// URL again updates the existing row. Integrations stay stateless because of that.
+type Attachment struct {
+	ID          uuid.UUID       `json:"id"`
+	WorkspaceID uuid.UUID       `json:"workspaceId"`
+	IssueID     uuid.UUID       `json:"issueId"`
+	TeamID      uuid.UUID       `json:"teamId"`
+	URL         string          `json:"url"`
+	Title       string          `json:"title"`
+	Subtitle    *string         `json:"subtitle,omitempty"`
+	IconURL     *string         `json:"iconUrl,omitempty"`
+	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	CreatorID   *uuid.UUID      `json:"creatorId,omitempty"`
+	CreatedAt   time.Time       `json:"createdAt"`
+	UpdatedAt   time.Time       `json:"updatedAt"`
+}
+
+const (
+	InitiativeStatusProposed  = "proposed"
+	InitiativeStatusPlanned   = "planned"
+	InitiativeStatusActive    = "active"
+	InitiativeStatusCompleted = "completed"
+	InitiativeStatusCanceled  = "canceled"
+)
+
+// Initiative groups a manually curated set of projects around one objective.
+type Initiative struct {
+	ID                    uuid.UUID  `json:"id"`
+	WorkspaceID           uuid.UUID  `json:"workspaceId"`
+	Name                  string     `json:"name"`
+	Description           string     `json:"description"`
+	Status                string     `json:"status"`
+	Priority              int16      `json:"priority"`
+	OwnerID               *uuid.UUID `json:"ownerId,omitempty"`
+	LeadTeamID            *uuid.UUID `json:"leadTeamId,omitempty"`
+	CreatorID             *uuid.UUID `json:"creatorId,omitempty"`
+	SortOrder             string     `json:"sortOrder"`
+	TargetDate            *Date      `json:"targetDate,omitempty"`
+	TargetDateGranularity *string    `json:"targetDateGranularity,omitempty"`
+	ArchivedAt            *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt             *time.Time `json:"deletedAt,omitempty"`
+	DeletedBy             *uuid.UUID `json:"deletedBy,omitempty"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
+}
+
+type InitiativeProject struct {
+	ID           uuid.UUID `json:"id"`
+	WorkspaceID  uuid.UUID `json:"workspaceId"`
+	InitiativeID uuid.UUID `json:"initiativeId"`
+	ProjectID    uuid.UUID `json:"projectId"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+// Document is long-form markdown attached to a team or a project. The body is plain markdown
+// until collaborative editing lands; it is not a CRDT snapshot yet.
+type Document struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      uuid.UUID  `json:"teamId"`
+	ProjectID   *uuid.UUID `json:"projectId,omitempty"`
+	Title       string     `json:"title"`
+	Body        string     `json:"body"`
+	SortOrder   string     `json:"sortOrder"`
+	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	UpdatedBy   *uuid.UUID `json:"updatedBy,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt   *time.Time `json:"deletedAt,omitempty"`
+}
+
+const (
+	ProjectUpdateHealthOnTrack  = "on_track"
+	ProjectUpdateHealthAtRisk   = "at_risk"
+	ProjectUpdateHealthOffTrack = "off_track"
+)
+
+// ProjectUpdate is a status post on a project — health plus narrative markdown. Health on
+// the project row itself is not stored; it is derived from the latest live update.
+type ProjectUpdate struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ProjectID   uuid.UUID  `json:"projectId"`
+	Health      string     `json:"health"`
+	Body        string     `json:"body"`
+	AuthorID    uuid.UUID  `json:"authorId"`
+	EditedAt    *time.Time `json:"editedAt,omitempty"`
+	DeletedAt   *time.Time `json:"deletedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
+// ProjectDependency is an end→start link: the blocking project must finish before the
+// blocked project may start.
+type ProjectDependency struct {
+	ID                uuid.UUID `json:"id"`
+	WorkspaceID       uuid.UUID `json:"workspaceId"`
+	BlockingProjectID uuid.UUID `json:"blockingProjectId"`
+	BlockedProjectID  uuid.UUID `json:"blockedProjectId"`
+	CreatedAt         time.Time `json:"createdAt"`
 }
 
 type IssueHistoryEntry struct {
@@ -559,4 +891,114 @@ func itoa(n int64) string {
 		buf[i] = '-'
 	}
 	return string(buf[i:])
+}
+
+// ProjectStatusCategory values. `started` is what the UI calls In Progress — the same
+// word the issue workflow already uses, so progress rollups branch on one vocabulary.
+const (
+	ProjectCategoryBacklog   = "backlog"
+	ProjectCategoryPlanned   = "planned"
+	ProjectCategoryStarted   = "started"
+	ProjectCategoryCompleted = "completed"
+	ProjectCategoryCanceled  = "canceled"
+)
+
+// ProjectUpdateSchedule values for per-project reminder overrides.
+const (
+	ProjectUpdateScheduleDefault = "default"
+	ProjectUpdateScheduleNever   = "never"
+	ProjectUpdateScheduleCustom  = "custom"
+)
+
+// TimeframeGranularity is how coarsely a project date is meant. A date without one is
+// just a day; "Q3" is a date in that quarter plus this flag, never an instant.
+const (
+	GranularityDay     = "day"
+	GranularityMonth   = "month"
+	GranularityQuarter = "quarter"
+	GranularityHalf    = "half"
+	GranularityYear    = "year"
+)
+
+// ProjectStatus is a workspace-defined status a project may sit in.
+type ProjectStatus struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	Color       string     `json:"color"`
+	Category    string     `json:"category"`
+	Position    string     `json:"position"`
+	IsDefault   bool       `json:"isDefault"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+}
+
+// Project is a unit of work with a clear outcome. It spans teams; each issue still
+// belongs to exactly one team and to at most one project.
+type Project struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	Name        string     `json:"name"`
+	Summary     *string    `json:"summary,omitempty"`
+	Description string     `json:"description"`
+	Icon        *string    `json:"icon,omitempty"`
+	Color       string     `json:"color"`
+	StatusID    uuid.UUID  `json:"statusId"`
+	Priority    int        `json:"priority"`
+	LeadID      *uuid.UUID `json:"leadId,omitempty"`
+	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	SortOrder   string     `json:"sortOrder"`
+
+	StartDate             *Date   `json:"startDate,omitempty"`
+	StartDateGranularity  *string `json:"startDateGranularity,omitempty"`
+	TargetDate            *Date   `json:"targetDate,omitempty"`
+	TargetDateGranularity *string `json:"targetDateGranularity,omitempty"`
+
+	// Update schedule: default (workspace cadence), custom, or never.
+	UpdateSchedule             string `json:"updateSchedule"`
+	UpdateReminderIntervalDays *int   `json:"updateReminderIntervalDays,omitempty"`
+	UpdateReminderWeekday      *int   `json:"updateReminderWeekday,omitempty"`
+	UpdateReminderHour         *int   `json:"updateReminderHour,omitempty"`
+
+	ProjectTemplateID *uuid.UUID `json:"projectTemplateId,omitempty"`
+
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt  *time.Time `json:"deletedAt,omitempty"`
+	DeletedBy  *uuid.UUID `json:"deletedBy,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+}
+
+// ProjectTeam is one team on one project, as its own entity — the labels lesson.
+type ProjectTeam struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ProjectID   uuid.UUID `json:"projectId"`
+	TeamID      uuid.UUID `json:"teamId"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// ProjectMember is one person on one project, as its own entity for the same reason.
+type ProjectMember struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ProjectID   uuid.UUID `json:"projectId"`
+	UserID      uuid.UUID `json:"userId"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// ProjectMilestone is an ordered checkpoint inside one project. It cannot be shared.
+type ProjectMilestone struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ProjectID   uuid.UUID  `json:"projectId"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	TargetDate  *Date      `json:"targetDate,omitempty"`
+	SortOrder   string     `json:"sortOrder"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
 }

@@ -196,6 +196,54 @@ func TestCreateView_ASharedTeamViewReachesTheTeamAndNobodyElse(t *testing.T) {
 	}
 }
 
+// A project-attached view is the project's, and membership in any of its teams is the
+// whole test. It does not appear in the sidebar listing.
+func TestCreateView_AProjectAttachedViewReachesProjectMembers(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	admin := f.Principal()
+
+	project, _, err := svc.CreateProject(ctx, admin, domain.CreateProjectInput{
+		Name: "Portal", TeamIDs: []uuid.UUID{f.TeamID}, MemberIDs: []uuid.UUID{admin.UserID},
+	})
+	if err != nil {
+		t.Fatalf("project: %v", err)
+	}
+
+	tab, _, err := svc.CreateView(ctx, admin, domain.CreateViewInput{
+		Name:      "Bugs",
+		ProjectID: &project.ID,
+		Filter:    json.RawMessage(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("create project view: %v", err)
+	}
+	if tab.ProjectID == nil || *tab.ProjectID != project.ID {
+		t.Fatalf("view.projectId = %v, want %s", tab.ProjectID, project.ID)
+	}
+
+	memberID := f.NewUser(t, "mem", "member", true)
+	member := f.PrincipalFor(memberID, authz.RoleMember, f.TeamID)
+	if _, err := svc.GetView(ctx, member, tab.ID); err != nil {
+		t.Fatalf("project member could not read attached view: %v", err)
+	}
+	if seen := viewIDs(t, svc, member); seen[tab.ID] {
+		t.Fatal("project view appeared in sidebar listing")
+	}
+
+	outsiderID := f.NewUser(t, "outsider", "member", false)
+	outsider := f.PrincipalFor(outsiderID, authz.RoleMember)
+	if _, err := svc.GetView(ctx, outsider, tab.ID); platform.CodeOf(err) != platform.CodeNotFound {
+		t.Fatalf("outsider read project view (%v), want NOT_FOUND", err)
+	}
+
+	if scope := viewScopeOf(t, db, f.WorkspaceID, tab.ID); scope.Kind != authz.ScopeProject {
+		t.Fatalf("project view travels under %+v, want project scope", scope)
+	}
+}
+
 // A workspace-wide view lands in everybody's sidebar. That reach is what makes creating one
 // an admin action, while creating the team's is not.
 func TestCreateView_AWorkspaceWideViewIsAdminsOnly(t *testing.T) {

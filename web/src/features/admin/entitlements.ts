@@ -51,6 +51,8 @@ export interface FeatureMatrix {
   readonly teamLimit: Limit;
   readonly historyDays: Limit;
   readonly privateTeams: boolean;
+  readonly subTeams: boolean;
+  readonly multiLevelSubTeams: boolean;
   readonly customViews: boolean;
   readonly apiKeys: boolean;
   readonly sso: boolean;
@@ -68,12 +70,14 @@ export interface Entitlements {
 }
 
 /** The features a screen in this milestone can gate on. */
-export type GatedFeature = 'apiKeys' | 'privateTeams' | 'customViews' | 'sso' | 'auditLog';
+export type GatedFeature =
+  'apiKeys' | 'privateTeams' | 'subTeams' | 'customViews' | 'sso' | 'auditLog';
 
 /** How each one is named to a person. The wire's key is not a phrase anybody reads. */
 const FEATURE_LABELS: Readonly<Record<GatedFeature, string>> = {
   apiKeys: 'API keys',
   privateTeams: 'Private teams',
+  subTeams: 'Sub-teams',
   customViews: 'Custom views',
   sso: 'Single sign-on',
   auditLog: 'The audit log',
@@ -159,6 +163,8 @@ interface EntitlementsResponse {
       readonly teamLimit: number | null;
       readonly historyDays: number | null;
       readonly privateTeams: boolean;
+      readonly subTeams: boolean;
+      readonly multiLevelSubTeams: boolean;
       readonly customViews: boolean;
       readonly apiKeys: boolean;
       readonly sso: boolean;
@@ -245,6 +251,8 @@ export function useEntitlements(): Entitlements {
       teamLimit: answer.teamLimit,
       historyDays: answer.historyDays,
       privateTeams: answer.privateTeams,
+      subTeams: answer.subTeams,
+      multiLevelSubTeams: answer.multiLevelSubTeams,
       customViews: answer.customViews,
       apiKeys: answer.apiKeys,
       sso: answer.sso,

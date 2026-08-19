@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -63,6 +64,10 @@ type CreateIssueInput struct {
 	// answers is "is this template still worth having", which nothing else can.
 	TemplateID *uuid.UUID
 
+	// FormTemplateID records which form template the issue was filed from. Same provenance
+	// contract as TemplateID: the client fills content from the form before sending.
+	FormTemplateID *uuid.UUID
+
 	// No clear flags here, unlike UpdateIssueInput. There is nothing to clear on an issue
 	// that does not exist yet, and offering the flags would invite a caller to send them.
 
@@ -80,6 +85,19 @@ type CreateIssueInput struct {
 	// already choose any content it likes — and the alternative costs a reconciliation
 	// path that only runs in the case hardest to test.
 	ID *uuid.UUID
+
+	// ProjectID places the issue in a project. An issue belongs to at most one.
+	ProjectID *uuid.UUID
+	// ProjectMilestoneID requires the issue to also be in that milestone's project.
+	ProjectMilestoneID *uuid.UUID
+	// CycleID places the issue in a cycle. An issue belongs to at most one, and it has
+	// to be a cycle of the same team — a cooldown is not a cycle, so there is nothing
+	// here that would file into the gap.
+	CycleID *uuid.UUID
+
+	// FromTriage files the issue into the team's triage status. Used by the inbox's C,
+	// and by an outsider filing into a team they can see but have not joined.
+	FromTriage bool
 }
 
 // issueIDFor returns the id a new issue should take, honouring a client's choice.
@@ -152,13 +170,26 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		if err := s.validateTemplate(ctx, q, p, in.TeamID, in.TemplateID); err != nil {
 			return err
 		}
+		if err := s.validateFormTemplate(ctx, q, p, in.TeamID, in.FormTemplateID); err != nil {
+			return err
+		}
 
-		state, err := s.resolveInitialState(ctx, q, in.TeamID, in.StateID)
+		member, err := q.IsTeamMember(ctx, store.IsTeamMemberParams{TeamID: in.TeamID, UserID: p.UserID})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		intoTriage := in.FromTriage || (!member && team.TriageEnabled)
+
+		state, err := s.resolveInitialState(ctx, q, team, in.StateID, intoTriage)
 		if err != nil {
 			return err
 		}
 
 		if err := s.validateAssignee(ctx, q, p, in.TeamID, in.AssigneeID); err != nil {
+			return err
+		}
+
+		if err := validateIssueCycle(ctx, q, in.TeamID, in.CycleID); err != nil {
 			return err
 		}
 
@@ -191,24 +222,28 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		// A new issue may only be created in a backlog or unstarted status, so no
 		// category timestamp can legitimately be set at creation time.
 		params := store.CreateIssueParams{
-			ID:                id,
-			WorkspaceID:       p.WorkspaceID,
-			TeamID:            in.TeamID,
-			Number:            number,
-			Title:             in.Title,
-			Description:       in.Description,
-			StateID:           state.ID,
-			AssigneeID:        in.AssigneeID,
-			CreatorID:         &p.UserID,
-			Priority:          int16(in.Priority),
-			SortOrder:         sortOrder,
-			StartedAt:         startedAtFor(state.Category, nil),
-			CompletedAt:       completedAtFor(state.Category),
-			CanceledAt:        canceledAtFor(state.Category),
-			Estimate:          estimate,
-			ParentID:          in.ParentID,
-			SubIssueSortOrder: siblingOrder,
-			TemplateID:        in.TemplateID,
+			ID:                 id,
+			WorkspaceID:        p.WorkspaceID,
+			TeamID:             in.TeamID,
+			Number:             number,
+			Title:              in.Title,
+			Description:        in.Description,
+			StateID:            state.ID,
+			AssigneeID:         in.AssigneeID,
+			CreatorID:          &p.UserID,
+			Priority:           int16(in.Priority),
+			SortOrder:          sortOrder,
+			StartedAt:          startedAtFor(state.Category, nil),
+			CompletedAt:        completedAtFor(state.Category),
+			CanceledAt:         canceledAtFor(state.Category),
+			Estimate:           estimate,
+			ParentID:           in.ParentID,
+			SubIssueSortOrder:  siblingOrder,
+			TemplateID:         in.TemplateID,
+			FormTemplateID:     in.FormTemplateID,
+			ProjectID:          in.ProjectID,
+			ProjectMilestoneID: in.ProjectMilestoneID,
+			CycleID:            in.CycleID,
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -218,7 +253,7 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		if err != nil {
 			return mapParentTriggerError(err)
 		}
-		out = toIssue(row, team.Key)
+		out = toIssue(store.AsIssueRow(row), team.Key)
 
 		// No ChangedFields: an empty list is what marks a create, where every field is new
 		// and the question "did this one move" has no meaning yet.
@@ -363,6 +398,14 @@ type UpdateIssueInput struct {
 	// other. Sending both in one call is legitimate — dragging a sub-issue up a checklist
 	// while it also moves in the backlog — and each is applied to its own column.
 	AfterSiblingID *uuid.UUID
+
+	ProjectID          *uuid.UUID
+	ClearProject       bool
+	ProjectMilestoneID *uuid.UUID
+	ClearMilestone     bool
+
+	CycleID    *uuid.UUID
+	ClearCycle bool
 }
 
 // UpdateIssue applies a partial update, derives the category timestamps, and records both
@@ -399,6 +442,15 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 	if in.ParentID != nil && in.ClearParent {
 		return model.Issue{}, 0, platform.Validation("parentId", "cannot set and clear the parent in one call")
 	}
+	if in.ProjectID != nil && in.ClearProject {
+		return model.Issue{}, 0, platform.Validation("projectId", "cannot set and clear the project in one call")
+	}
+	if in.ProjectMilestoneID != nil && in.ClearMilestone {
+		return model.Issue{}, 0, platform.Validation("projectMilestoneId", "cannot set and clear the milestone in one call")
+	}
+	if in.CycleID != nil && in.ClearCycle {
+		return model.Issue{}, 0, platform.Validation("cycleId", "cannot set and clear the cycle in one call")
+	}
 	if in.AfterSiblingID != nil && in.ClearParent {
 		// A place among siblings the issue is about to stop having. Refusing says which of
 		// the two the caller has to drop; applying one and ignoring the other would leave
@@ -430,6 +482,10 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 
 		team, err := s.requireTeamAccess(ctx, q, p, before.TeamID, authz.ActionIssueUpdate)
 		if err != nil {
+			return err
+		}
+
+		if err := validateIssueCycle(ctx, q, before.TeamID, in.CycleID); err != nil {
 			return err
 		}
 
@@ -474,6 +530,15 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			oldState, err := q.GetWorkflowState(ctx, before.StateID)
 			if err != nil {
 				return platform.Internal(err)
+			}
+			if oldState.Category == CategoryTriage && st.Category != CategoryTriage {
+				priority := int(before.Priority)
+				if in.Priority != nil {
+					priority = *in.Priority
+				}
+				if err := requirePriorityToLeaveTriage(team, priority); err != nil {
+					return err
+				}
 			}
 			history = append(history, HistoryEntry{
 				IssueID: in.ID, Kind: "state",
@@ -540,7 +605,7 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			if !in.ClearDueDate {
 				to = in.DueDate
 			}
-			from := dueDateOf(before)
+			from := dueDateOf(store.AsIssueRow(before))
 			if !equalDatePtr(from, to) {
 				history = append(history, HistoryEntry{
 					IssueID: in.ID, Kind: "due_date", FromValue: from, ToValue: to,
@@ -640,12 +705,20 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			TeamID:        nil,
 			Number:        nil,
 
-			Estimate:          estimate,
-			ClearEstimate:     in.ClearEstimate,
-			ClearDueDate:      in.ClearDueDate,
-			ParentID:          in.ParentID,
-			ClearParent:       in.ClearParent,
-			SubIssueSortOrder: siblingOrder,
+			Estimate:           estimate,
+			ClearEstimate:      in.ClearEstimate,
+			ClearDueDate:       in.ClearDueDate,
+			ParentID:           in.ParentID,
+			ClearParent:        in.ClearParent,
+			SubIssueSortOrder:  siblingOrder,
+			ProjectID:          in.ProjectID,
+			ClearProject:       in.ClearProject,
+			ProjectMilestoneID: in.ProjectMilestoneID,
+			ClearMilestone:     in.ClearMilestone,
+			CycleID:            in.CycleID,
+			ClearCycle:         in.ClearCycle,
+			ClearSnooze:        before.SnoozedUntil != nil,
+			ClearAutoClosed:    newState != nil && !isClosedCategory(newState.Category),
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -655,7 +728,7 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 		if err != nil {
 			return mapParentTriggerError(err)
 		}
-		out = toIssue(row, team.Key)
+		out = toIssue(store.AsIssueRow(row), team.Key)
 
 		// A move has no history entry — the feed does not report reordering — but it is
 		// still something this mutation set, and a changed-field list that omits what it
@@ -692,7 +765,10 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			}
 		}
 
-		return s.em.History(ctx, q, p.WorkspaceID, p.Actor(), before.CreatedAt, history...)
+		if err := s.em.History(ctx, q, p.WorkspaceID, p.Actor(), before.CreatedAt, history...); err != nil {
+			return err
+		}
+		return s.applyFamilyClose(ctx, q, p, team, store.AsIssueRow(row), newState, map[uuid.UUID]bool{})
 	})
 	return out, version, err
 }
@@ -741,7 +817,7 @@ func (s *Service) ArchiveIssue(ctx context.Context, p *authz.Principal, id uuid.
 			if err != nil {
 				return platform.Internal(err)
 			}
-			change.Payload = toIssue(after, team.Key)
+			change.Payload = toIssue(store.AsIssueRow(after), team.Key)
 		}
 
 		if version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), change); err != nil {
@@ -812,7 +888,7 @@ func (s *Service) GetIssue(ctx context.Context, p *authz.Principal, id uuid.UUID
 	if !authz.Visible(p, authz.TeamScope(row.TeamID, team.Private)) {
 		return model.Issue{}, platform.NotFound("issue")
 	}
-	return toIssue(row, team.Key), nil
+	return toIssue(store.AsIssueRow(row), team.Key), nil
 }
 
 func (s *Service) ListIssuesForTeam(ctx context.Context, p *authz.Principal, teamID uuid.UUID) ([]model.Issue, error) {
@@ -834,24 +910,48 @@ func (s *Service) ListIssuesForTeam(ctx context.Context, p *authz.Principal, tea
 	}
 	out := make([]model.Issue, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, toIssue(r, team.Key))
+		out = append(out, toIssue(store.AsIssueRow(r), team.Key))
 	}
 	return out, nil
 }
 
-// resolveInitialState picks the status a new issue lands in, refusing to start life in a
-// started, completed or canceled column.
+// resolveInitialState picks the status a new issue lands in.
+//
+// Outsiders filing into a team they can see but have not joined, and creates from the
+// triage inbox, land in the triage status when the team has turned it on. Everyone else
+// gets the team's default, or the status they asked for.
 func (s *Service) resolveInitialState(
-	ctx context.Context, q *store.Queries, teamID uuid.UUID, requested *uuid.UUID,
+	ctx context.Context, q *store.Queries, team store.Team, requested *uuid.UUID, intoTriage bool,
 ) (store.WorkflowState, error) {
+	if intoTriage {
+		if !team.TriageEnabled {
+			return store.WorkflowState{}, platform.Validation("fromTriage", "this team is not running triage")
+		}
+		st, err := q.GetWorkflowStateByTeamAndCategory(ctx, store.GetWorkflowStateByTeamAndCategoryParams{
+			TeamID: team.ID, Category: CategoryTriage,
+		})
+		if err != nil {
+			if store.IsNotFound(err) {
+				return store.WorkflowState{}, platform.Internal(
+					fmt.Errorf("team %s has triage on and no triage status", team.ID))
+			}
+			return store.WorkflowState{}, platform.Internal(err)
+		}
+		if st.ArchivedAt != nil {
+			return store.WorkflowState{}, platform.Internal(
+				fmt.Errorf("team %s has triage on and its triage status is archived", team.ID))
+		}
+		return st, nil
+	}
+
 	if requested == nil {
-		st, err := q.GetDefaultWorkflowStateForTeam(ctx, teamID)
+		st, err := q.GetDefaultWorkflowStateForTeam(ctx, team.ID)
 		if err != nil {
 			if store.IsNotFound(err) {
 				return store.WorkflowState{}, platform.Internal(
 					// Team creation seeds a default, so its absence is data corruption,
 					// not something a user did.
-					errNoDefaultState{teamID})
+					errNoDefaultState{team.ID})
 			}
 			return store.WorkflowState{}, platform.Internal(err)
 		}
@@ -865,8 +965,14 @@ func (s *Service) resolveInitialState(
 		}
 		return store.WorkflowState{}, platform.Internal(err)
 	}
-	if st.TeamID != teamID {
+	if st.TeamID != team.ID {
 		return store.WorkflowState{}, platform.Validation("stateId", "that status belongs to a different team")
+	}
+	if st.Category == CategoryTriage && !team.TriageEnabled {
+		return store.WorkflowState{}, platform.Validation("stateId", "this team is not running triage")
+	}
+	if st.Category == CategoryDuplicate {
+		return store.WorkflowState{}, platform.Validation("stateId", "the duplicate status is reached by marking an issue as a duplicate")
 	}
 	return st, nil
 }
@@ -1133,11 +1239,22 @@ func (s *Service) resolveParent(
 // issue onto one of its own descendants needs to be told that, not handed a uuid. Every
 // other failure of these statements is a bug on this side and stays internal.
 func mapParentTriggerError(err error) error {
-	if store.IsRaisedException(err) {
-		return platform.Validation("parentId",
-			"that issue is below this one already, so it cannot also be its parent")
+	if !store.IsRaisedException(err) {
+		return platform.Internal(err)
 	}
-	return platform.Internal(err)
+	msg := err.Error()
+	if strings.Contains(msg, "cycle") && strings.Contains(msg, "does not exist") {
+		return platform.Validation("cycleId", "no such cycle")
+	}
+	if strings.Contains(msg, "does not belong to team") {
+		return platform.Validation("cycleId", "that cycle belongs to another team")
+	}
+	if strings.Contains(msg, "milestone requires a project") || strings.Contains(msg, "does not belong to project") {
+		return platform.Validation("projectMilestoneId",
+			"a milestone has to belong to the issue's project")
+	}
+	return platform.Validation("parentId",
+		"that issue is below this one already, so it cannot also be its parent")
 }
 
 // The three comparisons below exist so the activity feed records a change only when there
@@ -1190,7 +1307,7 @@ func completedAtFor(category string) *time.Time {
 }
 
 func canceledAtFor(category string) *time.Time {
-	if category != CategoryCanceled {
+	if category != CategoryCanceled && category != CategoryDuplicate {
 		return nil
 	}
 	now := time.Now()

@@ -34,17 +34,19 @@ func TestFeatures_MatchesTheGraphQLContract(t *testing.T) {
 	// three empty ones are the facts the matrix cannot know: Set answers them from the
 	// workspace's own row.
 	answeredBy := map[string]string{
-		"plan":         "",
-		"seatsUsed":    "",
-		"lapsed":       "",
-		"seatLimit":    "SeatLimit",
-		"teamLimit":    "TeamLimit",
-		"historyDays":  "HistoryDays",
-		"privateTeams": "PrivateTeams",
-		"customViews":  "CustomViews",
-		"apiKeys":      "APIKeys",
-		"sso":          "SSO",
-		"auditLog":     "AuditLog",
+		"plan":               "",
+		"seatsUsed":          "",
+		"lapsed":             "",
+		"seatLimit":          "SeatLimit",
+		"teamLimit":          "TeamLimit",
+		"historyDays":        "HistoryDays",
+		"privateTeams":       "PrivateTeams",
+		"subTeams":           "SubTeams",
+		"multiLevelSubTeams": "MultiLevelSubTeams",
+		"customViews":        "CustomViews",
+		"apiKeys":            "APIKeys",
+		"sso":                "SSO",
+		"auditLog":           "AuditLog",
 	}
 
 	path := filepath.Join("..", "..", "..", "schema", "schema.graphql")
@@ -148,7 +150,8 @@ func TestFor_EveryPlan(t *testing.T) {
 			plan: PlanFree,
 			want: Features{
 				SeatLimit: 5, TeamLimit: 2, HistoryDays: 90,
-				PrivateTeams: true, CustomViews: true, APIKeys: true,
+				PrivateTeams: false, SubTeams: false, MultiLevelSubTeams: false,
+				CustomViews: true, APIKeys: true,
 				SSO: false, AuditLog: false,
 			},
 		},
@@ -157,7 +160,8 @@ func TestFor_EveryPlan(t *testing.T) {
 			plan: PlanPro,
 			want: Features{
 				SeatLimit: Unlimited, TeamLimit: Unlimited, HistoryDays: Unlimited,
-				PrivateTeams: true, CustomViews: true, APIKeys: true,
+				PrivateTeams: true, SubTeams: true, MultiLevelSubTeams: false,
+				CustomViews: true, APIKeys: true,
 				SSO: false, AuditLog: false,
 			},
 		},
@@ -166,7 +170,8 @@ func TestFor_EveryPlan(t *testing.T) {
 			plan: PlanEnterprise,
 			want: Features{
 				SeatLimit: Unlimited, TeamLimit: Unlimited, HistoryDays: Unlimited,
-				PrivateTeams: true, CustomViews: true, APIKeys: true,
+				PrivateTeams: true, SubTeams: true, MultiLevelSubTeams: true,
+				CustomViews: true, APIKeys: true,
 				SSO: true, AuditLog: true,
 			},
 		},
@@ -177,7 +182,8 @@ func TestFor_EveryPlan(t *testing.T) {
 			plan: PlanSelfHosted,
 			want: Features{
 				SeatLimit: Unlimited, TeamLimit: Unlimited, HistoryDays: Unlimited,
-				PrivateTeams: true, CustomViews: true, APIKeys: true,
+				PrivateTeams: true, SubTeams: true, MultiLevelSubTeams: true,
+				CustomViews: true, APIKeys: true,
 				SSO: false, AuditLog: false,
 			},
 		},
@@ -219,7 +225,7 @@ func TestMatrix_CoversEveryPlan(t *testing.T) {
 // A Feature constant that has() does not answer is denied through the default branch, and
 // the symptom is a customer paying for something the code has never heard of.
 func TestFeatures_EveryFeatureIsClassified(t *testing.T) {
-	if len(AllFeatures) != 5 {
+	if len(AllFeatures) != 7 {
 		t.Fatalf("AllFeatures has %d entries: classify the new one in has(), then update this count", len(AllFeatures))
 	}
 	for _, f := range AllFeatures {
@@ -270,8 +276,14 @@ func TestFeatures_NarrowTakesTheSmaller(t *testing.T) {
 	if got.SSO || got.AuditLog {
 		t.Errorf("a paid feature must not survive narrowing to free: %+v", got)
 	}
-	if !got.PrivateTeams || !got.CustomViews || !got.APIKeys {
+	if !got.CustomViews || !got.APIKeys {
 		t.Errorf("a feature both sides have must survive narrowing: %+v", got)
+	}
+	if got.PrivateTeams {
+		t.Errorf("private teams on free must not survive narrowing from enterprise: %+v", got)
+	}
+	if got.SubTeams || got.MultiLevelSubTeams {
+		t.Errorf("sub-teams on free must not survive narrowing from enterprise: %+v", got)
 	}
 	if free.narrow(ent) != got {
 		t.Error("narrow must not depend on the order of its arguments")
@@ -287,16 +299,15 @@ func TestAllow_EveryPlanEveryFeature(t *testing.T) {
 		deny  []Feature
 	}{
 		{
-			// Private teams, custom views and API keys are deliberately not gated:
-			// gating a security boundary or the API costs the use case, not wins the sale.
+			// Custom views and API keys stay free; private teams are Business+.
 			plan:  PlanFree,
-			allow: []Feature{FeaturePrivateTeams, FeatureCustomViews, FeatureAPIKeys},
-			deny:  []Feature{FeatureSSO, FeatureAuditLog},
+			allow: []Feature{FeatureCustomViews, FeatureAPIKeys},
+			deny:  []Feature{FeaturePrivateTeams, FeatureSubTeams, FeatureMultiLevelSubTeams, FeatureSSO, FeatureAuditLog},
 		},
 		{
 			plan:  PlanPro,
-			allow: []Feature{FeaturePrivateTeams, FeatureCustomViews, FeatureAPIKeys},
-			deny:  []Feature{FeatureSSO, FeatureAuditLog},
+			allow: []Feature{FeaturePrivateTeams, FeatureSubTeams, FeatureCustomViews, FeatureAPIKeys},
+			deny:  []Feature{FeatureMultiLevelSubTeams, FeatureSSO, FeatureAuditLog},
 		},
 		{
 			plan:  PlanEnterprise,
@@ -305,7 +316,7 @@ func TestAllow_EveryPlanEveryFeature(t *testing.T) {
 		},
 		{
 			plan:  PlanSelfHosted,
-			allow: []Feature{FeaturePrivateTeams, FeatureCustomViews, FeatureAPIKeys},
+			allow: []Feature{FeaturePrivateTeams, FeatureSubTeams, FeatureMultiLevelSubTeams, FeatureCustomViews, FeatureAPIKeys},
 			deny:  []Feature{FeatureSSO, FeatureAuditLog},
 		},
 	}

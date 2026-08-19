@@ -47,6 +47,7 @@ var notInTheAPI = map[string]string{
 	"PruneChangeLog":            "worker cron",
 	"PruneIdempotencyKeys":      "worker cron",
 	"PruneExpiredSessions":      "worker cron",
+	"PruneWebhookDeliveries":    "worker cron",
 	"EnsureChangeLogPartitions": "worker cron",
 	"RevokeAllSessions":         "reached through account settings, which is M1",
 	// The retention sweep. Deliberately not reachable by a caller: its cutoff is
@@ -67,8 +68,8 @@ var notInTheAPI = map[string]string{
 // mutatingPrefixes are the verbs that mark a domain method as a write.
 var mutatingPrefixes = []string{
 	"Create", "Update", "Delete", "Archive", "Set", "Add", "Remove",
-	"Suspend", "Resolve", "Accept", "Revoke", "Invite", "Register", "Login",
-	"Prune", "Ensure", "Refresh", "Purge",
+	"Suspend", "Resolve", "Accept", "Decline", "Snooze", "Mark", "Revoke", "Invite", "Register", "Login",
+	"Prune", "Ensure", "Refresh", "Purge", "Restore", "Retire", "Unretire", "Move", "Start",
 }
 
 func TestAPIParity_EveryDomainMutationIsReachableOverGraphQL(t *testing.T) {

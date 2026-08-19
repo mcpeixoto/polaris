@@ -1146,6 +1146,52 @@ func (q *Queries) StreamNotificationsForBootstrap(ctx context.Context, arg Strea
 	return items, nil
 }
 
+const unsubscribeNonMembersFromTeamIssues = `-- name: UnsubscribeNonMembersFromTeamIssues :many
+UPDATE issue_subscription s
+SET unsubscribed = true, updated_at = now()
+FROM issue i
+WHERE s.issue_id = i.id
+  AND i.team_id = $1
+  AND i.archived_at IS NULL
+  AND i.deleted_at IS NULL
+  AND s.unsubscribed = false
+  AND s.user_id NOT IN (
+    SELECT user_id FROM team_membership WHERE team_id = $1
+  )
+RETURNING s.id, s.workspace_id, s.issue_id, s.user_id, s.reason, s.unsubscribed, s.created_at, s.updated_at
+`
+
+// UnsubscribeNonMembersFromTeamIssues runs when a team becomes private: watchers who are
+// not members must not keep receiving notifications for work they can no longer reach.
+func (q *Queries) UnsubscribeNonMembersFromTeamIssues(ctx context.Context, teamID uuid.UUID) ([]IssueSubscription, error) {
+	rows, err := q.db.Query(ctx, unsubscribeNonMembersFromTeamIssues, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueSubscription{}
+	for rows.Next() {
+		var i IssueSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.UserID,
+			&i.Reason,
+			&i.Unsubscribed,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertNotification = `-- name: UpsertNotification :one
 
 INSERT INTO notification (id, workspace_id, user_id, type, issue_id, comment_id,

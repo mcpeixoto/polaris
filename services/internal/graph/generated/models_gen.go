@@ -59,6 +59,30 @@ type APIKeyPayload struct {
 
 func (APIKeyPayload) IsMutationResult() {}
 
+// A link card on an issue. Recreating the same URL updates this row instead of minting another.
+type Attachment struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	IssueID     uuid.UUID `json:"issueId"`
+	TeamID      uuid.UUID `json:"teamId"`
+	URL         string    `json:"url"`
+	Title       string    `json:"title"`
+	Subtitle    *string   `json:"subtitle,omitempty"`
+	IconURL     *string   `json:"iconUrl,omitempty"`
+	// Arbitrary key/value. Subtitle tokens `{var__since}` and `{var__relativeTimestamp}` look up keys here.
+	Metadata  json.RawMessage `json:"metadata,omitempty"`
+	CreatorID *uuid.UUID      `json:"creatorId,omitempty"`
+	CreatedAt time.Time       `json:"createdAt"`
+	UpdatedAt time.Time       `json:"updatedAt"`
+}
+
+type AttachmentPayload struct {
+	Version    int         `json:"version"`
+	Attachment *Attachment `json:"attachment"`
+}
+
+func (AttachmentPayload) IsMutationResult() {}
+
 // A bulk update returns the issues it changed and the single version the whole batch landed
 // at, because it emits one version block rather than one per issue.
 type BulkIssuePayload struct {
@@ -130,10 +154,54 @@ type CreateAPIKeyInput struct {
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 }
 
+type CreateAttachmentInput struct {
+	IssueID  uuid.UUID       `json:"issueId"`
+	URL      string          `json:"url"`
+	Title    *string         `json:"title,omitempty"`
+	Subtitle *string         `json:"subtitle,omitempty"`
+	IconURL  *string         `json:"iconUrl,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
 type CreateCommentInput struct {
 	IssueID  uuid.UUID  `json:"issueId"`
 	Body     string     `json:"body"`
 	ParentID *uuid.UUID `json:"parentId,omitempty"`
+}
+
+type CreateDocumentInput struct {
+	TeamID uuid.UUID `json:"teamId"`
+	// When set, the document belongs to this project rather than the team home.
+	ProjectID *uuid.UUID `json:"projectId,omitempty"`
+	Title     string     `json:"title"`
+	Body      *string    `json:"body,omitempty"`
+}
+
+type CreateFormTemplateFieldInput struct {
+	FormTemplateID uuid.UUID             `json:"formTemplateId"`
+	FieldType      FormTemplateFieldType `json:"fieldType"`
+	Label          string                `json:"label"`
+	Description    *string               `json:"description,omitempty"`
+	Required       *bool                 `json:"required,omitempty"`
+	Config         json.RawMessage       `json:"config,omitempty"`
+}
+
+type CreateFormTemplateInput struct {
+	TeamID      *uuid.UUID      `json:"teamId,omitempty"`
+	Name        string          `json:"name"`
+	Description *string         `json:"description,omitempty"`
+	Properties  json.RawMessage `json:"properties,omitempty"`
+}
+
+type CreateInitiativeInput struct {
+	Name                  string                `json:"name"`
+	Description           *string               `json:"description,omitempty"`
+	Status                *InitiativeStatus     `json:"status,omitempty"`
+	Priority              *int                  `json:"priority,omitempty"`
+	OwnerID               *uuid.UUID            `json:"ownerId,omitempty"`
+	LeadTeamID            *uuid.UUID            `json:"leadTeamId,omitempty"`
+	TargetDate            *string               `json:"targetDate,omitempty"`
+	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
 }
 
 type CreateIssueInput struct {
@@ -162,8 +230,15 @@ type CreateIssueInput struct {
 	ParentID   *uuid.UUID  `json:"parentId,omitempty"`
 	LabelIds   []uuid.UUID `json:"labelIds,omitempty"`
 	TemplateID *uuid.UUID  `json:"templateId,omitempty"`
+	// Records which form template the issue was filed from.
+	FormTemplateID *uuid.UUID `json:"formTemplateId,omitempty"`
 	// Place the new issue directly below this one. Omit to append.
-	AfterIssueID *uuid.UUID `json:"afterIssueId,omitempty"`
+	AfterIssueID       *uuid.UUID `json:"afterIssueId,omitempty"`
+	ProjectID          *uuid.UUID `json:"projectId,omitempty"`
+	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
+	CycleID            *uuid.UUID `json:"cycleId,omitempty"`
+	// File into the team's triage status. The inbox's C, and an outsider filing into a team they can see.
+	FromTriage *bool `json:"fromTriage,omitempty"`
 }
 
 type CreateIssueTemplateInput struct {
@@ -188,6 +263,79 @@ type CreateLabelInput struct {
 	AfterLabelID *uuid.UUID `json:"afterLabelId,omitempty"`
 }
 
+type CreateProjectInput struct {
+	Name        string     `json:"name"`
+	Summary     *string    `json:"summary,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	Icon        *string    `json:"icon,omitempty"`
+	Color       *string    `json:"color,omitempty"`
+	StatusID    *uuid.UUID `json:"statusId,omitempty"`
+	Priority    *int       `json:"priority,omitempty"`
+	LeadID      *uuid.UUID `json:"leadId,omitempty"`
+	// At least one. A project with no team is invisible to everyone.
+	TeamIds               []uuid.UUID           `json:"teamIds"`
+	MemberIds             []uuid.UUID           `json:"memberIds,omitempty"`
+	StartDate             *string               `json:"startDate,omitempty"`
+	StartDateGranularity  *TimeframeGranularity `json:"startDateGranularity,omitempty"`
+	TargetDate            *string               `json:"targetDate,omitempty"`
+	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
+	ProjectTemplateID     *uuid.UUID            `json:"projectTemplateId,omitempty"`
+}
+
+type CreateProjectLabelInput struct {
+	ParentID     *uuid.UUID `json:"parentId,omitempty"`
+	IsGroup      *bool      `json:"isGroup,omitempty"`
+	Name         string     `json:"name"`
+	Description  *string    `json:"description,omitempty"`
+	Color        *string    `json:"color,omitempty"`
+	AfterLabelID *uuid.UUID `json:"afterLabelId,omitempty"`
+}
+
+type CreateProjectMilestoneInput struct {
+	ProjectID   uuid.UUID `json:"projectId"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description,omitempty"`
+	TargetDate  *string   `json:"targetDate,omitempty"`
+}
+
+type CreateProjectStatusInput struct {
+	Name        string                `json:"name"`
+	Description *string               `json:"description,omitempty"`
+	Color       *string               `json:"color,omitempty"`
+	Category    ProjectStatusCategory `json:"category"`
+	IsDefault   *bool                 `json:"isDefault,omitempty"`
+}
+
+type CreateProjectTemplateInput struct {
+	TeamID      *uuid.UUID      `json:"teamId,omitempty"`
+	Name        string          `json:"name"`
+	Description *string         `json:"description,omitempty"`
+	Summary     *string         `json:"summary,omitempty"`
+	Body        *string         `json:"body,omitempty"`
+	Properties  json.RawMessage `json:"properties,omitempty"`
+}
+
+type CreateProjectTemplateIssueInput struct {
+	ProjectTemplateID uuid.UUID       `json:"projectTemplateId"`
+	ParentID          *uuid.UUID      `json:"parentId,omitempty"`
+	Title             string          `json:"title"`
+	Description       *string         `json:"description,omitempty"`
+	Properties        json.RawMessage `json:"properties,omitempty"`
+}
+
+type CreateProjectTemplateMilestoneInput struct {
+	ProjectTemplateID uuid.UUID `json:"projectTemplateId"`
+	Name              string    `json:"name"`
+	Description       *string   `json:"description,omitempty"`
+	TargetDate        *string   `json:"targetDate,omitempty"`
+}
+
+type CreateProjectUpdateInput struct {
+	ProjectID uuid.UUID           `json:"projectId"`
+	Health    ProjectUpdateHealth `json:"health"`
+	Body      *string             `json:"body,omitempty"`
+}
+
 type CreateTeamInput struct {
 	Key         string  `json:"key"`
 	Name        string  `json:"name"`
@@ -196,10 +344,14 @@ type CreateTeamInput struct {
 	Color       *string `json:"color,omitempty"`
 	Timezone    *string `json:"timezone,omitempty"`
 	Private     *bool   `json:"private,omitempty"`
+	// When set, creates a sub-team under this parent.
+	ParentTeamID *uuid.UUID `json:"parentTeamId,omitempty"`
 }
 
 type CreateViewInput struct {
 	TeamID *uuid.UUID `json:"teamId,omitempty"`
+	// Attaches the view as a tab on this project rather than in a sidebar.
+	ProjectID *uuid.UUID `json:"projectId,omitempty"`
 	// True keeps the view private to its creator.
 	Private     *bool           `json:"private,omitempty"`
 	Name        string          `json:"name"`
@@ -208,6 +360,15 @@ type CreateViewInput struct {
 	Color       *string         `json:"color,omitempty"`
 	Filter      json.RawMessage `json:"filter"`
 	Display     json.RawMessage `json:"display,omitempty"`
+}
+
+type CreateWebhookInput struct {
+	URL string `json:"url"`
+	// XOR with allPublicTeams: one team, or every public team.
+	TeamID         *uuid.UUID `json:"teamId,omitempty"`
+	AllPublicTeams *bool      `json:"allPublicTeams,omitempty"`
+	ResourceTypes  []string   `json:"resourceTypes"`
+	Enabled        *bool      `json:"enabled,omitempty"`
 }
 
 type CreateWorkflowStateInput struct {
@@ -219,12 +380,59 @@ type CreateWorkflowStateInput struct {
 	AfterStateID *uuid.UUID    `json:"afterStateId,omitempty"`
 }
 
+// A dated window on one team. Cooldown is a gap between cycles, not a row of this type.
+type Cycle struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      uuid.UUID  `json:"teamId"`
+	Number      int        `json:"number"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	StartsAt    time.Time  `json:"startsAt"`
+	EndsAt      time.Time  `json:"endsAt"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
+type CyclePayload struct {
+	Version int    `json:"version"`
+	Cycle   *Cycle `json:"cycle"`
+}
+
+func (CyclePayload) IsMutationResult() {}
+
 type DeletePayload struct {
 	Version int       `json:"version"`
 	ID      uuid.UUID `json:"id"`
 }
 
 func (DeletePayload) IsMutationResult() {}
+
+// Long-form markdown attached to a team or a project.
+type Document struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      uuid.UUID  `json:"teamId"`
+	ProjectID   *uuid.UUID `json:"projectId,omitempty"`
+	Title       string     `json:"title"`
+	Body        string     `json:"body"`
+	SortOrder   string     `json:"sortOrder"`
+	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	UpdatedBy   *uuid.UUID `json:"updatedBy,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt   *time.Time `json:"deletedAt,omitempty"`
+}
+
+type DocumentPayload struct {
+	Version  int       `json:"version"`
+	Document *Document `json:"document"`
+}
+
+func (DocumentPayload) IsMutationResult() {}
 
 // The answer to "may this workspace do X", in one place.
 //
@@ -241,10 +449,14 @@ type Entitlements struct {
 	// How far back the change stream is queryable, in days.
 	HistoryDays  *int `json:"historyDays,omitempty"`
 	PrivateTeams bool `json:"privateTeams"`
-	CustomViews  bool `json:"customViews"`
-	APIKeys      bool `json:"apiKeys"`
-	Sso          bool `json:"sso"`
-	AuditLog     bool `json:"auditLog"`
+	// Business+: one level of sub-teams under a top-level parent.
+	SubTeams bool `json:"subTeams"`
+	// Enterprise: sub-teams nested up to five levels deep.
+	MultiLevelSubTeams bool `json:"multiLevelSubTeams"`
+	CustomViews        bool `json:"customViews"`
+	APIKeys            bool `json:"apiKeys"`
+	Sso                bool `json:"sso"`
+	AuditLog           bool `json:"auditLog"`
 	// Set while a paid plan is lapsed: reads work, gated writes do not.
 	Lapsed bool `json:"lapsed"`
 }
@@ -266,6 +478,100 @@ type FavoritePayload struct {
 }
 
 func (FavoritePayload) IsMutationResult() {}
+
+// Structured intake template. Fields are separate rows (`FormTemplateField`) replicated
+// alongside the template.
+type FormTemplate struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	// Null means the template is offered in every team.
+	TeamID      *uuid.UUID `json:"teamId,omitempty"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	// Default issue properties not captured by a field (assignee, status, labels, etc.).
+	Properties json.RawMessage `json:"properties"`
+	Position   string          `json:"position"`
+	CreatedBy  *uuid.UUID      `json:"createdBy,omitempty"`
+	CreatedAt  time.Time       `json:"createdAt"`
+	UpdatedAt  time.Time       `json:"updatedAt"`
+	ArchivedAt *time.Time      `json:"archivedAt,omitempty"`
+}
+
+type FormTemplateField struct {
+	ID             uuid.UUID             `json:"id"`
+	WorkspaceID    uuid.UUID             `json:"workspaceId"`
+	FormTemplateID uuid.UUID             `json:"formTemplateId"`
+	FieldType      FormTemplateFieldType `json:"fieldType"`
+	Label          string                `json:"label"`
+	Description    *string               `json:"description,omitempty"`
+	Required       bool                  `json:"required"`
+	SortOrder      string                `json:"sortOrder"`
+	Config         json.RawMessage       `json:"config"`
+	CreatedAt      time.Time             `json:"createdAt"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
+}
+
+type FormTemplateFieldPayload struct {
+	Version int                `json:"version"`
+	Field   *FormTemplateField `json:"field"`
+}
+
+func (FormTemplateFieldPayload) IsMutationResult() {}
+
+type FormTemplatePayload struct {
+	Version  int           `json:"version"`
+	Template *FormTemplate `json:"template"`
+}
+
+func (FormTemplatePayload) IsMutationResult() {}
+
+// A workspace objective grouping a manually curated set of projects.
+type Initiative struct {
+	ID                    uuid.UUID             `json:"id"`
+	WorkspaceID           uuid.UUID             `json:"workspaceId"`
+	Name                  string                `json:"name"`
+	Description           string                `json:"description"`
+	Status                InitiativeStatus      `json:"status"`
+	Priority              int                   `json:"priority"`
+	OwnerID               *uuid.UUID            `json:"ownerId,omitempty"`
+	LeadTeamID            *uuid.UUID            `json:"leadTeamId,omitempty"`
+	SortOrder             string                `json:"sortOrder"`
+	TargetDate            *string               `json:"targetDate,omitempty"`
+	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
+	CreatorID             *uuid.UUID            `json:"creatorId,omitempty"`
+	ArchivedAt            *time.Time            `json:"archivedAt,omitempty"`
+	DeletedAt             *time.Time            `json:"deletedAt,omitempty"`
+	DeletedBy             *uuid.UUID            `json:"deletedBy,omitempty"`
+	CreatedAt             time.Time             `json:"createdAt"`
+	UpdatedAt             time.Time             `json:"updatedAt"`
+	Owner                 *User                 `json:"owner,omitempty"`
+	LeadTeam              *Team                 `json:"leadTeam,omitempty"`
+	Creator               *User                 `json:"creator,omitempty"`
+	Projects              []InitiativeProject   `json:"projects"`
+}
+
+type InitiativePayload struct {
+	Version    int         `json:"version"`
+	Initiative *Initiative `json:"initiative"`
+}
+
+func (InitiativePayload) IsMutationResult() {}
+
+type InitiativeProject struct {
+	ID           uuid.UUID `json:"id"`
+	WorkspaceID  uuid.UUID `json:"workspaceId"`
+	InitiativeID uuid.UUID `json:"initiativeId"`
+	ProjectID    uuid.UUID `json:"projectId"`
+	CreatedAt    time.Time `json:"createdAt"`
+	Project      *Project  `json:"project"`
+}
+
+type InitiativeProjectPayload struct {
+	Version           int                `json:"version"`
+	InitiativeProject *InitiativeProject `json:"initiativeProject"`
+}
+
+func (InitiativeProjectPayload) IsMutationResult() {}
 
 type Invite struct {
 	ID          uuid.UUID   `json:"id"`
@@ -329,11 +635,23 @@ type Issue struct {
 	// Order among siblings, independent of sortOrder — a checklist's order is not the backlog's.
 	SubIssueSortOrder *string `json:"subIssueSortOrder,omitempty"`
 	// Which template made this issue, for the question "is this template still worth having".
-	TemplateID  *uuid.UUID `json:"templateId,omitempty"`
-	StartedAt   *time.Time `json:"startedAt,omitempty"`
-	CompletedAt *time.Time `json:"completedAt,omitempty"`
-	CanceledAt  *time.Time `json:"canceledAt,omitempty"`
-	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	TemplateID *uuid.UUID `json:"templateId,omitempty"`
+	// Which form template made this issue, for intake reporting.
+	FormTemplateID *uuid.UUID `json:"formTemplateId,omitempty"`
+	// At most one project. Two projects on one issue is unrepresentable.
+	ProjectID *uuid.UUID `json:"projectId,omitempty"`
+	// A milestone implies its project.
+	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
+	// At most one cycle, and it has to belong to the issue's team.
+	CycleID *uuid.UUID `json:"cycleId,omitempty"`
+	// Hidden from the triage inbox until this instant, or until the next edit or comment.
+	SnoozedUntil *time.Time `json:"snoozedUntil,omitempty"`
+	// Set when the auto-close engine moved this issue to a closed status. Cleared on reopen.
+	AutoClosedAt *time.Time `json:"autoClosedAt,omitempty"`
+	StartedAt    *time.Time `json:"startedAt,omitempty"`
+	CompletedAt  *time.Time `json:"completedAt,omitempty"`
+	CanceledAt   *time.Time `json:"canceledAt,omitempty"`
+	ArchivedAt   *time.Time `json:"archivedAt,omitempty"`
 	// When the issue was moved to the trash. Only ever set on a row `deletedIssues` returned:
 	// every other read in the product filters deleted rows out, and the sync stream carries a
 	// delete rather than the row, so a client holding an issue with this set is holding
@@ -350,16 +668,21 @@ type Issue struct {
 	Creator   *User               `json:"creator,omitempty"`
 	Comments  []Comment           `json:"comments"`
 	History   []IssueHistoryEntry `json:"history"`
-	Labels    []Label             `json:"labels"`
-	Parent    *Issue              `json:"parent,omitempty"`
-	Children  []Issue             `json:"children"`
+	// Link cards on this issue. URL-idempotent: the same URL is one card.
+	Attachments []Attachment `json:"attachments"`
+	Labels      []Label      `json:"labels"`
+	Parent      *Issue       `json:"parent,omitempty"`
+	Children    []Issue      `json:"children"`
 	// Rolled up from the children. Zero children means null, not zero per cent.
 	Progress *IssueProgress `json:"progress,omitempty"`
 	// Relations where this issue is the subject.
 	Relations []IssueRelation `json:"relations"`
 	// Issues that block this one — the same rows read from the other end.
-	BlockedBy   []IssueRelation     `json:"blockedBy"`
-	Subscribers []IssueSubscription `json:"subscribers"`
+	BlockedBy        []IssueRelation     `json:"blockedBy"`
+	Subscribers      []IssueSubscription `json:"subscribers"`
+	Project          *Project            `json:"project,omitempty"`
+	ProjectMilestone *ProjectMilestone   `json:"projectMilestone,omitempty"`
+	Cycle            *Cycle              `json:"cycle,omitempty"`
 }
 
 // The activity feed. Distinct from the change log that drives sync: this one is curated,
@@ -549,6 +872,269 @@ type NotificationsPayload struct {
 
 func (NotificationsPayload) IsMutationResult() {}
 
+type Project struct {
+	ID                    uuid.UUID             `json:"id"`
+	WorkspaceID           uuid.UUID             `json:"workspaceId"`
+	Name                  string                `json:"name"`
+	Summary               *string               `json:"summary,omitempty"`
+	Description           string                `json:"description"`
+	Icon                  *string               `json:"icon,omitempty"`
+	Color                 string                `json:"color"`
+	StatusID              uuid.UUID             `json:"statusId"`
+	Priority              int                   `json:"priority"`
+	LeadID                *uuid.UUID            `json:"leadId,omitempty"`
+	CreatorID             *uuid.UUID            `json:"creatorId,omitempty"`
+	SortOrder             string                `json:"sortOrder"`
+	StartDate             *string               `json:"startDate,omitempty"`
+	StartDateGranularity  *TimeframeGranularity `json:"startDateGranularity,omitempty"`
+	TargetDate            *string               `json:"targetDate,omitempty"`
+	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
+	// Workspace default, custom cadence, or never expect updates.
+	UpdateSchedule             ProjectUpdateSchedule `json:"updateSchedule"`
+	UpdateReminderIntervalDays *int                  `json:"updateReminderIntervalDays,omitempty"`
+	UpdateReminderWeekday      *int                  `json:"updateReminderWeekday,omitempty"`
+	UpdateReminderHour         *int                  `json:"updateReminderHour,omitempty"`
+	ArchivedAt                 *time.Time            `json:"archivedAt,omitempty"`
+	DeletedAt                  *time.Time            `json:"deletedAt,omitempty"`
+	DeletedBy                  *uuid.UUID            `json:"deletedBy,omitempty"`
+	ProjectTemplateID          *uuid.UUID            `json:"projectTemplateId,omitempty"`
+	CreatedAt                  time.Time             `json:"createdAt"`
+	UpdatedAt                  time.Time             `json:"updatedAt"`
+	Status                     *ProjectStatus        `json:"status"`
+	Lead                       *User                 `json:"lead,omitempty"`
+	Creator                    *User                 `json:"creator,omitempty"`
+	Teams                      []ProjectTeam         `json:"teams"`
+	Members                    []ProjectMember       `json:"members"`
+	Milestones                 []ProjectMilestone    `json:"milestones"`
+}
+
+// An end→start dependency: the blocking project must finish before the blocked may start.
+type ProjectDependency struct {
+	ID                uuid.UUID `json:"id"`
+	WorkspaceID       uuid.UUID `json:"workspaceId"`
+	BlockingProjectID uuid.UUID `json:"blockingProjectId"`
+	BlockedProjectID  uuid.UUID `json:"blockedProjectId"`
+	CreatedAt         time.Time `json:"createdAt"`
+	BlockingProject   *Project  `json:"blockingProject,omitempty"`
+	BlockedProject    *Project  `json:"blockedProject,omitempty"`
+}
+
+type ProjectDependencyPayload struct {
+	Version           int                `json:"version"`
+	ProjectDependency *ProjectDependency `json:"projectDependency"`
+}
+
+func (ProjectDependencyPayload) IsMutationResult() {}
+
+// Workspace taxonomy for labelling projects — separate from issue labels.
+type ProjectLabel struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ParentID    *uuid.UUID `json:"parentId,omitempty"`
+	IsGroup     bool       `json:"isGroup"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	Color       string     `json:"color"`
+	Position    string     `json:"position"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+}
+
+// One project label applied to one project.
+type ProjectLabelLink struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ProjectID   uuid.UUID  `json:"projectId"`
+	LabelID     uuid.UUID  `json:"labelId"`
+	GroupID     *uuid.UUID `json:"groupId,omitempty"`
+	CreatedBy   *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+}
+
+type ProjectLabelLinkPayload struct {
+	Version          int               `json:"version"`
+	ProjectLabelLink *ProjectLabelLink `json:"projectLabelLink"`
+}
+
+func (ProjectLabelLinkPayload) IsMutationResult() {}
+
+type ProjectLabelPayload struct {
+	Version      int           `json:"version"`
+	ProjectLabel *ProjectLabel `json:"projectLabel"`
+}
+
+func (ProjectLabelPayload) IsMutationResult() {}
+
+type ProjectMember struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ProjectID   uuid.UUID `json:"projectId"`
+	UserID      uuid.UUID `json:"userId"`
+	CreatedAt   time.Time `json:"createdAt"`
+	User        *User     `json:"user"`
+}
+
+type ProjectMemberPayload struct {
+	Version       int            `json:"version"`
+	ProjectMember *ProjectMember `json:"projectMember"`
+}
+
+func (ProjectMemberPayload) IsMutationResult() {}
+
+type ProjectMilestone struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ProjectID   uuid.UUID  `json:"projectId"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	TargetDate  *string    `json:"targetDate,omitempty"`
+	SortOrder   string     `json:"sortOrder"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+}
+
+type ProjectMilestonePayload struct {
+	Version   int               `json:"version"`
+	Milestone *ProjectMilestone `json:"milestone"`
+}
+
+func (ProjectMilestonePayload) IsMutationResult() {}
+
+type ProjectPayload struct {
+	Version int      `json:"version"`
+	Project *Project `json:"project"`
+}
+
+func (ProjectPayload) IsMutationResult() {}
+
+type ProjectStatus struct {
+	ID          uuid.UUID             `json:"id"`
+	WorkspaceID uuid.UUID             `json:"workspaceId"`
+	Name        string                `json:"name"`
+	Description *string               `json:"description,omitempty"`
+	Color       string                `json:"color"`
+	Category    ProjectStatusCategory `json:"category"`
+	Position    string                `json:"position"`
+	IsDefault   bool                  `json:"isDefault"`
+	CreatedAt   time.Time             `json:"createdAt"`
+	UpdatedAt   time.Time             `json:"updatedAt"`
+	ArchivedAt  *time.Time            `json:"archivedAt,omitempty"`
+}
+
+type ProjectStatusPayload struct {
+	Version int            `json:"version"`
+	Status  *ProjectStatus `json:"status"`
+}
+
+func (ProjectStatusPayload) IsMutationResult() {}
+
+type ProjectTeam struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ProjectID   uuid.UUID `json:"projectId"`
+	TeamID      uuid.UUID `json:"teamId"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Team        *Team     `json:"team"`
+}
+
+type ProjectTeamPayload struct {
+	Version     int          `json:"version"`
+	ProjectTeam *ProjectTeam `json:"projectTeam"`
+}
+
+func (ProjectTeamPayload) IsMutationResult() {}
+
+// Prefilled project with milestones and starter issues. Workspace or team scoped.
+type ProjectTemplate struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	// Null means the template is offered in every team.
+	TeamID      *uuid.UUID `json:"teamId,omitempty"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	Summary     string     `json:"summary"`
+	Body        string     `json:"body"`
+	// Keys match createProject: statusId, priority, leadId, color, icon, teamIds, memberIds, dates, initiativeIds.
+	Properties json.RawMessage `json:"properties"`
+	Position   string          `json:"position"`
+	CreatedBy  *uuid.UUID      `json:"createdBy,omitempty"`
+	CreatedAt  time.Time       `json:"createdAt"`
+	UpdatedAt  time.Time       `json:"updatedAt"`
+	ArchivedAt *time.Time      `json:"archivedAt,omitempty"`
+}
+
+type ProjectTemplateIssue struct {
+	ID                uuid.UUID  `json:"id"`
+	WorkspaceID       uuid.UUID  `json:"workspaceId"`
+	ProjectTemplateID uuid.UUID  `json:"projectTemplateId"`
+	ParentID          *uuid.UUID `json:"parentId,omitempty"`
+	Title             string     `json:"title"`
+	Description       string     `json:"description"`
+	// Keys match createIssue property names, plus teamId and templateId.
+	Properties json.RawMessage `json:"properties"`
+	SortOrder  string          `json:"sortOrder"`
+	CreatedAt  time.Time       `json:"createdAt"`
+	UpdatedAt  time.Time       `json:"updatedAt"`
+}
+
+type ProjectTemplateIssuePayload struct {
+	Version int                   `json:"version"`
+	Issue   *ProjectTemplateIssue `json:"issue"`
+}
+
+func (ProjectTemplateIssuePayload) IsMutationResult() {}
+
+type ProjectTemplateMilestone struct {
+	ID                uuid.UUID `json:"id"`
+	WorkspaceID       uuid.UUID `json:"workspaceId"`
+	ProjectTemplateID uuid.UUID `json:"projectTemplateId"`
+	Name              string    `json:"name"`
+	Description       *string   `json:"description,omitempty"`
+	TargetDate        *string   `json:"targetDate,omitempty"`
+	SortOrder         string    `json:"sortOrder"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+}
+
+type ProjectTemplateMilestonePayload struct {
+	Version   int                       `json:"version"`
+	Milestone *ProjectTemplateMilestone `json:"milestone"`
+}
+
+func (ProjectTemplateMilestonePayload) IsMutationResult() {}
+
+type ProjectTemplatePayload struct {
+	Version  int              `json:"version"`
+	Template *ProjectTemplate `json:"template"`
+}
+
+func (ProjectTemplatePayload) IsMutationResult() {}
+
+// A status post on a project — health plus narrative markdown.
+type ProjectUpdate struct {
+	ID          uuid.UUID           `json:"id"`
+	WorkspaceID uuid.UUID           `json:"workspaceId"`
+	ProjectID   uuid.UUID           `json:"projectId"`
+	Health      ProjectUpdateHealth `json:"health"`
+	Body        string              `json:"body"`
+	AuthorID    uuid.UUID           `json:"authorId"`
+	EditedAt    *time.Time          `json:"editedAt,omitempty"`
+	DeletedAt   *time.Time          `json:"deletedAt,omitempty"`
+	CreatedAt   time.Time           `json:"createdAt"`
+	UpdatedAt   time.Time           `json:"updatedAt"`
+	Author      *User               `json:"author,omitempty"`
+	Project     *Project            `json:"project,omitempty"`
+}
+
+type ProjectUpdatePayload struct {
+	Version       int            `json:"version"`
+	ProjectUpdate *ProjectUpdate `json:"projectUpdate"`
+}
+
+func (ProjectUpdatePayload) IsMutationResult() {}
+
 // What a purge destroyed.
 //
 // A list of ids rather than a single one, and no entities: after this response the rows named
@@ -625,16 +1211,47 @@ type Team struct {
 	// Whether 0 is offered. For some teams a zero estimate is always a mistake, and offering it invites one.
 	EstimateAllowZero bool `json:"estimateAllowZero"`
 	// Extends the scale's top end.
-	EstimateExtended bool             `json:"estimateExtended"`
-	CreatedAt        time.Time        `json:"createdAt"`
-	UpdatedAt        time.Time        `json:"updatedAt"`
-	RetiredAt        *time.Time       `json:"retiredAt,omitempty"`
-	ArchivedAt       *time.Time       `json:"archivedAt,omitempty"`
-	States           []WorkflowState  `json:"states"`
-	Members          []TeamMembership `json:"members"`
-	Issues           []Issue          `json:"issues"`
-	Labels           []Label          `json:"labels"`
-	Templates        []IssueTemplate  `json:"templates"`
+	EstimateExtended bool `json:"estimateExtended"`
+	// Off by default. Turning it on creates the current cycle and the configured upcoming ones.
+	CyclesEnabled bool `json:"cyclesEnabled"`
+	// 1–8 weeks.
+	CycleDurationWeeks int `json:"cycleDurationWeeks"`
+	// Gap after each cycle, 0–8 weeks. A cooldown is not a cycle; issues cannot be assigned to it.
+	CycleCooldownWeeks int `json:"cycleCooldownWeeks"`
+	// Weekday the cycle begins at 00:01 in the team's timezone: monday…sunday.
+	CycleStartDay string `json:"cycleStartDay"`
+	// How many future cycles to keep pre-created, 1–15.
+	CycleUpcomingCount    int  `json:"cycleUpcomingCount"`
+	CycleAutoAddStarted   bool `json:"cycleAutoAddStarted"`
+	CycleAutoAddCompleted bool `json:"cycleAutoAddCompleted"`
+	// Off by default. Turning it on creates the Triage and Duplicate statuses if they are missing.
+	TriageEnabled bool `json:"triageEnabled"`
+	// An issue cannot leave Triage without a priority other than none.
+	TriageRequirePriority bool `json:"triageRequirePriority"`
+	// Days of inactivity before an open issue is auto-closed. Zero is off.
+	AutoCloseDays int `json:"autoCloseDays"`
+	// Days of inactivity after close before archival. Zero is off.
+	AutoArchiveDays int `json:"autoArchiveDays"`
+	// Close a parent when every sub-issue is done.
+	AutoCloseParent bool `json:"autoCloseParent"`
+	// Close remaining sub-issues when the parent is done.
+	AutoCloseChildren bool       `json:"autoCloseChildren"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
+	RetiredAt         *time.Time `json:"retiredAt,omitempty"`
+	ArchivedAt        *time.Time `json:"archivedAt,omitempty"`
+	// When the team was deleted. Only ever set on a row `deletedTeams` returned: the sync stream
+	// carries a delete rather than the row, so a client holding a team with this set is holding
+	// something it should already have dropped.
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+	// Direct child teams, in key order.
+	SubTeams  []Team           `json:"subTeams"`
+	States    []WorkflowState  `json:"states"`
+	Members   []TeamMembership `json:"members"`
+	Issues    []Issue          `json:"issues"`
+	Labels    []Label          `json:"labels"`
+	Templates []IssueTemplate  `json:"templates"`
+	Cycles    []Cycle          `json:"cycles"`
 }
 
 type TeamMembership struct {
@@ -661,6 +1278,63 @@ type TeamPayload struct {
 
 func (TeamPayload) IsMutationResult() {}
 
+type UpdateAttachmentInput struct {
+	ID       uuid.UUID       `json:"id"`
+	Title    *string         `json:"title,omitempty"`
+	Subtitle *string         `json:"subtitle,omitempty"`
+	IconURL  *string         `json:"iconUrl,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+type UpdateCycleInput struct {
+	ID               uuid.UUID `json:"id"`
+	Name             *string   `json:"name,omitempty"`
+	Description      *string   `json:"description,omitempty"`
+	ClearDescription *bool     `json:"clearDescription,omitempty"`
+	// Upcoming cycles only. Past and current starts are immutable.
+	StartsAt *time.Time `json:"startsAt,omitempty"`
+	// Current and upcoming cycles. Past ends are immutable.
+	EndsAt *time.Time `json:"endsAt,omitempty"`
+}
+
+type UpdateDocumentInput struct {
+	ID    uuid.UUID `json:"id"`
+	Title *string   `json:"title,omitempty"`
+	Body  *string   `json:"body,omitempty"`
+}
+
+type UpdateFormTemplateFieldInput struct {
+	ID          uuid.UUID              `json:"id"`
+	FieldType   *FormTemplateFieldType `json:"fieldType,omitempty"`
+	Label       *string                `json:"label,omitempty"`
+	Description *string                `json:"description,omitempty"`
+	Required    *bool                  `json:"required,omitempty"`
+	SortOrder   *string                `json:"sortOrder,omitempty"`
+	Config      json.RawMessage        `json:"config,omitempty"`
+}
+
+type UpdateFormTemplateInput struct {
+	ID          uuid.UUID       `json:"id"`
+	Name        *string         `json:"name,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	Properties  json.RawMessage `json:"properties,omitempty"`
+}
+
+type UpdateInitiativeInput struct {
+	ID                    uuid.UUID             `json:"id"`
+	Name                  *string               `json:"name,omitempty"`
+	Description           *string               `json:"description,omitempty"`
+	Status                *InitiativeStatus     `json:"status,omitempty"`
+	Priority              *int                  `json:"priority,omitempty"`
+	OwnerID               *uuid.UUID            `json:"ownerId,omitempty"`
+	ClearOwner            *bool                 `json:"clearOwner,omitempty"`
+	LeadTeamID            *uuid.UUID            `json:"leadTeamId,omitempty"`
+	ClearLeadTeam         *bool                 `json:"clearLeadTeam,omitempty"`
+	TargetDate            *string               `json:"targetDate,omitempty"`
+	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
+	ClearTarget           *bool                 `json:"clearTarget,omitempty"`
+}
+
 type UpdateIssueInput struct {
 	ID          uuid.UUID  `json:"id"`
 	Title       *string    `json:"title,omitempty"`
@@ -681,7 +1355,13 @@ type UpdateIssueInput struct {
 	AfterIssueID  *uuid.UUID `json:"afterIssueId,omitempty"`
 	MoveToTop     *bool      `json:"moveToTop,omitempty"`
 	// Place among a parent's children. Only meaningful when the issue has a parent.
-	AfterSiblingID *uuid.UUID `json:"afterSiblingId,omitempty"`
+	AfterSiblingID     *uuid.UUID `json:"afterSiblingId,omitempty"`
+	ProjectID          *uuid.UUID `json:"projectId,omitempty"`
+	ClearProject       *bool      `json:"clearProject,omitempty"`
+	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
+	ClearMilestone     *bool      `json:"clearMilestone,omitempty"`
+	CycleID            *uuid.UUID `json:"cycleId,omitempty"`
+	ClearCycle         *bool      `json:"clearCycle,omitempty"`
 }
 
 type UpdateIssueTemplateInput struct {
@@ -710,6 +1390,110 @@ type UpdateProfileInput struct {
 	Timezone    *string `json:"timezone,omitempty"`
 }
 
+type UpdateProjectInput struct {
+	ID                    uuid.UUID             `json:"id"`
+	Name                  *string               `json:"name,omitempty"`
+	Summary               *string               `json:"summary,omitempty"`
+	Description           *string               `json:"description,omitempty"`
+	Icon                  *string               `json:"icon,omitempty"`
+	Color                 *string               `json:"color,omitempty"`
+	StatusID              *uuid.UUID            `json:"statusId,omitempty"`
+	Priority              *int                  `json:"priority,omitempty"`
+	LeadID                *uuid.UUID            `json:"leadId,omitempty"`
+	ClearLead             *bool                 `json:"clearLead,omitempty"`
+	StartDate             *string               `json:"startDate,omitempty"`
+	StartDateGranularity  *TimeframeGranularity `json:"startDateGranularity,omitempty"`
+	ClearStart            *bool                 `json:"clearStart,omitempty"`
+	TargetDate            *string               `json:"targetDate,omitempty"`
+	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
+	ClearTarget           *bool                 `json:"clearTarget,omitempty"`
+	// Place directly below this project in the same priority group. Omit to append.
+	AfterProjectID             *uuid.UUID             `json:"afterProjectId,omitempty"`
+	MoveToTop                  *bool                  `json:"moveToTop,omitempty"`
+	UpdateSchedule             *ProjectUpdateSchedule `json:"updateSchedule,omitempty"`
+	UpdateReminderIntervalDays *int                   `json:"updateReminderIntervalDays,omitempty"`
+	UpdateReminderWeekday      *int                   `json:"updateReminderWeekday,omitempty"`
+	UpdateReminderHour         *int                   `json:"updateReminderHour,omitempty"`
+}
+
+type UpdateProjectLabelInput struct {
+	ID           uuid.UUID  `json:"id"`
+	Name         *string    `json:"name,omitempty"`
+	Description  *string    `json:"description,omitempty"`
+	Color        *string    `json:"color,omitempty"`
+	ParentID     *uuid.UUID `json:"parentId,omitempty"`
+	ClearParent  *bool      `json:"clearParent,omitempty"`
+	AfterLabelID *uuid.UUID `json:"afterLabelId,omitempty"`
+}
+
+type UpdateProjectMilestoneInput struct {
+	ID          uuid.UUID `json:"id"`
+	Name        *string   `json:"name,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	TargetDate  *string   `json:"targetDate,omitempty"`
+	ClearTarget *bool     `json:"clearTarget,omitempty"`
+}
+
+type UpdateProjectStatusInput struct {
+	ID          uuid.UUID              `json:"id"`
+	Name        *string                `json:"name,omitempty"`
+	Description *string                `json:"description,omitempty"`
+	Color       *string                `json:"color,omitempty"`
+	Category    *ProjectStatusCategory `json:"category,omitempty"`
+	IsDefault   *bool                  `json:"isDefault,omitempty"`
+}
+
+type UpdateProjectTemplateInput struct {
+	ID          uuid.UUID       `json:"id"`
+	Name        *string         `json:"name,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	Summary     *string         `json:"summary,omitempty"`
+	Body        *string         `json:"body,omitempty"`
+	Properties  json.RawMessage `json:"properties,omitempty"`
+}
+
+type UpdateProjectTemplateIssueInput struct {
+	ID          uuid.UUID       `json:"id"`
+	Title       *string         `json:"title,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	Properties  json.RawMessage `json:"properties,omitempty"`
+	ParentID    *uuid.UUID      `json:"parentId,omitempty"`
+	SortOrder   *string         `json:"sortOrder,omitempty"`
+}
+
+type UpdateProjectTemplateMilestoneInput struct {
+	ID          uuid.UUID `json:"id"`
+	Name        *string   `json:"name,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	TargetDate  *string   `json:"targetDate,omitempty"`
+	SortOrder   *string   `json:"sortOrder,omitempty"`
+}
+
+type UpdateProjectUpdateInput struct {
+	ID     uuid.UUID            `json:"id"`
+	Health *ProjectUpdateHealth `json:"health,omitempty"`
+	Body   *string              `json:"body,omitempty"`
+}
+
+type UpdateTeamArchiveInput struct {
+	TeamID            uuid.UUID `json:"teamId"`
+	AutoCloseDays     *int      `json:"autoCloseDays,omitempty"`
+	AutoArchiveDays   *int      `json:"autoArchiveDays,omitempty"`
+	AutoCloseParent   *bool     `json:"autoCloseParent,omitempty"`
+	AutoCloseChildren *bool     `json:"autoCloseChildren,omitempty"`
+}
+
+type UpdateTeamCyclesInput struct {
+	TeamID           uuid.UUID `json:"teamId"`
+	Enabled          *bool     `json:"enabled,omitempty"`
+	DurationWeeks    *int      `json:"durationWeeks,omitempty"`
+	CooldownWeeks    *int      `json:"cooldownWeeks,omitempty"`
+	StartDay         *string   `json:"startDay,omitempty"`
+	UpcomingCount    *int      `json:"upcomingCount,omitempty"`
+	AutoAddStarted   *bool     `json:"autoAddStarted,omitempty"`
+	AutoAddCompleted *bool     `json:"autoAddCompleted,omitempty"`
+}
+
 type UpdateTeamEstimatesInput struct {
 	TeamID    uuid.UUID     `json:"teamId"`
 	Scale     EstimateScale `json:"scale"`
@@ -728,6 +1512,12 @@ type UpdateTeamInput struct {
 	Private     *bool     `json:"private,omitempty"`
 }
 
+type UpdateTeamTriageInput struct {
+	TeamID          uuid.UUID `json:"teamId"`
+	Enabled         *bool     `json:"enabled,omitempty"`
+	RequirePriority *bool     `json:"requirePriority,omitempty"`
+}
+
 type UpdateViewInput struct {
 	ID          uuid.UUID       `json:"id"`
 	Name        *string         `json:"name,omitempty"`
@@ -737,6 +1527,11 @@ type UpdateViewInput struct {
 	Filter      json.RawMessage `json:"filter,omitempty"`
 	Display     json.RawMessage `json:"display,omitempty"`
 	AfterViewID *uuid.UUID      `json:"afterViewId,omitempty"`
+}
+
+type UpdateWebhookInput struct {
+	ID      uuid.UUID `json:"id"`
+	Enabled bool      `json:"enabled"`
 }
 
 type UpdateWorkflowStateInput struct {
@@ -749,8 +1544,11 @@ type UpdateWorkflowStateInput struct {
 }
 
 type UpdateWorkspaceInput struct {
-	Name    *string `json:"name,omitempty"`
-	LogoURL *string `json:"logoUrl,omitempty"`
+	Name                              *string `json:"name,omitempty"`
+	LogoURL                           *string `json:"logoUrl,omitempty"`
+	ProjectUpdateReminderIntervalDays *int    `json:"projectUpdateReminderIntervalDays,omitempty"`
+	ProjectUpdateReminderWeekday      *int    `json:"projectUpdateReminderWeekday,omitempty"`
+	ProjectUpdateReminderHour         *int    `json:"projectUpdateReminderHour,omitempty"`
 }
 
 type User struct {
@@ -789,7 +1587,9 @@ type View struct {
 	// Null means the view spans the workspace.
 	TeamID *uuid.UUID `json:"teamId,omitempty"`
 	// Null means shared. Set means it is that person's private view.
-	OwnerID     *uuid.UUID `json:"ownerId,omitempty"`
+	OwnerID *uuid.UUID `json:"ownerId,omitempty"`
+	// Set means the view is attached as a tab on this project.
+	ProjectID   *uuid.UUID `json:"projectId,omitempty"`
 	Name        string     `json:"name"`
 	Description *string    `json:"description,omitempty"`
 	Icon        *string    `json:"icon,omitempty"`
@@ -848,6 +1648,57 @@ type Viewer struct {
 	SyncVersion int `json:"syncVersion"`
 }
 
+// An outbound webhook. The signing secret is not on this type: it exists in the create
+// response and in the column the delivery path reads, and nowhere a listing can see it.
+type Webhook struct {
+	ID                  uuid.UUID  `json:"id"`
+	WorkspaceID         uuid.UUID  `json:"workspaceId"`
+	CreatorID           uuid.UUID  `json:"creatorId"`
+	URL                 string     `json:"url"`
+	Enabled             bool       `json:"enabled"`
+	AllPublicTeams      bool       `json:"allPublicTeams"`
+	TeamID              *uuid.UUID `json:"teamId,omitempty"`
+	ResourceTypes       []string   `json:"resourceTypes"`
+	ConsecutiveFailures int        `json:"consecutiveFailures"`
+	DisabledAt          *time.Time `json:"disabledAt,omitempty"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
+}
+
+type WebhookCreatePayload struct {
+	Version int             `json:"version"`
+	Created *WebhookCreated `json:"created"`
+}
+
+func (WebhookCreatePayload) IsMutationResult() {}
+
+type WebhookCreated struct {
+	Webhook *Webhook `json:"webhook"`
+	// Shown once. Used to HMAC the raw body. Not recoverable afterwards.
+	Secret string `json:"secret"`
+}
+
+// One delivery attempt, so an admin can self-diagnose a failing consumer.
+type WebhookDelivery struct {
+	ID             uuid.UUID  `json:"id"`
+	WebhookID      uuid.UUID  `json:"webhookId"`
+	ChangeVersion  int        `json:"changeVersion"`
+	EntityType     string     `json:"entityType"`
+	Attempt        int        `json:"attempt"`
+	LastStatus     *int       `json:"lastStatus,omitempty"`
+	LastError      *string    `json:"lastError,omitempty"`
+	LastDurationMs *int       `json:"lastDurationMs,omitempty"`
+	DeliveredAt    *time.Time `json:"deliveredAt,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+}
+
+type WebhookPayload struct {
+	Version int      `json:"version"`
+	Webhook *Webhook `json:"webhook"`
+}
+
+func (WebhookPayload) IsMutationResult() {}
+
 type WorkflowState struct {
 	ID          uuid.UUID     `json:"id"`
 	WorkspaceID uuid.UUID     `json:"workspaceId"`
@@ -884,13 +1735,19 @@ type Workspace struct {
 	// not — locking people out of their own data over a failed card is not a business model.
 	PlanLapsedAt *time.Time `json:"planLapsedAt,omitempty"`
 	// Overrides the plan's default seat count. Null means whatever the plan says.
-	SeatLimit  *int       `json:"seatLimit,omitempty"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	UpdatedAt  time.Time  `json:"updatedAt"`
-	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
-	Teams      []Team     `json:"teams"`
-	Users      []User     `json:"users"`
-	Labels     []Label    `json:"labels"`
+	SeatLimit *int `json:"seatLimit,omitempty"`
+	// Default cadence for project update reminders (staleness + future delivery).
+	ProjectUpdateReminderIntervalDays int `json:"projectUpdateReminderIntervalDays"`
+	// 0 = Sunday through 6 = Saturday.
+	ProjectUpdateReminderWeekday int `json:"projectUpdateReminderWeekday"`
+	// Hour of day in the lead's timezone when reminders would send (0–23).
+	ProjectUpdateReminderHour int        `json:"projectUpdateReminderHour"`
+	CreatedAt                 time.Time  `json:"createdAt"`
+	UpdatedAt                 time.Time  `json:"updatedAt"`
+	ArchivedAt                *time.Time `json:"archivedAt,omitempty"`
+	Teams                     []Team     `json:"teams"`
+	Users                     []User     `json:"users"`
+	Labels                    []Label    `json:"labels"`
 	// What this workspace's plan permits, resolved by one service rather than scattered plan checks.
 	Entitlements *Entitlements `json:"entitlements"`
 }
@@ -1142,6 +1999,140 @@ func (e FavoriteKind) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type FormTemplateFieldType string
+
+const (
+	FormTemplateFieldTypeText         FormTemplateFieldType = "text"
+	FormTemplateFieldTypeLongText     FormTemplateFieldType = "long_text"
+	FormTemplateFieldTypeDropdown     FormTemplateFieldType = "dropdown"
+	FormTemplateFieldTypeCheckboxes   FormTemplateFieldType = "checkboxes"
+	FormTemplateFieldTypeDate         FormTemplateFieldType = "date"
+	FormTemplateFieldTypeFileUpload   FormTemplateFieldType = "file_upload"
+	FormTemplateFieldTypeInstructions FormTemplateFieldType = "instructions"
+	FormTemplateFieldTypeLabelGroup   FormTemplateFieldType = "label_group"
+	FormTemplateFieldTypePriority     FormTemplateFieldType = "priority"
+	FormTemplateFieldTypeTitle        FormTemplateFieldType = "title"
+	FormTemplateFieldTypeDueDate      FormTemplateFieldType = "due_date"
+)
+
+var AllFormTemplateFieldType = []FormTemplateFieldType{
+	FormTemplateFieldTypeText,
+	FormTemplateFieldTypeLongText,
+	FormTemplateFieldTypeDropdown,
+	FormTemplateFieldTypeCheckboxes,
+	FormTemplateFieldTypeDate,
+	FormTemplateFieldTypeFileUpload,
+	FormTemplateFieldTypeInstructions,
+	FormTemplateFieldTypeLabelGroup,
+	FormTemplateFieldTypePriority,
+	FormTemplateFieldTypeTitle,
+	FormTemplateFieldTypeDueDate,
+}
+
+func (e FormTemplateFieldType) IsValid() bool {
+	switch e {
+	case FormTemplateFieldTypeText, FormTemplateFieldTypeLongText, FormTemplateFieldTypeDropdown, FormTemplateFieldTypeCheckboxes, FormTemplateFieldTypeDate, FormTemplateFieldTypeFileUpload, FormTemplateFieldTypeInstructions, FormTemplateFieldTypeLabelGroup, FormTemplateFieldTypePriority, FormTemplateFieldTypeTitle, FormTemplateFieldTypeDueDate:
+		return true
+	}
+	return false
+}
+
+func (e FormTemplateFieldType) String() string {
+	return string(e)
+}
+
+func (e *FormTemplateFieldType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = FormTemplateFieldType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid FormTemplateFieldType", str)
+	}
+	return nil
+}
+
+func (e FormTemplateFieldType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *FormTemplateFieldType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e FormTemplateFieldType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type InitiativeStatus string
+
+const (
+	InitiativeStatusProposed  InitiativeStatus = "PROPOSED"
+	InitiativeStatusPlanned   InitiativeStatus = "PLANNED"
+	InitiativeStatusActive    InitiativeStatus = "ACTIVE"
+	InitiativeStatusCompleted InitiativeStatus = "COMPLETED"
+	InitiativeStatusCanceled  InitiativeStatus = "CANCELED"
+)
+
+var AllInitiativeStatus = []InitiativeStatus{
+	InitiativeStatusProposed,
+	InitiativeStatusPlanned,
+	InitiativeStatusActive,
+	InitiativeStatusCompleted,
+	InitiativeStatusCanceled,
+}
+
+func (e InitiativeStatus) IsValid() bool {
+	switch e {
+	case InitiativeStatusProposed, InitiativeStatusPlanned, InitiativeStatusActive, InitiativeStatusCompleted, InitiativeStatusCanceled:
+		return true
+	}
+	return false
+}
+
+func (e InitiativeStatus) String() string {
+	return string(e)
+}
+
+func (e *InitiativeStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = InitiativeStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid InitiativeStatus", str)
+	}
+	return nil
+}
+
+func (e InitiativeStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *InitiativeStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e InitiativeStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type NotificationType string
 
 const (
@@ -1204,6 +2195,181 @@ func (e *NotificationType) UnmarshalJSON(b []byte) error {
 }
 
 func (e NotificationType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ProjectStatusCategory string
+
+const (
+	ProjectStatusCategoryBacklog   ProjectStatusCategory = "BACKLOG"
+	ProjectStatusCategoryPlanned   ProjectStatusCategory = "PLANNED"
+	ProjectStatusCategoryStarted   ProjectStatusCategory = "STARTED"
+	ProjectStatusCategoryCompleted ProjectStatusCategory = "COMPLETED"
+	ProjectStatusCategoryCanceled  ProjectStatusCategory = "CANCELED"
+)
+
+var AllProjectStatusCategory = []ProjectStatusCategory{
+	ProjectStatusCategoryBacklog,
+	ProjectStatusCategoryPlanned,
+	ProjectStatusCategoryStarted,
+	ProjectStatusCategoryCompleted,
+	ProjectStatusCategoryCanceled,
+}
+
+func (e ProjectStatusCategory) IsValid() bool {
+	switch e {
+	case ProjectStatusCategoryBacklog, ProjectStatusCategoryPlanned, ProjectStatusCategoryStarted, ProjectStatusCategoryCompleted, ProjectStatusCategoryCanceled:
+		return true
+	}
+	return false
+}
+
+func (e ProjectStatusCategory) String() string {
+	return string(e)
+}
+
+func (e *ProjectStatusCategory) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ProjectStatusCategory(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ProjectStatusCategory", str)
+	}
+	return nil
+}
+
+func (e ProjectStatusCategory) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ProjectStatusCategory) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ProjectStatusCategory) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ProjectUpdateHealth string
+
+const (
+	ProjectUpdateHealthOnTrack  ProjectUpdateHealth = "ON_TRACK"
+	ProjectUpdateHealthAtRisk   ProjectUpdateHealth = "AT_RISK"
+	ProjectUpdateHealthOffTrack ProjectUpdateHealth = "OFF_TRACK"
+)
+
+var AllProjectUpdateHealth = []ProjectUpdateHealth{
+	ProjectUpdateHealthOnTrack,
+	ProjectUpdateHealthAtRisk,
+	ProjectUpdateHealthOffTrack,
+}
+
+func (e ProjectUpdateHealth) IsValid() bool {
+	switch e {
+	case ProjectUpdateHealthOnTrack, ProjectUpdateHealthAtRisk, ProjectUpdateHealthOffTrack:
+		return true
+	}
+	return false
+}
+
+func (e ProjectUpdateHealth) String() string {
+	return string(e)
+}
+
+func (e *ProjectUpdateHealth) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ProjectUpdateHealth(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ProjectUpdateHealth", str)
+	}
+	return nil
+}
+
+func (e ProjectUpdateHealth) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ProjectUpdateHealth) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ProjectUpdateHealth) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ProjectUpdateSchedule string
+
+const (
+	ProjectUpdateScheduleDefault ProjectUpdateSchedule = "default"
+	ProjectUpdateScheduleNever   ProjectUpdateSchedule = "never"
+	ProjectUpdateScheduleCustom  ProjectUpdateSchedule = "custom"
+)
+
+var AllProjectUpdateSchedule = []ProjectUpdateSchedule{
+	ProjectUpdateScheduleDefault,
+	ProjectUpdateScheduleNever,
+	ProjectUpdateScheduleCustom,
+}
+
+func (e ProjectUpdateSchedule) IsValid() bool {
+	switch e {
+	case ProjectUpdateScheduleDefault, ProjectUpdateScheduleNever, ProjectUpdateScheduleCustom:
+		return true
+	}
+	return false
+}
+
+func (e ProjectUpdateSchedule) String() string {
+	return string(e)
+}
+
+func (e *ProjectUpdateSchedule) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ProjectUpdateSchedule(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ProjectUpdateSchedule", str)
+	}
+	return nil
+}
+
+func (e ProjectUpdateSchedule) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ProjectUpdateSchedule) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ProjectUpdateSchedule) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -1452,6 +2618,67 @@ func (e *TeamRole) UnmarshalJSON(b []byte) error {
 }
 
 func (e TeamRole) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TimeframeGranularity string
+
+const (
+	TimeframeGranularityDay     TimeframeGranularity = "DAY"
+	TimeframeGranularityMonth   TimeframeGranularity = "MONTH"
+	TimeframeGranularityQuarter TimeframeGranularity = "QUARTER"
+	TimeframeGranularityHalf    TimeframeGranularity = "HALF"
+	TimeframeGranularityYear    TimeframeGranularity = "YEAR"
+)
+
+var AllTimeframeGranularity = []TimeframeGranularity{
+	TimeframeGranularityDay,
+	TimeframeGranularityMonth,
+	TimeframeGranularityQuarter,
+	TimeframeGranularityHalf,
+	TimeframeGranularityYear,
+}
+
+func (e TimeframeGranularity) IsValid() bool {
+	switch e {
+	case TimeframeGranularityDay, TimeframeGranularityMonth, TimeframeGranularityQuarter, TimeframeGranularityHalf, TimeframeGranularityYear:
+		return true
+	}
+	return false
+}
+
+func (e TimeframeGranularity) String() string {
+	return string(e)
+}
+
+func (e *TimeframeGranularity) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TimeframeGranularity(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TimeframeGranularity", str)
+	}
+	return nil
+}
+
+func (e TimeframeGranularity) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TimeframeGranularity) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TimeframeGranularity) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

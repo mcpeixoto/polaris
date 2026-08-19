@@ -3,7 +3,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  height: var(--control-height-lg);
+  height: var(--control-height-md);
 }
 
 .invalid {

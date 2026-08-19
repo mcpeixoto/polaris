@@ -1,0 +1,17 @@
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.form :global(input) {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.016em;
+}
+
+.error {
+  margin: 0;
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

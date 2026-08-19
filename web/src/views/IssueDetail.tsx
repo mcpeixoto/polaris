@@ -46,8 +46,11 @@ import {
   updateIssueProperties,
 } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import { CyclePicker } from '~/features/cycles/CyclePicker';
+import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
 import { Relations, SubIssues } from '~/features/issue/relations';
+import { Links } from '~/features/attachments/Links';
 import { browserTimezone } from '~/features/locale';
 import { restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
@@ -125,9 +128,19 @@ export function IssueDetail() {
         timezone: team?.timezone ?? browserTimezone(),
         estimatesEnabled: team !== undefined && estimatesEnabled(team),
         estimateLabel: team === undefined ? null : issueEstimateLabel(found.estimate, team),
+        projectId: found.projectId ?? null,
+        projectName:
+          found.projectId === undefined
+            ? null
+            : (store.projects.get(found.projectId)?.name ?? 'Unknown project'),
+        cycleId: found.cycleId ?? null,
+        cycleName:
+          found.cycleId === undefined
+            ? null
+            : (store.cycles.get(found.cycleId)?.name ?? 'Unknown cycle'),
       };
     },
-    ['issue', 'team', 'user', 'workflowState'],
+    ['issue', 'team', 'user', 'workflowState', 'project', 'cycle'],
     [issueId],
   );
 
@@ -149,11 +162,15 @@ export function IssueDetail() {
   const priority = useMenuTrigger();
   const estimate = useMenuTrigger();
   const due = useMenuTrigger();
+  const project = useMenuTrigger();
+  const cycle = useMenuTrigger();
 
   const commands = useRef<DetailCommands>({
     pickStatus: () => {},
     pickAssignee: () => {},
     pickPriority: () => {},
+    pickProject: () => {},
+    pickCycle: () => {},
     archive: () => {},
     askDelete: () => {},
     submitComment: () => {},
@@ -190,6 +207,22 @@ export function IssueDetail() {
         when: 'detail',
         group: 'Issues',
         run: () => commands.current.pickPriority(),
+      },
+      {
+        id: 'issueDetail.project',
+        title: 'Set project',
+        keys: ['shift+p'],
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.pickProject(),
+      },
+      {
+        id: 'issueDetail.cycle',
+        title: 'Set cycle',
+        keys: ['shift+c'],
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.pickCycle(),
       },
       {
         id: 'issueDetail.archive',
@@ -245,6 +278,8 @@ export function IssueDetail() {
   commands.current.pickStatus = status.show;
   commands.current.pickAssignee = assignee.show;
   commands.current.pickPriority = priority.show;
+  commands.current.pickProject = project.show;
+  commands.current.pickCycle = cycle.show;
   commands.current.archive = () => {
     archiveIssues(engine, [issue.id]).catch(report);
     // Archiving drops the issue from the replica, so staying here would leave the user
@@ -341,6 +376,8 @@ export function IssueDetail() {
 
           <Relations issueId={issue.id} />
 
+          <Links issueId={issue.id} />
+
           <Activity history={activity.history} names={names} />
 
           <Comments
@@ -359,7 +396,9 @@ export function IssueDetail() {
             </span>
             <Button
               {...status.props}
+              variant="ghost"
               fullWidth
+              className={styles.propertyTrigger}
               aria-describedby={`${issue.id}-status-label`}
               icon={
                 <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
@@ -375,7 +414,9 @@ export function IssueDetail() {
             </span>
             <Button
               {...assignee.props}
+              variant="ghost"
               fullWidth
+              className={styles.propertyTrigger}
               aria-describedby={`${issue.id}-assignee-label`}
               icon={
                 issue.assigneeName === null ? undefined : (
@@ -399,7 +440,9 @@ export function IssueDetail() {
             </span>
             <Button
               {...priority.props}
+              variant="ghost"
               fullWidth
+              className={styles.propertyTrigger}
               aria-describedby={`${issue.id}-priority-label`}
               icon={<PriorityIcon priority={issue.priority} decorative />}
             >
@@ -415,7 +458,13 @@ export function IssueDetail() {
               <span className={styles.propertyLabel} id={`${issue.id}-estimate-label`}>
                 Estimate
               </span>
-              <Button {...estimate.props} fullWidth aria-describedby={`${issue.id}-estimate-label`}>
+              <Button
+                {...estimate.props}
+                variant="ghost"
+                fullWidth
+                className={styles.propertyTrigger}
+                aria-describedby={`${issue.id}-estimate-label`}
+              >
                 {issue.estimateLabel ?? 'No estimate'}
               </Button>
             </div>
@@ -425,12 +474,48 @@ export function IssueDetail() {
             <span className={styles.propertyLabel} id={`${issue.id}-due-label`}>
               Due date
             </span>
-            <Button {...due.props} fullWidth aria-describedby={`${issue.id}-due-label`}>
+            <Button
+              {...due.props}
+              variant="ghost"
+              fullWidth
+              className={styles.propertyTrigger}
+              aria-describedby={`${issue.id}-due-label`}
+            >
               <DueDateValue
                 value={issue.dueDate}
                 timezone={issue.timezone}
                 source={issue.dueDateSource}
               />
+            </Button>
+          </div>
+
+          <div className={styles.property}>
+            <span className={styles.propertyLabel} id={`${issue.id}-project-label`}>
+              Project
+            </span>
+            <Button
+              {...project.props}
+              variant="ghost"
+              fullWidth
+              className={styles.propertyTrigger}
+              aria-describedby={`${issue.id}-project-label`}
+            >
+              {issue.projectName ?? 'No project'}
+            </Button>
+          </div>
+
+          <div className={styles.property}>
+            <span className={styles.propertyLabel} id={`${issue.id}-cycle-label`}>
+              Cycle
+            </span>
+            <Button
+              {...cycle.props}
+              variant="ghost"
+              fullWidth
+              className={styles.propertyTrigger}
+              aria-describedby={`${issue.id}-cycle-label`}
+            >
+              {issue.cycleName ?? 'No cycle'}
             </Button>
           </div>
 
@@ -468,6 +553,24 @@ export function IssueDetail() {
         placement="bottom-end"
         onSelect={(level) => updateIssue(engine, issue.id, { priority: level }).catch(report)}
       />
+      <ProjectPicker
+        open={project.open}
+        onClose={project.hide}
+        trigger={project.ref}
+        teamIds={[issue.teamId]}
+        value={issue.projectId}
+        placement="bottom-end"
+        onSelect={(projectId) => updateIssue(engine, issue.id, { projectId }).catch(report)}
+      />
+      <CyclePicker
+        open={cycle.open}
+        onClose={cycle.hide}
+        trigger={cycle.ref}
+        teamId={issue.teamId}
+        value={issue.cycleId}
+        placement="bottom-end"
+        onSelect={(cycleId) => updateIssue(engine, issue.id, { cycleId }).catch(report)}
+      />
       <EstimatePicker
         open={estimate.open}
         onClose={estimate.hide}
@@ -498,6 +601,8 @@ interface DetailCommands {
   pickStatus(): void;
   pickAssignee(): void;
   pickPriority(): void;
+  pickProject(): void;
+  pickCycle(): void;
   archive(): void;
   askDelete(): void;
   submitComment(): void;

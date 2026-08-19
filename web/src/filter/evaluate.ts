@@ -78,6 +78,10 @@ export function compileFilter(filter: FilterNode, context: FilterContext): Issue
     const deleted = context.deleted;
     parts.push((issue) => !deleted.has(issue.id));
   }
+  if (!mentioned.has('state') && !mentioned.has('stateCategory')) {
+    const states = context.states;
+    parts.push((issue) => states.get(issue.stateId)?.category !== 'triage');
+  }
   // The gates go first so a filter over a corpus full of archived work stops before it
   // reads anything the clauses would have had to compute.
   parts.push(compileNode(filter, context));

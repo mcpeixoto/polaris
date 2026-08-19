@@ -38,6 +38,7 @@ export interface TeamFields {
   readonly name?: string | undefined;
   /** The prefix in every identifier the team owns. Renaming it renames sixty thousand issues. */
   readonly key?: string | undefined;
+  readonly private?: boolean | undefined;
 }
 
 /**
@@ -63,9 +64,11 @@ export async function updateTeam(
     ...before,
     ...(name === undefined || name === '' ? null : { name }),
     ...(key === undefined || key === '' ? null : { key }),
+    ...(fields.private === undefined ? null : { private: fields.private }),
     updatedAt: new Date().toISOString(),
   };
-  if (after.name === before.name && after.key === before.key) return;
+  if (after.name === before.name && after.key === before.key && after.private === before.private)
+    return;
 
   await engine.mutate({
     mutation: UPDATE_TEAM,
@@ -74,6 +77,7 @@ export async function updateTeam(
         id: teamId,
         ...(after.name === before.name ? null : { name: after.name }),
         ...(after.key === before.key ? null : { key: after.key }),
+        ...(after.private === before.private ? null : { private: after.private }),
       },
     },
     optimistic: [{ type: 'team', id: teamId, before, after }],

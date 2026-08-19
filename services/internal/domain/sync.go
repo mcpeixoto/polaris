@@ -284,7 +284,7 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 		teamKeys := make(map[uuid.UUID]string, len(teams))
 		for _, t := range teams {
 			teamKeys[t.ID] = t.Key
-			if !authz.Visible(p, authz.TeamScope(t.ID, t.Private)) {
+			if !authz.TeamListable(p, t.ID, t.Private) {
 				continue
 			}
 			if err := w.Entity("team", t.ID, toTeam(t)); err != nil {
@@ -366,6 +366,280 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "formTemplate",
+			func(ctx context.Context, after uuid.UUID) ([]store.StreamFormTemplatesForBootstrapRow, error) {
+				return q.StreamFormTemplatesForBootstrap(ctx, store.StreamFormTemplatesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(t store.StreamFormTemplatesForBootstrapRow) (uuid.UUID, any) {
+				return t.ID, toFormTemplate(store.AsFormTemplateRow(t))
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "formTemplateField",
+			func(ctx context.Context, after uuid.UUID) ([]store.FormTemplateField, error) {
+				return q.StreamFormTemplateFieldsForBootstrap(ctx, store.StreamFormTemplateFieldsForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(f store.FormTemplateField) (uuid.UUID, any) {
+				return f.ID, toFormTemplateField(f)
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectTemplate",
+			func(ctx context.Context, after uuid.UUID) ([]store.StreamProjectTemplatesForBootstrapRow, error) {
+				return q.StreamProjectTemplatesForBootstrap(ctx, store.StreamProjectTemplatesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(t store.StreamProjectTemplatesForBootstrapRow) (uuid.UUID, any) {
+				return t.ID, toProjectTemplate(store.AsProjectTemplateRow(t))
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectTemplateMilestone",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectTemplateMilestone, error) {
+				return q.StreamProjectTemplateMilestonesForBootstrap(ctx, store.StreamProjectTemplateMilestonesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(m store.ProjectTemplateMilestone) (uuid.UUID, any) {
+				return m.ID, toProjectTemplateMilestone(m)
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectTemplateIssue",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectTemplateIssue, error) {
+				return q.StreamProjectTemplateIssuesForBootstrap(ctx, store.StreamProjectTemplateIssuesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(i store.ProjectTemplateIssue) (uuid.UUID, any) {
+				return i.ID, toProjectTemplateIssue(i)
+			},
+		); err != nil {
+			return err
+		}
+
+		// Projects before issues: an issue may name a project and a milestone.
+		// Admins receive every project, including those on private teams they are not in;
+		// everybody else receives the ones whose teams they belong to.
+		projectTeamIDs := teamIDs
+		if p.Role.IsAdmin() {
+			all := make([]uuid.UUID, 0, len(teams))
+			for _, t := range teams {
+				all = append(all, t.ID)
+			}
+			projectTeamIDs = all
+		}
+
+		if err := streamPages(ctx, w, "projectStatus",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectStatus, error) {
+				return q.StreamProjectStatusesForBootstrap(ctx, store.StreamProjectStatusesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(s store.ProjectStatus) (uuid.UUID, any) { return s.ID, toProjectStatus(s) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "project",
+			func(ctx context.Context, after uuid.UUID) ([]store.Project, error) {
+				return q.StreamProjectsForBootstrap(ctx, store.StreamProjectsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(row store.Project) (uuid.UUID, any) { return row.ID, toProject(row) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectTeam",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectTeam, error) {
+				return q.StreamProjectTeamsForBootstrap(ctx, store.StreamProjectTeamsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(t store.ProjectTeam) (uuid.UUID, any) { return t.ID, toProjectTeam(t) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectMember",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectMember, error) {
+				return q.StreamProjectMembersForBootstrap(ctx, store.StreamProjectMembersForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(m store.ProjectMember) (uuid.UUID, any) { return m.ID, toProjectMember(m) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectMilestone",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectMilestone, error) {
+				return q.StreamProjectMilestonesForBootstrap(ctx, store.StreamProjectMilestonesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(m store.ProjectMilestone) (uuid.UUID, any) { return m.ID, toProjectMilestone(m) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "initiative",
+			func(ctx context.Context, after uuid.UUID) ([]store.Initiative, error) {
+				return q.StreamInitiativesForBootstrap(ctx, store.StreamInitiativesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(i store.Initiative) (uuid.UUID, any) { return i.ID, toInitiative(i) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "initiativeProject",
+			func(ctx context.Context, after uuid.UUID) ([]store.InitiativeProject, error) {
+				return q.StreamInitiativeProjectsForBootstrap(ctx, store.StreamInitiativeProjectsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(ip store.InitiativeProject) (uuid.UUID, any) { return ip.ID, toInitiativeProject(ip) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectUpdate",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectUpdate, error) {
+				return q.StreamProjectUpdatesForBootstrap(ctx, store.StreamProjectUpdatesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(pu store.ProjectUpdate) (uuid.UUID, any) { return pu.ID, toProjectUpdate(pu) },
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectDependency",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectDependency, error) {
+				return q.StreamProjectDependenciesForBootstrap(ctx, store.StreamProjectDependenciesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     projectTeamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(pd store.ProjectDependency) (uuid.UUID, any) { return pd.ID, toProjectDependency(pd) },
+		); err != nil {
+			return err
+		}
+
+		// Project labels before their applications — same bargain as label/issueLabel.
+		if len(teamIDs) > 0 || includeWorkspaceScoped {
+			if err := streamPages(ctx, w, "projectLabel",
+				func(ctx context.Context, after uuid.UUID) ([]store.StreamProjectLabelsForBootstrapRow, error) {
+					return q.StreamProjectLabelsForBootstrap(ctx, store.StreamProjectLabelsForBootstrapParams{
+						WorkspaceID:            p.WorkspaceID,
+						IncludeWorkspaceScoped: true,
+						AfterID:                after,
+						PageSize:               bootstrapPageSize,
+					})
+				},
+				func(l store.StreamProjectLabelsForBootstrapRow) (uuid.UUID, any) {
+					return l.ID, toProjectLabel(store.GetProjectLabelRow(l))
+				},
+			); err != nil {
+				return err
+			}
+		}
+
+		if len(projectTeamIDs) > 0 {
+			if err := streamPages(ctx, w, "projectLabelLink",
+				func(ctx context.Context, after uuid.UUID) ([]store.ProjectLabelLink, error) {
+					return q.StreamProjectLabelLinksForBootstrap(ctx, store.StreamProjectLabelLinksForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						TeamIds:     projectTeamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(link store.ProjectLabelLink) (uuid.UUID, any) {
+					return link.ID, toProjectLabelLink(link)
+				},
+			); err != nil {
+				return err
+			}
+		}
+
+		if err := streamPages(ctx, w, "cycle",
+			func(ctx context.Context, after uuid.UUID) ([]store.Cycle, error) {
+				return q.StreamCyclesForBootstrap(ctx, store.StreamCyclesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(c store.Cycle) (uuid.UUID, any) { return c.ID, toCycle(c) },
+		); err != nil {
+			return err
+		}
+
 		// Everything hanging off an issue. Guarded on the caller having a team at all: with
 		// none, every one of these statements is a scan that can only return nothing.
 		//
@@ -375,7 +649,7 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 		// off an issue it left out.
 		if len(teamIDs) > 0 {
 			if err := streamPages(ctx, w, "issue",
-				func(ctx context.Context, after uuid.UUID) ([]store.Issue, error) {
+				func(ctx context.Context, after uuid.UUID) ([]store.StreamIssuesForBootstrapRow, error) {
 					return q.StreamIssuesForBootstrap(ctx, store.StreamIssuesForBootstrapParams{
 						WorkspaceID: p.WorkspaceID,
 						TeamIds:     teamIDs,
@@ -383,7 +657,9 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 						PageSize:    bootstrapPageSize,
 					})
 				},
-				func(i store.Issue) (uuid.UUID, any) { return i.ID, toIssue(i, teamKeys[i.TeamID]) },
+				func(i store.StreamIssuesForBootstrapRow) (uuid.UUID, any) {
+					return i.ID, toIssue(store.AsIssueRow(i), teamKeys[i.TeamID])
+				},
 			); err != nil {
 				return err
 			}
@@ -422,6 +698,34 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 					})
 				},
 				func(r store.IssueRelation) (uuid.UUID, any) { return r.ID, toIssueRelation(r) },
+			); err != nil {
+				return err
+			}
+
+			if err := streamPages(ctx, w, "attachment",
+				func(ctx context.Context, after uuid.UUID) ([]store.Attachment, error) {
+					return q.StreamAttachmentsForBootstrap(ctx, store.StreamAttachmentsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(a store.Attachment) (uuid.UUID, any) { return a.ID, toAttachment(a) },
+			); err != nil {
+				return err
+			}
+
+			if err := streamPages(ctx, w, "document",
+				func(ctx context.Context, after uuid.UUID) ([]store.Document, error) {
+					return q.StreamDocumentsForBootstrap(ctx, store.StreamDocumentsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(d store.Document) (uuid.UUID, any) { return d.ID, toDocument(d) },
 			); err != nil {
 				return err
 			}
@@ -572,7 +876,22 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // sidebar, an empty inbox and label applications naming labels it has never seen, and it
 // stays that way until some unrelated delta happens to carry each row. Discarding it is the
 // only thing that fixes it, which is exactly what this constant is for.
-const ClientSchemaVersion = 3
+// v4 adds projectStatus, project, projectTeam, projectMember and projectMilestone, and
+// issue.projectId / issue.projectMilestoneId.
+// v5 adds cycle, team cadence fields, and issue.cycleId.
+// v6 adds team triage flags and issue.snoozedUntil.
+// v7 adds team auto-close/archive periods and issue.autoClosedAt.
+// v8 adds attachment (URL-idempotent link cards on issues).
+// v9 adds document (markdown attached to teams and projects).
+// v10 adds initiative and initiativeProject (workspace objectives grouping projects).
+// v11 adds projectUpdate (health plus narrative status posts on projects).
+// v12 adds projectDependency (end→start links between projects).
+// v13 adds view.projectId (attached project views as tabs).
+// v14 adds projectLabel and projectLabelLink (workspace taxonomy for projects).
+// v18 adds project update reminder cadence on workspace and per-project schedule overrides.
+// v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
+// v21 adds projectTemplate, projectTemplateMilestone, projectTemplateIssue, and project.projectTemplateId.
+const ClientSchemaVersion = 21
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

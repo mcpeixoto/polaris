@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { auth, isSignedIn, onAuthLost, setWorkspace, type Workspace } from '~/sync/api';
 import { SyncEngine, type EngineStatus } from '~/sync/engine';
+import { isOutdatedClientMessage } from '~/sync/outdated-client';
 import { EngineProvider } from './context';
 import styles from './Boot.module.css';
 
@@ -133,17 +134,28 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
     case 'choosing':
       return <>{renderNoWorkspace({ onCreated: () => void enter() })}</>;
 
-    case 'failed':
+    case 'failed': {
+      const outdated = isOutdatedClientMessage(phase.error);
       return (
         <Splash
           message={phase.error}
           action={
-            <button className={styles.retry} onClick={() => void enter()}>
-              Try again
+            <button
+              className={styles.retry}
+              onClick={() => {
+                if (outdated) {
+                  location.reload();
+                  return;
+                }
+                void enter();
+              }}
+            >
+              {outdated ? 'Reload' : 'Try again'}
             </button>
           }
         />
       );
+    }
 
     case 'running':
       // The shell mounts before the snapshot finishes so the sidebar and the workspace

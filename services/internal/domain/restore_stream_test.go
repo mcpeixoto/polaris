@@ -55,8 +55,9 @@ import (
 // cannot see them and comparing them would fail on the fixture. Every other type in this
 // file is created the way a person would create it.
 var replayedTypes = []string{
-	"label", "issueTemplate",
-	"issue", "issueLabel", "issueRelation", "comment", "issueSubscription",
+	"label", "issueTemplate", "formTemplate", "formTemplateField",
+	"projectTemplate", "projectTemplateMilestone", "projectTemplateIssue",
+	"issue", "issueLabel", "issueRelation", "attachment", "comment", "issueSubscription",
 	"notification", "view", "viewPreference", "favorite",
 }
 
@@ -99,6 +100,11 @@ func TestRestoreIssue_LeavesAReplayedReplicaHoldingWhatABootstrapWouldGive(t *te
 	}
 	if _, _, err := svc.CreateIssueRelation(ctx, p, subject.ID, other.ID, model.RelationBlocks); err != nil {
 		t.Fatalf("create relation: %v", err)
+	}
+	if _, _, err := svc.CreateAttachment(ctx, p, domain.CreateAttachmentInput{
+		IssueID: subject.ID, URL: "https://github.com/acme/app/pull/4", Title: "PR 4",
+	}); err != nil {
+		t.Fatalf("create attachment: %v", err)
 	}
 
 	// The rest of what a workspace holds. Some of it hangs off the issue that is about to
@@ -201,6 +207,7 @@ func TestRestoreIssue_LeavesAReplayedReplicaHoldingWhatABootstrapWouldGive(t *te
 		{"issue", 2},
 		{"issueLabel", 1},
 		{"issueRelation", 1},
+		{"attachment", 1},
 		// Two from the caller and one from the person who mentioned them.
 		{"comment", 3},
 		// The caller's own: the far issue they subscribed to by hand, and the one the
@@ -242,6 +249,7 @@ func replayReplica(t *testing.T, ctx context.Context, svc *domain.Service, p *au
 	// What each row belongs to, so the cascade can find it. A client keeps these as
 	// indexes; a test keeps them as maps.
 	commentIssue := map[uuid.UUID]uuid.UUID{}
+	attachmentIssue := map[uuid.UUID]uuid.UUID{}
 	labelIssue := map[uuid.UUID]uuid.UUID{}
 	relationEnds := map[uuid.UUID][2]uuid.UUID{}
 	subscriptionIssue := map[uuid.UUID]uuid.UUID{}
@@ -283,6 +291,10 @@ func replayReplica(t *testing.T, ctx context.Context, svc *domain.Service, p *au
 					var row model.Comment
 					decodePayload(t, c.Payload, &row)
 					commentIssue[c.EntityID] = row.IssueID
+				case "attachment":
+					var row model.Attachment
+					decodePayload(t, c.Payload, &row)
+					attachmentIssue[c.EntityID] = row.IssueID
 				case "issueLabel":
 					var row model.IssueLabel
 					decodePayload(t, c.Payload, &row)
@@ -317,6 +329,11 @@ func replayReplica(t *testing.T, ctx context.Context, svc *domain.Service, p *au
 				for id, issueID := range commentIssue {
 					if issueID == c.EntityID {
 						drop("comment", id)
+					}
+				}
+				for id, issueID := range attachmentIssue {
+					if issueID == c.EntityID {
+						drop("attachment", id)
 					}
 				}
 				for id, issueID := range labelIssue {

@@ -463,6 +463,16 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 		}
 	}
 
+	if sel.has("attachments") {
+		for k, i := range issues {
+			attachments, err := r.Svc.ListAttachments(ctx, p, i.ID)
+			if err != nil {
+				return nil, err
+			}
+			out[k].Attachments = toAttachments(attachments)
+		}
+	}
+
 	if sel.has("history") {
 		for k, i := range issues {
 			entries, err := r.Svc.ListIssueHistory(ctx, p, i.ID)
@@ -828,6 +838,24 @@ func (r *Resolver) hydrateTeam(ctx context.Context, p *authz.Principal, sel sele
 			return generated.Team{}, err
 		}
 		out.Templates = toIssueTemplates(templates)
+	}
+
+	if sel.has("cycles") {
+		cycles, err := r.Svc.ListCycles(ctx, p, team.ID)
+		if err != nil {
+			return generated.Team{}, err
+		}
+		out.Cycles = toCycles(cycles)
+	}
+
+	if sel.has("subTeams") {
+		children, err := r.Svc.ListSubTeams(ctx, p, team.ID)
+		if err != nil {
+			return generated.Team{}, err
+		}
+		if out.SubTeams, err = r.hydrateTeams(ctx, p, sel.childOrNone("subTeams", "Team"), children); err != nil {
+			return generated.Team{}, err
+		}
 	}
 
 	return out, nil

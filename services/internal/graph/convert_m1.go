@@ -54,6 +54,42 @@ func toLabels(labels []model.Label) []generated.Label {
 	return out
 }
 
+func toProjectLabel(l model.ProjectLabel) generated.ProjectLabel {
+	return generated.ProjectLabel{
+		ID:          l.ID,
+		WorkspaceID: l.WorkspaceID,
+		ParentID:    l.ParentID,
+		IsGroup:     l.IsGroup,
+		Name:        l.Name,
+		Description: l.Description,
+		Color:       l.Color,
+		Position:    l.Position,
+		CreatedAt:   l.CreatedAt,
+		UpdatedAt:   l.UpdatedAt,
+		ArchivedAt:  l.ArchivedAt,
+	}
+}
+
+func toProjectLabels(labels []model.ProjectLabel) []generated.ProjectLabel {
+	out := make([]generated.ProjectLabel, 0, len(labels))
+	for _, l := range labels {
+		out = append(out, toProjectLabel(l))
+	}
+	return out
+}
+
+func toProjectLabelLink(link model.ProjectLabelLink) generated.ProjectLabelLink {
+	return generated.ProjectLabelLink{
+		ID:          link.ID,
+		WorkspaceID: link.WorkspaceID,
+		ProjectID:   link.ProjectID,
+		LabelID:     link.LabelID,
+		GroupID:     link.GroupID,
+		CreatedBy:   link.CreatedBy,
+		CreatedAt:   link.CreatedAt,
+	}
+}
+
 // toIssueLabel leaves the nested Label nil for the field resolver to fill.
 //
 // Resolving it here would mean a read per application per issue — the N+1 that the
@@ -271,6 +307,7 @@ func toView(v model.View) generated.View {
 		WorkspaceID: v.WorkspaceID,
 		TeamID:      v.TeamID,
 		OwnerID:     v.OwnerID,
+		ProjectID:   v.ProjectID,
 		Name:        v.Name,
 		Description: v.Description,
 		Icon:        v.Icon,
@@ -415,6 +452,125 @@ func toIssueTemplates(rows []model.IssueTemplate) []generated.IssueTemplate {
 	return out
 }
 
+func toFormTemplate(t model.FormTemplate) generated.FormTemplate {
+	return generated.FormTemplate{
+		ID:          t.ID,
+		WorkspaceID: t.WorkspaceID,
+		TeamID:      t.TeamID,
+		Name:        t.Name,
+		Description: t.Description,
+		Properties:  jsonOrEmptyObject(t.Properties),
+		Position:    t.Position,
+		CreatedBy:   t.CreatedBy,
+		CreatedAt:   t.CreatedAt,
+		UpdatedAt:   t.UpdatedAt,
+		ArchivedAt:  t.ArchivedAt,
+	}
+}
+
+func toFormTemplates(rows []model.FormTemplate) []generated.FormTemplate {
+	out := make([]generated.FormTemplate, 0, len(rows))
+	for _, t := range rows {
+		out = append(out, toFormTemplate(t))
+	}
+	return out
+}
+
+func toFormTemplateField(f model.FormTemplateField) generated.FormTemplateField {
+	return generated.FormTemplateField{
+		ID:             f.ID,
+		WorkspaceID:    f.WorkspaceID,
+		FormTemplateID: f.FormTemplateID,
+		FieldType:      generated.FormTemplateFieldType(f.FieldType),
+		Label:          f.Label,
+		Description:    f.Description,
+		Required:       f.Required,
+		SortOrder:      f.SortOrder,
+		Config:         jsonOrEmptyObject(f.Config),
+		CreatedAt:      f.CreatedAt,
+		UpdatedAt:      f.UpdatedAt,
+	}
+}
+
+func toFormTemplateFields(rows []model.FormTemplateField) []generated.FormTemplateField {
+	out := make([]generated.FormTemplateField, 0, len(rows))
+	for _, f := range rows {
+		out = append(out, toFormTemplateField(f))
+	}
+	return out
+}
+
+func toProjectTemplate(t model.ProjectTemplate) generated.ProjectTemplate {
+	return generated.ProjectTemplate{
+		ID:          t.ID,
+		WorkspaceID: t.WorkspaceID,
+		TeamID:      t.TeamID,
+		Name:        t.Name,
+		Description: t.Description,
+		Summary:     t.Summary,
+		Body:        t.Body,
+		Properties:  jsonOrEmptyObject(t.Properties),
+		Position:    t.Position,
+		CreatedBy:   t.CreatedBy,
+		CreatedAt:   t.CreatedAt,
+		UpdatedAt:   t.UpdatedAt,
+		ArchivedAt:  t.ArchivedAt,
+	}
+}
+
+func toProjectTemplates(rows []model.ProjectTemplate) []generated.ProjectTemplate {
+	out := make([]generated.ProjectTemplate, 0, len(rows))
+	for _, t := range rows {
+		out = append(out, toProjectTemplate(t))
+	}
+	return out
+}
+
+func toProjectTemplateMilestone(m model.ProjectTemplateMilestone) generated.ProjectTemplateMilestone {
+	return generated.ProjectTemplateMilestone{
+		ID:                m.ID,
+		WorkspaceID:       m.WorkspaceID,
+		ProjectTemplateID: m.ProjectTemplateID,
+		Name:              m.Name,
+		Description:       m.Description,
+		TargetDate:        fromDate(m.TargetDate),
+		SortOrder:         m.SortOrder,
+		CreatedAt:         m.CreatedAt,
+		UpdatedAt:         m.UpdatedAt,
+	}
+}
+
+func toProjectTemplateMilestones(rows []model.ProjectTemplateMilestone) []generated.ProjectTemplateMilestone {
+	out := make([]generated.ProjectTemplateMilestone, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, toProjectTemplateMilestone(m))
+	}
+	return out
+}
+
+func toProjectTemplateIssue(i model.ProjectTemplateIssue) generated.ProjectTemplateIssue {
+	return generated.ProjectTemplateIssue{
+		ID:                i.ID,
+		WorkspaceID:       i.WorkspaceID,
+		ProjectTemplateID: i.ProjectTemplateID,
+		ParentID:          i.ParentID,
+		Title:             i.Title,
+		Description:       i.Description,
+		Properties:        jsonOrEmptyObject(i.Properties),
+		SortOrder:         i.SortOrder,
+		CreatedAt:         i.CreatedAt,
+		UpdatedAt:         i.UpdatedAt,
+	}
+}
+
+func toProjectTemplateIssues(rows []model.ProjectTemplateIssue) []generated.ProjectTemplateIssue {
+	out := make([]generated.ProjectTemplateIssue, 0, len(rows))
+	for _, i := range rows {
+		out = append(out, toProjectTemplateIssue(i))
+	}
+	return out
+}
+
 // --------------------------------------------------------------------------------- api keys
 
 // toAPIKey never carries the token, because model.APIKey has no field for one.
@@ -442,6 +598,54 @@ func toAPIKeys(rows []model.APIKey) []generated.APIKey {
 	out := make([]generated.APIKey, 0, len(rows))
 	for _, k := range rows {
 		out = append(out, toAPIKey(k))
+	}
+	return out
+}
+
+func toWebhook(w model.Webhook) generated.Webhook {
+	return generated.Webhook{
+		ID:                  w.ID,
+		WorkspaceID:         w.WorkspaceID,
+		CreatorID:           w.CreatorID,
+		URL:                 w.URL,
+		Enabled:             w.Enabled,
+		AllPublicTeams:      w.AllPublicTeams,
+		TeamID:              w.TeamID,
+		ResourceTypes:       w.ResourceTypes,
+		ConsecutiveFailures: w.ConsecutiveFailures,
+		DisabledAt:          w.DisabledAt,
+		CreatedAt:           w.CreatedAt,
+		UpdatedAt:           w.UpdatedAt,
+	}
+}
+
+func toWebhooks(rows []model.Webhook) []generated.Webhook {
+	out := make([]generated.Webhook, 0, len(rows))
+	for _, w := range rows {
+		out = append(out, toWebhook(w))
+	}
+	return out
+}
+
+func toWebhookDelivery(d model.WebhookDelivery) generated.WebhookDelivery {
+	return generated.WebhookDelivery{
+		ID:             d.ID,
+		WebhookID:      d.WebhookID,
+		ChangeVersion:  int(d.ChangeVersion),
+		EntityType:     d.EntityType,
+		Attempt:        d.Attempt,
+		LastStatus:     d.LastStatus,
+		LastError:      d.LastError,
+		LastDurationMs: d.LastDurationMs,
+		DeliveredAt:    d.DeliveredAt,
+		CreatedAt:      d.CreatedAt,
+	}
+}
+
+func toWebhookDeliveries(rows []model.WebhookDelivery) []generated.WebhookDelivery {
+	out := make([]generated.WebhookDelivery, 0, len(rows))
+	for _, d := range rows {
+		out = append(out, toWebhookDelivery(d))
 	}
 	return out
 }
@@ -503,17 +707,19 @@ func limitOrNull(v int) *int {
 
 func toEntitlements(f entitlement.Features, plan string, seatsUsed int, lapsed bool) generated.Entitlements {
 	return generated.Entitlements{
-		Plan:         plan,
-		SeatLimit:    limitOrNull(f.SeatLimit),
-		SeatsUsed:    seatsUsed,
-		TeamLimit:    limitOrNull(f.TeamLimit),
-		HistoryDays:  limitOrNull(f.HistoryDays),
-		PrivateTeams: f.PrivateTeams,
-		CustomViews:  f.CustomViews,
-		APIKeys:      f.APIKeys,
-		Sso:          f.SSO,
-		AuditLog:     f.AuditLog,
-		Lapsed:       lapsed,
+		Plan:               plan,
+		SeatLimit:          limitOrNull(f.SeatLimit),
+		SeatsUsed:          seatsUsed,
+		TeamLimit:          limitOrNull(f.TeamLimit),
+		HistoryDays:        limitOrNull(f.HistoryDays),
+		PrivateTeams:       f.PrivateTeams,
+		SubTeams:           f.SubTeams,
+		MultiLevelSubTeams: f.MultiLevelSubTeams,
+		CustomViews:        f.CustomViews,
+		APIKeys:            f.APIKeys,
+		Sso:                f.SSO,
+		AuditLog:           f.AuditLog,
+		Lapsed:             lapsed,
 	}
 }
 

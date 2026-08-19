@@ -30,6 +30,12 @@ export const ISSUE_FIELDS = /* GraphQL */ `
     parentId
     subIssueSortOrder
     templateId
+    formTemplateId
+    projectId
+    projectMilestoneId
+    cycleId
+    snoozedUntil
+    autoClosedAt
     startedAt
     completedAt
     canceledAt
@@ -54,6 +60,19 @@ export const TEAM_FIELDS = /* GraphQL */ `
     estimateScale
     estimateAllowZero
     estimateExtended
+    cyclesEnabled
+    cycleDurationWeeks
+    cycleCooldownWeeks
+    cycleStartDay
+    cycleUpcomingCount
+    cycleAutoAddStarted
+    cycleAutoAddCompleted
+    triageEnabled
+    triageRequirePriority
+    autoCloseDays
+    autoArchiveDays
+    autoCloseParent
+    autoCloseChildren
     createdAt
     updatedAt
     retiredAt
@@ -113,6 +132,23 @@ export const COMMENT_FIELDS = /* GraphQL */ `
     editedAt
     resolvedAt
     resolvedBy
+    createdAt
+    updatedAt
+  }
+`;
+
+export const ATTACHMENT_FIELDS = /* GraphQL */ `
+  fragment AttachmentFields on Attachment {
+    id
+    workspaceId
+    issueId
+    teamId
+    url
+    title
+    subtitle
+    iconUrl
+    metadata
+    creatorId
     createdAt
     updatedAt
   }
@@ -249,6 +285,39 @@ export const DELETE_COMMENT = /* GraphQL */ `
   }
 `;
 
+export const CREATE_ATTACHMENT = /* GraphQL */ `
+  ${ATTACHMENT_FIELDS}
+  mutation CreateAttachment($input: CreateAttachmentInput!, $clientId: UUID!, $opId: UUID!) {
+    createAttachment(input: $input, clientId: $clientId, opId: $opId) {
+      version
+      attachment {
+        ...AttachmentFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_ATTACHMENT = /* GraphQL */ `
+  ${ATTACHMENT_FIELDS}
+  mutation UpdateAttachment($input: UpdateAttachmentInput!, $clientId: UUID!, $opId: UUID!) {
+    updateAttachment(input: $input, clientId: $clientId, opId: $opId) {
+      version
+      attachment {
+        ...AttachmentFields
+      }
+    }
+  }
+`;
+
+export const DELETE_ATTACHMENT = /* GraphQL */ `
+  mutation DeleteAttachment($id: UUID!, $clientId: UUID!, $opId: UUID!) {
+    deleteAttachment(id: $id, clientId: $clientId, opId: $opId) {
+      version
+      id
+    }
+  }
+`;
+
 export const CREATE_TEAM = /* GraphQL */ `
   ${TEAM_FIELDS}
   ${STATE_FIELDS}
@@ -272,6 +341,107 @@ export const UPDATE_TEAM = /* GraphQL */ `
       version
       team {
         ...TeamFields
+      }
+    }
+  }
+`;
+
+export const CYCLE_FIELDS = /* GraphQL */ `
+  fragment CycleFields on Cycle {
+    id
+    workspaceId
+    teamId
+    number
+    name
+    description
+    startsAt
+    endsAt
+    completedAt
+    archivedAt
+    createdAt
+    updatedAt
+  }
+`;
+
+export const UPDATE_TEAM_CYCLES = /* GraphQL */ `
+  ${TEAM_FIELDS}
+  mutation UpdateTeamCycles($input: UpdateTeamCyclesInput!) {
+    updateTeamCycles(input: $input) {
+      version
+      team {
+        ...TeamFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_TEAM_TRIAGE = /* GraphQL */ `
+  ${TEAM_FIELDS}
+  mutation UpdateTeamTriage($input: UpdateTeamTriageInput!) {
+    updateTeamTriage(input: $input) {
+      version
+      team {
+        ...TeamFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_TEAM_ARCHIVE = /* GraphQL */ `
+  ${TEAM_FIELDS}
+  mutation UpdateTeamArchive($input: UpdateTeamArchiveInput!) {
+    updateTeamArchive(input: $input) {
+      version
+      team {
+        ...TeamFields
+      }
+    }
+  }
+`;
+
+export const ACCEPT_TRIAGE_ISSUE = /* GraphQL */ `
+  ${ISSUE_FIELDS}
+  mutation AcceptTriageIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {
+    acceptTriageIssue(id: $id, clientId: $clientId, opId: $opId) {
+      version
+      issue {
+        ...IssueFields
+      }
+    }
+  }
+`;
+
+export const DECLINE_TRIAGE_ISSUE = /* GraphQL */ `
+  ${ISSUE_FIELDS}
+  mutation DeclineTriageIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {
+    declineTriageIssue(id: $id, clientId: $clientId, opId: $opId) {
+      version
+      issue {
+        ...IssueFields
+      }
+    }
+  }
+`;
+
+export const MARK_ISSUE_DUPLICATE = /* GraphQL */ `
+  ${ISSUE_FIELDS}
+  mutation MarkIssueDuplicate($id: UUID!, $canonicalId: UUID!, $clientId: UUID!, $opId: UUID!) {
+    markIssueDuplicate(id: $id, canonicalId: $canonicalId, clientId: $clientId, opId: $opId) {
+      version
+      issue {
+        ...IssueFields
+      }
+    }
+  }
+`;
+
+export const SNOOZE_ISSUE = /* GraphQL */ `
+  ${ISSUE_FIELDS}
+  mutation SnoozeIssue($id: UUID!, $until: Time!, $clientId: UUID!, $opId: UUID!) {
+    snoozeIssue(id: $id, until: $until, clientId: $clientId, opId: $opId) {
+      version
+      issue {
+        ...IssueFields
       }
     }
   }
