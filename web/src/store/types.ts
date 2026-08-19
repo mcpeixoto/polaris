@@ -126,6 +126,7 @@ export interface GitHubConnection {
   readonly orgLogin?: string;
   readonly branchNameFormat: string;
   readonly linkCommits: boolean;
+  readonly linkbacks: boolean;
   readonly connectedAt?: Timestamp;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;

@@ -2577,6 +2577,7 @@ func (r *mutationResolver) CreateGitHubConnection(ctx context.Context, input gen
 		OrgLogin:         input.OrgLogin,
 		BranchNameFormat: input.BranchNameFormat,
 		LinkCommits:      input.LinkCommits,
+		Linkbacks:        input.Linkbacks,
 	})
 	if err != nil {
 		return nil, PresentError(ctx, err)
@@ -2595,6 +2596,7 @@ func (r *mutationResolver) UpdateGitHubConnection(ctx context.Context, input gen
 		OrgLogin:         input.OrgLogin,
 		BranchNameFormat: input.BranchNameFormat,
 		LinkCommits:      input.LinkCommits,
+		Linkbacks:        input.Linkbacks,
 		Enabled:          input.Enabled,
 	})
 	if err != nil {

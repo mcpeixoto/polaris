@@ -16,12 +16,12 @@ const createGitHubConnection = `-- name: CreateGitHubConnection :one
 
 INSERT INTO github_connection (
   id, workspace_id, creator_id, enabled, org_login, installation_id,
-  branch_name_format, link_commits, commit_webhook_secret, connected_at
+  branch_name_format, link_commits, linkbacks, commit_webhook_secret, connected_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 )
 RETURNING id, workspace_id, creator_id, enabled, org_login, installation_id,
-          branch_name_format, link_commits, connected_at, created_at, updated_at
+          branch_name_format, link_commits, linkbacks, connected_at, created_at, updated_at
 `
 
 type CreateGitHubConnectionParams struct {
@@ -33,6 +33,7 @@ type CreateGitHubConnectionParams struct {
 	InstallationID      *int64
 	BranchNameFormat    string
 	LinkCommits         bool
+	Linkbacks           bool
 	CommitWebhookSecret string
 	ConnectedAt         *time.Time
 }
@@ -46,6 +47,7 @@ type CreateGitHubConnectionRow struct {
 	InstallationID   *int64
 	BranchNameFormat string
 	LinkCommits      bool
+	Linkbacks        bool
 	ConnectedAt      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -62,6 +64,7 @@ func (q *Queries) CreateGitHubConnection(ctx context.Context, arg CreateGitHubCo
 		arg.InstallationID,
 		arg.BranchNameFormat,
 		arg.LinkCommits,
+		arg.Linkbacks,
 		arg.CommitWebhookSecret,
 		arg.ConnectedAt,
 	)
@@ -75,6 +78,7 @@ func (q *Queries) CreateGitHubConnection(ctx context.Context, arg CreateGitHubCo
 		&i.InstallationID,
 		&i.BranchNameFormat,
 		&i.LinkCommits,
+		&i.Linkbacks,
 		&i.ConnectedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -156,7 +160,7 @@ func (q *Queries) DeleteGitHubUserLink(ctx context.Context, arg DeleteGitHubUser
 
 const getGitHubConnection = `-- name: GetGitHubConnection :one
 SELECT id, workspace_id, creator_id, enabled, org_login, installation_id,
-       branch_name_format, link_commits, connected_at, created_at, updated_at
+       branch_name_format, link_commits, linkbacks, connected_at, created_at, updated_at
 FROM github_connection
 WHERE workspace_id = $1
 `
@@ -170,6 +174,7 @@ type GetGitHubConnectionRow struct {
 	InstallationID   *int64
 	BranchNameFormat string
 	LinkCommits      bool
+	Linkbacks        bool
 	ConnectedAt      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -187,6 +192,7 @@ func (q *Queries) GetGitHubConnection(ctx context.Context, workspaceID uuid.UUID
 		&i.InstallationID,
 		&i.BranchNameFormat,
 		&i.LinkCommits,
+		&i.Linkbacks,
 		&i.ConnectedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -194,9 +200,22 @@ func (q *Queries) GetGitHubConnection(ctx context.Context, workspaceID uuid.UUID
 	return i, err
 }
 
+const getGitHubConnectionAccessToken = `-- name: GetGitHubConnectionAccessToken :one
+SELECT COALESCE(access_token, '')::text AS access_token
+FROM github_connection
+WHERE workspace_id = $1
+`
+
+func (q *Queries) GetGitHubConnectionAccessToken(ctx context.Context, workspaceID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getGitHubConnectionAccessToken, workspaceID)
+	var access_token string
+	err := row.Scan(&access_token)
+	return access_token, err
+}
+
 const getGitHubConnectionByInstallation = `-- name: GetGitHubConnectionByInstallation :one
 SELECT id, workspace_id, creator_id, enabled, org_login, installation_id,
-       branch_name_format, link_commits, connected_at, created_at, updated_at
+       branch_name_format, link_commits, linkbacks, connected_at, created_at, updated_at
 FROM github_connection
 WHERE installation_id = $1
 `
@@ -210,6 +229,7 @@ type GetGitHubConnectionByInstallationRow struct {
 	InstallationID   *int64
 	BranchNameFormat string
 	LinkCommits      bool
+	Linkbacks        bool
 	ConnectedAt      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -227,6 +247,7 @@ func (q *Queries) GetGitHubConnectionByInstallation(ctx context.Context, install
 		&i.InstallationID,
 		&i.BranchNameFormat,
 		&i.LinkCommits,
+		&i.Linkbacks,
 		&i.ConnectedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -337,7 +358,7 @@ func (q *Queries) SetGitHubConnectionAccessToken(ctx context.Context, arg SetGit
 
 const streamGitHubConnectionsForBootstrap = `-- name: StreamGitHubConnectionsForBootstrap :many
 SELECT id, workspace_id, creator_id, enabled, org_login, installation_id,
-       branch_name_format, link_commits, connected_at, created_at, updated_at
+       branch_name_format, link_commits, linkbacks, connected_at, created_at, updated_at
 FROM github_connection
 WHERE workspace_id = $1
   AND id > $2
@@ -360,6 +381,7 @@ type StreamGitHubConnectionsForBootstrapRow struct {
 	InstallationID   *int64
 	BranchNameFormat string
 	LinkCommits      bool
+	Linkbacks        bool
 	ConnectedAt      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -383,6 +405,7 @@ func (q *Queries) StreamGitHubConnectionsForBootstrap(ctx context.Context, arg S
 			&i.InstallationID,
 			&i.BranchNameFormat,
 			&i.LinkCommits,
+			&i.Linkbacks,
 			&i.ConnectedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -463,11 +486,12 @@ SET org_login = COALESCE($1, org_login),
     installation_id = COALESCE($2, installation_id),
     branch_name_format = COALESCE($3, branch_name_format),
     link_commits = COALESCE($4, link_commits),
-    enabled = COALESCE($5, enabled),
-    connected_at = COALESCE($6, connected_at)
-WHERE workspace_id = $7
+    linkbacks = COALESCE($5, linkbacks),
+    enabled = COALESCE($6, enabled),
+    connected_at = COALESCE($7, connected_at)
+WHERE workspace_id = $8
 RETURNING id, workspace_id, creator_id, enabled, org_login, installation_id,
-          branch_name_format, link_commits, connected_at, created_at, updated_at
+          branch_name_format, link_commits, linkbacks, connected_at, created_at, updated_at
 `
 
 type UpdateGitHubConnectionParams struct {
@@ -475,6 +499,7 @@ type UpdateGitHubConnectionParams struct {
 	InstallationID   *int64
 	BranchNameFormat *string
 	LinkCommits      *bool
+	Linkbacks        *bool
 	Enabled          *bool
 	ConnectedAt      *time.Time
 	WorkspaceID      uuid.UUID
@@ -489,6 +514,7 @@ type UpdateGitHubConnectionRow struct {
 	InstallationID   *int64
 	BranchNameFormat string
 	LinkCommits      bool
+	Linkbacks        bool
 	ConnectedAt      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -500,6 +526,7 @@ func (q *Queries) UpdateGitHubConnection(ctx context.Context, arg UpdateGitHubCo
 		arg.InstallationID,
 		arg.BranchNameFormat,
 		arg.LinkCommits,
+		arg.Linkbacks,
 		arg.Enabled,
 		arg.ConnectedAt,
 		arg.WorkspaceID,
@@ -514,6 +541,7 @@ func (q *Queries) UpdateGitHubConnection(ctx context.Context, arg UpdateGitHubCo
 		&i.InstallationID,
 		&i.BranchNameFormat,
 		&i.LinkCommits,
+		&i.Linkbacks,
 		&i.ConnectedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,

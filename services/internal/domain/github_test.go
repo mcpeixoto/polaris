@@ -282,3 +282,280 @@ func TestVerifyGitHubCommitWebhook_RejectsABadHMAC(t *testing.T) {
 		t.Fatalf("a correctly signed body must verify: %v", err)
 	}
 }
+
+func TestLinkGitHubPullRequest_OpenedMovesIssueToStarted(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Importer"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if issue.StateID != f.Todo && issue.StateID != f.Backlog {
+		t.Fatalf("fixture issues start unstarted, got %s", issue.StateID)
+	}
+
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL:   "https://github.com/acme/app/pull/12",
+		Title: "Fixes ENG-1",
+	}); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	got, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != f.InProgress {
+		t.Fatalf("an opened PR must move the issue to Started, state=%s want %s", got.StateID, f.InProgress)
+	}
+}
+
+func TestIngestGitHubPullRequest_MergedClosingWordCompletesWhenEveryPRIsMerged(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Importer"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+
+	if _, _, err := svc.IngestGitHubPullRequest(ctx, f.WorkspaceID, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/12", Title: "Fixes ENG-1",
+	}); err != nil {
+		t.Fatalf("open first: %v", err)
+	}
+	if _, _, err := svc.IngestGitHubPullRequest(ctx, f.WorkspaceID, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/13", Title: "Fixes ENG-1",
+	}); err != nil {
+		t.Fatalf("open second: %v", err)
+	}
+	if _, _, err := svc.IngestGitHubPullRequest(ctx, f.WorkspaceID, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/12", Title: "Fixes ENG-1", Merged: true,
+	}); err != nil {
+		t.Fatalf("merge first: %v", err)
+	}
+	mid, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if mid.StateID == f.Done {
+		t.Fatal("Done must wait until every linked PR has merged")
+	}
+
+	if _, _, err := svc.IngestGitHubPullRequest(ctx, f.WorkspaceID, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/13", Title: "Fixes ENG-1", Merged: true,
+	}); err != nil {
+		t.Fatalf("merge second: %v", err)
+	}
+	got, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != f.Done {
+		t.Fatalf("the last merged closing PR must complete the issue, state=%s", got.StateID)
+	}
+}
+
+func TestIngestGitHubPullRequest_MergedRelationDoesNotComplete(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Related"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+
+	if _, _, err := svc.IngestGitHubPullRequest(ctx, f.WorkspaceID, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/4", Title: "relates to ENG-1", Merged: true,
+	}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	got, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID == f.Done {
+		t.Fatal("a relation word must never apply the merge status")
+	}
+}
+
+func TestIngestGitHubPush_DefaultBranchClosingWordCompletes(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	on := true
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{LinkCommits: &on}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Commit me"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+
+	if _, _, err := svc.IngestGitHubPush(ctx, f.WorkspaceID, domain.GitHubPushInput{
+		Commits: []domain.GitHubCommitInput{{
+			SHA: "abc123def", URL: "https://github.com/acme/app/commit/abc123def",
+			Message: "fixes ENG-1",
+		}},
+	}); err != nil {
+		t.Fatalf("feature branch: %v", err)
+	}
+	mid, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if mid.StateID != f.InProgress {
+		t.Fatalf("a commit on a feature branch must start the issue, state=%s", mid.StateID)
+	}
+
+	if _, _, err := svc.IngestGitHubPush(ctx, f.WorkspaceID, domain.GitHubPushInput{
+		Commits: []domain.GitHubCommitInput{{
+			SHA: "abc123def", URL: "https://github.com/acme/app/commit/abc123def",
+			Message: "fixes ENG-1", OnDefaultBranch: true,
+		}},
+	}); err != nil {
+		t.Fatalf("default branch: %v", err)
+	}
+	got, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != f.Done {
+		t.Fatalf("a closing commit on the default branch must complete the issue, state=%s", got.StateID)
+	}
+}
+
+type recordingPoster struct {
+	comments []domain.GitHubComment
+}
+
+func (r *recordingPoster) Post(_ context.Context, _ string, c domain.GitHubComment) error {
+	r.comments = append(r.comments, c)
+	return nil
+}
+
+func TestGitHubLinkback_PostedOnFirstPRLink(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	svc.PublicURL = "https://polaris.example"
+	poster := &recordingPoster{}
+	svc.SetGitHubCommentPoster(poster)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	if _, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Importer"}); err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/12", Title: "Fixes ENG-1",
+	}); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	if len(poster.comments) != 1 {
+		t.Fatalf("want one linkback, got %d", len(poster.comments))
+	}
+	c := poster.comments[0]
+	if c.Repo != "acme/app" || c.Number != 12 {
+		t.Fatalf("comment target: %+v", c)
+	}
+	if !strings.Contains(c.Body, "ENG-1: Importer") || !strings.Contains(c.Body, "/issue/ENG-1") {
+		t.Fatalf("public linkback must name the issue, got %q", c.Body)
+	}
+
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/12", Title: "Fixes ENG-1",
+	}); err != nil {
+		t.Fatalf("relink: %v", err)
+	}
+	if len(poster.comments) != 1 {
+		t.Fatalf("a second event for the same card must not comment again, got %d", len(poster.comments))
+	}
+}
+
+func TestGitHubLinkback_SkippedWhenDisabled(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	poster := &recordingPoster{}
+	svc.SetGitHubCommentPoster(poster)
+	ctx := context.Background()
+	p := f.Principal()
+
+	off := false
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{Linkbacks: &off}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	if _, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Quiet"}); err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/1", Title: "Fixes ENG-1",
+	}); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	if len(poster.comments) != 0 {
+		t.Fatalf("disabled linkbacks must not post, got %+v", poster.comments)
+	}
+}
+
+func TestGitHubLinkback_PrivateTeamIsLinkOnly(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	svc.PublicURL = "https://polaris.example"
+	poster := &recordingPoster{}
+	svc.SetGitHubCommentPoster(poster)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	priv := true
+	if _, _, err := svc.UpdateTeam(ctx, p, domain.UpdateTeamInput{ID: f.TeamID, Private: &priv}); err != nil {
+		t.Fatalf("private: %v", err)
+	}
+	if _, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Secret work"}); err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/9", Title: "Fixes ENG-1",
+	}); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	if len(poster.comments) != 1 {
+		t.Fatalf("want one linkback, got %d", len(poster.comments))
+	}
+	if strings.Contains(poster.comments[0].Body, "Secret work") {
+		t.Fatalf("a private team must not leak the title onto GitHub, got %q", poster.comments[0].Body)
+	}
+	if !strings.Contains(poster.comments[0].Body, "/issue/ENG-1") {
+		t.Fatalf("private linkback is still the URL, got %q", poster.comments[0].Body)
+	}
+}

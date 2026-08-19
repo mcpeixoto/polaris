@@ -20,6 +20,7 @@ func toGitHubConnection(c model.GitHubConnection) generated.GitHubConnection {
 		OrgLogin:         c.OrgLogin,
 		BranchNameFormat: c.BranchNameFormat,
 		LinkCommits:      c.LinkCommits,
+		Linkbacks:        c.Linkbacks,
 		ConnectedAt:      c.ConnectedAt,
 		CreatedAt:        c.CreatedAt,
 		UpdatedAt:        c.UpdatedAt,

@@ -60,6 +60,8 @@ var notInTheAPI = map[string]string{
 	// called by the auth middleware and the socket handshake, never by a caller.
 	"ResolvePrincipal": "a read; the verb prefix is a false positive",
 
+	"SetGitHubCommentPoster": "composition root: wires the GitHub HTTP client, not a caller mutation",
+
 	// M1 scope. Listed so the omission is a decision rather than an oversight.
 	"InviteToWorkspace": "M1: the invite UI ships with member management",
 	"RevokeInvite":      "M1",

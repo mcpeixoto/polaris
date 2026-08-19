@@ -305,6 +305,7 @@ function oneOfEach(): EntityRow[] {
         enabled: true,
         branchNameFormat: '{identifier}-{title}',
         linkCommits: false,
+        linkbacks: true,
         createdAt: NOW,
         updatedAt: NOW,
       },

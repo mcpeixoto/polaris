@@ -925,7 +925,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
 // v21 adds projectTemplate, projectTemplateMilestone, projectTemplateIssue, and project.projectTemplateId.
 // v22 adds githubConnection and githubUserLink (GitHub v1 linking, no secrets).
-const ClientSchemaVersion = 22
+// v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
+const ClientSchemaVersion = 23
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //
