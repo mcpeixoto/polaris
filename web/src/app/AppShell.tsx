@@ -13,8 +13,13 @@ import { NavLink, useLocation, useNavigate } from 'react-router';
 import { toFilterParam } from '~/filter';
 import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
+import { Menu } from '~/components';
+import { CreateIssueProvider } from '~/features/issue/create-context';
+import { type IssueComposerSeed } from '~/features/issue/create-url';
 import type { Favorite, Store, Team, UUID, View } from '~/store';
 
+import { useWorkspaceSession } from './Boot';
 import { useQuery, useSyncStatus } from './context';
 import { useActions } from './keymap';
 import { CommandMenu } from './CommandMenu';
@@ -32,7 +37,7 @@ export interface AppShellProps {
    * on the shell for its context — a cycle that bundlers resolve in whichever order they
    * happen to walk the graph.
    */
-  renderCreateIssue?: (props: { onClose: () => void }) => ReactNode;
+  renderCreateIssue?: (props: { onClose: () => void; seed?: IssueComposerSeed }) => ReactNode;
   /**
    * Same split as create-issue: the action is global (command menu from any screen) and
    * the modal lives with the rest of the project UI. `C` stays create-issue.
@@ -52,8 +57,11 @@ export function AppShell({
   const [commandOpen, setCommandOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createSeed, setCreateSeed] = useState<IssueComposerSeed | undefined>();
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [createInitiativeOpen, setCreateInitiativeOpen] = useState(false);
+  const session = useWorkspaceSession();
+  const workspaceMenu = useMenuTrigger();
   const onProjects =
     pathname === '/projects' ||
     pathname.startsWith('/project/') ||
@@ -87,9 +95,23 @@ export function AppShell({
     setCommandOpen(false);
     setHelpOpen(false);
     setCreateOpen(false);
+    setCreateSeed(undefined);
     setCreateProjectOpen(false);
     setCreateInitiativeOpen(false);
   }, []);
+
+  const openCreate = useCallback((seed?: IssueComposerSeed) => {
+    setCreateSeed(seed);
+    setCreateOpen(true);
+  }, []);
+
+  const closeCreate = useCallback(() => {
+    setCreateOpen(false);
+    setCreateSeed(undefined);
+    if (pathname === '/new' || /\/team\/[^/]+\/new$/.test(pathname)) {
+      void navigate('/');
+    }
+  }, [navigate, pathname]);
 
   useActions(
     [
@@ -122,7 +144,7 @@ export function AppShell({
         title: 'Create issue',
         keys: ['c'],
         group: 'Issues',
-        run: () => setCreateOpen(true),
+        run: () => openCreate(),
       },
       {
         id: 'project.create',
@@ -149,6 +171,26 @@ export function AppShell({
         keys: ['g i'],
         group: 'Navigation',
         run: () => navigate('/inbox'),
+      },
+      {
+        id: 'nav.drafts',
+        title: 'Go to Drafts',
+        keys: ['g d'],
+        group: 'Navigation',
+        run: () => navigate('/drafts'),
+      },
+      {
+        id: 'nav.preferences',
+        title: 'Go to Preferences',
+        group: 'Navigation',
+        run: () => navigate('/settings/preferences'),
+      },
+      {
+        id: 'nav.switchWorkspace',
+        title: 'Switch workspace',
+        keys: ['o w'],
+        group: 'Navigation',
+        run: () => workspaceMenu.show(),
       },
       {
         id: 'nav.settings',
@@ -209,18 +251,43 @@ export function AppShell({
         run: () => navigate('/settings/trash'),
       },
     ],
-    [navigate, closeAll, cyclesPath, triagePath, archivesPath],
+    [navigate, closeAll, cyclesPath, triagePath, archivesPath, openCreate, workspaceMenu.show],
   );
 
+  const workspaceItems = session.workspaces.map((item) => ({
+    id: item.id,
+    label: item.name,
+    selected: item.id === session.currentId,
+    onSelect: () => {
+      if (item.id === session.currentId) return;
+      void session.switchTo(item.id);
+    },
+  }));
+
   return (
+    <CreateIssueProvider value={{ open: openCreate }}>
     <div className={styles.shell}>
       <nav className={styles.sidebar} aria-label="Workspace">
         <div className={styles.workspace}>
-          <span className={styles.workspaceMark} aria-hidden="true">
-            {(workspace?.name ?? 'P').slice(0, 1).toUpperCase()}
-          </span>
-          <span className={styles.workspaceName}>{workspace?.name ?? 'Polaris'}</span>
+          <button
+            type="button"
+            className={styles.workspaceSwitch}
+            {...workspaceMenu.props}
+            aria-label="Switch workspace"
+          >
+            <span className={styles.workspaceMark} aria-hidden="true">
+              {(workspace?.name ?? 'P').slice(0, 1).toUpperCase()}
+            </span>
+            <span className={styles.workspaceName}>{workspace?.name ?? 'Polaris'}</span>
+          </button>
           <ConnectionIndicator />
+          <Menu
+            open={workspaceMenu.open}
+            onClose={workspaceMenu.hide}
+            trigger={workspaceMenu.ref}
+            label="Workspaces"
+            items={workspaceItems}
+          />
         </div>
 
         <div className={styles.section}>
@@ -231,6 +298,10 @@ export function AppShell({
           <NavLink to="/inbox" className={navClass}>
             <NavGlyph name="inbox" />
             <span className={styles.navLabel}>Inbox</span>
+          </NavLink>
+          <NavLink to="/drafts" className={navClass}>
+            <NavGlyph name="drafts" />
+            <span className={styles.navLabel}>Drafts</span>
           </NavLink>
           <NavLink to="/search" className={navClass}>
             <NavGlyph name="search" />
@@ -292,6 +363,10 @@ export function AppShell({
 
         <div className={styles.section}>
           <h2 className={styles.sectionTitle}>Workspace</h2>
+          <NavLink to="/settings/preferences" className={navClass}>
+            <NavGlyph name="prefs" />
+            <span className={styles.navLabel}>Preferences</span>
+          </NavLink>
           <NavLink to="/settings/members" className={navClass}>
             <NavGlyph name="members" />
             <span className={styles.navLabel}>Members</span>
@@ -328,6 +403,10 @@ export function AppShell({
             <NavGlyph name="github" />
             <span className={styles.navLabel}>GitHub</span>
           </NavLink>
+          <NavLink to="/settings/export" className={navClass}>
+            <NavGlyph name="export" />
+            <span className={styles.navLabel}>Export</span>
+          </NavLink>
           <NavLink to="/settings/trash" className={navClass}>
             <NavGlyph name="trash" />
             <span className={styles.navLabel}>Trash</span>
@@ -343,11 +422,12 @@ export function AppShell({
 
       <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
       <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
-      {createOpen && renderCreateIssue?.({ onClose: () => setCreateOpen(false) })}
+      {createOpen && renderCreateIssue?.({ onClose: closeCreate, seed: createSeed })}
       {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
       {createInitiativeOpen &&
         renderCreateInitiative?.({ onClose: () => setCreateInitiativeOpen(false) })}
     </div>
+    </CreateIssueProvider>
   );
 }
 
@@ -418,6 +498,7 @@ function navClass({ isActive }: { isActive: boolean }): string {
 type NavGlyphName =
   | 'issues'
   | 'inbox'
+  | 'drafts'
   | 'search'
   | 'project'
   | 'initiative'
@@ -430,6 +511,8 @@ type NavGlyphName =
   | 'key'
   | 'webhook'
   | 'github'
+  | 'export'
+  | 'prefs'
   | 'trash';
 
 function NavGlyph({ name }: { name: NavGlyphName }) {
@@ -505,6 +588,13 @@ function glyphPath(name: NavGlyphName) {
           <path d="M8 5.25V8l2 1.5" {...stroke} />
         </>
       );
+    case 'drafts':
+      return (
+        <>
+          <path d="M4.5 2.5h5.2L13.5 6.3V13a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3.5 13V4A1.5 1.5 0 0 1 4.5 2.5Z" {...stroke} />
+          <path d="M9.5 2.5V6h3.5M6 9h4M6 11.5h2.5" {...stroke} />
+        </>
+      );
     case 'view':
       return (
         <>
@@ -565,6 +655,22 @@ function glyphPath(name: NavGlyphName) {
           <path d="M8 2.5v7" {...stroke} />
           <path d="M5 6.5 8 9.5l3-3" {...stroke} />
           <path d="M4.5 12.5h7" {...stroke} />
+        </>
+      );
+    case 'export':
+      return (
+        <>
+          <path d="M8 3.5v6.5M5.5 7.5 8 10l2.5-2.5" {...stroke} />
+          <path d="M3.5 12.5h9" {...stroke} />
+        </>
+      );
+    case 'prefs':
+      return (
+        <>
+          <circle cx="5.5" cy="5" r="1.25" {...stroke} />
+          <path d="M3 5h1.2M6.8 5H13" {...stroke} />
+          <circle cx="10.5" cy="11" r="1.25" {...stroke} />
+          <path d="M3 11h6.2M11.8 11H13" {...stroke} />
         </>
       );
     case 'trash':
@@ -679,7 +785,7 @@ function favoriteLink(store: Store, favorite: Favorite): FavoriteLink | null {
       const team = store.get('team', favorite.targetId);
       return team === undefined
         ? null
-        : { id: favorite.id, to: `/team/${team.key}`, label: team.name, prefix: team.key };
+        : { id: favorite.id, to: `/team/${team.key}/home`, label: team.name, prefix: team.key };
     }
     case 'issue': {
       const issue = store.get('issue', favorite.targetId);

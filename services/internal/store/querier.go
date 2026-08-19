@@ -260,6 +260,9 @@ type Querier interface {
 	// Cycles. Column lists follow the table order, same rule as issues.sql.
 	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
+	// Drafts are not replicated. Every query is scoped to one user in one workspace: a listing
+	// that omitted user_id would be a way to read somebody else's unsent work.
+	CreateDraft(ctx context.Context, arg CreateDraftParams) (Draft, error)
 	CreateFormTemplate(ctx context.Context, arg CreateFormTemplateParams) (CreateFormTemplateRow, error)
 	CreateFormTemplateField(ctx context.Context, arg CreateFormTemplateFieldParams) (FormTemplateField, error)
 	// Replicated columns only. access_token and commit_webhook_secret are never selected here.
@@ -318,6 +321,7 @@ type Querier interface {
 	CreateWorkflowState(ctx context.Context, arg CreateWorkflowStateParams) (WorkflowState, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
+	DeleteDraft(ctx context.Context, arg DeleteDraftParams) (uuid.UUID, error)
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
 	DeleteFormTemplateField(ctx context.Context, id uuid.UUID) (FormTemplateField, error)
@@ -387,6 +391,7 @@ type Querier interface {
 	GetDefaultWorkflowStateForTeam(ctx context.Context, teamID uuid.UUID) (WorkflowState, error)
 	GetDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	GetDocumentForUpdate(ctx context.Context, id uuid.UUID) (Document, error)
+	GetDraft(ctx context.Context, arg GetDraftParams) (Draft, error)
 	GetFavoritePositionAfter(ctx context.Context, arg GetFavoritePositionAfterParams) (string, error)
 	GetFormTemplate(ctx context.Context, id uuid.UUID) (GetFormTemplateRow, error)
 	GetFormTemplateField(ctx context.Context, id uuid.UUID) (FormTemplateField, error)
@@ -605,6 +610,7 @@ type Querier interface {
 	// at every call site that means nothing.
 	//
 	ListDigestRecipients(ctx context.Context, pageSize int32) ([]ListDigestRecipientsRow, error)
+	ListDraftsForUser(ctx context.Context, arg ListDraftsForUserParams) ([]Draft, error)
 	ListDueWebhookDeliveries(ctx context.Context, arg ListDueWebhookDeliveriesParams) ([]ListDueWebhookDeliveriesRow, error)
 	ListEnabledWebhooks(ctx context.Context, workspaceID uuid.UUID) ([]ListEnabledWebhooksRow, error)
 	ListFavorites(ctx context.Context, arg ListFavoritesParams) ([]Favorite, error)
@@ -866,6 +872,7 @@ type Querier interface {
 	//
 	OldestRetainedVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	PruneChangeLogBefore(ctx context.Context, before time.Time) (int64, error)
+	PruneDrafts(ctx context.Context, before time.Time) (int64, error)
 	PruneWebhookDeliveries(ctx context.Context, before time.Time) (int64, error)
 	// PurgeDeletedIssues hard-deletes a bounded batch of trashed issues and is the only
 	// statement in the product that removes an issue row.
@@ -1260,6 +1267,7 @@ type Querier interface {
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
 	UpdateCycle(ctx context.Context, arg UpdateCycleParams) (Cycle, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
+	UpdateDraftPayload(ctx context.Context, arg UpdateDraftPayloadParams) (Draft, error)
 	UpdateFormTemplate(ctx context.Context, arg UpdateFormTemplateParams) (UpdateFormTemplateRow, error)
 	UpdateFormTemplateField(ctx context.Context, arg UpdateFormTemplateFieldParams) (FormTemplateField, error)
 	UpdateGitHubConnection(ctx context.Context, arg UpdateGitHubConnectionParams) (UpdateGitHubConnectionRow, error)

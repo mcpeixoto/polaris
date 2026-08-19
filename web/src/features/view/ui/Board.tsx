@@ -50,6 +50,7 @@ import { LabelList } from '~/features/labels/LabelList';
 import { isOverdue, whenDay } from '~/features/time';
 import type { DisplayGroupBy, DisplayOptions, DisplayProperty } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewerId } from '~/hooks/useViewer';
 import type { StateCategory, Store, UUID } from '~/store';
 
 import type { ViewGroup } from './useView';
@@ -169,6 +170,7 @@ export function Board({
   className,
 }: BoardProps) {
   const engine = useEngine();
+  const viewerId = useViewerId();
   const baseId = useId();
   const noticeId = `${baseId}-notice`;
 
@@ -228,9 +230,9 @@ export function Board({
       // guard is here so that a future grouping added without a case does nothing rather
       // than writing the wrong field.
       if (fields === null || ids.length === 0) return;
-      updateIssues(engine, ids, fields).catch(report);
+      updateIssues(engine, ids, fields, viewerId).catch(report);
     },
-    [engine, display.groupBy],
+    [engine, display.groupBy, viewerId],
   );
 
   const onDropCard = useCallback(

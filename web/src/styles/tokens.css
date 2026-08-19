@@ -438,3 +438,31 @@
     --duration-normal: 1ms;
   }
 }
+
+/* Device preferences. Applied as attributes on :root so a new screen inherits them
+ * rather than each component remembering to look the preference up. */
+:root[data-font-size='small'] {
+  --font-size-xs: 10px;
+  --font-size-sm: 11px;
+  --font-size-md: 12px;
+  --font-size-lg: 14px;
+  --font-size-xl: 16px;
+  --font-size-2xl: 20px;
+}
+
+:root[data-font-size='large'] {
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+}
+
+:root[data-pointer='pointer'] :is(button, a, summary, [role='button'], [role='option'], [role='menuitem']) {
+  cursor: pointer;
+}
+
+:root[data-underline-links='on'] a {
+  text-decoration: underline;
+}

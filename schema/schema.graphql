@@ -1402,6 +1402,39 @@ input UpdateWebhookInput {
   enabled: Boolean!
 }
 
+"""An unsent issue or comment the author asked to keep. Personal; not replicated."""
+enum DraftKind {
+  ISSUE
+  COMMENT
+}
+
+type Draft {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  kind: DraftKind!
+  payload: JSON!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type DraftPayload implements MutationResult {
+  version: Int!
+  draft: Draft!
+}
+
+input CreateDraftInput {
+  """Optional. The server mints one when this is absent."""
+  id: UUID
+  kind: DraftKind!
+  payload: JSON!
+}
+
+input UpdateDraftInput {
+  id: UUID!
+  payload: JSON!
+}
+
 """
 Workspace GitHub install. Credentials are not on this type: the replica carries the
 settings a client needs to copy a git branch name, and nothing that could be a token.
@@ -2104,6 +2137,12 @@ type Query {
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
 
+  """
+  The caller's saved drafts. Local composer restore never appears here — only drafts
+  saved across devices, still inside the six-month window.
+  """
+  drafts: [Draft!]!
+
   """Pending invitations. Admins only."""
   invites: [Invite!]!
 
@@ -2378,4 +2417,10 @@ type Mutation {
   linkGitHubPullRequest(input: LinkGitHubPullRequestInput!, clientId: UUID, opId: UUID): GitHubLinkPayload! @idempotent
   updateGitHubTeamAutomation(input: UpdateGitHubTeamAutomationInput!): GitHubTeamAutomationPayload!
   deleteGitHubTeamAutomation(teamId: UUID!): GitHubTeamAutomationPayload!
+
+  # ---- drafts (personal, on-demand; not replicated)
+
+  createDraft(input: CreateDraftInput!): DraftPayload!
+  updateDraft(input: UpdateDraftInput!): DraftPayload!
+  deleteDraft(id: UUID!): DeletePayload!
 }

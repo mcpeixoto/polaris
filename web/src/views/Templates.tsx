@@ -50,6 +50,7 @@ import {
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { estimateLabel, estimateOptions, estimatesEnabled } from '~/features/estimate';
+import { buildCreateURL } from '~/features/issue/create-url';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { archiveTemplate, createTemplate, updateTemplate } from '~/features/templates/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -89,6 +90,8 @@ interface TemplateRow {
   readonly properties: TemplateProperties;
   readonly position: string;
   readonly archived: boolean;
+  /** Team key when the template is team-scoped, so a create URL can name the team. */
+  readonly teamKey: string | undefined;
   /** What it prefills, resolved to names. Empty means it prefills nothing at all. */
   readonly prefills: readonly string[];
 }
@@ -328,6 +331,10 @@ interface TemplateListRowProps {
 }
 
 function TemplateListRow({ row, onEdit, onArchive }: TemplateListRowProps) {
+  const copyUrl = () => {
+    void navigator.clipboard?.writeText(buildCreateURL({ teamKey: row.teamKey, template: row.name }));
+  };
+
   return (
     <div className={styles.row}>
       <div className={styles.rowText}>
@@ -343,6 +350,13 @@ function TemplateListRow({ row, onEdit, onArchive }: TemplateListRowProps) {
       </div>
 
       <span className={styles.rowActions}>
+        <Button
+          size="sm"
+          onClick={copyUrl}
+          aria-label={`Copy URL to create an issue from ${row.name}`}
+        >
+          Copy create URL
+        </Button>
         <Button size="sm" onClick={onEdit} aria-label={`Edit ${row.name}`}>
           Edit
         </Button>
@@ -944,6 +958,7 @@ function rowOf(store: Store, template: IssueTemplate): TemplateRow {
     properties: template.properties,
     position: template.position,
     archived: template.archivedAt !== undefined,
+    teamKey: template.teamId === undefined ? undefined : store.teams.get(template.teamId)?.key,
     prefills: prefillsOf(store, template),
   };
 }

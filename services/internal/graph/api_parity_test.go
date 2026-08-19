@@ -48,6 +48,7 @@ var notInTheAPI = map[string]string{
 	"PruneIdempotencyKeys":      "worker cron",
 	"PruneExpiredSessions":      "worker cron",
 	"PruneWebhookDeliveries":    "worker cron",
+	"PruneDrafts":               "worker cron",
 	"EnsureChangeLogPartitions": "worker cron",
 	"RevokeAllSessions":         "reached through account settings, which is M1",
 	// The retention sweep. Deliberately not reachable by a caller: its cutoff is

@@ -18,7 +18,7 @@
  * "collapse" affordance to earn back a shape nobody asked for.
  */
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -37,6 +37,7 @@ import {
 // exports the primitives a screen composes with, and this is an assembled dialogue.
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
+import { personName, getPrefs, subscribePrefs } from '~/features/prefs/prefs';
 import {
   archiveIssues,
   deleteIssues,
@@ -56,6 +57,11 @@ import { restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { exact, when } from '~/features/time';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
+import {
+  clearCommentDraft,
+  readCommentDrafts,
+  writeCommentDraft,
+} from '~/features/drafts/local';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
@@ -84,6 +90,12 @@ export function IssueDetail() {
   const navigate = useNavigate();
   const viewerId = useViewerId();
   const viewer = useViewer();
+
+  const commentSubmit = useSyncExternalStore(
+    subscribePrefs,
+    () => getPrefs().commentSubmit,
+    () => 'mod-enter' as const,
+  );
 
   const issueId = useLiveQuery(
     (store) => locate(store, identifier),
@@ -115,9 +127,9 @@ export function IssueDetail() {
         stateCategory: state?.category ?? ('backlog' as StateCategory),
         stateColor: state?.color,
         assigneeId: found.assigneeId ?? null,
-        assigneeName: assignee?.displayName ?? null,
+        assigneeName: assignee === undefined ? null : personName(assignee),
         assigneeAvatar: assignee?.avatarUrl ?? null,
-        creatorName: creator?.displayName ?? null,
+        creatorName: creator === undefined ? null : personName(creator),
         createdAt: found.createdAt,
         archived: found.archivedAt !== undefined,
         estimate: found.estimate ?? null,
@@ -153,7 +165,7 @@ export function IssueDetail() {
   const names = useLiveQuery(
     (store) => {
       const out: Record<string, string> = {};
-      for (const user of store.users.values()) out[user.id] = user.displayName;
+      for (const user of store.users.values()) out[user.id] = personName(user);
       return out;
     },
     ['user'],
@@ -254,7 +266,7 @@ export function IssueDetail() {
       {
         id: 'issueDetail.comment',
         title: 'Post comment',
-        keys: ['mod+Enter'],
+        keys: commentSubmit === 'enter' ? ['mod+Enter', 'Enter'] : ['mod+Enter'],
         when: 'detail',
         group: 'Issues',
         // Hidden: it is the submit gesture for whichever composer has focus, which is not a
@@ -271,7 +283,7 @@ export function IssueDetail() {
         run: () => commands.current.copyGitBranch(),
       },
     ],
-    [],
+    [commentSubmit],
   );
 
   if (issue === null) {
@@ -399,10 +411,12 @@ export function IssueDetail() {
 
           <Comments
             issueId={issue.id}
+            identifier={issue.identifier}
             fetched={activity.comments}
             names={names}
             viewerId={viewerId}
             commands={commands}
+            enterSubmits={commentSubmit === 'enter'}
           />
         </div>
 
@@ -552,7 +566,7 @@ export function IssueDetail() {
         teamId={issue.teamId}
         value={issue.stateId}
         placement="bottom-end"
-        onSelect={(stateId) => updateIssue(engine, issue.id, { stateId }).catch(report)}
+        onSelect={(stateId) => updateIssue(engine, issue.id, { stateId }, viewerId).catch(report)}
       />
       <AssigneePicker
         open={assignee.open}
@@ -762,11 +776,13 @@ function Activity({
 
 interface CommentsProps {
   issueId: UUID;
+  identifier: string;
   /** Comments the snapshot did not carry, loaded by the screen. */
   fetched: readonly Comment[];
   names: Record<string, string>;
   viewerId: UUID | null;
   commands: { current: DetailCommands };
+  enterSubmits: boolean;
 }
 
 /**
@@ -777,7 +793,15 @@ interface CommentsProps {
  * from the detail query behind it — the store wins on conflict, because it holds both the
  * server's deltas and the user's own unsent writes and the network response holds neither.
  */
-function Comments({ issueId, fetched, names, viewerId, commands }: CommentsProps) {
+function Comments({
+  issueId,
+  identifier,
+  fetched,
+  names,
+  viewerId,
+  commands,
+  enterSubmits,
+}: CommentsProps) {
   const engine = useEngine();
 
   const stored = useLiveQuery(
@@ -791,7 +815,15 @@ function Comments({ issueId, fetched, names, viewerId, commands }: CommentsProps
 
   const threads = useMemo(() => thread(stored, fetched), [stored, fetched]);
 
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    for (const draft of readCommentDrafts()) {
+      if (draft.issueId !== issueId) continue;
+      const key = draft.parentId ?? ROOT;
+      initial[key] = draft.body;
+    }
+    return initial;
+  });
   const [focused, setFocused] = useState<string>(ROOT);
   const [replyingTo, setReplyingTo] = useState<UUID | null>(null);
 
@@ -799,6 +831,7 @@ function Comments({ issueId, fetched, names, viewerId, commands }: CommentsProps
     const body = (drafts[key] ?? '').trim();
     if (body === '') return;
     setDrafts((current) => ({ ...current, [key]: '' }));
+    clearCommentDraft(issueId, key === ROOT ? undefined : key);
     if (key !== ROOT) setReplyingTo(null);
     postComment(engine, {
       issueId,
@@ -811,6 +844,16 @@ function Comments({ issueId, fetched, names, viewerId, commands }: CommentsProps
   // ⌘⏎ belongs to whichever composer has focus. Read through the ref the registered action
   // holds, because that action's `run` was captured when the screen mounted.
   commands.current.submitComment = () => submit(focused);
+
+  const persist = (key: string, body: string) => {
+    setDrafts((current) => ({ ...current, [key]: body }));
+    writeCommentDraft({
+      issueId,
+      parentId: key === ROOT ? undefined : key,
+      identifier,
+      body,
+    });
+  };
 
   const composer = (key: string, label: string, autoFocus = false) => (
     <form
@@ -828,12 +871,13 @@ function Comments({ issueId, fetched, names, viewerId, commands }: CommentsProps
         maxRows={16}
         autoFocus={autoFocus}
         value={drafts[key] ?? ''}
+        data-submit-chord={enterSubmits ? 'enter' : undefined}
         onFocus={() => setFocused(key)}
-        onChange={(event) => setDrafts((current) => ({ ...current, [key]: event.target.value }))}
+        onChange={(event) => persist(key, event.target.value)}
       />
       <div className={styles.composerActions}>
         {key === ROOT ? null : <Button onClick={() => setReplyingTo(null)}>Cancel</Button>}
-        <Tooltip label="Post comment" keys="mod+Enter">
+        <Tooltip label="Post comment" keys={enterSubmits ? 'Enter' : 'mod+Enter'}>
           <Button type="submit" variant="primary" disabled={(drafts[key] ?? '').trim() === ''}>
             Comment
           </Button>

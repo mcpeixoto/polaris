@@ -29,7 +29,7 @@
  * absolute positioning that makes it fast.
  */
 
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
@@ -38,6 +38,9 @@ import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
 import { Avatar, Badge, Button, EmptyState, LabelChip, Menu, PriorityIcon, StateIcon, Tooltip } from '~/components';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
+import { downloadCsv, exportCap, issuesToCsv, type ExportRole } from '~/features/export/csv';
+import { personName, subscribePrefs, getPrefs } from '~/features/prefs/prefs';
+import { useViewer, useViewerId } from '~/hooks/useViewer';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { Peek } from '~/features/peek/Peek';
@@ -59,7 +62,6 @@ import { useView, type ViewGroup } from '~/features/view/ui/useView';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useSelection } from '~/hooks/useSelection';
-import { useViewer } from '~/hooks/useViewer';
 import { browserTimezone } from '~/features/locale';
 import { EMPTY_FILTER, isFilterGroup, type FilterNode } from '~/filter';
 import type { Issue, StateCategory, Store, UUID } from '~/store';
@@ -208,6 +210,7 @@ interface ListCommands {
   hasRows(): boolean;
   open(): void;
   archive(): void;
+  exportCsv(): void;
   pickStatus(): void;
   pickAssignee(): void;
   pickPriority(): void;
@@ -230,8 +233,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const { teamKey = '' } = useParams<{ teamKey: string }>();
   const navigate = useNavigate();
   const engine = useEngine();
-  const { registry, context } = useKeymap();
+  const viewerId = useViewerId();
   const viewer = useViewer();
+  const { registry, context } = useKeymap();
 
   // The source is part of the query's identity, so a change of assignee re-runs the
   // selector. Serialised rather than passed by reference because a caller writing the
@@ -380,6 +384,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     hasRows: () => false,
     open: () => {},
     archive: () => {},
+    exportCsv: () => {},
     pickStatus: () => {},
     pickAssignee: () => {},
     pickPriority: () => {},
@@ -435,6 +440,21 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     archive: () => {
       if (targets.length === 0) return;
       archiveIssues(engine, targets).catch(report);
+    },
+    exportCsv: () => {
+      const role: ExportRole = viewer?.role ?? 'member';
+      const cap = exportCap(role, 'issues');
+      if (cap === 0) return;
+      const unique: UUID[] = [];
+      const seen = new Set<UUID>();
+      for (const id of ids) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        unique.push(id);
+        if (unique.length >= cap) break;
+      }
+      const slug = (scope.heading ?? 'issues').toLowerCase().replaceAll(/[^a-z0-9]+/g, '-');
+      downloadCsv(`${slug || 'issues'}.csv`, issuesToCsv(engine.store, unique));
     },
     // Guarded here rather than only on the button, because the button and the `S` shortcut
     // are two doors into the same room: disabling one and not the other is how a keyboard
@@ -696,6 +716,13 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         enabled: () => commands.current.hasRows(),
         run: () => commands.current.copyGitBranch(),
       },
+      {
+        id: 'issueList.exportCsv',
+        title: 'Export this view as CSV',
+        when: 'list',
+        group: 'Issues',
+        run: () => commands.current.exportCsv(),
+      },
     ],
     [],
   );
@@ -926,7 +953,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         trigger={status.ref}
         teamId={shared.teamId ?? ''}
         value={shared.stateId}
-        onSelect={(stateId) => updateIssues(engine, targets, { stateId }).catch(report)}
+        onSelect={(stateId) => updateIssues(engine, targets, { stateId }, viewerId).catch(report)}
       />
       <AssigneePicker
         open={assignee.open}
@@ -1138,6 +1165,11 @@ const IssueRow = memo(function IssueRow({
   onToggle,
   onExtend,
 }: IssueRowProps) {
+  const fullNames = useSyncExternalStore(
+    subscribePrefs,
+    () => getPrefs().fullNames,
+    () => true,
+  );
   const issue = useLiveQuery(
     (store) => {
       const found = store.issues.get(id);
@@ -1160,13 +1192,13 @@ const IssueRow = memo(function IssueRow({
         stateCategory: state?.category ?? ('backlog' as StateCategory),
         stateColor: state?.color,
         assigneeId: assignee?.id ?? null,
-        assigneeName: assignee?.displayName ?? null,
+        assigneeName: assignee === undefined ? null : personName(assignee),
         assigneeAvatar: assignee?.avatarUrl ?? null,
         labels,
       };
     },
     ['issue', 'team', 'user', 'workflowState', 'label', 'issueLabel'],
-    [id],
+    [id, fullNames],
   );
 
   // A row whose issue has just been archived or revoked. It disappears on the next query,

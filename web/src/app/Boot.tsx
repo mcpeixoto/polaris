@@ -7,9 +7,9 @@
  * so many apps of this kind are impossible to debug from a support ticket.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { auth, isSignedIn, onAuthLost, setWorkspace, type Workspace } from '~/sync/api';
+import { auth, currentWorkspace, isSignedIn, onAuthLost, setWorkspace, type Workspace } from '~/sync/api';
 import { SyncEngine, type EngineStatus } from '~/sync/engine';
 import { isOutdatedClientMessage } from '~/sync/outdated-client';
 import { EngineProvider } from './context';
@@ -33,13 +33,31 @@ export interface BootProps {
 /** Where the last-used workspace is remembered, so a reload does not ask again. */
 const LAST_WORKSPACE_KEY = 'polaris.workspace';
 
+export interface WorkspaceSessionValue {
+  readonly workspaces: readonly Workspace[];
+  readonly currentId: string;
+  switchTo(id: string): Promise<void>;
+}
+
+const WorkspaceSessionContext = createContext<WorkspaceSessionValue | null>(null);
+
+export function useWorkspaceSession(): WorkspaceSessionValue {
+  const value = useContext(WorkspaceSessionContext);
+  if (value === null) {
+    throw new Error('useWorkspaceSession must be used inside a running workspace');
+  }
+  return value;
+}
+
 export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps) {
   const [phase, setPhase] = useState<Phase>({ kind: 'restoring' });
   const [status, setStatus] = useState<EngineStatus>({ phase: 'idle' });
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
 
   // Guards against a double-invoked effect in React's development strict mode starting
   // two engines against the same IndexedDB, which deadlocks on the first write.
   const startingRef = useRef(false);
+  const engineRef = useRef<SyncEngine | null>(null);
 
   const open = useCallback(async (workspace: Workspace) => {
     if (startingRef.current) return;
@@ -49,6 +67,7 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
     setWorkspace(workspace.id);
 
     const engine = new SyncEngine(workspace.id, { onStatus: setStatus });
+    engineRef.current = engine;
     try {
       await engine.start();
       setPhase({ kind: 'running', engine });
@@ -73,6 +92,8 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
       });
       return;
     }
+
+    setWorkspaces(workspaces);
 
     if (workspaces.length === 0) {
       setPhase({ kind: 'choosing', workspaces });
@@ -118,9 +139,35 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
     [],
   );
 
+  const switchTo = useCallback(
+    async (id: string) => {
+      let list: Workspace[];
+      try {
+        list = await auth.listWorkspaces();
+      } catch (err) {
+        setPhase({
+          kind: 'failed',
+          error: err instanceof Error ? err.message : 'could not load workspaces',
+        });
+        return;
+      }
+      setWorkspaces(list);
+      const chosen = list.find((workspace) => workspace.id === id);
+      if (chosen === undefined) return;
+
+      engineRef.current?.stop();
+      engineRef.current = null;
+      startingRef.current = false;
+      setPhase({ kind: 'restoring' });
+      await open(chosen);
+    },
+    [open],
+  );
+
   useEffect(() => {
     if (phase.kind !== 'running') return;
     const engine = phase.engine;
+    engineRef.current = engine;
     return () => engine.stop();
   }, [phase]);
 
@@ -163,7 +210,15 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
       // the difference between "loading" and "already working".
       return (
         <EngineProvider engine={phase.engine} status={status}>
-          {children}
+          <WorkspaceSessionContext.Provider
+            value={{
+              workspaces,
+              currentId: currentWorkspace() ?? workspaces[0]?.id ?? '',
+              switchTo,
+            }}
+          >
+            {children}
+          </WorkspaceSessionContext.Provider>
         </EngineProvider>
       );
   }
