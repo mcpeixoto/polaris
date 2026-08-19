@@ -294,6 +294,10 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject, ren
             <NavGlyph name="labels" />
             <span className={styles.navLabel}>Labels</span>
           </NavLink>
+          <NavLink to="/settings/project-labels" className={navClass}>
+            <NavGlyph name="labels" />
+            <span className={styles.navLabel}>Project labels</span>
+          </NavLink>
           <NavLink to="/settings/notifications" className={navClass}>
             <NavGlyph name="bell" />
             <span className={styles.navLabel}>Notifications</span>

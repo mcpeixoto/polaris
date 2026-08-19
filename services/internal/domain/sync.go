@@ -504,6 +504,43 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		// Project labels before their applications — same bargain as label/issueLabel.
+		if len(teamIDs) > 0 || includeWorkspaceScoped {
+			if err := streamPages(ctx, w, "projectLabel",
+				func(ctx context.Context, after uuid.UUID) ([]store.StreamProjectLabelsForBootstrapRow, error) {
+					return q.StreamProjectLabelsForBootstrap(ctx, store.StreamProjectLabelsForBootstrapParams{
+						WorkspaceID:            p.WorkspaceID,
+						IncludeWorkspaceScoped: true,
+						AfterID:                after,
+						PageSize:               bootstrapPageSize,
+					})
+				},
+				func(l store.StreamProjectLabelsForBootstrapRow) (uuid.UUID, any) {
+					return l.ID, toProjectLabel(store.GetProjectLabelRow(l))
+				},
+			); err != nil {
+				return err
+			}
+		}
+
+		if len(projectTeamIDs) > 0 {
+			if err := streamPages(ctx, w, "projectLabelLink",
+				func(ctx context.Context, after uuid.UUID) ([]store.ProjectLabelLink, error) {
+					return q.StreamProjectLabelLinksForBootstrap(ctx, store.StreamProjectLabelLinksForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						TeamIds:     projectTeamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(link store.ProjectLabelLink) (uuid.UUID, any) {
+					return link.ID, toProjectLabelLink(link)
+				},
+			); err != nil {
+				return err
+			}
+		}
+
 		if err := streamPages(ctx, w, "cycle",
 			func(ctx context.Context, after uuid.UUID) ([]store.Cycle, error) {
 				return q.StreamCyclesForBootstrap(ctx, store.StreamCyclesForBootstrapParams{
@@ -763,7 +800,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v11 adds projectUpdate (health plus narrative status posts on projects).
 // v12 adds projectDependency (end→start links between projects).
 // v13 adds view.projectId (attached project views as tabs).
-const ClientSchemaVersion = 13
+// v14 adds projectLabel and projectLabelLink (workspace taxonomy for projects).
+const ClientSchemaVersion = 14
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

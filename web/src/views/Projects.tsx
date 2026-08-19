@@ -13,7 +13,7 @@ import { Link, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useKeymap } from '~/app/keymap';
-import { Avatar, Button, EmptyState, PriorityIcon, priorityLabel } from '~/components';
+import { Avatar, Button, EmptyState, LabelChip, PriorityIcon, priorityLabel } from '~/components';
 import { report } from '~/features/issue/mutations';
 import {
   matchesDependencyFilter,
@@ -42,6 +42,7 @@ interface ProjectRow {
   readonly leadName: string | null;
   readonly leadId: UUID | undefined;
   readonly issueCount: number;
+  readonly labels: readonly { readonly id: UUID; readonly name: string; readonly color: string }[];
 }
 
 interface PriorityGroup {
@@ -76,6 +77,8 @@ export function Projects() {
       'projectMember',
       'projectUpdate',
       'projectDependency',
+      'projectLabel',
+      'projectLabelLink',
       'issue',
       'user',
     ],
@@ -286,6 +289,15 @@ function ProjectRowLink({
           {row.leadName}
         </span>
       )}
+      <span className={styles.labels}>
+        {row.labels.length === 0 ? (
+          <span className={styles.labelMuted}>—</span>
+        ) : (
+          row.labels.map((label) => (
+            <LabelChip key={label.id} name={label.name} color={label.color} compact />
+          ))
+        )}
+      </span>
       <span className={styles.count}>
         {row.issueCount === 1 ? '1 issue' : `${row.issueCount} issues`}
       </span>
@@ -329,6 +341,10 @@ function listProjectGroups(
       leadName: lead?.displayName ?? null,
       leadId: project.leadId,
       issueCount: store.index.byProject(project.id).size,
+      labels: [...store.projectLabelIdsFor(project.id)]
+        .map((id) => store.projectLabels.get(id))
+        .filter((label) => label !== undefined && !label.isGroup && label.archivedAt === undefined)
+        .map((label) => ({ id: label.id, name: label.name, color: label.color })),
     };
     const bucket = byPriority.get(project.priority) ?? [];
     bucket.push(row);

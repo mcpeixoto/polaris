@@ -1,4 +1,4 @@
-import type { Issue, IssueLabel, IssueRelation, Notification, UUID } from './types';
+import type { Issue, IssueLabel, IssueRelation, Notification, ProjectLabelLink, UUID } from './types';
 
 /**
  * The secondary indexes every view reads through.
@@ -513,6 +513,63 @@ export class LabelIndex {
 
   rowIdsForIssue(issueId: UUID): ReadonlySet<UUID> {
     return this.rowsOfIssue.get(issueId);
+  }
+
+  rowIdsForLabel(labelId: UUID): ReadonlySet<UUID> {
+    return this.rowsOfLabel.get(labelId);
+  }
+}
+
+/**
+ * Which project labels are on which projects, from a `projectLabelLink` row per application.
+ *
+ * Same shape as `LabelIndex`, because the product rule is the same: one row per application,
+ * at most one label from a group, and two concurrent adds must both survive.
+ */
+export class ProjectLabelIndex {
+  private readonly labelsOfProject = new SetIndex<UUID>();
+  private readonly projectsOfLabel = new SetIndex<UUID>();
+  private readonly rowsOfProject = new SetIndex<UUID>();
+  private readonly rowsOfLabel = new SetIndex<UUID>();
+
+  add(row: ProjectLabelLink): void {
+    this.labelsOfProject.add(row.projectId, row.labelId);
+    this.projectsOfLabel.add(row.labelId, row.projectId);
+    this.rowsOfProject.add(row.projectId, row.id);
+    this.rowsOfLabel.add(row.labelId, row.id);
+  }
+
+  update(previous: ProjectLabelLink, next: ProjectLabelLink): void {
+    if (previous.projectId !== next.projectId || previous.labelId !== next.labelId) {
+      this.remove(previous);
+    }
+    this.add(next);
+  }
+
+  remove(row: ProjectLabelLink): void {
+    this.labelsOfProject.remove(row.projectId, row.labelId);
+    this.projectsOfLabel.remove(row.labelId, row.projectId);
+    this.rowsOfProject.remove(row.projectId, row.id);
+    this.rowsOfLabel.remove(row.labelId, row.id);
+  }
+
+  clear(): void {
+    this.labelsOfProject.clear();
+    this.projectsOfLabel.clear();
+    this.rowsOfProject.clear();
+    this.rowsOfLabel.clear();
+  }
+
+  labelIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.labelsOfProject.get(projectId);
+  }
+
+  projectIdsWith(labelId: UUID): ReadonlySet<UUID> {
+    return this.projectsOfLabel.get(labelId);
+  }
+
+  rowIdsForProject(projectId: UUID): ReadonlySet<UUID> {
+    return this.rowsOfProject.get(projectId);
   }
 
   rowIdsForLabel(labelId: UUID): ReadonlySet<UUID> {

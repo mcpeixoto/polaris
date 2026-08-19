@@ -334,6 +334,34 @@ type IssueLabel struct {
 	CreatedAt time.Time  `json:"createdAt"`
 }
 
+// ProjectLabel is both a label and a group of labels for projects. Workspace-scoped only.
+type ProjectLabel struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ParentID    *uuid.UUID `json:"parentId,omitempty"`
+	IsGroup     bool      `json:"isGroup"`
+
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Color       string  `json:"color"`
+	Position    string  `json:"position"`
+
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
+// ProjectLabelLink is one project label applied to one project.
+type ProjectLabelLink struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ProjectID   uuid.UUID  `json:"projectId"`
+	LabelID     uuid.UUID  `json:"labelId"`
+	GroupID     *uuid.UUID `json:"groupId,omitempty"`
+	CreatedBy   *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+}
+
 // IssueRelation links two issues.
 //
 // Only `blocks` is stored; "blocked by" is the same row read from the other end. Storing

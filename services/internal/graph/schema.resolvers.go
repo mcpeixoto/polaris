@@ -1318,6 +1318,96 @@ func (r *mutationResolver) RemoveIssueLabel(ctx context.Context, issueID uuid.UU
 	return &generated.DeletePayload{Version: int(version), ID: removed.ID}, nil
 }
 
+// CreateProjectLabel is the resolver for the createProjectLabel field.
+func (r *mutationResolver) CreateProjectLabel(ctx context.Context, input generated.CreateProjectLabelInput) (*generated.ProjectLabelPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	in := domain.CreateProjectLabelInput{
+		ParentID:     input.ParentID,
+		IsGroup:      deref(input.IsGroup),
+		Name:         input.Name,
+		Description:  input.Description,
+		Color:        input.Color,
+		AfterLabelID: input.AfterLabelID,
+	}
+	label, version, err := r.Svc.CreateProjectLabel(ctx, p, in)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectLabel(label)
+	return &generated.ProjectLabelPayload{Version: int(version), ProjectLabel: &out}, nil
+}
+
+// UpdateProjectLabel is the resolver for the updateProjectLabel field.
+func (r *mutationResolver) UpdateProjectLabel(ctx context.Context, input generated.UpdateProjectLabelInput) (*generated.ProjectLabelPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	in := domain.UpdateProjectLabelInput{
+		ID:           input.ID,
+		Name:         input.Name,
+		Description:  input.Description,
+		Color:        input.Color,
+		ParentID:     input.ParentID,
+		ClearParent:  deref(input.ClearParent),
+		AfterLabelID: input.AfterLabelID,
+	}
+	label, version, err := r.Svc.UpdateProjectLabel(ctx, p, in)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectLabel(label)
+	return &generated.ProjectLabelPayload{Version: int(version), ProjectLabel: &out}, nil
+}
+
+// ArchiveProjectLabel is the resolver for the archiveProjectLabel field.
+func (r *mutationResolver) ArchiveProjectLabel(ctx context.Context, id uuid.UUID, archived bool) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	version, err := r.Svc.ArchiveProjectLabel(ctx, p, id, archived)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// AddProjectLabel is the resolver for the addProjectLabel field.
+func (r *mutationResolver) AddProjectLabel(ctx context.Context, projectID uuid.UUID, labelID uuid.UUID) (*generated.ProjectLabelLinkPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	applied, version, err := r.Svc.AddProjectLabel(ctx, p, projectID, labelID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectLabelLink(applied)
+	return &generated.ProjectLabelLinkPayload{Version: int(version), ProjectLabelLink: &out}, nil
+}
+
+// RemoveProjectLabel is the resolver for the removeProjectLabel field.
+func (r *mutationResolver) RemoveProjectLabel(ctx context.Context, projectID uuid.UUID, labelID uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	removed, version, err := r.Svc.RemoveProjectLabel(ctx, p, projectID, labelID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: removed}, nil
+}
+
 // CreateIssueRelation is the resolver for the createIssueRelation field.
 func (r *mutationResolver) CreateIssueRelation(ctx context.Context, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg generated.RelationType, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssueRelationPayload, error) {
 	p, err := principalFrom(ctx)
@@ -2429,6 +2519,35 @@ func (r *queryResolver) Label(ctx context.Context, id uuid.UUID) (*generated.Lab
 		return nil, PresentError(ctx, err)
 	}
 	out := toLabel(label)
+	return &out, nil
+}
+
+// ProjectLabels is the resolver for the projectLabels field.
+func (r *queryResolver) ProjectLabels(ctx context.Context) ([]generated.ProjectLabel, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	labels, err := r.Svc.ListProjectLabels(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toProjectLabels(labels), nil
+}
+
+// ProjectLabel is the resolver for the projectLabel field.
+func (r *queryResolver) ProjectLabel(ctx context.Context, id uuid.UUID) (*generated.ProjectLabel, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	label, err := r.Svc.GetProjectLabel(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectLabel(label)
 	return &out, nil
 }
 

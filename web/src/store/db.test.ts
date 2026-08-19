@@ -384,6 +384,29 @@ function oneOfEach(): EntityRow[] {
       },
     },
     {
+      type: 'projectLabel',
+      entity: {
+        id: 'pl1',
+        workspaceId: 'w',
+        name: 'Platform',
+        color: '#6b7280',
+        isGroup: false,
+        position: 'a0',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'projectLabelLink',
+      entity: {
+        id: 'pll1',
+        workspaceId: 'w',
+        projectId: 'p1',
+        labelId: 'pl1',
+        createdAt: NOW,
+      },
+    },
+    {
       type: 'cycle',
       entity: {
         id: 'cy1',

@@ -12,6 +12,7 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-route
 import { onDeepLink } from '~/platform/runtime';
 import { hasServer } from '~/sync/endpoint';
 import { LabelSettings } from '~/features/labels/LabelSettings';
+import { ProjectLabelSettings } from '~/features/project-labels/ProjectLabelSettings';
 import { UndoToast } from '~/features/undo/UndoToast';
 import { AcceptInvite } from '~/views/AcceptInvite';
 import { ApiKeys } from '~/views/ApiKeys';
@@ -120,6 +121,7 @@ export function App() {
               <Route path="/cycle/:cycleId" element={<CycleDetail />} />
               <Route path="/settings/members" element={<MemberSettings />} />
               <Route path="/settings/labels" element={<LabelSettings />} />
+              <Route path="/settings/project-labels" element={<ProjectLabelSettings />} />
               <Route path="/settings/notifications" element={<NotificationSettings />} />
               <Route path="/settings/templates" element={<Templates />} />
               <Route path="/settings/api-keys" element={<ApiKeys />} />

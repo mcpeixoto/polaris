@@ -8,7 +8,7 @@ import {
   type Snapshot,
   type WriteBatch,
 } from './db';
-import { IssueIndex, LabelIndex, NotificationIndex, RelationIndex, SetIndex } from './indexes';
+import { IssueIndex, LabelIndex, NotificationIndex, ProjectLabelIndex, RelationIndex, SetIndex } from './indexes';
 import type { OptimisticPatch } from './outbox';
 import { queryIssues, type IssueQuery, type IssueQueryResult } from './query';
 import {
@@ -33,6 +33,8 @@ import {
   type InitiativeProject,
   type ProjectUpdate,
   type ProjectDependency,
+  type ProjectLabel,
+  type ProjectLabelLink,
   type Label,
   type Notification,
   type Project,
@@ -152,6 +154,8 @@ export class Store {
     initiativeProject: new Map(),
     projectUpdate: new Map(),
     projectDependency: new Map(),
+    projectLabel: new Map(),
+    projectLabelLink: new Map(),
     cycle: new Map(),
     issue: new Map(),
     issueLabel: new Map(),
@@ -171,6 +175,7 @@ export class Store {
 
   /** Public for the same reason: a filtered list resolves every row's labels per frame. */
   readonly labelIndex = new LabelIndex();
+  readonly projectLabelIndex = new ProjectLabelIndex();
   readonly relationIndex = new RelationIndex();
   readonly notificationIndex = new NotificationIndex();
 
@@ -339,6 +344,14 @@ export class Store {
     return this.tables.projectDependency as ReadonlyMap<UUID, ProjectDependency>;
   }
 
+  get projectLabels(): ReadonlyMap<UUID, ProjectLabel> {
+    return this.tables.projectLabel as ReadonlyMap<UUID, ProjectLabel>;
+  }
+
+  get projectLabelLinks(): ReadonlyMap<UUID, ProjectLabelLink> {
+    return this.tables.projectLabelLink as ReadonlyMap<UUID, ProjectLabelLink>;
+  }
+
   get cycles(): ReadonlyMap<UUID, Cycle> {
     return this.tables.cycle as ReadonlyMap<UUID, Cycle>;
   }
@@ -416,6 +429,20 @@ export class Store {
 
   issueIdsWithLabel(labelId: UUID): ReadonlySet<UUID> {
     return this.labelIndex.issueIdsWith(labelId);
+  }
+
+  /** The project labels on a project. */
+  projectLabelIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectLabelIndex.labelIdsFor(projectId);
+  }
+
+  projectIdsWithProjectLabel(labelId: UUID): ReadonlySet<UUID> {
+    return this.projectLabelIndex.projectIdsWith(labelId);
+  }
+
+  /** `projectLabelLink` rows when the application itself is needed. */
+  projectLabelLinkIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectLabelIndex.rowIdsForProject(projectId);
   }
 
   projectTeamIdsFor(projectId: UUID): ReadonlySet<UUID> {
@@ -742,6 +769,7 @@ export class Store {
     for (const type of ENTITY_TYPES) this.tables[type].clear();
     this.index.clear();
     this.labelIndex.clear();
+    this.projectLabelIndex.clear();
     this.relationIndex.clear();
     this.notificationIndex.clear();
     this.commentIssue.clear();
@@ -846,6 +874,9 @@ export class Store {
         for (const viewId of [...this.viewProject.get(id)]) {
           this.forget('view', viewId, deletes, touched);
         }
+        for (const rowId of [...this.projectLabelIndex.rowIdsForProject(id)]) {
+          this.forget('projectLabelLink', rowId, deletes, touched);
+        }
         break;
       case 'issue':
         for (const commentId of [...this.commentIssue.get(id)]) {
@@ -878,6 +909,11 @@ export class Store {
       case 'label':
         for (const rowId of [...this.labelIndex.rowIdsForLabel(id)]) {
           this.forget('issueLabel', rowId, deletes, touched);
+        }
+        break;
+      case 'projectLabel':
+        for (const rowId of [...this.projectLabelIndex.rowIdsForLabel(id)]) {
+          this.forget('projectLabelLink', rowId, deletes, touched);
         }
         break;
       default:
@@ -987,6 +1023,13 @@ export class Store {
         const before = previous as IssueLabel | undefined;
         if (before === undefined) this.labelIndex.add(row);
         else this.labelIndex.update(before, row);
+        break;
+      }
+      case 'projectLabelLink': {
+        const row = next as ProjectLabelLink;
+        const before = previous as ProjectLabelLink | undefined;
+        if (before === undefined) this.projectLabelIndex.add(row);
+        else this.projectLabelIndex.update(before, row);
         break;
       }
       case 'issueRelation': {
@@ -1144,6 +1187,9 @@ export class Store {
         break;
       case 'issueLabel':
         this.labelIndex.remove(entity as IssueLabel);
+        break;
+      case 'projectLabelLink':
+        this.projectLabelIndex.remove(entity as ProjectLabelLink);
         break;
       case 'issueRelation':
         this.relationIndex.remove(entity as IssueRelation);

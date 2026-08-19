@@ -36,6 +36,7 @@ type Querier interface {
 	// different label from this group, and only the caller can decide which survives.
 	//
 	AddIssueLabel(ctx context.Context, arg AddIssueLabelParams) (IssueLabel, error)
+	AddProjectLabelLink(ctx context.Context, arg AddProjectLabelLinkParams) (ProjectLabelLink, error)
 	// ---------------------------------------------------------------------------------------
 	// project_member
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) (ProjectMember, error)
@@ -78,6 +79,7 @@ type Querier interface {
 	ArchiveIssueTemplate(ctx context.Context, id uuid.UUID) (ArchiveIssueTemplateRow, error)
 	ArchiveLabel(ctx context.Context, id uuid.UUID) (ArchiveLabelRow, error)
 	ArchiveProject(ctx context.Context, id uuid.UUID) error
+	ArchiveProjectLabel(ctx context.Context, id uuid.UUID) (ArchiveProjectLabelRow, error)
 	ArchiveProjectMilestone(ctx context.Context, id uuid.UUID) error
 	ArchiveProjectStatus(ctx context.Context, id uuid.UUID) error
 	// Deleting a view archives it. Favourites and view_preference rows point at views by id
@@ -198,6 +200,7 @@ type Querier interface {
 	CountIssuesWithLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
 	CountPendingWebhookDeliveries(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	CountProjectTeams(ctx context.Context, projectID uuid.UUID) (int64, error)
+	CountProjectsWithProjectLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
 	// CountTeamsInWorkspace is the number a plan's team limit is measured against.
 	//
 	// Archived teams do not count, mirroring the seat rule in CountWorkspaceSeats: suspending
@@ -272,6 +275,8 @@ type Querier interface {
 	// project
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateProjectDependency(ctx context.Context, arg CreateProjectDependencyParams) (ProjectDependency, error)
+	// Project labels and their applications to projects.
+	CreateProjectLabel(ctx context.Context, arg CreateProjectLabelParams) (CreateProjectLabelRow, error)
 	// ---------------------------------------------------------------------------------------
 	// project_milestone
 	CreateProjectMilestone(ctx context.Context, arg CreateProjectMilestoneParams) (ProjectMilestone, error)
@@ -348,6 +353,7 @@ type Querier interface {
 	// back in reach of the reads that are meant not to see it.
 	//
 	GetArchivedLabel(ctx context.Context, id uuid.UUID) (GetArchivedLabelRow, error)
+	GetArchivedProjectLabel(ctx context.Context, id uuid.UUID) (GetArchivedProjectLabelRow, error)
 	GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
 	GetAttachmentByIssueURL(ctx context.Context, arg GetAttachmentByIssueURLParams) (Attachment, error)
 	GetComment(ctx context.Context, id uuid.UUID) (Comment, error)
@@ -397,6 +403,7 @@ type Querier interface {
 	GetLastFavoritePosition(ctx context.Context, userID uuid.UUID) (string, error)
 	GetLastIssueTemplatePosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetLastLabelPosition(ctx context.Context, arg GetLastLabelPositionParams) (string, error)
+	GetLastProjectLabelPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetLastSortOrderForState(ctx context.Context, arg GetLastSortOrderForStateParams) (string, error)
 	GetLastSubIssueSortOrder(ctx context.Context, parentID *uuid.UUID) (*string, error)
 	GetLastViewPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -418,6 +425,8 @@ type Querier interface {
 	// GetProjectIncludingDeleted is the restore path: a live GetProject would 404 the trash.
 	//
 	GetProjectIncludingDeleted(ctx context.Context, id uuid.UUID) (Project, error)
+	GetProjectLabel(ctx context.Context, id uuid.UUID) (GetProjectLabelRow, error)
+	GetProjectLabelPositionAfter(ctx context.Context, arg GetProjectLabelPositionAfterParams) (string, error)
 	GetProjectMember(ctx context.Context, arg GetProjectMemberParams) (ProjectMember, error)
 	GetProjectMilestone(ctx context.Context, id uuid.UUID) (ProjectMilestone, error)
 	GetProjectSortOrderAfter(ctx context.Context, arg GetProjectSortOrderAfterParams) (string, error)
@@ -689,6 +698,9 @@ type Querier interface {
 	ListPendingInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
 	ListProjectDependenciesBlockedBy(ctx context.Context, blockedProjectID uuid.UUID) ([]ProjectDependency, error)
 	ListProjectDependenciesBlocking(ctx context.Context, blockingProjectID uuid.UUID) ([]ProjectDependency, error)
+	ListProjectLabelLinks(ctx context.Context, projectID uuid.UUID) ([]ProjectLabelLink, error)
+	ListProjectLabelsInGroup(ctx context.Context, parentID *uuid.UUID) ([]ListProjectLabelsInGroupRow, error)
+	ListProjectLabelsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListProjectLabelsInWorkspaceRow, error)
 	ListProjectMembers(ctx context.Context, projectID uuid.UUID) ([]ProjectMember, error)
 	ListProjectMilestones(ctx context.Context, projectID uuid.UUID) ([]ProjectMilestone, error)
 	ListProjectStatuses(ctx context.Context, workspaceID uuid.UUID) ([]ProjectStatus, error)
@@ -862,6 +874,7 @@ type Querier interface {
 	// of the entity that disappeared and the caller only knows the issue and the label.
 	//
 	RemoveIssueLabel(ctx context.Context, arg RemoveIssueLabelParams) (IssueLabel, error)
+	RemoveProjectLabelLink(ctx context.Context, arg RemoveProjectLabelLinkParams) (ProjectLabelLink, error)
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) (int64, error)
 	RemoveProjectTeam(ctx context.Context, arg RemoveProjectTeamParams) (int64, error)
 	RemoveTeamMember(ctx context.Context, arg RemoveTeamMemberParams) (int64, error)
@@ -1092,6 +1105,8 @@ type Querier interface {
 	// StreamProjectDependenciesForBootstrap: visible when the caller can see either project.
 	//
 	StreamProjectDependenciesForBootstrap(ctx context.Context, arg StreamProjectDependenciesForBootstrapParams) ([]ProjectDependency, error)
+	StreamProjectLabelLinksForBootstrap(ctx context.Context, arg StreamProjectLabelLinksForBootstrapParams) ([]ProjectLabelLink, error)
+	StreamProjectLabelsForBootstrap(ctx context.Context, arg StreamProjectLabelsForBootstrapParams) ([]StreamProjectLabelsForBootstrapRow, error)
 	StreamProjectMembersForBootstrap(ctx context.Context, arg StreamProjectMembersForBootstrapParams) ([]ProjectMember, error)
 	StreamProjectMilestonesForBootstrap(ctx context.Context, arg StreamProjectMilestonesForBootstrapParams) ([]ProjectMilestone, error)
 	StreamProjectStatusesForBootstrap(ctx context.Context, arg StreamProjectStatusesForBootstrapParams) ([]ProjectStatus, error)
@@ -1158,6 +1173,7 @@ type Querier interface {
 	//
 	UnarchiveLabel(ctx context.Context, id uuid.UUID) (UnarchiveLabelRow, error)
 	UnarchiveProject(ctx context.Context, id uuid.UUID) (Project, error)
+	UnarchiveProjectLabel(ctx context.Context, id uuid.UUID) (UnarchiveProjectLabelRow, error)
 	UnarchiveProjectStatus(ctx context.Context, id uuid.UUID) error
 	// UnarchiveWorkflowState returns the row: the archive reached every client as a delete, so
 	// putting the status back is an upsert and needs the payload.
@@ -1177,6 +1193,7 @@ type Querier interface {
 	UpdateIssueTemplate(ctx context.Context, arg UpdateIssueTemplateParams) (UpdateIssueTemplateRow, error)
 	UpdateLabel(ctx context.Context, arg UpdateLabelParams) (UpdateLabelRow, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
+	UpdateProjectLabel(ctx context.Context, arg UpdateProjectLabelParams) (UpdateProjectLabelRow, error)
 	UpdateProjectMilestone(ctx context.Context, arg UpdateProjectMilestoneParams) (ProjectMilestone, error)
 	UpdateProjectStatus(ctx context.Context, arg UpdateProjectStatusParams) (ProjectStatus, error)
 	UpdateProjectUpdate(ctx context.Context, arg UpdateProjectUpdateParams) (ProjectUpdate, error)

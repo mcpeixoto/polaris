@@ -459,6 +459,32 @@ type IssueLabel {
   label: Label!
 }
 
+"""Workspace taxonomy for labelling projects — separate from issue labels."""
+type ProjectLabel {
+  id: UUID!
+  workspaceId: UUID!
+  parentId: UUID
+  isGroup: Boolean!
+  name: String!
+  description: String
+  color: String!
+  position: String!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+"""One project label applied to one project."""
+type ProjectLabelLink {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  labelId: UUID!
+  groupId: UUID
+  createdBy: UUID
+  createdAt: Time!
+}
+
 type IssueRelation {
   id: UUID!
   workspaceId: UUID!
@@ -908,6 +934,16 @@ type LabelPayload implements MutationResult {
 type IssueLabelPayload implements MutationResult {
   version: Int!
   issueLabel: IssueLabel!
+}
+
+type ProjectLabelPayload implements MutationResult {
+  version: Int!
+  projectLabel: ProjectLabel!
+}
+
+type ProjectLabelLinkPayload implements MutationResult {
+  version: Int!
+  projectLabelLink: ProjectLabelLink!
 }
 
 type IssueRelationPayload implements MutationResult {
@@ -1368,6 +1404,25 @@ input UpdateLabelInput {
   afterLabelId: UUID
 }
 
+input CreateProjectLabelInput {
+  parentId: UUID
+  isGroup: Boolean
+  name: String!
+  description: String
+  color: String
+  afterLabelId: UUID
+}
+
+input UpdateProjectLabelInput {
+  id: UUID!
+  name: String
+  description: String
+  color: String
+  parentId: UUID
+  clearParent: Boolean
+  afterLabelId: UUID
+}
+
 input CreateViewInput {
   teamId: UUID
   """Attaches the view as a tab on this project rather than in a sidebar."""
@@ -1635,6 +1690,10 @@ type Query {
   labels: [Label!]!
   label(id: UUID!): Label
 
+  """Every project label in the workspace."""
+  projectLabels: [ProjectLabel!]!
+  projectLabel(id: UUID!): ProjectLabel
+
   """Saved views the caller can see: shared ones in scope, plus their own private ones."""
   views: [View!]!
   view(id: UUID!): View
@@ -1814,6 +1873,14 @@ type Mutation {
   """
   addIssueLabel(issueId: UUID!, labelId: UUID!, clientId: UUID, opId: UUID): IssueLabelPayload! @idempotent
   removeIssueLabel(issueId: UUID!, labelId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  # ---- project labels
+
+  createProjectLabel(input: CreateProjectLabelInput!): ProjectLabelPayload!
+  updateProjectLabel(input: UpdateProjectLabelInput!): ProjectLabelPayload!
+  archiveProjectLabel(id: UUID!, archived: Boolean!): DeletePayload!
+  addProjectLabel(projectId: UUID!, labelId: UUID!): ProjectLabelLinkPayload!
+  removeProjectLabel(projectId: UUID!, labelId: UUID!): DeletePayload!
 
   # ---- relations
 
