@@ -1403,6 +1403,115 @@ input UpdateWebhookInput {
 }
 
 """
+Workspace GitHub install. Credentials are not on this type: the replica carries the
+settings a client needs to copy a git branch name, and nothing that could be a token.
+"""
+type GitHubConnection {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  enabled: Boolean!
+  orgLogin: String
+  branchNameFormat: String!
+  linkCommits: Boolean!
+  """When false, skip posting a comment back onto the GitHub PR or commit."""
+  linkbacks: Boolean!
+  connectedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type GitHubUserLink {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  githubLogin: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type GitHubCommitWebhook {
+  url: String!
+  secret: String!
+}
+
+"""
+GitHub pull-request status automations for one team.
+
+Not replicated: a mapping is a settings row, not a sync entity. When configured is
+false, opened moves to the first Started status and a merged closing PR moves to the
+first Completed status. A present row with a null field means no action for that event.
+"""
+type GitHubTeamAutomation {
+  teamId: UUID!
+  configured: Boolean!
+  draftedStateId: UUID
+  openedStateId: UUID
+  reviewRequestedStateId: UUID
+  readyForMergeStateId: UUID
+  mergedStateId: UUID
+}
+
+type GitHubTeamAutomationPayload {
+  githubTeamAutomation: GitHubTeamAutomation!
+}
+
+type GitHubConnectionPayload implements MutationResult {
+  version: Int!
+  githubConnection: GitHubConnection!
+}
+
+type GitHubUserLinkPayload implements MutationResult {
+  version: Int!
+  githubUserLink: GitHubUserLink!
+}
+
+type GitHubLinkPayload implements MutationResult {
+  version: Int!
+  attachments: [Attachment!]!
+}
+
+input CreateGitHubConnectionInput {
+  orgLogin: String
+  branchNameFormat: String
+  linkCommits: Boolean
+  linkbacks: Boolean
+}
+
+input UpdateGitHubConnectionInput {
+  orgLogin: String
+  branchNameFormat: String
+  linkCommits: Boolean
+  linkbacks: Boolean
+  enabled: Boolean
+}
+
+input CreateGitHubUserLinkInput {
+  githubLogin: String!
+}
+
+input LinkGitHubPullRequestInput {
+  url: String!
+  title: String
+  body: String
+  branchName: String
+  """Webhook-shaped flags so the public API can drive the same status automations."""
+  draft: Boolean
+  merged: Boolean
+  mergeableState: String
+  reviewRequested: Boolean
+}
+
+input UpdateGitHubTeamAutomationInput {
+  teamId: UUID!
+  draftedStateId: UUID
+  openedStateId: UUID
+  reviewRequestedStateId: UUID
+  readyForMergeStateId: UUID
+  mergedStateId: UUID
+}
+
+"""
 A bulk update returns the issues it changed and the single version the whole batch landed
 at, because it emits one version block rather than one per issue.
 """
@@ -2028,6 +2137,17 @@ type Query {
 
   initiatives: [Initiative!]!
   initiative(id: UUID!): Initiative
+
+  """The workspace GitHub install, if any. Secrets are on githubCommitWebhook, not here."""
+  githubConnection: GitHubConnection
+  """The caller's linked GitHub account, if they have connected one."""
+  githubUserLink: GitHubUserLink
+  """Whether this install has GitHub OAuth app credentials in its environment."""
+  githubOAuthConfigured: Boolean!
+  """Admin-only. The URL and secret to paste into GitHub for commit linking."""
+  githubCommitWebhook: GitHubCommitWebhook
+  """Per-team GitHub PR status automations. Unconfigured teams use the product defaults."""
+  githubTeamAutomation(teamId: UUID!): GitHubTeamAutomation!
 }
 
 """
@@ -2249,4 +2369,13 @@ type Mutation {
   createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!
   updateWebhook(input: UpdateWebhookInput!): WebhookPayload!
   deleteWebhook(id: UUID!): DeletePayload!
+
+  createGitHubConnection(input: CreateGitHubConnectionInput!): GitHubConnectionPayload!
+  updateGitHubConnection(input: UpdateGitHubConnectionInput!): GitHubConnectionPayload!
+  deleteGitHubConnection: DeletePayload!
+  createGitHubUserLink(input: CreateGitHubUserLinkInput!): GitHubUserLinkPayload!
+  deleteGitHubUserLink: DeletePayload!
+  linkGitHubPullRequest(input: LinkGitHubPullRequestInput!, clientId: UUID, opId: UUID): GitHubLinkPayload! @idempotent
+  updateGitHubTeamAutomation(input: UpdateGitHubTeamAutomationInput!): GitHubTeamAutomationPayload!
+  deleteGitHubTeamAutomation(teamId: UUID!): GitHubTeamAutomationPayload!
 }

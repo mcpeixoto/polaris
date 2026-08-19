@@ -74,6 +74,10 @@ var serverSideOnly = map[string]string{
 	"SubscribeOnAction":          "internal: called by the write paths that auto-subscribe",
 	"AuthenticateApiKey":         "auth middleware: exchanging a token for a principal is not a mutation a caller performs",
 	"DB":                         "accessor: hands the pool to the bootstrap and the sync hub",
+	"IngestGitHubPullRequest":    "inbound GitHub webhook: signed HTTP, not GraphQL",
+	"IngestGitHubPush":           "inbound GitHub commit webhook: signed HTTP, not GraphQL",
+	"VerifyGitHubCommitWebhook":  "inbound GitHub webhook auth: HMAC check, not a caller mutation",
+	"SetGitHubCommentPoster":     "composition root: wires the GitHub HTTP client, not a caller mutation",
 }
 
 func isRead(name string) bool {

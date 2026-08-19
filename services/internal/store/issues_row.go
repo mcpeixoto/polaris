@@ -8,6 +8,7 @@ package store
 // rather than silently at every call site.
 func AsIssueRow[
 	T CreateIssueRow | UpdateIssueRow | GetIssueRow | GetIssueForUpdateRow |
+		GetIssueByTeamAndNumberRow |
 		ListStaleOpenIssuesRow | ListStaleClosedIssuesRow |
 		ListIssuesForProjectRow | ListChildIssuesRow |
 		ListArchivedIssuesForTeamRow | ListIssuesForTeamRow |

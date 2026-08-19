@@ -26,6 +26,13 @@ import (
 // API, not an invitation to reach past it.
 type Resolver struct {
 	Svc *domain.Service
+	// PublicURL is the install's externally-correct base, used to mint GitHub webhook
+	// callback URLs. Process config, not domain state.
+	PublicURL string
+	// GitHubOAuthConfigured is true when the process has GitHub App credentials. The
+	// settings UI still works without them; Connect-with-GitHub stays disabled until they
+	// exist.
+	GitHubOAuthConfigured bool
 }
 
 // principalFrom returns the caller, or the error every resolver returns when there is not

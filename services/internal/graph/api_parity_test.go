@@ -60,6 +60,8 @@ var notInTheAPI = map[string]string{
 	// called by the auth middleware and the socket handshake, never by a caller.
 	"ResolvePrincipal": "a read; the verb prefix is a false positive",
 
+	"SetGitHubCommentPoster": "composition root: wires the GitHub HTTP client, not a caller mutation",
+
 	// M1 scope. Listed so the omission is a decision rather than an oversight.
 	"InviteToWorkspace": "M1: the invite UI ships with member management",
 	"RevokeInvite":      "M1",
@@ -69,7 +71,7 @@ var notInTheAPI = map[string]string{
 var mutatingPrefixes = []string{
 	"Create", "Update", "Delete", "Archive", "Set", "Add", "Remove",
 	"Suspend", "Resolve", "Accept", "Decline", "Snooze", "Mark", "Revoke", "Invite", "Register", "Login",
-	"Prune", "Ensure", "Refresh", "Purge", "Restore", "Retire", "Unretire", "Move", "Start",
+	"Prune", "Ensure", "Refresh", "Purge", "Restore", "Retire", "Unretire", "Move", "Start", "Link",
 }
 
 func TestAPIParity_EveryDomainMutationIsReachableOverGraphQL(t *testing.T) {

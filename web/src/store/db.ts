@@ -12,6 +12,8 @@ import {
   type EntityOf,
   type EntityType,
   type Favorite,
+  type GitHubConnection,
+  type GitHubUserLink,
   type Issue,
   type IssueLabel,
   type IssueRelation,
@@ -96,8 +98,10 @@ import {
  * v18 adds project update reminder cadence on workspace and per-project schedule overrides.
  * v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
  * v21 adds projectTemplate, projectTemplateMilestone, projectTemplateIssue, and project.projectTemplateId.
+ * v22 adds githubConnection and githubUserLink (GitHub v1 linking, no secrets).
+ * v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
  */
-export const CLIENT_SCHEMA = 21;
+export const CLIENT_SCHEMA = 23;
 
 /**
  * One database per workspace per schema version.
@@ -169,6 +173,8 @@ export type Snapshot = {
 interface PolarisSchema extends DBSchema {
   workspace: { key: UUID; value: Workspace };
   user: { key: UUID; value: User };
+  githubConnection: { key: UUID; value: GitHubConnection };
+  githubUserLink: { key: UUID; value: GitHubUserLink };
   team: { key: UUID; value: Team };
   teamMembership: { key: UUID; value: TeamMembership };
   workflowState: { key: UUID; value: WorkflowState };

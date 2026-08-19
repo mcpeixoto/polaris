@@ -36,6 +36,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
 import { Avatar, Badge, Button, EmptyState, LabelChip, Menu, PriorityIcon, StateIcon, Tooltip } from '~/components';
+import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
@@ -58,6 +59,7 @@ import { useView, type ViewGroup } from '~/features/view/ui/useView';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useSelection } from '~/hooks/useSelection';
+import { useViewer } from '~/hooks/useViewer';
 import { browserTimezone } from '~/features/locale';
 import { EMPTY_FILTER, isFilterGroup, type FilterNode } from '~/filter';
 import type { Issue, StateCategory, Store, UUID } from '~/store';
@@ -221,6 +223,7 @@ interface ListCommands {
   pickDuplicate(): void;
   pickSnooze(): void;
   inTriage(): boolean;
+  copyGitBranch(): void;
 }
 
 export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}) {
@@ -228,6 +231,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const navigate = useNavigate();
   const engine = useEngine();
   const { registry, context } = useKeymap();
+  const viewer = useViewer();
 
   // The source is part of the query's identity, so a change of assignee re-runs the
   // selector. Serialised rather than passed by reference because a caller writing the
@@ -391,6 +395,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     pickDuplicate: () => {},
     pickSnooze: () => {},
     inTriage: () => false,
+    copyGitBranch: () => {},
   });
 
   const step = (delta: number): UUID | null => {
@@ -490,6 +495,12 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       snooze.show();
     },
     inTriage: () => inTriage,
+    copyGitBranch: () => {
+      if (cursorId === null) return;
+      const row = engine.store.get('issue', cursorId);
+      if (row === undefined) return;
+      void copyText(gitBranchNameFor(engine.store, row, viewer?.displayName ?? ''));
+    },
   };
 
   useKeyContext('list');
@@ -675,6 +686,15 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         when: 'list',
         group: 'Issues',
         run: () => commands.current.archive(),
+      },
+      {
+        id: 'issue.copyGitBranchName',
+        title: 'Copy git branch name',
+        keys: ['mod+shift+period'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => commands.current.hasRows(),
+        run: () => commands.current.copyGitBranch(),
       },
     ],
     [],

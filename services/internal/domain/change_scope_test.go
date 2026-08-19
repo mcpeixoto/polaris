@@ -195,6 +195,13 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 		t.Fatalf("user: %v", err)
 	}
 
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("githubConnection: %v", err)
+	}
+	if _, _, err := svc.CreateGitHubUserLink(ctx, p, domain.CreateGitHubUserLinkInput{GitHubLogin: "dev"}); err != nil {
+		t.Fatalf("githubUserLink: %v", err)
+	}
+
 	team, _, err := svc.CreateTeam(ctx, p, domain.CreateTeamInput{Key: "OPS", Name: "Operations"})
 	if err != nil {
 		t.Fatalf("team: %v", err)
