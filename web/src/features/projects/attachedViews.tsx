@@ -168,9 +168,12 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
           {view.name}
         </NavLink>
       ))}
-      <IconButton label="New view" className={styles.newTab} onClick={openCreate}>
-        +
-      </IconButton>
+      <IconButton
+        aria-label="New view"
+        className={styles.newTab}
+        icon="+"
+        onClick={openCreate}
+      />
 
       <Modal
         open={creating}

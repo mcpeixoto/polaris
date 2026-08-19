@@ -26,7 +26,7 @@ import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadg
 import { latestProjectUpdate } from '~/features/project-updates/helpers';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { PRIORITY_LEVELS } from '~/components/PriorityIcon';
-import type { Project, ProjectStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
+import type { Project, ProjectLabel, ProjectStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
 import styles from './Projects.module.css';
 
 interface ProjectRow {
@@ -343,7 +343,10 @@ function listProjectGroups(
       issueCount: store.index.byProject(project.id).size,
       labels: [...store.projectLabelIdsFor(project.id)]
         .map((id) => store.projectLabels.get(id))
-        .filter((label) => label !== undefined && !label.isGroup && label.archivedAt === undefined)
+        .filter(
+          (label): label is ProjectLabel =>
+            label !== undefined && !label.isGroup && label.archivedAt === undefined,
+        )
         .map((label) => ({ id: label.id, name: label.name, color: label.color })),
     };
     const bucket = byPriority.get(project.priority) ?? [];
