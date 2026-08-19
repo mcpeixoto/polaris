@@ -507,7 +507,7 @@ func (s *Service) requireTeamAccess(
 	if !authz.CanInTeam(p, action, teamID, teamOwner) {
 		return store.Team{}, platform.Forbidden("")
 	}
-	if team.RetiredAt != nil && action != authz.ActionTeamUpdate {
+	if team.RetiredAt != nil {
 		return store.Team{}, platform.Conflict("this team is retired and is read-only")
 	}
 	return team, nil

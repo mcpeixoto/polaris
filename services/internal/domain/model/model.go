@@ -136,6 +136,8 @@ type Team struct {
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	RetiredAt  *time.Time `json:"retiredAt,omitempty"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+	// DeletedAt is only populated on deletedTeams rows, like Issue.deletedAt on deletedIssues.
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 }
 
 // EstimateScale values. "none" means the team does not estimate, which is not the same as

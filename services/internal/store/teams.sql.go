@@ -8,6 +8,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -65,6 +66,18 @@ func (q *Queries) AllocateIssueNumber(ctx context.Context, id uuid.UUID) (int64,
 	var issue_counter int64
 	err := row.Scan(&issue_counter)
 	return issue_counter, err
+}
+
+const countChildTeams = `-- name: CountChildTeams :one
+SELECT count(*) FROM team
+WHERE parent_team_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) CountChildTeams(ctx context.Context, teamID *uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countChildTeams, teamID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countTeamsInWorkspace = `-- name: CountTeamsInWorkspace :one
@@ -315,6 +328,81 @@ func (q *Queries) IsTeamMember(ctx context.Context, arg IsTeamMemberParams) (boo
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const listDeletedTeams = `-- name: ListDeletedTeams :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+FROM team
+WHERE workspace_id = $1
+  AND deleted_at IS NOT NULL
+  AND deleted_at >= $2
+ORDER BY deleted_at DESC
+`
+
+type ListDeletedTeamsParams struct {
+	WorkspaceID  uuid.UUID
+	DeletedAfter *time.Time
+}
+
+func (q *Queries) ListDeletedTeams(ctx context.Context, arg ListDeletedTeamsParams) ([]Team, error) {
+	rows, err := q.db.Query(ctx, listDeletedTeams, arg.WorkspaceID, arg.DeletedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Team{}
+	for rows.Next() {
+		var i Team
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Key,
+			&i.Name,
+			&i.Description,
+			&i.Icon,
+			&i.Color,
+			&i.Timezone,
+			&i.ParentTeamID,
+			&i.Private,
+			&i.IssueCounter,
+			&i.Settings,
+			&i.RetiredAt,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EstimateScale,
+			&i.EstimateAllowZero,
+			&i.EstimateExtended,
+			&i.CyclesEnabled,
+			&i.CycleDurationWeeks,
+			&i.CycleCooldownWeeks,
+			&i.CycleStartDay,
+			&i.CycleUpcomingCount,
+			&i.CycleAutoAddStarted,
+			&i.CycleAutoAddCompleted,
+			&i.TriageEnabled,
+			&i.TriageRequirePriority,
+			&i.AutoCloseDays,
+			&i.AutoArchiveDays,
+			&i.AutoCloseParent,
+			&i.AutoCloseChildren,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listMembershipsInWorkspace = `-- name: ListMembershipsInWorkspace :many
@@ -752,13 +840,271 @@ func (q *Queries) RemoveTeamMember(ctx context.Context, arg RemoveTeamMemberPara
 	return result.RowsAffected(), nil
 }
 
-const softDeleteTeam = `-- name: SoftDeleteTeam :exec
-UPDATE team SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL
+const restoreIssuesInTeam = `-- name: RestoreIssuesInTeam :execrows
+UPDATE issue
+SET deleted_at = NULL, deleted_by = NULL
+WHERE team_id = $1
+  AND deleted_at IS NOT NULL
+  AND deleted_at >= $2
 `
 
-func (q *Queries) SoftDeleteTeam(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, softDeleteTeam, id)
-	return err
+type RestoreIssuesInTeamParams struct {
+	TeamID       uuid.UUID
+	DeletedAfter *time.Time
+}
+
+func (q *Queries) RestoreIssuesInTeam(ctx context.Context, arg RestoreIssuesInTeamParams) (int64, error) {
+	result, err := q.db.Exec(ctx, restoreIssuesInTeam, arg.TeamID, arg.DeletedAfter)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const restoreTeam = `-- name: RestoreTeam :one
+UPDATE team
+SET deleted_at = NULL, retired_at = NULL
+WHERE id = $1
+  AND deleted_at IS NOT NULL
+  AND deleted_at >= $2
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+`
+
+type RestoreTeamParams struct {
+	ID           uuid.UUID
+	DeletedAfter *time.Time
+}
+
+func (q *Queries) RestoreTeam(ctx context.Context, arg RestoreTeamParams) (Team, error) {
+	row := q.db.QueryRow(ctx, restoreTeam, arg.ID, arg.DeletedAfter)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.Color,
+		&i.Timezone,
+		&i.ParentTeamID,
+		&i.Private,
+		&i.IssueCounter,
+		&i.Settings,
+		&i.RetiredAt,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EstimateScale,
+		&i.EstimateAllowZero,
+		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
+		&i.TriageEnabled,
+		&i.TriageRequirePriority,
+		&i.AutoCloseDays,
+		&i.AutoArchiveDays,
+		&i.AutoCloseParent,
+		&i.AutoCloseChildren,
+	)
+	return i, err
+}
+
+const retireTeam = `-- name: RetireTeam :one
+UPDATE team
+SET retired_at = now()
+WHERE id = $1 AND deleted_at IS NULL AND retired_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+`
+
+func (q *Queries) RetireTeam(ctx context.Context, id uuid.UUID) (Team, error) {
+	row := q.db.QueryRow(ctx, retireTeam, id)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.Color,
+		&i.Timezone,
+		&i.ParentTeamID,
+		&i.Private,
+		&i.IssueCounter,
+		&i.Settings,
+		&i.RetiredAt,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EstimateScale,
+		&i.EstimateAllowZero,
+		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
+		&i.TriageEnabled,
+		&i.TriageRequirePriority,
+		&i.AutoCloseDays,
+		&i.AutoArchiveDays,
+		&i.AutoCloseParent,
+		&i.AutoCloseChildren,
+	)
+	return i, err
+}
+
+const softDeleteIssuesInTeam = `-- name: SoftDeleteIssuesInTeam :execrows
+UPDATE issue
+SET deleted_at = now(), deleted_by = $1
+WHERE team_id = $2 AND deleted_at IS NULL
+`
+
+type SoftDeleteIssuesInTeamParams struct {
+	DeletedBy *uuid.UUID
+	TeamID    uuid.UUID
+}
+
+// SoftDeleteIssuesInTeam runs when a team is deleted so its issues can be restored together.
+func (q *Queries) SoftDeleteIssuesInTeam(ctx context.Context, arg SoftDeleteIssuesInTeamParams) (int64, error) {
+	result, err := q.db.Exec(ctx, softDeleteIssuesInTeam, arg.DeletedBy, arg.TeamID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const softDeleteTeam = `-- name: SoftDeleteTeam :one
+UPDATE team SET deleted_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+`
+
+func (q *Queries) SoftDeleteTeam(ctx context.Context, id uuid.UUID) (Team, error) {
+	row := q.db.QueryRow(ctx, softDeleteTeam, id)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.Color,
+		&i.Timezone,
+		&i.ParentTeamID,
+		&i.Private,
+		&i.IssueCounter,
+		&i.Settings,
+		&i.RetiredAt,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EstimateScale,
+		&i.EstimateAllowZero,
+		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
+		&i.TriageEnabled,
+		&i.TriageRequirePriority,
+		&i.AutoCloseDays,
+		&i.AutoArchiveDays,
+		&i.AutoCloseParent,
+		&i.AutoCloseChildren,
+	)
+	return i, err
+}
+
+const unretireTeam = `-- name: UnretireTeam :one
+UPDATE team
+SET retired_at = NULL
+WHERE id = $1 AND deleted_at IS NULL AND retired_at IS NOT NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+`
+
+func (q *Queries) UnretireTeam(ctx context.Context, id uuid.UUID) (Team, error) {
+	row := q.db.QueryRow(ctx, unretireTeam, id)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.Color,
+		&i.Timezone,
+		&i.ParentTeamID,
+		&i.Private,
+		&i.IssueCounter,
+		&i.Settings,
+		&i.RetiredAt,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EstimateScale,
+		&i.EstimateAllowZero,
+		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
+		&i.TriageEnabled,
+		&i.TriageRequirePriority,
+		&i.AutoCloseDays,
+		&i.AutoArchiveDays,
+		&i.AutoCloseParent,
+		&i.AutoCloseChildren,
+	)
+	return i, err
 }
 
 const updateTeam = `-- name: UpdateTeam :one

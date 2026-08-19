@@ -190,6 +190,7 @@ type Querier interface {
 	// taken over issues that are still in flight rather than over relations.
 	//
 	CountBlockingIssues(ctx context.Context, relatedIssueID uuid.UUID) (int64, error)
+	CountChildTeams(ctx context.Context, teamID *uuid.UUID) (int64, error)
 	CountIssuesFromFormTemplate(ctx context.Context, formTemplateID *uuid.UUID) (int64, error)
 	// CountIssuesFromTemplate is the only reason issue.template_id exists.
 	//
@@ -543,6 +544,7 @@ type Querier interface {
 	//
 	ListDeletedIssues(ctx context.Context, arg ListDeletedIssuesParams) ([]ListDeletedIssuesRow, error)
 	ListDeletedProjects(ctx context.Context, arg ListDeletedProjectsParams) ([]Project, error)
+	ListDeletedTeams(ctx context.Context, arg ListDeletedTeamsParams) ([]Team, error)
 	// ---------------------------------------------------------------------------------------
 	// Email delivery.
 	//
@@ -938,7 +940,10 @@ type Querier interface {
 	// feed already holds and this column would then contradict on the next delete.
 	//
 	RestoreIssue(ctx context.Context, arg RestoreIssueParams) (RestoreIssueRow, error)
+	RestoreIssuesInTeam(ctx context.Context, arg RestoreIssuesInTeamParams) (int64, error)
 	RestoreProject(ctx context.Context, arg RestoreProjectParams) (Project, error)
+	RestoreTeam(ctx context.Context, arg RestoreTeamParams) (Team, error)
+	RetireTeam(ctx context.Context, id uuid.UUID) (Team, error)
 	// Scoped by user_id as well as id: a key acts as its owner, so only its owner may retire
 	// it, and the rule is expressed where it cannot be skipped.
 	//
@@ -990,9 +995,12 @@ type Querier interface {
 	// guessed one would be worse than a blank on the trash screen.
 	//
 	SoftDeleteIssue(ctx context.Context, arg SoftDeleteIssueParams) error
+	// SoftDeleteIssuesInTeam runs when a team is deleted so its issues can be restored together.
+	//
+	SoftDeleteIssuesInTeam(ctx context.Context, arg SoftDeleteIssuesInTeamParams) (int64, error)
 	SoftDeleteProject(ctx context.Context, arg SoftDeleteProjectParams) error
 	SoftDeleteProjectUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
-	SoftDeleteTeam(ctx context.Context, id uuid.UUID) error
+	SoftDeleteTeam(ctx context.Context, id uuid.UUID) (Team, error)
 	StreamAttachmentsForBootstrap(ctx context.Context, arg StreamAttachmentsForBootstrapParams) ([]Attachment, error)
 	// StreamCommentsForBootstrap ships EVERY live comment on every live issue the caller can
 	// see, paged by id.
@@ -1225,6 +1233,7 @@ type Querier interface {
 	// the index performs again a moment later, and it would still be racing.
 	//
 	UnarchiveWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowState, error)
+	UnretireTeam(ctx context.Context, id uuid.UUID) (Team, error)
 	// UnsubscribeNonMembersFromTeamIssues runs when a team becomes private: watchers who are
 	// not members must not keep receiving notifications for work they can no longer reach.
 	//

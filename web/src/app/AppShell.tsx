@@ -62,7 +62,10 @@ export function AppShell({
   const onCycles = pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
 
   const teams = useQuery(
-    (store) => [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    (store) =>
+      [...store.teams.values()]
+        .filter((team) => team.retiredAt === undefined)
+        .sort((a, b) => a.key.localeCompare(b.key)),
     ['team'],
   );
   const workspace = useQuery((store) => [...store.workspaces.values()][0], ['workspace']);
@@ -324,6 +327,10 @@ export function AppShell({
           <NavLink to="/settings/trash" className={navClass}>
             <NavGlyph name="trash" />
             <span className={styles.navLabel}>Trash</span>
+          </NavLink>
+          <NavLink to="/settings/deleted-teams" className={navClass}>
+            <NavGlyph name="trash" />
+            <span className={styles.navLabel}>Deleted teams</span>
           </NavLink>
         </div>
       </nav>

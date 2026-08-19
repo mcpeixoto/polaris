@@ -69,7 +69,7 @@ var notInTheAPI = map[string]string{
 var mutatingPrefixes = []string{
 	"Create", "Update", "Delete", "Archive", "Set", "Add", "Remove",
 	"Suspend", "Resolve", "Accept", "Decline", "Snooze", "Mark", "Revoke", "Invite", "Register", "Login",
-	"Prune", "Ensure", "Refresh", "Purge", "Restore",
+	"Prune", "Ensure", "Refresh", "Purge", "Restore", "Retire", "Unretire",
 }
 
 func TestAPIParity_EveryDomainMutationIsReachableOverGraphQL(t *testing.T) {

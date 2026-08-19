@@ -43,6 +43,7 @@ import { SignIn } from '~/views/SignIn';
 import { SignUp } from '~/views/SignUp';
 import { Archives } from '~/views/Archives';
 import { Trash } from '~/views/Trash';
+import { DeletedTeams } from '~/views/DeletedTeams';
 import { DocumentDetail } from '~/views/DocumentDetail';
 import { Documents } from '~/views/Documents';
 import { Initiatives } from '~/views/Initiatives';
@@ -129,6 +130,7 @@ export function App() {
               <Route path="/settings/api-keys" element={<ApiKeys />} />
               <Route path="/settings/webhooks" element={<Webhooks />} />
               <Route path="/settings/trash" element={<Trash />} />
+              <Route path="/settings/deleted-teams" element={<DeletedTeams />} />
               {/* Unknown paths go somewhere useful rather than to a dead end. A stale
                   bookmark to a renamed team should land the user in their own work. */}
               <Route path="*" element={<FirstTeam />} />

@@ -662,6 +662,83 @@ func (r *mutationResolver) UpdateTeam(ctx context.Context, input generated.Updat
 	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
 }
 
+// RetireTeam is the resolver for the retireTeam field.
+func (r *mutationResolver) RetireTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.TeamPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	team, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (model.Team, int64, error) {
+			return r.Svc.RetireTeam(ctx, p, id)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
+// UnretireTeam is the resolver for the unretireTeam field.
+func (r *mutationResolver) UnretireTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.TeamPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	team, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (model.Team, int64, error) {
+			return r.Svc.UnretireTeam(ctx, p, id)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
+// DeleteTeam is the resolver for the deleteTeam field.
+func (r *mutationResolver) DeleteTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteTeam(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// RestoreTeam is the resolver for the restoreTeam field.
+func (r *mutationResolver) RestoreTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.TeamPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	team, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (model.Team, int64, error) {
+			return r.Svc.RestoreTeam(ctx, p, id)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
 // AddTeamMember is the resolver for the addTeamMember field.
 func (r *mutationResolver) AddTeamMember(ctx context.Context, teamID uuid.UUID, userID uuid.UUID, role *generated.TeamRole) (*generated.TeamMembershipPayload, error) {
 	p, err := principalFrom(ctx)
@@ -3238,6 +3315,27 @@ func (r *queryResolver) DeletedIssues(ctx context.Context) ([]generated.Issue, e
 		return nil, PresentError(ctx, err)
 	}
 	return r.hydrateIssues(ctx, p, selectionFor(ctx, "Issue"), issues)
+}
+
+// DeletedTeams is the resolver for the deletedTeams field.
+func (r *queryResolver) DeletedTeams(ctx context.Context) ([]generated.Team, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	teams, err := r.Svc.ListDeletedTeams(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := make([]generated.Team, 0, len(teams))
+	for _, team := range teams {
+		g, err := toTeam(team)
+		if err != nil {
+			return nil, PresentError(ctx, err)
+		}
+		out = append(out, g)
+	}
+	return out, nil
 }
 
 // ArchivedIssues is the resolver for the archivedIssues field.

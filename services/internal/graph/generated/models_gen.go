@@ -1229,17 +1229,21 @@ type Team struct {
 	// Close a parent when every sub-issue is done.
 	AutoCloseParent bool `json:"autoCloseParent"`
 	// Close remaining sub-issues when the parent is done.
-	AutoCloseChildren bool             `json:"autoCloseChildren"`
-	CreatedAt         time.Time        `json:"createdAt"`
-	UpdatedAt         time.Time        `json:"updatedAt"`
-	RetiredAt         *time.Time       `json:"retiredAt,omitempty"`
-	ArchivedAt        *time.Time       `json:"archivedAt,omitempty"`
-	States            []WorkflowState  `json:"states"`
-	Members           []TeamMembership `json:"members"`
-	Issues            []Issue          `json:"issues"`
-	Labels            []Label          `json:"labels"`
-	Templates         []IssueTemplate  `json:"templates"`
-	Cycles            []Cycle          `json:"cycles"`
+	AutoCloseChildren bool       `json:"autoCloseChildren"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
+	RetiredAt         *time.Time `json:"retiredAt,omitempty"`
+	ArchivedAt        *time.Time `json:"archivedAt,omitempty"`
+	// When the team was deleted. Only ever set on a row `deletedTeams` returned: the sync stream
+	// carries a delete rather than the row, so a client holding a team with this set is holding
+	// something it should already have dropped.
+	DeletedAt *time.Time       `json:"deletedAt,omitempty"`
+	States    []WorkflowState  `json:"states"`
+	Members   []TeamMembership `json:"members"`
+	Issues    []Issue          `json:"issues"`
+	Labels    []Label          `json:"labels"`
+	Templates []IssueTemplate  `json:"templates"`
+	Cycles    []Cycle          `json:"cycles"`
 }
 
 type TeamMembership struct {

@@ -125,8 +125,91 @@ UPDATE team SET issue_counter = issue_counter + 1
 WHERE id = $1
 RETURNING issue_counter;
 
--- name: SoftDeleteTeam :exec
-UPDATE team SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL;
+-- name: SoftDeleteTeam :one
+UPDATE team SET deleted_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: RetireTeam :one
+UPDATE team
+SET retired_at = now()
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL AND retired_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: UnretireTeam :one
+UPDATE team
+SET retired_at = NULL
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL AND retired_at IS NOT NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: RestoreTeam :one
+UPDATE team
+SET deleted_at = NULL, retired_at = NULL
+WHERE id = sqlc.arg(id)
+  AND deleted_at IS NOT NULL
+  AND deleted_at >= sqlc.arg(deleted_after)
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children;
+
+-- name: ListDeletedTeams :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children
+FROM team
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND deleted_at IS NOT NULL
+  AND deleted_at >= sqlc.arg(deleted_after)
+ORDER BY deleted_at DESC;
+
+-- name: CountChildTeams :one
+SELECT count(*) FROM team
+WHERE parent_team_id = sqlc.arg(team_id) AND deleted_at IS NULL;
+
+-- SoftDeleteIssuesInTeam runs when a team is deleted so its issues can be restored together.
+--
+-- name: SoftDeleteIssuesInTeam :execrows
+UPDATE issue
+SET deleted_at = now(), deleted_by = sqlc.narg(deleted_by)
+WHERE team_id = sqlc.arg(team_id) AND deleted_at IS NULL;
+
+-- name: RestoreIssuesInTeam :execrows
+UPDATE issue
+SET deleted_at = NULL, deleted_by = NULL
+WHERE team_id = sqlc.arg(team_id)
+  AND deleted_at IS NOT NULL
+  AND deleted_at >= sqlc.arg(deleted_after);
 
 -- name: AddTeamMember :one
 INSERT INTO team_membership (id, workspace_id, team_id, user_id, role)

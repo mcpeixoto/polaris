@@ -90,6 +90,7 @@ func toTeam(t store.Team) model.Team {
 		UpdatedAt:  t.UpdatedAt,
 		RetiredAt:  t.RetiredAt,
 		ArchivedAt: t.ArchivedAt,
+		DeletedAt:  t.DeletedAt,
 	}
 }
 
