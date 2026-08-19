@@ -16,7 +16,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 
 | Working | |
 |---|---|
-| Schema | 43 migrations, including project templates, form templates, project update reminder cadence, project labels, attached project views, project dependencies, project updates, initiatives, documents, webhooks, attachments, auto-close/archive, triage, cycles, projects, statuses, teams, members and milestones; monthly-partitioned change log, UUIDv7 |
+| Schema | 44 migrations, including team lifecycle index, project templates, form templates, project update reminder cadence, project labels, attached project views, project dependencies, project updates, initiatives, documents, webhooks, attachments, auto-close/archive, triage, cycles, projects, statuses, teams, members and milestones; monthly-partitioned change log, UUIDv7 |
 | Sync engine | Gapless per-workspace versions, NDJSON bootstrap, WebSocket hub, resume, revoke, backpressure |
 | API | GraphQL over the whole domain, one contract in `schema/schema.graphql`, complexity scored by the published model |
 | Auth | Argon2id, rotating refresh tokens, HttpOnly cookies, invitations |
@@ -38,6 +38,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Form templates | Structured intake templates with fields; form tab on Templates settings and form fill in create-issue — client schema 19; migration `000042` |
 | Project templates | Prefilled projects with milestones and starter issues; project tab on Templates settings and picker in create-project — client schema 21; migration `000043` |
 | Private teams | Team visibility toggle in settings, privatize cleanup, initiative project filtering, admin team directory — client schema 21; no migration |
+| Team lifecycle | Retire/unretire, delete/restore (30 days), deleted-teams settings screen, retired teams hidden from sidebar, read-only projects — client schema 21; migration `000044` |
 | Project update reminders | Workspace cadence settings, per-project schedule, staleness on list and shell — client schema 18; migration `000041` |
 | Project priority | Five-level scale, P shortcut, grouped/drag reorder on `/projects` |
 | Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |

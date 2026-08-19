@@ -1119,7 +1119,42 @@ func (s *Service) requireProjectWrite(
 	if !p.Role.IsAdmin() && !authz.Visible(p, scope) {
 		return store.Project{}, authz.Scope{}, platform.NotFound("project")
 	}
+	if action == authz.ActionProjectUpdate {
+		retiredOnly, err := s.projectLinkedOnlyToRetiredTeams(ctx, q, id)
+		if err != nil {
+			return store.Project{}, authz.Scope{}, err
+		}
+		if retiredOnly {
+			return store.Project{}, authz.Scope{}, platform.Conflict(
+				"this project is read-only because every linked team is retired")
+		}
+	}
 	return row, scope, nil
+}
+
+func (s *Service) projectLinkedOnlyToRetiredTeams(
+	ctx context.Context, q *store.Queries, projectID uuid.UUID,
+) (bool, error) {
+	teamIDs, err := q.ListProjectTeamIDs(ctx, projectID)
+	if err != nil {
+		return false, platform.Internal(err)
+	}
+	if len(teamIDs) == 0 {
+		return false, nil
+	}
+	for _, teamID := range teamIDs {
+		team, err := q.GetTeam(ctx, teamID)
+		if err != nil {
+			if store.IsNotFound(err) {
+				continue
+			}
+			return false, platform.Internal(err)
+		}
+		if team.RetiredAt == nil {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (s *Service) loadProjectStatus(ctx context.Context, q *store.Queries, p *authz.Principal, id uuid.UUID) (store.ProjectStatus, error) {

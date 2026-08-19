@@ -23,4 +23,4 @@ Private teams and visibility rules across projects and initiatives, following `a
 ## Reserved
 
 - Client schema **22**: recurring templates  
-- Migration **000044+**: next feature branch
+- Migration **000045+**: next feature branch

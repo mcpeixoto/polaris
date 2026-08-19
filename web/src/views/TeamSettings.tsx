@@ -21,7 +21,7 @@
  */
 
 import { useMemo, useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import {
@@ -47,6 +47,7 @@ import {
   updateStatus,
   updateTeam,
 } from '~/features/team/mutations';
+import { deleteTeam, retireTeam, unretireTeam } from '~/features/team-lifecycle/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { CATEGORY_ORDER, type StateCategory, type Store, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -66,6 +67,7 @@ interface TeamView {
   readonly key: string;
   readonly name: string;
   readonly private: boolean;
+  readonly retiredAt?: string;
   readonly cyclesEnabled: boolean;
   readonly cycleDurationWeeks: number;
   readonly cycleCooldownWeeks: number;
@@ -121,6 +123,7 @@ const DEFAULT_STATUS_COLOR = '#6b7280';
 export function TeamSettings() {
   const { teamKey = '' } = useParams<{ teamKey: string }>();
   const engine = useEngine();
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
   const team = useLiveQuery(
@@ -138,12 +141,16 @@ export function TeamSettings() {
     return groups;
   }, [team]);
 
-  const run = (work: Promise<unknown>) => {
+  const run = (work: Promise<unknown>, onSuccess?: () => void) => {
     setError(null);
-    work.catch((failure: unknown) => {
-      setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
-    });
+    work
+      .then(() => onSuccess?.())
+      .catch((failure: unknown) => {
+        setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+      });
   };
+
+  const readOnly = team?.retiredAt !== undefined;
 
   if (team === null) {
     return (
@@ -183,71 +190,90 @@ export function TeamSettings() {
           </p>
         )}
 
-        <TeamForm team={team} onSave={(fields) => run(updateTeam(engine, team.id, fields))} />
-
-        <VisibilitySettings
-          team={team}
-          onChange={(isPrivate) => run(updateTeam(engine, team.id, { private: isPrivate }))}
-        />
-
-        <CycleCadence
-          team={team}
-          onChange={(cadence) => run(updateTeamCycles(engine, team.id, cadence))}
-        />
-
-        <TriageSettings
-          team={team}
-          onChange={(patch) => run(updateTeamTriage(engine, team.id, patch))}
-        />
-
-        <ArchiveSettings
-          team={team}
-          onChange={(patch) => run(updateTeamArchive(engine, team.id, patch))}
-        />
-
-        <section className={styles.section} aria-labelledby="statuses-heading">
-          <h2 className={styles.sectionTitle} id="statuses-heading">
-            Workflow statuses
-          </h2>
-          <p className={styles.sectionHint}>
-            Issues move through these. The category decides what a status <em>means</em> to the rest
-            of the product; the order inside it is the team&rsquo;s own.
+        {readOnly ? (
+          <p className={styles.sectionHint} role="status">
+            This team is retired. Its issues and settings are read-only until you restore it.
           </p>
+        ) : null}
 
-          {CATEGORIES.map((category) => {
-            const statuses = byCategory.get(category) ?? [];
-            if (statuses.length === 0) return null;
-            const siblings = statuses.map((status) => status.id);
-            return (
-              <div key={category} className={styles.category}>
-                <h3 className={styles.categoryTitle}>{STATE_LABELS[category]}</h3>
-                <ul className={styles.statusList}>
-                  {statuses.map((status, index) => (
-                    <StatusRow
-                      key={status.id}
-                      status={status}
-                      first={index === 0}
-                      last={index === statuses.length - 1}
-                      onRename={(name) => run(updateStatus(engine, status.id, { name }))}
-                      onRecolor={(color) => run(updateStatus(engine, status.id, { color }))}
-                      onMakeDefault={() =>
-                        run(updateStatus(engine, status.id, { makeDefault: true }))
-                      }
-                      onMove={(delta) => run(moveStatus(engine, siblings, status.id, delta))}
-                      onArchive={() => run(archiveStatus(engine, status.id))}
-                    />
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
+        <fieldset className={styles.fieldset} disabled={readOnly}>
+          <TeamForm team={team} onSave={(fields) => run(updateTeam(engine, team.id, fields))} />
 
-          <AddStatusForm
-            onAdd={(name, category, color) =>
-              run(createStatus(engine, { teamId: team.id, name, category, color }))
-            }
+          <VisibilitySettings
+            team={team}
+            onChange={(isPrivate) => run(updateTeam(engine, team.id, { private: isPrivate }))}
           />
-        </section>
+
+          <CycleCadence
+            team={team}
+            onChange={(cadence) => run(updateTeamCycles(engine, team.id, cadence))}
+          />
+
+          <TriageSettings
+            team={team}
+            onChange={(patch) => run(updateTeamTriage(engine, team.id, patch))}
+          />
+
+          <ArchiveSettings
+            team={team}
+            onChange={(patch) => run(updateTeamArchive(engine, team.id, patch))}
+          />
+
+          <section className={styles.section} aria-labelledby="statuses-heading">
+            <h2 className={styles.sectionTitle} id="statuses-heading">
+              Workflow statuses
+            </h2>
+            <p className={styles.sectionHint}>
+              Issues move through these. The category decides what a status <em>means</em> to the
+              rest of the product; the order inside it is the team&rsquo;s own.
+            </p>
+
+            {CATEGORIES.map((category) => {
+              const statuses = byCategory.get(category) ?? [];
+              if (statuses.length === 0) return null;
+              const siblings = statuses.map((status) => status.id);
+              return (
+                <div key={category} className={styles.category}>
+                  <h3 className={styles.categoryTitle}>{STATE_LABELS[category]}</h3>
+                  <ul className={styles.statusList}>
+                    {statuses.map((status, index) => (
+                      <StatusRow
+                        key={status.id}
+                        status={status}
+                        first={index === 0}
+                        last={index === statuses.length - 1}
+                        onRename={(name) => run(updateStatus(engine, status.id, { name }))}
+                        onRecolor={(color) => run(updateStatus(engine, status.id, { color }))}
+                        onMakeDefault={() =>
+                          run(updateStatus(engine, status.id, { makeDefault: true }))
+                        }
+                        onMove={(delta) => run(moveStatus(engine, siblings, status.id, delta))}
+                        onArchive={() => run(archiveStatus(engine, status.id))}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+
+            <AddStatusForm
+              onAdd={(name, category, color) =>
+                run(createStatus(engine, { teamId: team.id, name, category, color }))
+              }
+            />
+          </section>
+        </fieldset>
+
+        <DangerZone
+          team={team}
+          onRetire={() => run(retireTeam(engine, team.id))}
+          onUnretire={() => run(unretireTeam(engine, team.id))}
+          onDelete={() => {
+            run(deleteTeam(engine, team.id), () => {
+              void navigate('/');
+            });
+          }}
+        />
       </div>
     </div>
   );
@@ -753,6 +779,78 @@ function Chevron({ up = false }: { up?: boolean }) {
 }
 
 /**
+ * Retire, restore, or delete the team. Lifecycle actions stay outside the read-only
+ * fieldset because unretire and delete must remain reachable on a retired team.
+ */
+function DangerZone({
+  team,
+  onRetire,
+  onUnretire,
+  onDelete,
+}: {
+  team: TeamView;
+  onRetire: () => void;
+  onUnretire: () => void;
+  onDelete: () => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRetire, setConfirmRetire] = useState(false);
+  const retired = team.retiredAt !== undefined;
+
+  return (
+    <section className={styles.section} aria-labelledby="danger-heading">
+      <h2 className={styles.sectionTitle} id="danger-heading">
+        Danger zone
+      </h2>
+      <p className={styles.sectionHint}>
+        Retiring freezes the team and hides it from the sidebar. Deleting removes the team and its
+        issues; both can be undone — retired teams any time, deleted teams for thirty days from{' '}
+        <Link to="/settings/deleted-teams">Recently deleted teams</Link>.
+      </p>
+
+      <div className={styles.dangerActions}>
+        {retired ? (
+          <Button onClick={onUnretire}>Restore team</Button>
+        ) : (
+          <Button variant="danger" onClick={() => setConfirmRetire(true)}>
+            Retire team
+          </Button>
+        )}
+        <Button variant="danger" onClick={() => setConfirmDelete(true)}>
+          Delete team
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={confirmRetire}
+        title={`Retire ${team.name}?`}
+        consequence="The team becomes read-only and disappears from the sidebar. Issues stay searchable. You can restore the team any time from here."
+        confirmLabel="Retire team"
+        destructive
+        onConfirm={() => {
+          setConfirmRetire(false);
+          onRetire();
+        }}
+        onClose={() => setConfirmRetire(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Delete ${team.name}?`}
+        consequence="The team and every issue in it move to Recently deleted teams for thirty days. Export or move issues first if you need them elsewhere."
+        confirmLabel="Delete team"
+        destructive
+        onConfirm={() => {
+          setConfirmDelete(false);
+          onDelete();
+        }}
+        onClose={() => setConfirmDelete(false)}
+      />
+    </section>
+  );
+}
+
+/**
  * The team and its statuses, ordered the way the product orders them: category first, then
  * the team's own fractional position inside it. Positions are only comparable within a
  * category, so comparing them across one would interleave "In Progress" with "Backlog".
@@ -785,6 +883,7 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     key: team.key,
     name: team.name,
     private: team.private,
+    retiredAt: team.retiredAt,
     cyclesEnabled: team.cyclesEnabled,
     cycleDurationWeeks: team.cycleDurationWeeks,
     cycleCooldownWeeks: team.cycleCooldownWeeks,

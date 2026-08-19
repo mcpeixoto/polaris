@@ -263,6 +263,12 @@ type Team {
   updatedAt: Time!
   retiredAt: Time
   archivedAt: Time
+  """
+  When the team was deleted. Only ever set on a row `deletedTeams` returned: the sync stream
+  carries a delete rather than the row, so a client holding a team with this set is holding
+  something it should already have dropped.
+  """
+  deletedAt: Time
 
   states: [WorkflowState!]!
   members: [TeamMembership!]!
@@ -1978,6 +1984,12 @@ type Query {
   """
   deletedIssues: [Issue!]!
 
+  """
+  Teams deleted within the restore window. Loaded on demand, never replicated — the sync
+  stream carries a delete for a removed team rather than the row.
+  """
+  deletedTeams: [Team!]!
+
   """Archived issues, cycles and projects for one team. Loaded on demand, never replicated."""
   archivedIssues(teamId: UUID!): [Issue!]!
   archivedCycles(teamId: UUID!): [Cycle!]!
@@ -2041,6 +2053,14 @@ type Mutation {
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!
+  """Freezes a team: read-only issues and settings, hidden from sidebars. Restorable any time."""
+  retireTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
+  """Brings a retired team back to active use."""
+  unretireTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
+  """Soft-deletes a team and its issues. Restorable within 30 days."""
+  deleteTeam(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  """Restores a soft-deleted team and its issues, within the window."""
+  restoreTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
   addTeamMember(teamId: UUID!, userId: UUID!, role: TeamRole): TeamMembershipPayload!
   removeTeamMember(teamId: UUID!, userId: UUID!): DeletePayload!
 

@@ -89,6 +89,23 @@
   line-height: var(--line-height-normal);
 }
 
+.fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.fieldset:disabled {
+  opacity: 0.72;
+}
+
+.dangerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 .teamFields {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);

@@ -520,6 +520,7 @@ type ComplexityRoot struct {
 		DeleteProjectTemplateIssue     func(childComplexity int, id uuid.UUID) int
 		DeleteProjectTemplateMilestone func(childComplexity int, id uuid.UUID) int
 		DeleteProjectUpdate            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteTeam                     func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteView                     func(childComplexity int, id uuid.UUID) int
 		DeleteWebhook                  func(childComplexity int, id uuid.UUID) int
 		InviteToWorkspace              func(childComplexity int, input InviteInput) int
@@ -539,6 +540,8 @@ type ComplexityRoot struct {
 		ResolveComment                 func(childComplexity int, id uuid.UUID, resolved bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		RestoreIssue                   func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RestoreProject                 func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RestoreTeam                    func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RetireTeam                     func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RevokeAPIKey                   func(childComplexity int, id uuid.UUID) int
 		RevokeInvite                   func(childComplexity int, id uuid.UUID) int
 		SetIssueSubscription           func(childComplexity int, issueID uuid.UUID, subscribed bool) int
@@ -547,6 +550,7 @@ type ComplexityRoot struct {
 		SnoozeIssue                    func(childComplexity int, id uuid.UUID, until time.Time, clientID *uuid.UUID, opID *uuid.UUID) int
 		SnoozeNotification             func(childComplexity int, id uuid.UUID, until *time.Time) int
 		SuspendUser                    func(childComplexity int, userID uuid.UUID, suspended bool) int
+		UnretireTeam                   func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateAttachment               func(childComplexity int, input UpdateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateComment                  func(childComplexity int, id uuid.UUID, body string, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateDocument                 func(childComplexity int, input UpdateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -852,6 +856,7 @@ type ComplexityRoot struct {
 		Cycle                        func(childComplexity int, id uuid.UUID) int
 		Cycles                       func(childComplexity int, teamID uuid.UUID) int
 		DeletedIssues                func(childComplexity int) int
+		DeletedTeams                 func(childComplexity int) int
 		Document                     func(childComplexity int, id uuid.UUID) int
 		Favorites                    func(childComplexity int) int
 		FormTemplate                 func(childComplexity int, id uuid.UUID) int
@@ -927,6 +932,7 @@ type ComplexityRoot struct {
 		CycleUpcomingCount    func(childComplexity int) int
 		Cycles                func(childComplexity int) int
 		CyclesEnabled         func(childComplexity int) int
+		DeletedAt             func(childComplexity int) int
 		Description           func(childComplexity int) int
 		EstimateAllowZero     func(childComplexity int) int
 		EstimateExtended      func(childComplexity int) int
@@ -1163,6 +1169,10 @@ type MutationResolver interface {
 	RemoveInitiativeProject(ctx context.Context, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateTeam(ctx context.Context, input CreateTeamInput) (*TeamPayload, error)
 	UpdateTeam(ctx context.Context, input UpdateTeamInput) (*TeamPayload, error)
+	RetireTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
+	UnretireTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
+	DeleteTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	RestoreTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
 	AddTeamMember(ctx context.Context, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) (*TeamMembershipPayload, error)
 	RemoveTeamMember(ctx context.Context, teamID uuid.UUID, userID uuid.UUID) (*DeletePayload, error)
 	CreateWorkflowState(ctx context.Context, input CreateWorkflowStateInput) (*WorkflowStatePayload, error)
@@ -1295,6 +1305,7 @@ type QueryResolver interface {
 	WebhookDeliveries(ctx context.Context, webhookID uuid.UUID, first *int) ([]WebhookDelivery, error)
 	Invites(ctx context.Context) ([]Invite, error)
 	DeletedIssues(ctx context.Context) ([]Issue, error)
+	DeletedTeams(ctx context.Context) ([]Team, error)
 	ArchivedIssues(ctx context.Context, teamID uuid.UUID) ([]Issue, error)
 	ArchivedCycles(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
 	ArchivedProjects(ctx context.Context, teamID uuid.UUID) ([]Project, error)
@@ -3798,6 +3809,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteProjectUpdate(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteTeam":
+		if e.ComplexityRoot.Mutation.DeleteTeam == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteTeam_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteTeam(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.deleteView":
 		if e.ComplexityRoot.Mutation.DeleteView == nil {
 			break
@@ -4002,6 +4024,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RestoreProject(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.restoreTeam":
+		if e.ComplexityRoot.Mutation.RestoreTeam == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_restoreTeam_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RestoreTeam(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.retireTeam":
+		if e.ComplexityRoot.Mutation.RetireTeam == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_retireTeam_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RetireTeam(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.revokeApiKey":
 		if e.ComplexityRoot.Mutation.RevokeAPIKey == nil {
 			break
@@ -4090,6 +4134,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SuspendUser(childComplexity, args["userId"].(uuid.UUID), args["suspended"].(bool)), true
+	case "Mutation.unretireTeam":
+		if e.ComplexityRoot.Mutation.UnretireTeam == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_unretireTeam_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UnretireTeam(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.updateAttachment":
 		if e.ComplexityRoot.Mutation.UpdateAttachment == nil {
 			break
@@ -5602,6 +5657,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.DeletedIssues(childComplexity), true
+	case "Query.deletedTeams":
+		if e.ComplexityRoot.Query.DeletedTeams == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DeletedTeams(childComplexity), true
 	case "Query.document":
 		if e.ComplexityRoot.Query.Document == nil {
 			break
@@ -6157,6 +6218,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Team.CyclesEnabled(childComplexity), true
+	case "Team.deletedAt":
+		if e.ComplexityRoot.Team.DeletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.DeletedAt(childComplexity), true
 	case "Team.description":
 		if e.ComplexityRoot.Team.Description == nil {
 			break
@@ -7434,6 +7501,12 @@ type Team {
   updatedAt: Time!
   retiredAt: Time
   archivedAt: Time
+  """
+  When the team was deleted. Only ever set on a row ` + "`" + `deletedTeams` + "`" + ` returned: the sync stream
+  carries a delete rather than the row, so a client holding a team with this set is holding
+  something it should already have dropped.
+  """
+  deletedAt: Time
 
   states: [WorkflowState!]!
   members: [TeamMembership!]!
@@ -9149,6 +9222,12 @@ type Query {
   """
   deletedIssues: [Issue!]!
 
+  """
+  Teams deleted within the restore window. Loaded on demand, never replicated — the sync
+  stream carries a delete for a removed team rather than the row.
+  """
+  deletedTeams: [Team!]!
+
   """Archived issues, cycles and projects for one team. Loaded on demand, never replicated."""
   archivedIssues(teamId: UUID!): [Issue!]!
   archivedCycles(teamId: UUID!): [Cycle!]!
@@ -9212,6 +9291,14 @@ type Mutation {
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!
+  """Freezes a team: read-only issues and settings, hidden from sidebars. Restorable any time."""
+  retireTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
+  """Brings a retired team back to active use."""
+  unretireTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
+  """Soft-deletes a team and its issues. Restorable within 30 days."""
+  deleteTeam(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  """Restores a soft-deleted team and its issues, within the window."""
+  restoreTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
   addTeamMember(teamId: UUID!, userId: UUID!, role: TeamRole): TeamMembershipPayload!
   removeTeamMember(teamId: UUID!, userId: UUID!): DeletePayload!
 
@@ -10828,6 +10915,8 @@ func (ec *executionContext) childFields_Team(ctx context.Context, field graphql.
 		return ec.fieldContext_Team_retiredAt(ctx, field)
 	case "archivedAt":
 		return ec.fieldContext_Team_archivedAt(ctx, field)
+	case "deletedAt":
+		return ec.fieldContext_Team_deletedAt(ctx, field)
 	case "states":
 		return ec.fieldContext_Team_states(ctx, field)
 	case "members":
@@ -12848,6 +12937,36 @@ func (ec *executionContext) field_Mutation_deleteProject_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteTeam_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteView_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13324,6 +13443,66 @@ func (ec *executionContext) field_Mutation_restoreProject_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_restoreTeam_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_retireTeam_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_revokeApiKey_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13497,6 +13676,36 @@ func (ec *executionContext) field_Mutation_suspendUser_args(ctx context.Context,
 		return nil, err
 	}
 	args["suspended"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_unretireTeam_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -23483,6 +23692,234 @@ func (ec *executionContext) fieldContext_Mutation_updateTeam(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateTeam_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_retireTeam(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_retireTeam(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RetireTeam(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *TeamPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *TeamPayload) graphql.Marshaler {
+			return ec.marshalNTeamPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_retireTeam(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TeamPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_retireTeam_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_unretireTeam(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_unretireTeam(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UnretireTeam(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *TeamPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *TeamPayload) graphql.Marshaler {
+			return ec.marshalNTeamPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_unretireTeam(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TeamPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_unretireTeam_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteTeam(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteTeam(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteTeam(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteTeam(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteTeam_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_restoreTeam(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_restoreTeam(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RestoreTeam(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *TeamPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *TeamPayload) graphql.Marshaler {
+			return ec.marshalNTeamPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_restoreTeam(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TeamPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_restoreTeam_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -33736,6 +34173,38 @@ func (ec *executionContext) fieldContext_Query_deletedIssues(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_deletedTeams(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_deletedTeams(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DeletedTeams(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []Team) graphql.Marshaler {
+			return ec.marshalNTeam2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_deletedTeams(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Team(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_archivedIssues(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35113,6 +35582,29 @@ func (ec *executionContext) _Team_archivedAt(ctx context.Context, field graphql.
 	)
 }
 func (ec *executionContext) fieldContext_Team_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Team_deletedAt(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_deletedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeletedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Team_deletedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
@@ -46234,6 +46726,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "retireTeam":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_retireTeam(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unretireTeam":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_unretireTeam(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteTeam":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteTeam(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "restoreTeam":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_restoreTeam(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "addTeamMember":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addTeamMember(ctx, field)
@@ -49674,6 +50194,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "deletedTeams":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_deletedTeams(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "archivedIssues":
 			field := field
 
@@ -50201,6 +50743,11 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "archivedAt":
 			out.Values[i] = ec._Team_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "deletedAt":
+			out.Values[i] = ec._Team_deletedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

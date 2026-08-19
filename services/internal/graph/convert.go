@@ -126,6 +126,7 @@ func toTeam(t model.Team) (generated.Team, error) {
 		UpdatedAt:             t.UpdatedAt,
 		RetiredAt:             t.RetiredAt,
 		ArchivedAt:            t.ArchivedAt,
+		DeletedAt:             t.DeletedAt,
 	}, nil
 }
 
