@@ -215,7 +215,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 `
 
 type ClearExternalAssigneesInTeamRow struct {
@@ -250,6 +250,7 @@ type ClearExternalAssigneesInTeamRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // ClearExternalAssigneesInTeam runs when a team becomes private: non-members may not
@@ -295,6 +296,7 @@ func (q *Queries) ClearExternalAssigneesInTeam(ctx context.Context, teamID uuid.
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
