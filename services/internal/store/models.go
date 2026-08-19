@@ -66,6 +66,21 @@ type ApiKey struct {
 	UpdatedAt   time.Time
 }
 
+type Attachment struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	IssueID     uuid.UUID
+	TeamID      uuid.UUID
+	Url         string
+	Title       string
+	Subtitle    *string
+	IconUrl     *string
+	Metadata    json.RawMessage
+	CreatorID   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type ChangeLog struct {
 	WorkspaceID   uuid.UUID
 	Version       int64
@@ -113,6 +128,37 @@ type Comment struct {
 	UpdatedAt   time.Time
 }
 
+type Cycle struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      uuid.UUID
+	Number      int32
+	Name        string
+	Description *string
+	StartsAt    time.Time
+	EndsAt      time.Time
+	CompletedAt *time.Time
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type Document struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      uuid.UUID
+	ProjectID   *uuid.UUID
+	Title       string
+	Body        string
+	SortOrder   string
+	CreatorID   *uuid.UUID
+	UpdatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ArchivedAt  *time.Time
+	DeletedAt   *time.Time
+}
+
 type Favorite struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
@@ -124,6 +170,34 @@ type Favorite struct {
 	UpdatedAt   time.Time
 }
 
+type FormTemplate struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	Name        string
+	Description *string
+	Properties  json.RawMessage
+	Position    string
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ArchivedAt  *time.Time
+}
+
+type FormTemplateField struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	FormTemplateID uuid.UUID
+	FieldType      string
+	Label          string
+	Description    *string
+	Required       bool
+	SortOrder      string
+	Config         json.RawMessage
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type IdempotencyKey struct {
 	ClientID    uuid.UUID
 	OpID        uuid.UUID
@@ -133,6 +207,34 @@ type IdempotencyKey struct {
 	Version     *int64
 	ExpiresAt   time.Time
 	CreatedAt   time.Time
+}
+
+type Initiative struct {
+	ID                    uuid.UUID
+	WorkspaceID           uuid.UUID
+	Name                  string
+	Description           string
+	Status                string
+	Priority              int16
+	OwnerID               *uuid.UUID
+	LeadTeamID            *uuid.UUID
+	CreatorID             *uuid.UUID
+	SortOrder             string
+	TargetDate            pgtype.Date
+	TargetDateGranularity *string
+	ArchivedAt            *time.Time
+	DeletedAt             *time.Time
+	DeletedBy             *uuid.UUID
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
+type InitiativeProject struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	InitiativeID uuid.UUID
+	ProjectID    uuid.UUID
+	CreatedAt    time.Time
 }
 
 type Invite struct {
@@ -152,31 +254,37 @@ type Invite struct {
 }
 
 type Issue struct {
-	ID                uuid.UUID
-	WorkspaceID       uuid.UUID
-	TeamID            uuid.UUID
-	Number            int64
-	Title             string
-	Description       string
-	StateID           uuid.UUID
-	AssigneeID        *uuid.UUID
-	CreatorID         *uuid.UUID
-	Priority          int16
-	SortOrder         string
-	StartedAt         *time.Time
-	CompletedAt       *time.Time
-	CanceledAt        *time.Time
-	ArchivedAt        *time.Time
-	DeletedAt         *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	Estimate          *int16
-	DueDate           pgtype.Date
-	DueDateSource     string
-	ParentID          *uuid.UUID
-	SubIssueSortOrder *string
-	TemplateID        *uuid.UUID
-	DeletedBy         *uuid.UUID
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamID             uuid.UUID
+	Number             int64
+	Title              string
+	Description        string
+	StateID            uuid.UUID
+	AssigneeID         *uuid.UUID
+	CreatorID          *uuid.UUID
+	Priority           int16
+	SortOrder          string
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	ArchivedAt         *time.Time
+	DeletedAt          *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Estimate           *int16
+	DueDate            pgtype.Date
+	DueDateSource      string
+	ParentID           *uuid.UUID
+	SubIssueSortOrder  *string
+	TemplateID         *uuid.UUID
+	DeletedBy          *uuid.UUID
+	ProjectID          *uuid.UUID
+	ProjectMilestoneID *uuid.UUID
+	CycleID            *uuid.UUID
+	SnoozedUntil       *time.Time
+	AutoClosedAt       *time.Time
+	FormTemplateID     *uuid.UUID
 }
 
 type IssueHistory struct {
@@ -290,27 +398,198 @@ type NotificationEmailCursor struct {
 	LastSentAt time.Time
 }
 
-type Team struct {
+type Project struct {
+	ID                         uuid.UUID
+	WorkspaceID                uuid.UUID
+	Name                       string
+	Summary                    *string
+	Description                string
+	Icon                       *string
+	Color                      string
+	StatusID                   uuid.UUID
+	Priority                   int16
+	LeadID                     *uuid.UUID
+	CreatorID                  *uuid.UUID
+	SortOrder                  string
+	StartDate                  pgtype.Date
+	StartDateGranularity       *string
+	TargetDate                 pgtype.Date
+	TargetDateGranularity      *string
+	ArchivedAt                 *time.Time
+	DeletedAt                  *time.Time
+	DeletedBy                  *uuid.UUID
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
+	UpdateSchedule             string
+	UpdateReminderIntervalDays *int16
+	UpdateReminderWeekday      *int16
+	UpdateReminderHour         *int16
+	ProjectTemplateID          *uuid.UUID
+}
+
+type ProjectDependency struct {
 	ID                uuid.UUID
 	WorkspaceID       uuid.UUID
-	Key               string
-	Name              string
-	Description       *string
-	Icon              *string
-	Color             *string
-	Timezone          string
-	ParentTeamID      *uuid.UUID
-	Private           bool
-	IssueCounter      int64
-	Settings          json.RawMessage
-	RetiredAt         *time.Time
-	ArchivedAt        *time.Time
-	DeletedAt         *time.Time
+	BlockingProjectID uuid.UUID
+	BlockedProjectID  uuid.UUID
+	CreatedAt         time.Time
+}
+
+type ProjectLabel struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ParentID    *uuid.UUID
+	IsGroup     bool
+	Name        string
+	Description *string
+	Color       string
+	Position    string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ArchivedAt  *time.Time
+}
+
+type ProjectLabelLink struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ProjectID   uuid.UUID
+	LabelID     uuid.UUID
+	GroupID     *uuid.UUID
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+}
+
+type ProjectMember struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ProjectID   uuid.UUID
+	UserID      uuid.UUID
+	CreatedAt   time.Time
+}
+
+type ProjectMilestone struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ProjectID   uuid.UUID
+	Name        string
+	Description *string
+	TargetDate  pgtype.Date
+	SortOrder   string
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type ProjectStatus struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Name        string
+	Description *string
+	Color       string
+	Category    string
+	Position    string
+	IsDefault   bool
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type ProjectTeam struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ProjectID   uuid.UUID
+	TeamID      uuid.UUID
+	CreatedAt   time.Time
+}
+
+type ProjectTemplate struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	Name        string
+	Description *string
+	Summary     string
+	Body        string
+	Properties  json.RawMessage
+	Position    string
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ArchivedAt  *time.Time
+}
+
+type ProjectTemplateIssue struct {
+	ID                uuid.UUID
+	WorkspaceID       uuid.UUID
+	ProjectTemplateID uuid.UUID
+	ParentID          *uuid.UUID
+	Title             string
+	Description       string
+	Properties        json.RawMessage
+	SortOrder         string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
-	EstimateScale     string
-	EstimateAllowZero bool
-	EstimateExtended  bool
+}
+
+type ProjectTemplateMilestone struct {
+	ID                uuid.UUID
+	WorkspaceID       uuid.UUID
+	ProjectTemplateID uuid.UUID
+	Name              string
+	Description       *string
+	TargetDate        pgtype.Date
+	SortOrder         string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type ProjectUpdate struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ProjectID   uuid.UUID
+	Health      string
+	Body        string
+	AuthorID    uuid.UUID
+	EditedAt    *time.Time
+	DeletedAt   *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type Team struct {
+	ID                    uuid.UUID
+	WorkspaceID           uuid.UUID
+	Key                   string
+	Name                  string
+	Description           *string
+	Icon                  *string
+	Color                 *string
+	Timezone              string
+	ParentTeamID          *uuid.UUID
+	Private               bool
+	IssueCounter          int64
+	Settings              json.RawMessage
+	RetiredAt             *time.Time
+	ArchivedAt            *time.Time
+	DeletedAt             *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	EstimateScale         string
+	EstimateAllowZero     bool
+	EstimateExtended      bool
+	CyclesEnabled         bool
+	CycleDurationWeeks    int16
+	CycleCooldownWeeks    int16
+	CycleStartDay         string
+	CycleUpcomingCount    int16
+	CycleAutoAddStarted   bool
+	CycleAutoAddCompleted bool
+	TriageEnabled         bool
+	TriageRequirePriority bool
+	AutoCloseDays         int16
+	AutoArchiveDays       int16
+	AutoCloseParent       bool
+	AutoCloseChildren     bool
 }
 
 type TeamMembership struct {
@@ -357,6 +636,7 @@ type View struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	ArchivedAt  *time.Time
+	ProjectID   *uuid.UUID
 }
 
 type ViewPreference struct {
@@ -367,6 +647,47 @@ type ViewPreference struct {
 	Display     json.RawMessage
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type Webhook struct {
+	ID                  uuid.UUID
+	WorkspaceID         uuid.UUID
+	CreatorID           uuid.UUID
+	Url                 string
+	Secret              string
+	Enabled             bool
+	AllPublicTeams      bool
+	TeamID              *uuid.UUID
+	ResourceTypes       []string
+	ConsecutiveFailures int32
+	DisabledAt          *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type WebhookCursor struct {
+	WorkspaceID uuid.UUID
+	Version     int64
+	UpdatedAt   time.Time
+}
+
+type WebhookDelivery struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	WebhookID      uuid.UUID
+	ChangeVersion  int64
+	EntityType     string
+	EntityID       uuid.UUID
+	Op             string
+	Payload        json.RawMessage
+	Attempt        int32
+	NextAttemptAt  time.Time
+	LastStatus     *int32
+	LastError      *string
+	LastDurationMs *int32
+	LastSnippet    *string
+	DeliveredAt    *time.Time
+	CreatedAt      time.Time
 }
 
 type WorkflowState struct {
@@ -386,19 +707,22 @@ type WorkflowState struct {
 }
 
 type Workspace struct {
-	ID            uuid.UUID
-	Name          string
-	UrlKey        string
-	LogoUrl       *string
-	Settings      json.RawMessage
-	Plan          string
-	ArchivedAt    *time.Time
-	DeletedAt     *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	PlanExpiresAt *time.Time
-	SeatLimit     *int32
-	PlanLapsedAt  *time.Time
+	ID                                uuid.UUID
+	Name                              string
+	UrlKey                            string
+	LogoUrl                           *string
+	Settings                          json.RawMessage
+	Plan                              string
+	ArchivedAt                        *time.Time
+	DeletedAt                         *time.Time
+	CreatedAt                         time.Time
+	UpdatedAt                         time.Time
+	PlanExpiresAt                     *time.Time
+	SeatLimit                         *int32
+	PlanLapsedAt                      *time.Time
+	ProjectUpdateReminderIntervalDays int16
+	ProjectUpdateReminderWeekday      int16
+	ProjectUpdateReminderHour         int16
 }
 
 type WorkspaceVersion struct {

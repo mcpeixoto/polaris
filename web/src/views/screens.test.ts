@@ -61,6 +61,13 @@ const HEADING_FROM_A_WRAPPER: Record<string, string> = {
   CreateWorkspace: 'AuthLayout renders the h1 for all three auth screens',
   FirstTeam: 'redirects to a team; it renders no screen of its own',
   SavedView: 'renders IssueList, which carries the heading',
+  ProjectShell: 'renders the project name as h1 for nested tabs',
+  ProjectOverview: 'ProjectShell renders the h1 for nested project tabs',
+  ProjectIssues: 'ProjectShell renders the h1; IssueList fills the issues tab',
+  ProjectAttachedView: 'ProjectShell renders the h1; IssueList fills the view tab',
+  ProjectActivity: 'ProjectShell renders the h1 for nested project tabs',
+  CycleDetail: 'renders IssueList, which carries the heading',
+  Triage: 'renders IssueList, which carries the heading',
   MyIssues: 'renders IssueList, which carries the heading',
 };
 

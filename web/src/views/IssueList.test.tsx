@@ -10,6 +10,7 @@ import { Store, type Change, type Issue, type Team, type WorkflowState } from '~
 import type { SyncEngine } from '~/sync/engine';
 
 import { IssueList } from './IssueList';
+import { Triage } from './Triage';
 
 /**
  * The list, driven the way it is used: from the keyboard, against a real store.
@@ -40,6 +41,19 @@ function team(): Team {
     estimateScale: 'none',
     estimateAllowZero: false,
     estimateExtended: false,
+    cyclesEnabled: false,
+    cycleDurationWeeks: 1,
+    cycleCooldownWeeks: 0,
+    cycleStartDay: 'monday',
+    cycleUpcomingCount: 2,
+    cycleAutoAddStarted: false,
+    cycleAutoAddCompleted: false,
+    triageEnabled: false,
+    triageRequirePriority: false,
+    autoCloseDays: 0,
+    autoArchiveDays: 0,
+    autoCloseParent: false,
+    autoCloseChildren: false,
     createdAt: AT,
     updatedAt: AT,
   };
@@ -217,6 +231,25 @@ describe('IssueList', () => {
     expect(cursorText()).toBe('ENG-2Ship the importer');
   });
 
+  it('opens Peek with Space without leaving the list, and Esc puts it away', async () => {
+    const { user } = renderList();
+
+    await user.keyboard('{Space}');
+
+    expect(screen.getByRole('complementary', { name: 'Peek ENG-1' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Fix the flake' })).toBeTruthy();
+    expect(screen.getByText('No description.')).toBeTruthy();
+
+    await user.keyboard('j');
+    expect(cursorText()).toBe('ENG-2Ship the importer');
+    expect(screen.getByRole('complementary', { name: 'Peek ENG-2' })).toBeTruthy();
+    expect(screen.queryByRole('complementary', { name: 'Peek ENG-1' })).toBeNull();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(cursorText()).toBe('ENG-2Ship the importer');
+  });
+
   it('selects the cursor row with x and says how many are selected', async () => {
     const { user } = renderList();
 
@@ -320,6 +353,19 @@ describe('IssueList over an assignee', () => {
       estimateScale: 'none',
       estimateAllowZero: false,
       estimateExtended: false,
+      cyclesEnabled: false,
+      cycleDurationWeeks: 1,
+      cycleCooldownWeeks: 0,
+      cycleStartDay: 'monday',
+      cycleUpcomingCount: 2,
+      cycleAutoAddStarted: false,
+      cycleAutoAddCompleted: false,
+      triageEnabled: false,
+      triageRequirePriority: false,
+    autoCloseDays: 0,
+    autoArchiveDays: 0,
+    autoCloseParent: false,
+    autoCloseChildren: false,
       createdAt: AT,
       updatedAt: AT,
     };
@@ -429,3 +475,105 @@ describe('IssueList over an assignee', () => {
     expect(screen.getByRole('button', { name: 'Status' }).hasAttribute('disabled')).toBe(false);
   });
 });
+
+describe('triage', () => {
+  function triageStore(): Store {
+    const store = seeded();
+    const dup = { ...state('s-dup', 'Duplicate', 'duplicate'), isSystem: true };
+    store.applyChanges([
+      {
+        v: 10,
+        type: 'team',
+        id: TEAM,
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: { ...team(), triageEnabled: true },
+      },
+      {
+        v: 11,
+        type: 'workflowState',
+        id: 's-triage',
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: state('s-triage', 'Triage', 'triage'),
+      },
+      {
+        v: 12,
+        type: 'workflowState',
+        id: 's-canceled',
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: state('s-canceled', 'Canceled', 'canceled'),
+      },
+      {
+        v: 13,
+        type: 'workflowState',
+        id: 's-dup',
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: dup,
+      },
+      {
+        v: 14,
+        type: 'issue',
+        id: 'issue-9',
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: issue(9, 'Incoming from Slack', 's-triage', 'Z'),
+      },
+    ] as Change[]);
+    return store;
+  }
+
+  function renderTriage() {
+    const store = triageStore();
+    const mutate = vi.fn().mockResolvedValue({});
+    const engine = { store, mutate } as unknown as SyncEngine;
+    render(
+      <MemoryRouter initialEntries={['/team/ENG/triage']}>
+        <KeymapProvider>
+          <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+            <Routes>
+              <Route path="/team/:teamKey/triage" element={<Triage />} />
+            </Routes>
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+    return { store, mutate, user: userEvent.setup() };
+  }
+
+  it('keeps triage issues out of the team list', () => {
+    const store = triageStore();
+    const mutate = vi.fn().mockResolvedValue({});
+    const engine = { store, mutate } as unknown as SyncEngine;
+    render(
+      <MemoryRouter initialEntries={['/team/ENG']}>
+        <KeymapProvider>
+          <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+            <Routes>
+              <Route path="/team/:teamKey" element={<IssueList />} />
+            </Routes>
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText('Incoming from Slack')).toBeNull();
+    expect(screen.getByText('Fix the flake')).toBeTruthy();
+  });
+
+  it('shows only the inbox, and 1 accepts the cursor row', async () => {
+    const { user, mutate } = renderTriage();
+
+    expect(screen.getByRole('heading', { name: 'Engineering triage' })).toBeTruthy();
+    expect(screen.getByText('Incoming from Slack')).toBeTruthy();
+    expect(screen.queryByText('Fix the flake')).toBeNull();
+
+    await user.keyboard('1');
+    expect(mutate).toHaveBeenCalled();
+    const sent = mutate.mock.calls[0]?.[0] as { mutation: string; variables: { id: string } };
+    expect(sent.mutation).toContain('acceptTriageIssue');
+    expect(sent.variables.id).toBe('issue-9');
+  });
+});
+

@@ -147,6 +147,12 @@ type Workspace {
   planLapsedAt: Time
   """Overrides the plan's default seat count. Null means whatever the plan says."""
   seatLimit: Int
+  """Default cadence for project update reminders (staleness + future delivery)."""
+  projectUpdateReminderIntervalDays: Int!
+  """0 = Sunday through 6 = Saturday."""
+  projectUpdateReminderWeekday: Int!
+  """Hour of day in the lead's timezone when reminders would send (0–23)."""
+  projectUpdateReminderHour: Int!
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
@@ -175,6 +181,10 @@ type Entitlements {
   """How far back the change stream is queryable, in days."""
   historyDays: Int
   privateTeams: Boolean!
+  """Business+: one level of sub-teams under a top-level parent."""
+  subTeams: Boolean!
+  """Enterprise: sub-teams nested up to five levels deep."""
+  multiLevelSubTeams: Boolean!
   customViews: Boolean!
   apiKeys: Boolean!
   sso: Boolean!
@@ -226,16 +236,53 @@ type Team {
   """Extends the scale's top end."""
   estimateExtended: Boolean!
 
+  """Off by default. Turning it on creates the current cycle and the configured upcoming ones."""
+  cyclesEnabled: Boolean!
+  """1–8 weeks."""
+  cycleDurationWeeks: Int!
+  """Gap after each cycle, 0–8 weeks. A cooldown is not a cycle; issues cannot be assigned to it."""
+  cycleCooldownWeeks: Int!
+  """Weekday the cycle begins at 00:01 in the team's timezone: monday…sunday."""
+  cycleStartDay: String!
+  """How many future cycles to keep pre-created, 1–15."""
+  cycleUpcomingCount: Int!
+  cycleAutoAddStarted: Boolean!
+  cycleAutoAddCompleted: Boolean!
+
+  """Off by default. Turning it on creates the Triage and Duplicate statuses if they are missing."""
+  triageEnabled: Boolean!
+  """An issue cannot leave Triage without a priority other than none."""
+  triageRequirePriority: Boolean!
+
+  """Days of inactivity before an open issue is auto-closed. Zero is off."""
+  autoCloseDays: Int!
+  """Days of inactivity after close before archival. Zero is off."""
+  autoArchiveDays: Int!
+  """Close a parent when every sub-issue is done."""
+  autoCloseParent: Boolean!
+  """Close remaining sub-issues when the parent is done."""
+  autoCloseChildren: Boolean!
+
   createdAt: Time!
   updatedAt: Time!
   retiredAt: Time
   archivedAt: Time
+  """
+  When the team was deleted. Only ever set on a row `deletedTeams` returned: the sync stream
+  carries a delete rather than the row, so a client holding a team with this set is holding
+  something it should already have dropped.
+  """
+  deletedAt: Time
+
+  """Direct child teams, in key order."""
+  subTeams: [Team!]!
 
   states: [WorkflowState!]!
   members: [TeamMembership!]!
   issues: [Issue!]!
   labels: [Label!]!
   templates: [IssueTemplate!]!
+  cycles: [Cycle!]!
 }
 
 type TeamMembership {
@@ -244,6 +291,24 @@ type TeamMembership {
   teamId: UUID!
   userId: UUID!
   role: TeamRole!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
+A dated window on one team. Cooldown is a gap between cycles, not a row of this type.
+"""
+type Cycle {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  number: Int!
+  name: String!
+  description: String
+  startsAt: Time!
+  endsAt: Time!
+  completedAt: Time
+  archivedAt: Time
   createdAt: Time!
   updatedAt: Time!
 }
@@ -300,6 +365,21 @@ type Issue {
   subIssueSortOrder: String
   """Which template made this issue, for the question "is this template still worth having"."""
   templateId: UUID
+  """Which form template made this issue, for intake reporting."""
+  formTemplateId: UUID
+
+  """At most one project. Two projects on one issue is unrepresentable."""
+  projectId: UUID
+  """A milestone implies its project."""
+  projectMilestoneId: UUID
+  """At most one cycle, and it has to belong to the issue's team."""
+  cycleId: UUID
+
+  """Hidden from the triage inbox until this instant, or until the next edit or comment."""
+  snoozedUntil: Time
+
+  """Set when the auto-close engine moved this issue to a closed status. Cleared on reopen."""
+  autoClosedAt: Time
 
   startedAt: Time
   completedAt: Time
@@ -326,6 +406,8 @@ type Issue {
   creator: User
   comments: [Comment!]!
   history: [IssueHistoryEntry!]!
+  """Link cards on this issue. URL-idempotent: the same URL is one card."""
+  attachments: [Attachment!]!
 
   labels: [Label!]!
   parent: Issue
@@ -337,6 +419,9 @@ type Issue {
   """Issues that block this one — the same rows read from the other end."""
   blockedBy: [IssueRelation!]!
   subscribers: [IssueSubscription!]!
+  project: Project
+  projectMilestone: ProjectMilestone
+  cycle: Cycle
 }
 
 """Sub-issue completion, rolled up. Counts direct children only; a deep tree would make a list view walk the whole graph per row."""
@@ -393,6 +478,32 @@ type IssueLabel {
   createdBy: UUID
   createdAt: Time!
   label: Label!
+}
+
+"""Workspace taxonomy for labelling projects — separate from issue labels."""
+type ProjectLabel {
+  id: UUID!
+  workspaceId: UUID!
+  parentId: UUID
+  isGroup: Boolean!
+  name: String!
+  description: String
+  color: String!
+  position: String!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+"""One project label applied to one project."""
+type ProjectLabelLink {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  labelId: UUID!
+  groupId: UUID
+  createdBy: UUID
+  createdAt: Time!
 }
 
 type IssueRelation {
@@ -463,6 +574,8 @@ type View {
   teamId: UUID
   """Null means shared. Set means it is that person's private view."""
   ownerId: UUID
+  """Set means the view is attached as a tab on this project."""
+  projectId: UUID
   name: String!
   description: String
   icon: String
@@ -528,6 +641,101 @@ type IssueTemplate {
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
+}
+
+enum FormTemplateFieldType {
+  text
+  long_text
+  dropdown
+  checkboxes
+  date
+  file_upload
+  instructions
+  label_group
+  priority
+  title
+  due_date
+}
+
+"""
+Structured intake template. Fields are separate rows (`FormTemplateField`) replicated
+alongside the template.
+"""
+type FormTemplate {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the template is offered in every team."""
+  teamId: UUID
+  name: String!
+  description: String
+  """Default issue properties not captured by a field (assignee, status, labels, etc.)."""
+  properties: JSON!
+  position: String!
+  createdBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type FormTemplateField {
+  id: UUID!
+  workspaceId: UUID!
+  formTemplateId: UUID!
+  fieldType: FormTemplateFieldType!
+  label: String!
+  description: String
+  required: Boolean!
+  sortOrder: String!
+  config: JSON!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
+Prefilled project with milestones and starter issues. Workspace or team scoped.
+"""
+type ProjectTemplate {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the template is offered in every team."""
+  teamId: UUID
+  name: String!
+  description: String
+  summary: String!
+  body: String!
+  """Keys match createProject: statusId, priority, leadId, color, icon, teamIds, memberIds, dates, initiativeIds."""
+  properties: JSON!
+  position: String!
+  createdBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type ProjectTemplateMilestone {
+  id: UUID!
+  workspaceId: UUID!
+  projectTemplateId: UUID!
+  name: String!
+  description: String
+  targetDate: String
+  sortOrder: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type ProjectTemplateIssue {
+  id: UUID!
+  workspaceId: UUID!
+  projectTemplateId: UUID!
+  parentId: UUID
+  title: String!
+  description: String!
+  """Keys match createIssue property names, plus teamId and templateId."""
+  properties: JSON!
+  sortOrder: String!
+  createdAt: Time!
+  updatedAt: Time!
 }
 
 """
@@ -635,6 +843,148 @@ type CommentPayload implements MutationResult {
   comment: Comment!
 }
 
+"""A link card on an issue. Recreating the same URL updates this row instead of minting another."""
+type Attachment {
+  id: UUID!
+  workspaceId: UUID!
+  issueId: UUID!
+  teamId: UUID!
+  url: String!
+  title: String!
+  subtitle: String
+  iconUrl: String
+  """Arbitrary key/value. Subtitle tokens `{var__since}` and `{var__relativeTimestamp}` look up keys here."""
+  metadata: JSON
+  creatorId: UUID
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type AttachmentPayload implements MutationResult {
+  version: Int!
+  attachment: Attachment!
+}
+
+"""Long-form markdown attached to a team or a project."""
+type Document {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  projectId: UUID
+  title: String!
+  body: String!
+  sortOrder: String!
+  creatorId: UUID
+  updatedBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+  deletedAt: Time
+}
+
+type DocumentPayload implements MutationResult {
+  version: Int!
+  document: Document!
+}
+
+enum ProjectUpdateHealth {
+  ON_TRACK
+  AT_RISK
+  OFF_TRACK
+}
+
+"""A status post on a project — health plus narrative markdown."""
+type ProjectUpdate {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  health: ProjectUpdateHealth!
+  body: String!
+  authorId: UUID!
+  editedAt: Time
+  deletedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+
+  author: User
+  project: Project
+}
+
+type ProjectUpdatePayload implements MutationResult {
+  version: Int!
+  projectUpdate: ProjectUpdate!
+}
+
+"""An end→start dependency: the blocking project must finish before the blocked may start."""
+type ProjectDependency {
+  id: UUID!
+  workspaceId: UUID!
+  blockingProjectId: UUID!
+  blockedProjectId: UUID!
+  createdAt: Time!
+
+  blockingProject: Project
+  blockedProject: Project
+}
+
+type ProjectDependencyPayload implements MutationResult {
+  version: Int!
+  projectDependency: ProjectDependency!
+}
+
+enum InitiativeStatus {
+  PROPOSED
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELED
+}
+
+"""A workspace objective grouping a manually curated set of projects."""
+type Initiative {
+  id: UUID!
+  workspaceId: UUID!
+  name: String!
+  description: String!
+  status: InitiativeStatus!
+  priority: Int!
+  ownerId: UUID
+  leadTeamId: UUID
+  sortOrder: String!
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+  creatorId: UUID
+  archivedAt: Time
+  deletedAt: Time
+  deletedBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+
+  owner: User
+  leadTeam: Team
+  creator: User
+  projects: [InitiativeProject!]!
+}
+
+type InitiativeProject {
+  id: UUID!
+  workspaceId: UUID!
+  initiativeId: UUID!
+  projectId: UUID!
+  createdAt: Time!
+  project: Project!
+}
+
+type InitiativePayload implements MutationResult {
+  version: Int!
+  initiative: Initiative!
+}
+
+type InitiativeProjectPayload implements MutationResult {
+  version: Int!
+  initiativeProject: InitiativeProject!
+}
+
 type TeamPayload implements MutationResult {
   version: Int!
   team: Team!
@@ -658,6 +1008,11 @@ type WorkspacePayload implements MutationResult {
 type TeamMembershipPayload implements MutationResult {
   version: Int!
   membership: TeamMembership!
+}
+
+type CyclePayload implements MutationResult {
+  version: Int!
+  cycle: Cycle!
 }
 
 type DeletePayload implements MutationResult {
@@ -695,6 +1050,16 @@ type LabelPayload implements MutationResult {
 type IssueLabelPayload implements MutationResult {
   version: Int!
   issueLabel: IssueLabel!
+}
+
+type ProjectLabelPayload implements MutationResult {
+  version: Int!
+  projectLabel: ProjectLabel!
+}
+
+type ProjectLabelLinkPayload implements MutationResult {
+  version: Int!
+  projectLabelLink: ProjectLabelLink!
 }
 
 type IssueRelationPayload implements MutationResult {
@@ -738,9 +1103,303 @@ type IssueTemplatePayload implements MutationResult {
   template: IssueTemplate!
 }
 
+type FormTemplatePayload implements MutationResult {
+  version: Int!
+  template: FormTemplate!
+}
+
+type FormTemplateFieldPayload implements MutationResult {
+  version: Int!
+  field: FormTemplateField!
+}
+
+type ProjectTemplatePayload implements MutationResult {
+  version: Int!
+  template: ProjectTemplate!
+}
+
+type ProjectTemplateMilestonePayload implements MutationResult {
+  version: Int!
+  milestone: ProjectTemplateMilestone!
+}
+
+type ProjectTemplateIssuePayload implements MutationResult {
+  version: Int!
+  issue: ProjectTemplateIssue!
+}
+
+enum ProjectStatusCategory {
+  BACKLOG
+  PLANNED
+  STARTED
+  COMPLETED
+  CANCELED
+}
+
+enum ProjectUpdateSchedule {
+  default
+  never
+  custom
+}
+
+enum TimeframeGranularity {
+  DAY
+  MONTH
+  QUARTER
+  HALF
+  YEAR
+}
+
+type ProjectStatus {
+  id: UUID!
+  workspaceId: UUID!
+  name: String!
+  description: String
+  color: String!
+  category: ProjectStatusCategory!
+  position: String!
+  isDefault: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type Project {
+  id: UUID!
+  workspaceId: UUID!
+  name: String!
+  summary: String
+  description: String!
+  icon: String
+  color: String!
+  statusId: UUID!
+  priority: Int!
+  leadId: UUID
+  creatorId: UUID
+  sortOrder: String!
+  startDate: String
+  startDateGranularity: TimeframeGranularity
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+  """Workspace default, custom cadence, or never expect updates."""
+  updateSchedule: ProjectUpdateSchedule!
+  updateReminderIntervalDays: Int
+  updateReminderWeekday: Int
+  updateReminderHour: Int
+  archivedAt: Time
+  deletedAt: Time
+  deletedBy: UUID
+  projectTemplateId: UUID
+  createdAt: Time!
+  updatedAt: Time!
+
+  status: ProjectStatus!
+  lead: User
+  creator: User
+  teams: [ProjectTeam!]!
+  members: [ProjectMember!]!
+  milestones: [ProjectMilestone!]!
+}
+
+type ProjectTeam {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  teamId: UUID!
+  createdAt: Time!
+  team: Team!
+}
+
+type ProjectMember {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  userId: UUID!
+  createdAt: Time!
+  user: User!
+}
+
+type ProjectMilestone {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  name: String!
+  description: String
+  targetDate: String
+  sortOrder: String!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type ProjectPayload implements MutationResult {
+  version: Int!
+  project: Project!
+}
+
+type ProjectStatusPayload implements MutationResult {
+  version: Int!
+  status: ProjectStatus!
+}
+
+type ProjectTeamPayload implements MutationResult {
+  version: Int!
+  projectTeam: ProjectTeam!
+}
+
+type ProjectMemberPayload implements MutationResult {
+  version: Int!
+  projectMember: ProjectMember!
+}
+
+type ProjectMilestonePayload implements MutationResult {
+  version: Int!
+  milestone: ProjectMilestone!
+}
+
+input CreateProjectInput {
+  name: String!
+  summary: String
+  description: String
+  icon: String
+  color: String
+  statusId: UUID
+  priority: Int
+  leadId: UUID
+  """At least one. A project with no team is invisible to everyone."""
+  teamIds: [UUID!]!
+  memberIds: [UUID!]
+  startDate: String
+  startDateGranularity: TimeframeGranularity
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+  projectTemplateId: UUID
+}
+
+input UpdateProjectInput {
+  id: UUID!
+  name: String
+  summary: String
+  description: String
+  icon: String
+  color: String
+  statusId: UUID
+  priority: Int
+  leadId: UUID
+  clearLead: Boolean
+  startDate: String
+  startDateGranularity: TimeframeGranularity
+  clearStart: Boolean
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+  clearTarget: Boolean
+  """Place directly below this project in the same priority group. Omit to append."""
+  afterProjectId: UUID
+  moveToTop: Boolean
+  updateSchedule: ProjectUpdateSchedule
+  updateReminderIntervalDays: Int
+  updateReminderWeekday: Int
+  updateReminderHour: Int
+}
+
+input CreateProjectMilestoneInput {
+  projectId: UUID!
+  name: String!
+  description: String
+  targetDate: String
+}
+
+input UpdateProjectMilestoneInput {
+  id: UUID!
+  name: String
+  description: String
+  targetDate: String
+  clearTarget: Boolean
+}
+
+input CreateProjectStatusInput {
+  name: String!
+  description: String
+  color: String
+  category: ProjectStatusCategory!
+  isDefault: Boolean
+}
+
+input UpdateProjectStatusInput {
+  id: UUID!
+  name: String
+  description: String
+  color: String
+  category: ProjectStatusCategory
+  isDefault: Boolean
+}
+
 type ApiKeyPayload implements MutationResult {
   version: Int!
   created: ApiKeyCreated!
+}
+
+"""
+An outbound webhook. The signing secret is not on this type: it exists in the create
+response and in the column the delivery path reads, and nowhere a listing can see it.
+"""
+type Webhook {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  url: String!
+  enabled: Boolean!
+  allPublicTeams: Boolean!
+  teamId: UUID
+  resourceTypes: [String!]!
+  consecutiveFailures: Int!
+  disabledAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type WebhookCreated {
+  webhook: Webhook!
+  """Shown once. Used to HMAC the raw body. Not recoverable afterwards."""
+  secret: String!
+}
+
+type WebhookCreatePayload implements MutationResult {
+  version: Int!
+  created: WebhookCreated!
+}
+
+type WebhookPayload implements MutationResult {
+  version: Int!
+  webhook: Webhook!
+}
+
+"""One delivery attempt, so an admin can self-diagnose a failing consumer."""
+type WebhookDelivery {
+  id: UUID!
+  webhookId: UUID!
+  changeVersion: Int!
+  entityType: String!
+  attempt: Int!
+  lastStatus: Int
+  lastError: String
+  lastDurationMs: Int
+  deliveredAt: Time
+  createdAt: Time!
+}
+
+input CreateWebhookInput {
+  url: String!
+  """XOR with allPublicTeams: one team, or every public team."""
+  teamId: UUID
+  allPublicTeams: Boolean
+  resourceTypes: [String!]!
+  enabled: Boolean
+}
+
+input UpdateWebhookInput {
+  id: UUID!
+  enabled: Boolean!
 }
 
 """
@@ -819,8 +1478,15 @@ input CreateIssueInput {
   parentId: UUID
   labelIds: [UUID!]
   templateId: UUID
+  """Records which form template the issue was filed from."""
+  formTemplateId: UUID
   """Place the new issue directly below this one. Omit to append."""
   afterIssueId: UUID
+  projectId: UUID
+  projectMilestoneId: UUID
+  cycleId: UUID
+  """File into the team's triage status. The inbox's C, and an outsider filing into a team they can see."""
+  fromTriage: Boolean
 }
 
 input UpdateIssueInput {
@@ -846,6 +1512,12 @@ input UpdateIssueInput {
   moveToTop: Boolean
   """Place among a parent's children. Only meaningful when the issue has a parent."""
   afterSiblingId: UUID
+  projectId: UUID
+  clearProject: Boolean
+  projectMilestoneId: UUID
+  clearMilestone: Boolean
+  cycleId: UUID
+  clearCycle: Boolean
 }
 
 """
@@ -892,8 +1564,29 @@ input UpdateLabelInput {
   afterLabelId: UUID
 }
 
+input CreateProjectLabelInput {
+  parentId: UUID
+  isGroup: Boolean
+  name: String!
+  description: String
+  color: String
+  afterLabelId: UUID
+}
+
+input UpdateProjectLabelInput {
+  id: UUID!
+  name: String
+  description: String
+  color: String
+  parentId: UUID
+  clearParent: Boolean
+  afterLabelId: UUID
+}
+
 input CreateViewInput {
   teamId: UUID
+  """Attaches the view as a tab on this project rather than in a sidebar."""
+  projectId: UUID
   """True keeps the view private to its creator."""
   private: Boolean
   name: String!
@@ -933,11 +1626,130 @@ input UpdateIssueTemplateInput {
   properties: JSON
 }
 
+input CreateFormTemplateInput {
+  teamId: UUID
+  name: String!
+  description: String
+  properties: JSON
+}
+
+input UpdateFormTemplateInput {
+  id: UUID!
+  name: String
+  description: String
+  properties: JSON
+}
+
+input CreateFormTemplateFieldInput {
+  formTemplateId: UUID!
+  fieldType: FormTemplateFieldType!
+  label: String!
+  description: String
+  required: Boolean
+  config: JSON
+}
+
+input UpdateFormTemplateFieldInput {
+  id: UUID!
+  fieldType: FormTemplateFieldType
+  label: String
+  description: String
+  required: Boolean
+  sortOrder: String
+  config: JSON
+}
+
+input CreateProjectTemplateInput {
+  teamId: UUID
+  name: String!
+  description: String
+  summary: String
+  body: String
+  properties: JSON
+}
+
+input UpdateProjectTemplateInput {
+  id: UUID!
+  name: String
+  description: String
+  summary: String
+  body: String
+  properties: JSON
+}
+
+input CreateProjectTemplateMilestoneInput {
+  projectTemplateId: UUID!
+  name: String!
+  description: String
+  targetDate: String
+}
+
+input UpdateProjectTemplateMilestoneInput {
+  id: UUID!
+  name: String
+  description: String
+  targetDate: String
+  sortOrder: String
+}
+
+input CreateProjectTemplateIssueInput {
+  projectTemplateId: UUID!
+  parentId: UUID
+  title: String!
+  description: String
+  properties: JSON
+}
+
+input UpdateProjectTemplateIssueInput {
+  id: UUID!
+  title: String
+  description: String
+  properties: JSON
+  parentId: UUID
+  sortOrder: String
+}
+
 input UpdateTeamEstimatesInput {
   teamId: UUID!
   scale: EstimateScale!
   allowZero: Boolean
   extended: Boolean
+}
+
+input UpdateTeamCyclesInput {
+  teamId: UUID!
+  enabled: Boolean
+  durationWeeks: Int
+  cooldownWeeks: Int
+  startDay: String
+  upcomingCount: Int
+  autoAddStarted: Boolean
+  autoAddCompleted: Boolean
+}
+
+input UpdateCycleInput {
+  id: UUID!
+  name: String
+  description: String
+  clearDescription: Boolean
+  """Upcoming cycles only. Past and current starts are immutable."""
+  startsAt: Time
+  """Current and upcoming cycles. Past ends are immutable."""
+  endsAt: Time
+}
+
+input UpdateTeamTriageInput {
+  teamId: UUID!
+  enabled: Boolean
+  requirePriority: Boolean
+}
+
+input UpdateTeamArchiveInput {
+  teamId: UUID!
+  autoCloseDays: Int
+  autoArchiveDays: Int
+  autoCloseParent: Boolean
+  autoCloseChildren: Boolean
 }
 
 input InviteInput {
@@ -988,6 +1800,8 @@ input CreateTeamInput {
   color: String
   timezone: String
   private: Boolean
+  """When set, creates a sub-team under this parent."""
+  parentTeamId: UUID
 }
 
 input UpdateTeamInput {
@@ -1025,6 +1839,75 @@ input CreateCommentInput {
   parentId: UUID
 }
 
+input CreateAttachmentInput {
+  issueId: UUID!
+  url: String!
+  title: String
+  subtitle: String
+  iconUrl: String
+  metadata: JSON
+}
+
+input UpdateAttachmentInput {
+  id: UUID!
+  title: String
+  subtitle: String
+  iconUrl: String
+  metadata: JSON
+}
+
+input CreateDocumentInput {
+  teamId: UUID!
+  """When set, the document belongs to this project rather than the team home."""
+  projectId: UUID
+  title: String!
+  body: String
+}
+
+input UpdateDocumentInput {
+  id: UUID!
+  title: String
+  body: String
+}
+
+input CreateProjectUpdateInput {
+  projectId: UUID!
+  health: ProjectUpdateHealth!
+  body: String
+}
+
+input UpdateProjectUpdateInput {
+  id: UUID!
+  health: ProjectUpdateHealth
+  body: String
+}
+
+input CreateInitiativeInput {
+  name: String!
+  description: String
+  status: InitiativeStatus
+  priority: Int
+  ownerId: UUID
+  leadTeamId: UUID
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+}
+
+input UpdateInitiativeInput {
+  id: UUID!
+  name: String
+  description: String
+  status: InitiativeStatus
+  priority: Int
+  ownerId: UUID
+  clearOwner: Boolean
+  leadTeamId: UUID
+  clearLeadTeam: Boolean
+  targetDate: String
+  targetDateGranularity: TimeframeGranularity
+  clearTarget: Boolean
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -1035,6 +1918,9 @@ input UpdateProfileInput {
 input UpdateWorkspaceInput {
   name: String
   logoUrl: String
+  projectUpdateReminderIntervalDays: Int
+  projectUpdateReminderWeekday: Int
+  projectUpdateReminderHour: Int
 }
 
 # ---------------------------------------------------------------- root
@@ -1063,6 +1949,10 @@ type Query {
   labels: [Label!]!
   label(id: UUID!): Label
 
+  """Every project label in the workspace."""
+  projectLabels: [ProjectLabel!]!
+  projectLabel(id: UUID!): ProjectLabel
+
   """Saved views the caller can see: shared ones in scope, plus their own private ones."""
   views: [View!]!
   view(id: UUID!): View
@@ -1072,6 +1962,22 @@ type Query {
 
   issueTemplates(teamId: UUID): [IssueTemplate!]!
   issueTemplate(id: UUID!): IssueTemplate
+
+  formTemplates(teamId: UUID): [FormTemplate!]!
+  formTemplate(id: UUID!): FormTemplate
+  formTemplateFields(formTemplateId: UUID!): [FormTemplateField!]!
+
+  projectTemplates(teamId: UUID): [ProjectTemplate!]!
+  projectTemplate(id: UUID!): ProjectTemplate
+  projectTemplateMilestones(projectTemplateId: UUID!): [ProjectTemplateMilestone!]!
+  projectTemplateIssues(projectTemplateId: UUID!): [ProjectTemplateIssue!]!
+
+  projects: [Project!]!
+  project(id: UUID!): Project
+  projectStatuses: [ProjectStatus!]!
+
+  cycles(teamId: UUID!): [Cycle!]!
+  cycle(id: UUID!): Cycle
 
   """The caller's inbox. Snoozed rows are excluded until they wake unless includeSnoozed."""
   notifications(includeRead: Boolean, includeSnoozed: Boolean, first: Int): [Notification!]!
@@ -1085,6 +1991,10 @@ type Query {
   """The caller's own keys. Never anybody else's, and never the tokens."""
   apiKeys: [ApiKey!]!
 
+  """Workspace webhooks. Admins only; the signing secret is never returned."""
+  webhooks: [Webhook!]!
+  webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
+
   """Pending invitations. Admins only."""
   invites: [Invite!]!
 
@@ -1093,6 +2003,31 @@ type Query {
   support ticket.
   """
   deletedIssues: [Issue!]!
+
+  """
+  Teams deleted within the restore window. Loaded on demand, never replicated — the sync
+  stream carries a delete for a removed team rather than the row.
+  """
+  deletedTeams: [Team!]!
+
+  """Archived issues, cycles and projects for one team. Loaded on demand, never replicated."""
+  archivedIssues(teamId: UUID!): [Issue!]!
+  archivedCycles(teamId: UUID!): [Cycle!]!
+  archivedProjects(teamId: UUID!): [Project!]!
+
+  """Every live attachment in this workspace that carries this exact URL."""
+  attachmentsForURL(url: String!): [Attachment!]!
+
+  document(id: UUID!): Document
+
+  projectUpdate(id: UUID!): ProjectUpdate
+  projectUpdates(projectId: UUID!): [ProjectUpdate!]!
+
+  projectDependenciesBlocking(projectId: UUID!): [ProjectDependency!]!
+  projectDependenciesBlockedBy(projectId: UUID!): [ProjectDependency!]!
+
+  initiatives: [Initiative!]!
+  initiative(id: UUID!): Initiative
 }
 
 """
@@ -1113,8 +2048,41 @@ type Mutation {
   resolveComment(id: UUID!, resolved: Boolean!, clientId: UUID, opId: UUID): CommentPayload! @idempotent
   deleteComment(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
+  createAttachment(input: CreateAttachmentInput!, clientId: UUID, opId: UUID): AttachmentPayload! @idempotent
+  updateAttachment(input: UpdateAttachmentInput!, clientId: UUID, opId: UUID): AttachmentPayload! @idempotent
+  deleteAttachment(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createDocument(input: CreateDocumentInput!, clientId: UUID, opId: UUID): DocumentPayload! @idempotent
+  updateDocument(input: UpdateDocumentInput!, clientId: UUID, opId: UUID): DocumentPayload! @idempotent
+  archiveDocument(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  deleteDocument(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createProjectUpdate(input: CreateProjectUpdateInput!, clientId: UUID, opId: UUID): ProjectUpdatePayload! @idempotent
+  updateProjectUpdate(input: UpdateProjectUpdateInput!, clientId: UUID, opId: UUID): ProjectUpdatePayload! @idempotent
+  deleteProjectUpdate(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  addProjectDependency(blockingProjectId: UUID!, blockedProjectId: UUID!, clientId: UUID, opId: UUID): ProjectDependencyPayload! @idempotent
+  removeProjectDependency(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createInitiative(input: CreateInitiativeInput!, clientId: UUID, opId: UUID): InitiativePayload! @idempotent
+  updateInitiative(input: UpdateInitiativeInput!, clientId: UUID, opId: UUID): InitiativePayload! @idempotent
+  archiveInitiative(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  deleteInitiative(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  addInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): InitiativeProjectPayload! @idempotent
+  removeInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!
+  """Nest under a parent, or pass null to make a top-level team."""
+  moveTeam(teamId: UUID!, parentTeamId: UUID, clientId: UUID, opId: UUID): TeamPayload! @idempotent
+  """Freezes a team: read-only issues and settings, hidden from sidebars. Restorable any time."""
+  retireTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
+  """Brings a retired team back to active use."""
+  unretireTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
+  """Soft-deletes a team and its issues. Restorable within 30 days."""
+  deleteTeam(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  """Restores a soft-deleted team and its issues, within the window."""
+  restoreTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
   addTeamMember(teamId: UUID!, userId: UUID!, role: TeamRole): TeamMembershipPayload!
   removeTeamMember(teamId: UUID!, userId: UUID!): DeletePayload!
 
@@ -1157,6 +2125,21 @@ type Mutation {
   purgeDeletedIssues(before: Time): PurgePayload!
 
   updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
+  updateTeamCycles(input: UpdateTeamCyclesInput!): TeamPayload!
+  updateCycle(input: UpdateCycleInput!, clientId: UUID, opId: UUID): CyclePayload! @idempotent
+  """Pull the next upcoming cycle forward to midnight today in the team's timezone. Irreversible."""
+  startCycleToday(id: UUID!, clientId: UUID, opId: UUID): CyclePayload! @idempotent
+  updateTeamTriage(input: UpdateTeamTriageInput!): TeamPayload!
+  updateTeamArchive(input: UpdateTeamArchiveInput!): TeamPayload!
+
+  archiveCycle(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  archiveProject(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  acceptTriageIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  declineTriageIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  """The issue being viewed is the duplicate; canonicalId is the one it duplicates."""
+  markIssueDuplicate(id: UUID!, canonicalId: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  snoozeIssue(id: UUID!, until: Time!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
 
   # ---- labels
 
@@ -1177,6 +2160,14 @@ type Mutation {
   """
   addIssueLabel(issueId: UUID!, labelId: UUID!, clientId: UUID, opId: UUID): IssueLabelPayload! @idempotent
   removeIssueLabel(issueId: UUID!, labelId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  # ---- project labels
+
+  createProjectLabel(input: CreateProjectLabelInput!): ProjectLabelPayload!
+  updateProjectLabel(input: UpdateProjectLabelInput!): ProjectLabelPayload!
+  archiveProjectLabel(id: UUID!, archived: Boolean!): DeletePayload!
+  addProjectLabel(projectId: UUID!, labelId: UUID!): ProjectLabelLinkPayload!
+  removeProjectLabel(projectId: UUID!, labelId: UUID!): DeletePayload!
 
   # ---- relations
 
@@ -1208,6 +2199,43 @@ type Mutation {
   """Retires a template, or brings one back."""
   archiveIssueTemplate(id: UUID!, archived: Boolean!): DeletePayload!
 
+  createFormTemplate(input: CreateFormTemplateInput!): FormTemplatePayload!
+  updateFormTemplate(input: UpdateFormTemplateInput!): FormTemplatePayload!
+  archiveFormTemplate(id: UUID!, archived: Boolean!): DeletePayload!
+  createFormTemplateField(input: CreateFormTemplateFieldInput!): FormTemplateFieldPayload!
+  updateFormTemplateField(input: UpdateFormTemplateFieldInput!): FormTemplateFieldPayload!
+  deleteFormTemplateField(id: UUID!): DeletePayload!
+
+  createProjectTemplate(input: CreateProjectTemplateInput!): ProjectTemplatePayload!
+  updateProjectTemplate(input: UpdateProjectTemplateInput!): ProjectTemplatePayload!
+  archiveProjectTemplate(id: UUID!, archived: Boolean!): DeletePayload!
+  createProjectTemplateMilestone(input: CreateProjectTemplateMilestoneInput!): ProjectTemplateMilestonePayload!
+  updateProjectTemplateMilestone(input: UpdateProjectTemplateMilestoneInput!): ProjectTemplateMilestonePayload!
+  deleteProjectTemplateMilestone(id: UUID!): DeletePayload!
+  createProjectTemplateIssue(input: CreateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
+  updateProjectTemplateIssue(input: UpdateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
+  deleteProjectTemplateIssue(id: UUID!): DeletePayload!
+
+  # ---- projects
+
+  createProject(input: CreateProjectInput!, clientId: UUID, opId: UUID): ProjectPayload! @idempotent
+  updateProject(input: UpdateProjectInput!, clientId: UUID, opId: UUID): ProjectPayload! @idempotent
+  deleteProject(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  restoreProject(id: UUID!, clientId: UUID, opId: UUID): ProjectPayload! @idempotent
+
+  addProjectTeam(projectId: UUID!, teamId: UUID!, clientId: UUID, opId: UUID): ProjectTeamPayload! @idempotent
+  removeProjectTeam(projectId: UUID!, teamId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  addProjectMember(projectId: UUID!, userId: UUID!, clientId: UUID, opId: UUID): ProjectMemberPayload! @idempotent
+  removeProjectMember(projectId: UUID!, userId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createProjectMilestone(input: CreateProjectMilestoneInput!, clientId: UUID, opId: UUID): ProjectMilestonePayload! @idempotent
+  updateProjectMilestone(input: UpdateProjectMilestoneInput!, clientId: UUID, opId: UUID): ProjectMilestonePayload! @idempotent
+  deleteProjectMilestone(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createProjectStatus(input: CreateProjectStatusInput!): ProjectStatusPayload!
+  updateProjectStatus(input: UpdateProjectStatusInput!): ProjectStatusPayload!
+  archiveProjectStatus(id: UUID!, archived: Boolean!): DeletePayload!
+
   # ---- administration
 
   inviteToWorkspace(input: InviteInput!): InvitePayload!
@@ -1216,4 +2244,9 @@ type Mutation {
   """Returns the token exactly once. It is not recoverable afterwards."""
   createApiKey(input: CreateApiKeyInput!): ApiKeyPayload!
   revokeApiKey(id: UUID!): DeletePayload!
+
+  """Returns the signing secret exactly once."""
+  createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!
+  updateWebhook(input: UpdateWebhookInput!): WebhookPayload!
+  deleteWebhook(id: UUID!): DeletePayload!
 }

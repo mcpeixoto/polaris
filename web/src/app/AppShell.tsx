@@ -7,13 +7,13 @@
  * offers what is actually available rather than a fixed list that fails when chosen.
  */
 
-import { useCallback, useState, type ReactNode } from 'react';
-import { NavLink, useNavigate } from 'react-router';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router';
 
 import { toFilterParam } from '~/filter';
 import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { Favorite, Store, UUID, View } from '~/store';
+import type { Favorite, Store, Team, UUID, View } from '~/store';
 
 import { useQuery, useSyncStatus } from './context';
 import { useActions } from './keymap';
@@ -33,19 +33,43 @@ export interface AppShellProps {
    * happen to walk the graph.
    */
   renderCreateIssue?: (props: { onClose: () => void }) => ReactNode;
+  /**
+   * Same split as create-issue: the action is global (command menu from any screen) and
+   * the modal lives with the rest of the project UI. `C` stays create-issue.
+   */
+  renderCreateProject?: (props: { onClose: () => void }) => ReactNode;
+  renderCreateInitiative?: (props: { onClose: () => void }) => ReactNode;
 }
 
-export function AppShell({ children, renderCreateIssue }: AppShellProps) {
+export function AppShell({
+  children,
+  renderCreateIssue,
+  renderCreateProject,
+  renderCreateInitiative,
+}: AppShellProps) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [commandOpen, setCommandOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [createInitiativeOpen, setCreateInitiativeOpen] = useState(false);
+  const onProjects =
+    pathname === '/projects' ||
+    pathname.startsWith('/project/') ||
+    /\/team\/[^/]+\/projects(?:\/|$)/.test(pathname);
+  const onInitiatives = pathname === '/initiatives' || pathname.startsWith('/initiative/');
+  const onCycles = pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
 
   const teams = useQuery(
-    (store) => [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    (store) => [...store.teams.values()].filter((team) => team.retiredAt === undefined),
     ['team'],
   );
+  const teamTree = useMemo(() => buildTeamTree(teams), [teams]);
   const workspace = useQuery((store) => [...store.workspaces.values()][0], ['workspace']);
+  const cyclesPath = useQuery((store) => pathToCycles(store), ['team', 'cycle']);
+  const triagePath = useQuery((store) => pathToTriage(store), ['team']);
+  const archivesPath = useQuery((store) => pathToArchives(store), ['team']);
 
   const viewerId = useViewerId();
   const favorites = useLiveQuery(
@@ -63,6 +87,8 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
     setCommandOpen(false);
     setHelpOpen(false);
     setCreateOpen(false);
+    setCreateProjectOpen(false);
+    setCreateInitiativeOpen(false);
   }, []);
 
   useActions(
@@ -99,6 +125,18 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
         run: () => setCreateOpen(true),
       },
       {
+        id: 'project.create',
+        title: 'Create project',
+        group: 'Projects',
+        run: () => setCreateProjectOpen(true),
+      },
+      {
+        id: 'initiative.create',
+        title: 'Create initiative',
+        group: 'Initiatives',
+        run: () => setCreateInitiativeOpen(true),
+      },
+      {
         id: 'nav.myIssues',
         title: 'Go to My Issues',
         keys: ['g m'],
@@ -131,32 +169,84 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
         run: () => navigate('/search'),
       },
       {
+        id: 'nav.projects',
+        title: 'Go to Projects',
+        keys: ['g p'],
+        group: 'Navigation',
+        run: () => navigate('/projects'),
+      },
+      {
+        id: 'nav.initiatives',
+        title: 'Go to Initiatives',
+        group: 'Navigation',
+        run: () => navigate('/initiatives'),
+      },
+      {
+        id: 'nav.cycles',
+        title: 'Go to current cycle',
+        keys: ['g c'],
+        group: 'Navigation',
+        run: () => navigate(cyclesPath),
+      },
+      {
+        id: 'nav.triage',
+        title: 'Go to Triage',
+        keys: ['g t'],
+        group: 'Navigation',
+        run: () => navigate(triagePath),
+      },
+      {
+        id: 'nav.archives',
+        title: 'Go to archives',
+        keys: ['g x'],
+        group: 'Navigation',
+        run: () => navigate(archivesPath),
+      },
+      {
         id: 'nav.trash',
         title: 'Go to trash',
         group: 'Navigation',
         run: () => navigate('/settings/trash'),
       },
     ],
-    [navigate, closeAll],
+    [navigate, closeAll, cyclesPath, triagePath, archivesPath],
   );
 
   return (
     <div className={styles.shell}>
       <nav className={styles.sidebar} aria-label="Workspace">
         <div className={styles.workspace}>
+          <span className={styles.workspaceMark} aria-hidden="true">
+            {(workspace?.name ?? 'P').slice(0, 1).toUpperCase()}
+          </span>
           <span className={styles.workspaceName}>{workspace?.name ?? 'Polaris'}</span>
           <ConnectionIndicator />
         </div>
 
         <div className={styles.section}>
           <NavLink to="/my-issues" className={navClass}>
-            My Issues
+            <NavGlyph name="issues" />
+            <span className={styles.navLabel}>My Issues</span>
           </NavLink>
           <NavLink to="/inbox" className={navClass}>
-            Inbox
+            <NavGlyph name="inbox" />
+            <span className={styles.navLabel}>Inbox</span>
           </NavLink>
           <NavLink to="/search" className={navClass}>
-            Search
+            <NavGlyph name="search" />
+            <span className={styles.navLabel}>Search</span>
+          </NavLink>
+          <NavLink to="/projects" className={() => navClass({ isActive: onProjects })}>
+            <NavGlyph name="project" />
+            <span className={styles.navLabel}>Projects</span>
+          </NavLink>
+          <NavLink to="/initiatives" className={() => navClass({ isActive: onInitiatives })}>
+            <NavGlyph name="initiative" />
+            <span className={styles.navLabel}>Initiatives</span>
+          </NavLink>
+          <NavLink to={cyclesPath} className={() => navClass({ isActive: onCycles })}>
+            <NavGlyph name="cycle" />
+            <span className={styles.navLabel}>Cycles</span>
           </NavLink>
         </div>
 
@@ -168,7 +258,7 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
                 {favorite.prefix !== null && (
                   <span className={styles.teamKey}>{favorite.prefix}</span>
                 )}
-                {favorite.label}
+                <span className={styles.navLabel}>{favorite.label}</span>
               </NavLink>
             ))}
           </div>
@@ -176,11 +266,13 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
 
         <div className={styles.section}>
           <h2 className={styles.sectionTitle}>Teams</h2>
-          {teams.map((team) => (
-            <NavLink key={team.id} to={`/team/${team.key}`} className={navClass}>
-              <span className={styles.teamKey}>{team.key}</span>
-              {team.name}
-            </NavLink>
+          {teamTree.roots.map((team) => (
+            <TeamNavItems
+              key={team.id}
+              team={team}
+              depth={0}
+              childrenByParent={teamTree.childrenByParent}
+            />
           ))}
         </div>
 
@@ -189,7 +281,8 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
             <h2 className={styles.sectionTitle}>Views</h2>
             {views.map((view) => (
               <NavLink key={view.id} to={viewPath(view)} className={navClass}>
-                {view.name}
+                <NavGlyph name="view" />
+                <span className={styles.navLabel}>{view.name}</span>
               </NavLink>
             ))}
           </div>
@@ -200,22 +293,44 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
         <div className={styles.section}>
           <h2 className={styles.sectionTitle}>Workspace</h2>
           <NavLink to="/settings/members" className={navClass}>
-            Members
+            <NavGlyph name="members" />
+            <span className={styles.navLabel}>Members</span>
           </NavLink>
           <NavLink to="/settings/labels" className={navClass}>
-            Labels
+            <NavGlyph name="labels" />
+            <span className={styles.navLabel}>Labels</span>
+          </NavLink>
+          <NavLink to="/settings/project-labels" className={navClass}>
+            <NavGlyph name="labels" />
+            <span className={styles.navLabel}>Project labels</span>
+          </NavLink>
+          <NavLink to="/settings/project-updates" className={navClass}>
+            <NavGlyph name="bell" />
+            <span className={styles.navLabel}>Project updates</span>
           </NavLink>
           <NavLink to="/settings/notifications" className={navClass}>
-            Notifications
+            <NavGlyph name="bell" />
+            <span className={styles.navLabel}>Notifications</span>
           </NavLink>
           <NavLink to="/settings/templates" className={navClass}>
-            Templates
+            <NavGlyph name="template" />
+            <span className={styles.navLabel}>Templates</span>
           </NavLink>
           <NavLink to="/settings/api-keys" className={navClass}>
-            API keys
+            <NavGlyph name="key" />
+            <span className={styles.navLabel}>API keys</span>
+          </NavLink>
+          <NavLink to="/settings/webhooks" className={navClass}>
+            <NavGlyph name="webhook" />
+            <span className={styles.navLabel}>Webhooks</span>
           </NavLink>
           <NavLink to="/settings/trash" className={navClass}>
-            Trash
+            <NavGlyph name="trash" />
+            <span className={styles.navLabel}>Trash</span>
+          </NavLink>
+          <NavLink to="/settings/deleted-teams" className={navClass}>
+            <NavGlyph name="trash" />
+            <span className={styles.navLabel}>Deleted teams</span>
           </NavLink>
         </div>
       </nav>
@@ -225,7 +340,67 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
       <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
       <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
       {createOpen && renderCreateIssue?.({ onClose: () => setCreateOpen(false) })}
+      {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
+      {createInitiativeOpen &&
+        renderCreateInitiative?.({ onClose: () => setCreateInitiativeOpen(false) })}
     </div>
+  );
+}
+
+function buildTeamTree(teams: readonly Team[]): {
+  roots: Team[];
+  childrenByParent: Map<UUID, Team[]>;
+} {
+  const childrenByParent = new Map<UUID, Team[]>();
+  const roots: Team[] = [];
+  for (const team of teams) {
+    if (team.parentTeamId === undefined) {
+      roots.push(team);
+      continue;
+    }
+    const siblings = childrenByParent.get(team.parentTeamId) ?? [];
+    siblings.push(team);
+    childrenByParent.set(team.parentTeamId, siblings);
+  }
+  const byKey = (a: Team, b: Team) => a.key.localeCompare(b.key);
+  roots.sort(byKey);
+  for (const siblings of childrenByParent.values()) {
+    siblings.sort(byKey);
+  }
+  return { roots, childrenByParent };
+}
+
+function TeamNavItems({
+  team,
+  depth,
+  childrenByParent,
+}: {
+  team: Team;
+  depth: number;
+  childrenByParent: ReadonlyMap<UUID, Team[]>;
+}) {
+  const children = childrenByParent.get(team.id) ?? [];
+  return (
+    <>
+      <NavLink
+        to={`/team/${team.key}`}
+        className={navClass}
+        style={
+          depth > 0 ? { paddingInlineStart: `calc(var(--space-3) * ${depth + 1})` } : undefined
+        }
+      >
+        <span className={styles.teamKey}>{team.key}</span>
+        <span className={styles.navLabel}>{team.name}</span>
+      </NavLink>
+      {children.map((child) => (
+        <TeamNavItems
+          key={child.id}
+          team={child}
+          depth={depth + 1}
+          childrenByParent={childrenByParent}
+        />
+      ))}
+    </>
   );
 }
 
@@ -234,6 +409,206 @@ export function AppShell({ children, renderCreateIssue }: AppShellProps) {
 // out, not render the literal "undefined" into the DOM.
 function navClass({ isActive }: { isActive: boolean }): string {
   return [styles.navItem, isActive ? styles.navItemActive : null].filter(Boolean).join(' ');
+}
+
+type NavGlyphName =
+  | 'issues'
+  | 'inbox'
+  | 'search'
+  | 'project'
+  | 'initiative'
+  | 'cycle'
+  | 'view'
+  | 'members'
+  | 'labels'
+  | 'bell'
+  | 'template'
+  | 'key'
+  | 'webhook'
+  | 'trash';
+
+function NavGlyph({ name }: { name: NavGlyphName }) {
+  return (
+    <svg
+      className={styles.navIcon}
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      {glyphPath(name)}
+    </svg>
+  );
+}
+
+function glyphPath(name: NavGlyphName) {
+  const stroke = {
+    fill: 'none' as const,
+    stroke: 'currentColor',
+    strokeWidth: 1.4,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
+  switch (name) {
+    case 'issues':
+      return (
+        <>
+          <rect x="2.5" y="2.5" width="11" height="11" rx="2" {...stroke} />
+          <path d="M5 8h6M5 10.5h3.5" {...stroke} />
+        </>
+      );
+    case 'inbox':
+      return (
+        <>
+          <path
+            d="M2.5 8.5 4.2 3.8A1.5 1.5 0 0 1 5.6 3h4.8a1.5 1.5 0 0 1 1.4.8L13.5 8.5"
+            {...stroke}
+          />
+          <path
+            d="M2.5 8.5h2.6l.8 1.8h4.2l.8-1.8h2.6V12a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 2.5 12V8.5Z"
+            {...stroke}
+          />
+        </>
+      );
+    case 'search':
+      return (
+        <>
+          <circle cx="7" cy="7" r="3.75" {...stroke} />
+          <path d="m10.2 10.2 3 3" {...stroke} />
+        </>
+      );
+    case 'project':
+      return (
+        <>
+          <path d="M8 2.5 13.5 6v4L8 13.5 2.5 10V6L8 2.5Z" {...stroke} />
+          <path d="M8 8v5.5M2.5 6 8 8l5.5-2" {...stroke} />
+        </>
+      );
+    case 'initiative':
+      return (
+        <>
+          <circle cx="8" cy="8" r="5.25" {...stroke} />
+          <circle cx="8" cy="8" r="2" {...stroke} />
+          <path d="M8 2.75v2M8 11.25v2M2.75 8h2M11.25 8h2" {...stroke} />
+        </>
+      );
+    case 'cycle':
+      return (
+        <>
+          <circle cx="8" cy="8" r="5.25" {...stroke} />
+          <path d="M8 5.25V8l2 1.5" {...stroke} />
+        </>
+      );
+    case 'view':
+      return (
+        <>
+          <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h7" {...stroke} />
+        </>
+      );
+    case 'members':
+      return (
+        <>
+          <circle cx="6" cy="5.5" r="2" {...stroke} />
+          <path d="M3 12.5c.2-2 1.6-3 3-3s2.8 1 3 3" {...stroke} />
+          <circle cx="11" cy="6" r="1.5" {...stroke} />
+          <path d="M10.2 12.5c.15-1.4 1-2.2 2-2.2" {...stroke} />
+        </>
+      );
+    case 'labels':
+      return (
+        <>
+          <path
+            d="M2.5 8.2 8.2 2.5h4.3A1 1 0 0 1 13.5 3.5v4.3L7.8 13.5a1 1 0 0 1-1.4 0L2.5 9.6a1 1 0 0 1 0-1.4Z"
+            {...stroke}
+          />
+          <circle cx="10.2" cy="5.8" r="0.9" fill="currentColor" />
+        </>
+      );
+    case 'bell':
+      return (
+        <>
+          <path d="M4 10.5V8a4 4 0 0 1 8 0v2.5l1 1.5H3l1-1.5Z" {...stroke} />
+          <path d="M6.5 12.5a1.5 1.5 0 0 0 3 0" {...stroke} />
+        </>
+      );
+    case 'template':
+      return (
+        <>
+          <rect x="3" y="2.5" width="10" height="11" rx="1.5" {...stroke} />
+          <path d="M6 6h4M6 8.5h4M6 11h2" {...stroke} />
+        </>
+      );
+    case 'key':
+      return (
+        <>
+          <circle cx="6" cy="8" r="2.5" {...stroke} />
+          <path d="M8.2 8H14v2.2M11.5 8v2.2" {...stroke} />
+        </>
+      );
+    case 'webhook':
+      return (
+        <>
+          <circle cx="4.5" cy="8" r="2" {...stroke} />
+          <path d="M6.5 8h3" {...stroke} />
+          <path d="M9.5 5.5 12 8l-2.5 2.5" {...stroke} />
+        </>
+      );
+    case 'trash':
+      return (
+        <>
+          <path
+            d="M3.5 5h9M6 5V3.5h4V5M5 5l.6 7.2A1 1 0 0 0 6.6 13h2.8a1 1 0 0 0 1-.8L11 5"
+            {...stroke}
+          />
+        </>
+      );
+  }
+}
+
+/**
+ * Where `G C` should land: the current cycle of the first team that runs them, else that
+ * team's cycles page, else the first team's cycles page. Cycles are team-scoped; there is
+ * no workspace-wide list to invent.
+ */
+function pathToCycles(store: Store): string {
+  const now = Date.now();
+  const teams = [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key));
+  const withCadence = teams.find((team) => team.cyclesEnabled) ?? teams[0];
+  if (withCadence === undefined) return '/';
+
+  if (withCadence.cyclesEnabled) {
+    for (const id of store.cycleIdsFor(withCadence.id)) {
+      const cycle = store.cycles.get(id);
+      if (cycle === undefined || cycle.archivedAt !== undefined) continue;
+      const start = Date.parse(cycle.startsAt);
+      const end = Date.parse(cycle.endsAt);
+      if (start <= now && now < end) return `/cycle/${cycle.id}`;
+    }
+  }
+  return `/team/${withCadence.key}/cycles`;
+}
+
+/**
+ * Where `G T` should land: the first team that runs triage, else the first team's inbox
+ * page — which then teaches how to turn it on.
+ */
+function pathToTriage(store: Store): string {
+  const teams = [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key));
+  const withTriage = teams.find((team) => team.triageEnabled) ?? teams[0];
+  if (withTriage === undefined) return '/';
+  return `/team/${withTriage.key}/triage`;
+}
+
+/**
+ * Where `G X` should land: the first team, because archives is per-team and there is no
+ * workspace-wide pile.
+ */
+function pathToArchives(store: Store): string {
+  const teams = [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key));
+  const first = teams[0];
+  if (first === undefined) return '/';
+  return `/team/${first.key}/archives`;
 }
 
 /**
@@ -245,6 +620,7 @@ function navClass({ isActive }: { isActive: boolean }): string {
  * filter on arrival, which is what keeps "the URL is the state" true for these too.
  */
 function viewPath(view: View): string {
+  if (view.projectId !== undefined) return `/project/${view.projectId}/view/${view.id}`;
   return `/view/${view.id}`;
 }
 
@@ -344,6 +720,7 @@ function visibleViews(store: Store, userId: UUID): readonly View[] {
     .filter(
       (view) =>
         view.archivedAt === undefined &&
+        view.projectId === undefined &&
         !favourited.has(view.id) &&
         (view.ownerId === undefined || view.ownerId === userId),
     )

@@ -5,6 +5,9 @@ import type { OutboxRecord } from './outbox';
 import {
   ENTITY_TYPES,
   type Comment,
+  type Attachment,
+  type Document,
+  type Cycle,
   type Entity,
   type EntityOf,
   type EntityType,
@@ -14,8 +17,24 @@ import {
   type IssueRelation,
   type IssueSubscription,
   type IssueTemplate,
+  type FormTemplate,
+  type FormTemplateField,
+  type ProjectTemplate,
+  type ProjectTemplateMilestone,
+  type ProjectTemplateIssue,
+  type Initiative,
+  type InitiativeProject,
+  type ProjectUpdate,
+  type ProjectDependency,
+  type ProjectLabel,
+  type ProjectLabelLink,
   type Label,
   type Notification,
+  type Project,
+  type ProjectMember,
+  type ProjectMilestone,
+  type ProjectStatus,
+  type ProjectTeam,
   type Team,
   type TeamMembership,
   type Timestamp,
@@ -55,8 +74,30 @@ import {
  * Views sidebar, an empty inbox, and label applications naming labels it has never seen.
  * That does not converge — nothing re-sends a row that was never sent — so the replica has
  * to be thrown away, which is what a bump does.
+ *
+ * v4 adds projects, their statuses, teams, members and milestones, and the two columns
+ * on an issue that point at them.
+ *
+ * v5 adds cycles, team cadence fields, and issue.cycleId.
+ *
+ * v6 adds team triage flags and issue.snoozedUntil.
+ *
+ * v7 adds team auto-close/archive periods and issue.autoClosedAt.
+ *
+ * v8 adds attachment (URL-idempotent link cards on issues).
+ *
+ * v9 adds document (markdown attached to teams and projects).
+ *
+ * v10 adds initiative and initiativeProject (workspace objectives grouping projects).
+ * v11 adds projectUpdate (health plus narrative status posts on projects).
+ * v12 adds projectDependency (end→start links between projects).
+ * v13 adds view.projectId (attached project views as tabs).
+ * v14 adds projectLabel and projectLabelLink (workspace taxonomy for projects).
+ * v18 adds project update reminder cadence on workspace and per-project schedule overrides.
+ * v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
+ * v21 adds projectTemplate, projectTemplateMilestone, projectTemplateIssue, and project.projectTemplateId.
  */
-export const CLIENT_SCHEMA = 3;
+export const CLIENT_SCHEMA = 21;
 
 /**
  * One database per workspace per schema version.
@@ -133,9 +174,28 @@ interface PolarisSchema extends DBSchema {
   workflowState: { key: UUID; value: WorkflowState };
   label: { key: UUID; value: Label };
   issueTemplate: { key: UUID; value: IssueTemplate };
+  formTemplate: { key: UUID; value: FormTemplate };
+  formTemplateField: { key: UUID; value: FormTemplateField };
+  projectTemplate: { key: UUID; value: ProjectTemplate };
+  projectTemplateMilestone: { key: UUID; value: ProjectTemplateMilestone };
+  projectTemplateIssue: { key: UUID; value: ProjectTemplateIssue };
+  projectStatus: { key: UUID; value: ProjectStatus };
+  project: { key: UUID; value: Project };
+  projectTeam: { key: UUID; value: ProjectTeam };
+  projectMember: { key: UUID; value: ProjectMember };
+  projectMilestone: { key: UUID; value: ProjectMilestone };
+  initiative: { key: UUID; value: Initiative };
+  initiativeProject: { key: UUID; value: InitiativeProject };
+  projectUpdate: { key: UUID; value: ProjectUpdate };
+  projectDependency: { key: UUID; value: ProjectDependency };
+  projectLabel: { key: UUID; value: ProjectLabel };
+  projectLabelLink: { key: UUID; value: ProjectLabelLink };
+  cycle: { key: UUID; value: Cycle };
   issue: { key: UUID; value: Issue };
   issueLabel: { key: UUID; value: IssueLabel };
   issueRelation: { key: UUID; value: IssueRelation };
+  attachment: { key: UUID; value: Attachment };
+  document: { key: UUID; value: Document };
   comment: { key: UUID; value: Comment };
   issueSubscription: { key: UUID; value: IssueSubscription };
   notification: { key: UUID; value: Notification };

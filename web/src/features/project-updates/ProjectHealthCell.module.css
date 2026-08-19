@@ -1,0 +1,18 @@
+.muted {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.missing {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.dueSoonWrap {
+  display: inline-flex;
+  padding: 1px;
+  border-radius: var(--radius-sm);
+  outline: 1px dashed var(--text-tertiary);
+  outline-offset: 1px;
+}

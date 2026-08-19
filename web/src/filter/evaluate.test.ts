@@ -186,6 +186,24 @@ describe('compileFilter', () => {
     ]);
   });
 
+  it('excludes triage unless a clause names a status, the same way archived is hidden', () => {
+    const TRIAGE = id('c9');
+    const issues = [issue('e1'), issue('e8', { stateId: TRIAGE })];
+    const states = new Map([
+      [TODO, state(TODO, 'unstarted')],
+      [DONE, state(DONE, 'completed')],
+      [TRIAGE, state(TRIAGE, 'triage')],
+    ]);
+
+    expect(matching({ conj: 'and', nodes: [] }, issues, { states })).toEqual([id('e1')]);
+    expect(
+      matching({ field: 'stateCategory', op: 'eq', values: ['triage'] }, issues, { states }),
+    ).toEqual([id('e8')]);
+    expect(matching({ field: 'state', op: 'eq', values: [TRIAGE] }, issues, { states })).toEqual([
+      id('e8'),
+    ]);
+  });
+
   it('excludes archived work unless a clause mentions it, however deeply nested', () => {
     const issues = [issue('e1'), issue('e2', { archivedAt: NOW })];
     expect(matching({ conj: 'and', nodes: [] }, issues)).toEqual([id('e1')]);

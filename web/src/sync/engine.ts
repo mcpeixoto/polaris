@@ -11,6 +11,7 @@
 
 import {
   CLIENT_SCHEMA as STORE_SCHEMA,
+  dropDatabase,
   dropStaleDatabases,
   Outbox,
   PolarisDB,
@@ -25,6 +26,12 @@ import {
 } from '~/store';
 import { ApiError, gql, setWorkspace } from './api';
 import { streamBootstrap } from './bootstrap';
+import {
+  OUTDATED_CLIENT_MESSAGE,
+  clearSchemaReloadAttempt,
+  consumeSchemaReload,
+  isOutdatedClientError,
+} from './outdated-client';
 import {
   CLIENT_SCHEMA as SOCKET_SCHEMA,
   SyncSocket,
@@ -122,12 +129,16 @@ export class SyncEngine {
       }
 
       this.socket.connect(this.store.version);
+      clearSchemaReloadAttempt();
       this.setStatus({
         phase: 'ready',
         connection: this.socket.connectionState(),
         pending: this.outbox.pending().length,
       });
     } catch (err) {
+      if (isOutdatedClientError(err)) {
+        await this.recoverOutdatedClient();
+      }
       this.setStatus({
         phase: 'failed',
         error: err instanceof Error ? err.message : 'could not start',
@@ -270,7 +281,11 @@ export class SyncEngine {
         try {
           await this.bootstrap();
           this.socket.connect(this.store.version);
+          clearSchemaReloadAttempt();
         } catch (err) {
+          if (isOutdatedClientError(err)) {
+            await this.recoverOutdatedClient();
+          }
           this.setStatus({
             phase: 'failed',
             error: err instanceof Error ? err.message : 'resync failed',
@@ -294,10 +309,11 @@ export class SyncEngine {
     const result = await streamBootstrap(this.workspaceId, {
       onMeta: (meta) => {
         if (meta.clientSchema !== STORE_SCHEMA) {
-          throw new ApiError(
-            'CONFLICT',
-            'this version of the app is out of date — reload to update',
-          );
+          // Reloading is the prescribed recovery, but only a new bundle (or a rebuilt
+          // server) can actually change the number. Throwing here lets start() drop the
+          // torn replica and auto-reload once, rather than leaving the user on a splash
+          // whose "Try again" retries the same disagreement.
+          throw new ApiError('CONFLICT', OUTDATED_CLIENT_MESSAGE);
         }
       },
       onBatch: (entities) => {
@@ -314,6 +330,31 @@ export class SyncEngine {
     // here — so a connection that drops mid-snapshot leaves a store the next load
     // correctly recognises as torn and re-fetches, rather than one it mistakes for complete.
     await this.store.finishBootstrap(result.version);
+  }
+
+  /**
+   * Drops the replica and reloads the tab once.
+   *
+   * beginBootstrap has already emptied the stores, but the connection is still open, and
+   * IndexedDB will refuse to delete a database another handle holds. Closing first is
+   * what makes the drop actually happen. The reload is gated so a server that is simply
+   * on a different number than this source tree cannot flash forever.
+   */
+  private async recoverOutdatedClient(): Promise<void> {
+    try {
+      if (this.db) {
+        await this.db.destroy();
+      } else {
+        await dropDatabase(this.workspaceId);
+      }
+    } catch {
+      /* the reload below is the recovery; a failed delete must not block it */
+    }
+    if (!consumeSchemaReload()) return;
+    location.reload();
+    await new Promise<never>(() => {
+      /* the document is going away */
+    });
   }
 
   private scheduleDrain(): void {

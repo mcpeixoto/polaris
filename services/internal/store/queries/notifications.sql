@@ -420,6 +420,23 @@ FROM issue_subscription
 WHERE issue_id = $1 AND unsubscribed = false
 ORDER BY created_at;
 
+-- UnsubscribeNonMembersFromTeamIssues runs when a team becomes private: watchers who are
+-- not members must not keep receiving notifications for work they can no longer reach.
+--
+-- name: UnsubscribeNonMembersFromTeamIssues :many
+UPDATE issue_subscription s
+SET unsubscribed = true, updated_at = now()
+FROM issue i
+WHERE s.issue_id = i.id
+  AND i.team_id = sqlc.arg(team_id)
+  AND i.archived_at IS NULL
+  AND i.deleted_at IS NULL
+  AND s.unsubscribed = false
+  AND s.user_id NOT IN (
+    SELECT user_id FROM team_membership WHERE team_id = sqlc.arg(team_id)
+  )
+RETURNING s.id, s.workspace_id, s.issue_id, s.user_id, s.reason, s.unsubscribed, s.created_at, s.updated_at;
+
 -- ListIssueSubscriptionsForIssues is the watcher list the issue panel renders, for a whole
 -- page of issues at once.
 --

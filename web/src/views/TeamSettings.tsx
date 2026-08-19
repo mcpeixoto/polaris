@@ -21,12 +21,13 @@
  */
 
 import { useMemo, useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import {
   Badge,
   Button,
+  Checkbox,
   EmptyState,
   IconButton,
   Input,
@@ -34,6 +35,11 @@ import {
   StateIcon,
   STATE_LABELS,
 } from '~/components';
+import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
+import { updateTeamArchive } from '~/features/archive/mutations';
+import { updateTeamCycles } from '~/features/cycles/mutations';
+import { updateTeamTriage } from '~/features/triage/mutations';
 import {
   archiveStatus,
   createStatus,
@@ -41,6 +47,8 @@ import {
   updateStatus,
   updateTeam,
 } from '~/features/team/mutations';
+import { deleteTeam, retireTeam, unretireTeam } from '~/features/team-lifecycle/mutations';
+import { moveTeam } from '~/features/team-lifecycle/move';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { CATEGORY_ORDER, type StateCategory, type Store, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -59,6 +67,22 @@ interface TeamView {
   readonly id: UUID;
   readonly key: string;
   readonly name: string;
+  readonly private: boolean;
+  readonly retiredAt?: string;
+  readonly parentTeamId?: UUID;
+  readonly cyclesEnabled: boolean;
+  readonly cycleDurationWeeks: number;
+  readonly cycleCooldownWeeks: number;
+  readonly cycleStartDay: string;
+  readonly cycleUpcomingCount: number;
+  readonly cycleAutoAddStarted: boolean;
+  readonly cycleAutoAddCompleted: boolean;
+  readonly triageEnabled: boolean;
+  readonly triageRequirePriority: boolean;
+  readonly autoCloseDays: number;
+  readonly autoArchiveDays: number;
+  readonly autoCloseParent: boolean;
+  readonly autoCloseChildren: boolean;
   readonly statuses: readonly StatusView[];
 }
 
@@ -101,6 +125,7 @@ const DEFAULT_STATUS_COLOR = '#6b7280';
 export function TeamSettings() {
   const { teamKey = '' } = useParams<{ teamKey: string }>();
   const engine = useEngine();
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
   const team = useLiveQuery(
@@ -118,12 +143,16 @@ export function TeamSettings() {
     return groups;
   }, [team]);
 
-  const run = (work: Promise<unknown>) => {
+  const run = (work: Promise<unknown>, onSuccess?: () => void) => {
     setError(null);
-    work.catch((failure: unknown) => {
-      setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
-    });
+    work
+      .then(() => onSuccess?.())
+      .catch((failure: unknown) => {
+        setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+      });
   };
+
+  const readOnly = team?.retiredAt !== undefined;
 
   if (team === null) {
     return (
@@ -142,6 +171,15 @@ export function TeamSettings() {
         <h1 className={styles.title}>{team.name}</h1>
         <Badge>{team.key}</Badge>
         <div className={styles.spacer} />
+        <Link className={styles.link} to={`/team/${team.key}/cycles`}>
+          Cycles
+        </Link>
+        <Link className={styles.link} to={`/team/${team.key}/triage`}>
+          Triage
+        </Link>
+        <Link className={styles.link} to={`/team/${team.key}/archives`}>
+          Archives
+        </Link>
         <Link className={styles.link} to={`/team/${team.key}`}>
           Back to issues
         </Link>
@@ -154,51 +192,95 @@ export function TeamSettings() {
           </p>
         )}
 
-        <TeamForm team={team} onSave={(fields) => run(updateTeam(engine, team.id, fields))} />
-
-        <section className={styles.section} aria-labelledby="statuses-heading">
-          <h2 className={styles.sectionTitle} id="statuses-heading">
-            Workflow statuses
-          </h2>
-          <p className={styles.sectionHint}>
-            Issues move through these. The category decides what a status <em>means</em> to the rest
-            of the product; the order inside it is the team&rsquo;s own.
+        {readOnly ? (
+          <p className={styles.sectionHint} role="status">
+            This team is retired. Its issues and settings are read-only until you restore it.
           </p>
+        ) : null}
 
-          {CATEGORIES.map((category) => {
-            const statuses = byCategory.get(category) ?? [];
-            if (statuses.length === 0) return null;
-            const siblings = statuses.map((status) => status.id);
-            return (
-              <div key={category} className={styles.category}>
-                <h3 className={styles.categoryTitle}>{STATE_LABELS[category]}</h3>
-                <ul className={styles.statusList}>
-                  {statuses.map((status, index) => (
-                    <StatusRow
-                      key={status.id}
-                      status={status}
-                      first={index === 0}
-                      last={index === statuses.length - 1}
-                      onRename={(name) => run(updateStatus(engine, status.id, { name }))}
-                      onRecolor={(color) => run(updateStatus(engine, status.id, { color }))}
-                      onMakeDefault={() =>
-                        run(updateStatus(engine, status.id, { makeDefault: true }))
-                      }
-                      onMove={(delta) => run(moveStatus(engine, siblings, status.id, delta))}
-                      onArchive={() => run(archiveStatus(engine, status.id))}
-                    />
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
+        <fieldset className={styles.fieldset} disabled={readOnly}>
+          <TeamForm team={team} onSave={(fields) => run(updateTeam(engine, team.id, fields))} />
 
-          <AddStatusForm
-            onAdd={(name, category, color) =>
-              run(createStatus(engine, { teamId: team.id, name, category, color }))
-            }
+          <VisibilitySettings
+            team={team}
+            onChange={(isPrivate) => run(updateTeam(engine, team.id, { private: isPrivate }))}
           />
-        </section>
+
+          <CycleCadence
+            team={team}
+            onChange={(cadence) => run(updateTeamCycles(engine, team.id, cadence))}
+          />
+
+          <TriageSettings
+            team={team}
+            onChange={(patch) => run(updateTeamTriage(engine, team.id, patch))}
+          />
+
+          <ArchiveSettings
+            team={team}
+            onChange={(patch) => run(updateTeamArchive(engine, team.id, patch))}
+          />
+
+          <section className={styles.section} aria-labelledby="statuses-heading">
+            <h2 className={styles.sectionTitle} id="statuses-heading">
+              Workflow statuses
+            </h2>
+            <p className={styles.sectionHint}>
+              Issues move through these. The category decides what a status <em>means</em> to the
+              rest of the product; the order inside it is the team&rsquo;s own.
+            </p>
+
+            {CATEGORIES.map((category) => {
+              const statuses = byCategory.get(category) ?? [];
+              if (statuses.length === 0) return null;
+              const siblings = statuses.map((status) => status.id);
+              return (
+                <div key={category} className={styles.category}>
+                  <h3 className={styles.categoryTitle}>{STATE_LABELS[category]}</h3>
+                  <ul className={styles.statusList}>
+                    {statuses.map((status, index) => (
+                      <StatusRow
+                        key={status.id}
+                        status={status}
+                        first={index === 0}
+                        last={index === statuses.length - 1}
+                        onRename={(name) => run(updateStatus(engine, status.id, { name }))}
+                        onRecolor={(color) => run(updateStatus(engine, status.id, { color }))}
+                        onMakeDefault={() =>
+                          run(updateStatus(engine, status.id, { makeDefault: true }))
+                        }
+                        onMove={(delta) => run(moveStatus(engine, siblings, status.id, delta))}
+                        onArchive={() => run(archiveStatus(engine, status.id))}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+
+            <AddStatusForm
+              onAdd={(name, category, color) =>
+                run(createStatus(engine, { teamId: team.id, name, category, color }))
+              }
+            />
+          </section>
+        </fieldset>
+
+        <ParentTeamSettings
+          team={team}
+          onMove={(parentTeamId) => run(moveTeam(engine, team.id, parentTeamId))}
+        />
+
+        <DangerZone
+          team={team}
+          onRetire={() => run(retireTeam(engine, team.id))}
+          onUnretire={() => run(unretireTeam(engine, team.id))}
+          onDelete={() => {
+            run(deleteTeam(engine, team.id), () => {
+              void navigate('/');
+            });
+          }}
+        />
       </div>
     </div>
   );
@@ -250,6 +332,288 @@ function TeamForm({
       </div>
     </form>
   );
+}
+
+/**
+ * Who may see this team's work.
+ *
+ * Making a team private is immediate and irreversible in effect: non-members lose their
+ * local copy on the next sync, external assignees are cleared, and watchers outside the team
+ * are unsubscribed. The checkbox waits for confirmation before calling that in.
+ */
+function VisibilitySettings({
+  team,
+  onChange,
+}: {
+  team: TeamView;
+  onChange: (isPrivate: boolean) => void;
+}) {
+  const entitlements = useEntitlements();
+  const block = featureBlock(entitlements, 'privateTeams');
+  const [confirmPrivate, setConfirmPrivate] = useState(false);
+
+  const onToggle = (checked: boolean) => {
+    if (checked && !team.private) {
+      setConfirmPrivate(true);
+      return;
+    }
+    onChange(checked);
+  };
+
+  return (
+    <>
+      <section className={styles.section} aria-labelledby="visibility-heading">
+        <h2 className={styles.sectionTitle} id="visibility-heading">
+          Visibility
+        </h2>
+        <p className={styles.sectionHint}>
+          Private teams are visible only to their members. Workspace members who are not on the team
+          cannot see its issues, be assigned to them, or stay subscribed.
+        </p>
+        <Checkbox
+          label="Private team"
+          checked={team.private}
+          disabled={block !== null}
+          onChange={(event) => onToggle(event.target.checked)}
+        />
+        {block === null ? null : (
+          <p className={styles.sectionHint} role="status">
+            {block}
+          </p>
+        )}
+      </section>
+
+      <ConfirmDialog
+        open={confirmPrivate}
+        title="Make this team private?"
+        consequence="Non-members will lose access to this team's issues on their devices. Assignments to people outside the team will be cleared and their subscriptions removed."
+        confirmLabel="Make private"
+        destructive
+        onClose={() => setConfirmPrivate(false)}
+        onConfirm={() => {
+          setConfirmPrivate(false);
+          onChange(true);
+        }}
+      />
+    </>
+  );
+}
+
+const START_DAYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const;
+
+/**
+ * The cadence, not a cycle editor.
+ *
+ * Enabling mints the current window and the upcoming ones; disabling completes the current
+ * and deletes the rest. Duration, cooldown and start day are four compact selects rather
+ * than a settings form, because this is a rhythm you set once and then forget.
+ */
+function CycleCadence({
+  team,
+  onChange,
+}: {
+  team: TeamView;
+  onChange: (cadence: Parameters<typeof updateTeamCycles>[2]) => void;
+}) {
+  return (
+    <section className={styles.section} aria-labelledby="cycles-heading">
+      <h2 className={styles.sectionTitle} id="cycles-heading">
+        Cycles
+      </h2>
+      <p className={styles.sectionHint}>
+        Dated windows that repeat. A cooldown is a gap, not a cycle — nothing can be filed into it.
+        Unfinished work rolls into the next window on its own.
+      </p>
+
+      <Checkbox
+        label="Run cycles"
+        checked={team.cyclesEnabled}
+        onChange={(event) => onChange({ enabled: event.target.checked })}
+      />
+
+      {team.cyclesEnabled ? (
+        <>
+          <div className={styles.cadence}>
+            <Select
+              label="Duration"
+              value={String(team.cycleDurationWeeks)}
+              onChange={(event) => onChange({ durationWeeks: Number(event.target.value) })}
+            >
+              {weeks(1, 8).map((n) => (
+                <option key={n} value={n}>
+                  {n === 1 ? '1 week' : `${n} weeks`}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Cooldown"
+              value={String(team.cycleCooldownWeeks)}
+              onChange={(event) => onChange({ cooldownWeeks: Number(event.target.value) })}
+            >
+              {weeks(0, 8).map((n) => (
+                <option key={n} value={n}>
+                  {n === 0 ? 'None' : n === 1 ? '1 week' : `${n} weeks`}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Starts on"
+              value={team.cycleStartDay}
+              onChange={(event) => onChange({ startDay: event.target.value })}
+            >
+              {START_DAYS.map((day) => (
+                <option key={day} value={day}>
+                  {day.slice(0, 1).toUpperCase() + day.slice(1)}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Upcoming"
+              value={String(team.cycleUpcomingCount)}
+              onChange={(event) => onChange({ upcomingCount: Number(event.target.value) })}
+            >
+              {weeks(1, 15).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className={styles.autoAdd}>
+            <Checkbox
+              label="Add started issues to the current cycle"
+              checked={team.cycleAutoAddStarted}
+              onChange={(event) => onChange({ autoAddStarted: event.target.checked })}
+            />
+            <Checkbox
+              label="Add completed issues to the current cycle"
+              checked={team.cycleAutoAddCompleted}
+              onChange={(event) => onChange({ autoAddCompleted: event.target.checked })}
+            />
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * The intake queue, not a fake view.
+ *
+ * Enabling creates the Triage status and the reserved Duplicate status if they are missing.
+ * Disabling does not delete them. Require-priority is the only extra switch: leaving the
+ * inbox without a number is refused, so `1` opens the priority picker instead.
+ */
+function TriageSettings({
+  team,
+  onChange,
+}: {
+  team: TeamView;
+  onChange: (patch: Parameters<typeof updateTeamTriage>[2]) => void;
+}) {
+  return (
+    <section className={styles.section} aria-labelledby="triage-heading">
+      <h2 className={styles.sectionTitle} id="triage-heading">
+        Triage
+      </h2>
+      <p className={styles.sectionHint}>
+        Unreviewed work from outside the team lands in a Triage status, hidden from ordinary views
+        until somebody accepts, declines, merges or snoozes it.
+      </p>
+
+      <Checkbox
+        label="Run triage"
+        checked={team.triageEnabled}
+        onChange={(event) => onChange({ enabled: event.target.checked })}
+      />
+
+      {team.triageEnabled ? (
+        <div className={styles.autoAdd}>
+          <Checkbox
+            label="Require a priority before an issue can leave triage"
+            checked={team.triageRequirePriority}
+            onChange={(event) => onChange({ requirePriority: event.target.checked })}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+const CLOSE_PERIODS = [0, 30, 60, 90, 180] as const;
+const ARCHIVE_PERIODS = [0, 30, 60, 90, 180, 365] as const;
+
+function ArchiveSettings({
+  team,
+  onChange,
+}: {
+  team: TeamView;
+  onChange: (patch: Parameters<typeof updateTeamArchive>[2]) => void;
+}) {
+  return (
+    <section className={styles.section} aria-labelledby="archive-heading">
+      <h2 className={styles.sectionTitle} id="archive-heading">
+        Auto-close and archive
+      </h2>
+      <p className={styles.sectionHint}>
+        Untouched issues close on their own, then archive after they have stayed closed. A parent,
+        open sub-issues, or an unfinished project will block archival — that is what keeps a
+        project&rsquo;s graph intact.
+      </p>
+
+      <div className={styles.cadence}>
+        <Select
+          label="Auto-close after"
+          value={String(team.autoCloseDays)}
+          onChange={(event) => onChange({ autoCloseDays: Number(event.target.value) })}
+        >
+          {CLOSE_PERIODS.map((n) => (
+            <option key={n} value={n}>
+              {n === 0 ? 'Never' : `${n} days`}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Auto-archive after"
+          value={String(team.autoArchiveDays)}
+          onChange={(event) => onChange({ autoArchiveDays: Number(event.target.value) })}
+        >
+          {ARCHIVE_PERIODS.map((n) => (
+            <option key={n} value={n}>
+              {n === 0 ? 'Never' : n === 365 ? '1 year' : `${n} days`}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <div className={styles.autoAdd}>
+        <Checkbox
+          label="Close the parent when every sub-issue is done"
+          checked={team.autoCloseParent}
+          onChange={(event) => onChange({ autoCloseParent: event.target.checked })}
+        />
+        <Checkbox
+          label="Close remaining sub-issues when the parent is done"
+          checked={team.autoCloseChildren}
+          onChange={(event) => onChange({ autoCloseChildren: event.target.checked })}
+        />
+      </div>
+    </section>
+  );
+}
+
+function weeks(from: number, to: number): number[] {
+  const out: number[] = [];
+  for (let n = from; n <= to; n++) out.push(n);
+  return out;
 }
 
 interface StatusRowProps {
@@ -422,6 +786,180 @@ function Chevron({ up = false }: { up?: boolean }) {
 }
 
 /**
+ * Nest this team under a parent, or make it top-level again.
+ */
+function ParentTeamSettings({
+  team,
+  onMove,
+}: {
+  team: TeamView;
+  onMove: (parentTeamId: UUID | null) => void;
+}) {
+  const candidates = useLiveQuery(
+    (store) =>
+      [...store.teams.values()]
+        .filter(
+          (candidate) =>
+            candidate.id !== team.id &&
+            candidate.parentTeamId === undefined &&
+            candidate.retiredAt === undefined,
+        )
+        .sort((a, b) => a.key.localeCompare(b.key)),
+    ['team'],
+    [team.id],
+  );
+
+  const parent = useLiveQuery(
+    (store) => (team.parentTeamId === undefined ? null : store.get('team', team.parentTeamId)),
+    ['team'],
+    [team.parentTeamId],
+  );
+
+  const subTeams = useLiveQuery(
+    (store) =>
+      [...store.teams.values()]
+        .filter((candidate) => candidate.parentTeamId === team.id)
+        .sort((a, b) => a.key.localeCompare(b.key)),
+    ['team'],
+    [team.id],
+  );
+
+  const [parentId, setParentId] = useState(team.parentTeamId ?? '');
+  const entitlements = useEntitlements();
+  const block = featureBlock(entitlements, 'subTeams');
+
+  return (
+    <section className={styles.section} aria-labelledby="parent-heading">
+      <h2 className={styles.sectionTitle} id="parent-heading">
+        Parent team
+      </h2>
+      <p className={styles.sectionHint}>
+        Sub-teams inherit private visibility from a private parent. Parent team owners are added as
+        owners here automatically.
+      </p>
+
+      {parent === null && team.parentTeamId !== undefined ? (
+        <p className={styles.sectionHint}>Parent team is no longer in your replica.</p>
+      ) : parent !== null && parent !== undefined ? (
+        <p className={styles.sectionHint}>
+          Nested under <strong>{parent.name}</strong> ({parent.key}).
+        </p>
+      ) : (
+        <p className={styles.sectionHint}>This is a top-level team.</p>
+      )}
+
+      <div className={styles.parentFields}>
+        <Select
+          label="Move under"
+          value={parentId}
+          disabled={block !== null}
+          onChange={(event) => setParentId(event.target.value)}
+        >
+          <option value="">Top level (no parent)</option>
+          {candidates.map((candidate) => (
+            <option key={candidate.id} value={candidate.id}>
+              {candidate.key} — {candidate.name}
+            </option>
+          ))}
+        </Select>
+        <Button
+          onClick={() => onMove(parentId === '' ? null : (parentId as UUID))}
+          disabled={block !== null || parentId === (team.parentTeamId ?? '')}
+          title={block ?? undefined}
+        >
+          Save parent
+        </Button>
+      </div>
+      {block !== null ? <p className={styles.sectionHint}>{block}</p> : null}
+
+      {subTeams.length > 0 ? (
+        <ul className={styles.subTeamList}>
+          {subTeams.map((child) => (
+            <li key={child.id}>
+              <Link to={`/team/${child.key}/settings`}>
+                {child.key} — {child.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * Retire, restore, or delete the team. Lifecycle actions stay outside the read-only
+ * fieldset because unretire and delete must remain reachable on a retired team.
+ */
+function DangerZone({
+  team,
+  onRetire,
+  onUnretire,
+  onDelete,
+}: {
+  team: TeamView;
+  onRetire: () => void;
+  onUnretire: () => void;
+  onDelete: () => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRetire, setConfirmRetire] = useState(false);
+  const retired = team.retiredAt !== undefined;
+
+  return (
+    <section className={styles.section} aria-labelledby="danger-heading">
+      <h2 className={styles.sectionTitle} id="danger-heading">
+        Danger zone
+      </h2>
+      <p className={styles.sectionHint}>
+        Retiring freezes the team and hides it from the sidebar. Deleting removes the team and its
+        issues; both can be undone — retired teams any time, deleted teams for thirty days from{' '}
+        <Link to="/settings/deleted-teams">Recently deleted teams</Link>.
+      </p>
+
+      <div className={styles.dangerActions}>
+        {retired ? (
+          <Button onClick={onUnretire}>Restore team</Button>
+        ) : (
+          <Button variant="danger" onClick={() => setConfirmRetire(true)}>
+            Retire team
+          </Button>
+        )}
+        <Button variant="danger" onClick={() => setConfirmDelete(true)}>
+          Delete team
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={confirmRetire}
+        title={`Retire ${team.name}?`}
+        consequence="The team becomes read-only and disappears from the sidebar. Issues stay searchable. You can restore the team any time from here."
+        confirmLabel="Retire team"
+        destructive
+        onConfirm={() => {
+          setConfirmRetire(false);
+          onRetire();
+        }}
+        onClose={() => setConfirmRetire(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Delete ${team.name}?`}
+        consequence="The team and every issue in it move to Recently deleted teams for thirty days. Export or move issues first if you need them elsewhere."
+        confirmLabel="Delete team"
+        destructive
+        onConfirm={() => {
+          setConfirmDelete(false);
+          onDelete();
+        }}
+        onClose={() => setConfirmDelete(false)}
+      />
+    </section>
+  );
+}
+
+/**
  * The team and its statuses, ordered the way the product orders them: category first, then
  * the team's own fractional position inside it. Positions are only comparable within a
  * category, so comparing them across one would interleave "In Progress" with "Backlog".
@@ -449,5 +987,26 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     return a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
   });
 
-  return { id: team.id, key: team.key, name: team.name, statuses };
+  return {
+    id: team.id,
+    key: team.key,
+    name: team.name,
+    private: team.private,
+    retiredAt: team.retiredAt,
+    parentTeamId: team.parentTeamId,
+    cyclesEnabled: team.cyclesEnabled,
+    cycleDurationWeeks: team.cycleDurationWeeks,
+    cycleCooldownWeeks: team.cycleCooldownWeeks,
+    cycleStartDay: team.cycleStartDay,
+    cycleUpcomingCount: team.cycleUpcomingCount,
+    cycleAutoAddStarted: team.cycleAutoAddStarted,
+    cycleAutoAddCompleted: team.cycleAutoAddCompleted,
+    triageEnabled: team.triageEnabled,
+    triageRequirePriority: team.triageRequirePriority,
+    autoCloseDays: team.autoCloseDays,
+    autoArchiveDays: team.autoArchiveDays,
+    autoCloseParent: team.autoCloseParent,
+    autoCloseChildren: team.autoCloseChildren,
+    statuses,
+  };
 }

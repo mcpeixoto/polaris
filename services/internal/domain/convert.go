@@ -18,14 +18,17 @@ import (
 
 func toWorkspace(w store.Workspace) model.Workspace {
 	return model.Workspace{
-		ID:         w.ID,
-		Name:       w.Name,
-		URLKey:     w.UrlKey,
-		LogoURL:    w.LogoUrl,
-		Plan:       w.Plan,
-		CreatedAt:  w.CreatedAt,
-		UpdatedAt:  w.UpdatedAt,
-		ArchivedAt: w.ArchivedAt,
+		ID:                                w.ID,
+		Name:                              w.Name,
+		URLKey:                            w.UrlKey,
+		LogoURL:                           w.LogoUrl,
+		Plan:                              w.Plan,
+		ProjectUpdateReminderIntervalDays: int(w.ProjectUpdateReminderIntervalDays),
+		ProjectUpdateReminderWeekday:      int(w.ProjectUpdateReminderWeekday),
+		ProjectUpdateReminderHour:         int(w.ProjectUpdateReminderHour),
+		CreatedAt:                         w.CreatedAt,
+		UpdatedAt:                         w.UpdatedAt,
+		ArchivedAt:                        w.ArchivedAt,
 	}
 }
 
@@ -67,10 +70,27 @@ func toTeam(t store.Team) model.Team {
 		EstimateAllowZero: t.EstimateAllowZero,
 		EstimateExtended:  t.EstimateExtended,
 
+		CyclesEnabled:         t.CyclesEnabled,
+		CycleDurationWeeks:    int(t.CycleDurationWeeks),
+		CycleCooldownWeeks:    int(t.CycleCooldownWeeks),
+		CycleStartDay:         t.CycleStartDay,
+		CycleUpcomingCount:    int(t.CycleUpcomingCount),
+		CycleAutoAddStarted:   t.CycleAutoAddStarted,
+		CycleAutoAddCompleted: t.CycleAutoAddCompleted,
+
+		TriageEnabled:         t.TriageEnabled,
+		TriageRequirePriority: t.TriageRequirePriority,
+
+		AutoCloseDays:     int(t.AutoCloseDays),
+		AutoArchiveDays:   int(t.AutoArchiveDays),
+		AutoCloseParent:   t.AutoCloseParent,
+		AutoCloseChildren: t.AutoCloseChildren,
+
 		CreatedAt:  t.CreatedAt,
 		UpdatedAt:  t.UpdatedAt,
 		RetiredAt:  t.RetiredAt,
 		ArchivedAt: t.ArchivedAt,
+		DeletedAt:  t.DeletedAt,
 	}
 }
 
@@ -107,7 +127,7 @@ func toWorkflowState(s store.WorkflowState) model.WorkflowState {
 // toIssue needs the team key because the identifier (ENG-123) is derived rather than
 // stored — see the comment on the issue table. Callers that already hold the team pass
 // its key; the ones that do not look it up once and reuse it across a batch.
-func toIssue(i store.Issue, teamKey string) model.Issue {
+func toIssue(i store.GetIssueRow, teamKey string) model.Issue {
 	out := model.Issue{
 		ID:          i.ID,
 		WorkspaceID: i.WorkspaceID,
@@ -122,10 +142,16 @@ func toIssue(i store.Issue, teamKey string) model.Issue {
 		Priority:    int(i.Priority),
 		SortOrder:   i.SortOrder,
 
-		DueDateSource:     i.DueDateSource,
-		ParentID:          i.ParentID,
-		SubIssueSortOrder: i.SubIssueSortOrder,
-		TemplateID:        i.TemplateID,
+		DueDateSource:      i.DueDateSource,
+		ParentID:           i.ParentID,
+		SubIssueSortOrder:  i.SubIssueSortOrder,
+		TemplateID:         i.TemplateID,
+		FormTemplateID:     i.FormTemplateID,
+		ProjectID:          i.ProjectID,
+		ProjectMilestoneID: i.ProjectMilestoneID,
+		CycleID:            i.CycleID,
+		SnoozedUntil:       i.SnoozedUntil,
+		AutoClosedAt:       i.AutoClosedAt,
 
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,
@@ -146,6 +172,23 @@ func toIssue(i store.Issue, teamKey string) model.Issue {
 	return out
 }
 
+func toCycle(c store.Cycle) model.Cycle {
+	return model.Cycle{
+		ID:          c.ID,
+		WorkspaceID: c.WorkspaceID,
+		TeamID:      c.TeamID,
+		Number:      int(c.Number),
+		Name:        c.Name,
+		Description: c.Description,
+		StartsAt:    c.StartsAt,
+		EndsAt:      c.EndsAt,
+		CompletedAt: c.CompletedAt,
+		ArchivedAt:  c.ArchivedAt,
+		CreatedAt:   c.CreatedAt,
+		UpdatedAt:   c.UpdatedAt,
+	}
+}
+
 // intFromEstimate widens the smallint the column holds — a point value never needs more —
 // into the Int the API returns. nil stays nil, because unestimated is not an estimate of
 // zero and a caller that treated it as one would sum it into a burndown.
@@ -163,7 +206,7 @@ func intFromEstimate(v *int16) *int {
 // was NULL — no due date, rather than the zero day. Formatting it here rather than shipping
 // an instant is what keeps the timezone out of it: the day the setter chose is the day every
 // reader sees, wherever they are.
-func dueDateOf(i store.Issue) *model.Date {
+func dueDateOf(i store.GetIssueRow) *model.Date {
 	if !i.DueDate.Valid {
 		return nil
 	}
@@ -201,6 +244,23 @@ func toComment(c store.Comment) model.Comment {
 		ResolvedBy:  c.ResolvedBy,
 		CreatedAt:   c.CreatedAt,
 		UpdatedAt:   c.UpdatedAt,
+	}
+}
+
+func toAttachment(a store.Attachment) model.Attachment {
+	return model.Attachment{
+		ID:          a.ID,
+		WorkspaceID: a.WorkspaceID,
+		IssueID:     a.IssueID,
+		TeamID:      a.TeamID,
+		URL:         a.Url,
+		Title:       a.Title,
+		Subtitle:    a.Subtitle,
+		IconURL:     a.IconUrl,
+		Metadata:    a.Metadata,
+		CreatorID:   a.CreatorID,
+		CreatedAt:   a.CreatedAt,
+		UpdatedAt:   a.UpdatedAt,
 	}
 }
 

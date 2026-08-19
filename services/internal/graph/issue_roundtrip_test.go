@@ -75,7 +75,8 @@ func TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI(t *testing.T) {
 				issue(id: $id) {
 					id workspaceId teamId number identifier
 					title description stateId assigneeId creatorId priority sortOrder
-					estimate dueDate dueDateSource parentId subIssueSortOrder templateId
+					estimate dueDate dueDateSource parentId subIssueSortOrder templateId formTemplateId
+					projectId projectMilestoneId cycleId
 					startedAt completedAt canceledAt archivedAt createdAt updatedAt
 					labels { id }
 				}
@@ -178,7 +179,20 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 		t.Fatalf("create a template to file from: %v", err)
 	}
 
+	formTemplate, err := h.Mutation().CreateFormTemplate(h.ctx, generated.CreateFormTemplateInput{
+		TeamID: &h.f.TeamID,
+		Name:   "Intake",
+	})
+	if err != nil {
+		t.Fatalf("create a form template to file from: %v", err)
+	}
+
 	bug, regression := h.newLabel(t, "bug"), h.newLabel(t, "regression")
+
+	onCreate, milestoneOnCreate := h.newProject(t, "On create")
+	onUpdate, milestoneOnUpdate := h.newProject(t, "On update")
+
+	cycleOnCreate, cycleOnUpdate := h.newCycles(t)
 
 	// A client-minted v7, because that is the whole point of the id field: an offline create
 	// names its own issue so the row on screen is the row the server writes.
@@ -253,6 +267,11 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 			afterCreate: template.Template.ID.String(),
 		},
 		{
+			input: "formTemplateId", output: "formTemplateId",
+			create:      func(in *generated.CreateIssueInput) { in.FormTemplateID = &formTemplate.Template.ID },
+			afterCreate: formTemplate.Template.ID.String(),
+		},
+		{
 			// Written as a list of ids and read back as the labels themselves, which is the
 			// one place in this table where the input and the output are different shapes —
 			// and the reason the field needs its own renderer.
@@ -260,6 +279,27 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 			create:      func(in *generated.CreateIssueInput) { in.LabelIds = []uuid.UUID{bug, regression} },
 			afterCreate: bug.String() + "," + regression.String(),
 			render:      renderLabelIDs,
+		},
+		{
+			input: "projectId", output: "projectId",
+			create:      func(in *generated.CreateIssueInput) { in.ProjectID = &onCreate },
+			update:      func(in *generated.UpdateIssueInput) { in.ProjectID = &onUpdate },
+			clear:       func(in *generated.UpdateIssueInput) { in.ClearProject = ptr(true) },
+			afterCreate: onCreate.String(), afterUpdate: onUpdate.String(), afterClear: "<nil>",
+		},
+		{
+			input: "projectMilestoneId", output: "projectMilestoneId",
+			create:      func(in *generated.CreateIssueInput) { in.ProjectMilestoneID = &milestoneOnCreate },
+			update:      func(in *generated.UpdateIssueInput) { in.ProjectMilestoneID = &milestoneOnUpdate },
+			clear:       func(in *generated.UpdateIssueInput) { in.ClearMilestone = ptr(true) },
+			afterCreate: milestoneOnCreate.String(), afterUpdate: milestoneOnUpdate.String(), afterClear: "<nil>",
+		},
+		{
+			input: "cycleId", output: "cycleId",
+			create:      func(in *generated.CreateIssueInput) { in.CycleID = &cycleOnCreate },
+			update:      func(in *generated.UpdateIssueInput) { in.CycleID = &cycleOnUpdate },
+			clear:       func(in *generated.UpdateIssueInput) { in.ClearCycle = ptr(true) },
+			afterCreate: cycleOnCreate.String(), afterUpdate: cycleOnUpdate.String(), afterClear: "<nil>",
 		},
 	}
 
@@ -305,6 +345,59 @@ func (h *harness) newLabel(t *testing.T, name string) uuid.UUID {
 	return payload.Label.ID
 }
 
+// newProject makes a project on the fixture's team and a milestone inside it, so the
+// issue round trip can file into one project and then move to another without violating
+// "a milestone belongs to the issue's project".
+func (h *harness) newProject(t *testing.T, name string) (projectID, milestoneID uuid.UUID) {
+	t.Helper()
+	project, err := h.Mutation().CreateProject(h.ctx, generated.CreateProjectInput{
+		Name:    name,
+		TeamIds: []uuid.UUID{h.f.TeamID},
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("create project %q: %v", name, err)
+	}
+	if project.Project == nil {
+		t.Fatalf("create project %q returned no project", name)
+	}
+	milestone, err := h.Mutation().CreateProjectMilestone(h.ctx, generated.CreateProjectMilestoneInput{
+		ProjectID: project.Project.ID,
+		Name:      name + " milestone",
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("create milestone for %q: %v", name, err)
+	}
+	if milestone.Milestone == nil {
+		t.Fatalf("create milestone for %q returned no milestone", name)
+	}
+	return project.Project.ID, milestone.Milestone.ID
+}
+
+func (h *harness) newCycles(t *testing.T) (onCreate, onUpdate uuid.UUID) {
+	t.Helper()
+	enabled := true
+	upcoming := 2
+	payload, err := h.Mutation().UpdateTeamCycles(h.ctx, generated.UpdateTeamCyclesInput{
+		TeamID:        h.f.TeamID,
+		Enabled:       &enabled,
+		UpcomingCount: &upcoming,
+	})
+	if err != nil {
+		t.Fatalf("enable cycles: %v", err)
+	}
+	if payload.Team == nil {
+		t.Fatal("enable cycles returned no team")
+	}
+	cycles, err := h.Query().Cycles(h.ctx, h.f.TeamID)
+	if err != nil {
+		t.Fatalf("list cycles: %v", err)
+	}
+	if len(cycles) < 2 {
+		t.Fatalf("got %d cycles, want at least two", len(cycles))
+	}
+	return cycles[0].ID, cycles[1].ID
+}
+
 func renderLabelIDs(v any) string {
 	rows, _ := v.([]any)
 	ids := make([]string, 0, len(rows))
@@ -336,10 +429,15 @@ var coveredElsewhere = map[string]string{
 
 	// Each of these is the clear half of a three-state property, and the table exercises it
 	// through that property's own row rather than as a field of its own.
-	"clearAssignee": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
-	"clearEstimate": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
-	"clearDueDate":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
-	"clearParent":   "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearAssignee":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearEstimate":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearDueDate":   "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearParent":    "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearProject":   "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearMilestone": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"clearCycle":     "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+
+	"fromTriage": "TestCreateIssue_FromTriageViewLandsInTriage",
 }
 
 func TestIssueRoundTrip_TheTableCoversEveryInputField(t *testing.T) {
@@ -400,8 +498,10 @@ var storedButUnwritable = map[string]string{
 	// and every listing filter deleted rows out, so a non-zero value here would mean the API
 	// had just handed somebody a row from the trash. deletedIssues is the one read that
 	// returns them populated, and TestDeletedIssues_CarryWhenAndByWhom is what checks it.
-	"deletedAt": "only ever set on a row the trash listing returns; this read cannot see one",
-	"deletedBy": "same",
+	"deletedAt":    "only ever set on a row the trash listing returns; this read cannot see one",
+	"deletedBy":    "same",
+	"snoozedUntil": "set by snoozeIssue, not by create; TestSnoozeIssue_HidesUntilTimeOrActivity",
+	"autoClosedAt": "set by the auto-close engine, not by create",
 }
 
 func TestIssueRoundTrip_TheReadPathCarriesEveryStoredField(t *testing.T) {
@@ -589,6 +689,12 @@ func TestIssue_TheNestedFieldsResolveToWhatTheDatabaseHolds(t *testing.T) {
 		}
 	}
 
+	if _, err := h.Mutation().CreateAttachment(h.ctx, generated.CreateAttachmentInput{
+		IssueID: subject, URL: "https://github.com/acme/app/pull/4", Title: ptr("PR 4"),
+	}, nil, nil); err != nil {
+		t.Fatalf("attach a URL: %v", err)
+	}
+
 	body := h.execute(t, `
 		query Panel($id: UUID!) {
 			issue(id: $id) {
@@ -599,6 +705,7 @@ func TestIssue_TheNestedFieldsResolveToWhatTheDatabaseHolds(t *testing.T) {
 				relations { relatedIssueId type }
 				blockedBy { issueId type }
 				subscribers { userId }
+				attachments { url title }
 			}
 		}`, map[string]any{"id": subject.String()})
 	if errs, ok := body["errors"]; ok {
@@ -659,6 +766,14 @@ func TestIssue_TheNestedFieldsResolveToWhatTheDatabaseHolds(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("issue.subscribers came back %v without the person who filed it", issue["subscribers"])
+	}
+
+	links, _ := issue["attachments"].([]any)
+	if len(links) != 1 {
+		t.Fatalf("issue.attachments came back %v; the issue has one link", issue["attachments"])
+	}
+	if row, _ := links[0].(map[string]any); fmt.Sprint(row["url"]) != "https://github.com/acme/app/pull/4" {
+		t.Errorf("issue.attachments names %v, not the URL we attached", links[0])
 	}
 }
 

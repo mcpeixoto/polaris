@@ -12,6 +12,7 @@ import {
 } from './db';
 import { ENTITY_TYPES } from './types';
 import type {
+  Attachment,
   Comment,
   Favorite,
   Issue,
@@ -45,6 +46,19 @@ function team(id: UUID, key: string): Team {
     estimateScale: 'none',
     estimateAllowZero: false,
     estimateExtended: false,
+    cyclesEnabled: false,
+    cycleDurationWeeks: 1,
+    cycleCooldownWeeks: 0,
+    cycleStartDay: 'monday',
+    cycleUpcomingCount: 2,
+    cycleAutoAddStarted: false,
+    cycleAutoAddCompleted: false,
+    triageEnabled: false,
+    triageRequirePriority: false,
+    autoCloseDays: 0,
+    autoArchiveDays: 0,
+    autoCloseParent: false,
+    autoCloseChildren: false,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -76,6 +90,32 @@ function comment(id: UUID, issueId: UUID): Comment {
     issueId,
     body: 'looks good',
     actor: { type: 'user', id: 'u1' },
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function attachment(id: UUID, issueId: UUID): Attachment {
+  return {
+    id,
+    workspaceId: 'w',
+    issueId,
+    teamId: 't1',
+    url: 'https://github.com/acme/app/pull/1',
+    title: 'PR 1',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function documentRow(id: UUID) {
+  return {
+    id,
+    workspaceId: 'w',
+    teamId: 't1',
+    title: 'Runbook',
+    body: 'Ship it',
+    sortOrder: 'a',
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -125,6 +165,58 @@ function oneOfEach(): EntityRow[] {
     body: '',
     properties: {},
     position: 'a0',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const formTemplate = {
+    id: 'ftpl1',
+    workspaceId: 'w',
+    name: 'Intake',
+    properties: {},
+    position: 'a0',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const formTemplateField = {
+    id: 'ffield1',
+    workspaceId: 'w',
+    formTemplateId: 'ftpl1',
+    fieldType: 'text' as const,
+    label: 'Summary',
+    required: false,
+    sortOrder: 'a0',
+    config: {},
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const projectTemplate = {
+    id: 'ptpl1',
+    workspaceId: 'w',
+    name: 'Launch',
+    summary: 'Ship v1',
+    body: '',
+    properties: {},
+    position: 'a0',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const projectTemplateMilestone = {
+    id: 'ptms1',
+    workspaceId: 'w',
+    projectTemplateId: 'ptpl1',
+    name: 'Beta',
+    sortOrder: 'a0',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const projectTemplateIssue = {
+    id: 'pti1',
+    workspaceId: 'w',
+    projectTemplateId: 'ptpl1',
+    title: 'Write docs',
+    description: '',
+    properties: {},
+    sortOrder: 'a0',
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -235,9 +327,162 @@ function oneOfEach(): EntityRow[] {
     },
     { type: 'label', entity: label },
     { type: 'issueTemplate', entity: issueTemplate },
+    { type: 'formTemplate', entity: formTemplate },
+    { type: 'formTemplateField', entity: formTemplateField },
+    { type: 'projectTemplate', entity: projectTemplate },
+    { type: 'projectTemplateMilestone', entity: projectTemplateMilestone },
+    { type: 'projectTemplateIssue', entity: projectTemplateIssue },
+    {
+      type: 'projectStatus',
+      entity: {
+        id: 'ps1',
+        workspaceId: 'w',
+        name: 'Backlog',
+        color: '#bec2c8',
+        category: 'backlog',
+        position: 'a0',
+        isDefault: true,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'project',
+      entity: {
+        id: 'p1',
+        workspaceId: 'w',
+        name: 'Shipping',
+        description: '',
+        color: '#5e6ad2',
+        statusId: 'ps1',
+        priority: 0,
+        sortOrder: 'a0',
+        updateSchedule: 'default',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'projectTeam',
+      entity: {
+        id: 'pt1',
+        workspaceId: 'w',
+        projectId: 'p1',
+        teamId: 't1',
+        createdAt: NOW,
+      },
+    },
+    {
+      type: 'projectMember',
+      entity: {
+        id: 'pm1',
+        workspaceId: 'w',
+        projectId: 'p1',
+        userId: 'u1',
+        createdAt: NOW,
+      },
+    },
+    {
+      type: 'projectMilestone',
+      entity: {
+        id: 'pms1',
+        workspaceId: 'w',
+        projectId: 'p1',
+        name: 'Beta',
+        sortOrder: 'a0',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'initiative',
+      entity: {
+        id: 'in1',
+        workspaceId: 'w',
+        name: 'Platform',
+        description: 'Ship the core',
+        status: 'planned',
+        priority: 0,
+        sortOrder: 'a0',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'initiativeProject',
+      entity: {
+        id: 'ip1',
+        workspaceId: 'w',
+        initiativeId: 'in1',
+        projectId: 'p1',
+        createdAt: NOW,
+      },
+    },
+    {
+      type: 'projectUpdate',
+      entity: {
+        id: 'pu1',
+        workspaceId: 'w',
+        projectId: 'p1',
+        health: 'on_track',
+        body: 'Shipping on schedule',
+        authorId: 'u1',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'projectDependency',
+      entity: {
+        id: 'pd1',
+        workspaceId: 'w',
+        blockingProjectId: 'p2',
+        blockedProjectId: 'p1',
+        createdAt: NOW,
+      },
+    },
+    {
+      type: 'projectLabel',
+      entity: {
+        id: 'pl1',
+        workspaceId: 'w',
+        name: 'Platform',
+        color: '#6b7280',
+        isGroup: false,
+        position: 'a0',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'projectLabelLink',
+      entity: {
+        id: 'pll1',
+        workspaceId: 'w',
+        projectId: 'p1',
+        labelId: 'pl1',
+        createdAt: NOW,
+      },
+    },
+    {
+      type: 'cycle',
+      entity: {
+        id: 'cy1',
+        workspaceId: 'w',
+        teamId: 't1',
+        number: 1,
+        name: 'Cycle 1',
+        startsAt: NOW,
+        endsAt: '2026-01-15T00:01:00Z',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
     { type: 'issue', entity: issue('i1') },
     { type: 'issueLabel', entity: issueLabel },
     { type: 'issueRelation', entity: issueRelation },
+    { type: 'attachment', entity: attachment('a1', 'i1') },
+    { type: 'document', entity: documentRow('d1') },
     { type: 'comment', entity: comment('c1', 'i1') },
     { type: 'issueSubscription', entity: issueSubscription },
     { type: 'notification', entity: notification },
@@ -295,7 +540,7 @@ describe('PolarisDB', () => {
     // rejected transaction that aborts the whole bootstrap page it arrived in.
     expect(rows.map((row) => row.type).sort()).toEqual([...ENTITY_TYPES].sort());
 
-    await db.write({ puts: rows, meta: complete(11) });
+    await db.write({ puts: rows, meta: complete(CLIENT_SCHEMA) });
     const snapshot = await db.readAll();
     for (const type of ENTITY_TYPES) {
       expect(snapshot[type], `${type} did not survive the round trip`).toHaveLength(1);
@@ -414,6 +659,9 @@ function blankWorkspace(): Workspace {
     name: 'Polaris',
     urlKey: 'polaris',
     plan: 'free',
+    projectUpdateReminderIntervalDays: 7,
+    projectUpdateReminderWeekday: 3,
+    projectUpdateReminderHour: 9,
     createdAt: NOW,
     updatedAt: NOW,
   };

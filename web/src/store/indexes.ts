@@ -1,4 +1,11 @@
-import type { Issue, IssueLabel, IssueRelation, Notification, UUID } from './types';
+import type {
+  Issue,
+  IssueLabel,
+  IssueRelation,
+  Notification,
+  ProjectLabelLink,
+  UUID,
+} from './types';
 
 /**
  * The secondary indexes every view reads through.
@@ -152,6 +159,8 @@ export class IssueIndex {
   private readonly unassigned = new Set<UUID>();
   private readonly priority = new SetIndex<number>();
   private readonly parent = new SetIndex<UUID>();
+  private readonly project = new SetIndex<UUID>();
+  private readonly cycle = new SetIndex<UUID>();
   /**
    * Issues with no parent. Kept apart from `parent` for the same reason `unassigned` is
    * kept apart from `assignee`, and because it is the corpus an issue list actually
@@ -185,6 +194,8 @@ export class IssueIndex {
     this.priority.add(issue.priority, issue.id);
     if (issue.parentId === undefined) this.rootIssues.add(issue.id);
     else this.parent.add(issue.parentId, issue.id);
+    if (issue.projectId !== undefined) this.project.add(issue.projectId, issue.id);
+    if (issue.cycleId !== undefined) this.cycle.add(issue.cycleId, issue.id);
     this.updated.set(issue.id, epochOf(issue.updatedAt));
     this.indexTitle(issue.id, issue.title);
     this.orderStale = true;
@@ -229,6 +240,14 @@ export class IssueIndex {
       if (next.parentId === undefined) this.rootIssues.add(id);
       else this.parent.add(next.parentId, id);
     }
+    if (previous.projectId !== next.projectId) {
+      if (previous.projectId !== undefined) this.project.remove(previous.projectId, id);
+      if (next.projectId !== undefined) this.project.add(next.projectId, id);
+    }
+    if (previous.cycleId !== next.cycleId) {
+      if (previous.cycleId !== undefined) this.cycle.remove(previous.cycleId, id);
+      if (next.cycleId !== undefined) this.cycle.add(next.cycleId, id);
+    }
     if (previous.archivedAt !== next.archivedAt) {
       if (next.archivedAt === undefined) this.live.add(id);
       else this.live.delete(id);
@@ -254,6 +273,8 @@ export class IssueIndex {
     this.priority.remove(issue.priority, id);
     if (issue.parentId === undefined) this.rootIssues.delete(id);
     else this.parent.remove(issue.parentId, id);
+    if (issue.projectId !== undefined) this.project.remove(issue.projectId, id);
+    if (issue.cycleId !== undefined) this.cycle.remove(issue.cycleId, id);
     this.updated.delete(id);
     this.unindexTitle(id);
     this.orderStale = true;
@@ -279,6 +300,8 @@ export class IssueIndex {
     this.unassigned.clear();
     this.priority.clear();
     this.parent.clear();
+    this.project.clear();
+    this.cycle.clear();
     this.rootIssues.clear();
     this.updated.clear();
     this.folded.clear();
@@ -322,6 +345,16 @@ export class IssueIndex {
    */
   byParent(parentId: UUID | null): ReadonlySet<UUID> {
     return parentId === null ? this.rootIssues : this.parent.get(parentId);
+  }
+
+  /** Issues in one project. An issue with no project is in no bucket here. */
+  byProject(projectId: UUID): ReadonlySet<UUID> {
+    return this.project.get(projectId);
+  }
+
+  /** Issues in one cycle. An issue with no cycle is in no bucket here. */
+  byCycle(cycleId: UUID): ReadonlySet<UUID> {
+    return this.cycle.get(cycleId);
   }
 
   /** Epoch milliseconds, for comparators that must not re-parse a timestamp per comparison. */
@@ -487,6 +520,63 @@ export class LabelIndex {
 
   rowIdsForIssue(issueId: UUID): ReadonlySet<UUID> {
     return this.rowsOfIssue.get(issueId);
+  }
+
+  rowIdsForLabel(labelId: UUID): ReadonlySet<UUID> {
+    return this.rowsOfLabel.get(labelId);
+  }
+}
+
+/**
+ * Which project labels are on which projects, from a `projectLabelLink` row per application.
+ *
+ * Same shape as `LabelIndex`, because the product rule is the same: one row per application,
+ * at most one label from a group, and two concurrent adds must both survive.
+ */
+export class ProjectLabelIndex {
+  private readonly labelsOfProject = new SetIndex<UUID>();
+  private readonly projectsOfLabel = new SetIndex<UUID>();
+  private readonly rowsOfProject = new SetIndex<UUID>();
+  private readonly rowsOfLabel = new SetIndex<UUID>();
+
+  add(row: ProjectLabelLink): void {
+    this.labelsOfProject.add(row.projectId, row.labelId);
+    this.projectsOfLabel.add(row.labelId, row.projectId);
+    this.rowsOfProject.add(row.projectId, row.id);
+    this.rowsOfLabel.add(row.labelId, row.id);
+  }
+
+  update(previous: ProjectLabelLink, next: ProjectLabelLink): void {
+    if (previous.projectId !== next.projectId || previous.labelId !== next.labelId) {
+      this.remove(previous);
+    }
+    this.add(next);
+  }
+
+  remove(row: ProjectLabelLink): void {
+    this.labelsOfProject.remove(row.projectId, row.labelId);
+    this.projectsOfLabel.remove(row.labelId, row.projectId);
+    this.rowsOfProject.remove(row.projectId, row.id);
+    this.rowsOfLabel.remove(row.labelId, row.id);
+  }
+
+  clear(): void {
+    this.labelsOfProject.clear();
+    this.projectsOfLabel.clear();
+    this.rowsOfProject.clear();
+    this.rowsOfLabel.clear();
+  }
+
+  labelIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.labelsOfProject.get(projectId);
+  }
+
+  projectIdsWith(labelId: UUID): ReadonlySet<UUID> {
+    return this.projectsOfLabel.get(labelId);
+  }
+
+  rowIdsForProject(projectId: UUID): ReadonlySet<UUID> {
+    return this.rowsOfProject.get(projectId);
   }
 
   rowIdsForLabel(labelId: UUID): ReadonlySet<UUID> {

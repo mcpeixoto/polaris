@@ -35,6 +35,18 @@ const (
 	labelDesOnly  = "'00000000-0000-7000-8000-0000000000d3'"
 
 	userAda = "'00000000-0000-7000-8000-000000000091'"
+
+	projStatusPlanned = "'00000000-0000-7000-8000-0000000000e0'"
+	projStatusStarted = "'00000000-0000-7000-8000-0000000000e1'"
+	projID            = "'00000000-0000-7000-8000-0000000000e2'"
+	projID2           = "'00000000-0000-7000-8000-0000000000e6'"
+	projTeamID        = "'00000000-0000-7000-8000-0000000000e3'"
+	milestoneID       = "'00000000-0000-7000-8000-0000000000e4'"
+	milestoneOther    = "'00000000-0000-7000-8000-0000000000e7'"
+	projMemberID      = "'00000000-0000-7000-8000-0000000000e5'"
+
+	cycleID  = "'00000000-0000-7000-8000-0000000000f1'"
+	cycleID2 = "'00000000-0000-7000-8000-0000000000f2'"
 )
 
 // fixture is the smallest workspace that can exercise cross-team and grouped-label rules:
@@ -413,6 +425,190 @@ func TestSearchFoldingIsConsistent(t *testing.T) {
 	}})
 }
 
+// Projects: one per issue, membership as rows, a milestone implying its project, dates
+// rather than instants, and a status that no amount of issue completion will move.
+func TestProjectSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "an issue carries at most one project as a column, not a join table",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'issue' AND column_name = 'project_id'`,
+	}, {
+		name: "there is no issue_project set table — two projects on one issue is unrepresentable",
+		sql: `SELECT 1 / CASE WHEN EXISTS (
+		        SELECT 1 FROM information_schema.tables
+		        WHERE table_schema = 'public' AND table_name IN ('issue_project', 'issue_projects')
+		      ) THEN 0 ELSE 1 END`,
+	}, {
+		name: "start and target dates are calendar days, not instants",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'project'
+		        AND column_name = 'start_date' AND data_type = 'date'`,
+	}, {
+		name: "a deleted project is a row with deleted_at, so it can come back for 30 days",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'project' AND column_name = 'deleted_at'`,
+	}, {
+		name: "a project status belongs to a known category",
+		sql: `INSERT INTO project_status (id, workspace_id, name, color, category, position)
+		      VALUES ('00000000-0000-7000-8000-0000000000ef', ` + ws + `, 'Maybe', '#888', 'in_progress', 'z0')`,
+		wantErr: "project_status_category_check",
+	}, {
+		name: "seed a planned status the rest of these cases hang off",
+		sql: `INSERT INTO project_status (id, workspace_id, name, color, category, position, is_default)
+		      VALUES (` + projStatusPlanned + `, ` + ws + `, 'Planned', '#5e6ad2', 'planned', 'a0', true)`,
+	}, {
+		name: "and a started status, so a later case can prove completing issues does not promote it",
+		sql: `INSERT INTO project_status (id, workspace_id, name, color, category, position)
+		      VALUES (` + projStatusStarted + `, ` + ws + `, 'In Progress', '#f2c94c', 'started', 'a1')`,
+	}, {
+		name: "a project needs a name",
+		sql: `INSERT INTO project (id, workspace_id, name, status_id, sort_order)
+		      VALUES ('00000000-0000-7000-8000-0000000000ee', ` + ws + `, '  ', ` + projStatusPlanned + `, 'a0')`,
+		wantErr: "project_name_not_blank",
+	}, {
+		name: "a timeframe without a day is not a timeframe",
+		sql: `INSERT INTO project (id, workspace_id, name, status_id, sort_order, start_date_granularity)
+		      VALUES ('00000000-0000-7000-8000-0000000000ed', ` + ws + `, 'Q3', ` + projStatusPlanned + `, 'a0', 'quarter')`,
+		wantErr: "project_start_granularity_check",
+	}, {
+		name: "a project may record which template it came from",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'project' AND column_name = 'project_template_id'`,
+	}, {
+		name: "seed the project",
+		sql: `INSERT INTO project (id, workspace_id, name, status_id, sort_order)
+		      VALUES (` + projID + `, ` + ws + `, 'Ship search', ` + projStatusPlanned + `, 'a0')`,
+	}, {
+		name: "adding a team is a row, so two people adding different teams both survive",
+		sql: `INSERT INTO project_team (id, workspace_id, project_id, team_id)
+		      VALUES (` + projTeamID + `, ` + ws + `, ` + projID + `, ` + engID + `)`,
+	}, {
+		name: "the same team twice is the same membership, not a second row",
+		sql: `INSERT INTO project_team (id, workspace_id, project_id, team_id)
+		      VALUES ('00000000-0000-7000-8000-0000000000ec', ` + ws + `, ` + projID + `, ` + engID + `)`,
+		wantErr: "project_team_key",
+	}, {
+		name: "a second team is a second row",
+		sql: `INSERT INTO project_team (id, workspace_id, project_id, team_id)
+		      VALUES ('00000000-0000-7000-8000-0000000000eb', ` + ws + `, ` + projID + `, ` + desID + `)`,
+	}, {
+		name: "a member is a row too",
+		sql: `INSERT INTO project_member (id, workspace_id, project_id, user_id)
+		      VALUES (` + projMemberID + `, ` + ws + `, ` + projID + `, ` + userAda + `)`,
+	}, {
+		name: "the same member twice is refused",
+		sql: `INSERT INTO project_member (id, workspace_id, project_id, user_id)
+		      VALUES ('00000000-0000-7000-8000-0000000000ea', ` + ws + `, ` + projID + `, ` + userAda + `)`,
+		wantErr: "project_member_key",
+	}, {
+		name: "a milestone belongs to a project",
+		sql: `INSERT INTO project_milestone (id, workspace_id, project_id, name, sort_order)
+		      VALUES (` + milestoneID + `, ` + ws + `, ` + projID + `, 'Beta', 'a0')`,
+	}, {
+		name: "seed a second project so a milestone cannot be borrowed",
+		sql: `INSERT INTO project (id, workspace_id, name, status_id, sort_order)
+		      VALUES (` + projID2 + `, ` + ws + `, 'Other', ` + projStatusPlanned + `, 'a1')`,
+	}, {
+		name: "and a milestone on it",
+		sql: `INSERT INTO project_milestone (id, workspace_id, project_id, name, sort_order)
+		      VALUES (` + milestoneOther + `, ` + ws + `, ` + projID2 + `, 'Theirs', 'a0')`,
+	}, {
+		name: "an issue may sit in the project",
+		sql:  `UPDATE issue SET project_id = ` + projID + ` WHERE id = ` + engIssue,
+	}, {
+		name: "a milestone without its project is refused",
+		sql: `UPDATE issue SET project_id = NULL, project_milestone_id = ` + milestoneID +
+			` WHERE id = ` + engIssue,
+		wantErr: "a milestone requires a project",
+	}, {
+		name: "a milestone from another project is refused",
+		sql: `UPDATE issue SET project_id = ` + projID + `, project_milestone_id = ` + milestoneOther +
+			` WHERE id = ` + engIssue,
+		wantErr: "does not belong to project",
+	}, {
+		name: "the matching milestone is accepted",
+		sql: `UPDATE issue SET project_id = ` + projID + `, project_milestone_id = ` + milestoneID +
+			` WHERE id = ` + engIssue,
+	}, {
+		name: "completing the issue",
+		sql:  `UPDATE issue SET completed_at = now() WHERE id = ` + engIssue,
+	}, {
+		// Completing every issue must not promote the project. Status is always manual.
+		name: "leaves the project in Planned — status is never derived from issues",
+		sql: `SELECT 1/count(*) FROM project
+		      WHERE id = ` + projID + ` AND status_id = ` + projStatusPlanned,
+	}})
+}
+
+// Cycles: one per issue, same team, a cadence that the database itself bounds, and a
+// cooldown that is a gap between cycles rather than a cycle you can file into.
+func TestCycleSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "an issue carries at most one cycle as a column, not a join table",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'issue' AND column_name = 'cycle_id'`,
+	}, {
+		name: "there is no issue_cycle set table — two cycles on one issue is unrepresentable",
+		sql: `SELECT 1 / CASE WHEN EXISTS (
+		        SELECT 1 FROM information_schema.tables
+		        WHERE table_schema = 'public' AND table_name IN ('issue_cycle', 'issue_cycles')
+		      ) THEN 0 ELSE 1 END`,
+	}, {
+		name:    "duration is 1–8 weeks",
+		sql:     `UPDATE team SET cycles_enabled = true, cycle_duration_weeks = 9 WHERE id = ` + engID,
+		wantErr: "team_cycle_duration_check",
+	}, {
+		name:    "cooldown is 0–8 weeks, never negative",
+		sql:     `UPDATE team SET cycle_cooldown_weeks = -1 WHERE id = ` + engID,
+		wantErr: "team_cycle_cooldown_check",
+	}, {
+		name:    "upcoming count is 1–15",
+		sql:     `UPDATE team SET cycle_upcoming_count = 16 WHERE id = ` + engID,
+		wantErr: "team_cycle_upcoming_check",
+	}, {
+		name:    "start day is a weekday name",
+		sql:     `UPDATE team SET cycle_start_day = 'fortnight' WHERE id = ` + engID,
+		wantErr: "team_cycle_start_day_check",
+	}, {
+		name: "a cycle needs a name",
+		sql: `INSERT INTO cycle (id, workspace_id, team_id, number, name, starts_at, ends_at)
+		      VALUES (` + cycleID + `, ` + ws + `, ` + engID + `, 1, '  ',
+		              '2026-08-03 00:01:00+00', '2026-08-17 00:01:00+00')`,
+		wantErr: "cycle_name_not_blank",
+	}, {
+		name: "a cycle cannot end before it starts",
+		sql: `INSERT INTO cycle (id, workspace_id, team_id, number, name, starts_at, ends_at)
+		      VALUES (` + cycleID + `, ` + ws + `, ` + engID + `, 1, 'Cycle 1',
+		              '2026-08-17 00:01:00+00', '2026-08-03 00:01:00+00')`,
+		wantErr: "cycle_ends_after_starts",
+	}, {
+		name: "seed a cycle on engineering",
+		sql: `INSERT INTO cycle (id, workspace_id, team_id, number, name, starts_at, ends_at)
+		      VALUES (` + cycleID + `, ` + ws + `, ` + engID + `, 1, 'Cycle 1',
+		              '2026-08-03 00:01:00+00', '2026-08-17 00:01:00+00')`,
+	}, {
+		name: "the same number twice in one team is refused",
+		sql: `INSERT INTO cycle (id, workspace_id, team_id, number, name, starts_at, ends_at)
+		      VALUES ('00000000-0000-7000-8000-0000000000f3', ` + ws + `, ` + engID + `, 1, 'Also 1',
+		              '2026-08-17 00:01:00+00', '2026-08-31 00:01:00+00')`,
+		wantErr: "cycle_team_number_key",
+	}, {
+		name: "seed a design cycle so an issue cannot borrow it",
+		sql: `INSERT INTO cycle (id, workspace_id, team_id, number, name, starts_at, ends_at)
+		      VALUES (` + cycleID2 + `, ` + ws + `, ` + desID + `, 1, 'Design 1',
+		              '2026-08-03 00:01:00+00', '2026-08-17 00:01:00+00')`,
+	}, {
+		name: "an engineering issue may sit in the engineering cycle",
+		sql:  `UPDATE issue SET cycle_id = ` + cycleID + ` WHERE id = ` + engIssue,
+	}, {
+		name:    "an engineering issue may not sit in a design cycle",
+		sql:     `UPDATE issue SET cycle_id = ` + cycleID2 + ` WHERE id = ` + engIssue,
+		wantErr: "does not belong to team",
+	}})
+}
+
 // run applies the fixture, then each case in order against one database. Order matters:
 // several cases assert the effect of the case before them, which is the honest way to
 // test a trigger that propagates.
@@ -442,4 +638,133 @@ func run(t *testing.T, cases []schemaCase) {
 			}
 		})
 	}
+}
+
+// Triage is a category, not a view: one triage status per team, a per-team switch, and a
+// snooze that is a timestamp on the issue rather than a second table.
+func TestTriageSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "a team has triage off until it is turned on",
+		sql: `SELECT 1 / count(*) FROM team
+		      WHERE id = ` + engID + ` AND triage_enabled = false AND triage_require_priority = false`,
+	}, {
+		name: "an issue can carry a snooze as a column",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'issue' AND column_name = 'snoozed_until'`,
+	}, {
+		name: "a team may have one triage status",
+		sql: `INSERT INTO workflow_state (id, workspace_id, team_id, name, color, category, position)
+		      VALUES ('00000000-0000-7000-8000-0000000000b3', ` + ws + `, ` + engID + `,
+		              'Triage', '#f2a65a', 'triage', 'a0')`,
+	}, {
+		name: "a second triage status is refused",
+		sql: `INSERT INTO workflow_state (id, workspace_id, team_id, name, color, category, position)
+		      VALUES ('00000000-0000-7000-8000-0000000000b4', ` + ws + `, ` + engID + `,
+		              'Inbox', '#f2a65a', 'triage', 'a1')`,
+		wantErr: "workflow_state_team_singleton_category_key",
+	}, {
+		name: "an issue may be snoozed",
+		sql:  `UPDATE issue SET snoozed_until = now() + interval '1 hour' WHERE id = ` + engIssue,
+	}})
+}
+
+// Auto-close and auto-archive are per-team periods. Zero is off; anything outside the
+// allowed set is a CHECK rather than a silent clamp, so a typo cannot enable a 7-day
+// closer the product has never offered.
+func TestArchiveSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "a team has auto-close and auto-archive off until they are turned on",
+		sql: `SELECT 1 / count(*) FROM team
+		      WHERE id = ` + engID + ` AND auto_close_days = 0 AND auto_archive_days = 0
+		        AND auto_close_parent = false AND auto_close_children = false`,
+	}, {
+		name: "an issue can carry an auto-close stamp",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'issue' AND column_name = 'auto_closed_at'`,
+	}, {
+		name: "a 30-day auto-close period is accepted",
+		sql:  `UPDATE team SET auto_close_days = 30 WHERE id = ` + engID,
+	}, {
+		name:    "a 7-day auto-close period is refused",
+		sql:     `UPDATE team SET auto_close_days = 7 WHERE id = ` + engID,
+		wantErr: "team_auto_close_days_check",
+	}, {
+		name: "a 365-day auto-archive period is accepted",
+		sql:  `UPDATE team SET auto_archive_days = 365 WHERE id = ` + engID,
+	}, {
+		name:    "a 14-day auto-archive period is refused",
+		sql:     `UPDATE team SET auto_archive_days = 14 WHERE id = ` + engID,
+		wantErr: "team_auto_archive_days_check",
+	}, {
+		name: "an issue may be stamped auto-closed",
+		sql:  `UPDATE issue SET auto_closed_at = now() WHERE id = ` + engIssue,
+	}})
+}
+
+func TestAttachmentSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "an issue may carry a link",
+		sql: `INSERT INTO attachment (id, workspace_id, issue_id, team_id, url, title)
+		      VALUES ('00000000-0000-7000-8000-0000000000aa', ` + ws + `, ` + engIssue + `, ` + engID + `,
+		              'https://github.com/acme/app/pull/1', 'PR 1')`,
+	}, {
+		name: "the same URL on the same issue is refused",
+		sql: `INSERT INTO attachment (id, workspace_id, issue_id, team_id, url, title)
+		      VALUES ('00000000-0000-7000-8000-0000000000ab', ` + ws + `, ` + engIssue + `, ` + engID + `,
+		              'https://github.com/acme/app/pull/1', 'Again')`,
+		wantErr: "attachment_issue_url_key",
+	}, {
+		name: "the same URL on a different issue is fine",
+		sql: `INSERT INTO attachment (id, workspace_id, issue_id, team_id, url, title)
+		      VALUES ('00000000-0000-7000-8000-0000000000ac', ` + ws + `, ` + engIssue2 + `, ` + engID + `,
+		              'https://github.com/acme/app/pull/1', 'PR 1')`,
+	}, {
+		name: "a blank URL is refused",
+		sql: `INSERT INTO attachment (id, workspace_id, issue_id, team_id, url, title)
+		      VALUES ('00000000-0000-7000-8000-0000000000ad', ` + ws + `, ` + engIssue + `, ` + engID + `,
+		              '   ', 'Empty')`,
+		wantErr: "attachment_url_not_blank",
+	}})
+}
+
+func TestWebhookSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "a workspace webhook covering public teams is accepted",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, all_public_teams, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000aa', ` + ws + `, ` + userAda + `,
+		              'https://hooks.example.com/polaris', 'whsec_test', true, ARRAY['Issue'])`,
+	}, {
+		name: "the same URL on a single team is accepted",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, team_id, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000ab', ` + ws + `, ` + userAda + `,
+		              'https://hooks.example.com/polaris', 'whsec_test', ` + engID + `, ARRAY['Issue'])`,
+	}, {
+		name: "both a team and allPublicTeams is refused",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, all_public_teams, team_id, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000ac', ` + ws + `, ` + userAda + `,
+		              'https://hooks.example.com/polaris', 'whsec_test', true, ` + engID + `, ARRAY['Issue'])`,
+		wantErr: "webhook_scope_xor",
+	}, {
+		name: "neither a team nor allPublicTeams is refused",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000ad', ` + ws + `, ` + userAda + `,
+		              'https://hooks.example.com/polaris', 'whsec_test', ARRAY['Issue'])`,
+		wantErr: "webhook_scope_xor",
+	}, {
+		name: "http is refused",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, all_public_teams, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000ae', ` + ws + `, ` + userAda + `,
+		              'http://hooks.example.com/polaris', 'whsec_test', true, ARRAY['Issue'])`,
+		wantErr: "webhook_url_http",
+	}, {
+		name: "an empty resource type list is refused",
+		sql: `INSERT INTO webhook (id, workspace_id, creator_id, url, secret, all_public_teams, resource_types)
+		      VALUES ('00000000-0000-7000-8000-0000000000af', ` + ws + `, ` + userAda + `,
+		              'https://hooks.example.com/polaris', 'whsec_test', true, ARRAY[]::text[])`,
+		wantErr: "webhook_resource_types_not_empty",
+	}})
 }

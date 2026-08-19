@@ -104,6 +104,12 @@ func (s *Service) CreateComment(ctx context.Context, p *authz.Principal, in Crea
 				return err
 			}
 		}
+
+		if v, err := s.unsnooze(ctx, q, p, team, issue); err != nil {
+			return err
+		} else if v != 0 {
+			version = v
+		}
 		return nil
 	})
 	return out, version, err

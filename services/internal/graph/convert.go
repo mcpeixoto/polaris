@@ -26,14 +26,17 @@ import (
 
 func toWorkspace(w model.Workspace) generated.Workspace {
 	return generated.Workspace{
-		ID:         w.ID,
-		Name:       w.Name,
-		URLKey:     w.URLKey,
-		LogoURL:    w.LogoURL,
-		Plan:       w.Plan,
-		CreatedAt:  w.CreatedAt,
-		UpdatedAt:  w.UpdatedAt,
-		ArchivedAt: w.ArchivedAt,
+		ID:                                w.ID,
+		Name:                              w.Name,
+		URLKey:                            w.URLKey,
+		LogoURL:                           w.LogoURL,
+		Plan:                              w.Plan,
+		ProjectUpdateReminderIntervalDays: w.ProjectUpdateReminderIntervalDays,
+		ProjectUpdateReminderWeekday:      w.ProjectUpdateReminderWeekday,
+		ProjectUpdateReminderHour:         w.ProjectUpdateReminderHour,
+		CreatedAt:                         w.CreatedAt,
+		UpdatedAt:                         w.UpdatedAt,
+		ArchivedAt:                        w.ArchivedAt,
 	}
 }
 
@@ -103,13 +106,27 @@ func toTeam(t model.Team) (generated.Team, error) {
 		// The estimate settings live on the team and the number lives on the issue. A client
 		// that received the numbers without the scale would render 3 as "3 points" for a
 		// team on t-shirt sizes, which is the one thing the split exists to prevent.
-		EstimateScale:     scale,
-		EstimateAllowZero: t.EstimateAllowZero,
-		EstimateExtended:  t.EstimateExtended,
-		CreatedAt:         t.CreatedAt,
-		UpdatedAt:         t.UpdatedAt,
-		RetiredAt:         t.RetiredAt,
-		ArchivedAt:        t.ArchivedAt,
+		EstimateScale:         scale,
+		EstimateAllowZero:     t.EstimateAllowZero,
+		EstimateExtended:      t.EstimateExtended,
+		CyclesEnabled:         t.CyclesEnabled,
+		CycleDurationWeeks:    t.CycleDurationWeeks,
+		CycleCooldownWeeks:    t.CycleCooldownWeeks,
+		CycleStartDay:         t.CycleStartDay,
+		CycleUpcomingCount:    t.CycleUpcomingCount,
+		CycleAutoAddStarted:   t.CycleAutoAddStarted,
+		CycleAutoAddCompleted: t.CycleAutoAddCompleted,
+		TriageEnabled:         t.TriageEnabled,
+		TriageRequirePriority: t.TriageRequirePriority,
+		AutoCloseDays:         t.AutoCloseDays,
+		AutoArchiveDays:       t.AutoArchiveDays,
+		AutoCloseParent:       t.AutoCloseParent,
+		AutoCloseChildren:     t.AutoCloseChildren,
+		CreatedAt:             t.CreatedAt,
+		UpdatedAt:             t.UpdatedAt,
+		RetiredAt:             t.RetiredAt,
+		ArchivedAt:            t.ArchivedAt,
+		DeletedAt:             t.DeletedAt,
 	}, nil
 }
 
@@ -190,12 +207,18 @@ func toIssue(i model.Issue) (generated.Issue, error) {
 		Priority:    i.Priority,
 		SortOrder:   i.SortOrder,
 
-		Estimate:          i.Estimate,
-		DueDate:           fromDate(i.DueDate),
-		DueDateSource:     source,
-		ParentID:          i.ParentID,
-		SubIssueSortOrder: i.SubIssueSortOrder,
-		TemplateID:        i.TemplateID,
+		Estimate:           i.Estimate,
+		DueDate:            fromDate(i.DueDate),
+		DueDateSource:      source,
+		ParentID:           i.ParentID,
+		SubIssueSortOrder:  i.SubIssueSortOrder,
+		TemplateID:         i.TemplateID,
+		FormTemplateID:     i.FormTemplateID,
+		ProjectID:          i.ProjectID,
+		ProjectMilestoneID: i.ProjectMilestoneID,
+		CycleID:            i.CycleID,
+		SnoozedUntil:       i.SnoozedUntil,
+		AutoClosedAt:       i.AutoClosedAt,
 
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,
@@ -238,6 +261,49 @@ func toComments(comments []model.Comment) ([]generated.Comment, error) {
 		out = append(out, g)
 	}
 	return out, nil
+}
+
+func toAttachment(a model.Attachment) generated.Attachment {
+	return generated.Attachment{
+		ID:          a.ID,
+		WorkspaceID: a.WorkspaceID,
+		IssueID:     a.IssueID,
+		TeamID:      a.TeamID,
+		URL:         a.URL,
+		Title:       a.Title,
+		Subtitle:    a.Subtitle,
+		IconURL:     a.IconURL,
+		Metadata:    a.Metadata,
+		CreatorID:   a.CreatorID,
+		CreatedAt:   a.CreatedAt,
+		UpdatedAt:   a.UpdatedAt,
+	}
+}
+
+func toAttachments(rows []model.Attachment) []generated.Attachment {
+	out := make([]generated.Attachment, 0, len(rows))
+	for _, a := range rows {
+		out = append(out, toAttachment(a))
+	}
+	return out
+}
+
+func toDocument(d model.Document) generated.Document {
+	return generated.Document{
+		ID:          d.ID,
+		WorkspaceID: d.WorkspaceID,
+		TeamID:      d.TeamID,
+		ProjectID:   d.ProjectID,
+		Title:       d.Title,
+		Body:        d.Body,
+		SortOrder:   d.SortOrder,
+		CreatorID:   d.CreatorID,
+		UpdatedBy:   d.UpdatedBy,
+		CreatedAt:   d.CreatedAt,
+		UpdatedAt:   d.UpdatedAt,
+		ArchivedAt:  d.ArchivedAt,
+		DeletedAt:   d.DeletedAt,
+	}
 }
 
 func toHistoryEntry(e model.IssueHistoryEntry) (generated.IssueHistoryEntry, error) {

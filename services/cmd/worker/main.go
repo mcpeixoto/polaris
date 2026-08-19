@@ -16,6 +16,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/mailer"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/store"
+	"github.com/peixotolabs/polaris/services/internal/webhookout"
 )
 
 var revision = "dev"
@@ -170,6 +171,88 @@ func run() error {
 				n, err := svc.PurgeExpiredIssues(ctx)
 				if err == nil && n > 0 {
 					log.Info("purged issues past the restore window", "issues", n)
+				}
+				return err
+			},
+		},
+		{
+			// Cycle cadence: close windows that have ended, roll unfinished work into the
+			// next, keep the upcoming pipeline full, auto-add cycle-less started/completed
+			// issues. Idempotent: a pass while every window is still open writes nothing.
+			name:   "advance cycles",
+			every:  time.Minute,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.AdvanceCycles(ctx, time.Now())
+				if err == nil && n > 0 {
+					log.Debug("advanced cycles", "teams", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
+			// Auto-close then auto-archive. Hourly rather than daily: the product promises
+			// archival "typically within 24 hours", and a job that only runs at boot plus
+			// midnight leaves a 23-hour gap after someone turns the setting on.
+			name:   "auto-close issues",
+			every:  time.Hour,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.AutoCloseIssues(ctx, time.Now())
+				if err == nil && n > 0 {
+					log.Info("auto-closed issues", "issues", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
+			name:   "auto-archive",
+			every:  time.Hour,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.AutoArchive(ctx, time.Now())
+				if err == nil && n > 0 {
+					log.Info("auto-archived", "rows", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
+			name:   "fan out webhooks",
+			every:  5 * time.Second,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.FanOutWebhooksAll(ctx, cfg.PublicURL)
+				if err == nil && n > 0 {
+					log.Debug("queued webhook deliveries", "rows", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
+			name:   "deliver webhooks",
+			every:  5 * time.Second,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.DeliverDueWebhooks(ctx, webhookout.Deliverer{}, time.Now())
+				if err == nil && n > 0 {
+					log.Debug("delivered webhooks", "rows", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
+			name:  "prune webhook deliveries",
+			every: 24 * time.Hour,
+			run: func(ctx context.Context) error {
+				n, err := svc.PruneWebhookDeliveries(ctx)
+				if err == nil && n > 0 {
+					log.Debug("pruned webhook deliveries", "rows", n)
 				}
 				return err
 			},

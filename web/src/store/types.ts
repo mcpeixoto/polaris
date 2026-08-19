@@ -74,6 +74,12 @@ export interface Workspace {
   readonly planLapsedAt?: Timestamp;
   /** Overrides the plan's default seat count. Absent means whatever the plan says. */
   readonly seatLimit?: number;
+  /** Default cadence for project update reminders (staleness; delivery is later). */
+  readonly projectUpdateReminderIntervalDays: number;
+  /** 0 = Sunday through 6 = Saturday. */
+  readonly projectUpdateReminderWeekday: number;
+  /** Hour of day (0–23) when reminders would send in the lead's timezone. */
+  readonly projectUpdateReminderHour: number;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly archivedAt?: Timestamp;
@@ -159,6 +165,19 @@ export interface Team {
   readonly estimateScale: EstimateScale;
   readonly estimateAllowZero: boolean;
   readonly estimateExtended: boolean;
+  readonly cyclesEnabled: boolean;
+  readonly cycleDurationWeeks: number;
+  readonly cycleCooldownWeeks: number;
+  readonly cycleStartDay: string;
+  readonly cycleUpcomingCount: number;
+  readonly cycleAutoAddStarted: boolean;
+  readonly cycleAutoAddCompleted: boolean;
+  readonly triageEnabled: boolean;
+  readonly triageRequirePriority: boolean;
+  readonly autoCloseDays: number;
+  readonly autoArchiveDays: number;
+  readonly autoCloseParent: boolean;
+  readonly autoCloseChildren: boolean;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly retiredAt?: Timestamp;
@@ -254,6 +273,20 @@ export interface Issue {
   /** Order among siblings. A checklist's order has nothing to do with the backlog's. */
   readonly subIssueSortOrder?: string;
   readonly templateId?: UUID;
+  readonly formTemplateId?: UUID;
+  readonly projectId?: UUID;
+  readonly projectMilestoneId?: UUID;
+  readonly cycleId?: UUID;
+  /**
+   * Hidden from the triage inbox until this instant, or until the next edit or comment.
+   * Absent means the issue is not snoozed.
+   */
+  readonly snoozedUntil?: Timestamp;
+  /**
+   * Set when the auto-close engine moved this issue to a closed status. Absent otherwise;
+   * cleared if the issue is reopened.
+   */
+  readonly autoClosedAt?: Timestamp;
   readonly startedAt?: Timestamp;
   readonly completedAt?: Timestamp;
   readonly canceledAt?: Timestamp;
@@ -296,6 +329,42 @@ export interface Comment {
   readonly resolvedBy?: UUID;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
+}
+
+/**
+ * A link card on an issue. The URL is unique per issue: posting the same URL again
+ * updates this row rather than minting a second card.
+ */
+export interface Attachment {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly issueId: UUID;
+  readonly teamId: UUID;
+  readonly url: string;
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly iconUrl?: string;
+  readonly metadata?: unknown;
+  readonly creatorId?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/** Long-form markdown attached to a team or a project. */
+export interface Document {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly teamId: UUID;
+  readonly projectId?: UUID;
+  readonly title: string;
+  readonly body: string;
+  readonly sortOrder: string;
+  readonly creatorId?: UUID;
+  readonly updatedBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
 }
 
 /**
@@ -439,6 +508,8 @@ export interface View {
   readonly teamId?: UUID;
   /** Absent means shared. Set means it is that person's private view. */
   readonly ownerId?: UUID;
+  /** Set means the view is attached as a tab on this project. */
+  readonly projectId?: UUID;
   readonly name: string;
   readonly description?: string;
   readonly icon?: string;
@@ -506,6 +577,284 @@ export interface TemplateProperties {
   readonly labelIds?: readonly UUID[];
 }
 
+export type FormTemplateFieldType =
+  | 'text'
+  | 'long_text'
+  | 'dropdown'
+  | 'checkboxes'
+  | 'date'
+  | 'file_upload'
+  | 'instructions'
+  | 'label_group'
+  | 'priority'
+  | 'title'
+  | 'due_date';
+
+export interface FormTemplate {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly teamId?: UUID;
+  readonly name: string;
+  readonly description?: string;
+  readonly properties: TemplateProperties;
+  readonly position: string;
+  readonly createdBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+export interface FormTemplateField {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly formTemplateId: UUID;
+  readonly fieldType: FormTemplateFieldType;
+  readonly label: string;
+  readonly description?: string;
+  readonly required: boolean;
+  readonly sortOrder: string;
+  readonly config: Record<string, unknown>;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/** Keys match `createProject`: status, priority, lead, colour, dates, teams, members, initiatives. */
+export interface ProjectTemplateProperties {
+  readonly statusId?: UUID;
+  readonly priority?: number;
+  readonly leadId?: UUID;
+  readonly color?: string;
+  readonly icon?: string;
+  readonly teamIds?: readonly UUID[];
+  readonly memberIds?: readonly UUID[];
+  readonly startDate?: DateOnly;
+  readonly targetDate?: DateOnly;
+  readonly initiativeIds?: readonly UUID[];
+}
+
+export interface ProjectTemplate {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  /** Absent means the template is offered in every team. */
+  readonly teamId?: UUID;
+  readonly name: string;
+  readonly description?: string;
+  readonly summary: string;
+  readonly body: string;
+  readonly properties: ProjectTemplateProperties;
+  readonly position: string;
+  readonly createdBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+export interface ProjectTemplateMilestone {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectTemplateId: UUID;
+  readonly name: string;
+  readonly description?: string;
+  readonly targetDate?: DateOnly;
+  readonly sortOrder: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+export interface ProjectTemplateIssue {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectTemplateId: UUID;
+  readonly parentId?: UUID;
+  readonly title: string;
+  readonly description: string;
+  readonly properties: TemplateProperties;
+  readonly sortOrder: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+export type ProjectStatusCategory = 'backlog' | 'planned' | 'started' | 'completed' | 'canceled';
+
+export type TimeframeGranularity = 'day' | 'month' | 'quarter' | 'half' | 'year';
+
+export interface ProjectStatus {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly name: string;
+  readonly description?: string;
+  readonly color: string;
+  readonly category: ProjectStatusCategory;
+  readonly position: string;
+  readonly isDefault: boolean;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+export interface Project {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly name: string;
+  readonly summary?: string;
+  readonly description: string;
+  readonly icon?: string;
+  readonly color: string;
+  readonly statusId: UUID;
+  readonly priority: number;
+  readonly leadId?: UUID;
+  readonly creatorId?: UUID;
+  readonly sortOrder: string;
+  readonly startDate?: DateOnly;
+  readonly startDateGranularity?: TimeframeGranularity;
+  readonly targetDate?: DateOnly;
+  readonly targetDateGranularity?: TimeframeGranularity;
+  /** Workspace default, custom cadence, or never expect updates. */
+  readonly updateSchedule: ProjectUpdateSchedule;
+  readonly updateReminderIntervalDays?: number;
+  readonly updateReminderWeekday?: number;
+  readonly updateReminderHour?: number;
+  readonly archivedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+  readonly deletedBy?: UUID;
+  readonly projectTemplateId?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+export interface ProjectTeam {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly teamId: UUID;
+  readonly createdAt: Timestamp;
+}
+
+export interface ProjectMember {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly userId: UUID;
+  readonly createdAt: Timestamp;
+}
+
+export interface ProjectMilestone {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly name: string;
+  readonly description?: string;
+  readonly targetDate?: DateOnly;
+  readonly sortOrder: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+export type InitiativeStatus = 'proposed' | 'planned' | 'active' | 'completed' | 'canceled';
+
+/** A workspace objective grouping a manually curated set of projects. */
+export interface Initiative {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly name: string;
+  readonly description: string;
+  readonly status: InitiativeStatus;
+  readonly priority: number;
+  readonly ownerId?: UUID;
+  readonly leadTeamId?: UUID;
+  readonly creatorId?: UUID;
+  readonly sortOrder: string;
+  readonly targetDate?: DateOnly;
+  readonly targetDateGranularity?: TimeframeGranularity;
+  readonly archivedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+  readonly deletedBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+export interface InitiativeProject {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly initiativeId: UUID;
+  readonly projectId: UUID;
+  readonly createdAt: Timestamp;
+}
+
+export type ProjectUpdateHealth = 'on_track' | 'at_risk' | 'off_track';
+
+export type ProjectUpdateSchedule = 'default' | 'never' | 'custom';
+
+/** A status post on a project — health plus narrative markdown. */
+export interface ProjectUpdate {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly health: ProjectUpdateHealth;
+  readonly body: string;
+  readonly authorId: UUID;
+  readonly editedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/** An end→start link: the blocking project must finish before the blocked may start. */
+export interface ProjectDependency {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly blockingProjectId: UUID;
+  readonly blockedProjectId: UUID;
+  readonly createdAt: Timestamp;
+}
+
+/**
+ * Workspace taxonomy for labelling projects — separate from issue labels.
+ *
+ * Both a label and a group of labels: a group is a label with `isGroup` set. Nesting is
+ * one level deep, matching issue labels.
+ */
+export interface ProjectLabel {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly parentId?: UUID;
+  readonly isGroup: boolean;
+  readonly name: string;
+  readonly description?: string;
+  readonly color: string;
+  readonly position: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+/** One project label applied to one project, as its own replicated row. */
+export interface ProjectLabelLink {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly labelId: UUID;
+  readonly groupId?: UUID;
+  readonly createdBy?: UUID;
+  readonly createdAt: Timestamp;
+}
+
+export interface Cycle {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly teamId: UUID;
+  readonly number: number;
+  readonly name: string;
+  readonly description?: string;
+  readonly startsAt: Timestamp;
+  readonly endsAt: Timestamp;
+  readonly completedAt?: Timestamp;
+  readonly archivedAt?: Timestamp;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 /**
  * The entity types the client replicates, keyed by the exact string the server puts in
  * `change_log.entity_type` and in each bootstrap line. These strings are the protocol —
@@ -523,9 +872,28 @@ export interface EntityByType {
   workflowState: WorkflowState;
   label: Label;
   issueTemplate: IssueTemplate;
+  formTemplate: FormTemplate;
+  formTemplateField: FormTemplateField;
+  projectTemplate: ProjectTemplate;
+  projectTemplateMilestone: ProjectTemplateMilestone;
+  projectTemplateIssue: ProjectTemplateIssue;
+  projectStatus: ProjectStatus;
+  project: Project;
+  projectTeam: ProjectTeam;
+  projectMember: ProjectMember;
+  projectMilestone: ProjectMilestone;
+  initiative: Initiative;
+  initiativeProject: InitiativeProject;
+  projectUpdate: ProjectUpdate;
+  projectDependency: ProjectDependency;
+  projectLabel: ProjectLabel;
+  projectLabelLink: ProjectLabelLink;
+  cycle: Cycle;
   issue: Issue;
   issueLabel: IssueLabel;
   issueRelation: IssueRelation;
+  attachment: Attachment;
+  document: Document;
   comment: Comment;
   issueSubscription: IssueSubscription;
   notification: Notification;
@@ -553,10 +921,31 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   // Before issues: an issue may carry a labelId or a templateId.
   'label',
   'issueTemplate',
+  'formTemplate',
+  'formTemplateField',
+  'projectTemplate',
+  'projectTemplateMilestone',
+  'projectTemplateIssue',
+  // Before issues: an issue may name a project and a milestone.
+  'projectStatus',
+  'project',
+  'projectTeam',
+  'projectMember',
+  'projectMilestone',
+  'initiative',
+  'initiativeProject',
+  'projectUpdate',
+  'projectDependency',
+  'projectLabel',
+  'projectLabelLink',
+  // Before issues: an issue may name a cycle.
+  'cycle',
   'issue',
   // After issues, because each names one.
   'issueLabel',
   'issueRelation',
+  'attachment',
+  'document',
   'comment',
   'issueSubscription',
   // After comments, because a notification may name one.

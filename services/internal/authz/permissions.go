@@ -60,10 +60,24 @@ const (
 	ActionWorkspaceTemplateManage Action = "workspace_template.manage"
 	ActionTeamTemplateManage      Action = "team_template.manage"
 
+	// Projects span teams, so create/update/delete are workspace-level; the domain then
+	// asks Visible against the project's team list. An admin bypasses that so they can
+	// reach a project on private teams they are not in.
+	ActionProjectCreate       Action = "project.create"
+	ActionProjectUpdate       Action = "project.update"
+	ActionProjectDelete       Action = "project.delete"
+	ActionProjectStatusManage Action = "project_status.manage"
+
 	// Personal keys, and only ever the caller's own — ownership is checked separately.
 	// Guests are excluded because a key acts as its owner and a guest's access is meant to
 	// be narrow and reviewable, which a long-lived token is not.
 	ActionAPIKeyManage Action = "api_key.manage"
+
+	// Outbound webhooks are a workspace-wide push of whatever they subscribe to, including
+	// private-team data if scoped onto that team. Creating or reading one is therefore an
+	// admin action: a member minting a URL that receives every issue is an exfiltration
+	// path nobody would review.
+	ActionWebhookManage Action = "webhook.manage"
 )
 
 // AllActions exists so a test can assert that every action is classified.
@@ -82,7 +96,8 @@ var AllActions = []Action{
 	ActionWorkspaceLabelManage, ActionTeamLabelManage,
 	ActionWorkspaceViewManage, ActionTeamViewManage,
 	ActionWorkspaceTemplateManage, ActionTeamTemplateManage,
-	ActionAPIKeyManage,
+	ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete, ActionProjectStatusManage,
+	ActionAPIKeyManage, ActionWebhookManage,
 }
 
 // Deliberately absent: notifications, subscriptions, favourites and view preferences.
@@ -131,13 +146,16 @@ func Can(p *Principal, a Action) bool {
 		// Workspace-wide labels, views and templates land in everybody's sidebar and
 		// everybody's pickers. That reach is what makes them an admin action while their
 		// team-scoped equivalents are not.
-		ActionWorkspaceLabelManage, ActionWorkspaceViewManage, ActionWorkspaceTemplateManage:
+		ActionWorkspaceLabelManage, ActionWorkspaceViewManage, ActionWorkspaceTemplateManage,
+		ActionProjectStatusManage,
+		ActionWebhookManage:
 		return p.Role.IsAdmin()
 
-	case ActionTeamJoin, ActionAPIKeyManage:
+	case ActionTeamJoin, ActionAPIKeyManage, ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete:
 		// Guests cannot join teams on their own; they are added by an admin. Nor may they
 		// mint API keys: a key acts as its owner and outlives the session, which is the
-		// opposite of what a guest's access is meant to be.
+		// opposite of what a guest's access is meant to be. Projects are the same: a guest
+		// is scoped to the issues they were invited to, not to shaping the workspace.
 		return !p.IsGuest()
 	}
 

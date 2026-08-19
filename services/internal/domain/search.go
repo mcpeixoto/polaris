@@ -158,7 +158,7 @@ func (s *Service) Search(ctx context.Context, p *authz.Principal, in SearchInput
 
 		out.Issues = make([]model.Issue, 0, len(issues))
 		for _, row := range issues {
-			out.Issues = append(out.Issues, toIssue(row, keys[row.TeamID]))
+			out.Issues = append(out.Issues, toIssue(store.IssueTableRow(row), keys[row.TeamID]))
 		}
 		out.Comments = make([]model.Comment, 0, len(comments))
 		for _, row := range comments {

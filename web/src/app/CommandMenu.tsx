@@ -113,8 +113,8 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onInputKeyDown}
-          placeholder="Type a command…"
-          aria-label="Type a command"
+          placeholder="Search commands…"
+          aria-label="Search commands"
           aria-controls="command-menu-results"
           aria-activedescendant={results[active] ? `command-${results[active].id}` : undefined}
           role="combobox"
@@ -124,25 +124,40 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
         />
 
         <ul className={styles.results} id="command-menu-results" role="listbox" ref={listRef}>
-          {results.length === 0 && <li className={styles.empty}>No matching command</li>}
-          {results.map((action, i) => (
-            <li
-              key={action.id}
-              id={`command-${action.id}`}
-              role="option"
-              aria-selected={i === active}
-              data-active={i === active}
-              className={styles.item}
-              onMouseEnter={() => setActive(i)}
-              onClick={() => run(action)}
-            >
-              <span className={styles.group}>{action.group}</span>
-              <span className={styles.title}>{action.title}</span>
-              {action.keys?.[0] && (
-                <kbd className={styles.keys}>{formatKeySpec(action.keys[0], platform())}</kbd>
-              )}
+          {results.length === 0 && (
+            <li className={styles.empty} role="presentation">
+              <span className={styles.emptyTitle}>No matching command</span>
+              <span className={styles.emptyHint}>Try a different search, or press Esc</span>
             </li>
-          ))}
+          )}
+          {grouped(results).flatMap((section) => {
+            const header = (
+              <li key={`group-${section.group}`} className={styles.groupHeader} role="presentation">
+                {section.group}
+              </li>
+            );
+            const items = section.actions.map((action) => {
+              const i = results.indexOf(action);
+              return (
+                <li
+                  key={action.id}
+                  id={`command-${action.id}`}
+                  role="option"
+                  aria-selected={i === active}
+                  data-active={i === active}
+                  className={styles.item}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => run(action)}
+                >
+                  <span className={styles.title}>{action.title}</span>
+                  {action.keys?.[0] && (
+                    <kbd className={styles.keys}>{formatKeySpec(action.keys[0], platform())}</kbd>
+                  )}
+                </li>
+              );
+            });
+            return [header, ...items];
+          })}
         </ul>
       </div>
     </div>
@@ -157,6 +172,17 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
  * command modifier renders as ⌘ or Ctrl. Collapsing them would put an OS check inside the
  * matcher, which is pure logic and deliberately DOM- and platform-free.
  */
+function grouped(actions: readonly Action[]): { group: string; actions: Action[] }[] {
+  const sections: { group: string; actions: Action[] }[] = [];
+  for (const action of actions) {
+    const name = action.group ?? 'Commands';
+    const last = sections[sections.length - 1];
+    if (last !== undefined && last.group === name) last.actions.push(action);
+    else sections.push({ group: name, actions: [action] });
+  }
+  return sections;
+}
+
 function platform(): Platform {
   return os === 'mac' ? 'mac' : 'other';
 }

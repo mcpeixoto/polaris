@@ -987,7 +987,7 @@ func (s *Service) MyIssues(ctx context.Context, p *authz.Principal, includeCompl
 
 	out := make([]model.Issue, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, toIssue(r, keys[r.TeamID]))
+		out = append(out, toIssue(store.AsIssueRow(r), keys[r.TeamID]))
 	}
 	return out, nil
 }

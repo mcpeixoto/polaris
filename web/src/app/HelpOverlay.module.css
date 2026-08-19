@@ -14,8 +14,8 @@
   max-height: 80vh;
   overflow-y: auto;
   padding: var(--space-6);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
 }
@@ -43,9 +43,7 @@
 .group {
   margin: 0 0 var(--space-2);
   font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: var(--font-weight-medium);
   color: var(--text-tertiary);
 }
 
