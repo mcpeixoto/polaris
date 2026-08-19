@@ -198,19 +198,15 @@ type Features struct {
 // derived from it — including which plan an upsell message names, so a feature moved
 // between plans cannot leave a message behind saying otherwise.
 //
-// It follows docs/06-product-model/02-plans-and-packaging.md. Three of the five booleans
+// It follows docs/06-product-model/02-plans-and-packaging.md. Two of the five booleans
 // are true on every plan today, and that is the point rather than an oversight:
 //
-//   - Private teams stay free because gating a security boundary is user-hostile. A team
-//     that cannot make its HR work private without a purchase order keeps that work in the
-//     tool that lets them, and the product loses the use case rather than winning the sale.
 //   - Custom views stay free because saved filters are how the tracker is used at all.
 //   - Personal API keys stay free because gating the API kills the integration ecosystem
 //     that makes an open-source tracker worth adopting. Free is rate-limited, not walled.
 //
-// They are in the matrix anyway so that the client renders one source of truth instead of
-// hardcoding "everyone has this", and so the day one of them does become paid is a
-// one-line change here rather than an audit of forty call sites.
+// Private teams are Business+ (Pro and above). They are in the matrix so the client
+// renders one source of truth instead of hardcoding "everyone has this".
 var matrix = map[Plan]Features{
 	// Free caps exist to bound the cost of running a free tier, not to frustrate: five
 	// people doing real work is enough that leaving hurts, and small enough that a
@@ -219,7 +215,7 @@ var matrix = map[Plan]Features{
 		SeatLimit:    5,
 		TeamLimit:    2,
 		HistoryDays:  90,
-		PrivateTeams: true,
+		PrivateTeams: false,
 		CustomViews:  true,
 		APIKeys:      true,
 		SSO:          false,

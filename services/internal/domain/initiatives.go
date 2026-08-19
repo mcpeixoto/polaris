@@ -449,6 +449,13 @@ func (s *Service) ListInitiativeProjects(
 	}
 	out := make([]model.InitiativeProject, 0, len(rows))
 	for _, row := range rows {
+		scope, err := s.projectScope(ctx, s.db.Queries(), row.ProjectID)
+		if err != nil {
+			return nil, err
+		}
+		if !p.Role.IsAdmin() && !authz.Visible(p, scope) {
+			continue
+		}
 		out = append(out, toInitiativeProject(row))
 	}
 	return out, nil

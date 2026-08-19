@@ -11,6 +11,7 @@ import (
 
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
+	"github.com/peixotolabs/polaris/services/internal/entitlement"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
@@ -45,6 +46,15 @@ func (s *Service) CreateTeam(ctx context.Context, p *authz.Principal, in CreateT
 	}
 	if in.Timezone == "" {
 		in.Timezone = "UTC"
+	}
+	if in.Private {
+		ent, err := entitlementSetFor(ctx, s.db.Queries(), p.WorkspaceID)
+		if err != nil {
+			return model.Team{}, 0, err
+		}
+		if err := ent.Allow(entitlement.FeaturePrivateTeams); err != nil {
+			return model.Team{}, 0, err
+		}
 	}
 
 	var out model.Team
@@ -166,6 +176,16 @@ func (s *Service) UpdateTeam(ctx context.Context, p *authz.Principal, in UpdateT
 		in.Name = &trimmed
 	}
 
+	if in.Private != nil && *in.Private {
+		ent, err := entitlementSetFor(ctx, s.db.Queries(), p.WorkspaceID)
+		if err != nil {
+			return model.Team{}, 0, err
+		}
+		if err := ent.Allow(entitlement.FeaturePrivateTeams); err != nil {
+			return model.Team{}, 0, err
+		}
+	}
+
 	var out model.Team
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
@@ -206,6 +226,12 @@ func (s *Service) UpdateTeam(ctx context.Context, p *authz.Principal, in UpdateT
 				return err
 			}
 			changes = append(changes, revokes...)
+
+			cleanup, err := s.privatizeTeamCleanup(ctx, q, out.ID, out.Key)
+			if err != nil {
+				return err
+			}
+			changes = append(changes, cleanup...)
 		}
 
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...)
@@ -221,10 +247,9 @@ func (s *Service) ListTeams(ctx context.Context, p *authz.Principal) ([]model.Te
 	}
 	out := make([]model.Team, 0, len(rows))
 	for _, r := range rows {
-		// The same predicate the sync hub uses. A team the principal cannot see must not
-		// appear here either, or the API becomes the leak the sync engine was careful
-		// not to be.
-		if !authz.Visible(p, authz.TeamScope(r.ID, r.Private)) {
+		// The same predicate the sync hub uses, plus admins who may list private teams they
+		// have not joined for settings discovery.
+		if !authz.TeamListable(p, r.ID, r.Private) {
 			continue
 		}
 		out = append(out, toTeam(r))
@@ -411,6 +436,40 @@ func (s *Service) revokeTeamContentsForNonMembers(
 		{EntityType: "team", EntityID: teamID, Op: OpRevoke, TeamID: &teamID,
 			Scope: authz.TeamScope(teamID, false)},
 	}, nil
+}
+
+// privatizeTeamCleanup strips non-member assignees and unsubscribes non-member watchers
+// when a team becomes private.
+func (s *Service) privatizeTeamCleanup(
+	ctx context.Context, q *store.Queries, teamID uuid.UUID, teamKey string,
+) ([]Change, error) {
+	scope := authz.TeamScope(teamID, true)
+	changes := make([]Change, 0)
+
+	issues, err := q.ClearExternalAssigneesInTeam(ctx, teamID)
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, row := range issues {
+		issue := toIssue(store.AsIssueRow(row), teamKey)
+		changes = append(changes, Change{
+			EntityType: "issue", EntityID: row.ID, Op: OpUpsert, TeamID: &teamID,
+			Scope: scope, Payload: issue,
+		})
+	}
+
+	subs, err := q.UnsubscribeNonMembersFromTeamIssues(ctx, teamID)
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, sub := range subs {
+		changes = append(changes, Change{
+			EntityType: "issueSubscription", EntityID: sub.ID, Op: OpUpsert,
+			TeamID: &teamID, Scope: scope, Payload: toIssueSubscription(sub),
+		})
+	}
+
+	return changes, nil
 }
 
 // requireTeamAccess loads a team and checks the principal may perform action on it,

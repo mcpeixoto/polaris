@@ -37,6 +37,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Project labels | Workspace taxonomy with groups, picker on project sidebar, chips on `/projects` — client schema 14 |
 | Form templates | Structured intake templates with fields; form tab on Templates settings and form fill in create-issue — client schema 19; migration `000042` |
 | Project templates | Prefilled projects with milestones and starter issues; project tab on Templates settings and picker in create-project — client schema 21; migration `000043` |
+| Private teams | Team visibility toggle in settings, privatize cleanup, initiative project filtering, admin team directory — client schema 21; no migration |
 | Project update reminders | Workspace cadence settings, per-project schedule, staleness on list and shell — client schema 18; migration `000041` |
 | Project priority | Five-level scale, P shortcut, grouped/drag reorder on `/projects` |
 | Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |

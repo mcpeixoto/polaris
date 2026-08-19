@@ -520,3 +520,23 @@ FROM issue
 WHERE team_id = $1 AND archived_at IS NOT NULL AND deleted_at IS NULL
 ORDER BY archived_at DESC;
 
+-- ClearExternalAssigneesInTeam runs when a team becomes private: non-members may not
+-- remain assigned to work they can no longer see.
+--
+-- name: ClearExternalAssigneesInTeam :many
+UPDATE issue i
+SET assignee_id = NULL, updated_at = now()
+WHERE i.team_id = sqlc.arg(team_id)
+  AND i.assignee_id IS NOT NULL
+  AND i.assignee_id NOT IN (
+    SELECT user_id FROM team_membership WHERE team_id = sqlc.arg(team_id)
+  )
+  AND i.archived_at IS NULL
+  AND i.deleted_at IS NULL
+RETURNING id, workspace_id, team_id, number, title, description, state_id,
+          assignee_id, creator_id, priority, sort_order,
+          started_at, completed_at, canceled_at,
+          archived_at, deleted_at, created_at, updated_at,
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at;
+

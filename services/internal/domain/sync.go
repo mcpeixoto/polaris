@@ -284,7 +284,7 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 		teamKeys := make(map[uuid.UUID]string, len(teams))
 		for _, t := range teams {
 			teamKeys[t.ID] = t.Key
-			if !authz.Visible(p, authz.TeamScope(t.ID, t.Private)) {
+			if !authz.TeamListable(p, t.ID, t.Private) {
 				continue
 			}
 			if err := w.Entity("team", t.ID, toTeam(t)); err != nil {

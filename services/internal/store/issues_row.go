@@ -14,7 +14,7 @@ func AsIssueRow[
 		ListIssuesByIDsRow | ListMyIssuesRow | ListDeletedIssuesRow |
 		ListChildIssuesForParentsRow |
 		StreamIssuesForBootstrapRow | BulkUpdateIssuesRow |
-		RestoreIssueRow | SetIssueSnoozeRow,
+		RestoreIssueRow | SetIssueSnoozeRow | ClearExternalAssigneesInTeamRow,
 ](r T) GetIssueRow {
 	return GetIssueRow(r)
 }

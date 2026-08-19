@@ -148,7 +148,7 @@ func TestFor_EveryPlan(t *testing.T) {
 			plan: PlanFree,
 			want: Features{
 				SeatLimit: 5, TeamLimit: 2, HistoryDays: 90,
-				PrivateTeams: true, CustomViews: true, APIKeys: true,
+				PrivateTeams: false, CustomViews: true, APIKeys: true,
 				SSO: false, AuditLog: false,
 			},
 		},
@@ -270,8 +270,11 @@ func TestFeatures_NarrowTakesTheSmaller(t *testing.T) {
 	if got.SSO || got.AuditLog {
 		t.Errorf("a paid feature must not survive narrowing to free: %+v", got)
 	}
-	if !got.PrivateTeams || !got.CustomViews || !got.APIKeys {
+	if !got.CustomViews || !got.APIKeys {
 		t.Errorf("a feature both sides have must survive narrowing: %+v", got)
+	}
+	if got.PrivateTeams {
+		t.Errorf("private teams on free must not survive narrowing from enterprise: %+v", got)
 	}
 	if free.narrow(ent) != got {
 		t.Error("narrow must not depend on the order of its arguments")
@@ -287,11 +290,10 @@ func TestAllow_EveryPlanEveryFeature(t *testing.T) {
 		deny  []Feature
 	}{
 		{
-			// Private teams, custom views and API keys are deliberately not gated:
-			// gating a security boundary or the API costs the use case, not wins the sale.
+			// Custom views and API keys stay free; private teams are Business+.
 			plan:  PlanFree,
-			allow: []Feature{FeaturePrivateTeams, FeatureCustomViews, FeatureAPIKeys},
-			deny:  []Feature{FeatureSSO, FeatureAuditLog},
+			allow: []Feature{FeatureCustomViews, FeatureAPIKeys},
+			deny:  []Feature{FeaturePrivateTeams, FeatureSSO, FeatureAuditLog},
 		},
 		{
 			plan:  PlanPro,
