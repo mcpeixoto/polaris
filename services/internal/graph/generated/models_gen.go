@@ -166,6 +166,7 @@ type CreateIssueInput struct {
 	AfterIssueID       *uuid.UUID `json:"afterIssueId,omitempty"`
 	ProjectID          *uuid.UUID `json:"projectId,omitempty"`
 	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
+	CycleID            *uuid.UUID `json:"cycleId,omitempty"`
 }
 
 type CreateIssueTemplateInput struct {
@@ -253,6 +254,29 @@ type CreateWorkflowStateInput struct {
 	Description  *string       `json:"description,omitempty"`
 	AfterStateID *uuid.UUID    `json:"afterStateId,omitempty"`
 }
+
+// A dated window on one team. Cooldown is a gap between cycles, not a row of this type.
+type Cycle struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      uuid.UUID  `json:"teamId"`
+	Number      int        `json:"number"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	StartsAt    time.Time  `json:"startsAt"`
+	EndsAt      time.Time  `json:"endsAt"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
+type CyclePayload struct {
+	Version int    `json:"version"`
+	Cycle   *Cycle `json:"cycle"`
+}
+
+func (CyclePayload) IsMutationResult() {}
 
 type DeletePayload struct {
 	Version int       `json:"version"`
@@ -369,10 +393,12 @@ type Issue struct {
 	ProjectID *uuid.UUID `json:"projectId,omitempty"`
 	// A milestone implies its project.
 	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
-	StartedAt          *time.Time `json:"startedAt,omitempty"`
-	CompletedAt        *time.Time `json:"completedAt,omitempty"`
-	CanceledAt         *time.Time `json:"canceledAt,omitempty"`
-	ArchivedAt         *time.Time `json:"archivedAt,omitempty"`
+	// At most one cycle, and it has to belong to the issue's team.
+	CycleID     *uuid.UUID `json:"cycleId,omitempty"`
+	StartedAt   *time.Time `json:"startedAt,omitempty"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	CanceledAt  *time.Time `json:"canceledAt,omitempty"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
 	// When the issue was moved to the trash. Only ever set on a row `deletedIssues` returned:
 	// every other read in the product filters deleted rows out, and the sync stream carries a
 	// delete rather than the row, so a client holding an issue with this set is holding
@@ -401,6 +427,7 @@ type Issue struct {
 	Subscribers      []IssueSubscription `json:"subscribers"`
 	Project          *Project            `json:"project,omitempty"`
 	ProjectMilestone *ProjectMilestone   `json:"projectMilestone,omitempty"`
+	Cycle            *Cycle              `json:"cycle,omitempty"`
 }
 
 // The activity feed. Distinct from the change log that drives sync: this one is curated,
@@ -776,16 +803,29 @@ type Team struct {
 	// Whether 0 is offered. For some teams a zero estimate is always a mistake, and offering it invites one.
 	EstimateAllowZero bool `json:"estimateAllowZero"`
 	// Extends the scale's top end.
-	EstimateExtended bool             `json:"estimateExtended"`
-	CreatedAt        time.Time        `json:"createdAt"`
-	UpdatedAt        time.Time        `json:"updatedAt"`
-	RetiredAt        *time.Time       `json:"retiredAt,omitempty"`
-	ArchivedAt       *time.Time       `json:"archivedAt,omitempty"`
-	States           []WorkflowState  `json:"states"`
-	Members          []TeamMembership `json:"members"`
-	Issues           []Issue          `json:"issues"`
-	Labels           []Label          `json:"labels"`
-	Templates        []IssueTemplate  `json:"templates"`
+	EstimateExtended bool `json:"estimateExtended"`
+	// Off by default. Turning it on creates the current cycle and the configured upcoming ones.
+	CyclesEnabled bool `json:"cyclesEnabled"`
+	// 1–8 weeks.
+	CycleDurationWeeks int `json:"cycleDurationWeeks"`
+	// Gap after each cycle, 0–8 weeks. A cooldown is not a cycle; issues cannot be assigned to it.
+	CycleCooldownWeeks int `json:"cycleCooldownWeeks"`
+	// Weekday the cycle begins at 00:01 in the team's timezone: monday…sunday.
+	CycleStartDay string `json:"cycleStartDay"`
+	// How many future cycles to keep pre-created, 1–15.
+	CycleUpcomingCount    int              `json:"cycleUpcomingCount"`
+	CycleAutoAddStarted   bool             `json:"cycleAutoAddStarted"`
+	CycleAutoAddCompleted bool             `json:"cycleAutoAddCompleted"`
+	CreatedAt             time.Time        `json:"createdAt"`
+	UpdatedAt             time.Time        `json:"updatedAt"`
+	RetiredAt             *time.Time       `json:"retiredAt,omitempty"`
+	ArchivedAt            *time.Time       `json:"archivedAt,omitempty"`
+	States                []WorkflowState  `json:"states"`
+	Members               []TeamMembership `json:"members"`
+	Issues                []Issue          `json:"issues"`
+	Labels                []Label          `json:"labels"`
+	Templates             []IssueTemplate  `json:"templates"`
+	Cycles                []Cycle          `json:"cycles"`
 }
 
 type TeamMembership struct {
@@ -837,6 +877,8 @@ type UpdateIssueInput struct {
 	ClearProject       *bool      `json:"clearProject,omitempty"`
 	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
 	ClearMilestone     *bool      `json:"clearMilestone,omitempty"`
+	CycleID            *uuid.UUID `json:"cycleId,omitempty"`
+	ClearCycle         *bool      `json:"clearCycle,omitempty"`
 }
 
 type UpdateIssueTemplateInput struct {
@@ -899,6 +941,17 @@ type UpdateProjectStatusInput struct {
 	Color       *string                `json:"color,omitempty"`
 	Category    *ProjectStatusCategory `json:"category,omitempty"`
 	IsDefault   *bool                  `json:"isDefault,omitempty"`
+}
+
+type UpdateTeamCyclesInput struct {
+	TeamID           uuid.UUID `json:"teamId"`
+	Enabled          *bool     `json:"enabled,omitempty"`
+	DurationWeeks    *int      `json:"durationWeeks,omitempty"`
+	CooldownWeeks    *int      `json:"cooldownWeeks,omitempty"`
+	StartDay         *string   `json:"startDay,omitempty"`
+	UpcomingCount    *int      `json:"upcomingCount,omitempty"`
+	AutoAddStarted   *bool     `json:"autoAddStarted,omitempty"`
+	AutoAddCompleted *bool     `json:"autoAddCompleted,omitempty"`
 }
 
 type UpdateTeamEstimatesInput struct {

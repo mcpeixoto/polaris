@@ -174,6 +174,22 @@ func run() error {
 				return err
 			},
 		},
+		{
+			// Cycle cadence: close windows that have ended, roll unfinished work into the
+			// next, keep the upcoming pipeline full, auto-add cycle-less started/completed
+			// issues. Idempotent: a pass while every window is still open writes nothing.
+			name:   "advance cycles",
+			every:  time.Minute,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.AdvanceCycles(ctx, time.Now())
+				if err == nil && n > 0 {
+					log.Debug("advanced cycles", "teams", n)
+				}
+				return err
+			},
+			critical: false,
+		},
 	}
 
 	if cfg.MailEnabled() {

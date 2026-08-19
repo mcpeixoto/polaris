@@ -153,6 +153,7 @@ export class IssueIndex {
   private readonly priority = new SetIndex<number>();
   private readonly parent = new SetIndex<UUID>();
   private readonly project = new SetIndex<UUID>();
+  private readonly cycle = new SetIndex<UUID>();
   /**
    * Issues with no parent. Kept apart from `parent` for the same reason `unassigned` is
    * kept apart from `assignee`, and because it is the corpus an issue list actually
@@ -187,6 +188,7 @@ export class IssueIndex {
     if (issue.parentId === undefined) this.rootIssues.add(issue.id);
     else this.parent.add(issue.parentId, issue.id);
     if (issue.projectId !== undefined) this.project.add(issue.projectId, issue.id);
+    if (issue.cycleId !== undefined) this.cycle.add(issue.cycleId, issue.id);
     this.updated.set(issue.id, epochOf(issue.updatedAt));
     this.indexTitle(issue.id, issue.title);
     this.orderStale = true;
@@ -235,6 +237,10 @@ export class IssueIndex {
       if (previous.projectId !== undefined) this.project.remove(previous.projectId, id);
       if (next.projectId !== undefined) this.project.add(next.projectId, id);
     }
+    if (previous.cycleId !== next.cycleId) {
+      if (previous.cycleId !== undefined) this.cycle.remove(previous.cycleId, id);
+      if (next.cycleId !== undefined) this.cycle.add(next.cycleId, id);
+    }
     if (previous.archivedAt !== next.archivedAt) {
       if (next.archivedAt === undefined) this.live.add(id);
       else this.live.delete(id);
@@ -261,6 +267,7 @@ export class IssueIndex {
     if (issue.parentId === undefined) this.rootIssues.delete(id);
     else this.parent.remove(issue.parentId, id);
     if (issue.projectId !== undefined) this.project.remove(issue.projectId, id);
+    if (issue.cycleId !== undefined) this.cycle.remove(issue.cycleId, id);
     this.updated.delete(id);
     this.unindexTitle(id);
     this.orderStale = true;
@@ -287,6 +294,7 @@ export class IssueIndex {
     this.priority.clear();
     this.parent.clear();
     this.project.clear();
+    this.cycle.clear();
     this.rootIssues.clear();
     this.updated.clear();
     this.folded.clear();
@@ -335,6 +343,11 @@ export class IssueIndex {
   /** Issues in one project. An issue with no project is in no bucket here. */
   byProject(projectId: UUID): ReadonlySet<UUID> {
     return this.project.get(projectId);
+  }
+
+  /** Issues in one cycle. An issue with no cycle is in no bucket here. */
+  byCycle(cycleId: UUID): ReadonlySet<UUID> {
+    return this.cycle.get(cycleId);
   }
 
   /** Epoch milliseconds, for comparators that must not re-parse a timestamp per comparison. */

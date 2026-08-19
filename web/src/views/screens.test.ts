@@ -62,6 +62,7 @@ const HEADING_FROM_A_WRAPPER: Record<string, string> = {
   FirstTeam: 'redirects to a team; it renders no screen of its own',
   SavedView: 'renders IssueList, which carries the heading',
   ProjectDetail: 'renders IssueList, which carries the heading',
+  CycleDetail: 'renders IssueList, which carries the heading',
   MyIssues: 'renders IssueList, which carries the heading',
 };
 

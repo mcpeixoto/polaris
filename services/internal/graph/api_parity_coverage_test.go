@@ -65,6 +65,7 @@ var serverSideOnly = map[string]string{
 	"FanOutAll":                  "worker cron: derives inbox rows from change_log",
 	"FanOut":                     "internal: one workspace's pass, called by FanOutAll",
 	"DeliverNotificationDigests": "worker cron: sends the digest mail",
+	"AdvanceCycles":              "worker cron: closes ended cycles, rolls work, auto-adds",
 	"SubscribeOnAction":          "internal: called by the write paths that auto-subscribe",
 	"AuthenticateApiKey":         "auth middleware: exchanging a token for a principal is not a mutation a caller performs",
 	"DB":                         "accessor: hands the pool to the bootstrap and the sync hub",

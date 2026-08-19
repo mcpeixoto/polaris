@@ -106,7 +106,9 @@ VALUES ($1, $2, $3, $4,
 RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           parent_team_id, private, issue_counter, settings,
           retired_at, archived_at, deleted_at, created_at, updated_at,
-          estimate_scale, estimate_allow_zero, estimate_extended
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
 `
 
 type CreateTeamParams struct {
@@ -165,6 +167,13 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 		&i.EstimateScale,
 		&i.EstimateAllowZero,
 		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
 	)
 	return i, err
 }
@@ -173,7 +182,9 @@ const getTeam = `-- name: GetTeam :one
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,
        retired_at, archived_at, deleted_at, created_at, updated_at,
-       estimate_scale, estimate_allow_zero, estimate_extended
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
 FROM team
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -202,6 +213,13 @@ func (q *Queries) GetTeam(ctx context.Context, id uuid.UUID) (Team, error) {
 		&i.EstimateScale,
 		&i.EstimateAllowZero,
 		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
 	)
 	return i, err
 }
@@ -210,7 +228,9 @@ const getTeamByKey = `-- name: GetTeamByKey :one
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,
        retired_at, archived_at, deleted_at, created_at, updated_at,
-       estimate_scale, estimate_allow_zero, estimate_extended
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
 FROM team
 WHERE workspace_id = $1 AND key = $2 AND deleted_at IS NULL
 `
@@ -244,6 +264,13 @@ func (q *Queries) GetTeamByKey(ctx context.Context, arg GetTeamByKeyParams) (Tea
 		&i.EstimateScale,
 		&i.EstimateAllowZero,
 		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
 	)
 	return i, err
 }
@@ -416,7 +443,9 @@ const listTeamsInWorkspace = `-- name: ListTeamsInWorkspace :many
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,
        retired_at, archived_at, deleted_at, created_at, updated_at,
-       estimate_scale, estimate_allow_zero, estimate_extended
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
 FROM team
 WHERE workspace_id = $1 AND deleted_at IS NULL
 ORDER BY key
@@ -452,6 +481,73 @@ func (q *Queries) ListTeamsInWorkspace(ctx context.Context, workspaceID uuid.UUI
 			&i.EstimateScale,
 			&i.EstimateAllowZero,
 			&i.EstimateExtended,
+			&i.CyclesEnabled,
+			&i.CycleDurationWeeks,
+			&i.CycleCooldownWeeks,
+			&i.CycleStartDay,
+			&i.CycleUpcomingCount,
+			&i.CycleAutoAddStarted,
+			&i.CycleAutoAddCompleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTeamsWithCyclesEnabled = `-- name: ListTeamsWithCyclesEnabled :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
+FROM team
+WHERE cycles_enabled AND deleted_at IS NULL AND archived_at IS NULL AND retired_at IS NULL
+ORDER BY workspace_id, key
+`
+
+func (q *Queries) ListTeamsWithCyclesEnabled(ctx context.Context) ([]Team, error) {
+	rows, err := q.db.Query(ctx, listTeamsWithCyclesEnabled)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Team{}
+	for rows.Next() {
+		var i Team
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Key,
+			&i.Name,
+			&i.Description,
+			&i.Icon,
+			&i.Color,
+			&i.Timezone,
+			&i.ParentTeamID,
+			&i.Private,
+			&i.IssueCounter,
+			&i.Settings,
+			&i.RetiredAt,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EstimateScale,
+			&i.EstimateAllowZero,
+			&i.EstimateExtended,
+			&i.CyclesEnabled,
+			&i.CycleDurationWeeks,
+			&i.CycleCooldownWeeks,
+			&i.CycleStartDay,
+			&i.CycleUpcomingCount,
+			&i.CycleAutoAddStarted,
+			&i.CycleAutoAddCompleted,
 		); err != nil {
 			return nil, err
 		}
@@ -503,7 +599,9 @@ WHERE id = $9 AND deleted_at IS NULL
 RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           parent_team_id, private, issue_counter, settings,
           retired_at, archived_at, deleted_at, created_at, updated_at,
-          estimate_scale, estimate_allow_zero, estimate_extended
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
 `
 
 type UpdateTeamParams struct {
@@ -552,6 +650,91 @@ func (q *Queries) UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, e
 		&i.EstimateScale,
 		&i.EstimateAllowZero,
 		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
+	)
+	return i, err
+}
+
+const updateTeamCycles = `-- name: UpdateTeamCycles :one
+
+UPDATE team
+SET cycles_enabled            = COALESCE($1, cycles_enabled),
+    cycle_duration_weeks      = COALESCE($2, cycle_duration_weeks),
+    cycle_cooldown_weeks      = COALESCE($3, cycle_cooldown_weeks),
+    cycle_start_day           = COALESCE($4, cycle_start_day),
+    cycle_upcoming_count      = COALESCE($5, cycle_upcoming_count),
+    cycle_auto_add_started    = COALESCE($6, cycle_auto_add_started),
+    cycle_auto_add_completed  = COALESCE($7, cycle_auto_add_completed)
+WHERE id = $8 AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
+`
+
+type UpdateTeamCyclesParams struct {
+	CyclesEnabled         *bool
+	CycleDurationWeeks    *int16
+	CycleCooldownWeeks    *int16
+	CycleStartDay         *string
+	CycleUpcomingCount    *int16
+	CycleAutoAddStarted   *bool
+	CycleAutoAddCompleted *bool
+	ID                    uuid.UUID
+}
+
+// UpdateTeamCycles is the cadence, kept apart from UpdateTeam for the same reason
+// estimates are: enabling, duration, cooldown, start day and upcoming count are one
+// decision, and a partial write that turns cycles on without a duration would leave a
+// team in a state the CHECKs allow and the product does not.
+func (q *Queries) UpdateTeamCycles(ctx context.Context, arg UpdateTeamCyclesParams) (Team, error) {
+	row := q.db.QueryRow(ctx, updateTeamCycles,
+		arg.CyclesEnabled,
+		arg.CycleDurationWeeks,
+		arg.CycleCooldownWeeks,
+		arg.CycleStartDay,
+		arg.CycleUpcomingCount,
+		arg.CycleAutoAddStarted,
+		arg.CycleAutoAddCompleted,
+		arg.ID,
+	)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.Color,
+		&i.Timezone,
+		&i.ParentTeamID,
+		&i.Private,
+		&i.IssueCounter,
+		&i.Settings,
+		&i.RetiredAt,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EstimateScale,
+		&i.EstimateAllowZero,
+		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
 	)
 	return i, err
 }
@@ -565,7 +748,9 @@ WHERE id = $4 AND deleted_at IS NULL
 RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           parent_team_id, private, issue_counter, settings,
           retired_at, archived_at, deleted_at, created_at, updated_at,
-          estimate_scale, estimate_allow_zero, estimate_extended
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
 `
 
 type UpdateTeamEstimatesParams struct {
@@ -608,6 +793,13 @@ func (q *Queries) UpdateTeamEstimates(ctx context.Context, arg UpdateTeamEstimat
 		&i.EstimateScale,
 		&i.EstimateAllowZero,
 		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
 	)
 	return i, err
 }

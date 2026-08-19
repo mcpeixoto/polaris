@@ -830,6 +830,14 @@ func (r *Resolver) hydrateTeam(ctx context.Context, p *authz.Principal, sel sele
 		out.Templates = toIssueTemplates(templates)
 	}
 
+	if sel.has("cycles") {
+		cycles, err := r.Svc.ListCycles(ctx, p, team.ID)
+		if err != nil {
+			return generated.Team{}, err
+		}
+		out.Cycles = toCycles(cycles)
+	}
+
 	return out, nil
 }
 

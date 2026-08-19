@@ -448,6 +448,20 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "cycle",
+			func(ctx context.Context, after uuid.UUID) ([]store.Cycle, error) {
+				return q.StreamCyclesForBootstrap(ctx, store.StreamCyclesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(c store.Cycle) (uuid.UUID, any) { return c.ID, toCycle(c) },
+		); err != nil {
+			return err
+		}
+
 		// Everything hanging off an issue. Guarded on the caller having a team at all: with
 		// none, every one of these statements is a scan that can only return nothing.
 		//
@@ -656,7 +670,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // only thing that fixes it, which is exactly what this constant is for.
 // v4 adds projectStatus, project, projectTeam, projectMember and projectMilestone, and
 // issue.projectId / issue.projectMilestoneId.
-const ClientSchemaVersion = 4
+// v5 adds cycle, team cadence fields, and issue.cycleId.
+const ClientSchemaVersion = 5
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

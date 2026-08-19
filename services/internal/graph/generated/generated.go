@@ -100,6 +100,26 @@ type ComplexityRoot struct {
 		Version func(childComplexity int) int
 	}
 
+	Cycle struct {
+		ArchivedAt  func(childComplexity int) int
+		CompletedAt func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		Description func(childComplexity int) int
+		EndsAt      func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Number      func(childComplexity int) int
+		StartsAt    func(childComplexity int) int
+		TeamID      func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	CyclePayload struct {
+		Cycle   func(childComplexity int) int
+		Version func(childComplexity int) int
+	}
+
 	DeletePayload struct {
 		ID      func(childComplexity int) int
 		Version func(childComplexity int) int
@@ -168,6 +188,8 @@ type ComplexityRoot struct {
 		CreatedAt          func(childComplexity int) int
 		Creator            func(childComplexity int) int
 		CreatorID          func(childComplexity int) int
+		Cycle              func(childComplexity int) int
+		CycleID            func(childComplexity int) int
 		DeletedAt          func(childComplexity int) int
 		DeletedBy          func(childComplexity int) int
 		Description        func(childComplexity int) int
@@ -373,6 +395,7 @@ type ComplexityRoot struct {
 		UpdateProjectMilestone   func(childComplexity int, input UpdateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateProjectStatus      func(childComplexity int, input UpdateProjectStatusInput) int
 		UpdateTeam               func(childComplexity int, input UpdateTeamInput) int
+		UpdateTeamCycles         func(childComplexity int, input UpdateTeamCyclesInput) int
 		UpdateTeamEstimates      func(childComplexity int, input UpdateTeamEstimatesInput) int
 		UpdateView               func(childComplexity int, input UpdateViewInput) int
 		UpdateWorkflowState      func(childComplexity int, input UpdateWorkflowStateInput) int
@@ -517,6 +540,8 @@ type ComplexityRoot struct {
 	Query struct {
 		APIKeys                 func(childComplexity int) int
 		Comments                func(childComplexity int, issueID uuid.UUID) int
+		Cycle                   func(childComplexity int, id uuid.UUID) int
+		Cycles                  func(childComplexity int, teamID uuid.UUID) int
 		DeletedIssues           func(childComplexity int) int
 		Favorites               func(childComplexity int) int
 		Invites                 func(childComplexity int) int
@@ -560,28 +585,36 @@ type ComplexityRoot struct {
 	}
 
 	Team struct {
-		ArchivedAt        func(childComplexity int) int
-		Color             func(childComplexity int) int
-		CreatedAt         func(childComplexity int) int
-		Description       func(childComplexity int) int
-		EstimateAllowZero func(childComplexity int) int
-		EstimateExtended  func(childComplexity int) int
-		EstimateScale     func(childComplexity int) int
-		ID                func(childComplexity int) int
-		Icon              func(childComplexity int) int
-		Issues            func(childComplexity int) int
-		Key               func(childComplexity int) int
-		Labels            func(childComplexity int) int
-		Members           func(childComplexity int) int
-		Name              func(childComplexity int) int
-		ParentTeamID      func(childComplexity int) int
-		Private           func(childComplexity int) int
-		RetiredAt         func(childComplexity int) int
-		States            func(childComplexity int) int
-		Templates         func(childComplexity int) int
-		Timezone          func(childComplexity int) int
-		UpdatedAt         func(childComplexity int) int
-		WorkspaceID       func(childComplexity int) int
+		ArchivedAt            func(childComplexity int) int
+		Color                 func(childComplexity int) int
+		CreatedAt             func(childComplexity int) int
+		CycleAutoAddCompleted func(childComplexity int) int
+		CycleAutoAddStarted   func(childComplexity int) int
+		CycleCooldownWeeks    func(childComplexity int) int
+		CycleDurationWeeks    func(childComplexity int) int
+		CycleStartDay         func(childComplexity int) int
+		CycleUpcomingCount    func(childComplexity int) int
+		Cycles                func(childComplexity int) int
+		CyclesEnabled         func(childComplexity int) int
+		Description           func(childComplexity int) int
+		EstimateAllowZero     func(childComplexity int) int
+		EstimateExtended      func(childComplexity int) int
+		EstimateScale         func(childComplexity int) int
+		ID                    func(childComplexity int) int
+		Icon                  func(childComplexity int) int
+		Issues                func(childComplexity int) int
+		Key                   func(childComplexity int) int
+		Labels                func(childComplexity int) int
+		Members               func(childComplexity int) int
+		Name                  func(childComplexity int) int
+		ParentTeamID          func(childComplexity int) int
+		Private               func(childComplexity int) int
+		RetiredAt             func(childComplexity int) int
+		States                func(childComplexity int) int
+		Templates             func(childComplexity int) int
+		Timezone              func(childComplexity int) int
+		UpdatedAt             func(childComplexity int) int
+		WorkspaceID           func(childComplexity int) int
 	}
 
 	TeamMembership struct {
@@ -747,6 +780,7 @@ type MutationResolver interface {
 	RestoreIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
 	PurgeDeletedIssues(ctx context.Context, before *time.Time) (*PurgePayload, error)
 	UpdateTeamEstimates(ctx context.Context, input UpdateTeamEstimatesInput) (*TeamPayload, error)
+	UpdateTeamCycles(ctx context.Context, input UpdateTeamCyclesInput) (*TeamPayload, error)
 	CreateLabel(ctx context.Context, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	UpdateLabel(ctx context.Context, input UpdateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	ArchiveLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
@@ -812,6 +846,8 @@ type QueryResolver interface {
 	Projects(ctx context.Context) ([]Project, error)
 	Project(ctx context.Context, id uuid.UUID) (*Project, error)
 	ProjectStatuses(ctx context.Context) ([]ProjectStatus, error)
+	Cycles(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
+	Cycle(ctx context.Context, id uuid.UUID) (*Cycle, error)
 	Notifications(ctx context.Context, includeRead *bool, includeSnoozed *bool, first *int) ([]Notification, error)
 	UnreadNotificationCount(ctx context.Context) (int, error)
 	MyIssues(ctx context.Context, includeCompleted *bool) ([]Issue, error)
@@ -1062,6 +1098,92 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CommentPayload.Version(childComplexity), true
+
+	case "Cycle.archivedAt":
+		if e.ComplexityRoot.Cycle.ArchivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.ArchivedAt(childComplexity), true
+	case "Cycle.completedAt":
+		if e.ComplexityRoot.Cycle.CompletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.CompletedAt(childComplexity), true
+	case "Cycle.createdAt":
+		if e.ComplexityRoot.Cycle.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.CreatedAt(childComplexity), true
+	case "Cycle.description":
+		if e.ComplexityRoot.Cycle.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.Description(childComplexity), true
+	case "Cycle.endsAt":
+		if e.ComplexityRoot.Cycle.EndsAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.EndsAt(childComplexity), true
+	case "Cycle.id":
+		if e.ComplexityRoot.Cycle.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.ID(childComplexity), true
+	case "Cycle.name":
+		if e.ComplexityRoot.Cycle.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.Name(childComplexity), true
+	case "Cycle.number":
+		if e.ComplexityRoot.Cycle.Number == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.Number(childComplexity), true
+	case "Cycle.startsAt":
+		if e.ComplexityRoot.Cycle.StartsAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.StartsAt(childComplexity), true
+	case "Cycle.teamId":
+		if e.ComplexityRoot.Cycle.TeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.TeamID(childComplexity), true
+	case "Cycle.updatedAt":
+		if e.ComplexityRoot.Cycle.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.UpdatedAt(childComplexity), true
+	case "Cycle.workspaceId":
+		if e.ComplexityRoot.Cycle.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Cycle.WorkspaceID(childComplexity), true
+
+	case "CyclePayload.cycle":
+		if e.ComplexityRoot.CyclePayload.Cycle == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CyclePayload.Cycle(childComplexity), true
+	case "CyclePayload.version":
+		if e.ComplexityRoot.CyclePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CyclePayload.Version(childComplexity), true
 
 	case "DeletePayload.id":
 		if e.ComplexityRoot.DeletePayload.ID == nil {
@@ -1363,6 +1485,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Issue.CreatorID(childComplexity), true
+	case "Issue.cycle":
+		if e.ComplexityRoot.Issue.Cycle == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Issue.Cycle(childComplexity), true
+	case "Issue.cycleId":
+		if e.ComplexityRoot.Issue.CycleID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Issue.CycleID(childComplexity), true
 	case "Issue.deletedAt":
 		if e.ComplexityRoot.Issue.DeletedAt == nil {
 			break
@@ -2667,6 +2801,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateTeam(childComplexity, args["input"].(UpdateTeamInput)), true
+	case "Mutation.updateTeamCycles":
+		if e.ComplexityRoot.Mutation.UpdateTeamCycles == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTeamCycles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateTeamCycles(childComplexity, args["input"].(UpdateTeamCyclesInput)), true
 	case "Mutation.updateTeamEstimates":
 		if e.ComplexityRoot.Mutation.UpdateTeamEstimates == nil {
 			break
@@ -3301,6 +3446,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Comments(childComplexity, args["issueId"].(uuid.UUID)), true
+	case "Query.cycle":
+		if e.ComplexityRoot.Query.Cycle == nil {
+			break
+		}
+
+		args, err := ec.field_Query_cycle_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Cycle(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.cycles":
+		if e.ComplexityRoot.Query.Cycles == nil {
+			break
+		}
+
+		args, err := ec.field_Query_cycles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Cycles(childComplexity, args["teamId"].(uuid.UUID)), true
 	case "Query.deletedIssues":
 		if e.ComplexityRoot.Query.DeletedIssues == nil {
 			break
@@ -3607,6 +3774,54 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Team.CreatedAt(childComplexity), true
+	case "Team.cycleAutoAddCompleted":
+		if e.ComplexityRoot.Team.CycleAutoAddCompleted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.CycleAutoAddCompleted(childComplexity), true
+	case "Team.cycleAutoAddStarted":
+		if e.ComplexityRoot.Team.CycleAutoAddStarted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.CycleAutoAddStarted(childComplexity), true
+	case "Team.cycleCooldownWeeks":
+		if e.ComplexityRoot.Team.CycleCooldownWeeks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.CycleCooldownWeeks(childComplexity), true
+	case "Team.cycleDurationWeeks":
+		if e.ComplexityRoot.Team.CycleDurationWeeks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.CycleDurationWeeks(childComplexity), true
+	case "Team.cycleStartDay":
+		if e.ComplexityRoot.Team.CycleStartDay == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.CycleStartDay(childComplexity), true
+	case "Team.cycleUpcomingCount":
+		if e.ComplexityRoot.Team.CycleUpcomingCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.CycleUpcomingCount(childComplexity), true
+	case "Team.cycles":
+		if e.ComplexityRoot.Team.Cycles == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.Cycles(childComplexity), true
+	case "Team.cyclesEnabled":
+		if e.ComplexityRoot.Team.CyclesEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.CyclesEnabled(childComplexity), true
 	case "Team.description":
 		if e.ComplexityRoot.Team.Description == nil {
 			break
@@ -4305,6 +4520,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateProjectInput,
 		ec.unmarshalInputUpdateProjectMilestoneInput,
 		ec.unmarshalInputUpdateProjectStatusInput,
+		ec.unmarshalInputUpdateTeamCyclesInput,
 		ec.unmarshalInputUpdateTeamEstimatesInput,
 		ec.unmarshalInputUpdateTeamInput,
 		ec.unmarshalInputUpdateViewInput,
@@ -4613,6 +4829,19 @@ type Team {
   """Extends the scale's top end."""
   estimateExtended: Boolean!
 
+  """Off by default. Turning it on creates the current cycle and the configured upcoming ones."""
+  cyclesEnabled: Boolean!
+  """1–8 weeks."""
+  cycleDurationWeeks: Int!
+  """Gap after each cycle, 0–8 weeks. A cooldown is not a cycle; issues cannot be assigned to it."""
+  cycleCooldownWeeks: Int!
+  """Weekday the cycle begins at 00:01 in the team's timezone: monday…sunday."""
+  cycleStartDay: String!
+  """How many future cycles to keep pre-created, 1–15."""
+  cycleUpcomingCount: Int!
+  cycleAutoAddStarted: Boolean!
+  cycleAutoAddCompleted: Boolean!
+
   createdAt: Time!
   updatedAt: Time!
   retiredAt: Time
@@ -4623,6 +4852,7 @@ type Team {
   issues: [Issue!]!
   labels: [Label!]!
   templates: [IssueTemplate!]!
+  cycles: [Cycle!]!
 }
 
 type TeamMembership {
@@ -4631,6 +4861,24 @@ type TeamMembership {
   teamId: UUID!
   userId: UUID!
   role: TeamRole!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
+A dated window on one team. Cooldown is a gap between cycles, not a row of this type.
+"""
+type Cycle {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  number: Int!
+  name: String!
+  description: String
+  startsAt: Time!
+  endsAt: Time!
+  completedAt: Time
+  archivedAt: Time
   createdAt: Time!
   updatedAt: Time!
 }
@@ -4692,6 +4940,8 @@ type Issue {
   projectId: UUID
   """A milestone implies its project."""
   projectMilestoneId: UUID
+  """At most one cycle, and it has to belong to the issue's team."""
+  cycleId: UUID
 
   startedAt: Time
   completedAt: Time
@@ -4731,6 +4981,7 @@ type Issue {
   subscribers: [IssueSubscription!]!
   project: Project
   projectMilestone: ProjectMilestone
+  cycle: Cycle
 }
 
 """Sub-issue completion, rolled up. Counts direct children only; a deep tree would make a list view walk the whole graph per row."""
@@ -5052,6 +5303,11 @@ type WorkspacePayload implements MutationResult {
 type TeamMembershipPayload implements MutationResult {
   version: Int!
   membership: TeamMembership!
+}
+
+type CyclePayload implements MutationResult {
+  version: Int!
+  cycle: Cycle!
 }
 
 type DeletePayload implements MutationResult {
@@ -5403,6 +5659,7 @@ input CreateIssueInput {
   afterIssueId: UUID
   projectId: UUID
   projectMilestoneId: UUID
+  cycleId: UUID
 }
 
 input UpdateIssueInput {
@@ -5432,6 +5689,8 @@ input UpdateIssueInput {
   clearProject: Boolean
   projectMilestoneId: UUID
   clearMilestone: Boolean
+  cycleId: UUID
+  clearCycle: Boolean
 }
 
 """
@@ -5524,6 +5783,17 @@ input UpdateTeamEstimatesInput {
   scale: EstimateScale!
   allowZero: Boolean
   extended: Boolean
+}
+
+input UpdateTeamCyclesInput {
+  teamId: UUID!
+  enabled: Boolean
+  durationWeeks: Int
+  cooldownWeeks: Int
+  startDay: String
+  upcomingCount: Int
+  autoAddStarted: Boolean
+  autoAddCompleted: Boolean
 }
 
 input InviteInput {
@@ -5663,6 +5933,9 @@ type Query {
   project(id: UUID!): Project
   projectStatuses: [ProjectStatus!]!
 
+  cycles(teamId: UUID!): [Cycle!]!
+  cycle(id: UUID!): Cycle
+
   """The caller's inbox. Snoozed rows are excluded until they wake unless includeSnoozed."""
   notifications(includeRead: Boolean, includeSnoozed: Boolean, first: Int): [Notification!]!
   unreadNotificationCount: Int!
@@ -5747,6 +6020,7 @@ type Mutation {
   purgeDeletedIssues(before: Time): PurgePayload!
 
   updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
+  updateTeamCycles(input: UpdateTeamCyclesInput!): TeamPayload!
 
   # ---- labels
 
@@ -5955,6 +6229,36 @@ func (ec *executionContext) childFields_CommentPayload(ctx context.Context, fiel
 	return nil, fmt.Errorf("no field named %q was found under type CommentPayload", field.Name)
 }
 
+func (ec *executionContext) childFields_Cycle(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Cycle_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_Cycle_workspaceId(ctx, field)
+	case "teamId":
+		return ec.fieldContext_Cycle_teamId(ctx, field)
+	case "number":
+		return ec.fieldContext_Cycle_number(ctx, field)
+	case "name":
+		return ec.fieldContext_Cycle_name(ctx, field)
+	case "description":
+		return ec.fieldContext_Cycle_description(ctx, field)
+	case "startsAt":
+		return ec.fieldContext_Cycle_startsAt(ctx, field)
+	case "endsAt":
+		return ec.fieldContext_Cycle_endsAt(ctx, field)
+	case "completedAt":
+		return ec.fieldContext_Cycle_completedAt(ctx, field)
+	case "archivedAt":
+		return ec.fieldContext_Cycle_archivedAt(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Cycle_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_Cycle_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Cycle", field.Name)
+}
+
 func (ec *executionContext) childFields_DeletePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "version":
@@ -6109,6 +6413,8 @@ func (ec *executionContext) childFields_Issue(ctx context.Context, field graphql
 		return ec.fieldContext_Issue_projectId(ctx, field)
 	case "projectMilestoneId":
 		return ec.fieldContext_Issue_projectMilestoneId(ctx, field)
+	case "cycleId":
+		return ec.fieldContext_Issue_cycleId(ctx, field)
 	case "startedAt":
 		return ec.fieldContext_Issue_startedAt(ctx, field)
 	case "completedAt":
@@ -6155,6 +6461,8 @@ func (ec *executionContext) childFields_Issue(ctx context.Context, field graphql
 		return ec.fieldContext_Issue_project(ctx, field)
 	case "projectMilestone":
 		return ec.fieldContext_Issue_projectMilestone(ctx, field)
+	case "cycle":
+		return ec.fieldContext_Issue_cycle(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Issue", field.Name)
 }
@@ -6699,6 +7007,20 @@ func (ec *executionContext) childFields_Team(ctx context.Context, field graphql.
 		return ec.fieldContext_Team_estimateAllowZero(ctx, field)
 	case "estimateExtended":
 		return ec.fieldContext_Team_estimateExtended(ctx, field)
+	case "cyclesEnabled":
+		return ec.fieldContext_Team_cyclesEnabled(ctx, field)
+	case "cycleDurationWeeks":
+		return ec.fieldContext_Team_cycleDurationWeeks(ctx, field)
+	case "cycleCooldownWeeks":
+		return ec.fieldContext_Team_cycleCooldownWeeks(ctx, field)
+	case "cycleStartDay":
+		return ec.fieldContext_Team_cycleStartDay(ctx, field)
+	case "cycleUpcomingCount":
+		return ec.fieldContext_Team_cycleUpcomingCount(ctx, field)
+	case "cycleAutoAddStarted":
+		return ec.fieldContext_Team_cycleAutoAddStarted(ctx, field)
+	case "cycleAutoAddCompleted":
+		return ec.fieldContext_Team_cycleAutoAddCompleted(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Team_createdAt(ctx, field)
 	case "updatedAt":
@@ -6717,6 +7039,8 @@ func (ec *executionContext) childFields_Team(ctx context.Context, field graphql.
 		return ec.fieldContext_Team_labels(ctx, field)
 	case "templates":
 		return ec.fieldContext_Team_templates(ctx, field)
+	case "cycles":
+		return ec.fieldContext_Team_cycles(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Team", field.Name)
 }
@@ -8561,6 +8885,20 @@ func (ec *executionContext) field_Mutation_updateProject_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateTeamCycles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateTeamCyclesInput, error) {
+			return ec.unmarshalNUpdateTeamCyclesInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamCyclesInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateTeamEstimates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8656,6 +8994,34 @@ func (ec *executionContext) field_Query_comments_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["issueId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_cycle_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_cycles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
 	return args, nil
 }
 
@@ -9845,6 +10211,337 @@ func (ec *executionContext) fieldContext_CommentPayload_comment(_ context.Contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Comment(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Cycle_id(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_workspaceId(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_teamId(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_teamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_number(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_number(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Number, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_name(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_description(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_startsAt(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_startsAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartsAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_startsAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_endsAt(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_endsAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndsAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_endsAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_completedAt(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_completedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_archivedAt(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_archivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_createdAt(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Cycle_updatedAt(ctx context.Context, field graphql.CollectedField, obj *Cycle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Cycle_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Cycle_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CyclePayload_version(ctx context.Context, field graphql.CollectedField, obj *CyclePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CyclePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CyclePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CyclePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CyclePayload_cycle(ctx context.Context, field graphql.CollectedField, obj *CyclePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CyclePayload_cycle(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cycle, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Cycle) graphql.Marshaler {
+			return ec.marshalNCycle2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycle(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CyclePayload_cycle(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CyclePayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cycle(ctx, field)
 		},
 	}
 	return fc, nil
@@ -11193,6 +11890,29 @@ func (ec *executionContext) fieldContext_Issue_projectMilestoneId(_ context.Cont
 	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type UUID does not have child fields"))
 }
 
+func (ec *executionContext) _Issue_cycleId(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Issue_cycleId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CycleID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Issue_cycleId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
 func (ec *executionContext) _Issue_startedAt(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11852,6 +12572,38 @@ func (ec *executionContext) fieldContext_Issue_projectMilestone(_ context.Contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ProjectMilestone(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Issue_cycle(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Issue_cycle(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cycle, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Cycle) graphql.Marshaler {
+			return ec.marshalOCycle2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycle(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Issue_cycle(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Issue",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cycle(ctx, field)
 		},
 	}
 	return fc, nil
@@ -14864,6 +15616,50 @@ func (ec *executionContext) fieldContext_Mutation_updateTeamEstimates(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateTeamEstimates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateTeamCycles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateTeamCycles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateTeamCycles(ctx, fc.Args["input"].(UpdateTeamCyclesInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *TeamPayload) graphql.Marshaler {
+			return ec.marshalNTeamPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateTeamCycles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TeamPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTeamCycles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -20023,6 +20819,94 @@ func (ec *executionContext) fieldContext_Query_projectStatuses(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_cycles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_cycles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Cycles(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []Cycle) graphql.Marshaler {
+			return ec.marshalNCycle2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_cycles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cycle(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_cycles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_cycle(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_cycle(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Cycle(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Cycle) graphql.Marshaler {
+			return ec.marshalOCycle2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycle(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_cycle(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cycle(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_cycle_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_notifications(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -20791,6 +21675,167 @@ func (ec *executionContext) fieldContext_Team_estimateExtended(_ context.Context
 	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _Team_cyclesEnabled(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_cyclesEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CyclesEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_cyclesEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Team_cycleDurationWeeks(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_cycleDurationWeeks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CycleDurationWeeks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_cycleDurationWeeks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Team_cycleCooldownWeeks(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_cycleCooldownWeeks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CycleCooldownWeeks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_cycleCooldownWeeks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Team_cycleStartDay(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_cycleStartDay(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CycleStartDay, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_cycleStartDay(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Team_cycleUpcomingCount(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_cycleUpcomingCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CycleUpcomingCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_cycleUpcomingCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Team_cycleAutoAddStarted(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_cycleAutoAddStarted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CycleAutoAddStarted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_cycleAutoAddStarted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Team_cycleAutoAddCompleted(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_cycleAutoAddCompleted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CycleAutoAddCompleted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_cycleAutoAddCompleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Team_createdAt(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -21038,6 +22083,38 @@ func (ec *executionContext) fieldContext_Team_templates(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_IssueTemplate(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Team_cycles(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_cycles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cycles, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []Cycle) graphql.Marshaler {
+			return ec.marshalNCycle2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_cycles(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Team",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cycle(ctx, field)
 		},
 	}
 	return fc, nil
@@ -24497,7 +25574,7 @@ func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "teamId", "title", "description", "stateId", "assigneeId", "priority", "estimate", "dueDate", "parentId", "labelIds", "templateId", "afterIssueId", "projectId", "projectMilestoneId"}
+	fieldsInOrder := [...]string{"id", "teamId", "title", "description", "stateId", "assigneeId", "priority", "estimate", "dueDate", "parentId", "labelIds", "templateId", "afterIssueId", "projectId", "projectMilestoneId", "cycleId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -24609,6 +25686,13 @@ func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, 
 				return it, err
 			}
 			it.ProjectMilestoneID = data
+		case "cycleId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cycleId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CycleID = data
 		}
 	}
 	return it, nil
@@ -25310,7 +26394,7 @@ func (ec *executionContext) unmarshalInputUpdateIssueInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "title", "description", "stateId", "priority", "assigneeId", "clearAssignee", "estimate", "clearEstimate", "dueDate", "clearDueDate", "parentId", "clearParent", "afterIssueId", "moveToTop", "afterSiblingId", "projectId", "clearProject", "projectMilestoneId", "clearMilestone"}
+	fieldsInOrder := [...]string{"id", "title", "description", "stateId", "priority", "assigneeId", "clearAssignee", "estimate", "clearEstimate", "dueDate", "clearDueDate", "parentId", "clearParent", "afterIssueId", "moveToTop", "afterSiblingId", "projectId", "clearProject", "projectMilestoneId", "clearMilestone", "cycleId", "clearCycle"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -25457,6 +26541,20 @@ func (ec *executionContext) unmarshalInputUpdateIssueInput(ctx context.Context, 
 				return it, err
 			}
 			it.ClearMilestone = data
+		case "cycleId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cycleId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CycleID = data
+		case "clearCycle":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearCycle"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearCycle = data
 		}
 	}
 	return it, nil
@@ -25903,6 +27001,85 @@ func (ec *executionContext) unmarshalInputUpdateProjectStatusInput(ctx context.C
 				return it, err
 			}
 			it.IsDefault = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateTeamCyclesInput(ctx context.Context, obj any) (UpdateTeamCyclesInput, error) {
+	var it UpdateTeamCyclesInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"teamId", "enabled", "durationWeeks", "cooldownWeeks", "startDay", "upcomingCount", "autoAddStarted", "autoAddCompleted"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		case "durationWeeks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("durationWeeks"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DurationWeeks = data
+		case "cooldownWeeks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cooldownWeeks"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CooldownWeeks = data
+		case "startDay":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startDay"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartDay = data
+		case "upcomingCount":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("upcomingCount"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpcomingCount = data
+		case "autoAddStarted":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoAddStarted"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoAddStarted = data
+		case "autoAddCompleted":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoAddCompleted"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoAddCompleted = data
 		}
 	}
 	return it, nil
@@ -26388,6 +27565,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._DeletePayload(ctx, sel, obj)
+	case CyclePayload:
+		return ec._CyclePayload(ctx, sel, &obj)
+	case *CyclePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._CyclePayload(ctx, sel, obj)
 	case CommentPayload:
 		return ec._CommentPayload(ctx, sel, &obj)
 	case *CommentPayload:
@@ -26842,6 +28026,142 @@ func (ec *executionContext) _CommentPayload(ctx context.Context, sel ast.Selecti
 			}
 		case "comment":
 			out.Values[i] = ec._CommentPayload_comment(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var cycleImplementors = []string{"Cycle"}
+
+func (ec *executionContext) _Cycle(ctx context.Context, sel ast.SelectionSet, obj *Cycle) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cycleImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Cycle")
+		case "id":
+			out.Values[i] = ec._Cycle_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._Cycle_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamId":
+			out.Values[i] = ec._Cycle_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "number":
+			out.Values[i] = ec._Cycle_number(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._Cycle_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._Cycle_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "startsAt":
+			out.Values[i] = ec._Cycle_startsAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endsAt":
+			out.Values[i] = ec._Cycle_endsAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completedAt":
+			out.Values[i] = ec._Cycle_completedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "archivedAt":
+			out.Values[i] = ec._Cycle_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Cycle_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Cycle_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var cyclePayloadImplementors = []string{"CyclePayload", "MutationResult"}
+
+func (ec *executionContext) _CyclePayload(ctx context.Context, sel ast.SelectionSet, obj *CyclePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cyclePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CyclePayload")
+		case "version":
+			out.Values[i] = ec._CyclePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cycle":
+			out.Values[i] = ec._CyclePayload_cycle(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -27366,6 +28686,11 @@ func (ec *executionContext) _Issue(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "cycleId":
+			out.Values[i] = ec._Issue_cycleId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "startedAt":
 			out.Values[i] = ec._Issue_startedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -27478,6 +28803,11 @@ func (ec *executionContext) _Issue(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "projectMilestone":
 			out.Values[i] = ec._Issue_projectMilestone(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "cycle":
+			out.Values[i] = ec._Issue_cycle(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -28459,6 +29789,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateTeamEstimates":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateTeamEstimates(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateTeamCycles":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTeamCycles(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -30232,6 +31569,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "cycles":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_cycles(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "cycle":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_cycle(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "notifications":
 			field := field
 
@@ -30589,6 +31970,41 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "cyclesEnabled":
+			out.Values[i] = ec._Team_cyclesEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cycleDurationWeeks":
+			out.Values[i] = ec._Team_cycleDurationWeeks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cycleCooldownWeeks":
+			out.Values[i] = ec._Team_cycleCooldownWeeks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cycleStartDay":
+			out.Values[i] = ec._Team_cycleStartDay(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cycleUpcomingCount":
+			out.Values[i] = ec._Team_cycleUpcomingCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cycleAutoAddStarted":
+			out.Values[i] = ec._Team_cycleAutoAddStarted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cycleAutoAddCompleted":
+			out.Values[i] = ec._Team_cycleAutoAddCompleted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createdAt":
 			out.Values[i] = ec._Team_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -30631,6 +32047,11 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "templates":
 			out.Values[i] = ec._Team_templates(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cycles":
+			out.Values[i] = ec._Team_cycles(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -32187,6 +33608,36 @@ func (ec *executionContext) unmarshalNCreateWorkflowStateInput2githubᚗcomᚋpe
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNCycle2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycle(ctx context.Context, sel ast.SelectionSet, v Cycle) graphql.Marshaler {
+	return ec._Cycle(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCycle2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleᚄ(ctx context.Context, sel ast.SelectionSet, v []Cycle) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCycle2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycle(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCycle2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycle(ctx context.Context, sel ast.SelectionSet, v *Cycle) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Cycle(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNDeletePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx context.Context, sel ast.SelectionSet, v DeletePayload) graphql.Marshaler {
 	return ec._DeletePayload(ctx, sel, &v)
 }
@@ -33226,6 +34677,11 @@ func (ec *executionContext) unmarshalNUpdateProjectStatusInput2githubᚗcomᚋpe
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateTeamCyclesInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamCyclesInput(ctx context.Context, v any) (UpdateTeamCyclesInput, error) {
+	res, err := ec.unmarshalInputUpdateTeamCyclesInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateTeamEstimatesInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamEstimatesInput(ctx context.Context, v any) (UpdateTeamEstimatesInput, error) {
 	res, err := ec.unmarshalInputUpdateTeamEstimatesInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -33683,6 +35139,13 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOCycle2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycle(ctx context.Context, sel ast.SelectionSet, v *Cycle) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Cycle(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {

@@ -27,6 +27,7 @@ import { useEngine } from '~/app/context';
 import {
   Badge,
   Button,
+  Checkbox,
   EmptyState,
   IconButton,
   Input,
@@ -34,6 +35,7 @@ import {
   StateIcon,
   STATE_LABELS,
 } from '~/components';
+import { updateTeamCycles } from '~/features/cycles/mutations';
 import {
   archiveStatus,
   createStatus,
@@ -59,6 +61,13 @@ interface TeamView {
   readonly id: UUID;
   readonly key: string;
   readonly name: string;
+  readonly cyclesEnabled: boolean;
+  readonly cycleDurationWeeks: number;
+  readonly cycleCooldownWeeks: number;
+  readonly cycleStartDay: string;
+  readonly cycleUpcomingCount: number;
+  readonly cycleAutoAddStarted: boolean;
+  readonly cycleAutoAddCompleted: boolean;
   readonly statuses: readonly StatusView[];
 }
 
@@ -142,6 +151,9 @@ export function TeamSettings() {
         <h1 className={styles.title}>{team.name}</h1>
         <Badge>{team.key}</Badge>
         <div className={styles.spacer} />
+        <Link className={styles.link} to={`/team/${team.key}/cycles`}>
+          Cycles
+        </Link>
         <Link className={styles.link} to={`/team/${team.key}`}>
           Back to issues
         </Link>
@@ -155,6 +167,8 @@ export function TeamSettings() {
         )}
 
         <TeamForm team={team} onSave={(fields) => run(updateTeam(engine, team.id, fields))} />
+
+        <CycleCadence team={team} onChange={(cadence) => run(updateTeamCycles(engine, team.id, cadence))} />
 
         <section className={styles.section} aria-labelledby="statuses-heading">
           <h2 className={styles.sectionTitle} id="statuses-heading">
@@ -250,6 +264,118 @@ function TeamForm({
       </div>
     </form>
   );
+}
+
+const START_DAYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const;
+
+/**
+ * The cadence, not a cycle editor.
+ *
+ * Enabling mints the current window and the upcoming ones; disabling completes the current
+ * and deletes the rest. Duration, cooldown and start day are four compact selects rather
+ * than a settings form, because this is a rhythm you set once and then forget.
+ */
+function CycleCadence({
+  team,
+  onChange,
+}: {
+  team: TeamView;
+  onChange: (cadence: Parameters<typeof updateTeamCycles>[2]) => void;
+}) {
+  return (
+    <section className={styles.section} aria-labelledby="cycles-heading">
+      <h2 className={styles.sectionTitle} id="cycles-heading">
+        Cycles
+      </h2>
+      <p className={styles.sectionHint}>
+        Dated windows that repeat. A cooldown is a gap, not a cycle — nothing can be filed
+        into it. Unfinished work rolls into the next window on its own.
+      </p>
+
+      <Checkbox
+        label="Run cycles"
+        checked={team.cyclesEnabled}
+        onChange={(event) => onChange({ enabled: event.target.checked })}
+      />
+
+      {team.cyclesEnabled ? (
+        <>
+          <div className={styles.cadence}>
+            <Select
+              label="Duration"
+              value={String(team.cycleDurationWeeks)}
+              onChange={(event) => onChange({ durationWeeks: Number(event.target.value) })}
+            >
+              {weeks(1, 8).map((n) => (
+                <option key={n} value={n}>
+                  {n === 1 ? '1 week' : `${n} weeks`}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Cooldown"
+              value={String(team.cycleCooldownWeeks)}
+              onChange={(event) => onChange({ cooldownWeeks: Number(event.target.value) })}
+            >
+              {weeks(0, 8).map((n) => (
+                <option key={n} value={n}>
+                  {n === 0 ? 'None' : n === 1 ? '1 week' : `${n} weeks`}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Starts on"
+              value={team.cycleStartDay}
+              onChange={(event) => onChange({ startDay: event.target.value })}
+            >
+              {START_DAYS.map((day) => (
+                <option key={day} value={day}>
+                  {day.slice(0, 1).toUpperCase() + day.slice(1)}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Upcoming"
+              value={String(team.cycleUpcomingCount)}
+              onChange={(event) => onChange({ upcomingCount: Number(event.target.value) })}
+            >
+              {weeks(1, 15).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className={styles.autoAdd}>
+            <Checkbox
+              label="Add started issues to the current cycle"
+              checked={team.cycleAutoAddStarted}
+              onChange={(event) => onChange({ autoAddStarted: event.target.checked })}
+            />
+            <Checkbox
+              label="Add completed issues to the current cycle"
+              checked={team.cycleAutoAddCompleted}
+              onChange={(event) => onChange({ autoAddCompleted: event.target.checked })}
+            />
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function weeks(from: number, to: number): number[] {
+  const out: number[] = [];
+  for (let n = from; n <= to; n++) out.push(n);
+  return out;
 }
 
 interface StatusRowProps {
@@ -449,5 +575,17 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     return a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
   });
 
-  return { id: team.id, key: team.key, name: team.name, statuses };
+  return {
+    id: team.id,
+    key: team.key,
+    name: team.name,
+    cyclesEnabled: team.cyclesEnabled,
+    cycleDurationWeeks: team.cycleDurationWeeks,
+    cycleCooldownWeeks: team.cycleCooldownWeeks,
+    cycleStartDay: team.cycleStartDay,
+    cycleUpcomingCount: team.cycleUpcomingCount,
+    cycleAutoAddStarted: team.cycleAutoAddStarted,
+    cycleAutoAddCompleted: team.cycleAutoAddCompleted,
+    statuses,
+  };
 }

@@ -17,6 +17,7 @@ import {
   issueIdentifier,
   type Change,
   type Comment,
+  type Cycle,
   type Entity,
   type EntityOf,
   type EntityType,
@@ -141,6 +142,7 @@ export class Store {
     projectTeam: new Map(),
     projectMember: new Map(),
     projectMilestone: new Map(),
+    cycle: new Map(),
     issue: new Map(),
     issueLabel: new Map(),
     issueRelation: new Map(),
@@ -186,6 +188,7 @@ export class Store {
   private readonly projectTeamOf = new SetIndex<UUID>();
   private readonly projectMemberOf = new SetIndex<UUID>();
   private readonly projectMilestoneOf = new SetIndex<UUID>();
+  private readonly cycleTeam = new SetIndex<UUID>();
   /** Keyed by user and view key together; see `preferenceKey`. */
   private readonly preferenceKeys = new Map<string, UUID>();
 
@@ -292,6 +295,10 @@ export class Store {
     return this.tables.projectMilestone as ReadonlyMap<UUID, ProjectMilestone>;
   }
 
+  get cycles(): ReadonlyMap<UUID, Cycle> {
+    return this.tables.cycle as ReadonlyMap<UUID, Cycle>;
+  }
+
   get issueLabels(): ReadonlyMap<UUID, IssueLabel> {
     return this.tables.issueLabel as ReadonlyMap<UUID, IssueLabel>;
   }
@@ -365,6 +372,10 @@ export class Store {
 
   projectMilestoneIdsFor(projectId: UUID): ReadonlySet<UUID> {
     return this.projectMilestoneOf.get(projectId);
+  }
+
+  cycleIdsFor(teamId: UUID): ReadonlySet<UUID> {
+    return this.cycleTeam.get(teamId);
   }
 
   /** `issueLabel` rows, when the application itself is needed rather than the label. */
@@ -669,6 +680,7 @@ export class Store {
     this.projectTeamOf.clear();
     this.projectMemberOf.clear();
     this.projectMilestoneOf.clear();
+    this.cycleTeam.clear();
     this.preferenceKeys.clear();
     this.currentVersion = 0;
     this.bootstrappedAt = null;
@@ -730,6 +742,9 @@ export class Store {
         }
         for (const viewId of [...this.viewTeam.get(id)]) {
           this.forget('view', viewId, deletes, touched);
+        }
+        for (const cycleId of [...this.cycleTeam.get(id)]) {
+          this.forget('cycle', cycleId, deletes, touched);
         }
         break;
       case 'project':
@@ -923,6 +938,15 @@ export class Store {
           next as ProjectMilestone,
         );
         break;
+      case 'cycle': {
+        const cycle = next as Cycle;
+        const before = previous as Cycle | undefined;
+        if (before !== undefined && before.teamId !== cycle.teamId) {
+          this.cycleTeam.remove(before.teamId, before.id);
+        }
+        this.cycleTeam.add(cycle.teamId, cycle.id);
+        break;
+      }
       default:
         break;
     }
@@ -993,6 +1017,11 @@ export class Store {
       case 'projectMilestone':
         this.unfileByProject(this.projectMilestoneOf, entity as ProjectMilestone);
         break;
+      case 'cycle': {
+        const cycle = entity as Cycle;
+        this.cycleTeam.remove(cycle.teamId, cycle.id);
+        break;
+      }
       default:
         break;
     }

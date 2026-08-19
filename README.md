@@ -8,21 +8,22 @@ job is to keep that replica true.
 The repository holds a **complete functional scope** — the features, how they depend on each
 other, what the data model has to look like, what the integrations do, what the API surface
 is — and the implementation of it, currently through **Milestone 1** plus **Projects v1**
-(the first slice of Milestone 2).
+and **Cycles v1** (the first slices of Milestone 2).
 
 ## What runs today
 
-Backend and web client are both complete through Milestone 1 and tested end to end, in the browser as well as in unit tests. Projects v1 is on the same visual system as the rest of the web app (dense list/detail, compact pickers, command menu). The desktop shell packages and runs on macOS, Windows and Linux.
+Backend and web client are both complete through Milestone 1 and tested end to end, in the browser as well as in unit tests. Projects v1 and Cycles v1 sit on the same visual system as the rest of the web app (dense list/detail, compact pickers, command menu). The desktop shell packages and runs on macOS, Windows and Linux.
 
 | Working | |
 |---|---|
-| Schema | 24 migrations, including projects, statuses, teams, members and milestones; monthly-partitioned change log, UUIDv7 |
+| Schema | 25 migrations, including cycles, projects, statuses, teams, members and milestones; monthly-partitioned change log, UUIDv7 |
 | Sync engine | Gapless per-workspace versions, NDJSON bootstrap, WebSocket hub, resume, revoke, backpressure |
 | API | GraphQL over the whole domain, one contract in `schema/schema.graphql`, complexity scored by the published model |
 | Auth | Argon2id, rotating refresh tokens, HttpOnly cookies, invitations |
-| Client store | IndexedDB replica (schema 4), in-memory indexes, durable outbox, optimistic mutations |
+| Client store | IndexedDB replica (schema 5), in-memory indexes, durable outbox, optimistic mutations |
 | Keyboard | One registry; the command menu and help overlay are views over it |
 | Projects | Workspace and team lists, project issue view, `Shift+P` picker, `C` files into the open project |
+| Cycles | Team cadence, auto-created windows, rollover and auto-add, `G C` / `Shift+C`, `C` files into the open cycle |
 | Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |
 | Desktop | Electron shell for macOS, Windows and Linux; per-architecture builds, auto-update, deep links |
 | Notifications | Inbox, unread badge, subscriptions, coalescing fan-out, digest email |
@@ -36,7 +37,7 @@ make seed        # a realistic workspace
 make api         # and, in other terminals: make sync, make web
 ```
 
-See [`docs/07-milestones/00-milestone-0.md`](docs/07-milestones/00-milestone-0.md), [`01-milestone-1.md`](docs/07-milestones/01-milestone-1.md) and [`02-milestone-2.md`](docs/07-milestones/02-milestone-2.md) for the scope freezes and the acceptance tests that define done. Each of the M1 ten names the test that proves it, and `services/internal/acceptance/m1_test.go` fails if one loses its proof.
+See [`docs/07-milestones/00-milestone-0.md`](docs/07-milestones/00-milestone-0.md), [`01-milestone-1.md`](docs/07-milestones/01-milestone-1.md), [`02-milestone-2.md`](docs/07-milestones/02-milestone-2.md) and [`03-cycles.md`](docs/07-milestones/03-cycles.md) for the scope freezes and the acceptance tests that define done. Each of the M1 ten names the test that proves it, and `services/internal/acceptance/m1_test.go` fails if one loses its proof.
 
 ## Where the requirements came from
 

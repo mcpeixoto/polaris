@@ -25,6 +25,8 @@ import { MyIssues } from '~/views/MyIssues';
 import { NotificationSettings } from '~/views/NotificationSettings';
 import { ProjectDetail } from '~/views/ProjectDetail';
 import { Projects } from '~/views/Projects';
+import { CycleDetail } from '~/views/CycleDetail';
+import { Cycles } from '~/views/Cycles';
 import { SavedView } from '~/views/SavedView';
 import { Search } from '~/views/Search';
 import { Templates } from '~/views/Templates';
@@ -86,9 +88,11 @@ export function App() {
               <Route path="/view/:viewId" element={<SavedView />} />
               <Route path="/team/:teamKey" element={<IssueList />} />
               <Route path="/team/:teamKey/projects" element={<Projects />} />
+              <Route path="/team/:teamKey/cycles" element={<Cycles />} />
               <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
               <Route path="/issue/:identifier" element={<IssueDetail />} />
               <Route path="/project/:projectId" element={<ProjectDetail />} />
+              <Route path="/cycle/:cycleId" element={<CycleDetail />} />
               <Route path="/settings/members" element={<MemberSettings />} />
               <Route path="/settings/labels" element={<LabelSettings />} />
               <Route path="/settings/notifications" element={<NotificationSettings />} />

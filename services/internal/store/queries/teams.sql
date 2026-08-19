@@ -15,13 +15,17 @@ VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(key), sqlc.arg(name),
 RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           parent_team_id, private, issue_counter, settings,
           retired_at, archived_at, deleted_at, created_at, updated_at,
-          estimate_scale, estimate_allow_zero, estimate_extended;
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed;
 
 -- name: GetTeam :one
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,
        retired_at, archived_at, deleted_at, created_at, updated_at,
-       estimate_scale, estimate_allow_zero, estimate_extended
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
 FROM team
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -29,7 +33,9 @@ WHERE id = $1 AND deleted_at IS NULL;
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,
        retired_at, archived_at, deleted_at, created_at, updated_at,
-       estimate_scale, estimate_allow_zero, estimate_extended
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
 FROM team
 WHERE workspace_id = sqlc.arg(workspace_id) AND key = sqlc.arg(key) AND deleted_at IS NULL;
 
@@ -37,7 +43,9 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND key = sqlc.arg(key) AND deleted_
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
        parent_team_id, private, issue_counter, settings,
        retired_at, archived_at, deleted_at, created_at, updated_at,
-       estimate_scale, estimate_allow_zero, estimate_extended
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
 FROM team
 WHERE workspace_id = $1 AND deleted_at IS NULL
 ORDER BY key;
@@ -71,7 +79,9 @@ WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           parent_team_id, private, issue_counter, settings,
           retired_at, archived_at, deleted_at, created_at, updated_at,
-          estimate_scale, estimate_allow_zero, estimate_extended;
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed;
 
 -- UpdateTeamEstimates is separate from UpdateTeam because the three settings are one
 -- decision: allow_zero and extended only mean anything relative to a scale, and letting a
@@ -87,7 +97,9 @@ WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           parent_team_id, private, issue_counter, settings,
           retired_at, archived_at, deleted_at, created_at, updated_at,
-          estimate_scale, estimate_allow_zero, estimate_extended;
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed;
 
 -- AllocateIssueNumber takes a row lock on the team for the rest of the transaction.
 --
@@ -152,3 +164,37 @@ WHERE workspace_id = $1;
 SELECT EXISTS (
   SELECT 1 FROM team_membership WHERE team_id = sqlc.arg(team_id) AND user_id = sqlc.arg(user_id)
 );
+
+-- UpdateTeamCycles is the cadence, kept apart from UpdateTeam for the same reason
+-- estimates are: enabling, duration, cooldown, start day and upcoming count are one
+-- decision, and a partial write that turns cycles on without a duration would leave a
+-- team in a state the CHECKs allow and the product does not.
+
+-- name: UpdateTeamCycles :one
+UPDATE team
+SET cycles_enabled            = COALESCE(sqlc.narg(cycles_enabled), cycles_enabled),
+    cycle_duration_weeks      = COALESCE(sqlc.narg(cycle_duration_weeks), cycle_duration_weeks),
+    cycle_cooldown_weeks      = COALESCE(sqlc.narg(cycle_cooldown_weeks), cycle_cooldown_weeks),
+    cycle_start_day           = COALESCE(sqlc.narg(cycle_start_day), cycle_start_day),
+    cycle_upcoming_count      = COALESCE(sqlc.narg(cycle_upcoming_count), cycle_upcoming_count),
+    cycle_auto_add_started    = COALESCE(sqlc.narg(cycle_auto_add_started), cycle_auto_add_started),
+    cycle_auto_add_completed  = COALESCE(sqlc.narg(cycle_auto_add_completed), cycle_auto_add_completed)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed;
+
+-- name: ListTeamsWithCyclesEnabled :many
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
+FROM team
+WHERE cycles_enabled AND deleted_at IS NULL AND archived_at IS NULL AND retired_at IS NULL
+ORDER BY workspace_id, key;
+

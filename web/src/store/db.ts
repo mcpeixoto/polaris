@@ -5,6 +5,7 @@ import type { OutboxRecord } from './outbox';
 import {
   ENTITY_TYPES,
   type Comment,
+  type Cycle,
   type Entity,
   type EntityOf,
   type EntityType,
@@ -63,8 +64,10 @@ import {
  *
  * v4 adds projects, their statuses, teams, members and milestones, and the two columns
  * on an issue that point at them.
+ *
+ * v5 adds cycles, team cadence fields, and issue.cycleId.
  */
-export const CLIENT_SCHEMA = 4;
+export const CLIENT_SCHEMA = 5;
 
 /**
  * One database per workspace per schema version.
@@ -146,6 +149,7 @@ interface PolarisSchema extends DBSchema {
   projectTeam: { key: UUID; value: ProjectTeam };
   projectMember: { key: UUID; value: ProjectMember };
   projectMilestone: { key: UUID; value: ProjectMilestone };
+  cycle: { key: UUID; value: Cycle };
   issue: { key: UUID; value: Issue };
   issueLabel: { key: UUID; value: IssueLabel };
   issueRelation: { key: UUID; value: IssueRelation };

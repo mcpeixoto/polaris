@@ -226,6 +226,19 @@ type Team {
   """Extends the scale's top end."""
   estimateExtended: Boolean!
 
+  """Off by default. Turning it on creates the current cycle and the configured upcoming ones."""
+  cyclesEnabled: Boolean!
+  """1–8 weeks."""
+  cycleDurationWeeks: Int!
+  """Gap after each cycle, 0–8 weeks. A cooldown is not a cycle; issues cannot be assigned to it."""
+  cycleCooldownWeeks: Int!
+  """Weekday the cycle begins at 00:01 in the team's timezone: monday…sunday."""
+  cycleStartDay: String!
+  """How many future cycles to keep pre-created, 1–15."""
+  cycleUpcomingCount: Int!
+  cycleAutoAddStarted: Boolean!
+  cycleAutoAddCompleted: Boolean!
+
   createdAt: Time!
   updatedAt: Time!
   retiredAt: Time
@@ -236,6 +249,7 @@ type Team {
   issues: [Issue!]!
   labels: [Label!]!
   templates: [IssueTemplate!]!
+  cycles: [Cycle!]!
 }
 
 type TeamMembership {
@@ -244,6 +258,24 @@ type TeamMembership {
   teamId: UUID!
   userId: UUID!
   role: TeamRole!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
+A dated window on one team. Cooldown is a gap between cycles, not a row of this type.
+"""
+type Cycle {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  number: Int!
+  name: String!
+  description: String
+  startsAt: Time!
+  endsAt: Time!
+  completedAt: Time
+  archivedAt: Time
   createdAt: Time!
   updatedAt: Time!
 }
@@ -305,6 +337,8 @@ type Issue {
   projectId: UUID
   """A milestone implies its project."""
   projectMilestoneId: UUID
+  """At most one cycle, and it has to belong to the issue's team."""
+  cycleId: UUID
 
   startedAt: Time
   completedAt: Time
@@ -344,6 +378,7 @@ type Issue {
   subscribers: [IssueSubscription!]!
   project: Project
   projectMilestone: ProjectMilestone
+  cycle: Cycle
 }
 
 """Sub-issue completion, rolled up. Counts direct children only; a deep tree would make a list view walk the whole graph per row."""
@@ -665,6 +700,11 @@ type WorkspacePayload implements MutationResult {
 type TeamMembershipPayload implements MutationResult {
   version: Int!
   membership: TeamMembership!
+}
+
+type CyclePayload implements MutationResult {
+  version: Int!
+  cycle: Cycle!
 }
 
 type DeletePayload implements MutationResult {
@@ -1016,6 +1056,7 @@ input CreateIssueInput {
   afterIssueId: UUID
   projectId: UUID
   projectMilestoneId: UUID
+  cycleId: UUID
 }
 
 input UpdateIssueInput {
@@ -1045,6 +1086,8 @@ input UpdateIssueInput {
   clearProject: Boolean
   projectMilestoneId: UUID
   clearMilestone: Boolean
+  cycleId: UUID
+  clearCycle: Boolean
 }
 
 """
@@ -1137,6 +1180,17 @@ input UpdateTeamEstimatesInput {
   scale: EstimateScale!
   allowZero: Boolean
   extended: Boolean
+}
+
+input UpdateTeamCyclesInput {
+  teamId: UUID!
+  enabled: Boolean
+  durationWeeks: Int
+  cooldownWeeks: Int
+  startDay: String
+  upcomingCount: Int
+  autoAddStarted: Boolean
+  autoAddCompleted: Boolean
 }
 
 input InviteInput {
@@ -1276,6 +1330,9 @@ type Query {
   project(id: UUID!): Project
   projectStatuses: [ProjectStatus!]!
 
+  cycles(teamId: UUID!): [Cycle!]!
+  cycle(id: UUID!): Cycle
+
   """The caller's inbox. Snoozed rows are excluded until they wake unless includeSnoozed."""
   notifications(includeRead: Boolean, includeSnoozed: Boolean, first: Int): [Notification!]!
   unreadNotificationCount: Int!
@@ -1360,6 +1417,7 @@ type Mutation {
   purgeDeletedIssues(before: Time): PurgePayload!
 
   updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
+  updateTeamCycles(input: UpdateTeamCyclesInput!): TeamPayload!
 
   # ---- labels
 

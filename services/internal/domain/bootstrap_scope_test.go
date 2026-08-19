@@ -127,6 +127,13 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		t.Fatalf("create the milestone: %v", err)
 	}
 
+	on := true
+	if _, _, err := svc.UpdateTeamCycles(ctx, s.alice, domain.UpdateTeamCyclesInput{
+		TeamID: f.TeamID, Enabled: &on,
+	}); err != nil {
+		t.Fatalf("enable cycles: %v", err)
+	}
+
 	view := func(in domain.CreateViewInput) uuid.UUID {
 		row, _, err := svc.CreateView(ctx, s.alice, in)
 		if err != nil {

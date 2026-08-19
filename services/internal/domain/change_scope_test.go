@@ -237,6 +237,13 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 		t.Fatalf("projectMilestone: %v", err)
 	}
 
+	on := true
+	if _, _, err := svc.UpdateTeamCycles(ctx, p, domain.UpdateTeamCyclesInput{
+		TeamID: f.TeamID, Enabled: &on,
+	}); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
 	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
 		TeamID: f.TeamID, Title: "The scoped one",
 	})

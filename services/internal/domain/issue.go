@@ -85,6 +85,10 @@ type CreateIssueInput struct {
 	ProjectID *uuid.UUID
 	// ProjectMilestoneID requires the issue to also be in that milestone's project.
 	ProjectMilestoneID *uuid.UUID
+	// CycleID places the issue in a cycle. An issue belongs to at most one, and it has
+	// to be a cycle of the same team — a cooldown is not a cycle, so there is nothing
+	// here that would file into the gap.
+	CycleID *uuid.UUID
 }
 
 // issueIDFor returns the id a new issue should take, honouring a client's choice.
@@ -167,6 +171,10 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			return err
 		}
 
+		if err := validateIssueCycle(ctx, q, in.TeamID, in.CycleID); err != nil {
+			return err
+		}
+
 		// Takes a row lock on the team for the rest of the transaction, so two
 		// simultaneous creations cannot claim the same number.
 		number, err := q.AllocateIssueNumber(ctx, in.TeamID)
@@ -216,6 +224,7 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			TemplateID:        in.TemplateID,
 			ProjectID:         in.ProjectID,
 			ProjectMilestoneID: in.ProjectMilestoneID,
+			CycleID:           in.CycleID,
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -375,6 +384,9 @@ type UpdateIssueInput struct {
 	ClearProject   bool
 	ProjectMilestoneID *uuid.UUID
 	ClearMilestone bool
+
+	CycleID    *uuid.UUID
+	ClearCycle bool
 }
 
 // UpdateIssue applies a partial update, derives the category timestamps, and records both
@@ -417,6 +429,9 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 	if in.ProjectMilestoneID != nil && in.ClearMilestone {
 		return model.Issue{}, 0, platform.Validation("projectMilestoneId", "cannot set and clear the milestone in one call")
 	}
+	if in.CycleID != nil && in.ClearCycle {
+		return model.Issue{}, 0, platform.Validation("cycleId", "cannot set and clear the cycle in one call")
+	}
 	if in.AfterSiblingID != nil && in.ClearParent {
 		// A place among siblings the issue is about to stop having. Refusing says which of
 		// the two the caller has to drop; applying one and ignoring the other would leave
@@ -448,6 +463,10 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 
 		team, err := s.requireTeamAccess(ctx, q, p, before.TeamID, authz.ActionIssueUpdate)
 		if err != nil {
+			return err
+		}
+
+		if err := validateIssueCycle(ctx, q, before.TeamID, in.CycleID); err != nil {
 			return err
 		}
 
@@ -668,6 +687,8 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			ClearProject:      in.ClearProject,
 			ProjectMilestoneID: in.ProjectMilestoneID,
 			ClearMilestone:    in.ClearMilestone,
+			CycleID:           in.CycleID,
+			ClearCycle:        in.ClearCycle,
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -1159,6 +1180,12 @@ func mapParentTriggerError(err error) error {
 		return platform.Internal(err)
 	}
 	msg := err.Error()
+	if strings.Contains(msg, "cycle") && strings.Contains(msg, "does not exist") {
+		return platform.Validation("cycleId", "no such cycle")
+	}
+	if strings.Contains(msg, "does not belong to team") {
+		return platform.Validation("cycleId", "that cycle belongs to another team")
+	}
 	if strings.Contains(msg, "milestone requires a project") || strings.Contains(msg, "does not belong to project") {
 		return platform.Validation("projectMilestoneId",
 			"a milestone has to belong to the issue's project")

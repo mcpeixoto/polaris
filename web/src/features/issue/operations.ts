@@ -36,6 +36,7 @@ export const SUB_ISSUE_FIELDS = /* GraphQL */ `
     templateId
     projectId
     projectMilestoneId
+    cycleId
     startedAt
     completedAt
     canceledAt

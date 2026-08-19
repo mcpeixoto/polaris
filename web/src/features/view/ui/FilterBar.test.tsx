@@ -42,6 +42,13 @@ function team(): Team {
     estimateScale: 'none',
     estimateAllowZero: false,
     estimateExtended: false,
+    cyclesEnabled: false,
+    cycleDurationWeeks: 1,
+    cycleCooldownWeeks: 0,
+    cycleStartDay: 'monday',
+    cycleUpcomingCount: 2,
+    cycleAutoAddStarted: false,
+    cycleAutoAddCompleted: false,
     createdAt: AT,
     updatedAt: AT,
   };

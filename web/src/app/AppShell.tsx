@@ -51,12 +51,15 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
     pathname === '/projects' ||
     pathname.startsWith('/project/') ||
     /\/team\/[^/]+\/projects(?:\/|$)/.test(pathname);
+  const onCycles =
+    pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
 
   const teams = useQuery(
     (store) => [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key)),
     ['team'],
   );
   const workspace = useQuery((store) => [...store.workspaces.values()][0], ['workspace']);
+  const cyclesPath = useQuery((store) => pathToCycles(store), ['team', 'cycle']);
 
   const viewerId = useViewerId();
   const favorites = useLiveQuery(
@@ -156,13 +159,20 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
         run: () => navigate('/projects'),
       },
       {
+        id: 'nav.cycles',
+        title: 'Go to current cycle',
+        keys: ['g c'],
+        group: 'Navigation',
+        run: () => navigate(cyclesPath),
+      },
+      {
         id: 'nav.trash',
         title: 'Go to trash',
         group: 'Navigation',
         run: () => navigate('/settings/trash'),
       },
     ],
-    [navigate, closeAll],
+    [navigate, closeAll, cyclesPath],
   );
 
   return (
@@ -192,6 +202,10 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
           <NavLink to="/projects" className={() => navClass({ isActive: onProjects })}>
             <NavGlyph name="project" />
             <span className={styles.navLabel}>Projects</span>
+          </NavLink>
+          <NavLink to={cyclesPath} className={() => navClass({ isActive: onCycles })}>
+            <NavGlyph name="cycle" />
+            <span className={styles.navLabel}>Cycles</span>
           </NavLink>
         </div>
 
@@ -284,6 +298,7 @@ type NavGlyphName =
   | 'inbox'
   | 'search'
   | 'project'
+  | 'cycle'
   | 'view'
   | 'members'
   | 'labels'
@@ -344,6 +359,13 @@ function glyphPath(name: NavGlyphName) {
             <path d="M8 8v5.5M2.5 6 8 8l5.5-2" {...stroke} />
           </>
         );
+      case 'cycle':
+        return (
+          <>
+            <circle cx="8" cy="8" r="5.25" {...stroke} />
+            <path d="M8 5.25V8l2 1.5" {...stroke} />
+          </>
+        );
     case 'view':
       return (
         <>
@@ -394,6 +416,29 @@ function glyphPath(name: NavGlyphName) {
         </>
       );
   }
+}
+
+/**
+ * Where `G C` should land: the current cycle of the first team that runs them, else that
+ * team's cycles page, else the first team's cycles page. Cycles are team-scoped; there is
+ * no workspace-wide list to invent.
+ */
+function pathToCycles(store: Store): string {
+  const now = Date.now();
+  const teams = [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key));
+  const withCadence = teams.find((team) => team.cyclesEnabled) ?? teams[0];
+  if (withCadence === undefined) return '/';
+
+  if (withCadence.cyclesEnabled) {
+    for (const id of store.cycleIdsFor(withCadence.id)) {
+      const cycle = store.cycles.get(id);
+      if (cycle === undefined || cycle.archivedAt !== undefined) continue;
+      const start = Date.parse(cycle.startsAt);
+      const end = Date.parse(cycle.endsAt);
+      if (start <= now && now < end) return `/cycle/${cycle.id}`;
+    }
+  }
+  return `/team/${withCadence.key}/cycles`;
 }
 
 /**

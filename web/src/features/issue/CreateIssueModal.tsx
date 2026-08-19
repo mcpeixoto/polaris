@@ -15,7 +15,7 @@
  * it tabs, it types ahead, it opens as a wheel on a phone, and it needs no focus trap of
  * its own inside a dialog that already has one.
  *
- * Project (and template) stay Menu pickers: ranking and typeahead are the whole point of
+ * Project, cycle and template stay Menu pickers: ranking and typeahead are the whole point of
  * those lists, and a native select cannot do either.
  */
 
@@ -42,6 +42,7 @@ import { createIssue } from './mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { templateDefaults, type TemplateDefaults } from '~/features/templates/mutations';
 import { TemplatePicker } from '~/features/templates/TemplatePicker';
+import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import type { IssueTemplate } from '~/store';
 import styles from './CreateIssueModal.module.css';
@@ -71,7 +72,12 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
     (store) =>
       [...store.teams.values()]
         .filter((team) => team.archivedAt === undefined && team.retiredAt === undefined)
-        .map((team) => ({ id: team.id, key: team.key, name: team.name }))
+        .map((team) => ({
+          id: team.id,
+          key: team.key,
+          name: team.name,
+          cyclesEnabled: team.cyclesEnabled,
+        }))
         .sort((a, b) => a.key.localeCompare(b.key)),
     ['team'],
   );
@@ -93,6 +99,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   const [priority, setPriority] = useState(0);
   // `undefined` means inherit from `/project/:id`; `null` means the filer cleared it.
   const [projectId, setProjectId] = useState<UUID | null | undefined>(undefined);
+  const [cycleId, setCycleId] = useState<UUID | null | undefined>(undefined);
   const [template, setTemplate] = useState<TemplateDefaults | null>(null);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -103,6 +110,12 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   // here would answer for a route that has not matched.
   const fromPath = useTeamKeyInPath();
   const fromProjectPath = useProjectIdInPath();
+  const fromCyclePath = useCycleIdInPath();
+  const cycleFromPath = useLiveQuery(
+    (store) => (fromCyclePath === null ? null : (store.cycles.get(fromCyclePath) ?? null)),
+    ['cycle'],
+    [fromCyclePath ?? ''],
+  );
 
   /**
    * The team the issue will belong to.
@@ -113,13 +126,21 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
    */
   const teamId = useMemo(() => {
     if (chosenTeam !== null && teams.some((team) => team.id === chosenTeam)) return chosenTeam;
-    return teams.find((team) => team.key === fromPath)?.id ?? teams[0]?.id ?? '';
-  }, [chosenTeam, teams, fromPath]);
+    const fromKey = teams.find((team) => team.key === fromPath)?.id;
+    if (fromKey !== undefined) return fromKey;
+    if (cycleFromPath !== null && teams.some((team) => team.id === cycleFromPath.teamId)) {
+      return cycleFromPath.teamId;
+    }
+    return teams[0]?.id ?? '';
+  }, [chosenTeam, teams, fromPath, cycleFromPath]);
 
   const resolvedProjectId = projectId === undefined ? fromProjectPath : projectId;
+  const resolvedCycleId = cycleId === undefined ? fromCyclePath : cycleId;
+  const teamRunsCycles = teams.find((team) => team.id === teamId)?.cyclesEnabled === true;
 
   const templateMenu = useMenuTrigger();
   const projectMenu = useMenuTrigger();
+  const cycleMenu = useMenuTrigger();
 
   const templateName = useLiveQuery(
     (store) =>
@@ -133,6 +154,13 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
       resolvedProjectId === null ? null : (store.projects.get(resolvedProjectId)?.name ?? null),
     ['project'],
     [resolvedProjectId ?? ''],
+  );
+
+  const cycleName = useLiveQuery(
+    (store) =>
+      resolvedCycleId === null ? null : (store.cycles.get(resolvedCycleId)?.name ?? null),
+    ['cycle'],
+    [resolvedCycleId ?? ''],
   );
 
   /**
@@ -216,6 +244,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         assigneeId: assigneeId === UNASSIGNED ? undefined : assigneeId,
         priority,
         ...(resolvedProjectId === null ? null : { projectId: resolvedProjectId }),
+        ...(resolvedCycleId === null || !teamRunsCycles ? null : { cycleId: resolvedCycleId }),
         // The template's own contributions, carried on the create rather than applied
         // afterwards: three follow-up writes for one filed issue would be three versions on
         // the stream and three frames in which the issue is not yet what the template says
@@ -323,6 +352,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
             onChange={(event) => {
               setChosenTeam(event.target.value);
               setChosenState(null);
+              setCycleId(null);
               // The offering is team-scoped, so a template chosen for one team is not a
               // template in another. Cleared rather than re-resolved: the prefilled title and
               // description are the filer's text now, and silently rewriting what they are
@@ -396,6 +426,22 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
             </Button>
           </div>
 
+          {teamRunsCycles ? (
+            <div className={styles.template}>
+              <span className={styles.templateLabel} id={`${formId}-cycle`}>
+                Cycle
+              </span>
+              <Button
+                {...cycleMenu.props}
+                variant="ghost"
+                fullWidth
+                aria-describedby={`${formId}-cycle`}
+              >
+                {cycleName ?? 'No cycle'}
+              </Button>
+            </div>
+          ) : null}
+
           <div className={styles.template}>
             <span className={styles.templateLabel} id={`${formId}-template`}>
               Template
@@ -438,6 +484,14 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         value={resolvedProjectId}
         onSelect={setProjectId}
       />
+      <CyclePicker
+        open={cycleMenu.open}
+        onClose={cycleMenu.hide}
+        trigger={cycleMenu.ref}
+        teamId={teamId === '' ? undefined : teamId}
+        value={resolvedCycleId}
+        onSelect={setCycleId}
+      />
       <TemplatePicker
         open={templateMenu.open}
         onClose={templateMenu.hide}
@@ -458,6 +512,11 @@ function useTeamKeyInPath(): string | null {
 function useProjectIdInPath(): UUID | null {
   const { pathname } = useLocation();
   return useMemo(() => /^\/project\/([^/]+)/.exec(pathname)?.[1] ?? null, [pathname]);
+}
+
+function useCycleIdInPath(): UUID | null {
+  const { pathname } = useLocation();
+  return useMemo(() => /^\/cycle\/([^/]+)/.exec(pathname)?.[1] ?? null, [pathname]);
 }
 
 /**

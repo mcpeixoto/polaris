@@ -113,6 +113,21 @@ type Comment struct {
 	UpdatedAt   time.Time
 }
 
+type Cycle struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      uuid.UUID
+	Number      int32
+	Name        string
+	Description *string
+	StartsAt    time.Time
+	EndsAt      time.Time
+	CompletedAt *time.Time
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Favorite struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
@@ -179,6 +194,7 @@ type Issue struct {
 	DeletedBy          *uuid.UUID
 	ProjectID          *uuid.UUID
 	ProjectMilestoneID *uuid.UUID
+	CycleID            *uuid.UUID
 }
 
 type IssueHistory struct {
@@ -360,26 +376,33 @@ type ProjectTeam struct {
 }
 
 type Team struct {
-	ID                uuid.UUID
-	WorkspaceID       uuid.UUID
-	Key               string
-	Name              string
-	Description       *string
-	Icon              *string
-	Color             *string
-	Timezone          string
-	ParentTeamID      *uuid.UUID
-	Private           bool
-	IssueCounter      int64
-	Settings          json.RawMessage
-	RetiredAt         *time.Time
-	ArchivedAt        *time.Time
-	DeletedAt         *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	EstimateScale     string
-	EstimateAllowZero bool
-	EstimateExtended  bool
+	ID                    uuid.UUID
+	WorkspaceID           uuid.UUID
+	Key                   string
+	Name                  string
+	Description           *string
+	Icon                  *string
+	Color                 *string
+	Timezone              string
+	ParentTeamID          *uuid.UUID
+	Private               bool
+	IssueCounter          int64
+	Settings              json.RawMessage
+	RetiredAt             *time.Time
+	ArchivedAt            *time.Time
+	DeletedAt             *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	EstimateScale         string
+	EstimateAllowZero     bool
+	EstimateExtended      bool
+	CyclesEnabled         bool
+	CycleDurationWeeks    int16
+	CycleCooldownWeeks    int16
+	CycleStartDay         string
+	CycleUpcomingCount    int16
+	CycleAutoAddStarted   bool
+	CycleAutoAddCompleted bool
 }
 
 type TeamMembership struct {
