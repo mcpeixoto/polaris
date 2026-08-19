@@ -88,7 +88,8 @@
     { "id": "01900000-0000-7000-8000-0000000000c1", "teamId": "01900000-0000-7000-8000-0000000000b1", "name": "Todo",  "category": "unstarted", "position": "a0", "isDefault": true },
     { "id": "01900000-0000-7000-8000-0000000000c2", "teamId": "01900000-0000-7000-8000-0000000000b1", "name": "Doing", "category": "started",   "position": "a1", "isDefault": false },
     { "id": "01900000-0000-7000-8000-0000000000c3", "teamId": "01900000-0000-7000-8000-0000000000b1", "name": "Done",  "category": "completed", "position": "a2", "isDefault": false },
-    { "id": "01900000-0000-7000-8000-0000000000c4", "teamId": "01900000-0000-7000-8000-0000000000b2", "name": "Todo",  "category": "unstarted", "position": "a0", "isDefault": true }
+    { "id": "01900000-0000-7000-8000-0000000000c4", "teamId": "01900000-0000-7000-8000-0000000000b2", "name": "Todo",  "category": "unstarted", "position": "a0", "isDefault": true },
+    { "id": "01900000-0000-7000-8000-0000000000c5", "teamId": "01900000-0000-7000-8000-0000000000b1", "name": "Triage", "category": "triage", "position": "a0", "isDefault": false }
   ],
 
   "labels": [
@@ -191,6 +192,18 @@
       "labelIds": [],
       "deletedAt": "2026-08-14T09:00:00Z",
       "createdAt": "2026-08-03T09:00:00Z", "updatedAt": "2026-08-14T09:00:00Z"
+    },
+    {
+      "$comment": "Triage. Excluded from every case that does not mention state or stateCategory.",
+      "id": "01900000-0000-7000-8000-0000000000e8",
+      "teamId": "01900000-0000-7000-8000-0000000000b1", "number": 7,
+      "title": "Unreviewed intake", "description": "",
+      "stateId": "01900000-0000-7000-8000-0000000000c5",
+      "creatorId": "01900000-0000-7000-8000-0000000000a1",
+      "priority": 0,
+      "sortOrder": "a7",
+      "labelIds": [],
+      "createdAt": "2026-08-14T10:00:00Z", "updatedAt": "2026-08-14T10:00:00Z"
     }
   ],
 
@@ -224,6 +237,11 @@
       "name": "the column default matches everything live",
       "filter": {},
       "expect": ["e1", "e2", "e3", "e4", "e5"]
+    },
+    {
+      "name": "naming stateCategory triage is how a view includes the inbox",
+      "filter": { "field": "stateCategory", "op": "eq", "values": ["triage"] },
+      "expect": ["e8"]
     },
     {
       "name": "an AND over nothing is vacuously true",

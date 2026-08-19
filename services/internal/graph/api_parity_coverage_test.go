@@ -149,10 +149,7 @@ func TestAPIParity_TheVerbListDoesNotSilentlySkipWrites(t *testing.T) {
 	// Writes that reach the public API only because somebody also wrote the schema field
 	// by hand. Every one of these is exposed today; none is checked by the parity test.
 	known := map[string]bool{
-		"BulkUpdateIssues":         true,
-		"MarkNotificationRead":     true,
-		"MarkAllNotificationsRead": true,
-		"SnoozeNotification":       true,
+		"BulkUpdateIssues": true,
 	}
 
 	svcType := reflect.TypeOf(&domain.Service{})

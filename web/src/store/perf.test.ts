@@ -118,6 +118,8 @@ function buildRows(): {
       cycleUpcomingCount: 2,
       cycleAutoAddStarted: false,
       cycleAutoAddCompleted: false,
+      triageEnabled: false,
+      triageRequirePriority: false,
       createdAt: now,
       updatedAt: now,
     };

@@ -17,7 +17,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           retired_at, archived_at, deleted_at, created_at, updated_at,
           estimate_scale, estimate_allow_zero, estimate_extended,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
-          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed;
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority;
 
 -- name: GetTeam :one
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
@@ -25,7 +26,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        retired_at, archived_at, deleted_at, created_at, updated_at,
        estimate_scale, estimate_allow_zero, estimate_extended,
        cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
-       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority
 FROM team
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -35,7 +37,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        retired_at, archived_at, deleted_at, created_at, updated_at,
        estimate_scale, estimate_allow_zero, estimate_extended,
        cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
-       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority
 FROM team
 WHERE workspace_id = sqlc.arg(workspace_id) AND key = sqlc.arg(key) AND deleted_at IS NULL;
 
@@ -45,7 +48,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        retired_at, archived_at, deleted_at, created_at, updated_at,
        estimate_scale, estimate_allow_zero, estimate_extended,
        cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
-       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority
 FROM team
 WHERE workspace_id = $1 AND deleted_at IS NULL
 ORDER BY key;
@@ -81,7 +85,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           retired_at, archived_at, deleted_at, created_at, updated_at,
           estimate_scale, estimate_allow_zero, estimate_extended,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
-          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed;
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority;
 
 -- UpdateTeamEstimates is separate from UpdateTeam because the three settings are one
 -- decision: allow_zero and extended only mean anything relative to a scale, and letting a
@@ -99,7 +104,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           retired_at, archived_at, deleted_at, created_at, updated_at,
           estimate_scale, estimate_allow_zero, estimate_extended,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
-          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed;
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority;
 
 -- AllocateIssueNumber takes a row lock on the team for the rest of the transaction.
 --
@@ -185,7 +191,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           retired_at, archived_at, deleted_at, created_at, updated_at,
           estimate_scale, estimate_allow_zero, estimate_extended,
           cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
-          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed;
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority;
 
 -- name: ListTeamsWithCyclesEnabled :many
 SELECT id, workspace_id, key, name, description, icon, color, timezone,
@@ -193,8 +200,27 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        retired_at, archived_at, deleted_at, created_at, updated_at,
        estimate_scale, estimate_allow_zero, estimate_extended,
        cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
-       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority
 FROM team
 WHERE cycles_enabled AND deleted_at IS NULL AND archived_at IS NULL AND retired_at IS NULL
 ORDER BY workspace_id, key;
+
+-- UpdateTeamTriage is the intake switch, kept apart from UpdateTeam for the same reason
+-- estimates and cycles are: enabling creates the reserved statuses, and a partial write
+-- that flipped the flag without them would leave a team that claims to have a queue and
+-- has nowhere to put it.
+--
+-- name: UpdateTeamTriage :one
+UPDATE team
+SET triage_enabled           = COALESCE(sqlc.narg(triage_enabled), triage_enabled),
+    triage_require_priority  = COALESCE(sqlc.narg(triage_require_priority), triage_require_priority)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority;
 

@@ -407,6 +407,10 @@ type Querier interface {
 	//
 	GetViewPositionAfter(ctx context.Context, arg GetViewPositionAfterParams) (string, error)
 	GetWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowState, error)
+	// Includes archived rows: the singleton unique index is not partial on archived_at, so
+	// re-enabling triage must revive the existing status rather than insert a second one.
+	//
+	GetWorkflowStateByTeamAndCategory(ctx context.Context, arg GetWorkflowStateByTeamAndCategoryParams) (WorkflowState, error)
 	GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByURLKey(ctx context.Context, urlKey string) (Workspace, error)
 	GetWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
@@ -826,6 +830,7 @@ type Querier interface {
 	SetCommentResolution(ctx context.Context, arg SetCommentResolutionParams) (Comment, error)
 	SetDefaultWorkflowState(ctx context.Context, id uuid.UUID) error
 	SetIssueCycle(ctx context.Context, arg SetIssueCycleParams) error
+	SetIssueSnooze(ctx context.Context, arg SetIssueSnoozeParams) (Issue, error)
 	// SetIssueSubscription is the button. This is the one place `unsubscribed` may change,
 	// because this is the one place the user said so.
 	//
@@ -1070,6 +1075,12 @@ type Querier interface {
 	// Fibonacci sequence. The mutation takes all three, so this sets all three.
 	//
 	UpdateTeamEstimates(ctx context.Context, arg UpdateTeamEstimatesParams) (Team, error)
+	// UpdateTeamTriage is the intake switch, kept apart from UpdateTeam for the same reason
+	// estimates and cycles are: enabling creates the reserved statuses, and a partial write
+	// that flipped the flag without them would leave a team that claims to have a queue and
+	// has nowhere to put it.
+	//
+	UpdateTeamTriage(ctx context.Context, arg UpdateTeamTriageParams) (Team, error)
 	// Preferences are replaced whole, not merged.
 	//
 	// The client sends the complete bag it is holding, because a per-key patch would need a

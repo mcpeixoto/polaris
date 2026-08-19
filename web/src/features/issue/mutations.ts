@@ -99,6 +99,11 @@ export interface NewIssue {
   readonly projectId?: UUID | undefined;
   readonly projectMilestoneId?: UUID | undefined;
   readonly cycleId?: UUID | undefined;
+  /**
+   * Files into the team's triage status. Used by `C` from the inbox; the chosen status in
+   * the modal is ignored, matching the server.
+   */
+  readonly fromTriage?: boolean | undefined;
   /** The viewer, when it is known. Only used by the optimistic row. */
   readonly creatorId?: UUID | undefined;
 }
@@ -127,7 +132,7 @@ export interface NewIssue {
  */
 export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<UUID> {
   const store = engine.store;
-  const state = resolveState(store, input.teamId, input.stateId);
+  const state = resolveState(store, input.teamId, input.fromTriage === true ? undefined : input.stateId, input.fromTriage === true);
   const now = new Date().toISOString();
   const team = store.get('team', input.teamId);
   const number = nextNumberFor(store, input.teamId);
@@ -219,7 +224,7 @@ export async function updateIssue(
   const before = engine.store.get('issue', id);
   if (before === undefined) return;
 
-  const after: Issue = {
+  const after: Issue = unsnooze({
     ...before,
     ...(fields.title === undefined ? null : { title: fields.title }),
     ...(fields.description === undefined ? null : { description: fields.description }),
@@ -235,7 +240,7 @@ export async function updateIssue(
       ? null
       : { cycleId: fields.cycleId === null ? undefined : fields.cycleId }),
     updatedAt: new Date().toISOString(),
-  };
+  });
   if (sameIssue(before, after)) return;
 
   await engine.mutate({
@@ -726,17 +731,32 @@ function subscriptionOf(store: Store, issueId: UUID, userId: UUID): IssueSubscri
   return undefined;
 }
 
-/** The state a new issue starts in: the caller's choice, else the team's default. */
-function resolveState(store: Store, teamId: UUID, stateId: UUID | undefined): UUID {
-  if (stateId !== undefined) return stateId;
+/** The state a new issue starts in: triage when filed from the inbox, else the caller's choice, else the team's default. */
+function resolveState(
+  store: Store,
+  teamId: UUID,
+  stateId: UUID | undefined,
+  fromTriage = false,
+): UUID {
   const states = [...store.workflowStateIdsFor(teamId)]
     .map((id) => store.get('workflowState', id))
-    .filter((state): state is WorkflowState => state !== undefined);
+    .filter((state): state is WorkflowState => state !== undefined && state.archivedAt === undefined);
+  if (fromTriage) {
+    return states.find((state) => state.category === 'triage')?.id ?? '';
+  }
+  if (stateId !== undefined) return stateId;
   const chosen = states.find((state) => state.isDefault) ?? states[0];
   // An empty string rather than a throw: a team with no statuses cannot happen — the
   // workspace seeds five — and a create screen that crashes on a replica that has not
   // finished arriving is worse than one that lets the server reject the write.
   return chosen?.id ?? '';
+}
+
+/** Drops a snooze the way any edit on the server does. */
+function unsnooze(issue: Issue): Issue {
+  if (issue.snoozedUntil === undefined) return issue;
+  const { snoozedUntil: _cleared, ...rest } = issue;
+  return rest;
 }
 
 /**
@@ -800,7 +820,7 @@ function createInputOf(input: NewIssue, stateId: UUID, id: UUID): Record<string,
     ...(input.description === undefined || input.description === ''
       ? null
       : { description: input.description }),
-    ...(stateId === '' ? null : { stateId }),
+    ...(input.fromTriage === true || stateId === '' ? null : { stateId }),
     ...(input.assigneeId === undefined ? null : { assigneeId: input.assigneeId }),
     ...(input.priority === undefined ? null : { priority: input.priority }),
     ...(input.estimate === undefined ? null : { estimate: input.estimate }),
@@ -816,6 +836,7 @@ function createInputOf(input: NewIssue, stateId: UUID, id: UUID): Record<string,
     ...(input.projectId === undefined ? null : { projectId: input.projectId }),
     ...(input.projectMilestoneId === undefined ? null : { projectMilestoneId: input.projectMilestoneId }),
     ...(input.cycleId === undefined ? null : { cycleId: input.cycleId }),
+    ...(input.fromTriage === true ? { fromTriage: true } : null),
   };
 }
 

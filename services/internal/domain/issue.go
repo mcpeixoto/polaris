@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -89,6 +90,10 @@ type CreateIssueInput struct {
 	// to be a cycle of the same team — a cooldown is not a cycle, so there is nothing
 	// here that would file into the gap.
 	CycleID *uuid.UUID
+
+	// FromTriage files the issue into the team's triage status. Used by the inbox's C,
+	// and by an outsider filing into a team they can see but have not joined.
+	FromTriage bool
 }
 
 // issueIDFor returns the id a new issue should take, honouring a client's choice.
@@ -162,7 +167,13 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			return err
 		}
 
-		state, err := s.resolveInitialState(ctx, q, in.TeamID, in.StateID)
+		member, err := q.IsTeamMember(ctx, store.IsTeamMemberParams{TeamID: in.TeamID, UserID: p.UserID})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		intoTriage := in.FromTriage || (!member && team.TriageEnabled)
+
+		state, err := s.resolveInitialState(ctx, q, team, in.StateID, intoTriage)
 		if err != nil {
 			return err
 		}
@@ -512,6 +523,15 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			if err != nil {
 				return platform.Internal(err)
 			}
+			if oldState.Category == CategoryTriage && st.Category != CategoryTriage {
+				priority := int(before.Priority)
+				if in.Priority != nil {
+					priority = *in.Priority
+				}
+				if err := requirePriorityToLeaveTriage(team, priority); err != nil {
+					return err
+				}
+			}
 			history = append(history, HistoryEntry{
 				IssueID: in.ID, Kind: "state",
 				FromValue: oldState.Name, ToValue: st.Name,
@@ -689,6 +709,7 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			ClearMilestone:    in.ClearMilestone,
 			CycleID:           in.CycleID,
 			ClearCycle:        in.ClearCycle,
+			ClearSnooze:       before.SnoozedUntil != nil,
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -882,19 +903,43 @@ func (s *Service) ListIssuesForTeam(ctx context.Context, p *authz.Principal, tea
 	return out, nil
 }
 
-// resolveInitialState picks the status a new issue lands in, refusing to start life in a
-// started, completed or canceled column.
+// resolveInitialState picks the status a new issue lands in.
+//
+// Outsiders filing into a team they can see but have not joined, and creates from the
+// triage inbox, land in the triage status when the team has turned it on. Everyone else
+// gets the team's default, or the status they asked for.
 func (s *Service) resolveInitialState(
-	ctx context.Context, q *store.Queries, teamID uuid.UUID, requested *uuid.UUID,
+	ctx context.Context, q *store.Queries, team store.Team, requested *uuid.UUID, intoTriage bool,
 ) (store.WorkflowState, error) {
+	if intoTriage {
+		if !team.TriageEnabled {
+			return store.WorkflowState{}, platform.Validation("fromTriage", "this team is not running triage")
+		}
+		st, err := q.GetWorkflowStateByTeamAndCategory(ctx, store.GetWorkflowStateByTeamAndCategoryParams{
+			TeamID: team.ID, Category: CategoryTriage,
+		})
+		if err != nil {
+			if store.IsNotFound(err) {
+				return store.WorkflowState{}, platform.Internal(
+					fmt.Errorf("team %s has triage on and no triage status", team.ID))
+			}
+			return store.WorkflowState{}, platform.Internal(err)
+		}
+		if st.ArchivedAt != nil {
+			return store.WorkflowState{}, platform.Internal(
+				fmt.Errorf("team %s has triage on and its triage status is archived", team.ID))
+		}
+		return st, nil
+	}
+
 	if requested == nil {
-		st, err := q.GetDefaultWorkflowStateForTeam(ctx, teamID)
+		st, err := q.GetDefaultWorkflowStateForTeam(ctx, team.ID)
 		if err != nil {
 			if store.IsNotFound(err) {
 				return store.WorkflowState{}, platform.Internal(
 					// Team creation seeds a default, so its absence is data corruption,
 					// not something a user did.
-					errNoDefaultState{teamID})
+					errNoDefaultState{team.ID})
 			}
 			return store.WorkflowState{}, platform.Internal(err)
 		}
@@ -908,8 +953,14 @@ func (s *Service) resolveInitialState(
 		}
 		return store.WorkflowState{}, platform.Internal(err)
 	}
-	if st.TeamID != teamID {
+	if st.TeamID != team.ID {
 		return store.WorkflowState{}, platform.Validation("stateId", "that status belongs to a different team")
+	}
+	if st.Category == CategoryTriage && !team.TriageEnabled {
+		return store.WorkflowState{}, platform.Validation("stateId", "this team is not running triage")
+	}
+	if st.Category == CategoryDuplicate {
+		return store.WorkflowState{}, platform.Validation("stateId", "the duplicate status is reached by marking an issue as a duplicate")
 	}
 	return st, nil
 }
@@ -1244,7 +1295,7 @@ func completedAtFor(category string) *time.Time {
 }
 
 func canceledAtFor(category string) *time.Time {
-	if category != CategoryCanceled {
+	if category != CategoryCanceled && category != CategoryDuplicate {
 		return nil
 	}
 	now := time.Now()

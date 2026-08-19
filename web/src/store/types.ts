@@ -166,6 +166,8 @@ export interface Team {
   readonly cycleUpcomingCount: number;
   readonly cycleAutoAddStarted: boolean;
   readonly cycleAutoAddCompleted: boolean;
+  readonly triageEnabled: boolean;
+  readonly triageRequirePriority: boolean;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly retiredAt?: Timestamp;
@@ -264,6 +266,11 @@ export interface Issue {
   readonly projectId?: UUID;
   readonly projectMilestoneId?: UUID;
   readonly cycleId?: UUID;
+  /**
+   * Hidden from the triage inbox until this instant, or until the next edit or comment.
+   * Absent means the issue is not snoozed.
+   */
+  readonly snoozedUntil?: Timestamp;
   readonly startedAt?: Timestamp;
   readonly completedAt?: Timestamp;
   readonly canceledAt?: Timestamp;

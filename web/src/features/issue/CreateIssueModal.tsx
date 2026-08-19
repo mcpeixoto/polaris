@@ -77,6 +77,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
           key: team.key,
           name: team.name,
           cyclesEnabled: team.cyclesEnabled,
+          triageEnabled: team.triageEnabled,
         }))
         .sort((a, b) => a.key.localeCompare(b.key)),
     ['team'],
@@ -109,6 +110,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   // mounted by the shell, above the route that knows which team is on screen, so `useParams`
   // here would answer for a route that has not matched.
   const fromPath = useTeamKeyInPath();
+  const fromTriagePath = useTriagePath();
   const fromProjectPath = useProjectIdInPath();
   const fromCyclePath = useCycleIdInPath();
   const cycleFromPath = useLiveQuery(
@@ -137,6 +139,8 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   const resolvedProjectId = projectId === undefined ? fromProjectPath : projectId;
   const resolvedCycleId = cycleId === undefined ? fromCyclePath : cycleId;
   const teamRunsCycles = teams.find((team) => team.id === teamId)?.cyclesEnabled === true;
+  const fromTriage =
+    fromTriagePath && teams.find((team) => team.id === teamId)?.triageEnabled === true;
 
   const templateMenu = useMenuTrigger();
   const projectMenu = useMenuTrigger();
@@ -216,8 +220,12 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
     if (chosenState !== null && states.some((state) => state.id === chosenState)) {
       return chosenState;
     }
+    if (fromTriage) {
+      return (states.find((state) => state.category === 'triage') ?? states.find((state) => state.isDefault) ?? states[0])
+        ?.id ?? '';
+    }
     return (states.find((state) => state.isDefault) ?? states[0])?.id ?? '';
-  }, [chosenState, states]);
+  }, [chosenState, states, fromTriage]);
 
   const save = async () => {
     if (saving) return;
@@ -245,6 +253,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         priority,
         ...(resolvedProjectId === null ? null : { projectId: resolvedProjectId }),
         ...(resolvedCycleId === null || !teamRunsCycles ? null : { cycleId: resolvedCycleId }),
+        ...(fromTriage ? { fromTriage: true } : null),
         // The template's own contributions, carried on the create rather than applied
         // afterwards: three follow-up writes for one filed issue would be three versions on
         // the stream and three frames in which the issue is not yet what the template says
@@ -507,6 +516,11 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
 function useTeamKeyInPath(): string | null {
   const { pathname } = useLocation();
   return useMemo(() => /^\/team\/([^/]+)/.exec(pathname)?.[1] ?? null, [pathname]);
+}
+
+function useTriagePath(): boolean {
+  const { pathname } = useLocation();
+  return useMemo(() => /\/team\/[^/]+\/triage(?:\/|$)/.test(pathname), [pathname]);
 }
 
 function useProjectIdInPath(): UUID | null {

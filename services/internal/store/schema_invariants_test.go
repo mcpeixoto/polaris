@@ -635,3 +635,32 @@ func run(t *testing.T, cases []schemaCase) {
 		})
 	}
 }
+
+// Triage is a category, not a view: one triage status per team, a per-team switch, and a
+// snooze that is a timestamp on the issue rather than a second table.
+func TestTriageSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "a team has triage off until it is turned on",
+		sql: `SELECT 1 / count(*) FROM team
+		      WHERE id = ` + engID + ` AND triage_enabled = false AND triage_require_priority = false`,
+	}, {
+		name: "an issue can carry a snooze as a column",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'issue' AND column_name = 'snoozed_until'`,
+	}, {
+		name: "a team may have one triage status",
+		sql: `INSERT INTO workflow_state (id, workspace_id, team_id, name, color, category, position)
+		      VALUES ('00000000-0000-7000-8000-0000000000b3', ` + ws + `, ` + engID + `,
+		              'Triage', '#f2a65a', 'triage', 'a0')`,
+	}, {
+		name: "a second triage status is refused",
+		sql: `INSERT INTO workflow_state (id, workspace_id, team_id, name, color, category, position)
+		      VALUES ('00000000-0000-7000-8000-0000000000b4', ` + ws + `, ` + engID + `,
+		              'Inbox', '#f2a65a', 'triage', 'a1')`,
+		wantErr: "workflow_state_team_singleton_category_key",
+	}, {
+		name: "an issue may be snoozed",
+		sql:  `UPDATE issue SET snoozed_until = now() + interval '1 hour' WHERE id = ` + engIssue,
+	}})
+}

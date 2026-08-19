@@ -10,7 +10,7 @@ INSERT INTO issue (id, workspace_id, team_id, number, title, description,
                    state_id, assignee_id, creator_id, priority, sort_order,
                    started_at, completed_at, canceled_at,
                    estimate, due_date, due_date_source, parent_id, sub_issue_sort_order,
-                   template_id, project_id, project_milestone_id, cycle_id)
+                   template_id, project_id, project_milestone_id, cycle_id, snoozed_until)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(team_id), sqlc.arg(number),
         sqlc.arg(title), sqlc.arg(description), sqlc.arg(state_id),
         sqlc.narg(assignee_id), sqlc.narg(creator_id), sqlc.arg(priority),
@@ -22,13 +22,14 @@ VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(team_id), sqlc.arg(number
         -- knows, and guessing it here would make that date look human-editable.
         COALESCE(sqlc.narg(due_date_source)::text, 'manual'),
         sqlc.narg(parent_id), sqlc.narg(sub_issue_sort_order), sqlc.narg(template_id),
-        sqlc.narg(project_id), sqlc.narg(project_milestone_id), sqlc.narg(cycle_id))
+        sqlc.narg(project_id), sqlc.narg(project_milestone_id), sqlc.narg(cycle_id),
+        sqlc.narg(snoozed_until))
 RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id;
+          project_id, project_milestone_id, cycle_id, snoozed_until;
 
 -- name: GetIssue :one
 SELECT id, workspace_id, team_id, number, title, description, state_id,
@@ -36,7 +37,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -50,7 +51,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE;
@@ -61,7 +62,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE team_id = sqlc.arg(team_id) AND number = sqlc.arg(number) AND deleted_at IS NULL;
 
@@ -101,6 +102,8 @@ SET title            = COALESCE(sqlc.narg(title), title),
         ELSE COALESCE(sqlc.narg(project_milestone_id), project_milestone_id) END,
     cycle_id = CASE WHEN sqlc.arg(clear_cycle)::boolean THEN NULL
                     ELSE COALESCE(sqlc.narg(cycle_id), cycle_id) END,
+    snoozed_until = CASE WHEN sqlc.arg(clear_snooze)::boolean THEN NULL
+                         ELSE COALESCE(sqlc.narg(snoozed_until), snoozed_until) END,
     -- Category timestamps are set by the domain layer, which knows the transition rules
     -- (started_at is never cleared once set, because insights read it).
     started_at   = CASE WHEN sqlc.arg(set_timestamps)::boolean THEN sqlc.narg(started_at)   ELSE started_at   END,
@@ -112,7 +115,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id;
+          project_id, project_milestone_id, cycle_id, snoozed_until;
 
 -- BulkUpdateIssues is the bulk-edit path: one property set across a selection, in one
 -- statement, under one version block.
@@ -156,7 +159,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id;
+          project_id, project_milestone_id, cycle_id, snoozed_until;
 
 -- name: ArchiveIssue :exec
 UPDATE issue SET archived_at = now() WHERE id = $1 AND archived_at IS NULL;
@@ -193,7 +196,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id;
+          project_id, project_milestone_id, cycle_id, snoozed_until;
 
 -- ListDeletedIssues is the "recently deleted" screen. Ordered by deletion time rather than
 -- by sort_order, because the only question being asked here is "what did I just lose".
@@ -204,7 +207,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND team_id = ANY(sqlc.arg(team_ids)::uuid[])
@@ -218,7 +221,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE team_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 ORDER BY sort_order;
@@ -237,7 +240,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE parent_id = $1 AND deleted_at IS NULL
 ORDER BY sub_issue_sort_order, id;
@@ -258,7 +261,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE parent_id = ANY(sqlc.arg(parent_ids)::uuid[])
   AND workspace_id = sqlc.arg(workspace_id)
@@ -280,7 +283,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE id = ANY(sqlc.arg(ids)::uuid[])
   AND workspace_id = sqlc.arg(workspace_id)
@@ -300,7 +303,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND assignee_id = sqlc.arg(assignee_id)
@@ -321,7 +324,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND team_id = ANY(sqlc.arg(team_ids)::uuid[])
@@ -450,8 +453,18 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id
+          project_id, project_milestone_id, cycle_id, snoozed_until
 FROM issue
 WHERE project_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 ORDER BY sort_order;
+
+-- name: SetIssueSnooze :one
+UPDATE issue SET snoozed_until = sqlc.narg(snoozed_until)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL
+RETURNING id, workspace_id, team_id, number, title, description, state_id,
+          assignee_id, creator_id, priority, sort_order,
+          started_at, completed_at, canceled_at,
+          archived_at, deleted_at, created_at, updated_at,
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+          project_id, project_milestone_id, cycle_id, snoozed_until;
 

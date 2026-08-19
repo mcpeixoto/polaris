@@ -42,6 +42,8 @@ function team(id: string, estimateScale: EstimateScale, extras: Partial<Team> = 
     cycleUpcomingCount: 2,
     cycleAutoAddStarted: false,
     cycleAutoAddCompleted: false,
+    triageEnabled: false,
+    triageRequirePriority: false,
     createdAt: AT,
     updatedAt: AT,
     ...extras,

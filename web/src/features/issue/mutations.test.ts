@@ -69,6 +69,8 @@ function seeded(): Store {
         cycleUpcomingCount: 2,
         cycleAutoAddStarted: false,
         cycleAutoAddCompleted: false,
+        triageEnabled: false,
+        triageRequirePriority: false,
         createdAt: AT,
         updatedAt: AT,
       } as Entity,

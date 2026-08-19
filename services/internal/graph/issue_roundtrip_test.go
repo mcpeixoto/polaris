@@ -423,6 +423,8 @@ var coveredElsewhere = map[string]string{
 	"clearProject":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearMilestone": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearCycle":     "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+
+	"fromTriage": "TestCreateIssue_FromTriageViewLandsInTriage",
 }
 
 func TestIssueRoundTrip_TheTableCoversEveryInputField(t *testing.T) {
@@ -485,6 +487,7 @@ var storedButUnwritable = map[string]string{
 	// returns them populated, and TestDeletedIssues_CarryWhenAndByWhom is what checks it.
 	"deletedAt": "only ever set on a row the trash listing returns; this read cannot see one",
 	"deletedBy": "same",
+	"snoozedUntil": "set by snoozeIssue, not by create; TestSnoozeIssue_HidesUntilTimeOrActivity",
 }
 
 func TestIssueRoundTrip_TheReadPathCarriesEveryStoredField(t *testing.T) {

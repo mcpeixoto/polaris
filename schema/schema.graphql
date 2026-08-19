@@ -239,6 +239,11 @@ type Team {
   cycleAutoAddStarted: Boolean!
   cycleAutoAddCompleted: Boolean!
 
+  """Off by default. Turning it on creates the Triage and Duplicate statuses if they are missing."""
+  triageEnabled: Boolean!
+  """An issue cannot leave Triage without a priority other than none."""
+  triageRequirePriority: Boolean!
+
   createdAt: Time!
   updatedAt: Time!
   retiredAt: Time
@@ -339,6 +344,9 @@ type Issue {
   projectMilestoneId: UUID
   """At most one cycle, and it has to belong to the issue's team."""
   cycleId: UUID
+
+  """Hidden from the triage inbox until this instant, or until the next edit or comment."""
+  snoozedUntil: Time
 
   startedAt: Time
   completedAt: Time
@@ -1057,6 +1065,8 @@ input CreateIssueInput {
   projectId: UUID
   projectMilestoneId: UUID
   cycleId: UUID
+  """File into the team's triage status. The inbox's C, and an outsider filing into a team they can see."""
+  fromTriage: Boolean
 }
 
 input UpdateIssueInput {
@@ -1191,6 +1201,12 @@ input UpdateTeamCyclesInput {
   upcomingCount: Int
   autoAddStarted: Boolean
   autoAddCompleted: Boolean
+}
+
+input UpdateTeamTriageInput {
+  teamId: UUID!
+  enabled: Boolean
+  requirePriority: Boolean
 }
 
 input InviteInput {
@@ -1418,6 +1434,13 @@ type Mutation {
 
   updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
   updateTeamCycles(input: UpdateTeamCyclesInput!): TeamPayload!
+  updateTeamTriage(input: UpdateTeamTriageInput!): TeamPayload!
+
+  acceptTriageIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  declineTriageIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  """The issue being viewed is the duplicate; canonicalId is the one it duplicates."""
+  markIssueDuplicate(id: UUID!, canonicalId: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  snoozeIssue(id: UUID!, until: Time!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
 
   # ---- labels
 

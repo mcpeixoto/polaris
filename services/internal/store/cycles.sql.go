@@ -175,7 +175,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id
+       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.team_id = $1
@@ -228,6 +228,7 @@ func (q *Queries) ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyc
 			&i.ProjectID,
 			&i.ProjectMilestoneID,
 			&i.CycleID,
+			&i.SnoozedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -286,7 +287,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id
+       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.cycle_id = $1
@@ -333,6 +334,7 @@ func (q *Queries) ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID)
 			&i.ProjectID,
 			&i.ProjectMilestoneID,
 			&i.CycleID,
+			&i.SnoozedUntil,
 		); err != nil {
 			return nil, err
 		}

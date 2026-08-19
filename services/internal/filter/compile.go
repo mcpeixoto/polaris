@@ -115,6 +115,14 @@ func Compile(root Node, opts Options) (Compiled, error) {
 	if !mentions(root, FieldDeleted) {
 		parts = append(parts, alias+".deleted_at IS NULL")
 	}
+	if !mentions(root, FieldState) && !mentions(root, FieldStateCategory) {
+		// Triage is a category, not a view. An empty filter that pulled unreviewed work
+		// into the backlog would mix two queues, and a view would have to remember to
+		// exclude it — which is how it would sometimes forget. Naming state or
+		// stateCategory is how a triage inbox, or a view that wants those issues, asks.
+		parts = append(parts, "NOT EXISTS (SELECT 1 FROM workflow_state ws WHERE ws.id = "+
+			alias+".state_id AND ws.category = 'triage')")
+	}
 
 	return Compiled{SQL: "(" + strings.Join(parts, " AND ") + ")", Args: c.args}, nil
 }

@@ -88,6 +88,14 @@ export interface UseViewOptions {
   readonly timezone: string;
   /** Pins the clock. Tests only; production reads the wall clock at query time. */
   readonly now?: number | undefined;
+  /**
+   * ANDed with the URL filter, and not shown in the filter bar.
+   *
+   * The triage inbox uses this to name `stateCategory`, which is what turns the grammar's
+   * default hide off. Putting that clause in the URL would make clearing the bar empty the
+   * inbox; keeping it here means the bar is still the user's refinement.
+   */
+  readonly sourceFilter?: FilterNode | undefined;
 }
 
 /** The entity types the answer can depend on: the filter's inputs and the grouping's. */
@@ -104,7 +112,13 @@ const VIEW_DEPS = [
 
 const NO_INPUTS: readonly unknown[] = [];
 
-export function useView({ issues, inputs = NO_INPUTS, timezone, now }: UseViewOptions): ViewState {
+export function useView({
+  issues,
+  inputs = NO_INPUTS,
+  timezone,
+  now,
+  sourceFilter,
+}: UseViewOptions): ViewState {
   const [params] = useSearchParams();
   const navigate = useNavigate();
 
@@ -121,7 +135,7 @@ export function useView({ issues, inputs = NO_INPUTS, timezone, now }: UseViewOp
         // "due today" until something — a keystroke, a delta — moves.
         now: now ?? Date.now(),
         timezone,
-      }),
+      }, sourceFilter),
     VIEW_DEPS,
     [
       raw,
@@ -133,6 +147,7 @@ export function useView({ issues, inputs = NO_INPUTS, timezone, now }: UseViewOp
       // A pinned clock is part of the question; the wall clock deliberately is not.
       now ?? 0,
       timezone,
+      sourceFilter,
       ...inputs,
     ],
   );
@@ -204,8 +219,11 @@ function computeView(
   filter: FilterNode,
   display: Required<DisplayOptions>,
   clock: ViewClock,
+  sourceFilter: FilterNode | undefined,
 ): ViewResult {
-  const matched = filterIssues(source, filter, filterContextFor(store, clock));
+  const combined =
+    sourceFilter === undefined ? filter : { conj: 'and' as const, nodes: [sourceFilter, filter] };
+  const matched = filterIssues(source, combined, filterContextFor(store, clock));
 
   let issues: Issue[] = [];
   for (const id of matched) {

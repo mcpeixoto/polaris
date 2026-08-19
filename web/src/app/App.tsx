@@ -27,6 +27,7 @@ import { ProjectDetail } from '~/views/ProjectDetail';
 import { Projects } from '~/views/Projects';
 import { CycleDetail } from '~/views/CycleDetail';
 import { Cycles } from '~/views/Cycles';
+import { Triage } from '~/views/Triage';
 import { SavedView } from '~/views/SavedView';
 import { Search } from '~/views/Search';
 import { Templates } from '~/views/Templates';
@@ -89,6 +90,7 @@ export function App() {
               <Route path="/team/:teamKey" element={<IssueList />} />
               <Route path="/team/:teamKey/projects" element={<Projects />} />
               <Route path="/team/:teamKey/cycles" element={<Cycles />} />
+              <Route path="/team/:teamKey/triage" element={<Triage />} />
               <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
               <Route path="/issue/:identifier" element={<IssueDetail />} />
               <Route path="/project/:projectId" element={<ProjectDetail />} />

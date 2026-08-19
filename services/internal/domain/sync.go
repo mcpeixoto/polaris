@@ -671,7 +671,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v4 adds projectStatus, project, projectTeam, projectMember and projectMilestone, and
 // issue.projectId / issue.projectMilestoneId.
 // v5 adds cycle, team cadence fields, and issue.cycleId.
-const ClientSchemaVersion = 5
+// v6 adds team triage flags and issue.snoozedUntil.
+const ClientSchemaVersion = 6
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

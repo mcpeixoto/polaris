@@ -51,6 +51,8 @@ function team(id: string, key: string, name: string): Team {
     cycleUpcomingCount: 2,
     cycleAutoAddStarted: false,
     cycleAutoAddCompleted: false,
+    triageEnabled: false,
+    triageRequirePriority: false,
     createdAt: AT,
     updatedAt: AT,
   };

@@ -42,6 +42,7 @@ func (r *mutationResolver) CreateIssue(ctx context.Context, input generated.Crea
 		ProjectID:          input.ProjectID,
 		ProjectMilestoneID: input.ProjectMilestoneID,
 		CycleID:            input.CycleID,
+		FromTriage:         deref(input.FromTriage),
 	}
 	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.Issue, int64, error) {
@@ -670,6 +671,108 @@ func (r *mutationResolver) UpdateTeamCycles(ctx context.Context, input generated
 		return nil, PresentError(ctx, err)
 	}
 	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
+// UpdateTeamTriage is the resolver for the updateTeamTriage field.
+func (r *mutationResolver) UpdateTeamTriage(ctx context.Context, input generated.UpdateTeamTriageInput) (*generated.TeamPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	team, version, err := r.Svc.UpdateTeamTriage(ctx, p, domain.UpdateTeamTriageInput{
+		TeamID:          input.TeamID,
+		Enabled:         input.Enabled,
+		RequirePriority: input.RequirePriority,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
+// AcceptTriageIssue is the resolver for the acceptTriageIssue field.
+func (r *mutationResolver) AcceptTriageIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (model.Issue, int64, error) {
+			return r.Svc.AcceptTriageIssue(ctx, p, id)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateIssue(ctx, p, selectionFor(ctx, "IssuePayload").childOrNone("issue", "Issue"), issue)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.IssuePayload{Version: int(version), Issue: &out}, nil
+}
+
+// DeclineTriageIssue is the resolver for the declineTriageIssue field.
+func (r *mutationResolver) DeclineTriageIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (model.Issue, int64, error) {
+			return r.Svc.DeclineTriageIssue(ctx, p, id)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateIssue(ctx, p, selectionFor(ctx, "IssuePayload").childOrNone("issue", "Issue"), issue)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.IssuePayload{Version: int(version), Issue: &out}, nil
+}
+
+// MarkIssueDuplicate is the resolver for the markIssueDuplicate field.
+func (r *mutationResolver) MarkIssueDuplicate(ctx context.Context, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id, "canonicalId": canonicalID},
+		func(ctx context.Context) (model.Issue, int64, error) {
+			return r.Svc.MarkIssueDuplicate(ctx, p, id, canonicalID)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateIssue(ctx, p, selectionFor(ctx, "IssuePayload").childOrNone("issue", "Issue"), issue)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.IssuePayload{Version: int(version), Issue: &out}, nil
+}
+
+// SnoozeIssue is the resolver for the snoozeIssue field.
+func (r *mutationResolver) SnoozeIssue(ctx context.Context, id uuid.UUID, until time.Time, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id, "until": until},
+		func(ctx context.Context) (model.Issue, int64, error) {
+			return r.Svc.SnoozeIssue(ctx, p, id, until)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateIssue(ctx, p, selectionFor(ctx, "IssuePayload").childOrNone("issue", "Issue"), issue)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.IssuePayload{Version: int(version), Issue: &out}, nil
 }
 
 // CreateLabel is the resolver for the createLabel field.

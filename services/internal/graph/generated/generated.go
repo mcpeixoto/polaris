@@ -210,6 +210,7 @@ type ComplexityRoot struct {
 		ProjectMilestone   func(childComplexity int) int
 		ProjectMilestoneID func(childComplexity int) int
 		Relations          func(childComplexity int) int
+		SnoozedUntil       func(childComplexity int) int
 		SortOrder          func(childComplexity int) int
 		StartedAt          func(childComplexity int) int
 		State              func(childComplexity int) int
@@ -335,6 +336,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		AcceptTriageIssue        func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddFavorite              func(childComplexity int, kind FavoriteKind, targetID uuid.UUID, afterFavoriteID *uuid.UUID) int
 		AddIssueLabel            func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddProjectMember         func(childComplexity int, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -358,6 +360,7 @@ type ComplexityRoot struct {
 		CreateTeam               func(childComplexity int, input CreateTeamInput) int
 		CreateView               func(childComplexity int, input CreateViewInput) int
 		CreateWorkflowState      func(childComplexity int, input CreateWorkflowStateInput) int
+		DeclineTriageIssue       func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteComment            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssue              func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssueRelation      func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -367,6 +370,7 @@ type ComplexityRoot struct {
 		DeleteView               func(childComplexity int, id uuid.UUID) int
 		InviteToWorkspace        func(childComplexity int, input InviteInput) int
 		MarkAllNotificationsRead func(childComplexity int) int
+		MarkIssueDuplicate       func(childComplexity int, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		MarkNotificationRead     func(childComplexity int, id uuid.UUID, read bool) int
 		PurgeDeletedIssues       func(childComplexity int, before *time.Time) int
 		RemoveFavorite           func(childComplexity int, kind FavoriteKind, targetID uuid.UUID) int
@@ -383,6 +387,7 @@ type ComplexityRoot struct {
 		SetIssueSubscription     func(childComplexity int, issueID uuid.UUID, subscribed bool) int
 		SetUserRole              func(childComplexity int, userID uuid.UUID, role UserRole) int
 		SetViewPreference        func(childComplexity int, viewKey string, display json.RawMessage) int
+		SnoozeIssue              func(childComplexity int, id uuid.UUID, until time.Time, clientID *uuid.UUID, opID *uuid.UUID) int
 		SnoozeNotification       func(childComplexity int, id uuid.UUID, until *time.Time) int
 		SuspendUser              func(childComplexity int, userID uuid.UUID, suspended bool) int
 		UpdateComment            func(childComplexity int, id uuid.UUID, body string, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -397,6 +402,7 @@ type ComplexityRoot struct {
 		UpdateTeam               func(childComplexity int, input UpdateTeamInput) int
 		UpdateTeamCycles         func(childComplexity int, input UpdateTeamCyclesInput) int
 		UpdateTeamEstimates      func(childComplexity int, input UpdateTeamEstimatesInput) int
+		UpdateTeamTriage         func(childComplexity int, input UpdateTeamTriageInput) int
 		UpdateView               func(childComplexity int, input UpdateViewInput) int
 		UpdateWorkflowState      func(childComplexity int, input UpdateWorkflowStateInput) int
 		UpdateWorkspace          func(childComplexity int, input UpdateWorkspaceInput) int
@@ -613,6 +619,8 @@ type ComplexityRoot struct {
 		States                func(childComplexity int) int
 		Templates             func(childComplexity int) int
 		Timezone              func(childComplexity int) int
+		TriageEnabled         func(childComplexity int) int
+		TriageRequirePriority func(childComplexity int) int
 		UpdatedAt             func(childComplexity int) int
 		WorkspaceID           func(childComplexity int) int
 	}
@@ -781,6 +789,11 @@ type MutationResolver interface {
 	PurgeDeletedIssues(ctx context.Context, before *time.Time) (*PurgePayload, error)
 	UpdateTeamEstimates(ctx context.Context, input UpdateTeamEstimatesInput) (*TeamPayload, error)
 	UpdateTeamCycles(ctx context.Context, input UpdateTeamCyclesInput) (*TeamPayload, error)
+	UpdateTeamTriage(ctx context.Context, input UpdateTeamTriageInput) (*TeamPayload, error)
+	AcceptTriageIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
+	DeclineTriageIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
+	MarkIssueDuplicate(ctx context.Context, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
+	SnoozeIssue(ctx context.Context, id uuid.UUID, until time.Time, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
 	CreateLabel(ctx context.Context, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	UpdateLabel(ctx context.Context, input UpdateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	ArchiveLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
@@ -1617,6 +1630,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Issue.Relations(childComplexity), true
+	case "Issue.snoozedUntil":
+		if e.ComplexityRoot.Issue.SnoozedUntil == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Issue.SnoozedUntil(childComplexity), true
 	case "Issue.sortOrder":
 		if e.ComplexityRoot.Issue.SortOrder == nil {
 			break
@@ -2146,6 +2165,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.LabelPayload.Version(childComplexity), true
 
+	case "Mutation.acceptTriageIssue":
+		if e.ComplexityRoot.Mutation.AcceptTriageIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_acceptTriageIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AcceptTriageIssue(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.addFavorite":
 		if e.ComplexityRoot.Mutation.AddFavorite == nil {
 			break
@@ -2399,6 +2429,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateWorkflowState(childComplexity, args["input"].(CreateWorkflowStateInput)), true
+	case "Mutation.declineTriageIssue":
+		if e.ComplexityRoot.Mutation.DeclineTriageIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_declineTriageIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeclineTriageIssue(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.deleteComment":
 		if e.ComplexityRoot.Mutation.DeleteComment == nil {
 			break
@@ -2493,6 +2534,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MarkAllNotificationsRead(childComplexity), true
+	case "Mutation.markIssueDuplicate":
+		if e.ComplexityRoot.Mutation.MarkIssueDuplicate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_markIssueDuplicate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MarkIssueDuplicate(childComplexity, args["id"].(uuid.UUID), args["canonicalId"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.markNotificationRead":
 		if e.ComplexityRoot.Mutation.MarkNotificationRead == nil {
 			break
@@ -2669,6 +2721,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetViewPreference(childComplexity, args["viewKey"].(string), args["display"].(json.RawMessage)), true
+	case "Mutation.snoozeIssue":
+		if e.ComplexityRoot.Mutation.SnoozeIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_snoozeIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SnoozeIssue(childComplexity, args["id"].(uuid.UUID), args["until"].(time.Time), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.snoozeNotification":
 		if e.ComplexityRoot.Mutation.SnoozeNotification == nil {
 			break
@@ -2823,6 +2886,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateTeamEstimates(childComplexity, args["input"].(UpdateTeamEstimatesInput)), true
+	case "Mutation.updateTeamTriage":
+		if e.ComplexityRoot.Mutation.UpdateTeamTriage == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTeamTriage_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateTeamTriage(childComplexity, args["input"].(UpdateTeamTriageInput)), true
 	case "Mutation.updateView":
 		if e.ComplexityRoot.Mutation.UpdateView == nil {
 			break
@@ -3924,6 +3998,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Team.Timezone(childComplexity), true
+	case "Team.triageEnabled":
+		if e.ComplexityRoot.Team.TriageEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.TriageEnabled(childComplexity), true
+	case "Team.triageRequirePriority":
+		if e.ComplexityRoot.Team.TriageRequirePriority == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.TriageRequirePriority(childComplexity), true
 	case "Team.updatedAt":
 		if e.ComplexityRoot.Team.UpdatedAt == nil {
 			break
@@ -4523,6 +4609,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateTeamCyclesInput,
 		ec.unmarshalInputUpdateTeamEstimatesInput,
 		ec.unmarshalInputUpdateTeamInput,
+		ec.unmarshalInputUpdateTeamTriageInput,
 		ec.unmarshalInputUpdateViewInput,
 		ec.unmarshalInputUpdateWorkflowStateInput,
 		ec.unmarshalInputUpdateWorkspaceInput,
@@ -4842,6 +4929,11 @@ type Team {
   cycleAutoAddStarted: Boolean!
   cycleAutoAddCompleted: Boolean!
 
+  """Off by default. Turning it on creates the Triage and Duplicate statuses if they are missing."""
+  triageEnabled: Boolean!
+  """An issue cannot leave Triage without a priority other than none."""
+  triageRequirePriority: Boolean!
+
   createdAt: Time!
   updatedAt: Time!
   retiredAt: Time
@@ -4942,6 +5034,9 @@ type Issue {
   projectMilestoneId: UUID
   """At most one cycle, and it has to belong to the issue's team."""
   cycleId: UUID
+
+  """Hidden from the triage inbox until this instant, or until the next edit or comment."""
+  snoozedUntil: Time
 
   startedAt: Time
   completedAt: Time
@@ -5660,6 +5755,8 @@ input CreateIssueInput {
   projectId: UUID
   projectMilestoneId: UUID
   cycleId: UUID
+  """File into the team's triage status. The inbox's C, and an outsider filing into a team they can see."""
+  fromTriage: Boolean
 }
 
 input UpdateIssueInput {
@@ -5794,6 +5891,12 @@ input UpdateTeamCyclesInput {
   upcomingCount: Int
   autoAddStarted: Boolean
   autoAddCompleted: Boolean
+}
+
+input UpdateTeamTriageInput {
+  teamId: UUID!
+  enabled: Boolean
+  requirePriority: Boolean
 }
 
 input InviteInput {
@@ -6021,6 +6124,13 @@ type Mutation {
 
   updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
   updateTeamCycles(input: UpdateTeamCyclesInput!): TeamPayload!
+  updateTeamTriage(input: UpdateTeamTriageInput!): TeamPayload!
+
+  acceptTriageIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  declineTriageIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  """The issue being viewed is the duplicate; canonicalId is the one it duplicates."""
+  markIssueDuplicate(id: UUID!, canonicalId: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  snoozeIssue(id: UUID!, until: Time!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
 
   # ---- labels
 
@@ -6415,6 +6525,8 @@ func (ec *executionContext) childFields_Issue(ctx context.Context, field graphql
 		return ec.fieldContext_Issue_projectMilestoneId(ctx, field)
 	case "cycleId":
 		return ec.fieldContext_Issue_cycleId(ctx, field)
+	case "snoozedUntil":
+		return ec.fieldContext_Issue_snoozedUntil(ctx, field)
 	case "startedAt":
 		return ec.fieldContext_Issue_startedAt(ctx, field)
 	case "completedAt":
@@ -7021,6 +7133,10 @@ func (ec *executionContext) childFields_Team(ctx context.Context, field graphql.
 		return ec.fieldContext_Team_cycleAutoAddStarted(ctx, field)
 	case "cycleAutoAddCompleted":
 		return ec.fieldContext_Team_cycleAutoAddCompleted(ctx, field)
+	case "triageEnabled":
+		return ec.fieldContext_Team_triageEnabled(ctx, field)
+	case "triageRequirePriority":
+		return ec.fieldContext_Team_triageRequirePriority(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Team_createdAt(ctx, field)
 	case "updatedAt":
@@ -7424,6 +7540,36 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 // endregion ************************** internal!.gotpl ***************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_acceptTriageIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
 
 func (ec *executionContext) field_Mutation_addFavorite_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
@@ -8035,6 +8181,36 @@ func (ec *executionContext) field_Mutation_createWorkflowState_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_declineTriageIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteComment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8224,6 +8400,44 @@ func (ec *executionContext) field_Mutation_inviteToWorkspace_args(ctx context.Co
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_markIssueDuplicate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "canonicalId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["canonicalId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
 	return args, nil
 }
 
@@ -8627,6 +8841,44 @@ func (ec *executionContext) field_Mutation_setViewPreference_args(ctx context.Co
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_snoozeIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "until",
+		func(ctx context.Context, v any) (time.Time, error) {
+			return ec.unmarshalNTime2timeᚐTime(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["until"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_snoozeNotification_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8905,6 +9157,20 @@ func (ec *executionContext) field_Mutation_updateTeamEstimates_args(ctx context.
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (UpdateTeamEstimatesInput, error) {
 			return ec.unmarshalNUpdateTeamEstimatesInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamEstimatesInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateTeamTriage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateTeamTriageInput, error) {
+			return ec.unmarshalNUpdateTeamTriageInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamTriageInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -11911,6 +12177,29 @@ func (ec *executionContext) _Issue_cycleId(ctx context.Context, field graphql.Co
 }
 func (ec *executionContext) fieldContext_Issue_cycleId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Issue_snoozedUntil(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Issue_snoozedUntil(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SnoozedUntil, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Issue_snoozedUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _Issue_startedAt(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
@@ -15660,6 +15949,278 @@ func (ec *executionContext) fieldContext_Mutation_updateTeamCycles(ctx context.C
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateTeamCycles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateTeamTriage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateTeamTriage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateTeamTriage(ctx, fc.Args["input"].(UpdateTeamTriageInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *TeamPayload) graphql.Marshaler {
+			return ec.marshalNTeamPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateTeamTriage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TeamPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTeamTriage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_acceptTriageIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_acceptTriageIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AcceptTriageIssue(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *IssuePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *IssuePayload) graphql.Marshaler {
+			return ec.marshalNIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_acceptTriageIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_acceptTriageIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_declineTriageIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_declineTriageIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeclineTriageIssue(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *IssuePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *IssuePayload) graphql.Marshaler {
+			return ec.marshalNIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_declineTriageIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_declineTriageIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_markIssueDuplicate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_markIssueDuplicate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MarkIssueDuplicate(ctx, fc.Args["id"].(uuid.UUID), fc.Args["canonicalId"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *IssuePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *IssuePayload) graphql.Marshaler {
+			return ec.marshalNIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_markIssueDuplicate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_markIssueDuplicate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_snoozeIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_snoozeIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SnoozeIssue(ctx, fc.Args["id"].(uuid.UUID), fc.Args["until"].(time.Time), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *IssuePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *IssuePayload) graphql.Marshaler {
+			return ec.marshalNIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_snoozeIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_snoozeIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -21836,6 +22397,52 @@ func (ec *executionContext) fieldContext_Team_cycleAutoAddCompleted(_ context.Co
 	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _Team_triageEnabled(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_triageEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TriageEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_triageEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Team_triageRequirePriority(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_triageRequirePriority(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TriageRequirePriority, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_triageRequirePriority(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Team_createdAt(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25574,7 +26181,7 @@ func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "teamId", "title", "description", "stateId", "assigneeId", "priority", "estimate", "dueDate", "parentId", "labelIds", "templateId", "afterIssueId", "projectId", "projectMilestoneId", "cycleId"}
+	fieldsInOrder := [...]string{"id", "teamId", "title", "description", "stateId", "assigneeId", "priority", "estimate", "dueDate", "parentId", "labelIds", "templateId", "afterIssueId", "projectId", "projectMilestoneId", "cycleId", "fromTriage"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -25693,6 +26300,13 @@ func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, 
 				return it, err
 			}
 			it.CycleID = data
+		case "fromTriage":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fromTriage"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FromTriage = data
 		}
 	}
 	return it, nil
@@ -27215,6 +27829,50 @@ func (ec *executionContext) unmarshalInputUpdateTeamInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateTeamTriageInput(ctx context.Context, obj any) (UpdateTeamTriageInput, error) {
+	var it UpdateTeamTriageInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"teamId", "enabled", "requirePriority"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		case "requirePriority":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("requirePriority"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RequirePriority = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateViewInput(ctx context.Context, obj any) (UpdateViewInput, error) {
 	var it UpdateViewInput
 	if obj == nil {
@@ -28691,6 +29349,11 @@ func (ec *executionContext) _Issue(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "snoozedUntil":
+			out.Values[i] = ec._Issue_snoozedUntil(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "startedAt":
 			out.Values[i] = ec._Issue_startedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -29796,6 +30459,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateTeamCycles":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateTeamCycles(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateTeamTriage":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTeamTriage(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "acceptTriageIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_acceptTriageIssue(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "declineTriageIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_declineTriageIssue(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "markIssueDuplicate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_markIssueDuplicate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snoozeIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_snoozeIssue(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -32002,6 +32700,16 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "cycleAutoAddCompleted":
 			out.Values[i] = ec._Team_cycleAutoAddCompleted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "triageEnabled":
+			out.Values[i] = ec._Team_triageEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "triageRequirePriority":
+			out.Values[i] = ec._Team_triageRequirePriority(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -34689,6 +35397,11 @@ func (ec *executionContext) unmarshalNUpdateTeamEstimatesInput2githubᚗcomᚋpe
 
 func (ec *executionContext) unmarshalNUpdateTeamInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamInput(ctx context.Context, v any) (UpdateTeamInput, error) {
 	res, err := ec.unmarshalInputUpdateTeamInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateTeamTriageInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamTriageInput(ctx context.Context, v any) (UpdateTeamTriageInput, error) {
+	res, err := ec.unmarshalInputUpdateTeamTriageInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

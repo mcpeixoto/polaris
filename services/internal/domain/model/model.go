@@ -115,6 +115,11 @@ type Team struct {
 	CycleAutoAddStarted   bool   `json:"cycleAutoAddStarted"`
 	CycleAutoAddCompleted bool   `json:"cycleAutoAddCompleted"`
 
+	// Triage is a status category and a per-team switch. Off, new issues land in the
+	// default status; on, outsiders and the inbox itself file into the triage status.
+	TriageEnabled          bool `json:"triageEnabled"`
+	TriageRequirePriority  bool `json:"triageRequirePriority"`
+
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	RetiredAt  *time.Time `json:"retiredAt,omitempty"`
@@ -218,6 +223,10 @@ type Issue struct {
 	ProjectID          *uuid.UUID `json:"projectId,omitempty"`
 	ProjectMilestoneID *uuid.UUID `json:"projectMilestoneId,omitempty"`
 	CycleID            *uuid.UUID `json:"cycleId,omitempty"`
+
+	// Hidden from the triage inbox until this instant, or until the next edit or comment,
+	// whichever comes first. Nil means not snoozed.
+	SnoozedUntil *time.Time `json:"snoozedUntil,omitempty"`
 
 	StartedAt   *time.Time `json:"startedAt,omitempty"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`

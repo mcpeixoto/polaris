@@ -82,3 +82,12 @@ RETURNING id, workspace_id, team_id, name, description, color, category, positio
 
 -- name: CountIssuesInWorkflowState :one
 SELECT count(*) FROM issue WHERE state_id = $1 AND deleted_at IS NULL;
+
+-- Includes archived rows: the singleton unique index is not partial on archived_at, so
+-- re-enabling triage must revive the existing status rather than insert a second one.
+--
+-- name: GetWorkflowStateByTeamAndCategory :one
+SELECT id, workspace_id, team_id, name, description, color, category, position,
+       is_default, is_system, archived_at, created_at, updated_at
+FROM workflow_state
+WHERE team_id = sqlc.arg(team_id) AND category = sqlc.arg(category);

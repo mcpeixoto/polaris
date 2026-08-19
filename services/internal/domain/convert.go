@@ -75,6 +75,9 @@ func toTeam(t store.Team) model.Team {
 		CycleAutoAddStarted:   t.CycleAutoAddStarted,
 		CycleAutoAddCompleted: t.CycleAutoAddCompleted,
 
+		TriageEnabled:         t.TriageEnabled,
+		TriageRequirePriority: t.TriageRequirePriority,
+
 		CreatedAt:  t.CreatedAt,
 		UpdatedAt:  t.UpdatedAt,
 		RetiredAt:  t.RetiredAt,
@@ -137,6 +140,7 @@ func toIssue(i store.Issue, teamKey string) model.Issue {
 		ProjectID:         i.ProjectID,
 		ProjectMilestoneID: i.ProjectMilestoneID,
 		CycleID:           i.CycleID,
+		SnoozedUntil:      i.SnoozedUntil,
 
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,

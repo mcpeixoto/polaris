@@ -60,6 +60,7 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
   );
   const workspace = useQuery((store) => [...store.workspaces.values()][0], ['workspace']);
   const cyclesPath = useQuery((store) => pathToCycles(store), ['team', 'cycle']);
+  const triagePath = useQuery((store) => pathToTriage(store), ['team']);
 
   const viewerId = useViewerId();
   const favorites = useLiveQuery(
@@ -166,13 +167,20 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
         run: () => navigate(cyclesPath),
       },
       {
+        id: 'nav.triage',
+        title: 'Go to Triage',
+        keys: ['g t'],
+        group: 'Navigation',
+        run: () => navigate(triagePath),
+      },
+      {
         id: 'nav.trash',
         title: 'Go to trash',
         group: 'Navigation',
         run: () => navigate('/settings/trash'),
       },
     ],
-    [navigate, closeAll, cyclesPath],
+    [navigate, closeAll, cyclesPath, triagePath],
   );
 
   return (
@@ -439,6 +447,17 @@ function pathToCycles(store: Store): string {
     }
   }
   return `/team/${withCadence.key}/cycles`;
+}
+
+/**
+ * Where `G T` should land: the first team that runs triage, else the first team's inbox
+ * page — which then teaches how to turn it on.
+ */
+function pathToTriage(store: Store): string {
+  const teams = [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key));
+  const withTriage = teams.find((team) => team.triageEnabled) ?? teams[0];
+  if (withTriage === undefined) return '/';
+  return `/team/${withTriage.key}/triage`;
 }
 
 /**
