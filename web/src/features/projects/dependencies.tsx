@@ -183,11 +183,10 @@ function DependencySection({
               </Link>
               {row.violated && <span className={styles.violated}>Violated</span>}
               <IconButton
-                label={`Remove dependency on ${row.name}`}
+                aria-label={`Remove dependency on ${row.name}`}
+                icon="×"
                 onClick={() => onRemove(row.depId)}
-              >
-                ×
-              </IconButton>
+              />
             </li>
           ))}
         </ul>

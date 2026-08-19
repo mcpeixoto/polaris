@@ -8,7 +8,7 @@ import { PriorityPicker } from '~/features/issue/pickers';
 import { useEngine } from '~/app/context';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { UUID } from '~/store';
+import type { ProjectLabel, UUID } from '~/store';
 
 import { report } from '~/features/issue/mutations';
 import {
@@ -47,7 +47,7 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
     (store) =>
       [...store.projectLabelIdsFor(projectId)]
         .map((id) => store.projectLabels.get(id))
-        .filter((label) => label !== undefined && label.archivedAt === undefined),
+        .filter((label): label is ProjectLabel => label !== undefined && label.archivedAt === undefined),
     ['projectLabel', 'projectLabelLink'],
     [projectId],
   );
