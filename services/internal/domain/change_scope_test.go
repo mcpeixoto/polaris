@@ -233,6 +233,23 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 		t.Fatalf("formTemplateField: %v", err)
 	}
 
+	projTpl, _, err := svc.CreateProjectTemplate(ctx, p, domain.CreateProjectTemplateInput{
+		TeamID: &f.TeamID, Name: "Launch kit", Summary: "Ship it",
+	})
+	if err != nil {
+		t.Fatalf("projectTemplate: %v", err)
+	}
+	if _, _, err := svc.CreateProjectTemplateMilestone(ctx, p, domain.CreateProjectTemplateMilestoneInput{
+		ProjectTemplateID: projTpl.ID, Name: "Beta",
+	}); err != nil {
+		t.Fatalf("projectTemplateMilestone: %v", err)
+	}
+	if _, _, err := svc.CreateProjectTemplateIssue(ctx, p, domain.CreateProjectTemplateIssueInput{
+		ProjectTemplateID: projTpl.ID, Title: "Kickoff",
+	}); err != nil {
+		t.Fatalf("projectTemplateIssue: %v", err)
+	}
+
 	if _, _, err := svc.CreateProjectStatus(ctx, p, domain.CreateProjectStatusInput{
 		Name: "Paused", Category: model.ProjectCategoryPlanned,
 	}); err != nil {

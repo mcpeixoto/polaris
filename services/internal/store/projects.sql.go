@@ -138,19 +138,22 @@ const createProject = `-- name: CreateProject :one
 
 INSERT INTO project (id, workspace_id, name, summary, description, icon, color,
                      status_id, priority, lead_id, creator_id, sort_order,
-                     start_date, start_date_granularity, target_date, target_date_granularity)
+                     start_date, start_date_granularity, target_date, target_date_granularity,
+                     project_template_id)
 VALUES ($1, $2, $3, $4,
         COALESCE($5, ''), $6,
         COALESCE($7::text, '#6b7280'),
         $8, $9, $10, $11,
         $12,
         $13, $14,
-        $15, $16)
+        $15, $16,
+        $17)
 RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
           archived_at, deleted_at, deleted_by, created_at, updated_at,
-          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour,
+       project_template_id
 `
 
 type CreateProjectParams struct {
@@ -170,6 +173,7 @@ type CreateProjectParams struct {
 	StartDateGranularity  *string
 	TargetDate            pgtype.Date
 	TargetDateGranularity *string
+	ProjectTemplateID     *uuid.UUID
 }
 
 // ---------------------------------------------------------------------------------------
@@ -192,6 +196,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		arg.StartDateGranularity,
 		arg.TargetDate,
 		arg.TargetDateGranularity,
+		arg.ProjectTemplateID,
 	)
 	var i Project
 	err := row.Scan(
@@ -220,6 +225,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.UpdateReminderIntervalDays,
 		&i.UpdateReminderWeekday,
 		&i.UpdateReminderHour,
+		&i.ProjectTemplateID,
 	)
 	return i, err
 }
@@ -358,7 +364,8 @@ SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
        archived_at, deleted_at, deleted_by, created_at, updated_at,
-       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour,
+       project_template_id
 FROM project
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -392,6 +399,7 @@ func (q *Queries) GetProject(ctx context.Context, id uuid.UUID) (Project, error)
 		&i.UpdateReminderIntervalDays,
 		&i.UpdateReminderWeekday,
 		&i.UpdateReminderHour,
+		&i.ProjectTemplateID,
 	)
 	return i, err
 }
@@ -401,7 +409,8 @@ SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
        archived_at, deleted_at, deleted_by, created_at, updated_at,
-       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour,
+       project_template_id
 FROM project
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE
@@ -438,6 +447,7 @@ func (q *Queries) GetProjectForUpdate(ctx context.Context, id uuid.UUID) (Projec
 		&i.UpdateReminderIntervalDays,
 		&i.UpdateReminderWeekday,
 		&i.UpdateReminderHour,
+		&i.ProjectTemplateID,
 	)
 	return i, err
 }
@@ -447,7 +457,8 @@ SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
        archived_at, deleted_at, deleted_by, created_at, updated_at,
-       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour,
+       project_template_id
 FROM project
 WHERE id = $1
 FOR UPDATE
@@ -483,6 +494,7 @@ func (q *Queries) GetProjectIncludingDeleted(ctx context.Context, id uuid.UUID) 
 		&i.UpdateReminderIntervalDays,
 		&i.UpdateReminderWeekday,
 		&i.UpdateReminderHour,
+		&i.ProjectTemplateID,
 	)
 	return i, err
 }
@@ -673,7 +685,8 @@ SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
        p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
        p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
        p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at,
-       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour
+       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour,
+       p.project_template_id
 FROM project p
 JOIN project_team pt ON pt.project_id = p.id
 WHERE pt.team_id = $1 AND p.archived_at IS NOT NULL AND p.deleted_at IS NULL
@@ -717,6 +730,7 @@ func (q *Queries) ListArchivedProjectsForTeam(ctx context.Context, teamID uuid.U
 			&i.UpdateReminderIntervalDays,
 			&i.UpdateReminderWeekday,
 			&i.UpdateReminderHour,
+			&i.ProjectTemplateID,
 		); err != nil {
 			return nil, err
 		}
@@ -733,7 +747,8 @@ SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
        archived_at, deleted_at, deleted_by, created_at, updated_at,
-       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour,
+       project_template_id
 FROM project
 WHERE workspace_id = $1
   AND deleted_at IS NOT NULL
@@ -781,6 +796,7 @@ func (q *Queries) ListDeletedProjects(ctx context.Context, arg ListDeletedProjec
 			&i.UpdateReminderIntervalDays,
 			&i.UpdateReminderWeekday,
 			&i.UpdateReminderHour,
+			&i.ProjectTemplateID,
 		); err != nil {
 			return nil, err
 		}
@@ -966,7 +982,8 @@ SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
        start_date, start_date_granularity, target_date, target_date_granularity,
        archived_at, deleted_at, deleted_by, created_at, updated_at,
-       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
+       update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour,
+       project_template_id
 FROM project
 WHERE workspace_id = $1 AND deleted_at IS NULL AND archived_at IS NULL
 ORDER BY sort_order
@@ -1007,6 +1024,7 @@ func (q *Queries) ListProjectsInWorkspace(ctx context.Context, workspaceID uuid.
 			&i.UpdateReminderIntervalDays,
 			&i.UpdateReminderWeekday,
 			&i.UpdateReminderHour,
+			&i.ProjectTemplateID,
 		); err != nil {
 			return nil, err
 		}
@@ -1023,7 +1041,8 @@ SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
        p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
        p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
        p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at,
-       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour
+       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour,
+       p.project_template_id
 FROM project p
 JOIN project_team pt ON pt.project_id = p.id
 JOIN project_status ps ON ps.id = p.status_id
@@ -1075,6 +1094,7 @@ func (q *Queries) ListStaleClosedProjectsForTeam(ctx context.Context, arg ListSt
 			&i.UpdateReminderIntervalDays,
 			&i.UpdateReminderWeekday,
 			&i.UpdateReminderHour,
+			&i.ProjectTemplateID,
 		); err != nil {
 			return nil, err
 		}
@@ -1129,7 +1149,8 @@ RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
           archived_at, deleted_at, deleted_by, created_at, updated_at,
-          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour,
+          project_template_id
 `
 
 type RestoreProjectParams struct {
@@ -1166,6 +1187,7 @@ func (q *Queries) RestoreProject(ctx context.Context, arg RestoreProjectParams) 
 		&i.UpdateReminderIntervalDays,
 		&i.UpdateReminderWeekday,
 		&i.UpdateReminderHour,
+		&i.ProjectTemplateID,
 	)
 	return i, err
 }
@@ -1410,7 +1432,8 @@ SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
        p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
        p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
        p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at,
-       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour
+       p.update_schedule, p.update_reminder_interval_days, p.update_reminder_weekday, p.update_reminder_hour,
+       p.project_template_id
 FROM project p
 WHERE p.workspace_id = $1
   AND p.deleted_at IS NULL
@@ -1472,6 +1495,7 @@ func (q *Queries) StreamProjectsForBootstrap(ctx context.Context, arg StreamProj
 			&i.UpdateReminderIntervalDays,
 			&i.UpdateReminderWeekday,
 			&i.UpdateReminderHour,
+			&i.ProjectTemplateID,
 		); err != nil {
 			return nil, err
 		}
@@ -1489,7 +1513,8 @@ RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
           archived_at, deleted_at, deleted_by, created_at, updated_at,
-          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour,
+          project_template_id
 `
 
 func (q *Queries) UnarchiveProject(ctx context.Context, id uuid.UUID) (Project, error) {
@@ -1521,6 +1546,7 @@ func (q *Queries) UnarchiveProject(ctx context.Context, id uuid.UUID) (Project, 
 		&i.UpdateReminderIntervalDays,
 		&i.UpdateReminderWeekday,
 		&i.UpdateReminderHour,
+		&i.ProjectTemplateID,
 	)
 	return i, err
 }
@@ -1566,7 +1592,8 @@ RETURNING id, workspace_id, name, summary, description, icon, color,
           status_id, priority, lead_id, creator_id, sort_order,
           start_date, start_date_granularity, target_date, target_date_granularity,
           archived_at, deleted_at, deleted_by, created_at, updated_at,
-          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour
+          update_schedule, update_reminder_interval_days, update_reminder_weekday, update_reminder_hour,
+          project_template_id
 `
 
 type UpdateProjectParams struct {
@@ -1644,6 +1671,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.UpdateReminderIntervalDays,
 		&i.UpdateReminderWeekday,
 		&i.UpdateReminderHour,
+		&i.ProjectTemplateID,
 	)
 	return i, err
 }

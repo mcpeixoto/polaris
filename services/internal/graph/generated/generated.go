@@ -461,111 +461,120 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AcceptTriageIssue        func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		AddFavorite              func(childComplexity int, kind FavoriteKind, targetID uuid.UUID, afterFavoriteID *uuid.UUID) int
-		AddInitiativeProject     func(childComplexity int, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		AddIssueLabel            func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		AddProjectDependency     func(childComplexity int, blockingProjectID uuid.UUID, blockedProjectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		AddProjectLabel          func(childComplexity int, projectID uuid.UUID, labelID uuid.UUID) int
-		AddProjectMember         func(childComplexity int, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		AddProjectTeam           func(childComplexity int, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		AddTeamMember            func(childComplexity int, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) int
-		ArchiveCycle             func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
-		ArchiveDocument          func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
-		ArchiveFormTemplate      func(childComplexity int, id uuid.UUID, archived bool) int
-		ArchiveInitiative        func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
-		ArchiveIssue             func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
-		ArchiveIssueTemplate     func(childComplexity int, id uuid.UUID, archived bool) int
-		ArchiveLabel             func(childComplexity int, id uuid.UUID, archived bool) int
-		ArchiveProject           func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
-		ArchiveProjectLabel      func(childComplexity int, id uuid.UUID, archived bool) int
-		ArchiveProjectStatus     func(childComplexity int, id uuid.UUID, archived bool) int
-		ArchiveWorkflowState     func(childComplexity int, id uuid.UUID, archived bool) int
-		BulkUpdateIssues         func(childComplexity int, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateAPIKey             func(childComplexity int, input CreateAPIKeyInput) int
-		CreateAttachment         func(childComplexity int, input CreateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateComment            func(childComplexity int, input CreateCommentInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateDocument           func(childComplexity int, input CreateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateFormTemplate       func(childComplexity int, input CreateFormTemplateInput) int
-		CreateFormTemplateField  func(childComplexity int, input CreateFormTemplateFieldInput) int
-		CreateInitiative         func(childComplexity int, input CreateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateIssue              func(childComplexity int, input CreateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateIssueRelation      func(childComplexity int, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateIssueTemplate      func(childComplexity int, input CreateIssueTemplateInput) int
-		CreateLabel              func(childComplexity int, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateProject            func(childComplexity int, input CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateProjectLabel       func(childComplexity int, input CreateProjectLabelInput) int
-		CreateProjectMilestone   func(childComplexity int, input CreateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateProjectStatus      func(childComplexity int, input CreateProjectStatusInput) int
-		CreateProjectUpdate      func(childComplexity int, input CreateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateTeam               func(childComplexity int, input CreateTeamInput) int
-		CreateView               func(childComplexity int, input CreateViewInput) int
-		CreateWebhook            func(childComplexity int, input CreateWebhookInput) int
-		CreateWorkflowState      func(childComplexity int, input CreateWorkflowStateInput) int
-		DeclineTriageIssue       func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		DeleteAttachment         func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		DeleteComment            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		DeleteDocument           func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		DeleteFormTemplateField  func(childComplexity int, id uuid.UUID) int
-		DeleteInitiative         func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		DeleteIssue              func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		DeleteIssueRelation      func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		DeleteNotification       func(childComplexity int, id uuid.UUID) int
-		DeleteProject            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		DeleteProjectMilestone   func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		DeleteProjectUpdate      func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		DeleteView               func(childComplexity int, id uuid.UUID) int
-		DeleteWebhook            func(childComplexity int, id uuid.UUID) int
-		InviteToWorkspace        func(childComplexity int, input InviteInput) int
-		MarkAllNotificationsRead func(childComplexity int) int
-		MarkIssueDuplicate       func(childComplexity int, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		MarkNotificationRead     func(childComplexity int, id uuid.UUID, read bool) int
-		PurgeDeletedIssues       func(childComplexity int, before *time.Time) int
-		RemoveFavorite           func(childComplexity int, kind FavoriteKind, targetID uuid.UUID) int
-		RemoveInitiativeProject  func(childComplexity int, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		RemoveIssueLabel         func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		RemoveProjectDependency  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		RemoveProjectLabel       func(childComplexity int, projectID uuid.UUID, labelID uuid.UUID) int
-		RemoveProjectMember      func(childComplexity int, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		RemoveProjectTeam        func(childComplexity int, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		RemoveTeamMember         func(childComplexity int, teamID uuid.UUID, userID uuid.UUID) int
-		RemoveUser               func(childComplexity int, userID uuid.UUID) int
-		ResolveComment           func(childComplexity int, id uuid.UUID, resolved bool, clientID *uuid.UUID, opID *uuid.UUID) int
-		RestoreIssue             func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		RestoreProject           func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
-		RevokeAPIKey             func(childComplexity int, id uuid.UUID) int
-		RevokeInvite             func(childComplexity int, id uuid.UUID) int
-		SetIssueSubscription     func(childComplexity int, issueID uuid.UUID, subscribed bool) int
-		SetUserRole              func(childComplexity int, userID uuid.UUID, role UserRole) int
-		SetViewPreference        func(childComplexity int, viewKey string, display json.RawMessage) int
-		SnoozeIssue              func(childComplexity int, id uuid.UUID, until time.Time, clientID *uuid.UUID, opID *uuid.UUID) int
-		SnoozeNotification       func(childComplexity int, id uuid.UUID, until *time.Time) int
-		SuspendUser              func(childComplexity int, userID uuid.UUID, suspended bool) int
-		UpdateAttachment         func(childComplexity int, input UpdateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		UpdateComment            func(childComplexity int, id uuid.UUID, body string, clientID *uuid.UUID, opID *uuid.UUID) int
-		UpdateDocument           func(childComplexity int, input UpdateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		UpdateFormTemplate       func(childComplexity int, input UpdateFormTemplateInput) int
-		UpdateFormTemplateField  func(childComplexity int, input UpdateFormTemplateFieldInput) int
-		UpdateInitiative         func(childComplexity int, input UpdateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		UpdateIssue              func(childComplexity int, input UpdateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		UpdateIssueTemplate      func(childComplexity int, input UpdateIssueTemplateInput) int
-		UpdateLabel              func(childComplexity int, input UpdateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		UpdateNotificationPrefs  func(childComplexity int, prefs json.RawMessage) int
-		UpdateProfile            func(childComplexity int, input UpdateProfileInput) int
-		UpdateProject            func(childComplexity int, input UpdateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		UpdateProjectLabel       func(childComplexity int, input UpdateProjectLabelInput) int
-		UpdateProjectMilestone   func(childComplexity int, input UpdateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		UpdateProjectStatus      func(childComplexity int, input UpdateProjectStatusInput) int
-		UpdateProjectUpdate      func(childComplexity int, input UpdateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		UpdateTeam               func(childComplexity int, input UpdateTeamInput) int
-		UpdateTeamArchive        func(childComplexity int, input UpdateTeamArchiveInput) int
-		UpdateTeamCycles         func(childComplexity int, input UpdateTeamCyclesInput) int
-		UpdateTeamEstimates      func(childComplexity int, input UpdateTeamEstimatesInput) int
-		UpdateTeamTriage         func(childComplexity int, input UpdateTeamTriageInput) int
-		UpdateView               func(childComplexity int, input UpdateViewInput) int
-		UpdateWebhook            func(childComplexity int, input UpdateWebhookInput) int
-		UpdateWorkflowState      func(childComplexity int, input UpdateWorkflowStateInput) int
-		UpdateWorkspace          func(childComplexity int, input UpdateWorkspaceInput) int
+		AcceptTriageIssue              func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		AddFavorite                    func(childComplexity int, kind FavoriteKind, targetID uuid.UUID, afterFavoriteID *uuid.UUID) int
+		AddInitiativeProject           func(childComplexity int, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		AddIssueLabel                  func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		AddProjectDependency           func(childComplexity int, blockingProjectID uuid.UUID, blockedProjectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		AddProjectLabel                func(childComplexity int, projectID uuid.UUID, labelID uuid.UUID) int
+		AddProjectMember               func(childComplexity int, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		AddProjectTeam                 func(childComplexity int, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		AddTeamMember                  func(childComplexity int, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) int
+		ArchiveCycle                   func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
+		ArchiveDocument                func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
+		ArchiveFormTemplate            func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveInitiative              func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
+		ArchiveIssue                   func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
+		ArchiveIssueTemplate           func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveLabel                   func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveProject                 func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
+		ArchiveProjectLabel            func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveProjectStatus           func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveProjectTemplate         func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveWorkflowState           func(childComplexity int, id uuid.UUID, archived bool) int
+		BulkUpdateIssues               func(childComplexity int, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateAPIKey                   func(childComplexity int, input CreateAPIKeyInput) int
+		CreateAttachment               func(childComplexity int, input CreateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateComment                  func(childComplexity int, input CreateCommentInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateDocument                 func(childComplexity int, input CreateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateFormTemplate             func(childComplexity int, input CreateFormTemplateInput) int
+		CreateFormTemplateField        func(childComplexity int, input CreateFormTemplateFieldInput) int
+		CreateInitiative               func(childComplexity int, input CreateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateIssue                    func(childComplexity int, input CreateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateIssueRelation            func(childComplexity int, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateIssueTemplate            func(childComplexity int, input CreateIssueTemplateInput) int
+		CreateLabel                    func(childComplexity int, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateProject                  func(childComplexity int, input CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateProjectLabel             func(childComplexity int, input CreateProjectLabelInput) int
+		CreateProjectMilestone         func(childComplexity int, input CreateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateProjectStatus            func(childComplexity int, input CreateProjectStatusInput) int
+		CreateProjectTemplate          func(childComplexity int, input CreateProjectTemplateInput) int
+		CreateProjectTemplateIssue     func(childComplexity int, input CreateProjectTemplateIssueInput) int
+		CreateProjectTemplateMilestone func(childComplexity int, input CreateProjectTemplateMilestoneInput) int
+		CreateProjectUpdate            func(childComplexity int, input CreateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateTeam                     func(childComplexity int, input CreateTeamInput) int
+		CreateView                     func(childComplexity int, input CreateViewInput) int
+		CreateWebhook                  func(childComplexity int, input CreateWebhookInput) int
+		CreateWorkflowState            func(childComplexity int, input CreateWorkflowStateInput) int
+		DeclineTriageIssue             func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteAttachment               func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteComment                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteDocument                 func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteFormTemplateField        func(childComplexity int, id uuid.UUID) int
+		DeleteInitiative               func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteIssue                    func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteIssueRelation            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteNotification             func(childComplexity int, id uuid.UUID) int
+		DeleteProject                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteProjectMilestone         func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteProjectTemplateIssue     func(childComplexity int, id uuid.UUID) int
+		DeleteProjectTemplateMilestone func(childComplexity int, id uuid.UUID) int
+		DeleteProjectUpdate            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteView                     func(childComplexity int, id uuid.UUID) int
+		DeleteWebhook                  func(childComplexity int, id uuid.UUID) int
+		InviteToWorkspace              func(childComplexity int, input InviteInput) int
+		MarkAllNotificationsRead       func(childComplexity int) int
+		MarkIssueDuplicate             func(childComplexity int, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		MarkNotificationRead           func(childComplexity int, id uuid.UUID, read bool) int
+		PurgeDeletedIssues             func(childComplexity int, before *time.Time) int
+		RemoveFavorite                 func(childComplexity int, kind FavoriteKind, targetID uuid.UUID) int
+		RemoveInitiativeProject        func(childComplexity int, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RemoveIssueLabel               func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RemoveProjectDependency        func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RemoveProjectLabel             func(childComplexity int, projectID uuid.UUID, labelID uuid.UUID) int
+		RemoveProjectMember            func(childComplexity int, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RemoveProjectTeam              func(childComplexity int, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RemoveTeamMember               func(childComplexity int, teamID uuid.UUID, userID uuid.UUID) int
+		RemoveUser                     func(childComplexity int, userID uuid.UUID) int
+		ResolveComment                 func(childComplexity int, id uuid.UUID, resolved bool, clientID *uuid.UUID, opID *uuid.UUID) int
+		RestoreIssue                   func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RestoreProject                 func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RevokeAPIKey                   func(childComplexity int, id uuid.UUID) int
+		RevokeInvite                   func(childComplexity int, id uuid.UUID) int
+		SetIssueSubscription           func(childComplexity int, issueID uuid.UUID, subscribed bool) int
+		SetUserRole                    func(childComplexity int, userID uuid.UUID, role UserRole) int
+		SetViewPreference              func(childComplexity int, viewKey string, display json.RawMessage) int
+		SnoozeIssue                    func(childComplexity int, id uuid.UUID, until time.Time, clientID *uuid.UUID, opID *uuid.UUID) int
+		SnoozeNotification             func(childComplexity int, id uuid.UUID, until *time.Time) int
+		SuspendUser                    func(childComplexity int, userID uuid.UUID, suspended bool) int
+		UpdateAttachment               func(childComplexity int, input UpdateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateComment                  func(childComplexity int, id uuid.UUID, body string, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateDocument                 func(childComplexity int, input UpdateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateFormTemplate             func(childComplexity int, input UpdateFormTemplateInput) int
+		UpdateFormTemplateField        func(childComplexity int, input UpdateFormTemplateFieldInput) int
+		UpdateInitiative               func(childComplexity int, input UpdateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateIssue                    func(childComplexity int, input UpdateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateIssueTemplate            func(childComplexity int, input UpdateIssueTemplateInput) int
+		UpdateLabel                    func(childComplexity int, input UpdateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateNotificationPrefs        func(childComplexity int, prefs json.RawMessage) int
+		UpdateProfile                  func(childComplexity int, input UpdateProfileInput) int
+		UpdateProject                  func(childComplexity int, input UpdateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateProjectLabel             func(childComplexity int, input UpdateProjectLabelInput) int
+		UpdateProjectMilestone         func(childComplexity int, input UpdateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateProjectStatus            func(childComplexity int, input UpdateProjectStatusInput) int
+		UpdateProjectTemplate          func(childComplexity int, input UpdateProjectTemplateInput) int
+		UpdateProjectTemplateIssue     func(childComplexity int, input UpdateProjectTemplateIssueInput) int
+		UpdateProjectTemplateMilestone func(childComplexity int, input UpdateProjectTemplateMilestoneInput) int
+		UpdateProjectUpdate            func(childComplexity int, input UpdateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateTeam                     func(childComplexity int, input UpdateTeamInput) int
+		UpdateTeamArchive              func(childComplexity int, input UpdateTeamArchiveInput) int
+		UpdateTeamCycles               func(childComplexity int, input UpdateTeamCyclesInput) int
+		UpdateTeamEstimates            func(childComplexity int, input UpdateTeamEstimatesInput) int
+		UpdateTeamTriage               func(childComplexity int, input UpdateTeamTriageInput) int
+		UpdateView                     func(childComplexity int, input UpdateViewInput) int
+		UpdateWebhook                  func(childComplexity int, input UpdateWebhookInput) int
+		UpdateWorkflowState            func(childComplexity int, input UpdateWorkflowStateInput) int
+		UpdateWorkspace                func(childComplexity int, input UpdateWorkspaceInput) int
 	}
 
 	Notification struct {
@@ -614,6 +623,7 @@ type ComplexityRoot struct {
 		Milestones                 func(childComplexity int) int
 		Name                       func(childComplexity int) int
 		Priority                   func(childComplexity int) int
+		ProjectTemplateID          func(childComplexity int) int
 		SortOrder                  func(childComplexity int) int
 		StartDate                  func(childComplexity int) int
 		StartDateGranularity       func(childComplexity int) int
@@ -750,6 +760,62 @@ type ComplexityRoot struct {
 		Version     func(childComplexity int) int
 	}
 
+	ProjectTemplate struct {
+		ArchivedAt  func(childComplexity int) int
+		Body        func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		CreatedBy   func(childComplexity int) int
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Position    func(childComplexity int) int
+		Properties  func(childComplexity int) int
+		Summary     func(childComplexity int) int
+		TeamID      func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	ProjectTemplateIssue struct {
+		CreatedAt         func(childComplexity int) int
+		Description       func(childComplexity int) int
+		ID                func(childComplexity int) int
+		ParentID          func(childComplexity int) int
+		ProjectTemplateID func(childComplexity int) int
+		Properties        func(childComplexity int) int
+		SortOrder         func(childComplexity int) int
+		Title             func(childComplexity int) int
+		UpdatedAt         func(childComplexity int) int
+		WorkspaceID       func(childComplexity int) int
+	}
+
+	ProjectTemplateIssuePayload struct {
+		Issue   func(childComplexity int) int
+		Version func(childComplexity int) int
+	}
+
+	ProjectTemplateMilestone struct {
+		CreatedAt         func(childComplexity int) int
+		Description       func(childComplexity int) int
+		ID                func(childComplexity int) int
+		Name              func(childComplexity int) int
+		ProjectTemplateID func(childComplexity int) int
+		SortOrder         func(childComplexity int) int
+		TargetDate        func(childComplexity int) int
+		UpdatedAt         func(childComplexity int) int
+		WorkspaceID       func(childComplexity int) int
+	}
+
+	ProjectTemplateMilestonePayload struct {
+		Milestone func(childComplexity int) int
+		Version   func(childComplexity int) int
+	}
+
+	ProjectTemplatePayload struct {
+		Template func(childComplexity int) int
+		Version  func(childComplexity int) int
+	}
+
 	ProjectUpdate struct {
 		Author      func(childComplexity int) int
 		AuthorID    func(childComplexity int) int
@@ -810,6 +876,10 @@ type ComplexityRoot struct {
 		ProjectLabel                 func(childComplexity int, id uuid.UUID) int
 		ProjectLabels                func(childComplexity int) int
 		ProjectStatuses              func(childComplexity int) int
+		ProjectTemplate              func(childComplexity int, id uuid.UUID) int
+		ProjectTemplateIssues        func(childComplexity int, projectTemplateID uuid.UUID) int
+		ProjectTemplateMilestones    func(childComplexity int, projectTemplateID uuid.UUID) int
+		ProjectTemplates             func(childComplexity int, teamID *uuid.UUID) int
 		ProjectUpdate                func(childComplexity int, id uuid.UUID) int
 		ProjectUpdates               func(childComplexity int, projectID uuid.UUID) int
 		Projects                     func(childComplexity int) int
@@ -1149,6 +1219,15 @@ type MutationResolver interface {
 	CreateFormTemplateField(ctx context.Context, input CreateFormTemplateFieldInput) (*FormTemplateFieldPayload, error)
 	UpdateFormTemplateField(ctx context.Context, input UpdateFormTemplateFieldInput) (*FormTemplateFieldPayload, error)
 	DeleteFormTemplateField(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	CreateProjectTemplate(ctx context.Context, input CreateProjectTemplateInput) (*ProjectTemplatePayload, error)
+	UpdateProjectTemplate(ctx context.Context, input UpdateProjectTemplateInput) (*ProjectTemplatePayload, error)
+	ArchiveProjectTemplate(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
+	CreateProjectTemplateMilestone(ctx context.Context, input CreateProjectTemplateMilestoneInput) (*ProjectTemplateMilestonePayload, error)
+	UpdateProjectTemplateMilestone(ctx context.Context, input UpdateProjectTemplateMilestoneInput) (*ProjectTemplateMilestonePayload, error)
+	DeleteProjectTemplateMilestone(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	CreateProjectTemplateIssue(ctx context.Context, input CreateProjectTemplateIssueInput) (*ProjectTemplateIssuePayload, error)
+	UpdateProjectTemplateIssue(ctx context.Context, input UpdateProjectTemplateIssueInput) (*ProjectTemplateIssuePayload, error)
+	DeleteProjectTemplateIssue(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 	CreateProject(ctx context.Context, input CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectPayload, error)
 	UpdateProject(ctx context.Context, input UpdateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectPayload, error)
 	DeleteProject(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
@@ -1198,6 +1277,10 @@ type QueryResolver interface {
 	FormTemplates(ctx context.Context, teamID *uuid.UUID) ([]FormTemplate, error)
 	FormTemplate(ctx context.Context, id uuid.UUID) (*FormTemplate, error)
 	FormTemplateFields(ctx context.Context, formTemplateID uuid.UUID) ([]FormTemplateField, error)
+	ProjectTemplates(ctx context.Context, teamID *uuid.UUID) ([]ProjectTemplate, error)
+	ProjectTemplate(ctx context.Context, id uuid.UUID) (*ProjectTemplate, error)
+	ProjectTemplateMilestones(ctx context.Context, projectTemplateID uuid.UUID) ([]ProjectTemplateMilestone, error)
+	ProjectTemplateIssues(ctx context.Context, projectTemplateID uuid.UUID) ([]ProjectTemplateIssue, error)
 	Projects(ctx context.Context) ([]Project, error)
 	Project(ctx context.Context, id uuid.UUID) (*Project, error)
 	ProjectStatuses(ctx context.Context) ([]ProjectStatus, error)
@@ -3275,6 +3358,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ArchiveProjectStatus(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
+	case "Mutation.archiveProjectTemplate":
+		if e.ComplexityRoot.Mutation.ArchiveProjectTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveProjectTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ArchiveProjectTemplate(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
 	case "Mutation.archiveWorkflowState":
 		if e.ComplexityRoot.Mutation.ArchiveWorkflowState == nil {
 			break
@@ -3462,6 +3556,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateProjectStatus(childComplexity, args["input"].(CreateProjectStatusInput)), true
+	case "Mutation.createProjectTemplate":
+		if e.ComplexityRoot.Mutation.CreateProjectTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createProjectTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateProjectTemplate(childComplexity, args["input"].(CreateProjectTemplateInput)), true
+	case "Mutation.createProjectTemplateIssue":
+		if e.ComplexityRoot.Mutation.CreateProjectTemplateIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createProjectTemplateIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateProjectTemplateIssue(childComplexity, args["input"].(CreateProjectTemplateIssueInput)), true
+	case "Mutation.createProjectTemplateMilestone":
+		if e.ComplexityRoot.Mutation.CreateProjectTemplateMilestone == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createProjectTemplateMilestone_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateProjectTemplateMilestone(childComplexity, args["input"].(CreateProjectTemplateMilestoneInput)), true
 	case "Mutation.createProjectUpdate":
 		if e.ComplexityRoot.Mutation.CreateProjectUpdate == nil {
 			break
@@ -3638,6 +3765,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteProjectMilestone(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteProjectTemplateIssue":
+		if e.ComplexityRoot.Mutation.DeleteProjectTemplateIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteProjectTemplateIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteProjectTemplateIssue(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.deleteProjectTemplateMilestone":
+		if e.ComplexityRoot.Mutation.DeleteProjectTemplateMilestone == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteProjectTemplateMilestone_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteProjectTemplateMilestone(childComplexity, args["id"].(uuid.UUID)), true
 	case "Mutation.deleteProjectUpdate":
 		if e.ComplexityRoot.Mutation.DeleteProjectUpdate == nil {
 			break
@@ -4106,6 +4255,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateProjectStatus(childComplexity, args["input"].(UpdateProjectStatusInput)), true
+	case "Mutation.updateProjectTemplate":
+		if e.ComplexityRoot.Mutation.UpdateProjectTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateProjectTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateProjectTemplate(childComplexity, args["input"].(UpdateProjectTemplateInput)), true
+	case "Mutation.updateProjectTemplateIssue":
+		if e.ComplexityRoot.Mutation.UpdateProjectTemplateIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateProjectTemplateIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateProjectTemplateIssue(childComplexity, args["input"].(UpdateProjectTemplateIssueInput)), true
+	case "Mutation.updateProjectTemplateMilestone":
+		if e.ComplexityRoot.Mutation.UpdateProjectTemplateMilestone == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateProjectTemplateMilestone_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateProjectTemplateMilestone(childComplexity, args["input"].(UpdateProjectTemplateMilestoneInput)), true
 	case "Mutation.updateProjectUpdate":
 		if e.ComplexityRoot.Mutation.UpdateProjectUpdate == nil {
 			break
@@ -4436,6 +4618,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Project.Priority(childComplexity), true
+	case "Project.projectTemplateId":
+		if e.ComplexityRoot.Project.ProjectTemplateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.ProjectTemplateID(childComplexity), true
 	case "Project.sortOrder":
 		if e.ComplexityRoot.Project.SortOrder == nil {
 			break
@@ -4986,6 +5174,240 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ProjectTeamPayload.Version(childComplexity), true
 
+	case "ProjectTemplate.archivedAt":
+		if e.ComplexityRoot.ProjectTemplate.ArchivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.ArchivedAt(childComplexity), true
+	case "ProjectTemplate.body":
+		if e.ComplexityRoot.ProjectTemplate.Body == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.Body(childComplexity), true
+	case "ProjectTemplate.createdAt":
+		if e.ComplexityRoot.ProjectTemplate.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.CreatedAt(childComplexity), true
+	case "ProjectTemplate.createdBy":
+		if e.ComplexityRoot.ProjectTemplate.CreatedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.CreatedBy(childComplexity), true
+	case "ProjectTemplate.description":
+		if e.ComplexityRoot.ProjectTemplate.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.Description(childComplexity), true
+	case "ProjectTemplate.id":
+		if e.ComplexityRoot.ProjectTemplate.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.ID(childComplexity), true
+	case "ProjectTemplate.name":
+		if e.ComplexityRoot.ProjectTemplate.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.Name(childComplexity), true
+	case "ProjectTemplate.position":
+		if e.ComplexityRoot.ProjectTemplate.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.Position(childComplexity), true
+	case "ProjectTemplate.properties":
+		if e.ComplexityRoot.ProjectTemplate.Properties == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.Properties(childComplexity), true
+	case "ProjectTemplate.summary":
+		if e.ComplexityRoot.ProjectTemplate.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.Summary(childComplexity), true
+	case "ProjectTemplate.teamId":
+		if e.ComplexityRoot.ProjectTemplate.TeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.TeamID(childComplexity), true
+	case "ProjectTemplate.updatedAt":
+		if e.ComplexityRoot.ProjectTemplate.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.UpdatedAt(childComplexity), true
+	case "ProjectTemplate.workspaceId":
+		if e.ComplexityRoot.ProjectTemplate.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplate.WorkspaceID(childComplexity), true
+
+	case "ProjectTemplateIssue.createdAt":
+		if e.ComplexityRoot.ProjectTemplateIssue.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssue.CreatedAt(childComplexity), true
+	case "ProjectTemplateIssue.description":
+		if e.ComplexityRoot.ProjectTemplateIssue.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssue.Description(childComplexity), true
+	case "ProjectTemplateIssue.id":
+		if e.ComplexityRoot.ProjectTemplateIssue.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssue.ID(childComplexity), true
+	case "ProjectTemplateIssue.parentId":
+		if e.ComplexityRoot.ProjectTemplateIssue.ParentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssue.ParentID(childComplexity), true
+	case "ProjectTemplateIssue.projectTemplateId":
+		if e.ComplexityRoot.ProjectTemplateIssue.ProjectTemplateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssue.ProjectTemplateID(childComplexity), true
+	case "ProjectTemplateIssue.properties":
+		if e.ComplexityRoot.ProjectTemplateIssue.Properties == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssue.Properties(childComplexity), true
+	case "ProjectTemplateIssue.sortOrder":
+		if e.ComplexityRoot.ProjectTemplateIssue.SortOrder == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssue.SortOrder(childComplexity), true
+	case "ProjectTemplateIssue.title":
+		if e.ComplexityRoot.ProjectTemplateIssue.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssue.Title(childComplexity), true
+	case "ProjectTemplateIssue.updatedAt":
+		if e.ComplexityRoot.ProjectTemplateIssue.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssue.UpdatedAt(childComplexity), true
+	case "ProjectTemplateIssue.workspaceId":
+		if e.ComplexityRoot.ProjectTemplateIssue.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssue.WorkspaceID(childComplexity), true
+
+	case "ProjectTemplateIssuePayload.issue":
+		if e.ComplexityRoot.ProjectTemplateIssuePayload.Issue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssuePayload.Issue(childComplexity), true
+	case "ProjectTemplateIssuePayload.version":
+		if e.ComplexityRoot.ProjectTemplateIssuePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateIssuePayload.Version(childComplexity), true
+
+	case "ProjectTemplateMilestone.createdAt":
+		if e.ComplexityRoot.ProjectTemplateMilestone.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestone.CreatedAt(childComplexity), true
+	case "ProjectTemplateMilestone.description":
+		if e.ComplexityRoot.ProjectTemplateMilestone.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestone.Description(childComplexity), true
+	case "ProjectTemplateMilestone.id":
+		if e.ComplexityRoot.ProjectTemplateMilestone.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestone.ID(childComplexity), true
+	case "ProjectTemplateMilestone.name":
+		if e.ComplexityRoot.ProjectTemplateMilestone.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestone.Name(childComplexity), true
+	case "ProjectTemplateMilestone.projectTemplateId":
+		if e.ComplexityRoot.ProjectTemplateMilestone.ProjectTemplateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestone.ProjectTemplateID(childComplexity), true
+	case "ProjectTemplateMilestone.sortOrder":
+		if e.ComplexityRoot.ProjectTemplateMilestone.SortOrder == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestone.SortOrder(childComplexity), true
+	case "ProjectTemplateMilestone.targetDate":
+		if e.ComplexityRoot.ProjectTemplateMilestone.TargetDate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestone.TargetDate(childComplexity), true
+	case "ProjectTemplateMilestone.updatedAt":
+		if e.ComplexityRoot.ProjectTemplateMilestone.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestone.UpdatedAt(childComplexity), true
+	case "ProjectTemplateMilestone.workspaceId":
+		if e.ComplexityRoot.ProjectTemplateMilestone.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestone.WorkspaceID(childComplexity), true
+
+	case "ProjectTemplateMilestonePayload.milestone":
+		if e.ComplexityRoot.ProjectTemplateMilestonePayload.Milestone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestonePayload.Milestone(childComplexity), true
+	case "ProjectTemplateMilestonePayload.version":
+		if e.ComplexityRoot.ProjectTemplateMilestonePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplateMilestonePayload.Version(childComplexity), true
+
+	case "ProjectTemplatePayload.template":
+		if e.ComplexityRoot.ProjectTemplatePayload.Template == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplatePayload.Template(childComplexity), true
+	case "ProjectTemplatePayload.version":
+		if e.ComplexityRoot.ProjectTemplatePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectTemplatePayload.Version(childComplexity), true
+
 	case "ProjectUpdate.author":
 		if e.ComplexityRoot.ProjectUpdate.Author == nil {
 			break
@@ -5415,6 +5837,50 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ProjectStatuses(childComplexity), true
+	case "Query.projectTemplate":
+		if e.ComplexityRoot.Query.ProjectTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectTemplate(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.projectTemplateIssues":
+		if e.ComplexityRoot.Query.ProjectTemplateIssues == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectTemplateIssues_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectTemplateIssues(childComplexity, args["projectTemplateId"].(uuid.UUID)), true
+	case "Query.projectTemplateMilestones":
+		if e.ComplexityRoot.Query.ProjectTemplateMilestones == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectTemplateMilestones_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectTemplateMilestones(childComplexity, args["projectTemplateId"].(uuid.UUID)), true
+	case "Query.projectTemplates":
+		if e.ComplexityRoot.Query.ProjectTemplates == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectTemplates_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectTemplates(childComplexity, args["teamId"].(*uuid.UUID)), true
 	case "Query.projectUpdate":
 		if e.ComplexityRoot.Query.ProjectUpdate == nil {
 			break
@@ -6592,6 +7058,9 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateProjectLabelInput,
 		ec.unmarshalInputCreateProjectMilestoneInput,
 		ec.unmarshalInputCreateProjectStatusInput,
+		ec.unmarshalInputCreateProjectTemplateInput,
+		ec.unmarshalInputCreateProjectTemplateIssueInput,
+		ec.unmarshalInputCreateProjectTemplateMilestoneInput,
 		ec.unmarshalInputCreateProjectUpdateInput,
 		ec.unmarshalInputCreateTeamInput,
 		ec.unmarshalInputCreateViewInput,
@@ -6612,6 +7081,9 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateProjectLabelInput,
 		ec.unmarshalInputUpdateProjectMilestoneInput,
 		ec.unmarshalInputUpdateProjectStatusInput,
+		ec.unmarshalInputUpdateProjectTemplateInput,
+		ec.unmarshalInputUpdateProjectTemplateIssueInput,
+		ec.unmarshalInputUpdateProjectTemplateMilestoneInput,
 		ec.unmarshalInputUpdateProjectUpdateInput,
 		ec.unmarshalInputUpdateTeamArchiveInput,
 		ec.unmarshalInputUpdateTeamCyclesInput,
@@ -7378,6 +7850,53 @@ type FormTemplateField {
 }
 
 """
+Prefilled project with milestones and starter issues. Workspace or team scoped.
+"""
+type ProjectTemplate {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the template is offered in every team."""
+  teamId: UUID
+  name: String!
+  description: String
+  summary: String!
+  body: String!
+  """Keys match createProject: statusId, priority, leadId, color, icon, teamIds, memberIds, dates, initiativeIds."""
+  properties: JSON!
+  position: String!
+  createdBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type ProjectTemplateMilestone {
+  id: UUID!
+  workspaceId: UUID!
+  projectTemplateId: UUID!
+  name: String!
+  description: String
+  targetDate: String
+  sortOrder: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type ProjectTemplateIssue {
+  id: UUID!
+  workspaceId: UUID!
+  projectTemplateId: UUID!
+  parentId: UUID
+  title: String!
+  description: String!
+  """Keys match createIssue property names, plus teamId and templateId."""
+  properties: JSON!
+  sortOrder: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
 A personal API key. Acts as its owner — never more.
 
 A key that could do more than the person who made it is a privilege-escalation path, and
@@ -7752,6 +8271,21 @@ type FormTemplateFieldPayload implements MutationResult {
   field: FormTemplateField!
 }
 
+type ProjectTemplatePayload implements MutationResult {
+  version: Int!
+  template: ProjectTemplate!
+}
+
+type ProjectTemplateMilestonePayload implements MutationResult {
+  version: Int!
+  milestone: ProjectTemplateMilestone!
+}
+
+type ProjectTemplateIssuePayload implements MutationResult {
+  version: Int!
+  issue: ProjectTemplateIssue!
+}
+
 enum ProjectStatusCategory {
   BACKLOG
   PLANNED
@@ -7813,6 +8347,7 @@ type Project {
   archivedAt: Time
   deletedAt: Time
   deletedBy: UUID
+  projectTemplateId: UUID
   createdAt: Time!
   updatedAt: Time!
 
@@ -7896,6 +8431,7 @@ input CreateProjectInput {
   startDateGranularity: TimeframeGranularity
   targetDate: String
   targetDateGranularity: TimeframeGranularity
+  projectTemplateId: UUID
 }
 
 input UpdateProjectInput {
@@ -8281,6 +8817,56 @@ input UpdateFormTemplateFieldInput {
   config: JSON
 }
 
+input CreateProjectTemplateInput {
+  teamId: UUID
+  name: String!
+  description: String
+  summary: String
+  body: String
+  properties: JSON
+}
+
+input UpdateProjectTemplateInput {
+  id: UUID!
+  name: String
+  description: String
+  summary: String
+  body: String
+  properties: JSON
+}
+
+input CreateProjectTemplateMilestoneInput {
+  projectTemplateId: UUID!
+  name: String!
+  description: String
+  targetDate: String
+}
+
+input UpdateProjectTemplateMilestoneInput {
+  id: UUID!
+  name: String
+  description: String
+  targetDate: String
+  sortOrder: String
+}
+
+input CreateProjectTemplateIssueInput {
+  projectTemplateId: UUID!
+  parentId: UUID
+  title: String!
+  description: String
+  properties: JSON
+}
+
+input UpdateProjectTemplateIssueInput {
+  id: UUID!
+  title: String
+  description: String
+  properties: JSON
+  parentId: UUID
+  sortOrder: String
+}
+
 input UpdateTeamEstimatesInput {
   teamId: UUID!
   scale: EstimateScale!
@@ -8526,6 +9112,11 @@ type Query {
   formTemplate(id: UUID!): FormTemplate
   formTemplateFields(formTemplateId: UUID!): [FormTemplateField!]!
 
+  projectTemplates(teamId: UUID): [ProjectTemplate!]!
+  projectTemplate(id: UUID!): ProjectTemplate
+  projectTemplateMilestones(projectTemplateId: UUID!): [ProjectTemplateMilestone!]!
+  projectTemplateIssues(projectTemplateId: UUID!): [ProjectTemplateIssue!]!
+
   projects: [Project!]!
   project(id: UUID!): Project
   projectStatuses: [ProjectStatus!]!
@@ -8740,6 +9331,16 @@ type Mutation {
   createFormTemplateField(input: CreateFormTemplateFieldInput!): FormTemplateFieldPayload!
   updateFormTemplateField(input: UpdateFormTemplateFieldInput!): FormTemplateFieldPayload!
   deleteFormTemplateField(id: UUID!): DeletePayload!
+
+  createProjectTemplate(input: CreateProjectTemplateInput!): ProjectTemplatePayload!
+  updateProjectTemplate(input: UpdateProjectTemplateInput!): ProjectTemplatePayload!
+  archiveProjectTemplate(id: UUID!, archived: Boolean!): DeletePayload!
+  createProjectTemplateMilestone(input: CreateProjectTemplateMilestoneInput!): ProjectTemplateMilestonePayload!
+  updateProjectTemplateMilestone(input: UpdateProjectTemplateMilestoneInput!): ProjectTemplateMilestonePayload!
+  deleteProjectTemplateMilestone(id: UUID!): DeletePayload!
+  createProjectTemplateIssue(input: CreateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
+  updateProjectTemplateIssue(input: UpdateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
+  deleteProjectTemplateIssue(id: UUID!): DeletePayload!
 
   # ---- projects
 
@@ -9719,6 +10320,8 @@ func (ec *executionContext) childFields_Project(ctx context.Context, field graph
 		return ec.fieldContext_Project_deletedAt(ctx, field)
 	case "deletedBy":
 		return ec.fieldContext_Project_deletedBy(ctx, field)
+	case "projectTemplateId":
+		return ec.fieldContext_Project_projectTemplateId(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Project_createdAt(ctx, field)
 	case "updatedAt":
@@ -9975,6 +10578,118 @@ func (ec *executionContext) childFields_ProjectTeamPayload(ctx context.Context, 
 		return ec.fieldContext_ProjectTeamPayload_projectTeam(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ProjectTeamPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectTemplate(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_ProjectTemplate_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_ProjectTemplate_workspaceId(ctx, field)
+	case "teamId":
+		return ec.fieldContext_ProjectTemplate_teamId(ctx, field)
+	case "name":
+		return ec.fieldContext_ProjectTemplate_name(ctx, field)
+	case "description":
+		return ec.fieldContext_ProjectTemplate_description(ctx, field)
+	case "summary":
+		return ec.fieldContext_ProjectTemplate_summary(ctx, field)
+	case "body":
+		return ec.fieldContext_ProjectTemplate_body(ctx, field)
+	case "properties":
+		return ec.fieldContext_ProjectTemplate_properties(ctx, field)
+	case "position":
+		return ec.fieldContext_ProjectTemplate_position(ctx, field)
+	case "createdBy":
+		return ec.fieldContext_ProjectTemplate_createdBy(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_ProjectTemplate_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_ProjectTemplate_updatedAt(ctx, field)
+	case "archivedAt":
+		return ec.fieldContext_ProjectTemplate_archivedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectTemplate", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectTemplateIssue(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_ProjectTemplateIssue_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_ProjectTemplateIssue_workspaceId(ctx, field)
+	case "projectTemplateId":
+		return ec.fieldContext_ProjectTemplateIssue_projectTemplateId(ctx, field)
+	case "parentId":
+		return ec.fieldContext_ProjectTemplateIssue_parentId(ctx, field)
+	case "title":
+		return ec.fieldContext_ProjectTemplateIssue_title(ctx, field)
+	case "description":
+		return ec.fieldContext_ProjectTemplateIssue_description(ctx, field)
+	case "properties":
+		return ec.fieldContext_ProjectTemplateIssue_properties(ctx, field)
+	case "sortOrder":
+		return ec.fieldContext_ProjectTemplateIssue_sortOrder(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_ProjectTemplateIssue_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_ProjectTemplateIssue_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectTemplateIssue", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectTemplateIssuePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_ProjectTemplateIssuePayload_version(ctx, field)
+	case "issue":
+		return ec.fieldContext_ProjectTemplateIssuePayload_issue(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectTemplateIssuePayload", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectTemplateMilestone(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_ProjectTemplateMilestone_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_ProjectTemplateMilestone_workspaceId(ctx, field)
+	case "projectTemplateId":
+		return ec.fieldContext_ProjectTemplateMilestone_projectTemplateId(ctx, field)
+	case "name":
+		return ec.fieldContext_ProjectTemplateMilestone_name(ctx, field)
+	case "description":
+		return ec.fieldContext_ProjectTemplateMilestone_description(ctx, field)
+	case "targetDate":
+		return ec.fieldContext_ProjectTemplateMilestone_targetDate(ctx, field)
+	case "sortOrder":
+		return ec.fieldContext_ProjectTemplateMilestone_sortOrder(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_ProjectTemplateMilestone_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_ProjectTemplateMilestone_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectTemplateMilestone", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectTemplateMilestonePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_ProjectTemplateMilestonePayload_version(ctx, field)
+	case "milestone":
+		return ec.fieldContext_ProjectTemplateMilestonePayload_milestone(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectTemplateMilestonePayload", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectTemplatePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_ProjectTemplatePayload_version(ctx, field)
+	case "template":
+		return ec.fieldContext_ProjectTemplatePayload_template(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectTemplatePayload", field.Name)
 }
 
 func (ec *executionContext) childFields_ProjectUpdate(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -11167,6 +11882,28 @@ func (ec *executionContext) field_Mutation_archiveProjectStatus_args(ctx context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_archiveProjectTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_archiveProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11597,6 +12334,48 @@ func (ec *executionContext) field_Mutation_createProjectStatus_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createProjectTemplateIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateProjectTemplateIssueInput, error) {
+			return ec.unmarshalNCreateProjectTemplateIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectTemplateIssueInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createProjectTemplateMilestone_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateProjectTemplateMilestoneInput, error) {
+			return ec.unmarshalNCreateProjectTemplateMilestoneInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectTemplateMilestoneInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createProjectTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateProjectTemplateInput, error) {
+			return ec.unmarshalNCreateProjectTemplateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectTemplateInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createProjectUpdate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11978,6 +12757,34 @@ func (ec *executionContext) field_Mutation_deleteProjectMilestone_args(ctx conte
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteProjectTemplateIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteProjectTemplateMilestone_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -13009,6 +13816,48 @@ func (ec *executionContext) field_Mutation_updateProjectStatus_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateProjectTemplateIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateProjectTemplateIssueInput, error) {
+			return ec.unmarshalNUpdateProjectTemplateIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectTemplateIssueInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateProjectTemplateMilestone_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateProjectTemplateMilestoneInput, error) {
+			return ec.unmarshalNUpdateProjectTemplateMilestoneInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectTemplateMilestoneInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateProjectTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateProjectTemplateInput, error) {
+			return ec.unmarshalNUpdateProjectTemplateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectTemplateInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateProjectUpdate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13558,6 +14407,62 @@ func (ec *executionContext) field_Query_projectLabel_args(ctx context.Context, r
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectTemplateIssues_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectTemplateId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["projectTemplateId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectTemplateMilestones_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectTemplateId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["projectTemplateId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectTemplates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
 	return args, nil
 }
 
@@ -25218,6 +26123,402 @@ func (ec *executionContext) fieldContext_Mutation_deleteFormTemplateField(ctx co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createProjectTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createProjectTemplate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateProjectTemplate(ctx, fc.Args["input"].(CreateProjectTemplateInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplatePayload) graphql.Marshaler {
+			return ec.marshalNProjectTemplatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplatePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createProjectTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplatePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createProjectTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateProjectTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateProjectTemplate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateProjectTemplate(ctx, fc.Args["input"].(UpdateProjectTemplateInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplatePayload) graphql.Marshaler {
+			return ec.marshalNProjectTemplatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplatePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateProjectTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplatePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateProjectTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveProjectTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_archiveProjectTemplate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ArchiveProjectTemplate(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_archiveProjectTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveProjectTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createProjectTemplateMilestone(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createProjectTemplateMilestone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateProjectTemplateMilestone(ctx, fc.Args["input"].(CreateProjectTemplateMilestoneInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplateMilestonePayload) graphql.Marshaler {
+			return ec.marshalNProjectTemplateMilestonePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestonePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createProjectTemplateMilestone(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplateMilestonePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createProjectTemplateMilestone_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateProjectTemplateMilestone(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateProjectTemplateMilestone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateProjectTemplateMilestone(ctx, fc.Args["input"].(UpdateProjectTemplateMilestoneInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplateMilestonePayload) graphql.Marshaler {
+			return ec.marshalNProjectTemplateMilestonePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestonePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateProjectTemplateMilestone(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplateMilestonePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateProjectTemplateMilestone_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteProjectTemplateMilestone(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteProjectTemplateMilestone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteProjectTemplateMilestone(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteProjectTemplateMilestone(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteProjectTemplateMilestone_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createProjectTemplateIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createProjectTemplateIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateProjectTemplateIssue(ctx, fc.Args["input"].(CreateProjectTemplateIssueInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplateIssuePayload) graphql.Marshaler {
+			return ec.marshalNProjectTemplateIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createProjectTemplateIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplateIssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createProjectTemplateIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateProjectTemplateIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateProjectTemplateIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateProjectTemplateIssue(ctx, fc.Args["input"].(UpdateProjectTemplateIssueInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplateIssuePayload) graphql.Marshaler {
+			return ec.marshalNProjectTemplateIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateProjectTemplateIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplateIssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateProjectTemplateIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteProjectTemplateIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteProjectTemplateIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteProjectTemplateIssue(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteProjectTemplateIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteProjectTemplateIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createProject(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27310,6 +28611,29 @@ func (ec *executionContext) fieldContext_Project_deletedBy(_ context.Context, fi
 	return graphql.NewScalarFieldContext("Project", field, false, false, errors.New("field of type UUID does not have child fields"))
 }
 
+func (ec *executionContext) _Project_projectTemplateId(ctx context.Context, field graphql.CollectedField, obj *Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_projectTemplateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectTemplateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Project_projectTemplateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
 func (ec *executionContext) _Project_createdAt(ctx context.Context, field graphql.CollectedField, obj *Project) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -29358,6 +30682,907 @@ func (ec *executionContext) fieldContext_ProjectTeamPayload_projectTeam(_ contex
 	return fc, nil
 }
 
+func (ec *executionContext) _ProjectTemplate_id(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_workspaceId(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_teamId(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_teamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_name(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_description(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_summary(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_summary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_body(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_body(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Body, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_body(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_properties(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_properties(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Properties, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_properties(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_position(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_createdBy(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_createdBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_createdAt(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_updatedAt(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplate_archivedAt(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplate_archivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplate_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplate", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssue_id(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssue_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssue_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssue_workspaceId(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssue_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssue_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssue_projectTemplateId(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssue_projectTemplateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectTemplateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssue_projectTemplateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssue_parentId(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssue_parentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ParentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssue_parentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssue_title(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssue_title(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssue_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssue", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssue_description(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssue_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssue_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssue", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssue_properties(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssue_properties(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Properties, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssue_properties(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssue", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssue_sortOrder(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssue_sortOrder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SortOrder, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssue_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssue", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssue_createdAt(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssue_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssue_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssue", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssue_updatedAt(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssue_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssue_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssue", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssuePayload_version(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssuePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssuePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssuePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateIssuePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateIssuePayload_issue(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateIssuePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateIssuePayload_issue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Issue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplateIssue) graphql.Marshaler {
+			return ec.marshalNProjectTemplateIssue2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssue(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateIssuePayload_issue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectTemplateIssuePayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplateIssue(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectTemplateMilestone_id(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestone_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestone_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateMilestone", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateMilestone_workspaceId(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestone_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestone_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateMilestone", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateMilestone_projectTemplateId(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestone_projectTemplateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectTemplateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestone_projectTemplateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateMilestone", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateMilestone_name(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestone_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestone_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateMilestone", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateMilestone_description(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestone_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestone_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateMilestone", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateMilestone_targetDate(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestone_targetDate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TargetDate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestone_targetDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateMilestone", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateMilestone_sortOrder(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestone_sortOrder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SortOrder, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestone_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateMilestone", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateMilestone_createdAt(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestone_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestone_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateMilestone", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateMilestone_updatedAt(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestone) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestone_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestone_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateMilestone", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateMilestonePayload_version(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestonePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestonePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestonePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplateMilestonePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplateMilestonePayload_milestone(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplateMilestonePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplateMilestonePayload_milestone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Milestone, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplateMilestone) graphql.Marshaler {
+			return ec.marshalNProjectTemplateMilestone2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestone(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplateMilestonePayload_milestone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectTemplateMilestonePayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplateMilestone(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectTemplatePayload_version(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplatePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplatePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplatePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectTemplatePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectTemplatePayload_template(ctx context.Context, field graphql.CollectedField, obj *ProjectTemplatePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectTemplatePayload_template(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Template, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplate) graphql.Marshaler {
+			return ec.marshalNProjectTemplate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplate(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectTemplatePayload_template(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectTemplatePayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplate(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProjectUpdate_id(ctx context.Context, field graphql.CollectedField, obj *ProjectUpdate) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -30806,6 +33031,182 @@ func (ec *executionContext) fieldContext_Query_formTemplateFields(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_formTemplateFields_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projectTemplates(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_projectTemplates(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectTemplates(ctx, fc.Args["teamId"].(*uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []ProjectTemplate) graphql.Marshaler {
+			return ec.marshalNProjectTemplate2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_projectTemplates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplate(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectTemplates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projectTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_projectTemplate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectTemplate(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplate) graphql.Marshaler {
+			return ec.marshalOProjectTemplate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplate(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_projectTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplate(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projectTemplateMilestones(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_projectTemplateMilestones(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectTemplateMilestones(ctx, fc.Args["projectTemplateId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []ProjectTemplateMilestone) graphql.Marshaler {
+			return ec.marshalNProjectTemplateMilestone2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestoneᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_projectTemplateMilestones(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplateMilestone(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectTemplateMilestones_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projectTemplateIssues(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_projectTemplateIssues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectTemplateIssues(ctx, fc.Args["projectTemplateId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []ProjectTemplateIssue) graphql.Marshaler {
+			return ec.marshalNProjectTemplateIssue2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssueᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_projectTemplateIssues(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectTemplateIssue(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectTemplateIssues_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -37721,7 +40122,7 @@ func (ec *executionContext) unmarshalInputCreateProjectInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "summary", "description", "icon", "color", "statusId", "priority", "leadId", "teamIds", "memberIds", "startDate", "startDateGranularity", "targetDate", "targetDateGranularity"}
+	fieldsInOrder := [...]string{"name", "summary", "description", "icon", "color", "statusId", "priority", "leadId", "teamIds", "memberIds", "startDate", "startDateGranularity", "targetDate", "targetDateGranularity", "projectTemplateId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -37826,6 +40227,13 @@ func (ec *executionContext) unmarshalInputCreateProjectInput(ctx context.Context
 				return it, err
 			}
 			it.TargetDateGranularity = data
+		case "projectTemplateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectTemplateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectTemplateID = data
 		}
 	}
 	return it, nil
@@ -38000,6 +40408,180 @@ func (ec *executionContext) unmarshalInputCreateProjectStatusInput(ctx context.C
 				return it, err
 			}
 			it.IsDefault = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateProjectTemplateInput(ctx context.Context, obj any) (CreateProjectTemplateInput, error) {
+	var it CreateProjectTemplateInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"teamId", "name", "description", "summary", "body", "properties"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "summary":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("summary"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Summary = data
+		case "body":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Body = data
+		case "properties":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("properties"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Properties = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateProjectTemplateIssueInput(ctx context.Context, obj any) (CreateProjectTemplateIssueInput, error) {
+	var it CreateProjectTemplateIssueInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectTemplateId", "parentId", "title", "description", "properties"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectTemplateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectTemplateId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectTemplateID = data
+		case "parentId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "properties":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("properties"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Properties = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateProjectTemplateMilestoneInput(ctx context.Context, obj any) (CreateProjectTemplateMilestoneInput, error) {
+	var it CreateProjectTemplateMilestoneInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectTemplateId", "name", "description", "targetDate"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectTemplateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectTemplateId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectTemplateID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "targetDate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetDate"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetDate = data
 		}
 	}
 	return it, nil
@@ -39501,6 +42083,194 @@ func (ec *executionContext) unmarshalInputUpdateProjectStatusInput(ctx context.C
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateProjectTemplateInput(ctx context.Context, obj any) (UpdateProjectTemplateInput, error) {
+	var it UpdateProjectTemplateInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name", "description", "summary", "body", "properties"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "summary":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("summary"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Summary = data
+		case "body":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Body = data
+		case "properties":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("properties"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Properties = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateProjectTemplateIssueInput(ctx context.Context, obj any) (UpdateProjectTemplateIssueInput, error) {
+	var it UpdateProjectTemplateIssueInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "title", "description", "properties", "parentId", "sortOrder"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "properties":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("properties"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Properties = data
+		case "parentId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentID = data
+		case "sortOrder":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortOrder"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SortOrder = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateProjectTemplateMilestoneInput(ctx context.Context, obj any) (UpdateProjectTemplateMilestoneInput, error) {
+	var it UpdateProjectTemplateMilestoneInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name", "description", "targetDate", "sortOrder"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "targetDate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetDate"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetDate = data
+		case "sortOrder":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortOrder"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SortOrder = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateProjectUpdateInput(ctx context.Context, obj any) (UpdateProjectUpdateInput, error) {
 	var it UpdateProjectUpdateInput
 	if obj == nil {
@@ -40187,6 +42957,27 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._ProjectUpdatePayload(ctx, sel, obj)
+	case ProjectTemplatePayload:
+		return ec._ProjectTemplatePayload(ctx, sel, &obj)
+	case *ProjectTemplatePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectTemplatePayload(ctx, sel, obj)
+	case ProjectTemplateMilestonePayload:
+		return ec._ProjectTemplateMilestonePayload(ctx, sel, &obj)
+	case *ProjectTemplateMilestonePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectTemplateMilestonePayload(ctx, sel, obj)
+	case ProjectTemplateIssuePayload:
+		return ec._ProjectTemplateIssuePayload(ctx, sel, &obj)
+	case *ProjectTemplateIssuePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectTemplateIssuePayload(ctx, sel, obj)
 	case ProjectTeamPayload:
 		return ec._ProjectTeamPayload(ctx, sel, &obj)
 	case *ProjectTeamPayload:
@@ -43835,6 +46626,69 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createProjectTemplate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createProjectTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateProjectTemplate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateProjectTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveProjectTemplate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveProjectTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createProjectTemplateMilestone":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createProjectTemplateMilestone(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateProjectTemplateMilestone":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateProjectTemplateMilestone(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteProjectTemplateMilestone":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteProjectTemplateMilestone(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createProjectTemplateIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createProjectTemplateIssue(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateProjectTemplateIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateProjectTemplateIssue(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteProjectTemplateIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteProjectTemplateIssue(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createProject":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createProject(ctx, field)
@@ -44326,6 +47180,11 @@ func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "deletedBy":
 			out.Values[i] = ec._Project_deletedBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "projectTemplateId":
+			out.Values[i] = ec._Project_projectTemplateId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -45255,6 +48114,394 @@ func (ec *executionContext) _ProjectTeamPayload(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var projectTemplateImplementors = []string{"ProjectTemplate"}
+
+func (ec *executionContext) _ProjectTemplate(ctx context.Context, sel ast.SelectionSet, obj *ProjectTemplate) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectTemplateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectTemplate")
+		case "id":
+			out.Values[i] = ec._ProjectTemplate_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._ProjectTemplate_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamId":
+			out.Values[i] = ec._ProjectTemplate_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._ProjectTemplate_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._ProjectTemplate_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._ProjectTemplate_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "body":
+			out.Values[i] = ec._ProjectTemplate_body(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "properties":
+			out.Values[i] = ec._ProjectTemplate_properties(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._ProjectTemplate_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdBy":
+			out.Values[i] = ec._ProjectTemplate_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ProjectTemplate_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._ProjectTemplate_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archivedAt":
+			out.Values[i] = ec._ProjectTemplate_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectTemplateIssueImplementors = []string{"ProjectTemplateIssue"}
+
+func (ec *executionContext) _ProjectTemplateIssue(ctx context.Context, sel ast.SelectionSet, obj *ProjectTemplateIssue) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectTemplateIssueImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectTemplateIssue")
+		case "id":
+			out.Values[i] = ec._ProjectTemplateIssue_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._ProjectTemplateIssue_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectTemplateId":
+			out.Values[i] = ec._ProjectTemplateIssue_projectTemplateId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "parentId":
+			out.Values[i] = ec._ProjectTemplateIssue_parentId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._ProjectTemplateIssue_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._ProjectTemplateIssue_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "properties":
+			out.Values[i] = ec._ProjectTemplateIssue_properties(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sortOrder":
+			out.Values[i] = ec._ProjectTemplateIssue_sortOrder(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ProjectTemplateIssue_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._ProjectTemplateIssue_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectTemplateIssuePayloadImplementors = []string{"ProjectTemplateIssuePayload", "MutationResult"}
+
+func (ec *executionContext) _ProjectTemplateIssuePayload(ctx context.Context, sel ast.SelectionSet, obj *ProjectTemplateIssuePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectTemplateIssuePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectTemplateIssuePayload")
+		case "version":
+			out.Values[i] = ec._ProjectTemplateIssuePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "issue":
+			out.Values[i] = ec._ProjectTemplateIssuePayload_issue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectTemplateMilestoneImplementors = []string{"ProjectTemplateMilestone"}
+
+func (ec *executionContext) _ProjectTemplateMilestone(ctx context.Context, sel ast.SelectionSet, obj *ProjectTemplateMilestone) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectTemplateMilestoneImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectTemplateMilestone")
+		case "id":
+			out.Values[i] = ec._ProjectTemplateMilestone_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._ProjectTemplateMilestone_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectTemplateId":
+			out.Values[i] = ec._ProjectTemplateMilestone_projectTemplateId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._ProjectTemplateMilestone_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._ProjectTemplateMilestone_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "targetDate":
+			out.Values[i] = ec._ProjectTemplateMilestone_targetDate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "sortOrder":
+			out.Values[i] = ec._ProjectTemplateMilestone_sortOrder(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ProjectTemplateMilestone_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._ProjectTemplateMilestone_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectTemplateMilestonePayloadImplementors = []string{"ProjectTemplateMilestonePayload", "MutationResult"}
+
+func (ec *executionContext) _ProjectTemplateMilestonePayload(ctx context.Context, sel ast.SelectionSet, obj *ProjectTemplateMilestonePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectTemplateMilestonePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectTemplateMilestonePayload")
+		case "version":
+			out.Values[i] = ec._ProjectTemplateMilestonePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "milestone":
+			out.Values[i] = ec._ProjectTemplateMilestonePayload_milestone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectTemplatePayloadImplementors = []string{"ProjectTemplatePayload", "MutationResult"}
+
+func (ec *executionContext) _ProjectTemplatePayload(ctx context.Context, sel ast.SelectionSet, obj *ProjectTemplatePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectTemplatePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectTemplatePayload")
+		case "version":
+			out.Values[i] = ec._ProjectTemplatePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "template":
+			out.Values[i] = ec._ProjectTemplatePayload_template(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var projectUpdateImplementors = []string{"ProjectUpdate"}
 
 func (ec *executionContext) _ProjectUpdate(ctx context.Context, sel ast.SelectionSet, obj *ProjectUpdate) graphql.Marshaler {
@@ -46019,6 +49266,94 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_formTemplateFields(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectTemplates":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectTemplates(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectTemplate":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectTemplate(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectTemplateMilestones":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectTemplateMilestones(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectTemplateIssues":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectTemplateIssues(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -48836,6 +52171,21 @@ func (ec *executionContext) unmarshalNCreateProjectStatusInput2githubᚗcomᚋpe
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateProjectTemplateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectTemplateInput(ctx context.Context, v any) (CreateProjectTemplateInput, error) {
+	res, err := ec.unmarshalInputCreateProjectTemplateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateProjectTemplateIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectTemplateIssueInput(ctx context.Context, v any) (CreateProjectTemplateIssueInput, error) {
+	res, err := ec.unmarshalInputCreateProjectTemplateIssueInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateProjectTemplateMilestoneInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectTemplateMilestoneInput(ctx context.Context, v any) (CreateProjectTemplateMilestoneInput, error) {
+	res, err := ec.unmarshalInputCreateProjectTemplateMilestoneInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateProjectUpdateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectUpdateInput(ctx context.Context, v any) (CreateProjectUpdateInput, error) {
 	res, err := ec.unmarshalInputCreateProjectUpdateInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -49946,6 +53296,138 @@ func (ec *executionContext) marshalNProjectTeamPayload2ᚖgithubᚗcomᚋpeixoto
 	return ec._ProjectTeamPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNProjectTemplate2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplate(ctx context.Context, sel ast.SelectionSet, v ProjectTemplate) graphql.Marshaler {
+	return ec._ProjectTemplate(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProjectTemplate2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateᚄ(ctx context.Context, sel ast.SelectionSet, v []ProjectTemplate) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProjectTemplate2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplate(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProjectTemplate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplate(ctx context.Context, sel ast.SelectionSet, v *ProjectTemplate) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectTemplate(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectTemplateIssue2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssue(ctx context.Context, sel ast.SelectionSet, v ProjectTemplateIssue) graphql.Marshaler {
+	return ec._ProjectTemplateIssue(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProjectTemplateIssue2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssueᚄ(ctx context.Context, sel ast.SelectionSet, v []ProjectTemplateIssue) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProjectTemplateIssue2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssue(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProjectTemplateIssue2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssue(ctx context.Context, sel ast.SelectionSet, v *ProjectTemplateIssue) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectTemplateIssue(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectTemplateIssuePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssuePayload(ctx context.Context, sel ast.SelectionSet, v ProjectTemplateIssuePayload) graphql.Marshaler {
+	return ec._ProjectTemplateIssuePayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProjectTemplateIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssuePayload(ctx context.Context, sel ast.SelectionSet, v *ProjectTemplateIssuePayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectTemplateIssuePayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectTemplateMilestone2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestone(ctx context.Context, sel ast.SelectionSet, v ProjectTemplateMilestone) graphql.Marshaler {
+	return ec._ProjectTemplateMilestone(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProjectTemplateMilestone2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestoneᚄ(ctx context.Context, sel ast.SelectionSet, v []ProjectTemplateMilestone) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProjectTemplateMilestone2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestone(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProjectTemplateMilestone2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestone(ctx context.Context, sel ast.SelectionSet, v *ProjectTemplateMilestone) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectTemplateMilestone(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectTemplateMilestonePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestonePayload(ctx context.Context, sel ast.SelectionSet, v ProjectTemplateMilestonePayload) graphql.Marshaler {
+	return ec._ProjectTemplateMilestonePayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProjectTemplateMilestonePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestonePayload(ctx context.Context, sel ast.SelectionSet, v *ProjectTemplateMilestonePayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectTemplateMilestonePayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectTemplatePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplatePayload(ctx context.Context, sel ast.SelectionSet, v ProjectTemplatePayload) graphql.Marshaler {
+	return ec._ProjectTemplatePayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProjectTemplatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplatePayload(ctx context.Context, sel ast.SelectionSet, v *ProjectTemplatePayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectTemplatePayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNProjectUpdate2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdate(ctx context.Context, sel ast.SelectionSet, v ProjectUpdate) graphql.Marshaler {
 	return ec._ProjectUpdate(ctx, sel, &v)
 }
@@ -50353,6 +53835,21 @@ func (ec *executionContext) unmarshalNUpdateProjectMilestoneInput2githubᚗcom�
 
 func (ec *executionContext) unmarshalNUpdateProjectStatusInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectStatusInput(ctx context.Context, v any) (UpdateProjectStatusInput, error) {
 	res, err := ec.unmarshalInputUpdateProjectStatusInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateProjectTemplateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectTemplateInput(ctx context.Context, v any) (UpdateProjectTemplateInput, error) {
+	res, err := ec.unmarshalInputUpdateProjectTemplateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateProjectTemplateIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectTemplateIssueInput(ctx context.Context, v any) (UpdateProjectTemplateIssueInput, error) {
+	res, err := ec.unmarshalInputUpdateProjectTemplateIssueInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateProjectTemplateMilestoneInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectTemplateMilestoneInput(ctx context.Context, v any) (UpdateProjectTemplateMilestoneInput, error) {
+	res, err := ec.unmarshalInputUpdateProjectTemplateMilestoneInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -51087,6 +54584,13 @@ func (ec *executionContext) marshalOProjectStatusCategory2ᚖgithubᚗcomᚋpeix
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOProjectTemplate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplate(ctx context.Context, sel ast.SelectionSet, v *ProjectTemplate) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ProjectTemplate(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOProjectUpdate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdate(ctx context.Context, sel ast.SelectionSet, v *ProjectUpdate) graphql.Marshaler {

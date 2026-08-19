@@ -59,9 +59,10 @@ import type { IssueTemplate, StateCategory, Store, TemplateProperties, UUID } fr
 import { ApiError } from '~/sync/api';
 import styles from './Templates.module.css';
 import { FormTemplatesPanel } from '~/features/form-templates/FormTemplatesPanel';
+import { ProjectTemplatesPanel } from '~/features/project-templates/ProjectTemplatesPanel';
 
 /** Which template family the settings screen is editing. */
-type TemplateKind = 'standard' | 'form';
+type TemplateKind = 'standard' | 'form' | 'project';
 
 /** The scope key a workspace template carries, mirroring the label screen's sentinel. */
 const WORKSPACE_SCOPE = 'workspace';
@@ -201,11 +202,24 @@ export function Templates() {
           >
             Form
           </Button>
+          <Button
+            variant={kind === 'project' ? 'primary' : 'ghost'}
+            role="tab"
+            aria-selected={kind === 'project'}
+            onClick={() => {
+              setKind('project');
+              setEditing(null);
+            }}
+          >
+            Project
+          </Button>
         </div>
       </header>
 
       {kind === 'form' ? (
         <FormTemplatesPanel />
+      ) : kind === 'project' ? (
+        <ProjectTemplatesPanel />
       ) : (
         <>
           <div className={styles.body}>

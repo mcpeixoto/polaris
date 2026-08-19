@@ -55,6 +55,7 @@ func toProject(p model.Project) (generated.Project, error) {
 		UpdateReminderIntervalDays: p.UpdateReminderIntervalDays,
 		UpdateReminderWeekday:      p.UpdateReminderWeekday,
 		UpdateReminderHour:         p.UpdateReminderHour,
+		ProjectTemplateID:          p.ProjectTemplateID,
 		ArchivedAt:                 p.ArchivedAt,
 		DeletedAt:                  p.DeletedAt,
 		DeletedBy:                  p.DeletedBy,
@@ -230,6 +231,7 @@ func fromCreateProjectInput(in generated.CreateProjectInput) (domain.CreateProje
 		StartDateGranularity:  startG,
 		TargetDate:            toDate(in.TargetDate),
 		TargetDateGranularity: targetG,
+		ProjectTemplateID:     in.ProjectTemplateID,
 	}, nil
 }
 

@@ -400,6 +400,57 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "projectTemplate",
+			func(ctx context.Context, after uuid.UUID) ([]store.StreamProjectTemplatesForBootstrapRow, error) {
+				return q.StreamProjectTemplatesForBootstrap(ctx, store.StreamProjectTemplatesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(t store.StreamProjectTemplatesForBootstrapRow) (uuid.UUID, any) {
+				return t.ID, toProjectTemplate(store.AsProjectTemplateRow(t))
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectTemplateMilestone",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectTemplateMilestone, error) {
+				return q.StreamProjectTemplateMilestonesForBootstrap(ctx, store.StreamProjectTemplateMilestonesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(m store.ProjectTemplateMilestone) (uuid.UUID, any) {
+				return m.ID, toProjectTemplateMilestone(m)
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "projectTemplateIssue",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectTemplateIssue, error) {
+				return q.StreamProjectTemplateIssuesForBootstrap(ctx, store.StreamProjectTemplateIssuesForBootstrapParams{
+					WorkspaceID:            p.WorkspaceID,
+					TeamIds:                teamIDs,
+					IncludeWorkspaceScoped: includeWorkspaceScoped,
+					AfterID:                after,
+					PageSize:               bootstrapPageSize,
+				})
+			},
+			func(i store.ProjectTemplateIssue) (uuid.UUID, any) {
+				return i.ID, toProjectTemplateIssue(i)
+			},
+		); err != nil {
+			return err
+		}
+
 		// Projects before issues: an issue may name a project and a milestone.
 		// Admins receive every project, including those on private teams they are not in;
 		// everybody else receives the ones whose teams they belong to.
@@ -839,7 +890,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v14 adds projectLabel and projectLabelLink (workspace taxonomy for projects).
 // v18 adds project update reminder cadence on workspace and per-project schedule overrides.
 // v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
-const ClientSchemaVersion = 19
+// v21 adds projectTemplate, projectTemplateMilestone, projectTemplateIssue, and project.projectTemplateId.
+const ClientSchemaVersion = 21
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

@@ -679,6 +679,53 @@ type FormTemplateField {
 }
 
 """
+Prefilled project with milestones and starter issues. Workspace or team scoped.
+"""
+type ProjectTemplate {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the template is offered in every team."""
+  teamId: UUID
+  name: String!
+  description: String
+  summary: String!
+  body: String!
+  """Keys match createProject: statusId, priority, leadId, color, icon, teamIds, memberIds, dates, initiativeIds."""
+  properties: JSON!
+  position: String!
+  createdBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+type ProjectTemplateMilestone {
+  id: UUID!
+  workspaceId: UUID!
+  projectTemplateId: UUID!
+  name: String!
+  description: String
+  targetDate: String
+  sortOrder: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type ProjectTemplateIssue {
+  id: UUID!
+  workspaceId: UUID!
+  projectTemplateId: UUID!
+  parentId: UUID
+  title: String!
+  description: String!
+  """Keys match createIssue property names, plus teamId and templateId."""
+  properties: JSON!
+  sortOrder: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
 A personal API key. Acts as its owner — never more.
 
 A key that could do more than the person who made it is a privilege-escalation path, and
@@ -1053,6 +1100,21 @@ type FormTemplateFieldPayload implements MutationResult {
   field: FormTemplateField!
 }
 
+type ProjectTemplatePayload implements MutationResult {
+  version: Int!
+  template: ProjectTemplate!
+}
+
+type ProjectTemplateMilestonePayload implements MutationResult {
+  version: Int!
+  milestone: ProjectTemplateMilestone!
+}
+
+type ProjectTemplateIssuePayload implements MutationResult {
+  version: Int!
+  issue: ProjectTemplateIssue!
+}
+
 enum ProjectStatusCategory {
   BACKLOG
   PLANNED
@@ -1114,6 +1176,7 @@ type Project {
   archivedAt: Time
   deletedAt: Time
   deletedBy: UUID
+  projectTemplateId: UUID
   createdAt: Time!
   updatedAt: Time!
 
@@ -1197,6 +1260,7 @@ input CreateProjectInput {
   startDateGranularity: TimeframeGranularity
   targetDate: String
   targetDateGranularity: TimeframeGranularity
+  projectTemplateId: UUID
 }
 
 input UpdateProjectInput {
@@ -1582,6 +1646,56 @@ input UpdateFormTemplateFieldInput {
   config: JSON
 }
 
+input CreateProjectTemplateInput {
+  teamId: UUID
+  name: String!
+  description: String
+  summary: String
+  body: String
+  properties: JSON
+}
+
+input UpdateProjectTemplateInput {
+  id: UUID!
+  name: String
+  description: String
+  summary: String
+  body: String
+  properties: JSON
+}
+
+input CreateProjectTemplateMilestoneInput {
+  projectTemplateId: UUID!
+  name: String!
+  description: String
+  targetDate: String
+}
+
+input UpdateProjectTemplateMilestoneInput {
+  id: UUID!
+  name: String
+  description: String
+  targetDate: String
+  sortOrder: String
+}
+
+input CreateProjectTemplateIssueInput {
+  projectTemplateId: UUID!
+  parentId: UUID
+  title: String!
+  description: String
+  properties: JSON
+}
+
+input UpdateProjectTemplateIssueInput {
+  id: UUID!
+  title: String
+  description: String
+  properties: JSON
+  parentId: UUID
+  sortOrder: String
+}
+
 input UpdateTeamEstimatesInput {
   teamId: UUID!
   scale: EstimateScale!
@@ -1827,6 +1941,11 @@ type Query {
   formTemplate(id: UUID!): FormTemplate
   formTemplateFields(formTemplateId: UUID!): [FormTemplateField!]!
 
+  projectTemplates(teamId: UUID): [ProjectTemplate!]!
+  projectTemplate(id: UUID!): ProjectTemplate
+  projectTemplateMilestones(projectTemplateId: UUID!): [ProjectTemplateMilestone!]!
+  projectTemplateIssues(projectTemplateId: UUID!): [ProjectTemplateIssue!]!
+
   projects: [Project!]!
   project(id: UUID!): Project
   projectStatuses: [ProjectStatus!]!
@@ -2041,6 +2160,16 @@ type Mutation {
   createFormTemplateField(input: CreateFormTemplateFieldInput!): FormTemplateFieldPayload!
   updateFormTemplateField(input: UpdateFormTemplateFieldInput!): FormTemplateFieldPayload!
   deleteFormTemplateField(id: UUID!): DeletePayload!
+
+  createProjectTemplate(input: CreateProjectTemplateInput!): ProjectTemplatePayload!
+  updateProjectTemplate(input: UpdateProjectTemplateInput!): ProjectTemplatePayload!
+  archiveProjectTemplate(id: UUID!, archived: Boolean!): DeletePayload!
+  createProjectTemplateMilestone(input: CreateProjectTemplateMilestoneInput!): ProjectTemplateMilestonePayload!
+  updateProjectTemplateMilestone(input: UpdateProjectTemplateMilestoneInput!): ProjectTemplateMilestonePayload!
+  deleteProjectTemplateMilestone(id: UUID!): DeletePayload!
+  createProjectTemplateIssue(input: CreateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
+  updateProjectTemplateIssue(input: UpdateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
+  deleteProjectTemplateIssue(id: UUID!): DeletePayload!
 
   # ---- projects
 

@@ -141,6 +141,28 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	formTemplate("Bug intake", nil)
 	formTemplate("Design intake", &design.ID)
 
+	projectTemplate := func(name string, teamID *uuid.UUID) uuid.UUID {
+		row, _, err := svc.CreateProjectTemplate(ctx, s.alice, domain.CreateProjectTemplateInput{
+			TeamID: teamID, Name: name, Summary: "Default summary",
+		})
+		if err != nil {
+			t.Fatalf("create project template %q: %v", name, err)
+		}
+		if _, _, err := svc.CreateProjectTemplateMilestone(ctx, s.alice, domain.CreateProjectTemplateMilestoneInput{
+			ProjectTemplateID: row.ID, Name: "Milestone",
+		}); err != nil {
+			t.Fatalf("create project template milestone for %q: %v", name, err)
+		}
+		if _, _, err := svc.CreateProjectTemplateIssue(ctx, s.alice, domain.CreateProjectTemplateIssueInput{
+			ProjectTemplateID: row.ID, Title: "Starter issue",
+		}); err != nil {
+			t.Fatalf("create project template issue for %q: %v", name, err)
+		}
+		return row.ID
+	}
+	projectTemplate("Product launch", nil)
+	projectTemplate("Design rollout", &design.ID)
+
 	project, _, err := svc.CreateProject(ctx, s.alice, domain.CreateProjectInput{
 		Name: "Shipping", TeamIDs: []uuid.UUID{f.TeamID}, MemberIDs: []uuid.UUID{s.alice.UserID},
 	})

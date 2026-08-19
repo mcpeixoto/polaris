@@ -472,6 +472,10 @@ func TestProjectSchemaInvariants(t *testing.T) {
 		      VALUES ('00000000-0000-7000-8000-0000000000ed', ` + ws + `, 'Q3', ` + projStatusPlanned + `, 'a0', 'quarter')`,
 		wantErr: "project_start_granularity_check",
 	}, {
+		name: "a project may record which template it came from",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'project' AND column_name = 'project_template_id'`,
+	}, {
 		name: "seed the project",
 		sql: `INSERT INTO project (id, workspace_id, name, status_id, sort_order)
 		      VALUES (` + projID + `, ` + ws + `, 'Ship search', ` + projStatusPlanned + `, 'a0')`,

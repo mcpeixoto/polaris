@@ -56,6 +56,7 @@ import (
 // file is created the way a person would create it.
 var replayedTypes = []string{
 	"label", "issueTemplate", "formTemplate", "formTemplateField",
+	"projectTemplate", "projectTemplateMilestone", "projectTemplateIssue",
 	"issue", "issueLabel", "issueRelation", "attachment", "comment", "issueSubscription",
 	"notification", "view", "viewPreference", "favorite",
 }

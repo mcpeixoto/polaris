@@ -83,6 +83,7 @@ type Querier interface {
 	ArchiveProjectLabel(ctx context.Context, id uuid.UUID) (ArchiveProjectLabelRow, error)
 	ArchiveProjectMilestone(ctx context.Context, id uuid.UUID) error
 	ArchiveProjectStatus(ctx context.Context, id uuid.UUID) error
+	ArchiveProjectTemplate(ctx context.Context, id uuid.UUID) (ArchiveProjectTemplateRow, error)
 	// Deleting a view archives it. Favourites and view_preference rows point at views by id
 	// with no foreign key, so a hard delete would leave a sidebar entry nothing can resolve —
 	// and the person who deleted a shared view is rarely the only person using it.
@@ -202,6 +203,7 @@ type Querier interface {
 	CountIssuesWithLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
 	CountPendingWebhookDeliveries(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	CountProjectTeams(ctx context.Context, projectID uuid.UUID) (int64, error)
+	CountProjectsFromTemplate(ctx context.Context, projectTemplateID *uuid.UUID) (int64, error)
 	CountProjectsWithProjectLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
 	// CountTeamsInWorkspace is the number a plan's team limit is measured against.
 	//
@@ -291,6 +293,9 @@ type Querier interface {
 	// ---------------------------------------------------------------------------------------
 	// project_status
 	CreateProjectStatus(ctx context.Context, arg CreateProjectStatusParams) (ProjectStatus, error)
+	CreateProjectTemplate(ctx context.Context, arg CreateProjectTemplateParams) (CreateProjectTemplateRow, error)
+	CreateProjectTemplateIssue(ctx context.Context, arg CreateProjectTemplateIssueParams) (ProjectTemplateIssue, error)
+	CreateProjectTemplateMilestone(ctx context.Context, arg CreateProjectTemplateMilestoneParams) (ProjectTemplateMilestone, error)
 	CreateProjectUpdate(ctx context.Context, arg CreateProjectUpdateParams) (ProjectUpdate, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (AccountSession, error)
 	CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error)
@@ -316,6 +321,10 @@ type Querier interface {
 	//
 	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) (Notification, error)
 	DeleteProjectDependency(ctx context.Context, id uuid.UUID) (ProjectDependency, error)
+	DeleteProjectTemplateIssue(ctx context.Context, id uuid.UUID) error
+	DeleteProjectTemplateIssuesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
+	DeleteProjectTemplateMilestone(ctx context.Context, id uuid.UUID) error
+	DeleteProjectTemplateMilestonesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
 	// Upcoming cycles that have not started: dropped when the team turns cycles off.
 	DeleteUpcomingCycles(ctx context.Context, arg DeleteUpcomingCyclesParams) ([]uuid.UUID, error)
 	DeleteWebhook(ctx context.Context, arg DeleteWebhookParams) (uuid.UUID, error)
@@ -412,6 +421,9 @@ type Querier interface {
 	GetLastIssueTemplatePosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetLastLabelPosition(ctx context.Context, arg GetLastLabelPositionParams) (string, error)
 	GetLastProjectLabelPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
+	GetLastProjectTemplateIssueSort(ctx context.Context, arg GetLastProjectTemplateIssueSortParams) (string, error)
+	GetLastProjectTemplateMilestoneSort(ctx context.Context, projectTemplateID uuid.UUID) (string, error)
+	GetLastProjectTemplatePosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetLastSortOrderForState(ctx context.Context, arg GetLastSortOrderForStateParams) (string, error)
 	GetLastSubIssueSortOrder(ctx context.Context, parentID *uuid.UUID) (*string, error)
 	GetLastViewPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -440,6 +452,9 @@ type Querier interface {
 	GetProjectSortOrderAfter(ctx context.Context, arg GetProjectSortOrderAfterParams) (string, error)
 	GetProjectStatus(ctx context.Context, id uuid.UUID) (ProjectStatus, error)
 	GetProjectTeam(ctx context.Context, arg GetProjectTeamParams) (ProjectTeam, error)
+	GetProjectTemplate(ctx context.Context, id uuid.UUID) (GetProjectTemplateRow, error)
+	GetProjectTemplateIssue(ctx context.Context, id uuid.UUID) (ProjectTemplateIssue, error)
+	GetProjectTemplateMilestone(ctx context.Context, id uuid.UUID) (ProjectTemplateMilestone, error)
 	GetProjectUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
 	GetProjectUpdateForUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (AccountSession, error)
@@ -718,6 +733,10 @@ type Querier interface {
 	ListProjectStatuses(ctx context.Context, workspaceID uuid.UUID) ([]ProjectStatus, error)
 	ListProjectTeamIDs(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error)
 	ListProjectTeams(ctx context.Context, projectID uuid.UUID) ([]ProjectTeam, error)
+	ListProjectTemplateIssues(ctx context.Context, projectTemplateID uuid.UUID) ([]ProjectTemplateIssue, error)
+	ListProjectTemplateMilestones(ctx context.Context, projectTemplateID uuid.UUID) ([]ProjectTemplateMilestone, error)
+	ListProjectTemplatesForTeam(ctx context.Context, arg ListProjectTemplatesForTeamParams) ([]ListProjectTemplatesForTeamRow, error)
+	ListProjectTemplatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListProjectTemplatesInWorkspaceRow, error)
 	ListProjectUpdatesForProject(ctx context.Context, projectID uuid.UUID) ([]ProjectUpdate, error)
 	ListProjectsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Project, error)
 	// ListReverseIssueRelations is the same links read from the far end: what blocks this
@@ -1127,6 +1146,9 @@ type Querier interface {
 	// StreamProjectTeamsForBootstrap follows the parent project's visibility.
 	//
 	StreamProjectTeamsForBootstrap(ctx context.Context, arg StreamProjectTeamsForBootstrapParams) ([]ProjectTeam, error)
+	StreamProjectTemplateIssuesForBootstrap(ctx context.Context, arg StreamProjectTemplateIssuesForBootstrapParams) ([]ProjectTemplateIssue, error)
+	StreamProjectTemplateMilestonesForBootstrap(ctx context.Context, arg StreamProjectTemplateMilestonesForBootstrapParams) ([]ProjectTemplateMilestone, error)
+	StreamProjectTemplatesForBootstrap(ctx context.Context, arg StreamProjectTemplatesForBootstrapParams) ([]StreamProjectTemplatesForBootstrapRow, error)
 	// StreamProjectUpdatesForBootstrap: visible when the project is visible.
 	//
 	StreamProjectUpdatesForBootstrap(ctx context.Context, arg StreamProjectUpdatesForBootstrapParams) ([]ProjectUpdate, error)
@@ -1213,6 +1235,9 @@ type Querier interface {
 	UpdateProjectLabel(ctx context.Context, arg UpdateProjectLabelParams) (UpdateProjectLabelRow, error)
 	UpdateProjectMilestone(ctx context.Context, arg UpdateProjectMilestoneParams) (ProjectMilestone, error)
 	UpdateProjectStatus(ctx context.Context, arg UpdateProjectStatusParams) (ProjectStatus, error)
+	UpdateProjectTemplate(ctx context.Context, arg UpdateProjectTemplateParams) (UpdateProjectTemplateRow, error)
+	UpdateProjectTemplateIssue(ctx context.Context, arg UpdateProjectTemplateIssueParams) (ProjectTemplateIssue, error)
+	UpdateProjectTemplateMilestone(ctx context.Context, arg UpdateProjectTemplateMilestoneParams) (ProjectTemplateMilestone, error)
 	UpdateProjectUpdate(ctx context.Context, arg UpdateProjectUpdateParams) (ProjectUpdate, error)
 	UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error)
 	// UpdateTeamArchive is the close/archive periods and the parent/child automations.
