@@ -27,6 +27,7 @@ import { NotificationSettings } from '~/views/NotificationSettings';
 import { ProjectShell } from '~/views/ProjectShell';
 import { ProjectOverview } from '~/views/ProjectOverview';
 import { ProjectIssues } from '~/views/ProjectIssues';
+import { ProjectAttachedView } from '~/views/ProjectAttachedView';
 import { ProjectActivity } from '~/views/ProjectActivity';
 import { Projects } from '~/views/Projects';
 import { CycleDetail } from '~/views/CycleDetail';
@@ -111,6 +112,7 @@ export function App() {
               <Route path="/project/:projectId" element={<ProjectShell />}>
                 <Route index element={<ProjectOverview />} />
                 <Route path="issues" element={<ProjectIssues />} />
+                <Route path="view/:viewId" element={<ProjectAttachedView />} />
                 <Route path="activity" element={<ProjectActivity />} />
               </Route>
               <Route path="/project/:projectId/documents" element={<Documents />} />

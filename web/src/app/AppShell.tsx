@@ -533,6 +533,7 @@ function pathToArchives(store: Store): string {
  * filter on arrival, which is what keeps "the URL is the state" true for these too.
  */
 function viewPath(view: View): string {
+  if (view.projectId !== undefined) return `/project/${view.projectId}/view/${view.id}`;
   return `/view/${view.id}`;
 }
 
@@ -632,6 +633,7 @@ function visibleViews(store: Store, userId: UUID): readonly View[] {
     .filter(
       (view) =>
         view.archivedAt === undefined &&
+        view.projectId === undefined &&
         !favourited.has(view.id) &&
         (view.ownerId === undefined || view.ownerId === userId),
     )

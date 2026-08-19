@@ -190,6 +190,7 @@ export class Store {
   private readonly labelTeam = new SetIndex<UUID>();
   private readonly templateTeam = new SetIndex<UUID>();
   private readonly viewTeam = new SetIndex<UUID>();
+  private readonly viewProject = new SetIndex<UUID>();
   private readonly subscriptionIssue = new SetIndex<UUID>();
   private readonly subscriptionUser = new SetIndex<UUID>();
   /**
@@ -467,6 +468,10 @@ export class Store {
 
   viewIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
     return this.viewTeam.get(teamId);
+  }
+
+  viewIdsForProject(projectId: UUID): ReadonlySet<UUID> {
+    return this.viewProject.get(projectId);
   }
 
   /** Sub-issues of an issue; `null` asks for the issues that have no parent. */
@@ -749,6 +754,7 @@ export class Store {
     this.labelTeam.clear();
     this.templateTeam.clear();
     this.viewTeam.clear();
+    this.viewProject.clear();
     this.subscriptionIssue.clear();
     this.subscriptionUser.clear();
     this.subscriberUsers.clear();
@@ -836,6 +842,9 @@ export class Store {
         }
         for (const rowId of [...this.projectMilestoneOf.get(id)]) {
           this.forget('projectMilestone', rowId, deletes, touched);
+        }
+        for (const viewId of [...this.viewProject.get(id)]) {
+          this.forget('view', viewId, deletes, touched);
         }
         break;
       case 'issue':
@@ -971,7 +980,7 @@ export class Store {
         );
         break;
       case 'view':
-        this.fileByTeam(this.viewTeam, previous as View | undefined, next as View);
+        this.fileView(previous as View | undefined, next as View);
         break;
       case 'issueLabel': {
         const row = next as IssueLabel;
@@ -1131,7 +1140,7 @@ export class Store {
         this.unfileByTeam(this.templateTeam, entity as IssueTemplate);
         break;
       case 'view':
-        this.unfileByTeam(this.viewTeam, entity as View);
+        this.unfileView(entity as View);
         break;
       case 'issueLabel':
         this.labelIndex.remove(entity as IssueLabel);
@@ -1210,6 +1219,18 @@ export class Store {
 
   private unfileByTeam(index: SetIndex<UUID>, entity: TeamScoped): void {
     if (entity.teamId !== undefined) index.remove(entity.teamId, entity.id);
+  }
+
+  /** Indexes a view under its project tab set or its team sidebar bucket. */
+  private fileView(previous: View | undefined, next: View): void {
+    if (previous !== undefined) this.unfileView(previous);
+    if (next.projectId !== undefined) this.viewProject.add(next.projectId, next.id);
+    else if (next.teamId !== undefined) this.viewTeam.add(next.teamId, next.id);
+  }
+
+  private unfileView(entity: View): void {
+    if (entity.projectId !== undefined) this.viewProject.remove(entity.projectId, entity.id);
+    else if (entity.teamId !== undefined) this.viewTeam.remove(entity.teamId, entity.id);
   }
 
   private fileByProject(

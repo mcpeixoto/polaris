@@ -40,6 +40,8 @@ const (
 type CreateViewInput struct {
 	// TeamID anchors the view to one team's sidebar. Nil means it spans the workspace.
 	TeamID *uuid.UUID
+	// ProjectID attaches the view as a tab on that project rather than in a sidebar.
+	ProjectID *uuid.UUID
 	// Private keeps the view to its creator. It is a separate flag rather than an owner id
 	// in the input because a caller may only ever make a view private to *themselves* —
 	// accepting an owner id would invite one that is not the caller's.
@@ -80,6 +82,18 @@ func (s *Service) CreateView(ctx context.Context, p *authz.Principal, in CreateV
 		var scope authz.Scope
 
 		switch {
+		case in.ProjectID != nil:
+			if in.Private {
+				return platform.Validation("private", "project views cannot be private")
+			}
+			if in.TeamID != nil {
+				return platform.Validation("teamId", "project views cannot be anchored to a team")
+			}
+			_, scope, err = s.requireProjectWrite(ctx, q, p, *in.ProjectID, authz.ActionProjectUpdate)
+			if err != nil {
+				return err
+			}
+
 		case in.Private:
 			// Yours. Ownership is the whole test, which is why no Action exists for it.
 			ownerID = &p.UserID
@@ -121,7 +135,12 @@ func (s *Service) CreateView(ctx context.Context, p *authz.Principal, in CreateV
 			}
 		}
 
-		pos, err := nextViewPosition(ctx, q, p.WorkspaceID)
+		var pos string
+		if in.ProjectID != nil {
+			pos, err = nextViewPositionForProject(ctx, q, *in.ProjectID)
+		} else {
+			pos, err = nextViewPosition(ctx, q, p.WorkspaceID)
+		}
 		if err != nil {
 			return err
 		}
@@ -135,6 +154,7 @@ func (s *Service) CreateView(ctx context.Context, p *authz.Principal, in CreateV
 			WorkspaceID: p.WorkspaceID,
 			TeamID:      in.TeamID,
 			OwnerID:     ownerID,
+			ProjectID:   in.ProjectID,
 			Name:        name,
 			Description: in.Description,
 			Icon:        in.Icon,
@@ -647,6 +667,13 @@ func (s *Service) requireViewAccess(
 		}
 		return row, authz.UserScope(*row.OwnerID), nil
 
+	case row.ProjectID != nil:
+		_, scope, err := s.requireProjectWrite(ctx, q, p, *row.ProjectID, authz.ActionProjectUpdate)
+		if err != nil {
+			return store.GetViewRow{}, authz.Scope{}, err
+		}
+		return row, scope, nil
+
 	case row.TeamID != nil:
 		team, err := s.requireTeamAccess(ctx, q, p, *row.TeamID, authz.ActionTeamViewManage)
 		if err != nil {
@@ -681,7 +708,7 @@ func (s *Service) visibleView(
 		return store.GetViewRow{}, platform.NotFound("view")
 	}
 
-	scope, err := scopeForView(ctx, q, row.TeamID, row.OwnerID)
+	scope, err := scopeForView(ctx, q, row.TeamID, row.OwnerID, row.ProjectID)
 	if err != nil {
 		return store.GetViewRow{}, err
 	}
@@ -694,14 +721,20 @@ func (s *Service) visibleView(
 	return row, nil
 }
 
-// scopeForView states the three-way rule once: an owner makes it personal, a team makes it
-// the team's, and neither makes it the workspace's.
+// scopeForView states the four-way rule once: an owner makes it personal, a project makes
+// it the project's, a team makes it the team's, and none of those makes it the workspace's.
 func scopeForView(
-	ctx context.Context, q *store.Queries, teamID, ownerID *uuid.UUID,
+	ctx context.Context, q *store.Queries, teamID, ownerID, projectID *uuid.UUID,
 ) (authz.Scope, error) {
 	switch {
 	case ownerID != nil:
 		return authz.UserScope(*ownerID), nil
+	case projectID != nil:
+		ids, err := q.ListProjectTeamIDs(ctx, *projectID)
+		if err != nil {
+			return authz.Scope{}, platform.Internal(err)
+		}
+		return authz.ProjectScope(ids), nil
 	case teamID != nil:
 		team, err := q.GetTeam(ctx, *teamID)
 		if err != nil {
@@ -744,6 +777,17 @@ func nextViewPosition(ctx context.Context, q *store.Queries, workspaceID uuid.UU
 	return fractional.After(last), nil
 }
 
+func nextViewPositionForProject(ctx context.Context, q *store.Queries, projectID uuid.UUID) (string, error) {
+	last, err := q.GetLastViewPositionForProject(ctx, &projectID)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return fractional.First(), nil
+		}
+		return "", platform.Internal(err)
+	}
+	return fractional.After(last), nil
+}
+
 // viewPositionAfter mints the key that puts a view directly below the anchor.
 func (s *Service) viewPositionAfter(
 	ctx context.Context, q *store.Queries, p *authz.Principal, anchorID uuid.UUID,
@@ -758,10 +802,18 @@ func (s *Service) viewPositionAfter(
 		return "", err
 	}
 
-	next, err := q.GetViewPositionAfter(ctx, store.GetViewPositionAfterParams{
-		WorkspaceID: p.WorkspaceID,
-		Position:    anchor.Position,
-	})
+	var next string
+	if anchor.ProjectID != nil {
+		next, err = q.GetViewPositionAfterForProject(ctx, store.GetViewPositionAfterForProjectParams{
+			ProjectID: anchor.ProjectID,
+			Position:  anchor.Position,
+		})
+	} else {
+		next, err = q.GetViewPositionAfter(ctx, store.GetViewPositionAfterParams{
+			WorkspaceID: p.WorkspaceID,
+			Position:    anchor.Position,
+		})
+	}
 	if err != nil && !store.IsNotFound(err) {
 		return "", platform.Internal(err)
 	}
@@ -851,7 +903,7 @@ func favoriteTargetScope(
 		if v.WorkspaceID != workspaceID || v.ArchivedAt != nil {
 			return authz.Scope{}, false, nil
 		}
-		scope, err := scopeForView(ctx, q, v.TeamID, v.OwnerID)
+		scope, err := scopeForView(ctx, q, v.TeamID, v.OwnerID, v.ProjectID)
 		if err != nil {
 			return authz.Scope{}, false, err
 		}
@@ -923,6 +975,7 @@ func toView(v store.GetViewRow) model.View {
 		WorkspaceID: v.WorkspaceID,
 		TeamID:      v.TeamID,
 		OwnerID:     v.OwnerID,
+		ProjectID:   v.ProjectID,
 		Name:        v.Name,
 		Description: v.Description,
 		Icon:        v.Icon,

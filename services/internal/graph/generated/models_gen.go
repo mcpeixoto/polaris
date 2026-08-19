@@ -296,6 +296,8 @@ type CreateTeamInput struct {
 
 type CreateViewInput struct {
 	TeamID *uuid.UUID `json:"teamId,omitempty"`
+	// Attaches the view as a tab on this project rather than in a sidebar.
+	ProjectID *uuid.UUID `json:"projectId,omitempty"`
 	// True keeps the view private to its creator.
 	Private     *bool           `json:"private,omitempty"`
 	Name        string          `json:"name"`
@@ -1290,7 +1292,9 @@ type View struct {
 	// Null means the view spans the workspace.
 	TeamID *uuid.UUID `json:"teamId,omitempty"`
 	// Null means shared. Set means it is that person's private view.
-	OwnerID     *uuid.UUID `json:"ownerId,omitempty"`
+	OwnerID *uuid.UUID `json:"ownerId,omitempty"`
+	// Set means the view is attached as a tab on this project.
+	ProjectID   *uuid.UUID `json:"projectId,omitempty"`
 	Name        string     `json:"name"`
 	Description *string    `json:"description,omitempty"`
 	Icon        *string    `json:"icon,omitempty"`

@@ -537,6 +537,7 @@ type View struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	ArchivedAt  *time.Time
+	ProjectID   *uuid.UUID
 }
 
 type ViewPreference struct {

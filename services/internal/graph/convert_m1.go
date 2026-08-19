@@ -271,6 +271,7 @@ func toView(v model.View) generated.View {
 		WorkspaceID: v.WorkspaceID,
 		TeamID:      v.TeamID,
 		OwnerID:     v.OwnerID,
+		ProjectID:   v.ProjectID,
 		Name:        v.Name,
 		Description: v.Description,
 		Icon:        v.Icon,

@@ -762,7 +762,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v10 adds initiative and initiativeProject (workspace objectives grouping projects).
 // v11 adds projectUpdate (health plus narrative status posts on projects).
 // v12 adds projectDependency (end→start links between projects).
-const ClientSchemaVersion = 12
+// v13 adds view.projectId (attached project views as tabs).
+const ClientSchemaVersion = 13
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

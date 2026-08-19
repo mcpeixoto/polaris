@@ -85,7 +85,7 @@ import {
  * v11 adds projectUpdate (health plus narrative status posts on projects).
  * v12 adds projectDependency (end→start links between projects).
  */
-export const CLIENT_SCHEMA = 12;
+export const CLIENT_SCHEMA = 13;
 
 /**
  * One database per workspace per schema version.

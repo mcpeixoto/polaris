@@ -400,6 +400,7 @@ type Querier interface {
 	GetLastSortOrderForState(ctx context.Context, arg GetLastSortOrderForStateParams) (string, error)
 	GetLastSubIssueSortOrder(ctx context.Context, parentID *uuid.UUID) (*string, error)
 	GetLastViewPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
+	GetLastViewPositionForProject(ctx context.Context, projectID *uuid.UUID) (string, error)
 	GetNotification(ctx context.Context, arg GetNotificationParams) (Notification, error)
 	// ---------------------------------------------------------------------------------------
 	// The engine's watermark.
@@ -439,10 +440,13 @@ type Querier interface {
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByAccountAndWorkspace(ctx context.Context, arg GetUserByAccountAndWorkspaceParams) (User, error)
 	GetView(ctx context.Context, id uuid.UUID) (GetViewRow, error)
-	// Positions are compared across every view in the workspace, which is the order the
+	// Positions are compared across every sidebar view in the workspace, which is the order the
 	// sidebar renders them in after the visibility filter has been applied.
 	//
 	GetViewPositionAfter(ctx context.Context, arg GetViewPositionAfterParams) (string, error)
+	// Positions on a project's tabs are compared only within that project.
+	//
+	GetViewPositionAfterForProject(ctx context.Context, arg GetViewPositionAfterForProjectParams) (string, error)
 	GetWebhook(ctx context.Context, arg GetWebhookParams) (GetWebhookRow, error)
 	GetWebhookCursor(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	GetWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowState, error)
@@ -739,10 +743,9 @@ type Querier interface {
 	ListTeamsWithCyclesEnabled(ctx context.Context) ([]Team, error)
 	ListUsersInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]User, error)
 	ListViewPreferences(ctx context.Context, arg ListViewPreferencesParams) ([]ViewPreference, error)
-	// ListViewsForUser is the visibility rule, stated once: a view with no team spans the
-	// workspace, a view with a team belongs to that team's sidebar, and a view with an owner
-	// is private to them. Writing it here rather than filtering in Go is what keeps the
-	// bootstrap snapshot and the live change scope agreeing about who may see a view.
+	// ListViewsForUser is the sidebar visibility rule, stated once: workspace views, team views,
+	// and the caller's private views. Project-attached views are omitted — they live as tabs on
+	// a project, not in the sidebar.
 	//
 	ListViewsForUser(ctx context.Context, arg ListViewsForUserParams) ([]ListViewsForUserRow, error)
 	ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeliveriesParams) ([]WebhookDelivery, error)
@@ -1112,9 +1115,9 @@ type Querier interface {
 	// StreamViewsForBootstrap is ListViewsForUser as the snapshot needs it: keyset-paginated,
 	// and with the guest arm the listing above leaves to Go stated here instead.
 	//
-	// The three-way rule is scopeForView's — an owner makes the view personal, a team makes it
-	// the team's, and neither makes it the workspace's — so this and the change scope agree
-	// about who may see a view.
+	// The four-way rule is scopeForView's — an owner makes the view personal, a project makes
+	// it the project's, a team makes it the team's, and none of those makes it the workspace's —
+	// so this and the change scope agree about who may see a view.
 	//
 	// The team clause applies to private views too, and that is not a mistake. A private view
 	// anchored to a team travels under its owner's scope, so nothing revokes it when the owner
