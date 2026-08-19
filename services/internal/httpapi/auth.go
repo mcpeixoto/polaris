@@ -46,6 +46,12 @@ type authHandlers struct {
 
 	// limits carries the per-account sign-in budget. Nil when rate limiting is off.
 	limits *Limits
+
+	// devAutoLogin is whether POST /auth/dev-session is willing to mint a cookie.
+	// Copied from config at router construction; the handler still requires a
+	// loopback Host and peer, so a development process reached as a real hostname
+	// does not sign anyone in.
+	devAutoLogin bool
 }
 
 // credentialsRequest is the sign-in body.
@@ -154,6 +160,26 @@ func (h *authHandlers) refresh(w http.ResponseWriter, r *http.Request) {
 		// The old cookie is dead either way. Leaving it in place means the client retries
 		// forever against a token that will never work again.
 		h.clearRefreshCookie(w)
+		writeError(w, r, err)
+		return
+	}
+	h.completeLogin(w, r, accountID, session)
+}
+
+// devSession mints a refresh cookie for local development, with no password form.
+//
+// Unreachable unless both gates pass: the process opted in (development, or an
+// explicit POLARIS_DEV_AUTOLOGIN=1, and never production), and the request is
+// from loopback. A miss looks like any other unknown path so the endpoint does
+// not advertise itself on a public Host.
+func (h *authHandlers) devSession(w http.ResponseWriter, r *http.Request) {
+	if !h.devAutoLogin || !requestIsLoopback(r) {
+		writeError(w, r, platform.NotFound("endpoint"))
+		return
+	}
+
+	accountID, session, err := h.svc.LoginDev(r.Context(), r.UserAgent(), clientIP(r))
+	if err != nil {
 		writeError(w, r, err)
 		return
 	}

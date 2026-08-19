@@ -52,6 +52,7 @@ func NewRouter(d Deps) http.Handler {
 		defaultPlan:   entitlement.Plan(d.Config.DefaultPlan),
 		maxWorkspaces: d.Config.MaxWorkspacesPerAccount,
 		limits:        d.Limits,
+		devAutoLogin:  d.Config.DevAutoLoginAllowed(),
 	}
 
 	// --- health -----------------------------------------------------------------
@@ -94,6 +95,13 @@ func NewRouter(d Deps) http.Handler {
 	mux.Handle("POST /auth/register", d.Limits.Anonymous(http.HandlerFunc(auth.register)))
 	mux.Handle("POST /auth/login", d.Limits.Anonymous(http.HandlerFunc(auth.login)))
 	mux.Handle("POST /auth/refresh", d.Limits.Anonymous(http.HandlerFunc(auth.refresh)))
+	// Registered only when the process opted in. A production binary, and a
+	// self-host compose that forces the flag off, do not even have the path —
+	// so a Host: localhost probe against a public install is a 404 from the mux
+	// rather than a handler that has to remember to refuse.
+	if auth.devAutoLogin {
+		mux.Handle("POST /auth/dev-session", d.Limits.Anonymous(http.HandlerFunc(auth.devSession)))
+	}
 	mux.Handle("POST /auth/logout", d.Limits.Anonymous(http.HandlerFunc(auth.logout)))
 	mux.Handle("GET /auth/workspaces", RequireAuth(http.HandlerFunc(auth.workspaces)))
 	mux.Handle("POST /auth/workspaces", RequireAuth(http.HandlerFunc(auth.createWorkspace)))

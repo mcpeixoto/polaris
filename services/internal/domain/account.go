@@ -311,6 +311,81 @@ type LoginInput struct {
 	IP        *netip.Addr
 }
 
+// The mailbox and passphrase polarisctl seed creates, and the one POST /auth/dev-session
+// will mint a cookie for on loopback. Kept next to Login rather than in the HTTP layer
+// so a test of the domain path does not have to know the handler's constants.
+const (
+	localDevEmail    = "dev@polaris.local"
+	localDevPassword = "polaris-dev-password"
+)
+
+// LoginDev opens a session for local development without a password.
+//
+// Prefer the seed account if it exists; otherwise the oldest workspace's owner or
+// admin; otherwise create the seed account the same way polarisctl seed does — first
+// account on an empty install, Argon2id hash, ordinary session row. It does not set
+// AllowOpenSignup, so an install that already has accounts and no usable owner is
+// still invite-only. The HTTP handler is what stops this being reachable off
+// loopback; this method itself is just "who do we sign in as".
+func (s *Service) LoginDev(ctx context.Context, userAgent string, ip *netip.Addr) (uuid.UUID, Session, error) {
+	accountID, err := s.resolveDevAccount(ctx)
+	if err != nil {
+		if platform.CodeOf(err) != platform.CodeNotFound {
+			return uuid.Nil, Session{}, err
+		}
+		return s.Register(ctx, RegisterInput{
+			Email:     localDevEmail,
+			Password:  localDevPassword,
+			UserAgent: userAgent,
+			IP:        ip,
+		})
+	}
+
+	var session Session
+	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		if err := q.MarkAccountLogin(ctx, accountID); err != nil {
+			return platform.Internal(err)
+		}
+		session, err = s.issueSession(ctx, q, accountID, userAgent, ip)
+		return err
+	})
+	return accountID, session, err
+}
+
+func (s *Service) resolveDevAccount(ctx context.Context) (uuid.UUID, error) {
+	acct, err := s.db.Queries().GetAccountByEmail(ctx, localDevEmail)
+	if err == nil {
+		return acct.ID, nil
+	}
+	if !store.IsNotFound(err) {
+		return uuid.Nil, platform.Internal(err)
+	}
+
+	// Same question polarisctl seed answers when the mailbox is missing: whoever
+	// already owns the first workspace. A laptop that was seeded under a different
+	// address, or a fixture, still gets a session rather than a login form.
+	var id uuid.UUID
+	err = s.db.Pool().QueryRow(ctx, `
+		SELECT a.id
+		FROM workspace w
+		JOIN "user" u ON u.workspace_id = w.id AND u.account_id IS NOT NULL
+		JOIN account a ON a.id = u.account_id
+		WHERE w.deleted_at IS NULL
+		  AND u.archived_at IS NULL
+		  AND u.status = 'active'
+		  AND u.role IN ('owner', 'admin')
+		  AND a.deleted_at IS NULL
+		ORDER BY w.created_at ASC, u.created_at ASC
+		LIMIT 1`).Scan(&id)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return uuid.Nil, platform.NotFound("dev account")
+		}
+		return uuid.Nil, platform.Internal(err)
+	}
+	return id, nil
+}
+
 // Login verifies a password and opens a session.
 func (s *Service) Login(ctx context.Context, in LoginInput) (uuid.UUID, Session, error) {
 	email, err := normaliseEmail(in.Email)

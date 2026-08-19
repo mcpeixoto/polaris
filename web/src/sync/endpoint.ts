@@ -94,6 +94,38 @@ export function credentialsMode(): RequestCredentials {
 }
 
 /**
+ * Whether this client is talking to a loopback Host, and so may ask the API to
+ * mint a local-dev session instead of showing the sign-in form.
+ *
+ * The API is the authority — a 404 here is a no-op and the form appears. This
+ * only skips the extra round trip when the page (or the desktop server URL) is
+ * not localhost / 127.0.0.1 / [::1]. A production install on a real domain
+ * never sends the request.
+ */
+export function shouldAttemptDevSession(): boolean {
+  return isLoopbackHostname(clientHostname());
+}
+
+export function isLoopbackHostname(host: string): boolean {
+  const h = host.trim().toLowerCase().replace(/\.$/, '');
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]';
+}
+
+function clientHostname(): string {
+  if (isDesktop) {
+    const origin = desktopServerUrl();
+    if (!origin) return '';
+    try {
+      return new URL(origin).hostname;
+    } catch {
+      return '';
+    }
+  }
+  if (typeof location === 'undefined') return '';
+  return location.hostname;
+}
+
+/**
  * Normalises what somebody types into the "connect to your server" field.
  *
  * People type `polaris.acme.com`, `https://polaris.acme.com/`, and occasionally

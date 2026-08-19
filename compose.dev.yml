@@ -1,6 +1,11 @@
 # Local development only. Publishes ports on purpose — this is not the VPS.
 # Production compose behind a shared proxy never publishes ports — see the rules in
 # docs/05-infrastructure/05-deployment.md.
+#
+# The API and Vite run on the host (`make api`, `make web`), not in this file.
+# With POLARIS_ENV=development (and POLARIS_DEV_AUTOLOGIN=1 in .env.example) the
+# API mints a seed-account session for loopback Hosts so localhost:5173 skips
+# the login form. Docker self-host (docker-compose.yml) forces that flag off.
 name: polaris-dev
 
 services:
