@@ -81,6 +81,15 @@ func (q *Queries) AddProjectTeam(ctx context.Context, arg AddProjectTeamParams) 
 	return i, err
 }
 
+const archiveProject = `-- name: ArchiveProject :exec
+UPDATE project SET archived_at = now() WHERE id = $1 AND archived_at IS NULL AND deleted_at IS NULL
+`
+
+func (q *Queries) ArchiveProject(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, archiveProject, id)
+	return err
+}
+
 const archiveProjectMilestone = `-- name: ArchiveProjectMilestone :exec
 UPDATE project_milestone SET archived_at = now() WHERE id = $1 AND archived_at IS NULL
 `
@@ -599,6 +608,61 @@ func (q *Queries) LastProjectStatusPosition(ctx context.Context, workspaceID uui
 	return position, err
 }
 
+const listArchivedProjectsForTeam = `-- name: ListArchivedProjectsForTeam :many
+SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
+       p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
+       p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
+       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at
+FROM project p
+JOIN project_team pt ON pt.project_id = p.id
+WHERE pt.team_id = $1 AND p.archived_at IS NOT NULL AND p.deleted_at IS NULL
+ORDER BY p.archived_at DESC
+`
+
+// Archived projects linked to this team. A project belongs to the workspace, but the
+// archives page is per-team, so the join is the same visibility rule the live list uses.
+func (q *Queries) ListArchivedProjectsForTeam(ctx context.Context, teamID uuid.UUID) ([]Project, error) {
+	rows, err := q.db.Query(ctx, listArchivedProjectsForTeam, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Project{}
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Summary,
+			&i.Description,
+			&i.Icon,
+			&i.Color,
+			&i.StatusID,
+			&i.Priority,
+			&i.LeadID,
+			&i.CreatorID,
+			&i.SortOrder,
+			&i.StartDate,
+			&i.StartDateGranularity,
+			&i.TargetDate,
+			&i.TargetDateGranularity,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.DeletedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDeletedProjects = `-- name: ListDeletedProjects :many
 SELECT id, workspace_id, name, summary, description, icon, color,
        status_id, priority, lead_id, creator_id, sort_order,
@@ -839,6 +903,69 @@ ORDER BY sort_order
 
 func (q *Queries) ListProjectsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Project, error) {
 	rows, err := q.db.Query(ctx, listProjectsInWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Project{}
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Summary,
+			&i.Description,
+			&i.Icon,
+			&i.Color,
+			&i.StatusID,
+			&i.Priority,
+			&i.LeadID,
+			&i.CreatorID,
+			&i.SortOrder,
+			&i.StartDate,
+			&i.StartDateGranularity,
+			&i.TargetDate,
+			&i.TargetDateGranularity,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.DeletedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStaleClosedProjectsForTeam = `-- name: ListStaleClosedProjectsForTeam :many
+SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
+       p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
+       p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
+       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at
+FROM project p
+JOIN project_team pt ON pt.project_id = p.id
+JOIN project_status ps ON ps.id = p.status_id
+WHERE pt.team_id = $1
+  AND p.archived_at IS NULL AND p.deleted_at IS NULL
+  AND ps.category IN ('completed', 'canceled')
+  AND p.updated_at < $2
+ORDER BY p.updated_at, p.id
+`
+
+type ListStaleClosedProjectsForTeamParams struct {
+	TeamID uuid.UUID
+	Cutoff time.Time
+}
+
+// Live projects on this team in a completed/canceled status, stale enough to consider.
+func (q *Queries) ListStaleClosedProjectsForTeam(ctx context.Context, arg ListStaleClosedProjectsForTeamParams) ([]Project, error) {
+	rows, err := q.db.Query(ctx, listStaleClosedProjectsForTeam, arg.TeamID, arg.Cutoff)
 	if err != nil {
 		return nil, err
 	}
@@ -1264,6 +1391,43 @@ func (q *Queries) StreamProjectsForBootstrap(ctx context.Context, arg StreamProj
 		return nil, err
 	}
 	return items, nil
+}
+
+const unarchiveProject = `-- name: UnarchiveProject :one
+UPDATE project SET archived_at = NULL WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, workspace_id, name, summary, description, icon, color,
+          status_id, priority, lead_id, creator_id, sort_order,
+          start_date, start_date_granularity, target_date, target_date_granularity,
+          archived_at, deleted_at, deleted_by, created_at, updated_at
+`
+
+func (q *Queries) UnarchiveProject(ctx context.Context, id uuid.UUID) (Project, error) {
+	row := q.db.QueryRow(ctx, unarchiveProject, id)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Summary,
+		&i.Description,
+		&i.Icon,
+		&i.Color,
+		&i.StatusID,
+		&i.Priority,
+		&i.LeadID,
+		&i.CreatorID,
+		&i.SortOrder,
+		&i.StartDate,
+		&i.StartDateGranularity,
+		&i.TargetDate,
+		&i.TargetDateGranularity,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const unarchiveProjectStatus = `-- name: UnarchiveProjectStatus :exec

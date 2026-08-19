@@ -710,6 +710,7 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			CycleID:           in.CycleID,
 			ClearCycle:        in.ClearCycle,
 			ClearSnooze:       before.SnoozedUntil != nil,
+			ClearAutoClosed:   newState != nil && !isClosedCategory(newState.Category),
 		}
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
@@ -756,7 +757,10 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			}
 		}
 
-		return s.em.History(ctx, q, p.WorkspaceID, p.Actor(), before.CreatedAt, history...)
+		if err := s.em.History(ctx, q, p.WorkspaceID, p.Actor(), before.CreatedAt, history...); err != nil {
+			return err
+		}
+		return s.applyFamilyClose(ctx, q, p, team, row, newState, map[uuid.UUID]bool{})
 	})
 	return out, version, err
 }

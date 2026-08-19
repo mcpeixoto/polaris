@@ -168,6 +168,10 @@ export interface Team {
   readonly cycleAutoAddCompleted: boolean;
   readonly triageEnabled: boolean;
   readonly triageRequirePriority: boolean;
+  readonly autoCloseDays: number;
+  readonly autoArchiveDays: number;
+  readonly autoCloseParent: boolean;
+  readonly autoCloseChildren: boolean;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly retiredAt?: Timestamp;
@@ -271,6 +275,11 @@ export interface Issue {
    * Absent means the issue is not snoozed.
    */
   readonly snoozedUntil?: Timestamp;
+  /**
+   * Set when the auto-close engine moved this issue to a closed status. Absent otherwise;
+   * cleared if the issue is reopened.
+   */
+  readonly autoClosedAt?: Timestamp;
   readonly startedAt?: Timestamp;
   readonly completedAt?: Timestamp;
   readonly canceledAt?: Timestamp;

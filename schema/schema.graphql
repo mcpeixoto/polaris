@@ -244,6 +244,15 @@ type Team {
   """An issue cannot leave Triage without a priority other than none."""
   triageRequirePriority: Boolean!
 
+  """Days of inactivity before an open issue is auto-closed. Zero is off."""
+  autoCloseDays: Int!
+  """Days of inactivity after close before archival. Zero is off."""
+  autoArchiveDays: Int!
+  """Close a parent when every sub-issue is done."""
+  autoCloseParent: Boolean!
+  """Close remaining sub-issues when the parent is done."""
+  autoCloseChildren: Boolean!
+
   createdAt: Time!
   updatedAt: Time!
   retiredAt: Time
@@ -347,6 +356,9 @@ type Issue {
 
   """Hidden from the triage inbox until this instant, or until the next edit or comment."""
   snoozedUntil: Time
+
+  """Set when the auto-close engine moved this issue to a closed status. Cleared on reopen."""
+  autoClosedAt: Time
 
   startedAt: Time
   completedAt: Time
@@ -1209,6 +1221,14 @@ input UpdateTeamTriageInput {
   requirePriority: Boolean
 }
 
+input UpdateTeamArchiveInput {
+  teamId: UUID!
+  autoCloseDays: Int
+  autoArchiveDays: Int
+  autoCloseParent: Boolean
+  autoCloseChildren: Boolean
+}
+
 input InviteInput {
   email: String!
   role: UserRole
@@ -1369,6 +1389,11 @@ type Query {
   support ticket.
   """
   deletedIssues: [Issue!]!
+
+  """Archived issues, cycles and projects for one team. Loaded on demand, never replicated."""
+  archivedIssues(teamId: UUID!): [Issue!]!
+  archivedCycles(teamId: UUID!): [Cycle!]!
+  archivedProjects(teamId: UUID!): [Project!]!
 }
 
 """
@@ -1435,6 +1460,10 @@ type Mutation {
   updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
   updateTeamCycles(input: UpdateTeamCyclesInput!): TeamPayload!
   updateTeamTriage(input: UpdateTeamTriageInput!): TeamPayload!
+  updateTeamArchive(input: UpdateTeamArchiveInput!): TeamPayload!
+
+  archiveCycle(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  archiveProject(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   acceptTriageIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
   declineTriageIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent

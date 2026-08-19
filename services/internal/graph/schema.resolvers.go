@@ -695,6 +695,66 @@ func (r *mutationResolver) UpdateTeamTriage(ctx context.Context, input generated
 	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
 }
 
+// UpdateTeamArchive is the resolver for the updateTeamArchive field.
+func (r *mutationResolver) UpdateTeamArchive(ctx context.Context, input generated.UpdateTeamArchiveInput) (*generated.TeamPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	team, version, err := r.Svc.UpdateTeamArchive(ctx, p, domain.UpdateTeamArchiveInput{
+		TeamID:            input.TeamID,
+		AutoCloseDays:     input.AutoCloseDays,
+		AutoArchiveDays:   input.AutoArchiveDays,
+		AutoCloseParent:   input.AutoCloseParent,
+		AutoCloseChildren: input.AutoCloseChildren,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
+// ArchiveCycle is the resolver for the archiveCycle field.
+func (r *mutationResolver) ArchiveCycle(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id, "archived": archived},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.ArchiveCycle(ctx, p, id, archived)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// ArchiveProject is the resolver for the archiveProject field.
+func (r *mutationResolver) ArchiveProject(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id, "archived": archived},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.ArchiveProject(ctx, p, id, archived)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // AcceptTriageIssue is the resolver for the acceptTriageIssue field.
 func (r *mutationResolver) AcceptTriageIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssuePayload, error) {
 	p, err := principalFrom(ctx)
@@ -2236,6 +2296,45 @@ func (r *queryResolver) DeletedIssues(ctx context.Context) ([]generated.Issue, e
 		return nil, PresentError(ctx, err)
 	}
 	return r.hydrateIssues(ctx, p, selectionFor(ctx, "Issue"), issues)
+}
+
+// ArchivedIssues is the resolver for the archivedIssues field.
+func (r *queryResolver) ArchivedIssues(ctx context.Context, teamID uuid.UUID) ([]generated.Issue, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issues, err := r.Svc.ListArchivedIssues(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return r.hydrateIssues(ctx, p, selectionFor(ctx, "Issue"), issues)
+}
+
+// ArchivedCycles is the resolver for the archivedCycles field.
+func (r *queryResolver) ArchivedCycles(ctx context.Context, teamID uuid.UUID) ([]generated.Cycle, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	cycles, err := r.Svc.ListArchivedCycles(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toCycles(cycles), nil
+}
+
+// ArchivedProjects is the resolver for the archivedProjects field.
+func (r *queryResolver) ArchivedProjects(ctx context.Context, teamID uuid.UUID) ([]generated.Project, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	projects, err := r.Svc.ListArchivedProjects(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return r.hydrateProjects(ctx, p, projects)
 }
 
 // Mutation returns generated.MutationResolver implementation.

@@ -77,6 +77,10 @@ function team(id: UUID, key: string): Team {
     cycleAutoAddCompleted: false,
     triageEnabled: false,
     triageRequirePriority: false,
+    autoCloseDays: 0,
+    autoArchiveDays: 0,
+    autoCloseParent: false,
+    autoCloseChildren: false,
     createdAt: NOW,
     updatedAt: NOW,
   };

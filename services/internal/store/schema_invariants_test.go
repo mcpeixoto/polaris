@@ -664,3 +664,37 @@ func TestTriageSchemaInvariants(t *testing.T) {
 		sql:  `UPDATE issue SET snoozed_until = now() + interval '1 hour' WHERE id = ` + engIssue,
 	}})
 }
+
+// Auto-close and auto-archive are per-team periods. Zero is off; anything outside the
+// allowed set is a CHECK rather than a silent clamp, so a typo cannot enable a 7-day
+// closer the product has never offered.
+func TestArchiveSchemaInvariants(t *testing.T) {
+	t.Parallel()
+	run(t, []schemaCase{{
+		name: "a team has auto-close and auto-archive off until they are turned on",
+		sql: `SELECT 1 / count(*) FROM team
+		      WHERE id = ` + engID + ` AND auto_close_days = 0 AND auto_archive_days = 0
+		        AND auto_close_parent = false AND auto_close_children = false`,
+	}, {
+		name: "an issue can carry an auto-close stamp",
+		sql: `SELECT 1/count(*) FROM information_schema.columns
+		      WHERE table_schema = 'public' AND table_name = 'issue' AND column_name = 'auto_closed_at'`,
+	}, {
+		name: "a 30-day auto-close period is accepted",
+		sql:  `UPDATE team SET auto_close_days = 30 WHERE id = ` + engID,
+	}, {
+		name: "a 7-day auto-close period is refused",
+		sql:     `UPDATE team SET auto_close_days = 7 WHERE id = ` + engID,
+		wantErr: "team_auto_close_days_check",
+	}, {
+		name: "a 365-day auto-archive period is accepted",
+		sql:  `UPDATE team SET auto_archive_days = 365 WHERE id = ` + engID,
+	}, {
+		name: "a 14-day auto-archive period is refused",
+		sql:     `UPDATE team SET auto_archive_days = 14 WHERE id = ` + engID,
+		wantErr: "team_auto_archive_days_check",
+	}, {
+		name: "an issue may be stamped auto-closed",
+		sql:  `UPDATE issue SET auto_closed_at = now() WHERE id = ` + engIssue,
+	}})
+}

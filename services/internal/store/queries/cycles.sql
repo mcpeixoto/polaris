@@ -58,7 +58,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until
+       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.cycle_id = sqlc.arg(cycle_id)
@@ -72,7 +72,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until
+       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.team_id = sqlc.arg(team_id)
@@ -83,3 +83,31 @@ WHERE i.team_id = sqlc.arg(team_id)
 -- name: SetIssueCycle :exec
 UPDATE issue SET cycle_id = sqlc.narg(cycle_id)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
+
+-- name: ArchiveCycle :exec
+UPDATE cycle SET archived_at = now() WHERE id = $1 AND archived_at IS NULL;
+
+-- name: UnarchiveCycle :one
+UPDATE cycle SET archived_at = NULL WHERE id = $1
+RETURNING id, workspace_id, team_id, number, name, description, starts_at, ends_at,
+          completed_at, archived_at, created_at, updated_at;
+
+-- name: ListArchivedCyclesForTeam :many
+SELECT id, workspace_id, team_id, number, name, description, starts_at, ends_at,
+       completed_at, archived_at, created_at, updated_at
+FROM cycle
+WHERE team_id = $1 AND archived_at IS NOT NULL
+ORDER BY archived_at DESC;
+
+-- Completed cycles past the team's archive period. A cycle that was never completed
+-- is still the current or upcoming window and must not disappear under people's feet.
+--
+-- name: ListStaleCompletedCycles :many
+SELECT id, workspace_id, team_id, number, name, description, starts_at, ends_at,
+       completed_at, archived_at, created_at, updated_at
+FROM cycle
+WHERE team_id = sqlc.arg(team_id)
+  AND archived_at IS NULL
+  AND completed_at IS NOT NULL
+  AND completed_at < sqlc.arg(cutoff)
+ORDER BY completed_at, id;

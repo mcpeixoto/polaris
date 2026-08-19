@@ -115,6 +115,10 @@ func toTeam(t model.Team) (generated.Team, error) {
 		CycleAutoAddCompleted: t.CycleAutoAddCompleted,
 		TriageEnabled:         t.TriageEnabled,
 		TriageRequirePriority: t.TriageRequirePriority,
+		AutoCloseDays:         t.AutoCloseDays,
+		AutoArchiveDays:       t.AutoArchiveDays,
+		AutoCloseParent:       t.AutoCloseParent,
+		AutoCloseChildren:     t.AutoCloseChildren,
 		CreatedAt:         t.CreatedAt,
 		UpdatedAt:         t.UpdatedAt,
 		RetiredAt:         t.RetiredAt,
@@ -209,6 +213,7 @@ func toIssue(i model.Issue) (generated.Issue, error) {
 		ProjectMilestoneID: i.ProjectMilestoneID,
 		CycleID:           i.CycleID,
 		SnoozedUntil:      i.SnoozedUntil,
+		AutoClosedAt:      i.AutoClosedAt,
 
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,

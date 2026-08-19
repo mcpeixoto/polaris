@@ -35,6 +35,7 @@ import {
   StateIcon,
   STATE_LABELS,
 } from '~/components';
+import { updateTeamArchive } from '~/features/archive/mutations';
 import { updateTeamCycles } from '~/features/cycles/mutations';
 import { updateTeamTriage } from '~/features/triage/mutations';
 import {
@@ -71,6 +72,10 @@ interface TeamView {
   readonly cycleAutoAddCompleted: boolean;
   readonly triageEnabled: boolean;
   readonly triageRequirePriority: boolean;
+  readonly autoCloseDays: number;
+  readonly autoArchiveDays: number;
+  readonly autoCloseParent: boolean;
+  readonly autoCloseChildren: boolean;
   readonly statuses: readonly StatusView[];
 }
 
@@ -160,6 +165,9 @@ export function TeamSettings() {
         <Link className={styles.link} to={`/team/${team.key}/triage`}>
           Triage
         </Link>
+        <Link className={styles.link} to={`/team/${team.key}/archives`}>
+          Archives
+        </Link>
         <Link className={styles.link} to={`/team/${team.key}`}>
           Back to issues
         </Link>
@@ -179,6 +187,11 @@ export function TeamSettings() {
         <TriageSettings
           team={team}
           onChange={(patch) => run(updateTeamTriage(engine, team.id, patch))}
+        />
+
+        <ArchiveSettings
+          team={team}
+          onChange={(patch) => run(updateTeamArchive(engine, team.id, patch))}
         />
 
         <section className={styles.section} aria-labelledby="statuses-heading">
@@ -426,6 +439,68 @@ function TriageSettings({
   );
 }
 
+const CLOSE_PERIODS = [0, 30, 60, 90, 180] as const;
+const ARCHIVE_PERIODS = [0, 30, 60, 90, 180, 365] as const;
+
+function ArchiveSettings({
+  team,
+  onChange,
+}: {
+  team: TeamView;
+  onChange: (patch: Parameters<typeof updateTeamArchive>[2]) => void;
+}) {
+  return (
+    <section className={styles.section} aria-labelledby="archive-heading">
+      <h2 className={styles.sectionTitle} id="archive-heading">
+        Auto-close and archive
+      </h2>
+      <p className={styles.sectionHint}>
+        Untouched issues close on their own, then archive after they have stayed closed.
+        A parent, open sub-issues, or an unfinished project will block archival — that is
+        what keeps a project&rsquo;s graph intact.
+      </p>
+
+      <div className={styles.cadence}>
+        <Select
+          label="Auto-close after"
+          value={String(team.autoCloseDays)}
+          onChange={(event) => onChange({ autoCloseDays: Number(event.target.value) })}
+        >
+          {CLOSE_PERIODS.map((n) => (
+            <option key={n} value={n}>
+              {n === 0 ? 'Never' : `${n} days`}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Auto-archive after"
+          value={String(team.autoArchiveDays)}
+          onChange={(event) => onChange({ autoArchiveDays: Number(event.target.value) })}
+        >
+          {ARCHIVE_PERIODS.map((n) => (
+            <option key={n} value={n}>
+              {n === 0 ? 'Never' : n === 365 ? '1 year' : `${n} days`}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <div className={styles.autoAdd}>
+        <Checkbox
+          label="Close the parent when every sub-issue is done"
+          checked={team.autoCloseParent}
+          onChange={(event) => onChange({ autoCloseParent: event.target.checked })}
+        />
+        <Checkbox
+          label="Close remaining sub-issues when the parent is done"
+          checked={team.autoCloseChildren}
+          onChange={(event) => onChange({ autoCloseChildren: event.target.checked })}
+        />
+      </div>
+    </section>
+  );
+}
+
 function weeks(from: number, to: number): number[] {
   const out: number[] = [];
   for (let n = from; n <= to; n++) out.push(n);
@@ -642,6 +717,10 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     cycleAutoAddCompleted: team.cycleAutoAddCompleted,
     triageEnabled: team.triageEnabled,
     triageRequirePriority: team.triageRequirePriority,
+    autoCloseDays: team.autoCloseDays,
+    autoArchiveDays: team.autoArchiveDays,
+    autoCloseParent: team.autoCloseParent,
+    autoCloseChildren: team.autoCloseChildren,
     statuses,
   };
 }

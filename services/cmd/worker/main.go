@@ -190,6 +190,35 @@ func run() error {
 			},
 			critical: false,
 		},
+		{
+			// Auto-close then auto-archive. Hourly rather than daily: the product promises
+			// archival "typically within 24 hours", and a job that only runs at boot plus
+			// midnight leaves a 23-hour gap after someone turns the setting on.
+			name:   "auto-close issues",
+			every:  time.Hour,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.AutoCloseIssues(ctx, time.Now())
+				if err == nil && n > 0 {
+					log.Info("auto-closed issues", "issues", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
+			name:   "auto-archive",
+			every:  time.Hour,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.AutoArchive(ctx, time.Now())
+				if err == nil && n > 0 {
+					log.Info("auto-archived", "rows", n)
+				}
+				return err
+			},
+			critical: false,
+		},
 	}
 
 	if cfg.MailEnabled() {

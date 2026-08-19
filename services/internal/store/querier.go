@@ -66,6 +66,7 @@ type Querier interface {
 	AllocateIssueNumber(ctx context.Context, id uuid.UUID) (int64, error)
 	AppendChange(ctx context.Context, arg AppendChangeParams) error
 	AppendIssueHistory(ctx context.Context, arg AppendIssueHistoryParams) error
+	ArchiveCycle(ctx context.Context, id uuid.UUID) error
 	ArchiveIssue(ctx context.Context, id uuid.UUID) error
 	// Archived rather than deleted: issue.template_id references this row, and the question
 	// that column exists to answer — "is this template still worth having" — needs the
@@ -73,6 +74,7 @@ type Querier interface {
 	//
 	ArchiveIssueTemplate(ctx context.Context, id uuid.UUID) (ArchiveIssueTemplateRow, error)
 	ArchiveLabel(ctx context.Context, id uuid.UUID) (ArchiveLabelRow, error)
+	ArchiveProject(ctx context.Context, id uuid.UUID) error
 	ArchiveProjectMilestone(ctx context.Context, id uuid.UUID) error
 	ArchiveProjectStatus(ctx context.Context, id uuid.UUID) error
 	// Deleting a view archives it. Favourites and view_preference rows point at views by id
@@ -421,6 +423,12 @@ type Querier interface {
 	LastProjectSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastProjectStatusPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	ListAPIKeysForUser(ctx context.Context, userID uuid.UUID) ([]ListAPIKeysForUserRow, error)
+	ListArchivedCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
+	ListArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]Issue, error)
+	// Archived projects linked to this team. A project belongs to the workspace, but the
+	// archives page is per-team, so the join is the same visibility rule the live list uses.
+	//
+	ListArchivedProjectsForTeam(ctx context.Context, teamID uuid.UUID) ([]Project, error)
 	// ListChildIssues feeds the sub-issue list and the progress rollup on the parent. The
 	// rollup counts states rather than sums them, so it needs the rows, not an aggregate —
 	// and a parent has a handful of children, not a page of them.
@@ -639,6 +647,23 @@ type Querier interface {
 	ListReverseIssueRelations(ctx context.Context, relatedIssueID uuid.UUID) ([]IssueRelation, error)
 	ListReverseIssueRelationsForIssues(ctx context.Context, arg ListReverseIssueRelationsForIssuesParams) ([]IssueRelation, error)
 	ListSessionsForAccount(ctx context.Context, accountID uuid.UUID) ([]AccountSession, error)
+	// Stale closed work for auto-archive. The domain layer still refuses a row whose
+	// parent, children or project would leave the graph inconsistent.
+	//
+	ListStaleClosedIssues(ctx context.Context, arg ListStaleClosedIssuesParams) ([]Issue, error)
+	// Live projects on this team in a completed/canceled status, stale enough to consider.
+	//
+	ListStaleClosedProjectsForTeam(ctx context.Context, arg ListStaleClosedProjectsForTeamParams) ([]Project, error)
+	// Completed cycles past the team's archive period. A cycle that was never completed
+	// is still the current or upcoming window and must not disappear under people's feet.
+	//
+	ListStaleCompletedCycles(ctx context.Context, arg ListStaleCompletedCyclesParams) ([]Cycle, error)
+	// Stale open work for auto-close. Closed categories are already done; the engine
+	// then applies the cycle/project/due/children skips in the domain layer, because those
+	// are graph questions a single WHERE cannot answer without lying about a parent in
+	// another team.
+	//
+	ListStaleOpenIssues(ctx context.Context, arg ListStaleOpenIssuesParams) ([]Issue, error)
 	// ListTeamIDsForUser resolves a session's visibility set. Called on every socket connect
 	// and on every permission change, so it must stay an index-only scan on
 	// team_membership_user_idx.
@@ -657,6 +682,8 @@ type Querier interface {
 	//
 	ListTeamMembershipsForTeams(ctx context.Context, arg ListTeamMembershipsForTeamsParams) ([]TeamMembership, error)
 	ListTeamsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Team, error)
+	ListTeamsWithAutoArchive(ctx context.Context) ([]Team, error)
+	ListTeamsWithAutoClose(ctx context.Context) ([]Team, error)
 	ListTeamsWithCyclesEnabled(ctx context.Context) ([]Team, error)
 	ListUsersInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]User, error)
 	ListViewPreferences(ctx context.Context, arg ListViewPreferencesParams) ([]ViewPreference, error)
@@ -1030,6 +1057,7 @@ type Querier interface {
 	TouchAPIKeyLastUsed(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error
+	UnarchiveCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
 	UnarchiveIssue(ctx context.Context, id uuid.UUID) error
 	// UnarchiveIssueTemplate returns the row for the reason UnarchiveLabel does: the archive
 	// reached every client as a delete, so only a payload can put it back.
@@ -1045,6 +1073,7 @@ type Querier interface {
 	// and between the two somebody can still take the name.
 	//
 	UnarchiveLabel(ctx context.Context, id uuid.UUID) (UnarchiveLabelRow, error)
+	UnarchiveProject(ctx context.Context, id uuid.UUID) (Project, error)
 	UnarchiveProjectStatus(ctx context.Context, id uuid.UUID) error
 	// UnarchiveWorkflowState returns the row: the archive reached every client as a delete, so
 	// putting the status back is an upsert and needs the payload.
@@ -1064,6 +1093,11 @@ type Querier interface {
 	UpdateProjectMilestone(ctx context.Context, arg UpdateProjectMilestoneParams) (ProjectMilestone, error)
 	UpdateProjectStatus(ctx context.Context, arg UpdateProjectStatusParams) (ProjectStatus, error)
 	UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error)
+	// UpdateTeamArchive is the close/archive periods and the parent/child automations.
+	// Kept apart from UpdateTeam so a settings form that only touches intake cannot
+	// accidentally rewrite the team's name.
+	//
+	UpdateTeamArchive(ctx context.Context, arg UpdateTeamArchiveParams) (Team, error)
 	// UpdateTeamCycles is the cadence, kept apart from UpdateTeam for the same reason
 	// estimates are: enabling, duration, cooldown, start day and upcoming count are one
 	// decision, and a partial write that turns cycles on without a duration would leave a

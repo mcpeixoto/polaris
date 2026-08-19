@@ -180,6 +180,7 @@ type ComplexityRoot struct {
 		ArchivedAt         func(childComplexity int) int
 		Assignee           func(childComplexity int) int
 		AssigneeID         func(childComplexity int) int
+		AutoClosedAt       func(childComplexity int) int
 		BlockedBy          func(childComplexity int) int
 		CanceledAt         func(childComplexity int) int
 		Children           func(childComplexity int) int
@@ -342,9 +343,11 @@ type ComplexityRoot struct {
 		AddProjectMember         func(childComplexity int, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddProjectTeam           func(childComplexity int, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddTeamMember            func(childComplexity int, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) int
+		ArchiveCycle             func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveIssue             func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveIssueTemplate     func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveLabel             func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveProject           func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveProjectStatus     func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveWorkflowState     func(childComplexity int, id uuid.UUID, archived bool) int
 		BulkUpdateIssues         func(childComplexity int, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -400,6 +403,7 @@ type ComplexityRoot struct {
 		UpdateProjectMilestone   func(childComplexity int, input UpdateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateProjectStatus      func(childComplexity int, input UpdateProjectStatusInput) int
 		UpdateTeam               func(childComplexity int, input UpdateTeamInput) int
+		UpdateTeamArchive        func(childComplexity int, input UpdateTeamArchiveInput) int
 		UpdateTeamCycles         func(childComplexity int, input UpdateTeamCyclesInput) int
 		UpdateTeamEstimates      func(childComplexity int, input UpdateTeamEstimatesInput) int
 		UpdateTeamTriage         func(childComplexity int, input UpdateTeamTriageInput) int
@@ -545,6 +549,9 @@ type ComplexityRoot struct {
 
 	Query struct {
 		APIKeys                 func(childComplexity int) int
+		ArchivedCycles          func(childComplexity int, teamID uuid.UUID) int
+		ArchivedIssues          func(childComplexity int, teamID uuid.UUID) int
+		ArchivedProjects        func(childComplexity int, teamID uuid.UUID) int
 		Comments                func(childComplexity int, issueID uuid.UUID) int
 		Cycle                   func(childComplexity int, id uuid.UUID) int
 		Cycles                  func(childComplexity int, teamID uuid.UUID) int
@@ -592,6 +599,10 @@ type ComplexityRoot struct {
 
 	Team struct {
 		ArchivedAt            func(childComplexity int) int
+		AutoArchiveDays       func(childComplexity int) int
+		AutoCloseChildren     func(childComplexity int) int
+		AutoCloseDays         func(childComplexity int) int
+		AutoCloseParent       func(childComplexity int) int
 		Color                 func(childComplexity int) int
 		CreatedAt             func(childComplexity int) int
 		CycleAutoAddCompleted func(childComplexity int) int
@@ -790,6 +801,9 @@ type MutationResolver interface {
 	UpdateTeamEstimates(ctx context.Context, input UpdateTeamEstimatesInput) (*TeamPayload, error)
 	UpdateTeamCycles(ctx context.Context, input UpdateTeamCyclesInput) (*TeamPayload, error)
 	UpdateTeamTriage(ctx context.Context, input UpdateTeamTriageInput) (*TeamPayload, error)
+	UpdateTeamArchive(ctx context.Context, input UpdateTeamArchiveInput) (*TeamPayload, error)
+	ArchiveCycle(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	ArchiveProject(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	AcceptTriageIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
 	DeclineTriageIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
 	MarkIssueDuplicate(ctx context.Context, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
@@ -868,6 +882,9 @@ type QueryResolver interface {
 	APIKeys(ctx context.Context) ([]APIKey, error)
 	Invites(ctx context.Context) ([]Invite, error)
 	DeletedIssues(ctx context.Context) ([]Issue, error)
+	ArchivedIssues(ctx context.Context, teamID uuid.UUID) ([]Issue, error)
+	ArchivedCycles(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
+	ArchivedProjects(ctx context.Context, teamID uuid.UUID) ([]Project, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -1450,6 +1467,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Issue.AssigneeID(childComplexity), true
+	case "Issue.autoClosedAt":
+		if e.ComplexityRoot.Issue.AutoClosedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Issue.AutoClosedAt(childComplexity), true
 	case "Issue.blockedBy":
 		if e.ComplexityRoot.Issue.BlockedBy == nil {
 			break
@@ -2231,6 +2254,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AddTeamMember(childComplexity, args["teamId"].(uuid.UUID), args["userId"].(uuid.UUID), args["role"].(*TeamRole)), true
+	case "Mutation.archiveCycle":
+		if e.ComplexityRoot.Mutation.ArchiveCycle == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveCycle_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ArchiveCycle(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.archiveIssue":
 		if e.ComplexityRoot.Mutation.ArchiveIssue == nil {
 			break
@@ -2264,6 +2298,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ArchiveLabel(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
+	case "Mutation.archiveProject":
+		if e.ComplexityRoot.Mutation.ArchiveProject == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveProject_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ArchiveProject(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.archiveProjectStatus":
 		if e.ComplexityRoot.Mutation.ArchiveProjectStatus == nil {
 			break
@@ -2864,6 +2909,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateTeam(childComplexity, args["input"].(UpdateTeamInput)), true
+	case "Mutation.updateTeamArchive":
+		if e.ComplexityRoot.Mutation.UpdateTeamArchive == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTeamArchive_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateTeamArchive(childComplexity, args["input"].(UpdateTeamArchiveInput)), true
 	case "Mutation.updateTeamCycles":
 		if e.ComplexityRoot.Mutation.UpdateTeamCycles == nil {
 			break
@@ -3509,6 +3565,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.APIKeys(childComplexity), true
+	case "Query.archivedCycles":
+		if e.ComplexityRoot.Query.ArchivedCycles == nil {
+			break
+		}
+
+		args, err := ec.field_Query_archivedCycles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ArchivedCycles(childComplexity, args["teamId"].(uuid.UUID)), true
+	case "Query.archivedIssues":
+		if e.ComplexityRoot.Query.ArchivedIssues == nil {
+			break
+		}
+
+		args, err := ec.field_Query_archivedIssues_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ArchivedIssues(childComplexity, args["teamId"].(uuid.UUID)), true
+	case "Query.archivedProjects":
+		if e.ComplexityRoot.Query.ArchivedProjects == nil {
+			break
+		}
+
+		args, err := ec.field_Query_archivedProjects_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ArchivedProjects(childComplexity, args["teamId"].(uuid.UUID)), true
 	case "Query.comments":
 		if e.ComplexityRoot.Query.Comments == nil {
 			break
@@ -3836,6 +3925,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Team.ArchivedAt(childComplexity), true
+	case "Team.autoArchiveDays":
+		if e.ComplexityRoot.Team.AutoArchiveDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.AutoArchiveDays(childComplexity), true
+	case "Team.autoCloseChildren":
+		if e.ComplexityRoot.Team.AutoCloseChildren == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.AutoCloseChildren(childComplexity), true
+	case "Team.autoCloseDays":
+		if e.ComplexityRoot.Team.AutoCloseDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.AutoCloseDays(childComplexity), true
+	case "Team.autoCloseParent":
+		if e.ComplexityRoot.Team.AutoCloseParent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.AutoCloseParent(childComplexity), true
 	case "Team.color":
 		if e.ComplexityRoot.Team.Color == nil {
 			break
@@ -4606,6 +4719,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateProjectInput,
 		ec.unmarshalInputUpdateProjectMilestoneInput,
 		ec.unmarshalInputUpdateProjectStatusInput,
+		ec.unmarshalInputUpdateTeamArchiveInput,
 		ec.unmarshalInputUpdateTeamCyclesInput,
 		ec.unmarshalInputUpdateTeamEstimatesInput,
 		ec.unmarshalInputUpdateTeamInput,
@@ -4934,6 +5048,15 @@ type Team {
   """An issue cannot leave Triage without a priority other than none."""
   triageRequirePriority: Boolean!
 
+  """Days of inactivity before an open issue is auto-closed. Zero is off."""
+  autoCloseDays: Int!
+  """Days of inactivity after close before archival. Zero is off."""
+  autoArchiveDays: Int!
+  """Close a parent when every sub-issue is done."""
+  autoCloseParent: Boolean!
+  """Close remaining sub-issues when the parent is done."""
+  autoCloseChildren: Boolean!
+
   createdAt: Time!
   updatedAt: Time!
   retiredAt: Time
@@ -5037,6 +5160,9 @@ type Issue {
 
   """Hidden from the triage inbox until this instant, or until the next edit or comment."""
   snoozedUntil: Time
+
+  """Set when the auto-close engine moved this issue to a closed status. Cleared on reopen."""
+  autoClosedAt: Time
 
   startedAt: Time
   completedAt: Time
@@ -5899,6 +6025,14 @@ input UpdateTeamTriageInput {
   requirePriority: Boolean
 }
 
+input UpdateTeamArchiveInput {
+  teamId: UUID!
+  autoCloseDays: Int
+  autoArchiveDays: Int
+  autoCloseParent: Boolean
+  autoCloseChildren: Boolean
+}
+
 input InviteInput {
   email: String!
   role: UserRole
@@ -6059,6 +6193,11 @@ type Query {
   support ticket.
   """
   deletedIssues: [Issue!]!
+
+  """Archived issues, cycles and projects for one team. Loaded on demand, never replicated."""
+  archivedIssues(teamId: UUID!): [Issue!]!
+  archivedCycles(teamId: UUID!): [Cycle!]!
+  archivedProjects(teamId: UUID!): [Project!]!
 }
 
 """
@@ -6125,6 +6264,10 @@ type Mutation {
   updateTeamEstimates(input: UpdateTeamEstimatesInput!): TeamPayload!
   updateTeamCycles(input: UpdateTeamCyclesInput!): TeamPayload!
   updateTeamTriage(input: UpdateTeamTriageInput!): TeamPayload!
+  updateTeamArchive(input: UpdateTeamArchiveInput!): TeamPayload!
+
+  archiveCycle(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  archiveProject(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   acceptTriageIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
   declineTriageIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
@@ -6527,6 +6670,8 @@ func (ec *executionContext) childFields_Issue(ctx context.Context, field graphql
 		return ec.fieldContext_Issue_cycleId(ctx, field)
 	case "snoozedUntil":
 		return ec.fieldContext_Issue_snoozedUntil(ctx, field)
+	case "autoClosedAt":
+		return ec.fieldContext_Issue_autoClosedAt(ctx, field)
 	case "startedAt":
 		return ec.fieldContext_Issue_startedAt(ctx, field)
 	case "completedAt":
@@ -7137,6 +7282,14 @@ func (ec *executionContext) childFields_Team(ctx context.Context, field graphql.
 		return ec.fieldContext_Team_triageEnabled(ctx, field)
 	case "triageRequirePriority":
 		return ec.fieldContext_Team_triageRequirePriority(ctx, field)
+	case "autoCloseDays":
+		return ec.fieldContext_Team_autoCloseDays(ctx, field)
+	case "autoArchiveDays":
+		return ec.fieldContext_Team_autoArchiveDays(ctx, field)
+	case "autoCloseParent":
+		return ec.fieldContext_Team_autoCloseParent(ctx, field)
+	case "autoCloseChildren":
+		return ec.fieldContext_Team_autoCloseChildren(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Team_createdAt(ctx, field)
 	case "updatedAt":
@@ -7745,6 +7898,44 @@ func (ec *executionContext) field_Mutation_addTeamMember_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_archiveCycle_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_archiveIssueTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7846,6 +8037,44 @@ func (ec *executionContext) field_Mutation_archiveProjectStatus_args(ctx context
 		return nil, err
 	}
 	args["archived"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_archiveProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
 	return args, nil
 }
 
@@ -9137,6 +9366,20 @@ func (ec *executionContext) field_Mutation_updateProject_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateTeamArchive_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateTeamArchiveInput, error) {
+			return ec.unmarshalNUpdateTeamArchiveInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamArchiveInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateTeamCycles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -9246,6 +9489,48 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_archivedCycles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_archivedIssues_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_archivedProjects_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
 	return args, nil
 }
 
@@ -12199,6 +12484,29 @@ func (ec *executionContext) _Issue_snoozedUntil(ctx context.Context, field graph
 	)
 }
 func (ec *executionContext) fieldContext_Issue_snoozedUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Issue_autoClosedAt(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Issue_autoClosedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AutoClosedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Issue_autoClosedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
@@ -15993,6 +16301,164 @@ func (ec *executionContext) fieldContext_Mutation_updateTeamTriage(ctx context.C
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateTeamTriage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateTeamArchive(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateTeamArchive(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateTeamArchive(ctx, fc.Args["input"].(UpdateTeamArchiveInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *TeamPayload) graphql.Marshaler {
+			return ec.marshalNTeamPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateTeamArchive(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TeamPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTeamArchive_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveCycle(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_archiveCycle(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ArchiveCycle(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_archiveCycle(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveCycle_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveProject(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_archiveProject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ArchiveProject(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_archiveProject(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveProject_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -21719,6 +22185,138 @@ func (ec *executionContext) fieldContext_Query_deletedIssues(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_archivedIssues(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_archivedIssues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ArchivedIssues(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []Issue) graphql.Marshaler {
+			return ec.marshalNIssue2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssueᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_archivedIssues(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Issue(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_archivedIssues_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_archivedCycles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_archivedCycles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ArchivedCycles(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []Cycle) graphql.Marshaler {
+			return ec.marshalNCycle2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_archivedCycles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Cycle(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_archivedCycles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_archivedProjects(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_archivedProjects(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ArchivedProjects(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []Project) graphql.Marshaler {
+			return ec.marshalNProject2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_archivedProjects(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Project(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_archivedProjects_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22440,6 +23038,98 @@ func (ec *executionContext) _Team_triageRequirePriority(ctx context.Context, fie
 	)
 }
 func (ec *executionContext) fieldContext_Team_triageRequirePriority(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Team_autoCloseDays(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_autoCloseDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AutoCloseDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_autoCloseDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Team_autoArchiveDays(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_autoArchiveDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AutoArchiveDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_autoArchiveDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Team_autoCloseParent(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_autoCloseParent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AutoCloseParent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_autoCloseParent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Team_autoCloseChildren(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_autoCloseChildren(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AutoCloseChildren, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_autoCloseChildren(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -27620,6 +28310,64 @@ func (ec *executionContext) unmarshalInputUpdateProjectStatusInput(ctx context.C
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateTeamArchiveInput(ctx context.Context, obj any) (UpdateTeamArchiveInput, error) {
+	var it UpdateTeamArchiveInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"teamId", "autoCloseDays", "autoArchiveDays", "autoCloseParent", "autoCloseChildren"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		case "autoCloseDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoCloseDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoCloseDays = data
+		case "autoArchiveDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoArchiveDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoArchiveDays = data
+		case "autoCloseParent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoCloseParent"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoCloseParent = data
+		case "autoCloseChildren":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoCloseChildren"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoCloseChildren = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateTeamCyclesInput(ctx context.Context, obj any) (UpdateTeamCyclesInput, error) {
 	var it UpdateTeamCyclesInput
 	if obj == nil {
@@ -29354,6 +30102,11 @@ func (ec *executionContext) _Issue(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "autoClosedAt":
+			out.Values[i] = ec._Issue_autoClosedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "startedAt":
 			out.Values[i] = ec._Issue_startedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -30466,6 +31219,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateTeamTriage":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateTeamTriage(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateTeamArchive":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTeamArchive(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveCycle":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveCycle(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveProject":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveProject(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -32465,6 +33239,72 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "archivedIssues":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_archivedIssues(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "archivedCycles":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_archivedCycles(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "archivedProjects":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_archivedProjects(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -32710,6 +33550,26 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "triageRequirePriority":
 			out.Values[i] = ec._Team_triageRequirePriority(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "autoCloseDays":
+			out.Values[i] = ec._Team_autoCloseDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "autoArchiveDays":
+			out.Values[i] = ec._Team_autoArchiveDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "autoCloseParent":
+			out.Values[i] = ec._Team_autoCloseParent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "autoCloseChildren":
+			out.Values[i] = ec._Team_autoCloseChildren(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -35382,6 +36242,11 @@ func (ec *executionContext) unmarshalNUpdateProjectMilestoneInput2githubᚗcom�
 
 func (ec *executionContext) unmarshalNUpdateProjectStatusInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectStatusInput(ctx context.Context, v any) (UpdateProjectStatusInput, error) {
 	res, err := ec.unmarshalInputUpdateProjectStatusInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateTeamArchiveInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamArchiveInput(ctx context.Context, v any) (UpdateTeamArchiveInput, error) {
+	res, err := ec.unmarshalInputUpdateTeamArchiveInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

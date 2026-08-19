@@ -342,3 +342,42 @@ WHERE m.workspace_id = sqlc.arg(workspace_id)
   AND m.id > sqlc.arg(after_id)
 ORDER BY m.id
 LIMIT sqlc.arg(page_size);
+
+-- name: ArchiveProject :exec
+UPDATE project SET archived_at = now() WHERE id = $1 AND archived_at IS NULL AND deleted_at IS NULL;
+
+-- name: UnarchiveProject :one
+UPDATE project SET archived_at = NULL WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, workspace_id, name, summary, description, icon, color,
+          status_id, priority, lead_id, creator_id, sort_order,
+          start_date, start_date_granularity, target_date, target_date_granularity,
+          archived_at, deleted_at, deleted_by, created_at, updated_at;
+
+-- Archived projects linked to this team. A project belongs to the workspace, but the
+-- archives page is per-team, so the join is the same visibility rule the live list uses.
+--
+-- name: ListArchivedProjectsForTeam :many
+SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
+       p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
+       p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
+       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at
+FROM project p
+JOIN project_team pt ON pt.project_id = p.id
+WHERE pt.team_id = $1 AND p.archived_at IS NOT NULL AND p.deleted_at IS NULL
+ORDER BY p.archived_at DESC;
+
+-- Live projects on this team in a completed/canceled status, stale enough to consider.
+--
+-- name: ListStaleClosedProjectsForTeam :many
+SELECT p.id, p.workspace_id, p.name, p.summary, p.description, p.icon, p.color,
+       p.status_id, p.priority, p.lead_id, p.creator_id, p.sort_order,
+       p.start_date, p.start_date_granularity, p.target_date, p.target_date_granularity,
+       p.archived_at, p.deleted_at, p.deleted_by, p.created_at, p.updated_at
+FROM project p
+JOIN project_team pt ON pt.project_id = p.id
+JOIN project_status ps ON ps.id = p.status_id
+WHERE pt.team_id = sqlc.arg(team_id)
+  AND p.archived_at IS NULL AND p.deleted_at IS NULL
+  AND ps.category IN ('completed', 'canceled')
+  AND p.updated_at < sqlc.arg(cutoff)
+ORDER BY p.updated_at, p.id;

@@ -68,8 +68,10 @@ import {
  * v5 adds cycles, team cadence fields, and issue.cycleId.
  *
  * v6 adds team triage flags and issue.snoozedUntil.
+ *
+ * v7 adds team auto-close/archive periods and issue.autoClosedAt.
  */
-export const CLIENT_SCHEMA = 6;
+export const CLIENT_SCHEMA = 7;
 
 /**
  * One database per workspace per schema version.

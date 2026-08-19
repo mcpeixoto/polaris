@@ -120,6 +120,13 @@ type Team struct {
 	TriageEnabled          bool `json:"triageEnabled"`
 	TriageRequirePriority  bool `json:"triageRequirePriority"`
 
+	// Auto-close and auto-archive periods, in days. Zero is off. The parent/child
+	// flags close a parent when its last sub-issue is done, and the reverse.
+	AutoCloseDays     int  `json:"autoCloseDays"`
+	AutoArchiveDays   int  `json:"autoArchiveDays"`
+	AutoCloseParent   bool `json:"autoCloseParent"`
+	AutoCloseChildren bool `json:"autoCloseChildren"`
+
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	RetiredAt  *time.Time `json:"retiredAt,omitempty"`
@@ -227,6 +234,9 @@ type Issue struct {
 	// Hidden from the triage inbox until this instant, or until the next edit or comment,
 	// whichever comes first. Nil means not snoozed.
 	SnoozedUntil *time.Time `json:"snoozedUntil,omitempty"`
+
+	// Set when the auto-close engine moved this issue to a closed status. Cleared on reopen.
+	AutoClosedAt *time.Time `json:"autoClosedAt,omitempty"`
 
 	StartedAt   *time.Time `json:"startedAt,omitempty"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
