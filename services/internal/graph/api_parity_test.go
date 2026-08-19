@@ -38,6 +38,7 @@ var notInTheAPI = map[string]string{
 	// express in the schema.
 	"Register":        "POST /auth/register",
 	"Login":           "POST /auth/login",
+	"LoginDev":        "POST /auth/dev-session — loopback-only cookie mint; never GraphQL",
 	"RefreshSession":  "POST /auth/refresh",
 	"RevokeSession":   "POST /auth/logout",
 	"CreateWorkspace": "POST /auth/workspaces — there is no workspace to scope it to yet",

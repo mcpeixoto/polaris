@@ -10,6 +10,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { auth, currentWorkspace, isSignedIn, onAuthLost, setWorkspace, type Workspace } from '~/sync/api';
+import { shouldAttemptDevSession } from '~/sync/endpoint';
 import { SyncEngine, type EngineStatus } from '~/sync/engine';
 import { isOutdatedClientMessage } from '~/sync/outdated-client';
 import { EngineProvider } from './context';
@@ -119,6 +120,17 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
       const session = await auth.refresh();
       if (cancelled) return;
       if (!session) {
+        // Loopback only: the API 404s this unless Host and the TCP peer are
+        // localhost. A missing cookie on a laptop is the common case after a
+        // reload, and minting one here is what skips the sign-in form.
+        if (shouldAttemptDevSession()) {
+          const minted = await auth.devSession();
+          if (cancelled) return;
+          if (minted) {
+            await enter();
+            return;
+          }
+        }
         setPhase({ kind: 'signed-out' });
         return;
       }

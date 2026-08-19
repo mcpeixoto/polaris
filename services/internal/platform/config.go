@@ -47,6 +47,18 @@ type Config struct {
 	// has to come and read this file.
 	RegistrationMode string `envconfig:"POLARIS_REGISTRATION_MODE" default:"invite"`
 
+	// DevAutoLogin mints a session for the local seed account without a password form.
+	//
+	// Empty follows POLARIS_ENV: on in development, off anywhere else. An explicit
+	// 1/true turns it on; 0/false turns it off. Production refuses it even when the
+	// flag is on — a mis-set env file must not open a public install.
+	//
+	// The HTTP handler still requires a loopback Host and a loopback RemoteAddr, so a
+	// development process reached as a real hostname (a tunnel, a LAN IP, Docker
+	// self-host behind Caddy) never issues a cookie. Invite-only registration is
+	// unchanged.
+	DevAutoLogin string `envconfig:"POLARIS_DEV_AUTOLOGIN"`
+
 	// MaxWorkspacesPerAccount bounds how many workspaces one account may belong to.
 	//
 	// POST /auth/workspaces was reachable by any authenticated account with no restriction of
@@ -249,3 +261,22 @@ func LoadConfig() (Config, error) {
 
 func (c Config) IsProduction() bool  { return c.Env == "production" }
 func (c Config) IsDevelopment() bool { return c.Env == "development" }
+
+// DevAutoLoginAllowed is whether POST /auth/dev-session may be registered at all.
+//
+// Asked as the permissive question so a zero Config — and a wiring mistake that
+// forgot to copy the field — answers no. The loopback checks in the handler are
+// a second gate, not a substitute for this one.
+func (c Config) DevAutoLoginAllowed() bool {
+	if c.IsProduction() {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(c.DevAutoLogin)) {
+	case "0", "false", "off", "no":
+		return false
+	case "1", "true", "on", "yes":
+		return true
+	default:
+		return c.IsDevelopment()
+	}
+}
