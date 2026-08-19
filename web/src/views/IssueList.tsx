@@ -62,7 +62,6 @@ import { useView, type ViewGroup } from '~/features/view/ui/useView';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useSelection } from '~/hooks/useSelection';
-import { useViewer } from '~/hooks/useViewer';
 import { browserTimezone } from '~/features/locale';
 import { EMPTY_FILTER, isFilterGroup, type FilterNode } from '~/filter';
 import type { Issue, StateCategory, Store, UUID } from '~/store';
@@ -237,7 +236,6 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const viewerId = useViewerId();
   const viewer = useViewer();
   const { registry, context } = useKeymap();
-  const viewer = useViewer();
 
   // The source is part of the query's identity, so a change of assignee re-runs the
   // selector. Serialised rather than passed by reference because a caller writing the

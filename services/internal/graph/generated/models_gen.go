@@ -177,6 +177,13 @@ type CreateDocumentInput struct {
 	Body      *string    `json:"body,omitempty"`
 }
 
+type CreateDraftInput struct {
+	// Optional. The server mints one when this is absent.
+	ID      *uuid.UUID      `json:"id,omitempty"`
+	Kind    DraftKind       `json:"kind"`
+	Payload json.RawMessage `json:"payload"`
+}
+
 type CreateFormTemplateFieldInput struct {
 	FormTemplateID uuid.UUID             `json:"formTemplateId"`
 	FieldType      FormTemplateFieldType `json:"fieldType"`
@@ -202,13 +209,6 @@ type CreateGitHubConnectionInput struct {
 
 type CreateGitHubUserLinkInput struct {
 	GithubLogin string `json:"githubLogin"`
-}
-
-type CreateDraftInput struct {
-	// Optional. The server mints one when this is absent.
-	ID      *uuid.UUID      `json:"id,omitempty"`
-	Kind    DraftKind       `json:"kind"`
-	Payload json.RawMessage `json:"payload"`
 }
 
 type CreateInitiativeInput struct {
@@ -1421,6 +1421,11 @@ type UpdateDocumentInput struct {
 	Body  *string   `json:"body,omitempty"`
 }
 
+type UpdateDraftInput struct {
+	ID      uuid.UUID       `json:"id"`
+	Payload json.RawMessage `json:"payload"`
+}
+
 type UpdateFormTemplateFieldInput struct {
 	ID          uuid.UUID              `json:"id"`
 	FieldType   *FormTemplateFieldType `json:"fieldType,omitempty"`
@@ -1453,11 +1458,6 @@ type UpdateGitHubTeamAutomationInput struct {
 	ReviewRequestedStateID *uuid.UUID `json:"reviewRequestedStateId,omitempty"`
 	ReadyForMergeStateID   *uuid.UUID `json:"readyForMergeStateId,omitempty"`
 	MergedStateID          *uuid.UUID `json:"mergedStateId,omitempty"`
-}
-
-type UpdateDraftInput struct {
-	ID      uuid.UUID       `json:"id"`
-	Payload json.RawMessage `json:"payload"`
 }
 
 type UpdateInitiativeInput struct {

@@ -166,6 +166,21 @@ type ComplexityRoot struct {
 		Version  func(childComplexity int) int
 	}
 
+	Draft struct {
+		CreatedAt   func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Kind        func(childComplexity int) int
+		Payload     func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		UserID      func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	DraftPayload struct {
+		Draft   func(childComplexity int) int
+		Version func(childComplexity int) int
+	}
+
 	Entitlements struct {
 		APIKeys            func(childComplexity int) int
 		AuditLog           func(childComplexity int) int
@@ -546,6 +561,7 @@ type ComplexityRoot struct {
 		CreateAttachment               func(childComplexity int, input CreateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateComment                  func(childComplexity int, input CreateCommentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateDocument                 func(childComplexity int, input CreateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateDraft                    func(childComplexity int, input CreateDraftInput) int
 		CreateFormTemplate             func(childComplexity int, input CreateFormTemplateInput) int
 		CreateFormTemplateField        func(childComplexity int, input CreateFormTemplateFieldInput) int
 		CreateGitHubConnection         func(childComplexity int, input CreateGitHubConnectionInput) int
@@ -571,6 +587,7 @@ type ComplexityRoot struct {
 		DeleteAttachment               func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteComment                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteDocument                 func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteDraft                    func(childComplexity int, id uuid.UUID) int
 		DeleteFormTemplateField        func(childComplexity int, id uuid.UUID) int
 		DeleteGitHubConnection         func(childComplexity int) int
 		DeleteGitHubTeamAutomation     func(childComplexity int, teamID uuid.UUID) int
@@ -622,6 +639,7 @@ type ComplexityRoot struct {
 		UpdateComment                  func(childComplexity int, id uuid.UUID, body string, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateCycle                    func(childComplexity int, input UpdateCycleInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateDocument                 func(childComplexity int, input UpdateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateDraft                    func(childComplexity int, input UpdateDraftInput) int
 		UpdateFormTemplate             func(childComplexity int, input UpdateFormTemplateInput) int
 		UpdateFormTemplateField        func(childComplexity int, input UpdateFormTemplateFieldInput) int
 		UpdateGitHubConnection         func(childComplexity int, input UpdateGitHubConnectionInput) int
@@ -928,6 +946,7 @@ type ComplexityRoot struct {
 		DeletedIssues                func(childComplexity int) int
 		DeletedTeams                 func(childComplexity int) int
 		Document                     func(childComplexity int, id uuid.UUID) int
+		Drafts                       func(childComplexity int) int
 		Favorites                    func(childComplexity int) int
 		FormTemplate                 func(childComplexity int, id uuid.UUID) int
 		FormTemplateFields           func(childComplexity int, formTemplateID uuid.UUID) int
@@ -1346,6 +1365,9 @@ type MutationResolver interface {
 	LinkGitHubPullRequest(ctx context.Context, input LinkGitHubPullRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*GitHubLinkPayload, error)
 	UpdateGitHubTeamAutomation(ctx context.Context, input UpdateGitHubTeamAutomationInput) (*GitHubTeamAutomationPayload, error)
 	DeleteGitHubTeamAutomation(ctx context.Context, teamID uuid.UUID) (*GitHubTeamAutomationPayload, error)
+	CreateDraft(ctx context.Context, input CreateDraftInput) (*DraftPayload, error)
+	UpdateDraft(ctx context.Context, input UpdateDraftInput) (*DraftPayload, error)
+	DeleteDraft(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 }
 type QueryResolver interface {
 	Viewer(ctx context.Context) (*Viewer, error)
@@ -1390,6 +1412,7 @@ type QueryResolver interface {
 	APIKeys(ctx context.Context) ([]APIKey, error)
 	Webhooks(ctx context.Context) ([]Webhook, error)
 	WebhookDeliveries(ctx context.Context, webhookID uuid.UUID, first *int) ([]WebhookDelivery, error)
+	Drafts(ctx context.Context) ([]Draft, error)
 	Invites(ctx context.Context) ([]Invite, error)
 	DeletedIssues(ctx context.Context) ([]Issue, error)
 	DeletedTeams(ctx context.Context) ([]Team, error)
@@ -1929,6 +1952,62 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DocumentPayload.Version(childComplexity), true
+
+	case "Draft.createdAt":
+		if e.ComplexityRoot.Draft.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Draft.CreatedAt(childComplexity), true
+	case "Draft.id":
+		if e.ComplexityRoot.Draft.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Draft.ID(childComplexity), true
+	case "Draft.kind":
+		if e.ComplexityRoot.Draft.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Draft.Kind(childComplexity), true
+	case "Draft.payload":
+		if e.ComplexityRoot.Draft.Payload == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Draft.Payload(childComplexity), true
+	case "Draft.updatedAt":
+		if e.ComplexityRoot.Draft.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Draft.UpdatedAt(childComplexity), true
+	case "Draft.userId":
+		if e.ComplexityRoot.Draft.UserID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Draft.UserID(childComplexity), true
+	case "Draft.workspaceId":
+		if e.ComplexityRoot.Draft.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Draft.WorkspaceID(childComplexity), true
+
+	case "DraftPayload.draft":
+		if e.ComplexityRoot.DraftPayload.Draft == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DraftPayload.Draft(childComplexity), true
+	case "DraftPayload.version":
+		if e.ComplexityRoot.DraftPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DraftPayload.Version(childComplexity), true
 
 	case "Entitlements.apiKeys":
 		if e.ComplexityRoot.Entitlements.APIKeys == nil {
@@ -3756,6 +3835,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateDocument(childComplexity, args["input"].(CreateDocumentInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createDraft":
+		if e.ComplexityRoot.Mutation.CreateDraft == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createDraft_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateDraft(childComplexity, args["input"].(CreateDraftInput)), true
 	case "Mutation.createFormTemplate":
 		if e.ComplexityRoot.Mutation.CreateFormTemplate == nil {
 			break
@@ -4031,6 +4121,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteDocument(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteDraft":
+		if e.ComplexityRoot.Mutation.DeleteDraft == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteDraft_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteDraft(childComplexity, args["id"].(uuid.UUID)), true
 	case "Mutation.deleteFormTemplateField":
 		if e.ComplexityRoot.Mutation.DeleteFormTemplateField == nil {
 			break
@@ -4577,6 +4678,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateDocument(childComplexity, args["input"].(UpdateDocumentInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.updateDraft":
+		if e.ComplexityRoot.Mutation.UpdateDraft == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDraft_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDraft(childComplexity, args["input"].(UpdateDraftInput)), true
 	case "Mutation.updateFormTemplate":
 		if e.ComplexityRoot.Mutation.UpdateFormTemplate == nil {
 			break
@@ -6095,6 +6207,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Document(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.drafts":
+		if e.ComplexityRoot.Query.Drafts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Drafts(childComplexity), true
 	case "Query.favorites":
 		if e.ComplexityRoot.Query.Favorites == nil {
 			break
@@ -7577,6 +7695,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateAttachmentInput,
 		ec.unmarshalInputCreateCommentInput,
 		ec.unmarshalInputCreateDocumentInput,
+		ec.unmarshalInputCreateDraftInput,
 		ec.unmarshalInputCreateFormTemplateFieldInput,
 		ec.unmarshalInputCreateFormTemplateInput,
 		ec.unmarshalInputCreateGitHubConnectionInput,
@@ -7603,6 +7722,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateAttachmentInput,
 		ec.unmarshalInputUpdateCycleInput,
 		ec.unmarshalInputUpdateDocumentInput,
+		ec.unmarshalInputUpdateDraftInput,
 		ec.unmarshalInputUpdateFormTemplateFieldInput,
 		ec.unmarshalInputUpdateFormTemplateInput,
 		ec.unmarshalInputUpdateGitHubConnectionInput,
@@ -9108,6 +9228,39 @@ input UpdateWebhookInput {
   enabled: Boolean!
 }
 
+"""An unsent issue or comment the author asked to keep. Personal; not replicated."""
+enum DraftKind {
+  ISSUE
+  COMMENT
+}
+
+type Draft {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  kind: DraftKind!
+  payload: JSON!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type DraftPayload implements MutationResult {
+  version: Int!
+  draft: Draft!
+}
+
+input CreateDraftInput {
+  """Optional. The server mints one when this is absent."""
+  id: UUID
+  kind: DraftKind!
+  payload: JSON!
+}
+
+input UpdateDraftInput {
+  id: UUID!
+  payload: JSON!
+}
+
 """
 Workspace GitHub install. Credentials are not on this type: the replica carries the
 settings a client needs to copy a git branch name, and nothing that could be a token.
@@ -9810,6 +9963,12 @@ type Query {
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
 
+  """
+  The caller's saved drafts. Local composer restore never appears here — only drafts
+  saved across devices, still inside the six-month window.
+  """
+  drafts: [Draft!]!
+
   """Pending invitations. Admins only."""
   invites: [Invite!]!
 
@@ -10084,6 +10243,12 @@ type Mutation {
   linkGitHubPullRequest(input: LinkGitHubPullRequestInput!, clientId: UUID, opId: UUID): GitHubLinkPayload! @idempotent
   updateGitHubTeamAutomation(input: UpdateGitHubTeamAutomationInput!): GitHubTeamAutomationPayload!
   deleteGitHubTeamAutomation(teamId: UUID!): GitHubTeamAutomationPayload!
+
+  # ---- drafts (personal, on-demand; not replicated)
+
+  createDraft(input: CreateDraftInput!): DraftPayload!
+  updateDraft(input: UpdateDraftInput!): DraftPayload!
+  deleteDraft(id: UUID!): DeletePayload!
 }
 `, BuiltIn: false},
 }
@@ -10343,6 +10508,36 @@ func (ec *executionContext) childFields_DocumentPayload(ctx context.Context, fie
 		return ec.fieldContext_DocumentPayload_document(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DocumentPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_Draft(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Draft_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_Draft_workspaceId(ctx, field)
+	case "userId":
+		return ec.fieldContext_Draft_userId(ctx, field)
+	case "kind":
+		return ec.fieldContext_Draft_kind(ctx, field)
+	case "payload":
+		return ec.fieldContext_Draft_payload(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Draft_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_Draft_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Draft", field.Name)
+}
+
+func (ec *executionContext) childFields_DraftPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_DraftPayload_version(ctx, field)
+	case "draft":
+		return ec.fieldContext_DraftPayload_draft(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DraftPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_Entitlements(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -12939,6 +13134,20 @@ func (ec *executionContext) field_Mutation_createDocument_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createDraft_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateDraftInput, error) {
+			return ec.unmarshalNCreateDraftInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateDraftInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createFormTemplateField_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13478,6 +13687,20 @@ func (ec *executionContext) field_Mutation_deleteDocument_args(ctx context.Conte
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteDraft_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -14726,6 +14949,20 @@ func (ec *executionContext) field_Mutation_updateDocument_args(ctx context.Conte
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDraft_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateDraftInput, error) {
+			return ec.unmarshalNUpdateDraftInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateDraftInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -17795,6 +18032,222 @@ func (ec *executionContext) fieldContext_DocumentPayload_document(_ context.Cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Document(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Draft_id(ctx context.Context, field graphql.CollectedField, obj *Draft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Draft_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Draft_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Draft", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Draft_workspaceId(ctx context.Context, field graphql.CollectedField, obj *Draft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Draft_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Draft_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Draft", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Draft_userId(ctx context.Context, field graphql.CollectedField, obj *Draft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Draft_userId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Draft_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Draft", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Draft_kind(ctx context.Context, field graphql.CollectedField, obj *Draft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Draft_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v DraftKind) graphql.Marshaler {
+			return ec.marshalNDraftKind2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Draft_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Draft", field, false, false, errors.New("field of type DraftKind does not have child fields"))
+}
+
+func (ec *executionContext) _Draft_payload(ctx context.Context, field graphql.CollectedField, obj *Draft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Draft_payload(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Payload, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Draft_payload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Draft", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _Draft_createdAt(ctx context.Context, field graphql.CollectedField, obj *Draft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Draft_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Draft_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Draft", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Draft_updatedAt(ctx context.Context, field graphql.CollectedField, obj *Draft) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Draft_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Draft_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Draft", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _DraftPayload_version(ctx context.Context, field graphql.CollectedField, obj *DraftPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DraftPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DraftPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DraftPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DraftPayload_draft(ctx context.Context, field graphql.CollectedField, obj *DraftPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DraftPayload_draft(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Draft, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Draft) graphql.Marshaler {
+			return ec.marshalNDraft2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraft(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DraftPayload_draft(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DraftPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Draft(ctx, field)
 		},
 	}
 	return fc, nil
@@ -30340,6 +30793,138 @@ func (ec *executionContext) fieldContext_Mutation_deleteGitHubTeamAutomation(ctx
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createDraft(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateDraft(ctx, fc.Args["input"].(CreateDraftInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DraftPayload) graphql.Marshaler {
+			return ec.marshalNDraftPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createDraft(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DraftPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createDraft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDraft(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDraft(ctx, fc.Args["input"].(UpdateDraftInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DraftPayload) graphql.Marshaler {
+			return ec.marshalNDraftPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDraft(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DraftPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDraft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteDraft(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteDraft(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteDraft(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteDraft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Notification_id(ctx context.Context, field graphql.CollectedField, obj *Notification) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -36422,6 +37007,38 @@ func (ec *executionContext) fieldContext_Query_webhookDeliveries(ctx context.Con
 	if fc.Args, err = ec.field_Query_webhookDeliveries_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_drafts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_drafts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().Drafts(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []Draft) graphql.Marshaler {
+			return ec.marshalNDraft2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_drafts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Draft(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -42634,6 +43251,50 @@ func (ec *executionContext) unmarshalInputCreateDocumentInput(ctx context.Contex
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateDraftInput(ctx context.Context, obj any) (CreateDraftInput, error) {
+	var it CreateDraftInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "kind", "payload"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNDraftKind2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "payload":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("payload"))
+			data, err := ec.unmarshalNJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Payload = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateFormTemplateFieldInput(ctx context.Context, obj any) (CreateFormTemplateFieldInput, error) {
 	var it CreateFormTemplateFieldInput
 	if obj == nil {
@@ -44347,6 +45008,43 @@ func (ec *executionContext) unmarshalInputUpdateDocumentInput(ctx context.Contex
 				return it, err
 			}
 			it.Body = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateDraftInput(ctx context.Context, obj any) (UpdateDraftInput, error) {
+	var it UpdateDraftInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "payload"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "payload":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("payload"))
+			data, err := ec.unmarshalNJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Payload = data
 		}
 	}
 	return it, nil
@@ -46498,6 +47196,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._FavoritePayload(ctx, sel, obj)
+	case DraftPayload:
+		return ec._DraftPayload(ctx, sel, &obj)
+	case *DraftPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._DraftPayload(ctx, sel, obj)
 	case DocumentPayload:
 		return ec._DocumentPayload(ctx, sel, &obj)
 	case *DocumentPayload:
@@ -47436,6 +48141,117 @@ func (ec *executionContext) _DocumentPayload(ctx context.Context, sel ast.Select
 			}
 		case "document":
 			out.Values[i] = ec._DocumentPayload_document(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var draftImplementors = []string{"Draft"}
+
+func (ec *executionContext) _Draft(ctx context.Context, sel ast.SelectionSet, obj *Draft) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, draftImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Draft")
+		case "id":
+			out.Values[i] = ec._Draft_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._Draft_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userId":
+			out.Values[i] = ec._Draft_userId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._Draft_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "payload":
+			out.Values[i] = ec._Draft_payload(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Draft_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Draft_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var draftPayloadImplementors = []string{"DraftPayload", "MutationResult"}
+
+func (ec *executionContext) _DraftPayload(ctx context.Context, sel ast.SelectionSet, obj *DraftPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, draftPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DraftPayload")
+		case "version":
+			out.Values[i] = ec._DraftPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "draft":
+			out.Values[i] = ec._DraftPayload_draft(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -50760,6 +51576,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createDraft":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createDraft(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateDraft":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDraft(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteDraft":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteDraft(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -53554,6 +54391,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "drafts":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_drafts(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "invites":
 			field := field
 
@@ -56187,6 +57046,11 @@ func (ec *executionContext) unmarshalNCreateDocumentInput2githubᚗcomᚋpeixoto
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateDraftInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateDraftInput(ctx context.Context, v any) (CreateDraftInput, error) {
+	res, err := ec.unmarshalInputCreateDraftInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateFormTemplateFieldInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateFormTemplateFieldInput(ctx context.Context, v any) (CreateFormTemplateFieldInput, error) {
 	res, err := ec.unmarshalInputCreateFormTemplateFieldInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -56367,6 +57231,60 @@ func (ec *executionContext) marshalNDocumentPayload2ᚖgithubᚗcomᚋpeixotolab
 		return graphql.Null
 	}
 	return ec._DocumentPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDraft2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraft(ctx context.Context, sel ast.SelectionSet, v Draft) graphql.Marshaler {
+	return ec._Draft(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNDraft2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftᚄ(ctx context.Context, sel ast.SelectionSet, v []Draft) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDraft2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraft(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDraft2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraft(ctx context.Context, sel ast.SelectionSet, v *Draft) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Draft(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDraftKind2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftKind(ctx context.Context, v any) (DraftKind, error) {
+	var res DraftKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDraftKind2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftKind(ctx context.Context, sel ast.SelectionSet, v DraftKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNDraftPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftPayload(ctx context.Context, sel ast.SelectionSet, v DraftPayload) graphql.Marshaler {
+	return ec._DraftPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNDraftPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftPayload(ctx context.Context, sel ast.SelectionSet, v *DraftPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DraftPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNDueDateSource2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDueDateSource(ctx context.Context, v any) (DueDateSource, error) {
@@ -57970,6 +58888,11 @@ func (ec *executionContext) unmarshalNUpdateCycleInput2githubᚗcomᚋpeixotolab
 
 func (ec *executionContext) unmarshalNUpdateDocumentInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateDocumentInput(ctx context.Context, v any) (UpdateDocumentInput, error) {
 	res, err := ec.unmarshalInputUpdateDocumentInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateDraftInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateDraftInput(ctx context.Context, v any) (UpdateDraftInput, error) {
+	res, err := ec.unmarshalInputUpdateDraftInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
