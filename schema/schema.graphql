@@ -181,6 +181,10 @@ type Entitlements {
   """How far back the change stream is queryable, in days."""
   historyDays: Int
   privateTeams: Boolean!
+  """Business+: one level of sub-teams under a top-level parent."""
+  subTeams: Boolean!
+  """Enterprise: sub-teams nested up to five levels deep."""
+  multiLevelSubTeams: Boolean!
   customViews: Boolean!
   apiKeys: Boolean!
   sso: Boolean!
@@ -269,6 +273,9 @@ type Team {
   something it should already have dropped.
   """
   deletedAt: Time
+
+  """Direct child teams, in key order."""
+  subTeams: [Team!]!
 
   states: [WorkflowState!]!
   members: [TeamMembership!]!
@@ -1782,6 +1789,8 @@ input CreateTeamInput {
   color: String
   timezone: String
   private: Boolean
+  """When set, creates a sub-team under this parent."""
+  parentTeamId: UUID
 }
 
 input UpdateTeamInput {
@@ -2053,6 +2062,8 @@ type Mutation {
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!
+  """Nest under a parent, or pass null to make a top-level team."""
+  moveTeam(teamId: UUID!, parentTeamId: UUID, clientId: UUID, opId: UUID): TeamPayload! @idempotent
   """Freezes a team: read-only issues and settings, hidden from sidebars. Restorable any time."""
   retireTeam(id: UUID!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
   """Brings a retired team back to active use."""

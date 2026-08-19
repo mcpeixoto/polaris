@@ -615,13 +615,14 @@ func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.Creat
 	}
 
 	team, version, err := r.Svc.CreateTeam(ctx, p, domain.CreateTeamInput{
-		Key:         input.Key,
-		Name:        input.Name,
-		Description: input.Description,
-		Icon:        input.Icon,
-		Color:       input.Color,
-		Timezone:    deref(input.Timezone),
-		Private:     deref(input.Private),
+		Key:          input.Key,
+		Name:         input.Name,
+		Description:  input.Description,
+		Icon:         input.Icon,
+		Color:        input.Color,
+		Timezone:     deref(input.Timezone),
+		Private:      deref(input.Private),
+		ParentTeamID: input.ParentTeamID,
 	})
 	if err != nil {
 		return nil, PresentError(ctx, err)
@@ -655,6 +656,26 @@ func (r *mutationResolver) UpdateTeam(ctx context.Context, input generated.Updat
 		return nil, PresentError(ctx, err)
 	}
 
+	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
+// MoveTeam is the resolver for the moveTeam field.
+func (r *mutationResolver) MoveTeam(ctx context.Context, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.TeamPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	team, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"teamId": teamID, "parentTeamId": parentTeamID},
+		func(ctx context.Context) (model.Team, int64, error) {
+			return r.Svc.MoveTeam(ctx, p, teamID, parentTeamID)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
 	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
 	if err != nil {
 		return nil, PresentError(ctx, err)

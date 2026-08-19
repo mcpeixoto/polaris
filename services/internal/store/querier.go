@@ -535,6 +535,7 @@ type Querier interface {
 	// Ordered by parent first so the caller can group the rows without sorting them again.
 	//
 	ListChildIssuesForParents(ctx context.Context, arg ListChildIssuesForParentsParams) ([]ListChildIssuesForParentsRow, error)
+	ListChildTeams(ctx context.Context, parentTeamID *uuid.UUID) ([]Team, error)
 	ListCommentsForIssue(ctx context.Context, issueID uuid.UUID) ([]Comment, error)
 	// Cycle-less issues in a given category, for auto-add.
 	ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyclelessIssuesByCategoryParams) ([]ListCyclelessIssuesByCategoryRow, error)
@@ -979,6 +980,7 @@ type Querier interface {
 	// because this is the one place the user said so.
 	//
 	SetIssueSubscription(ctx context.Context, arg SetIssueSubscriptionParams) (IssueSubscription, error)
+	SetTeamsPrivate(ctx context.Context, ids []uuid.UUID) (int64, error)
 	SetUserRole(ctx context.Context, arg SetUserRoleParams) (User, error)
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) (User, error)
 	// Snoozing also marks the row read. A notification you have chosen to defer is one you
@@ -1273,6 +1275,7 @@ type Querier interface {
 	// Fibonacci sequence. The mutation takes all three, so this sets all three.
 	//
 	UpdateTeamEstimates(ctx context.Context, arg UpdateTeamEstimatesParams) (Team, error)
+	UpdateTeamParent(ctx context.Context, arg UpdateTeamParentParams) (Team, error)
 	// UpdateTeamTriage is the intake switch, kept apart from UpdateTeam for the same reason
 	// estimates and cycles are: enabling creates the reserved statuses, and a partial write
 	// that flipped the flag without them would leave a team that claims to have a queue and

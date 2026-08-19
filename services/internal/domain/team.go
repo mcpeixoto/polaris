@@ -19,13 +19,14 @@ import (
 var teamKeyPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]{0,7}$`)
 
 type CreateTeamInput struct {
-	Key         string
-	Name        string
-	Description *string
-	Icon        *string
-	Color       *string
-	Timezone    string
-	Private     bool
+	Key          string
+	Name         string
+	Description  *string
+	Icon         *string
+	Color        *string
+	Timezone     string
+	Private      bool
+	ParentTeamID *uuid.UUID
 }
 
 // CreateTeam creates a team, seeds its default workflow, and makes the creator its owner.
@@ -53,6 +54,15 @@ func (s *Service) CreateTeam(ctx context.Context, p *authz.Principal, in CreateT
 			return model.Team{}, 0, err
 		}
 		if err := ent.Allow(entitlement.FeaturePrivateTeams); err != nil {
+			return model.Team{}, 0, err
+		}
+	}
+	if in.ParentTeamID != nil {
+		ent, err := entitlementSetFor(ctx, s.db.Queries(), p.WorkspaceID)
+		if err != nil {
+			return model.Team{}, 0, err
+		}
+		if err := ent.Allow(entitlement.FeatureSubTeams); err != nil {
 			return model.Team{}, 0, err
 		}
 	}
@@ -85,22 +95,54 @@ func (s *Service) CreateTeam(ctx context.Context, p *authz.Principal, in CreateT
 			return err
 		}
 
+		private := in.Private
+		var parentRow *store.Team
+		if in.ParentTeamID != nil {
+			parent, err := q.GetTeam(ctx, *in.ParentTeamID)
+			if err != nil {
+				if store.IsNotFound(err) {
+					return platform.NotFound("parent team")
+				}
+				return platform.Internal(err)
+			}
+			if parent.WorkspaceID != p.WorkspaceID {
+				return platform.NotFound("parent team")
+			}
+			if parent.RetiredAt != nil {
+				return platform.Conflict("retired teams cannot be parents")
+			}
+			parentRow = &parent
+			if parent.Private {
+				private = true
+				if err := ent.Allow(entitlement.FeaturePrivateTeams); err != nil {
+					return err
+				}
+			}
+		}
+
 		id, err := uuid.NewV7()
 		if err != nil {
 			return platform.Internal(err)
 		}
 
+		if parentRow != nil {
+			if err := s.validateTeamParent(ctx, q, ent, id, parentRow); err != nil {
+				return err
+			}
+		}
+
 		row, err := q.CreateTeam(ctx, store.CreateTeamParams{
-			ID:          id,
-			WorkspaceID: p.WorkspaceID,
-			Key:         in.Key,
-			Name:        in.Name,
-			Description: in.Description,
-			Icon:        in.Icon,
-			Color:       in.Color,
-			Timezone:    in.Timezone,
-			Private:     in.Private,
-			Settings:    json.RawMessage(`{}`),
+			ID:           id,
+			WorkspaceID:  p.WorkspaceID,
+			Key:          in.Key,
+			Name:         in.Name,
+			Description:  in.Description,
+			Icon:         in.Icon,
+			Color:        in.Color,
+			Timezone:     in.Timezone,
+			ParentTeamID: in.ParentTeamID,
+			Private:      private,
+			Settings:     json.RawMessage(`{}`),
 		})
 		if err != nil {
 			if store.IsUniqueViolation(err, "team_workspace_key_key") {
@@ -125,18 +167,25 @@ func (s *Service) CreateTeam(ctx context.Context, p *authz.Principal, in CreateT
 		// with no statuses.
 		changes := []Change{{
 			EntityType: "team", EntityID: id, Op: OpUpsert, TeamID: &id,
-			Scope: authz.TeamScope(id, in.Private), Payload: out,
+			Scope: authz.TeamScope(id, private), Payload: out,
 		}}
 		for _, st := range states {
 			changes = append(changes, Change{
 				EntityType: "workflowState", EntityID: st.ID, Op: OpUpsert, TeamID: &id,
-				Scope: authz.TeamScope(id, in.Private), Payload: st,
+				Scope: authz.TeamScope(id, private), Payload: st,
 			})
 		}
 		changes = append(changes, Change{
 			EntityType: "teamMembership", EntityID: membership.ID, Op: OpUpsert, TeamID: &id,
-			Scope: authz.TeamScope(id, in.Private), Payload: membership,
+			Scope: authz.TeamScope(id, private), Payload: membership,
 		})
+		if parentRow != nil {
+			ownerChanges, err := s.ensureParentOwnersOnSubTeam(ctx, q, p.WorkspaceID, parentRow.ID, id, private)
+			if err != nil {
+				return err
+			}
+			changes = append(changes, ownerChanges...)
+		}
 
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...)
 		return err
@@ -194,6 +243,16 @@ func (s *Service) UpdateTeam(ctx context.Context, p *authz.Principal, in UpdateT
 			return err
 		}
 
+		if in.Private != nil && !*in.Private && before.ParentTeamID != nil {
+			parent, err := q.GetTeam(ctx, *before.ParentTeamID)
+			if err != nil {
+				return platform.Internal(err)
+			}
+			if parent.Private {
+				return platform.Conflict("sub-teams under a private parent must stay private")
+			}
+		}
+
 		row, err := q.UpdateTeam(ctx, store.UpdateTeamParams{
 			ID:          in.ID,
 			Key:         in.Key,
@@ -232,6 +291,12 @@ func (s *Service) UpdateTeam(ctx context.Context, p *authz.Principal, in UpdateT
 				return err
 			}
 			changes = append(changes, cleanup...)
+
+			descChanges, err := s.cascadePrivateToSubTeams(ctx, q, p, out.ID)
+			if err != nil {
+				return err
+			}
+			changes = append(changes, descChanges...)
 		}
 
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...)
@@ -333,6 +398,10 @@ func (s *Service) AddTeamMember(ctx context.Context, p *authz.Principal, teamID,
 			if !authz.Can(p, authz.ActionTeamJoin) {
 				return platform.Forbidden("")
 			}
+		}
+
+		if err := s.requireSubTeamParentMembership(ctx, q, team, userID, p.IsGuest()); err != nil {
+			return err
 		}
 
 		m, err := s.addMember(ctx, q, p.WorkspaceID, teamID, userID, role)

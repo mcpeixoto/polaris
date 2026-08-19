@@ -707,17 +707,19 @@ func limitOrNull(v int) *int {
 
 func toEntitlements(f entitlement.Features, plan string, seatsUsed int, lapsed bool) generated.Entitlements {
 	return generated.Entitlements{
-		Plan:         plan,
-		SeatLimit:    limitOrNull(f.SeatLimit),
-		SeatsUsed:    seatsUsed,
-		TeamLimit:    limitOrNull(f.TeamLimit),
-		HistoryDays:  limitOrNull(f.HistoryDays),
-		PrivateTeams: f.PrivateTeams,
-		CustomViews:  f.CustomViews,
-		APIKeys:      f.APIKeys,
-		Sso:          f.SSO,
-		AuditLog:     f.AuditLog,
-		Lapsed:       lapsed,
+		Plan:               plan,
+		SeatLimit:          limitOrNull(f.SeatLimit),
+		SeatsUsed:          seatsUsed,
+		TeamLimit:          limitOrNull(f.TeamLimit),
+		HistoryDays:        limitOrNull(f.HistoryDays),
+		PrivateTeams:       f.PrivateTeams,
+		SubTeams:           f.SubTeams,
+		MultiLevelSubTeams: f.MultiLevelSubTeams,
+		CustomViews:        f.CustomViews,
+		APIKeys:            f.APIKeys,
+		Sso:                f.SSO,
+		AuditLog:           f.AuditLog,
+		Lapsed:             lapsed,
 	}
 }
 

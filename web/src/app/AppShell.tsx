@@ -7,13 +7,13 @@
  * offers what is actually available rather than a fixed list that fails when chosen.
  */
 
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 
 import { toFilterParam } from '~/filter';
 import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { Favorite, Store, UUID, View } from '~/store';
+import type { Favorite, Store, Team, UUID, View } from '~/store';
 
 import { useQuery, useSyncStatus } from './context';
 import { useActions } from './keymap';
@@ -62,12 +62,10 @@ export function AppShell({
   const onCycles = pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
 
   const teams = useQuery(
-    (store) =>
-      [...store.teams.values()]
-        .filter((team) => team.retiredAt === undefined)
-        .sort((a, b) => a.key.localeCompare(b.key)),
+    (store) => [...store.teams.values()].filter((team) => team.retiredAt === undefined),
     ['team'],
   );
+  const teamTree = useMemo(() => buildTeamTree(teams), [teams]);
   const workspace = useQuery((store) => [...store.workspaces.values()][0], ['workspace']);
   const cyclesPath = useQuery((store) => pathToCycles(store), ['team', 'cycle']);
   const triagePath = useQuery((store) => pathToTriage(store), ['team']);
@@ -268,11 +266,13 @@ export function AppShell({
 
         <div className={styles.section}>
           <h2 className={styles.sectionTitle}>Teams</h2>
-          {teams.map((team) => (
-            <NavLink key={team.id} to={`/team/${team.key}`} className={navClass}>
-              <span className={styles.teamKey}>{team.key}</span>
-              <span className={styles.navLabel}>{team.name}</span>
-            </NavLink>
+          {teamTree.roots.map((team) => (
+            <TeamNavItems
+              key={team.id}
+              team={team}
+              depth={0}
+              childrenByParent={teamTree.childrenByParent}
+            />
           ))}
         </div>
 
@@ -344,6 +344,63 @@ export function AppShell({
       {createInitiativeOpen &&
         renderCreateInitiative?.({ onClose: () => setCreateInitiativeOpen(false) })}
     </div>
+  );
+}
+
+function buildTeamTree(teams: readonly Team[]): {
+  roots: Team[];
+  childrenByParent: Map<UUID, Team[]>;
+} {
+  const childrenByParent = new Map<UUID, Team[]>();
+  const roots: Team[] = [];
+  for (const team of teams) {
+    if (team.parentTeamId === undefined) {
+      roots.push(team);
+      continue;
+    }
+    const siblings = childrenByParent.get(team.parentTeamId) ?? [];
+    siblings.push(team);
+    childrenByParent.set(team.parentTeamId, siblings);
+  }
+  const byKey = (a: Team, b: Team) => a.key.localeCompare(b.key);
+  roots.sort(byKey);
+  for (const siblings of childrenByParent.values()) {
+    siblings.sort(byKey);
+  }
+  return { roots, childrenByParent };
+}
+
+function TeamNavItems({
+  team,
+  depth,
+  childrenByParent,
+}: {
+  team: Team;
+  depth: number;
+  childrenByParent: ReadonlyMap<UUID, Team[]>;
+}) {
+  const children = childrenByParent.get(team.id) ?? [];
+  return (
+    <>
+      <NavLink
+        to={`/team/${team.key}`}
+        className={navClass}
+        style={
+          depth > 0 ? { paddingInlineStart: `calc(var(--space-3) * ${depth + 1})` } : undefined
+        }
+      >
+        <span className={styles.teamKey}>{team.key}</span>
+        <span className={styles.navLabel}>{team.name}</span>
+      </NavLink>
+      {children.map((child) => (
+        <TeamNavItems
+          key={child.id}
+          team={child}
+          depth={depth + 1}
+          childrenByParent={childrenByParent}
+        />
+      ))}
+    </>
   );
 }
 

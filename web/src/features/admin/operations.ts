@@ -41,6 +41,8 @@ export const ENTITLEMENTS_QUERY = /* GraphQL */ `
         teamLimit
         historyDays
         privateTeams
+        subTeams
+        multiLevelSubTeams
         customViews
         apiKeys
         sso

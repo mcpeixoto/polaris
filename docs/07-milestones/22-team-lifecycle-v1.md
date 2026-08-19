@@ -19,7 +19,7 @@ Retire, delete, and restore teams with a 30-day trash window for deleted teams a
 ## Deferred
 
 - Retirement flow UX (resolve active issues, sub-team warnings in UI)
-- Sub-teams + inheritance (2.5)
+- Sub-teams + inheritance (2.5) — shipped in 23-sub-teams-v1.md
 - Team slot freed on delete vs retire accounting polish
 
 ## Reserved

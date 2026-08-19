@@ -117,17 +117,20 @@ const Unlimited = -1
 type Feature string
 
 const (
-	FeaturePrivateTeams Feature = "private_teams"
-	FeatureCustomViews  Feature = "custom_views"
-	FeatureAPIKeys      Feature = "api_keys"
-	FeatureSSO          Feature = "sso"
-	FeatureAuditLog     Feature = "audit_log"
+	FeaturePrivateTeams       Feature = "private_teams"
+	FeatureSubTeams           Feature = "sub_teams"
+	FeatureMultiLevelSubTeams Feature = "multi_level_sub_teams"
+	FeatureCustomViews        Feature = "custom_views"
+	FeatureAPIKeys            Feature = "api_keys"
+	FeatureSSO                Feature = "sso"
+	FeatureAuditLog           Feature = "audit_log"
 )
 
 // AllFeatures exists for the same reason as AllPlans: it is what lets a test prove the
 // matrix answers for every feature rather than falling through a default branch to "no".
 var AllFeatures = []Feature{
-	FeaturePrivateTeams, FeatureCustomViews, FeatureAPIKeys, FeatureSSO, FeatureAuditLog,
+	FeaturePrivateTeams, FeatureSubTeams, FeatureMultiLevelSubTeams,
+	FeatureCustomViews, FeatureAPIKeys, FeatureSSO, FeatureAuditLog,
 }
 
 // Label names the feature in a sentence a customer reads, and is phrased to work as the
@@ -136,6 +139,10 @@ func (f Feature) Label() string {
 	switch f {
 	case FeaturePrivateTeams:
 		return "Private teams"
+	case FeatureSubTeams:
+		return "Sub-teams"
+	case FeatureMultiLevelSubTeams:
+		return "Multi-level sub-teams"
 	case FeatureCustomViews:
 		return "Custom views"
 	case FeatureAPIKeys:
@@ -187,11 +194,13 @@ type Features struct {
 	// than that re-bootstraps regardless of plan.
 	HistoryDays int
 
-	PrivateTeams bool
-	CustomViews  bool
-	APIKeys      bool
-	SSO          bool
-	AuditLog     bool
+	PrivateTeams       bool
+	SubTeams           bool
+	MultiLevelSubTeams bool
+	CustomViews        bool
+	APIKeys            bool
+	SSO                bool
+	AuditLog           bool
 }
 
 // The matrix. This table is the packaging decision, and everything else in this package is
@@ -212,47 +221,55 @@ var matrix = map[Plan]Features{
 	// people doing real work is enough that leaving hurts, and small enough that a
 	// thousand such workspaces fit on one machine.
 	PlanFree: {
-		SeatLimit:    5,
-		TeamLimit:    2,
-		HistoryDays:  90,
-		PrivateTeams: false,
-		CustomViews:  true,
-		APIKeys:      true,
-		SSO:          false,
-		AuditLog:     false,
+		SeatLimit:          5,
+		TeamLimit:          2,
+		HistoryDays:        90,
+		PrivateTeams:       false,
+		SubTeams:           false,
+		MultiLevelSubTeams: false,
+		CustomViews:        true,
+		APIKeys:            true,
+		SSO:                false,
+		AuditLog:           false,
 	},
 	PlanPro: {
-		SeatLimit:    Unlimited,
-		TeamLimit:    Unlimited,
-		HistoryDays:  Unlimited,
-		PrivateTeams: true,
-		CustomViews:  true,
-		APIKeys:      true,
-		SSO:          false,
-		AuditLog:     false,
+		SeatLimit:          Unlimited,
+		TeamLimit:          Unlimited,
+		HistoryDays:        Unlimited,
+		PrivateTeams:       true,
+		SubTeams:           true,
+		MultiLevelSubTeams: false,
+		CustomViews:        true,
+		APIKeys:            true,
+		SSO:                false,
+		AuditLog:           false,
 	},
 	PlanEnterprise: {
-		SeatLimit:    Unlimited,
-		TeamLimit:    Unlimited,
-		HistoryDays:  Unlimited,
-		PrivateTeams: true,
-		CustomViews:  true,
-		APIKeys:      true,
-		SSO:          true,
-		AuditLog:     true,
+		SeatLimit:          Unlimited,
+		TeamLimit:          Unlimited,
+		HistoryDays:        Unlimited,
+		PrivateTeams:       true,
+		SubTeams:           true,
+		MultiLevelSubTeams: true,
+		CustomViews:        true,
+		APIKeys:            true,
+		SSO:                true,
+		AuditLog:           true,
 	},
 	// Unlimited on seats is the whole claim of an open-source tracker: anybody who wants
 	// to run this for 300 people without paying may. A seat count here would make the
 	// project a trial with a licence file.
 	PlanSelfHosted: {
-		SeatLimit:    Unlimited,
-		TeamLimit:    Unlimited,
-		HistoryDays:  Unlimited,
-		PrivateTeams: true,
-		CustomViews:  true,
-		APIKeys:      true,
-		SSO:          false,
-		AuditLog:     false,
+		SeatLimit:          Unlimited,
+		TeamLimit:          Unlimited,
+		HistoryDays:        Unlimited,
+		PrivateTeams:       true,
+		SubTeams:           true,
+		MultiLevelSubTeams: true,
+		CustomViews:        true,
+		APIKeys:            true,
+		SSO:                false,
+		AuditLog:           false,
 	},
 }
 
@@ -277,6 +294,10 @@ func (f Features) has(feat Feature) (allowed, known bool) {
 	switch feat {
 	case FeaturePrivateTeams:
 		return f.PrivateTeams, true
+	case FeatureSubTeams:
+		return f.SubTeams, true
+	case FeatureMultiLevelSubTeams:
+		return f.MultiLevelSubTeams, true
 	case FeatureCustomViews:
 		return f.CustomViews, true
 	case FeatureAPIKeys:
@@ -307,14 +328,16 @@ func (f Features) limit(k LimitKind) (n int, known bool) {
 // count is below the free cap does not gain seats by failing to pay.
 func (f Features) narrow(other Features) Features {
 	return Features{
-		SeatLimit:    narrowLimit(f.SeatLimit, other.SeatLimit),
-		TeamLimit:    narrowLimit(f.TeamLimit, other.TeamLimit),
-		HistoryDays:  narrowLimit(f.HistoryDays, other.HistoryDays),
-		PrivateTeams: f.PrivateTeams && other.PrivateTeams,
-		CustomViews:  f.CustomViews && other.CustomViews,
-		APIKeys:      f.APIKeys && other.APIKeys,
-		SSO:          f.SSO && other.SSO,
-		AuditLog:     f.AuditLog && other.AuditLog,
+		SeatLimit:          narrowLimit(f.SeatLimit, other.SeatLimit),
+		TeamLimit:          narrowLimit(f.TeamLimit, other.TeamLimit),
+		HistoryDays:        narrowLimit(f.HistoryDays, other.HistoryDays),
+		PrivateTeams:       f.PrivateTeams && other.PrivateTeams,
+		SubTeams:           f.SubTeams && other.SubTeams,
+		MultiLevelSubTeams: f.MultiLevelSubTeams && other.MultiLevelSubTeams,
+		CustomViews:        f.CustomViews && other.CustomViews,
+		APIKeys:            f.APIKeys && other.APIKeys,
+		SSO:                f.SSO && other.SSO,
+		AuditLog:           f.AuditLog && other.AuditLog,
 	}
 }
 
