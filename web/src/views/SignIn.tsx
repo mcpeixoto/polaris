@@ -52,6 +52,8 @@ export function SignIn({ onSignedIn }: SignInProps) {
       footer={
         <>
           New here? <Link to="/signup">Create an account</Link>
+          {' · '}
+          <Link to="/">What is Polaris?</Link>
         </>
       }
     >
