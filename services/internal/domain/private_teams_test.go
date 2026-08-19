@@ -197,5 +197,3 @@ func TestListTeams_IncludesPrivateTeamsForAdmin(t *testing.T) {
 		t.Fatal("admin must list private teams for settings discovery")
 	}
 }
-
-func ptr(b bool) *bool { return &b }

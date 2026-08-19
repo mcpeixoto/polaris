@@ -31,6 +31,8 @@ import {
   type EntityOf,
   type EntityType,
   type Favorite,
+  type GitHubConnection,
+  type GitHubUserLink,
   type Issue,
   type IssueLabel,
   type IssueRelation,
@@ -152,6 +154,8 @@ export class Store {
   private readonly tables: Record<EntityType, Map<UUID, Entity>> = {
     workspace: new Map(),
     user: new Map(),
+    githubConnection: new Map(),
+    githubUserLink: new Map(),
     team: new Map(),
     teamMembership: new Map(),
     workflowState: new Map(),
@@ -292,6 +296,14 @@ export class Store {
 
   get users(): ReadonlyMap<UUID, User> {
     return this.tables.user as ReadonlyMap<UUID, User>;
+  }
+
+  get githubConnections(): ReadonlyMap<UUID, GitHubConnection> {
+    return this.tables.githubConnection as ReadonlyMap<UUID, GitHubConnection>;
+  }
+
+  get githubUserLinks(): ReadonlyMap<UUID, GitHubUserLink> {
+    return this.tables.githubUserLink as ReadonlyMap<UUID, GitHubUserLink>;
   }
 
   get teams(): ReadonlyMap<UUID, Team> {

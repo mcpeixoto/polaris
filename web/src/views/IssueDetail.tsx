@@ -55,9 +55,10 @@ import { browserTimezone } from '~/features/locale';
 import { restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { exact, when } from '~/features/time';
+import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
-import { useViewerId } from '~/hooks/useViewer';
+import { useViewer, useViewerId } from '~/hooks/useViewer';
 import { ISSUE_DETAIL_QUERY } from '~/gql/operations';
 import type { Actor, Comment, StateCategory, Store, UUID } from '~/store';
 import { gql } from '~/sync/api';
@@ -82,6 +83,7 @@ export function IssueDetail() {
   const engine = useEngine();
   const navigate = useNavigate();
   const viewerId = useViewerId();
+  const viewer = useViewer();
 
   const issueId = useLiveQuery(
     (store) => locate(store, identifier),
@@ -174,6 +176,7 @@ export function IssueDetail() {
     archive: () => {},
     askDelete: () => {},
     submitComment: () => {},
+    copyGitBranch: () => {},
   });
 
   // Whether the confirmation is up. Held here rather than inside a component of its own so
@@ -259,6 +262,14 @@ export function IssueDetail() {
         hidden: true,
         run: () => commands.current.submitComment(),
       },
+      {
+        id: 'issue.copyGitBranchName',
+        title: 'Copy git branch name',
+        keys: ['mod+shift+period'],
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.copyGitBranch(),
+      },
     ],
     [],
   );
@@ -287,6 +298,12 @@ export function IssueDetail() {
     void navigate(`/team/${issue.teamKey}`);
   };
   commands.current.askDelete = () => setConfirmingDelete(true);
+  commands.current.copyGitBranch = () => {
+    const row = engine.store.get('issue', issue.id);
+    if (row === undefined) return;
+    const name = gitBranchNameFor(engine.store, row, viewer?.displayName ?? '');
+    void copyText(name);
+  };
 
   /**
    * Deletes the issue, and says how to get it back.
@@ -606,6 +623,7 @@ interface DetailCommands {
   archive(): void;
   askDelete(): void;
   submitComment(): void;
+  copyGitBranch(): void;
 }
 
 /**

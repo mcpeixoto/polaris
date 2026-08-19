@@ -236,6 +236,63 @@ type ComplexityRoot struct {
 		Version  func(childComplexity int) int
 	}
 
+	GitHubCommitWebhook struct {
+		Secret func(childComplexity int) int
+		URL    func(childComplexity int) int
+	}
+
+	GitHubConnection struct {
+		BranchNameFormat func(childComplexity int) int
+		ConnectedAt      func(childComplexity int) int
+		CreatedAt        func(childComplexity int) int
+		CreatorID        func(childComplexity int) int
+		Enabled          func(childComplexity int) int
+		ID               func(childComplexity int) int
+		LinkCommits      func(childComplexity int) int
+		Linkbacks        func(childComplexity int) int
+		OrgLogin         func(childComplexity int) int
+		UpdatedAt        func(childComplexity int) int
+		WorkspaceID      func(childComplexity int) int
+	}
+
+	GitHubConnectionPayload struct {
+		GithubConnection func(childComplexity int) int
+		Version          func(childComplexity int) int
+	}
+
+	GitHubLinkPayload struct {
+		Attachments func(childComplexity int) int
+		Version     func(childComplexity int) int
+	}
+
+	GitHubTeamAutomation struct {
+		Configured             func(childComplexity int) int
+		DraftedStateID         func(childComplexity int) int
+		MergedStateID          func(childComplexity int) int
+		OpenedStateID          func(childComplexity int) int
+		ReadyForMergeStateID   func(childComplexity int) int
+		ReviewRequestedStateID func(childComplexity int) int
+		TeamID                 func(childComplexity int) int
+	}
+
+	GitHubTeamAutomationPayload struct {
+		GithubTeamAutomation func(childComplexity int) int
+	}
+
+	GitHubUserLink struct {
+		CreatedAt   func(childComplexity int) int
+		GithubLogin func(childComplexity int) int
+		ID          func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		UserID      func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	GitHubUserLinkPayload struct {
+		GithubUserLink func(childComplexity int) int
+		Version        func(childComplexity int) int
+	}
+
 	Initiative struct {
 		ArchivedAt            func(childComplexity int) int
 		CreatedAt             func(childComplexity int) int
@@ -491,6 +548,8 @@ type ComplexityRoot struct {
 		CreateDocument                 func(childComplexity int, input CreateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateFormTemplate             func(childComplexity int, input CreateFormTemplateInput) int
 		CreateFormTemplateField        func(childComplexity int, input CreateFormTemplateFieldInput) int
+		CreateGitHubConnection         func(childComplexity int, input CreateGitHubConnectionInput) int
+		CreateGitHubUserLink           func(childComplexity int, input CreateGitHubUserLinkInput) int
 		CreateInitiative               func(childComplexity int, input CreateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssue                    func(childComplexity int, input CreateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssueRelation            func(childComplexity int, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -513,6 +572,9 @@ type ComplexityRoot struct {
 		DeleteComment                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteDocument                 func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteFormTemplateField        func(childComplexity int, id uuid.UUID) int
+		DeleteGitHubConnection         func(childComplexity int) int
+		DeleteGitHubTeamAutomation     func(childComplexity int, teamID uuid.UUID) int
+		DeleteGitHubUserLink           func(childComplexity int) int
 		DeleteInitiative               func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssue                    func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssueRelation            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -526,6 +588,7 @@ type ComplexityRoot struct {
 		DeleteView                     func(childComplexity int, id uuid.UUID) int
 		DeleteWebhook                  func(childComplexity int, id uuid.UUID) int
 		InviteToWorkspace              func(childComplexity int, input InviteInput) int
+		LinkGitHubPullRequest          func(childComplexity int, input LinkGitHubPullRequestInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		MarkAllNotificationsRead       func(childComplexity int) int
 		MarkIssueDuplicate             func(childComplexity int, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		MarkNotificationRead           func(childComplexity int, id uuid.UUID, read bool) int
@@ -561,6 +624,8 @@ type ComplexityRoot struct {
 		UpdateDocument                 func(childComplexity int, input UpdateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateFormTemplate             func(childComplexity int, input UpdateFormTemplateInput) int
 		UpdateFormTemplateField        func(childComplexity int, input UpdateFormTemplateFieldInput) int
+		UpdateGitHubConnection         func(childComplexity int, input UpdateGitHubConnectionInput) int
+		UpdateGitHubTeamAutomation     func(childComplexity int, input UpdateGitHubTeamAutomationInput) int
 		UpdateInitiative               func(childComplexity int, input UpdateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateIssue                    func(childComplexity int, input UpdateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateIssueTemplate            func(childComplexity int, input UpdateIssueTemplateInput) int
@@ -867,6 +932,11 @@ type ComplexityRoot struct {
 		FormTemplate                 func(childComplexity int, id uuid.UUID) int
 		FormTemplateFields           func(childComplexity int, formTemplateID uuid.UUID) int
 		FormTemplates                func(childComplexity int, teamID *uuid.UUID) int
+		GithubCommitWebhook          func(childComplexity int) int
+		GithubConnection             func(childComplexity int) int
+		GithubOAuthConfigured        func(childComplexity int) int
+		GithubTeamAutomation         func(childComplexity int, teamID uuid.UUID) int
+		GithubUserLink               func(childComplexity int) int
 		Initiative                   func(childComplexity int, id uuid.UUID) int
 		Initiatives                  func(childComplexity int) int
 		Invites                      func(childComplexity int) int
@@ -1268,6 +1338,14 @@ type MutationResolver interface {
 	CreateWebhook(ctx context.Context, input CreateWebhookInput) (*WebhookCreatePayload, error)
 	UpdateWebhook(ctx context.Context, input UpdateWebhookInput) (*WebhookPayload, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	CreateGitHubConnection(ctx context.Context, input CreateGitHubConnectionInput) (*GitHubConnectionPayload, error)
+	UpdateGitHubConnection(ctx context.Context, input UpdateGitHubConnectionInput) (*GitHubConnectionPayload, error)
+	DeleteGitHubConnection(ctx context.Context) (*DeletePayload, error)
+	CreateGitHubUserLink(ctx context.Context, input CreateGitHubUserLinkInput) (*GitHubUserLinkPayload, error)
+	DeleteGitHubUserLink(ctx context.Context) (*DeletePayload, error)
+	LinkGitHubPullRequest(ctx context.Context, input LinkGitHubPullRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*GitHubLinkPayload, error)
+	UpdateGitHubTeamAutomation(ctx context.Context, input UpdateGitHubTeamAutomationInput) (*GitHubTeamAutomationPayload, error)
+	DeleteGitHubTeamAutomation(ctx context.Context, teamID uuid.UUID) (*GitHubTeamAutomationPayload, error)
 }
 type QueryResolver interface {
 	Viewer(ctx context.Context) (*Viewer, error)
@@ -1326,6 +1404,11 @@ type QueryResolver interface {
 	ProjectDependenciesBlockedBy(ctx context.Context, projectID uuid.UUID) ([]ProjectDependency, error)
 	Initiatives(ctx context.Context) ([]Initiative, error)
 	Initiative(ctx context.Context, id uuid.UUID) (*Initiative, error)
+	GithubConnection(ctx context.Context) (*GitHubConnection, error)
+	GithubUserLink(ctx context.Context) (*GitHubUserLink, error)
+	GithubOAuthConfigured(ctx context.Context) (bool, error)
+	GithubCommitWebhook(ctx context.Context) (*GitHubCommitWebhook, error)
+	GithubTeamAutomation(ctx context.Context, teamID uuid.UUID) (*GitHubTeamAutomation, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -2147,6 +2230,212 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.FormTemplatePayload.Version(childComplexity), true
+
+	case "GitHubCommitWebhook.secret":
+		if e.ComplexityRoot.GitHubCommitWebhook.Secret == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubCommitWebhook.Secret(childComplexity), true
+	case "GitHubCommitWebhook.url":
+		if e.ComplexityRoot.GitHubCommitWebhook.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubCommitWebhook.URL(childComplexity), true
+
+	case "GitHubConnection.branchNameFormat":
+		if e.ComplexityRoot.GitHubConnection.BranchNameFormat == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.BranchNameFormat(childComplexity), true
+	case "GitHubConnection.connectedAt":
+		if e.ComplexityRoot.GitHubConnection.ConnectedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.ConnectedAt(childComplexity), true
+	case "GitHubConnection.createdAt":
+		if e.ComplexityRoot.GitHubConnection.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.CreatedAt(childComplexity), true
+	case "GitHubConnection.creatorId":
+		if e.ComplexityRoot.GitHubConnection.CreatorID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.CreatorID(childComplexity), true
+	case "GitHubConnection.enabled":
+		if e.ComplexityRoot.GitHubConnection.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.Enabled(childComplexity), true
+	case "GitHubConnection.id":
+		if e.ComplexityRoot.GitHubConnection.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.ID(childComplexity), true
+	case "GitHubConnection.linkCommits":
+		if e.ComplexityRoot.GitHubConnection.LinkCommits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.LinkCommits(childComplexity), true
+	case "GitHubConnection.linkbacks":
+		if e.ComplexityRoot.GitHubConnection.Linkbacks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.Linkbacks(childComplexity), true
+	case "GitHubConnection.orgLogin":
+		if e.ComplexityRoot.GitHubConnection.OrgLogin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.OrgLogin(childComplexity), true
+	case "GitHubConnection.updatedAt":
+		if e.ComplexityRoot.GitHubConnection.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.UpdatedAt(childComplexity), true
+	case "GitHubConnection.workspaceId":
+		if e.ComplexityRoot.GitHubConnection.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnection.WorkspaceID(childComplexity), true
+
+	case "GitHubConnectionPayload.githubConnection":
+		if e.ComplexityRoot.GitHubConnectionPayload.GithubConnection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnectionPayload.GithubConnection(childComplexity), true
+	case "GitHubConnectionPayload.version":
+		if e.ComplexityRoot.GitHubConnectionPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubConnectionPayload.Version(childComplexity), true
+
+	case "GitHubLinkPayload.attachments":
+		if e.ComplexityRoot.GitHubLinkPayload.Attachments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubLinkPayload.Attachments(childComplexity), true
+	case "GitHubLinkPayload.version":
+		if e.ComplexityRoot.GitHubLinkPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubLinkPayload.Version(childComplexity), true
+
+	case "GitHubTeamAutomation.configured":
+		if e.ComplexityRoot.GitHubTeamAutomation.Configured == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubTeamAutomation.Configured(childComplexity), true
+	case "GitHubTeamAutomation.draftedStateId":
+		if e.ComplexityRoot.GitHubTeamAutomation.DraftedStateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubTeamAutomation.DraftedStateID(childComplexity), true
+	case "GitHubTeamAutomation.mergedStateId":
+		if e.ComplexityRoot.GitHubTeamAutomation.MergedStateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubTeamAutomation.MergedStateID(childComplexity), true
+	case "GitHubTeamAutomation.openedStateId":
+		if e.ComplexityRoot.GitHubTeamAutomation.OpenedStateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubTeamAutomation.OpenedStateID(childComplexity), true
+	case "GitHubTeamAutomation.readyForMergeStateId":
+		if e.ComplexityRoot.GitHubTeamAutomation.ReadyForMergeStateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubTeamAutomation.ReadyForMergeStateID(childComplexity), true
+	case "GitHubTeamAutomation.reviewRequestedStateId":
+		if e.ComplexityRoot.GitHubTeamAutomation.ReviewRequestedStateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubTeamAutomation.ReviewRequestedStateID(childComplexity), true
+	case "GitHubTeamAutomation.teamId":
+		if e.ComplexityRoot.GitHubTeamAutomation.TeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubTeamAutomation.TeamID(childComplexity), true
+
+	case "GitHubTeamAutomationPayload.githubTeamAutomation":
+		if e.ComplexityRoot.GitHubTeamAutomationPayload.GithubTeamAutomation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubTeamAutomationPayload.GithubTeamAutomation(childComplexity), true
+
+	case "GitHubUserLink.createdAt":
+		if e.ComplexityRoot.GitHubUserLink.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubUserLink.CreatedAt(childComplexity), true
+	case "GitHubUserLink.githubLogin":
+		if e.ComplexityRoot.GitHubUserLink.GithubLogin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubUserLink.GithubLogin(childComplexity), true
+	case "GitHubUserLink.id":
+		if e.ComplexityRoot.GitHubUserLink.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubUserLink.ID(childComplexity), true
+	case "GitHubUserLink.updatedAt":
+		if e.ComplexityRoot.GitHubUserLink.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubUserLink.UpdatedAt(childComplexity), true
+	case "GitHubUserLink.userId":
+		if e.ComplexityRoot.GitHubUserLink.UserID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubUserLink.UserID(childComplexity), true
+	case "GitHubUserLink.workspaceId":
+		if e.ComplexityRoot.GitHubUserLink.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubUserLink.WorkspaceID(childComplexity), true
+
+	case "GitHubUserLinkPayload.githubUserLink":
+		if e.ComplexityRoot.GitHubUserLinkPayload.GithubUserLink == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubUserLinkPayload.GithubUserLink(childComplexity), true
+	case "GitHubUserLinkPayload.version":
+		if e.ComplexityRoot.GitHubUserLinkPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GitHubUserLinkPayload.Version(childComplexity), true
 
 	case "Initiative.archivedAt":
 		if e.ComplexityRoot.Initiative.ArchivedAt == nil {
@@ -3489,6 +3778,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateFormTemplateField(childComplexity, args["input"].(CreateFormTemplateFieldInput)), true
+	case "Mutation.createGitHubConnection":
+		if e.ComplexityRoot.Mutation.CreateGitHubConnection == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createGitHubConnection_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateGitHubConnection(childComplexity, args["input"].(CreateGitHubConnectionInput)), true
+	case "Mutation.createGitHubUserLink":
+		if e.ComplexityRoot.Mutation.CreateGitHubUserLink == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createGitHubUserLink_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateGitHubUserLink(childComplexity, args["input"].(CreateGitHubUserLinkInput)), true
 	case "Mutation.createInitiative":
 		if e.ComplexityRoot.Mutation.CreateInitiative == nil {
 			break
@@ -3731,6 +4042,29 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteFormTemplateField(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.deleteGitHubConnection":
+		if e.ComplexityRoot.Mutation.DeleteGitHubConnection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteGitHubConnection(childComplexity), true
+	case "Mutation.deleteGitHubTeamAutomation":
+		if e.ComplexityRoot.Mutation.DeleteGitHubTeamAutomation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteGitHubTeamAutomation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteGitHubTeamAutomation(childComplexity, args["teamId"].(uuid.UUID)), true
+	case "Mutation.deleteGitHubUserLink":
+		if e.ComplexityRoot.Mutation.DeleteGitHubUserLink == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteGitHubUserLink(childComplexity), true
 	case "Mutation.deleteInitiative":
 		if e.ComplexityRoot.Mutation.DeleteInitiative == nil {
 			break
@@ -3874,6 +4208,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.InviteToWorkspace(childComplexity, args["input"].(InviteInput)), true
+	case "Mutation.linkGitHubPullRequest":
+		if e.ComplexityRoot.Mutation.LinkGitHubPullRequest == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_linkGitHubPullRequest_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.LinkGitHubPullRequest(childComplexity, args["input"].(LinkGitHubPullRequestInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.markAllNotificationsRead":
 		if e.ComplexityRoot.Mutation.MarkAllNotificationsRead == nil {
 			break
@@ -4254,6 +4599,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateFormTemplateField(childComplexity, args["input"].(UpdateFormTemplateFieldInput)), true
+	case "Mutation.updateGitHubConnection":
+		if e.ComplexityRoot.Mutation.UpdateGitHubConnection == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateGitHubConnection_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateGitHubConnection(childComplexity, args["input"].(UpdateGitHubConnectionInput)), true
+	case "Mutation.updateGitHubTeamAutomation":
+		if e.ComplexityRoot.Mutation.UpdateGitHubTeamAutomation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateGitHubTeamAutomation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateGitHubTeamAutomation(childComplexity, args["input"].(UpdateGitHubTeamAutomationInput)), true
 	case "Mutation.updateInitiative":
 		if e.ComplexityRoot.Mutation.UpdateInitiative == nil {
 			break
@@ -5767,6 +6134,41 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.FormTemplates(childComplexity, args["teamId"].(*uuid.UUID)), true
+	case "Query.githubCommitWebhook":
+		if e.ComplexityRoot.Query.GithubCommitWebhook == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.GithubCommitWebhook(childComplexity), true
+	case "Query.githubConnection":
+		if e.ComplexityRoot.Query.GithubConnection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.GithubConnection(childComplexity), true
+	case "Query.githubOAuthConfigured":
+		if e.ComplexityRoot.Query.GithubOAuthConfigured == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.GithubOAuthConfigured(childComplexity), true
+	case "Query.githubTeamAutomation":
+		if e.ComplexityRoot.Query.GithubTeamAutomation == nil {
+			break
+		}
+
+		args, err := ec.field_Query_githubTeamAutomation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.GithubTeamAutomation(childComplexity, args["teamId"].(uuid.UUID)), true
+	case "Query.githubUserLink":
+		if e.ComplexityRoot.Query.GithubUserLink == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.GithubUserLink(childComplexity), true
 	case "Query.initiative":
 		if e.ComplexityRoot.Query.Initiative == nil {
 			break
@@ -7177,6 +7579,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateDocumentInput,
 		ec.unmarshalInputCreateFormTemplateFieldInput,
 		ec.unmarshalInputCreateFormTemplateInput,
+		ec.unmarshalInputCreateGitHubConnectionInput,
+		ec.unmarshalInputCreateGitHubUserLinkInput,
 		ec.unmarshalInputCreateInitiativeInput,
 		ec.unmarshalInputCreateIssueInput,
 		ec.unmarshalInputCreateIssueTemplateInput,
@@ -7194,12 +7598,15 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateWebhookInput,
 		ec.unmarshalInputCreateWorkflowStateInput,
 		ec.unmarshalInputInviteInput,
+		ec.unmarshalInputLinkGitHubPullRequestInput,
 		ec.unmarshalInputSearchInput,
 		ec.unmarshalInputUpdateAttachmentInput,
 		ec.unmarshalInputUpdateCycleInput,
 		ec.unmarshalInputUpdateDocumentInput,
 		ec.unmarshalInputUpdateFormTemplateFieldInput,
 		ec.unmarshalInputUpdateFormTemplateInput,
+		ec.unmarshalInputUpdateGitHubConnectionInput,
+		ec.unmarshalInputUpdateGitHubTeamAutomationInput,
 		ec.unmarshalInputUpdateInitiativeInput,
 		ec.unmarshalInputUpdateIssueInput,
 		ec.unmarshalInputUpdateIssueTemplateInput,
@@ -8702,6 +9109,115 @@ input UpdateWebhookInput {
 }
 
 """
+Workspace GitHub install. Credentials are not on this type: the replica carries the
+settings a client needs to copy a git branch name, and nothing that could be a token.
+"""
+type GitHubConnection {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  enabled: Boolean!
+  orgLogin: String
+  branchNameFormat: String!
+  linkCommits: Boolean!
+  """When false, skip posting a comment back onto the GitHub PR or commit."""
+  linkbacks: Boolean!
+  connectedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type GitHubUserLink {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  githubLogin: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type GitHubCommitWebhook {
+  url: String!
+  secret: String!
+}
+
+"""
+GitHub pull-request status automations for one team.
+
+Not replicated: a mapping is a settings row, not a sync entity. When configured is
+false, opened moves to the first Started status and a merged closing PR moves to the
+first Completed status. A present row with a null field means no action for that event.
+"""
+type GitHubTeamAutomation {
+  teamId: UUID!
+  configured: Boolean!
+  draftedStateId: UUID
+  openedStateId: UUID
+  reviewRequestedStateId: UUID
+  readyForMergeStateId: UUID
+  mergedStateId: UUID
+}
+
+type GitHubTeamAutomationPayload {
+  githubTeamAutomation: GitHubTeamAutomation!
+}
+
+type GitHubConnectionPayload implements MutationResult {
+  version: Int!
+  githubConnection: GitHubConnection!
+}
+
+type GitHubUserLinkPayload implements MutationResult {
+  version: Int!
+  githubUserLink: GitHubUserLink!
+}
+
+type GitHubLinkPayload implements MutationResult {
+  version: Int!
+  attachments: [Attachment!]!
+}
+
+input CreateGitHubConnectionInput {
+  orgLogin: String
+  branchNameFormat: String
+  linkCommits: Boolean
+  linkbacks: Boolean
+}
+
+input UpdateGitHubConnectionInput {
+  orgLogin: String
+  branchNameFormat: String
+  linkCommits: Boolean
+  linkbacks: Boolean
+  enabled: Boolean
+}
+
+input CreateGitHubUserLinkInput {
+  githubLogin: String!
+}
+
+input LinkGitHubPullRequestInput {
+  url: String!
+  title: String
+  body: String
+  branchName: String
+  """Webhook-shaped flags so the public API can drive the same status automations."""
+  draft: Boolean
+  merged: Boolean
+  mergeableState: String
+  reviewRequested: Boolean
+}
+
+input UpdateGitHubTeamAutomationInput {
+  teamId: UUID!
+  draftedStateId: UUID
+  openedStateId: UUID
+  reviewRequestedStateId: UUID
+  readyForMergeStateId: UUID
+  mergedStateId: UUID
+}
+
+"""
 A bulk update returns the issues it changed and the single version the whole batch landed
 at, because it emits one version block rather than one per issue.
 """
@@ -9327,6 +9843,17 @@ type Query {
 
   initiatives: [Initiative!]!
   initiative(id: UUID!): Initiative
+
+  """The workspace GitHub install, if any. Secrets are on githubCommitWebhook, not here."""
+  githubConnection: GitHubConnection
+  """The caller's linked GitHub account, if they have connected one."""
+  githubUserLink: GitHubUserLink
+  """Whether this install has GitHub OAuth app credentials in its environment."""
+  githubOAuthConfigured: Boolean!
+  """Admin-only. The URL and secret to paste into GitHub for commit linking."""
+  githubCommitWebhook: GitHubCommitWebhook
+  """Per-team GitHub PR status automations. Unconfigured teams use the product defaults."""
+  githubTeamAutomation(teamId: UUID!): GitHubTeamAutomation!
 }
 
 """
@@ -9548,6 +10075,15 @@ type Mutation {
   createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!
   updateWebhook(input: UpdateWebhookInput!): WebhookPayload!
   deleteWebhook(id: UUID!): DeletePayload!
+
+  createGitHubConnection(input: CreateGitHubConnectionInput!): GitHubConnectionPayload!
+  updateGitHubConnection(input: UpdateGitHubConnectionInput!): GitHubConnectionPayload!
+  deleteGitHubConnection: DeletePayload!
+  createGitHubUserLink(input: CreateGitHubUserLinkInput!): GitHubUserLinkPayload!
+  deleteGitHubUserLink: DeletePayload!
+  linkGitHubPullRequest(input: LinkGitHubPullRequestInput!, clientId: UUID, opId: UUID): GitHubLinkPayload! @idempotent
+  updateGitHubTeamAutomation(input: UpdateGitHubTeamAutomationInput!): GitHubTeamAutomationPayload!
+  deleteGitHubTeamAutomation(teamId: UUID!): GitHubTeamAutomationPayload!
 }
 `, BuiltIn: false},
 }
@@ -9947,6 +10483,120 @@ func (ec *executionContext) childFields_FormTemplatePayload(ctx context.Context,
 		return ec.fieldContext_FormTemplatePayload_template(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type FormTemplatePayload", field.Name)
+}
+
+func (ec *executionContext) childFields_GitHubCommitWebhook(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "url":
+		return ec.fieldContext_GitHubCommitWebhook_url(ctx, field)
+	case "secret":
+		return ec.fieldContext_GitHubCommitWebhook_secret(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GitHubCommitWebhook", field.Name)
+}
+
+func (ec *executionContext) childFields_GitHubConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_GitHubConnection_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_GitHubConnection_workspaceId(ctx, field)
+	case "creatorId":
+		return ec.fieldContext_GitHubConnection_creatorId(ctx, field)
+	case "enabled":
+		return ec.fieldContext_GitHubConnection_enabled(ctx, field)
+	case "orgLogin":
+		return ec.fieldContext_GitHubConnection_orgLogin(ctx, field)
+	case "branchNameFormat":
+		return ec.fieldContext_GitHubConnection_branchNameFormat(ctx, field)
+	case "linkCommits":
+		return ec.fieldContext_GitHubConnection_linkCommits(ctx, field)
+	case "linkbacks":
+		return ec.fieldContext_GitHubConnection_linkbacks(ctx, field)
+	case "connectedAt":
+		return ec.fieldContext_GitHubConnection_connectedAt(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_GitHubConnection_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_GitHubConnection_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GitHubConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_GitHubConnectionPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_GitHubConnectionPayload_version(ctx, field)
+	case "githubConnection":
+		return ec.fieldContext_GitHubConnectionPayload_githubConnection(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GitHubConnectionPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_GitHubLinkPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_GitHubLinkPayload_version(ctx, field)
+	case "attachments":
+		return ec.fieldContext_GitHubLinkPayload_attachments(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GitHubLinkPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_GitHubTeamAutomation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "teamId":
+		return ec.fieldContext_GitHubTeamAutomation_teamId(ctx, field)
+	case "configured":
+		return ec.fieldContext_GitHubTeamAutomation_configured(ctx, field)
+	case "draftedStateId":
+		return ec.fieldContext_GitHubTeamAutomation_draftedStateId(ctx, field)
+	case "openedStateId":
+		return ec.fieldContext_GitHubTeamAutomation_openedStateId(ctx, field)
+	case "reviewRequestedStateId":
+		return ec.fieldContext_GitHubTeamAutomation_reviewRequestedStateId(ctx, field)
+	case "readyForMergeStateId":
+		return ec.fieldContext_GitHubTeamAutomation_readyForMergeStateId(ctx, field)
+	case "mergedStateId":
+		return ec.fieldContext_GitHubTeamAutomation_mergedStateId(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GitHubTeamAutomation", field.Name)
+}
+
+func (ec *executionContext) childFields_GitHubTeamAutomationPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "githubTeamAutomation":
+		return ec.fieldContext_GitHubTeamAutomationPayload_githubTeamAutomation(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GitHubTeamAutomationPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_GitHubUserLink(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_GitHubUserLink_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_GitHubUserLink_workspaceId(ctx, field)
+	case "userId":
+		return ec.fieldContext_GitHubUserLink_userId(ctx, field)
+	case "githubLogin":
+		return ec.fieldContext_GitHubUserLink_githubLogin(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_GitHubUserLink_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_GitHubUserLink_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GitHubUserLink", field.Name)
+}
+
+func (ec *executionContext) childFields_GitHubUserLinkPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_GitHubUserLinkPayload_version(ctx, field)
+	case "githubUserLink":
+		return ec.fieldContext_GitHubUserLinkPayload_githubUserLink(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GitHubUserLinkPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_Initiative(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -12317,6 +12967,34 @@ func (ec *executionContext) field_Mutation_createFormTemplate_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createGitHubConnection_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateGitHubConnectionInput, error) {
+			return ec.unmarshalNCreateGitHubConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateGitHubConnectionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createGitHubUserLink_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateGitHubUserLinkInput, error) {
+			return ec.unmarshalNCreateGitHubUserLinkInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateGitHubUserLinkInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createInitiative_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -12817,6 +13495,20 @@ func (ec *executionContext) field_Mutation_deleteFormTemplateField_args(ctx cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteGitHubTeamAutomation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteInitiative_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13108,6 +13800,36 @@ func (ec *executionContext) field_Mutation_inviteToWorkspace_args(ctx context.Co
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_linkGitHubPullRequest_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (LinkGitHubPullRequestInput, error) {
+			return ec.unmarshalNLinkGitHubPullRequestInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐLinkGitHubPullRequestInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -14035,6 +14757,34 @@ func (ec *executionContext) field_Mutation_updateFormTemplate_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateGitHubConnection_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateGitHubConnectionInput, error) {
+			return ec.unmarshalNUpdateGitHubConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateGitHubConnectionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateGitHubTeamAutomation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateGitHubTeamAutomationInput, error) {
+			return ec.unmarshalNUpdateGitHubTeamAutomationInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateGitHubTeamAutomationInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateInitiative_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -14613,6 +15363,20 @@ func (ec *executionContext) field_Query_formTemplates_args(ctx context.Context, 
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
 		func(ctx context.Context, v any) (*uuid.UUID, error) {
 			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_githubTeamAutomation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -18185,6 +18949,801 @@ func (ec *executionContext) fieldContext_FormTemplatePayload_template(_ context.
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_FormTemplate(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GitHubCommitWebhook_url(ctx context.Context, field graphql.CollectedField, obj *GitHubCommitWebhook) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubCommitWebhook_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubCommitWebhook_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubCommitWebhook", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubCommitWebhook_secret(ctx context.Context, field graphql.CollectedField, obj *GitHubCommitWebhook) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubCommitWebhook_secret(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Secret, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubCommitWebhook_secret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubCommitWebhook", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_id(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_workspaceId(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_creatorId(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_creatorId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatorID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_creatorId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_enabled(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_orgLogin(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_orgLogin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OrgLogin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_orgLogin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_branchNameFormat(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_branchNameFormat(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BranchNameFormat, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_branchNameFormat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_linkCommits(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_linkCommits(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LinkCommits, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_linkCommits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_linkbacks(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_linkbacks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Linkbacks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_linkbacks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_connectedAt(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_connectedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConnectedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_connectedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_createdAt(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnection_updatedAt(ctx context.Context, field graphql.CollectedField, obj *GitHubConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnection_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnection_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnection", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnectionPayload_version(ctx context.Context, field graphql.CollectedField, obj *GitHubConnectionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnectionPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnectionPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubConnectionPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubConnectionPayload_githubConnection(ctx context.Context, field graphql.CollectedField, obj *GitHubConnectionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubConnectionPayload_githubConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GithubConnection, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubConnection) graphql.Marshaler {
+			return ec.marshalNGitHubConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubConnection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubConnectionPayload_githubConnection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GitHubConnectionPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubConnection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GitHubLinkPayload_version(ctx context.Context, field graphql.CollectedField, obj *GitHubLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubLinkPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubLinkPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubLinkPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubLinkPayload_attachments(ctx context.Context, field graphql.CollectedField, obj *GitHubLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubLinkPayload_attachments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Attachments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []Attachment) graphql.Marshaler {
+			return ec.marshalNAttachment2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAttachmentᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubLinkPayload_attachments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GitHubLinkPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Attachment(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GitHubTeamAutomation_teamId(ctx context.Context, field graphql.CollectedField, obj *GitHubTeamAutomation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubTeamAutomation_teamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubTeamAutomation_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubTeamAutomation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubTeamAutomation_configured(ctx context.Context, field graphql.CollectedField, obj *GitHubTeamAutomation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubTeamAutomation_configured(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Configured, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubTeamAutomation_configured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubTeamAutomation", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubTeamAutomation_draftedStateId(ctx context.Context, field graphql.CollectedField, obj *GitHubTeamAutomation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubTeamAutomation_draftedStateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DraftedStateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubTeamAutomation_draftedStateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubTeamAutomation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubTeamAutomation_openedStateId(ctx context.Context, field graphql.CollectedField, obj *GitHubTeamAutomation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubTeamAutomation_openedStateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OpenedStateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubTeamAutomation_openedStateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubTeamAutomation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubTeamAutomation_reviewRequestedStateId(ctx context.Context, field graphql.CollectedField, obj *GitHubTeamAutomation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubTeamAutomation_reviewRequestedStateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReviewRequestedStateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubTeamAutomation_reviewRequestedStateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubTeamAutomation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubTeamAutomation_readyForMergeStateId(ctx context.Context, field graphql.CollectedField, obj *GitHubTeamAutomation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubTeamAutomation_readyForMergeStateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReadyForMergeStateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubTeamAutomation_readyForMergeStateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubTeamAutomation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubTeamAutomation_mergedStateId(ctx context.Context, field graphql.CollectedField, obj *GitHubTeamAutomation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubTeamAutomation_mergedStateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MergedStateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubTeamAutomation_mergedStateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubTeamAutomation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubTeamAutomationPayload_githubTeamAutomation(ctx context.Context, field graphql.CollectedField, obj *GitHubTeamAutomationPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubTeamAutomationPayload_githubTeamAutomation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GithubTeamAutomation, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubTeamAutomation) graphql.Marshaler {
+			return ec.marshalNGitHubTeamAutomation2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubTeamAutomation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubTeamAutomationPayload_githubTeamAutomation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GitHubTeamAutomationPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubTeamAutomation(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GitHubUserLink_id(ctx context.Context, field graphql.CollectedField, obj *GitHubUserLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubUserLink_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubUserLink_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubUserLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubUserLink_workspaceId(ctx context.Context, field graphql.CollectedField, obj *GitHubUserLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubUserLink_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubUserLink_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubUserLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubUserLink_userId(ctx context.Context, field graphql.CollectedField, obj *GitHubUserLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubUserLink_userId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubUserLink_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubUserLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubUserLink_githubLogin(ctx context.Context, field graphql.CollectedField, obj *GitHubUserLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubUserLink_githubLogin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GithubLogin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubUserLink_githubLogin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubUserLink", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubUserLink_createdAt(ctx context.Context, field graphql.CollectedField, obj *GitHubUserLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubUserLink_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubUserLink_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubUserLink", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubUserLink_updatedAt(ctx context.Context, field graphql.CollectedField, obj *GitHubUserLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubUserLink_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubUserLink_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubUserLink", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubUserLinkPayload_version(ctx context.Context, field graphql.CollectedField, obj *GitHubUserLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubUserLinkPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubUserLinkPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GitHubUserLinkPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _GitHubUserLinkPayload_githubUserLink(ctx context.Context, field graphql.CollectedField, obj *GitHubUserLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GitHubUserLinkPayload_githubUserLink(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GithubUserLink, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubUserLink) graphql.Marshaler {
+			return ec.marshalNGitHubUserLink2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubUserLink(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GitHubUserLinkPayload_githubUserLink(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GitHubUserLinkPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubUserLink(ctx, field)
 		},
 	}
 	return fc, nil
@@ -28440,6 +29999,347 @@ func (ec *executionContext) fieldContext_Mutation_deleteWebhook(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createGitHubConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createGitHubConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateGitHubConnection(ctx, fc.Args["input"].(CreateGitHubConnectionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubConnectionPayload) graphql.Marshaler {
+			return ec.marshalNGitHubConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubConnectionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createGitHubConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubConnectionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createGitHubConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateGitHubConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateGitHubConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateGitHubConnection(ctx, fc.Args["input"].(UpdateGitHubConnectionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubConnectionPayload) graphql.Marshaler {
+			return ec.marshalNGitHubConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubConnectionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateGitHubConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubConnectionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateGitHubConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteGitHubConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteGitHubConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().DeleteGitHubConnection(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteGitHubConnection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createGitHubUserLink(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createGitHubUserLink(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateGitHubUserLink(ctx, fc.Args["input"].(CreateGitHubUserLinkInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubUserLinkPayload) graphql.Marshaler {
+			return ec.marshalNGitHubUserLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubUserLinkPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createGitHubUserLink(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubUserLinkPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createGitHubUserLink_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteGitHubUserLink(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteGitHubUserLink(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().DeleteGitHubUserLink(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteGitHubUserLink(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_linkGitHubPullRequest(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_linkGitHubPullRequest(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().LinkGitHubPullRequest(ctx, fc.Args["input"].(LinkGitHubPullRequestInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *GitHubLinkPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubLinkPayload) graphql.Marshaler {
+			return ec.marshalNGitHubLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubLinkPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_linkGitHubPullRequest(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubLinkPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_linkGitHubPullRequest_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateGitHubTeamAutomation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateGitHubTeamAutomation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateGitHubTeamAutomation(ctx, fc.Args["input"].(UpdateGitHubTeamAutomationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubTeamAutomationPayload) graphql.Marshaler {
+			return ec.marshalNGitHubTeamAutomationPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubTeamAutomationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateGitHubTeamAutomation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubTeamAutomationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateGitHubTeamAutomation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteGitHubTeamAutomation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteGitHubTeamAutomation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteGitHubTeamAutomation(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubTeamAutomationPayload) graphql.Marshaler {
+			return ec.marshalNGitHubTeamAutomationPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubTeamAutomationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteGitHubTeamAutomation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubTeamAutomationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteGitHubTeamAutomation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Notification_id(ctx context.Context, field graphql.CollectedField, obj *Notification) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35094,6 +36994,169 @@ func (ec *executionContext) fieldContext_Query_initiative(ctx context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_githubConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_githubConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().GithubConnection(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubConnection) graphql.Marshaler {
+			return ec.marshalOGitHubConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubConnection(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_githubConnection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubConnection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_githubUserLink(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_githubUserLink(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().GithubUserLink(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubUserLink) graphql.Marshaler {
+			return ec.marshalOGitHubUserLink2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubUserLink(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_githubUserLink(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubUserLink(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_githubOAuthConfigured(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_githubOAuthConfigured(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().GithubOAuthConfigured(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_githubOAuthConfigured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Query_githubCommitWebhook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_githubCommitWebhook(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().GithubCommitWebhook(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubCommitWebhook) graphql.Marshaler {
+			return ec.marshalOGitHubCommitWebhook2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubCommitWebhook(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_githubCommitWebhook(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubCommitWebhook(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_githubTeamAutomation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_githubTeamAutomation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().GithubTeamAutomation(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *GitHubTeamAutomation) graphql.Marshaler {
+			return ec.marshalNGitHubTeamAutomation2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubTeamAutomation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_githubTeamAutomation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GitHubTeamAutomation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_githubTeamAutomation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -40687,6 +42750,87 @@ func (ec *executionContext) unmarshalInputCreateFormTemplateInput(ctx context.Co
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateGitHubConnectionInput(ctx context.Context, obj any) (CreateGitHubConnectionInput, error) {
+	var it CreateGitHubConnectionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"orgLogin", "branchNameFormat", "linkCommits", "linkbacks"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "orgLogin":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("orgLogin"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OrgLogin = data
+		case "branchNameFormat":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("branchNameFormat"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BranchNameFormat = data
+		case "linkCommits":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("linkCommits"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.LinkCommits = data
+		case "linkbacks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("linkbacks"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Linkbacks = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateGitHubUserLinkInput(ctx context.Context, obj any) (CreateGitHubUserLinkInput, error) {
+	var it CreateGitHubUserLinkInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"githubLogin"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "githubLogin":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("githubLogin"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GithubLogin = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateInitiativeInput(ctx context.Context, obj any) (CreateInitiativeInput, error) {
 	var it CreateInitiativeInput
 	if obj == nil {
@@ -41904,6 +44048,85 @@ func (ec *executionContext) unmarshalInputInviteInput(ctx context.Context, obj a
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputLinkGitHubPullRequestInput(ctx context.Context, obj any) (LinkGitHubPullRequestInput, error) {
+	var it LinkGitHubPullRequestInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"url", "title", "body", "branchName", "draft", "merged", "mergeableState", "reviewRequested"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "url":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("url"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.URL = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "body":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Body = data
+		case "branchName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("branchName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BranchName = data
+		case "draft":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("draft"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Draft = data
+		case "merged":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("merged"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Merged = data
+		case "mergeableState":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mergeableState"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MergeableState = data
+		case "reviewRequested":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reviewRequested"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ReviewRequested = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSearchInput(ctx context.Context, obj any) (SearchInput, error) {
 	var it SearchInput
 	if obj == nil {
@@ -42247,6 +44470,129 @@ func (ec *executionContext) unmarshalInputUpdateFormTemplateInput(ctx context.Co
 				return it, err
 			}
 			it.Properties = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateGitHubConnectionInput(ctx context.Context, obj any) (UpdateGitHubConnectionInput, error) {
+	var it UpdateGitHubConnectionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"orgLogin", "branchNameFormat", "linkCommits", "linkbacks", "enabled"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "orgLogin":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("orgLogin"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OrgLogin = data
+		case "branchNameFormat":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("branchNameFormat"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BranchNameFormat = data
+		case "linkCommits":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("linkCommits"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.LinkCommits = data
+		case "linkbacks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("linkbacks"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Linkbacks = data
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateGitHubTeamAutomationInput(ctx context.Context, obj any) (UpdateGitHubTeamAutomationInput, error) {
+	var it UpdateGitHubTeamAutomationInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"teamId", "draftedStateId", "openedStateId", "reviewRequestedStateId", "readyForMergeStateId", "mergedStateId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		case "draftedStateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("draftedStateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DraftedStateID = data
+		case "openedStateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("openedStateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OpenedStateID = data
+		case "reviewRequestedStateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reviewRequestedStateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ReviewRequestedStateID = data
+		case "readyForMergeStateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("readyForMergeStateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ReadyForMergeStateID = data
+		case "mergedStateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mergedStateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MergedStateID = data
 		}
 	}
 	return it, nil
@@ -44110,6 +46456,27 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._InitiativePayload(ctx, sel, obj)
+	case GitHubUserLinkPayload:
+		return ec._GitHubUserLinkPayload(ctx, sel, &obj)
+	case *GitHubUserLinkPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GitHubUserLinkPayload(ctx, sel, obj)
+	case GitHubLinkPayload:
+		return ec._GitHubLinkPayload(ctx, sel, &obj)
+	case *GitHubLinkPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GitHubLinkPayload(ctx, sel, obj)
+	case GitHubConnectionPayload:
+		return ec._GitHubConnectionPayload(ctx, sel, &obj)
+	case *GitHubConnectionPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GitHubConnectionPayload(ctx, sel, obj)
 	case FormTemplatePayload:
 		return ec._FormTemplatePayload(ctx, sel, &obj)
 	case *FormTemplatePayload:
@@ -45545,6 +47912,435 @@ func (ec *executionContext) _FormTemplatePayload(ctx context.Context, sel ast.Se
 			}
 		case "template":
 			out.Values[i] = ec._FormTemplatePayload_template(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var gitHubCommitWebhookImplementors = []string{"GitHubCommitWebhook"}
+
+func (ec *executionContext) _GitHubCommitWebhook(ctx context.Context, sel ast.SelectionSet, obj *GitHubCommitWebhook) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gitHubCommitWebhookImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GitHubCommitWebhook")
+		case "url":
+			out.Values[i] = ec._GitHubCommitWebhook_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "secret":
+			out.Values[i] = ec._GitHubCommitWebhook_secret(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var gitHubConnectionImplementors = []string{"GitHubConnection"}
+
+func (ec *executionContext) _GitHubConnection(ctx context.Context, sel ast.SelectionSet, obj *GitHubConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gitHubConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GitHubConnection")
+		case "id":
+			out.Values[i] = ec._GitHubConnection_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._GitHubConnection_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "creatorId":
+			out.Values[i] = ec._GitHubConnection_creatorId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabled":
+			out.Values[i] = ec._GitHubConnection_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "orgLogin":
+			out.Values[i] = ec._GitHubConnection_orgLogin(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "branchNameFormat":
+			out.Values[i] = ec._GitHubConnection_branchNameFormat(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "linkCommits":
+			out.Values[i] = ec._GitHubConnection_linkCommits(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "linkbacks":
+			out.Values[i] = ec._GitHubConnection_linkbacks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "connectedAt":
+			out.Values[i] = ec._GitHubConnection_connectedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._GitHubConnection_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._GitHubConnection_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var gitHubConnectionPayloadImplementors = []string{"GitHubConnectionPayload", "MutationResult"}
+
+func (ec *executionContext) _GitHubConnectionPayload(ctx context.Context, sel ast.SelectionSet, obj *GitHubConnectionPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gitHubConnectionPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GitHubConnectionPayload")
+		case "version":
+			out.Values[i] = ec._GitHubConnectionPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "githubConnection":
+			out.Values[i] = ec._GitHubConnectionPayload_githubConnection(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var gitHubLinkPayloadImplementors = []string{"GitHubLinkPayload", "MutationResult"}
+
+func (ec *executionContext) _GitHubLinkPayload(ctx context.Context, sel ast.SelectionSet, obj *GitHubLinkPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gitHubLinkPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GitHubLinkPayload")
+		case "version":
+			out.Values[i] = ec._GitHubLinkPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attachments":
+			out.Values[i] = ec._GitHubLinkPayload_attachments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var gitHubTeamAutomationImplementors = []string{"GitHubTeamAutomation"}
+
+func (ec *executionContext) _GitHubTeamAutomation(ctx context.Context, sel ast.SelectionSet, obj *GitHubTeamAutomation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gitHubTeamAutomationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GitHubTeamAutomation")
+		case "teamId":
+			out.Values[i] = ec._GitHubTeamAutomation_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "configured":
+			out.Values[i] = ec._GitHubTeamAutomation_configured(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "draftedStateId":
+			out.Values[i] = ec._GitHubTeamAutomation_draftedStateId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "openedStateId":
+			out.Values[i] = ec._GitHubTeamAutomation_openedStateId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "reviewRequestedStateId":
+			out.Values[i] = ec._GitHubTeamAutomation_reviewRequestedStateId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "readyForMergeStateId":
+			out.Values[i] = ec._GitHubTeamAutomation_readyForMergeStateId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "mergedStateId":
+			out.Values[i] = ec._GitHubTeamAutomation_mergedStateId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var gitHubTeamAutomationPayloadImplementors = []string{"GitHubTeamAutomationPayload"}
+
+func (ec *executionContext) _GitHubTeamAutomationPayload(ctx context.Context, sel ast.SelectionSet, obj *GitHubTeamAutomationPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gitHubTeamAutomationPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GitHubTeamAutomationPayload")
+		case "githubTeamAutomation":
+			out.Values[i] = ec._GitHubTeamAutomationPayload_githubTeamAutomation(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var gitHubUserLinkImplementors = []string{"GitHubUserLink"}
+
+func (ec *executionContext) _GitHubUserLink(ctx context.Context, sel ast.SelectionSet, obj *GitHubUserLink) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gitHubUserLinkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GitHubUserLink")
+		case "id":
+			out.Values[i] = ec._GitHubUserLink_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._GitHubUserLink_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userId":
+			out.Values[i] = ec._GitHubUserLink_userId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "githubLogin":
+			out.Values[i] = ec._GitHubUserLink_githubLogin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._GitHubUserLink_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._GitHubUserLink_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var gitHubUserLinkPayloadImplementors = []string{"GitHubUserLinkPayload", "MutationResult"}
+
+func (ec *executionContext) _GitHubUserLinkPayload(ctx context.Context, sel ast.SelectionSet, obj *GitHubUserLinkPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gitHubUserLinkPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GitHubUserLinkPayload")
+		case "version":
+			out.Values[i] = ec._GitHubUserLinkPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "githubUserLink":
+			out.Values[i] = ec._GitHubUserLinkPayload_githubUserLink(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -47904,6 +50700,62 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteWebhook":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteWebhook(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createGitHubConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createGitHubConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateGitHubConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateGitHubConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteGitHubConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteGitHubConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createGitHubUserLink":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createGitHubUserLink(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteGitHubUserLink":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteGitHubUserLink(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "linkGitHubPullRequest":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_linkGitHubPullRequest(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateGitHubTeamAutomation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateGitHubTeamAutomation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteGitHubTeamAutomation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteGitHubTeamAutomation(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -51010,6 +53862,116 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "githubConnection":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_githubConnection(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "githubUserLink":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_githubUserLink(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "githubOAuthConfigured":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_githubOAuthConfigured(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "githubCommitWebhook":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_githubCommitWebhook(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "githubTeamAutomation":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_githubTeamAutomation(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -53235,6 +56197,16 @@ func (ec *executionContext) unmarshalNCreateFormTemplateInput2githubᚗcomᚋpei
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateGitHubConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateGitHubConnectionInput(ctx context.Context, v any) (CreateGitHubConnectionInput, error) {
+	res, err := ec.unmarshalInputCreateGitHubConnectionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateGitHubUserLinkInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateGitHubUserLinkInput(ctx context.Context, v any) (CreateGitHubUserLinkInput, error) {
+	res, err := ec.unmarshalInputCreateGitHubUserLinkInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateInitiativeInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateInitiativeInput(ctx context.Context, v any) (CreateInitiativeInput, error) {
 	res, err := ec.unmarshalInputCreateInitiativeInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -53577,6 +56549,96 @@ func (ec *executionContext) marshalNFormTemplatePayload2ᚖgithubᚗcomᚋpeixot
 		return graphql.Null
 	}
 	return ec._FormTemplatePayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNGitHubConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubConnection(ctx context.Context, sel ast.SelectionSet, v *GitHubConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GitHubConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNGitHubConnectionPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubConnectionPayload(ctx context.Context, sel ast.SelectionSet, v GitHubConnectionPayload) graphql.Marshaler {
+	return ec._GitHubConnectionPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNGitHubConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubConnectionPayload(ctx context.Context, sel ast.SelectionSet, v *GitHubConnectionPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GitHubConnectionPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNGitHubLinkPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubLinkPayload(ctx context.Context, sel ast.SelectionSet, v GitHubLinkPayload) graphql.Marshaler {
+	return ec._GitHubLinkPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNGitHubLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubLinkPayload(ctx context.Context, sel ast.SelectionSet, v *GitHubLinkPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GitHubLinkPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNGitHubTeamAutomation2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubTeamAutomation(ctx context.Context, sel ast.SelectionSet, v GitHubTeamAutomation) graphql.Marshaler {
+	return ec._GitHubTeamAutomation(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNGitHubTeamAutomation2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubTeamAutomation(ctx context.Context, sel ast.SelectionSet, v *GitHubTeamAutomation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GitHubTeamAutomation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNGitHubTeamAutomationPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubTeamAutomationPayload(ctx context.Context, sel ast.SelectionSet, v GitHubTeamAutomationPayload) graphql.Marshaler {
+	return ec._GitHubTeamAutomationPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNGitHubTeamAutomationPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubTeamAutomationPayload(ctx context.Context, sel ast.SelectionSet, v *GitHubTeamAutomationPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GitHubTeamAutomationPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNGitHubUserLink2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubUserLink(ctx context.Context, sel ast.SelectionSet, v *GitHubUserLink) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GitHubUserLink(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNGitHubUserLinkPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubUserLinkPayload(ctx context.Context, sel ast.SelectionSet, v GitHubUserLinkPayload) graphql.Marshaler {
+	return ec._GitHubUserLinkPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNGitHubUserLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubUserLinkPayload(ctx context.Context, sel ast.SelectionSet, v *GitHubUserLinkPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GitHubUserLinkPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNInitiative2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiative(ctx context.Context, sel ast.SelectionSet, v Initiative) graphql.Marshaler {
@@ -54002,6 +57064,11 @@ func (ec *executionContext) marshalNLabelPayload2ᚖgithubᚗcomᚋpeixotolabs�
 		return graphql.Null
 	}
 	return ec._LabelPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNLinkGitHubPullRequestInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐLinkGitHubPullRequestInput(ctx context.Context, v any) (LinkGitHubPullRequestInput, error) {
+	res, err := ec.unmarshalInputLinkGitHubPullRequestInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNNotification2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐNotification(ctx context.Context, sel ast.SelectionSet, v Notification) graphql.Marshaler {
@@ -54916,6 +57983,16 @@ func (ec *executionContext) unmarshalNUpdateFormTemplateInput2githubᚗcomᚋpei
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateGitHubConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateGitHubConnectionInput(ctx context.Context, v any) (UpdateGitHubConnectionInput, error) {
+	res, err := ec.unmarshalInputUpdateGitHubConnectionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateGitHubTeamAutomationInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateGitHubTeamAutomationInput(ctx context.Context, v any) (UpdateGitHubTeamAutomationInput, error) {
+	res, err := ec.unmarshalInputUpdateGitHubTeamAutomationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateInitiativeInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateInitiativeInput(ctx context.Context, v any) (UpdateInitiativeInput, error) {
 	res, err := ec.unmarshalInputUpdateInitiativeInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -55583,6 +58660,27 @@ func (ec *executionContext) marshalOFormTemplateFieldType2ᚖgithubᚗcomᚋpeix
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOGitHubCommitWebhook2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubCommitWebhook(ctx context.Context, sel ast.SelectionSet, v *GitHubCommitWebhook) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._GitHubCommitWebhook(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOGitHubConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubConnection(ctx context.Context, sel ast.SelectionSet, v *GitHubConnection) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._GitHubConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOGitHubUserLink2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubUserLink(ctx context.Context, sel ast.SelectionSet, v *GitHubUserLink) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._GitHubUserLink(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOInitiative2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiative(ctx context.Context, sel ast.SelectionSet, v *Initiative) graphql.Marshaler {

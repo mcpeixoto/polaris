@@ -123,6 +123,20 @@ func NewRouter(d Deps) http.Handler {
 		mux.Handle("GET /sync", d.Sync)
 	}
 
+	github := &githubHandlers{
+		svc:       d.Service,
+		tokens:    d.Tokens,
+		cfg:       d.Config,
+		publicURL: d.Config.PublicURL,
+		secure:    !d.Config.IsDevelopment(),
+	}
+	// Inbound GitHub traffic is unauthenticated: the signature is the credential.
+	// Anonymous budget, because a loop of unsigned posts would otherwise be free.
+	mux.Handle("POST /webhooks/github", d.Limits.Anonymous(http.HandlerFunc(github.events)))
+	mux.Handle("POST /webhooks/github/commits/{workspaceId}", d.Limits.Anonymous(http.HandlerFunc(github.commits)))
+	mux.Handle("GET /auth/github/start", RequireWorkspace(http.HandlerFunc(github.oauthStart)))
+	mux.Handle("GET /auth/github/callback", d.Limits.Anonymous(http.HandlerFunc(github.oauthCallback)))
+
 	var h http.Handler = mux
 	h = Authenticate(d.Tokens, d.Service)(h)
 	// Outside Authenticate, so a preflight is answered without a token: a browser sends no

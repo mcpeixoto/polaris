@@ -166,6 +166,16 @@ type Config struct {
 	// limiter's memory: the keys are caller-supplied (an IP, an email address), so the map
 	// is unbounded by construction and something has to cap it.
 	RateLimitMaxCallers int `envconfig:"POLARIS_RATE_LIMIT_MAX_CALLERS" default:"100000"`
+
+	// GitHub App OAuth. Empty is the supported state: the product runs, the settings
+	// screen explains how to set the variables, and inbound webhooks plus the public
+	// linkGitHubPullRequest mutation still work. Requiring an app before linking is how
+	// self-host onboarding fails.
+	GitHubClientID      string `envconfig:"POLARIS_GITHUB_CLIENT_ID"`
+	GitHubClientSecret  string `envconfig:"POLARIS_GITHUB_CLIENT_SECRET"`
+	GitHubWebhookSecret string `envconfig:"POLARIS_GITHUB_WEBHOOK_SECRET"`
+	GitHubAppID         string `envconfig:"POLARIS_GITHUB_APP_ID"`
+	GitHubAppPrivateKey string `envconfig:"POLARIS_GITHUB_APP_PRIVATE_KEY"`
 }
 
 // Registration modes.
@@ -190,6 +200,11 @@ const (
 // MailEnabled reports whether a relay is configured. A process with no mail must start
 // normally and say so once, rather than failing a job every hour.
 func (c Config) MailEnabled() bool { return strings.TrimSpace(c.SMTPHost) != "" }
+
+// GitHubOAuthConfigured reports whether a GitHub App can complete an OAuth handshake.
+func (c Config) GitHubOAuthConfigured() bool {
+	return strings.TrimSpace(c.GitHubClientID) != "" && strings.TrimSpace(c.GitHubClientSecret) != ""
+}
 
 // OpenSignupAllowed reports whether anybody may create an account.
 //

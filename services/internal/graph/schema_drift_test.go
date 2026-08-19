@@ -46,6 +46,8 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"ProjectMember", model.ProjectMember{}, generated.ProjectMember{}},
 		{"ProjectMilestone", model.ProjectMilestone{}, generated.ProjectMilestone{}},
 		{"Cycle", model.Cycle{}, generated.Cycle{}},
+		{"GitHubConnection", model.GitHubConnection{}, generated.GitHubConnection{}},
+		{"GitHubUserLink", model.GitHubUserLink{}, generated.GitHubUserLink{}},
 	}
 
 	for _, pair := range pairs {

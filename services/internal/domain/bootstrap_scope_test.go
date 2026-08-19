@@ -289,6 +289,17 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	}
 	s.openProjectLabelLink = linkRow.ID
 
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, s.alice, domain.CreateGitHubConnectionInput{
+		OrgLogin: ptr("acme"),
+	}); err != nil {
+		t.Fatalf("connect GitHub: %v", err)
+	}
+	if _, _, err := svc.CreateGitHubUserLink(ctx, s.bob, domain.CreateGitHubUserLinkInput{
+		GitHubLogin: "bob",
+	}); err != nil {
+		t.Fatalf("link bob's GitHub account: %v", err)
+	}
+
 	// Favourites: alice pins something out of the private team and something workspace-wide,
 	// bob pins the team they share. A favourite carries only its owner's scope, which is what
 	// makes it the type most easily shipped to the wrong replica.
@@ -388,6 +399,8 @@ func favorite(
 	}
 	return row.ID
 }
+
+func ptr[T any](v T) *T { return &v }
 
 // The snapshot must hand every principal exactly what the socket would have handed them.
 //

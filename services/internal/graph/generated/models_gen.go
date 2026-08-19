@@ -193,6 +193,17 @@ type CreateFormTemplateInput struct {
 	Properties  json.RawMessage `json:"properties,omitempty"`
 }
 
+type CreateGitHubConnectionInput struct {
+	OrgLogin         *string `json:"orgLogin,omitempty"`
+	BranchNameFormat *string `json:"branchNameFormat,omitempty"`
+	LinkCommits      *bool   `json:"linkCommits,omitempty"`
+	Linkbacks        *bool   `json:"linkbacks,omitempty"`
+}
+
+type CreateGitHubUserLinkInput struct {
+	GithubLogin string `json:"githubLogin"`
+}
+
 type CreateInitiativeInput struct {
 	Name                  string                `json:"name"`
 	Description           *string               `json:"description,omitempty"`
@@ -525,6 +536,77 @@ type FormTemplatePayload struct {
 
 func (FormTemplatePayload) IsMutationResult() {}
 
+type GitHubCommitWebhook struct {
+	URL    string `json:"url"`
+	Secret string `json:"secret"`
+}
+
+// Workspace GitHub install. Credentials are not on this type: the replica carries the
+// settings a client needs to copy a git branch name, and nothing that could be a token.
+type GitHubConnection struct {
+	ID               uuid.UUID `json:"id"`
+	WorkspaceID      uuid.UUID `json:"workspaceId"`
+	CreatorID        uuid.UUID `json:"creatorId"`
+	Enabled          bool      `json:"enabled"`
+	OrgLogin         *string   `json:"orgLogin,omitempty"`
+	BranchNameFormat string    `json:"branchNameFormat"`
+	LinkCommits      bool      `json:"linkCommits"`
+	// When false, skip posting a comment back onto the GitHub PR or commit.
+	Linkbacks   bool       `json:"linkbacks"`
+	ConnectedAt *time.Time `json:"connectedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
+type GitHubConnectionPayload struct {
+	Version          int               `json:"version"`
+	GithubConnection *GitHubConnection `json:"githubConnection"`
+}
+
+func (GitHubConnectionPayload) IsMutationResult() {}
+
+type GitHubLinkPayload struct {
+	Version     int          `json:"version"`
+	Attachments []Attachment `json:"attachments"`
+}
+
+func (GitHubLinkPayload) IsMutationResult() {}
+
+// GitHub pull-request status automations for one team.
+//
+// Not replicated: a mapping is a settings row, not a sync entity. When configured is
+// false, opened moves to the first Started status and a merged closing PR moves to the
+// first Completed status. A present row with a null field means no action for that event.
+type GitHubTeamAutomation struct {
+	TeamID                 uuid.UUID  `json:"teamId"`
+	Configured             bool       `json:"configured"`
+	DraftedStateID         *uuid.UUID `json:"draftedStateId,omitempty"`
+	OpenedStateID          *uuid.UUID `json:"openedStateId,omitempty"`
+	ReviewRequestedStateID *uuid.UUID `json:"reviewRequestedStateId,omitempty"`
+	ReadyForMergeStateID   *uuid.UUID `json:"readyForMergeStateId,omitempty"`
+	MergedStateID          *uuid.UUID `json:"mergedStateId,omitempty"`
+}
+
+type GitHubTeamAutomationPayload struct {
+	GithubTeamAutomation *GitHubTeamAutomation `json:"githubTeamAutomation"`
+}
+
+type GitHubUserLink struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	UserID      uuid.UUID `json:"userId"`
+	GithubLogin string    `json:"githubLogin"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type GitHubUserLinkPayload struct {
+	Version        int             `json:"version"`
+	GithubUserLink *GitHubUserLink `json:"githubUserLink"`
+}
+
+func (GitHubUserLinkPayload) IsMutationResult() {}
+
 // A workspace objective grouping a manually curated set of projects.
 type Initiative struct {
 	ID                    uuid.UUID             `json:"id"`
@@ -826,6 +908,18 @@ type LabelPayload struct {
 }
 
 func (LabelPayload) IsMutationResult() {}
+
+type LinkGitHubPullRequestInput struct {
+	URL        string  `json:"url"`
+	Title      *string `json:"title,omitempty"`
+	Body       *string `json:"body,omitempty"`
+	BranchName *string `json:"branchName,omitempty"`
+	// Webhook-shaped flags so the public API can drive the same status automations.
+	Draft           *bool   `json:"draft,omitempty"`
+	Merged          *bool   `json:"merged,omitempty"`
+	MergeableState  *string `json:"mergeableState,omitempty"`
+	ReviewRequested *bool   `json:"reviewRequested,omitempty"`
+}
 
 type Mutation struct {
 }
@@ -1318,6 +1412,23 @@ type UpdateFormTemplateInput struct {
 	Name        *string         `json:"name,omitempty"`
 	Description *string         `json:"description,omitempty"`
 	Properties  json.RawMessage `json:"properties,omitempty"`
+}
+
+type UpdateGitHubConnectionInput struct {
+	OrgLogin         *string `json:"orgLogin,omitempty"`
+	BranchNameFormat *string `json:"branchNameFormat,omitempty"`
+	LinkCommits      *bool   `json:"linkCommits,omitempty"`
+	Linkbacks        *bool   `json:"linkbacks,omitempty"`
+	Enabled          *bool   `json:"enabled,omitempty"`
+}
+
+type UpdateGitHubTeamAutomationInput struct {
+	TeamID                 uuid.UUID  `json:"teamId"`
+	DraftedStateID         *uuid.UUID `json:"draftedStateId,omitempty"`
+	OpenedStateID          *uuid.UUID `json:"openedStateId,omitempty"`
+	ReviewRequestedStateID *uuid.UUID `json:"reviewRequestedStateId,omitempty"`
+	ReadyForMergeStateID   *uuid.UUID `json:"readyForMergeStateId,omitempty"`
+	MergedStateID          *uuid.UUID `json:"mergedStateId,omitempty"`
 }
 
 type UpdateInitiativeInput struct {

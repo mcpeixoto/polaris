@@ -83,6 +83,8 @@ const ENUM_FIELDS: Readonly<Record<EntityType, readonly string[]>> = {
   // plan's *name* is data. Adding it here would upper-case a value nothing else upper-cases.
   workspace: [],
   user: ['role', 'status', 'kind'],
+  githubConnection: [],
+  githubUserLink: [],
   team: ['estimateScale'],
   teamMembership: ['role'],
   workflowState: ['category'],

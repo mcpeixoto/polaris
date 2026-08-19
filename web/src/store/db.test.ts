@@ -296,6 +296,31 @@ function oneOfEach(): EntityRow[] {
   return [
     { type: 'workspace', entity: workspace },
     { type: 'user', entity: user },
+    {
+      type: 'githubConnection',
+      entity: {
+        id: 'ghc1',
+        workspaceId: 'w',
+        creatorId: 'u1',
+        enabled: true,
+        branchNameFormat: '{identifier}-{title}',
+        linkCommits: false,
+        linkbacks: true,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'githubUserLink',
+      entity: {
+        id: 'ghl1',
+        workspaceId: 'w',
+        userId: 'u1',
+        githubLogin: 'ada',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
     { type: 'team', entity: team('t1', 'ENG') },
     {
       type: 'teamMembership',
