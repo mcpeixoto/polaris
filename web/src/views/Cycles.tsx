@@ -248,8 +248,10 @@ function listRows(store: Store, teamId: UUID, cooldownWeeks: number): ListRow[] 
 
   for (let index = 0; index < cycles.length; index++) {
     const cycle = cycles[index];
+    if (cycle === undefined) continue;
     if (index > 0) {
       const prev = cycles[index - 1];
+      if (prev === undefined) continue;
       const gapMs = Date.parse(cycle.startsAt) - Date.parse(prev.endsAt);
       if (gapMs > 60_000) {
         const isCooldown = cooldownWeeks > 0 && Math.abs(gapMs - cooldownMs) < 60_000;

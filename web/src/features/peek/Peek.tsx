@@ -8,7 +8,14 @@
 
 import { type ReactNode } from 'react';
 
-import { Avatar, EmptyState, LabelChip, PriorityIcon, priorityLabel, StateIcon } from '~/components';
+import {
+  Avatar,
+  EmptyState,
+  LabelChip,
+  PriorityIcon,
+  priorityLabel,
+  StateIcon,
+} from '~/components';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
 import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -135,8 +142,7 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
   const found = store.issues.get(id);
   if (found === undefined) return null;
   const state = store.workflowStates.get(found.stateId);
-  const assignee =
-    found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
+  const assignee = found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
   const team = store.teams.get(found.teamId);
   const labels: { id: UUID; name: string; color: string }[] = [];
   for (const labelId of store.labelIdsFor(found.id)) {
@@ -156,12 +162,13 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
     priority: found.priority,
     assigneeName: assignee?.displayName ?? null,
     assigneeAvatar: assignee?.avatarUrl ?? null,
-    cycleName:
-      found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
+    cycleName: found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
     projectName:
       found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
     estimateLabel:
-      team !== undefined && estimatesEnabled(team) ? issueEstimateLabel(found.estimate, team) : null,
+      team !== undefined && estimatesEnabled(team)
+        ? issueEstimateLabel(found.estimate, team)
+        : null,
     labels,
     createdAt: found.createdAt,
     updatedAt: found.updatedAt,

@@ -38,7 +38,9 @@ export function Webhooks() {
     const controller = new AbortController();
     let live = true;
     setLoadError(null);
-    gql<{ webhooks: readonly WebhookSummary[] }>(WEBHOOKS_QUERY, undefined, { signal: controller.signal })
+    gql<{ webhooks: readonly WebhookSummary[] }>(WEBHOOKS_QUERY, undefined, {
+      signal: controller.signal,
+    })
       .then((data) => {
         if (live) setHooks(data.webhooks);
       })
@@ -97,10 +99,10 @@ export function Webhooks() {
             Push, signed
           </h2>
           <p className={styles.sectionHint}>
-            Each webhook POSTs JSON to an HTTPS URL when something in this workspace changes.
-            The body is signed with HMAC-SHA256 using a secret shown once. Public-team
-            subscriptions never include private-team data; a team-scoped webhook will, if you
-            point it at a private team.
+            Each webhook POSTs JSON to an HTTPS URL when something in this workspace changes. The
+            body is signed with HMAC-SHA256 using a secret shown once. Public-team subscriptions
+            never include private-team data; a team-scoped webhook will, if you point it at a
+            private team.
           </p>
         </section>
 
@@ -216,7 +218,11 @@ function CreateWebhookDialog({
 }) {
   const urlRef = useRef<HTMLInputElement>(null);
   const formId = useId();
-  const teams = useLiveQuery((store) => [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key)), ['team'], []);
+  const teams = useLiveQuery(
+    (store) => [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    ['team'],
+    [],
+  );
 
   const [url, setUrl] = useState('');
   const [allPublic, setAllPublic] = useState(true);
@@ -323,7 +329,9 @@ function CreateWebhookDialog({
             consequence="It cannot be shown again. A lost secret means a new webhook."
           />
           {nudged ? (
-            <p className={styles.nudge}>The secret is still on this screen. Copy it before leaving.</p>
+            <p className={styles.nudge}>
+              The secret is still on this screen. Copy it before leaving.
+            </p>
           ) : null}
         </>
       ) : (
@@ -344,7 +352,9 @@ function CreateWebhookDialog({
               onChange={(event) => setAllPublic(event.target.checked)}
             />
             {allPublic ? (
-              <p className={styles.hint}>Private-team issues are never sent on this subscription.</p>
+              <p className={styles.hint}>
+                Private-team issues are never sent on this subscription.
+              </p>
             ) : (
               <label className={styles.hint}>
                 Team

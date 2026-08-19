@@ -603,13 +603,7 @@ export interface IssueTemplate {
   readonly archivedAt?: Timestamp;
 }
 
-export type RecurringCadence =
-  | 'daily'
-  | 'weekly'
-  | 'biweekly'
-  | 'monthly'
-  | 'quarterly'
-  | 'yearly';
+export type RecurringCadence = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
 
 /**
  * A schedule that mints issues on a cadence.

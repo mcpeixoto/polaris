@@ -117,14 +117,16 @@ export function commentPayloadOf(draft: SavedDraft): CommentDraftPayload | null 
     issueId,
     body,
     ...(typeof draft.payload.parentId === 'string' ? { parentId: draft.payload.parentId } : null),
-    ...(typeof draft.payload.identifier === 'string' ? { identifier: draft.payload.identifier } : null),
+    ...(typeof draft.payload.identifier === 'string'
+      ? { identifier: draft.payload.identifier }
+      : null),
   };
 }
 
 export function draftTitle(draft: SavedDraft): string {
   if (draft.kind === 'comment') {
     const body = typeof draft.payload.body === 'string' ? draft.payload.body.trim() : '';
-    return body === '' ? 'Comment draft' : body.split('\n')[0] ?? 'Comment draft';
+    return body === '' ? 'Comment draft' : (body.split('\n')[0] ?? 'Comment draft');
   }
   const title = typeof draft.payload.title === 'string' ? draft.payload.title.trim() : '';
   return title === '' ? 'Untitled issue' : title;

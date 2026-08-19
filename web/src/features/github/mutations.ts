@@ -234,9 +234,7 @@ export async function startGitHubOAuth(): Promise<void> {
     throw new ApiError('NETWORK', err instanceof Error ? err.message : 'network unavailable');
   }
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as
-      | { error?: { message?: string } }
-      | null;
+    const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
     throw new ApiError('VALIDATION', body?.error?.message ?? 'GitHub OAuth is not configured');
   }
   const data = (await res.json()) as { url?: string };

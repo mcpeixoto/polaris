@@ -50,7 +50,9 @@ export async function createDocument(engine: SyncEngine, input: NewDocument): Pr
       optimistic: [{ type: 'document', id, before: null, after: provisional }],
     });
     const real = fromWire('document', data.createDocument.document as EntityOf<'document'>);
-    const patch: EntityPatch[] = [{ type: 'document', id: real.id, before: provisional, after: real }];
+    const patch: EntityPatch[] = [
+      { type: 'document', id: real.id, before: provisional, after: real },
+    ];
     if (real.id !== id) {
       patch.unshift({ type: 'document', id, before: null, after: null });
     }

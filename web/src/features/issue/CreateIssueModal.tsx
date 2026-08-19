@@ -39,7 +39,14 @@ import { readIssueComposerDraft, writeIssueComposerDraft } from '~/features/draf
 import { getPrefs } from '~/features/prefs/prefs';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
-import { CATEGORY_ORDER, type IssueTemplate, type RecurringCadence, type StateCategory, type UUID, type WorkflowState } from '~/store';
+import {
+  CATEGORY_ORDER,
+  type IssueTemplate,
+  type RecurringCadence,
+  type StateCategory,
+  type UUID,
+  type WorkflowState,
+} from '~/store';
 import { ApiError } from '~/sync/api';
 import { createIssue } from './mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -129,10 +136,16 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     ['user'],
   );
 
-  const [chosenTeam, setChosenTeam] = useState<UUID | null>(() => seed?.teamId ?? local?.teamId ?? null);
-  const [chosenState, setChosenState] = useState<UUID | null>(() => seed?.stateId ?? local?.stateId ?? null);
+  const [chosenTeam, setChosenTeam] = useState<UUID | null>(
+    () => seed?.teamId ?? local?.teamId ?? null,
+  );
+  const [chosenState, setChosenState] = useState<UUID | null>(
+    () => seed?.stateId ?? local?.stateId ?? null,
+  );
   const [title, setTitle] = useState(() => seed?.title ?? local?.title ?? '');
-  const [description, setDescription] = useState(() => seed?.description ?? local?.description ?? '');
+  const [description, setDescription] = useState(
+    () => seed?.description ?? local?.description ?? '',
+  );
   const [assigneeId, setAssigneeId] = useState<UUID>(() => {
     const raw = seed?.assigneeId ?? local?.assigneeId;
     if (raw === undefined) return UNASSIGNED;
@@ -205,8 +218,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const team = teams.find((candidate) => candidate.id === teamId);
   const teamRunsCycles = team?.cyclesEnabled === true;
   const teamTimezone = team?.timezone ?? 'UTC';
-  const fromTriage =
-    fromTriagePath && team?.triageEnabled === true;
+  const fromTriage = fromTriagePath && team?.triageEnabled === true;
 
   const templateMenu = useMenuTrigger();
   const formTemplateMenu = useMenuTrigger();
@@ -250,23 +262,26 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
    * edits it. Title and body are only overwritten when the template actually supplies them,
    * so choosing a template after typing does not silently discard what was typed.
    */
-  const applyTemplate = useCallback((chosen: IssueTemplate | null) => {
-    if (chosen === null) {
-      setTemplate(null);
-      return;
-    }
-    setFormTemplate(null);
-    setFormAnswers({});
-    const defaults = templateDefaults(engine.store, chosen, teamId);
-    setTemplate(defaults);
-    if (defaults.title !== '') setTitle(defaults.title);
-    if (defaults.description !== '') setDescription(defaults.description);
-    // `chosenState` and not the derived `stateId`: the derived value is recomputed from the
-    // team, and writing it there would be overwritten on the next render.
-    if (defaults.stateId !== undefined) setChosenState(defaults.stateId);
-    setAssigneeId(defaults.assigneeId ?? UNASSIGNED);
-    setPriority(defaults.priority ?? 0);
-  }, [engine.store, teamId]);
+  const applyTemplate = useCallback(
+    (chosen: IssueTemplate | null) => {
+      if (chosen === null) {
+        setTemplate(null);
+        return;
+      }
+      setFormTemplate(null);
+      setFormAnswers({});
+      const defaults = templateDefaults(engine.store, chosen, teamId);
+      setTemplate(defaults);
+      if (defaults.title !== '') setTitle(defaults.title);
+      if (defaults.description !== '') setDescription(defaults.description);
+      // `chosenState` and not the derived `stateId`: the derived value is recomputed from the
+      // team, and writing it there would be overwritten on the next render.
+      if (defaults.stateId !== undefined) setChosenState(defaults.stateId);
+      setAssigneeId(defaults.assigneeId ?? UNASSIGNED);
+      setPriority(defaults.priority ?? 0);
+    },
+    [engine.store, teamId],
+  );
 
   const applyFormTemplate = (chosen: FormTemplate | null) => {
     setFormTemplate(chosen);
@@ -362,7 +377,10 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const assignedOnce = useRef(false);
   useEffect(() => {
     if (assignedOnce.current || viewerId === null) return;
-    if (seed?.assigneeId === 'me' || (seed?.assigneeId === undefined && local === null && getPrefs().autoAssignOnCreate)) {
+    if (
+      seed?.assigneeId === 'me' ||
+      (seed?.assigneeId === undefined && local === null && getPrefs().autoAssignOnCreate)
+    ) {
       if (assigneeId === UNASSIGNED) setAssigneeId(viewerId);
     }
     assignedOnce.current = true;
@@ -378,8 +396,12 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
       ...(stateId === '' ? null : { stateId }),
       ...(assigneeId === UNASSIGNED ? null : { assigneeId }),
       priority,
-      ...(resolvedProjectId === null || resolvedProjectId === undefined ? null : { projectId: resolvedProjectId }),
-      ...(resolvedCycleId === null || resolvedCycleId === undefined ? null : { cycleId: resolvedCycleId }),
+      ...(resolvedProjectId === null || resolvedProjectId === undefined
+        ? null
+        : { projectId: resolvedProjectId }),
+      ...(resolvedCycleId === null || resolvedCycleId === undefined
+        ? null
+        : { cycleId: resolvedCycleId }),
       ...(estimate === undefined ? null : { estimate }),
       updatedAt: new Date().toISOString(),
     });
@@ -436,8 +458,12 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
       ...(stateId === '' ? null : { stateId }),
       ...(assigneeId === UNASSIGNED ? null : { assigneeId }),
       priority,
-      ...(resolvedProjectId === null || resolvedProjectId === undefined ? null : { projectId: resolvedProjectId }),
-      ...(resolvedCycleId === null || resolvedCycleId === undefined ? null : { cycleId: resolvedCycleId }),
+      ...(resolvedProjectId === null || resolvedProjectId === undefined
+        ? null
+        : { projectId: resolvedProjectId }),
+      ...(resolvedCycleId === null || resolvedCycleId === undefined
+        ? null
+        : { cycleId: resolvedCycleId }),
       ...(estimate === undefined ? null : { estimate }),
     };
     try {
@@ -510,7 +536,9 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
             : priorityFromFormAnswers(formFields, formAnswers, priority),
         ...(estimate === undefined ? null : { estimate }),
         ...(labelIds === undefined || labelIds.length === 0 ? null : { labelIds: [...labelIds] }),
-        ...(seed?.projectMilestoneId === undefined ? null : { projectMilestoneId: seed.projectMilestoneId }),
+        ...(seed?.projectMilestoneId === undefined
+          ? null
+          : { projectMilestoneId: seed.projectMilestoneId }),
         ...(resolvedProjectId === null ? null : { projectId: resolvedProjectId }),
         ...(resolvedCycleId === null || !teamRunsCycles ? null : { cycleId: resolvedCycleId }),
         ...(fromTriage ? { fromTriage: true } : null),
@@ -593,297 +621,303 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
 
   return (
     <>
-    <Modal
-      open
-      onClose={requestClose}
-      title="New issue"
-      size="lg"
-      initialFocus={titleRef}
-      footer={
-        <>
-          <Button onClick={requestClose}>Cancel</Button>
-          <Button form={formId} type="submit" variant="primary" loading={saving}>
-            Create issue
-          </Button>
-        </>
-      }
-    >
-      <form id={formId} className={styles.form} onSubmit={onSubmit}>
-        <Input
-          ref={titleRef}
-          label="Title"
-          hideLabel
-          surface="plain"
-          value={title}
-          error={titleError ?? undefined}
-          placeholder="Issue title"
-          autoComplete="off"
-          onChange={(event) => {
-            setTitle(event.target.value);
-            if (titleError !== null) setTitleError(null);
-          }}
-        />
-
-        <Textarea
-          label="Description"
-          hideLabel
-          surface="plain"
-          value={description}
-          minRows={3}
-          maxRows={12}
-          placeholder="Add a description…"
-          onChange={(event) => setDescription(event.target.value)}
-        />
-
-        <div className={styles.properties}>
-          <Select
-            label="Team"
-            hideLabel
-            value={teamId}
-            onChange={(event) => {
-              setChosenTeam(event.target.value);
-              setChosenState(null);
-              setCycleId(null);
-              // The offering is team-scoped, so a template chosen for one team is not a
-              // template in another. Back to `auto` rather than `cleared`: the new team's
-              // default is a different template, and silently keeping "no template" across
-              // that change would skip a default the filer never saw.
-              setTemplateIntent('auto');
-              setTemplate(null);
-            }}
-          >
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.key} · {team.name}
-              </option>
-            ))}
-          </Select>
-
-          <Select
-            label="Status"
-            hideLabel
-            value={stateId}
-            onChange={(event) => setChosenState(event.target.value)}
-          >
-            {groupByCategory(states).map(([category, group]) => (
-              <optgroup key={category} label={STATE_LABELS[category]}>
-                {group.map((state) => (
-                  <option key={state.id} value={state.id}>
-                    {state.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
-
-          <Select
-            label="Assignee"
-            hideLabel
-            value={assigneeId}
-            onChange={(event) => setAssigneeId(event.target.value)}
-          >
-            <option value={UNASSIGNED}>No assignee</option>
-            {people.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.name}
-              </option>
-            ))}
-          </Select>
-
-          <Select
-            label="Priority"
-            hideLabel
-            value={String(priority)}
-            onChange={(event) => setPriority(Number(event.target.value))}
-          >
-            {PRIORITY_LEVELS.map((level) => (
-              <option key={level} value={level}>
-                {priorityLabel(level)}
-              </option>
-            ))}
-          </Select>
-
-          <div className={styles.template}>
-            <span className={styles.templateLabel} id={`${formId}-project`}>
-              Project
-            </span>
-            <Button
-              {...projectMenu.props}
-              variant="ghost"
-              fullWidth
-              aria-describedby={`${formId}-project`}
-            >
-              {projectName ?? 'No project'}
+      <Modal
+        open
+        onClose={requestClose}
+        title="New issue"
+        size="lg"
+        initialFocus={titleRef}
+        footer={
+          <>
+            <Button onClick={requestClose}>Cancel</Button>
+            <Button form={formId} type="submit" variant="primary" loading={saving}>
+              Create issue
             </Button>
-          </div>
+          </>
+        }
+      >
+        <form id={formId} className={styles.form} onSubmit={onSubmit}>
+          <Input
+            ref={titleRef}
+            label="Title"
+            hideLabel
+            surface="plain"
+            value={title}
+            error={titleError ?? undefined}
+            placeholder="Issue title"
+            autoComplete="off"
+            onChange={(event) => {
+              setTitle(event.target.value);
+              if (titleError !== null) setTitleError(null);
+            }}
+          />
 
-          {teamRunsCycles ? (
+          <Textarea
+            label="Description"
+            hideLabel
+            surface="plain"
+            value={description}
+            minRows={3}
+            maxRows={12}
+            placeholder="Add a description…"
+            onChange={(event) => setDescription(event.target.value)}
+          />
+
+          <div className={styles.properties}>
+            <Select
+              label="Team"
+              hideLabel
+              value={teamId}
+              onChange={(event) => {
+                setChosenTeam(event.target.value);
+                setChosenState(null);
+                setCycleId(null);
+                // The offering is team-scoped, so a template chosen for one team is not a
+                // template in another. Back to `auto` rather than `cleared`: the new team's
+                // default is a different template, and silently keeping "no template" across
+                // that change would skip a default the filer never saw.
+                setTemplateIntent('auto');
+                setTemplate(null);
+              }}
+            >
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.key} · {team.name}
+                </option>
+              ))}
+            </Select>
+
+            <Select
+              label="Status"
+              hideLabel
+              value={stateId}
+              onChange={(event) => setChosenState(event.target.value)}
+            >
+              {groupByCategory(states).map(([category, group]) => (
+                <optgroup key={category} label={STATE_LABELS[category]}>
+                  {group.map((state) => (
+                    <option key={state.id} value={state.id}>
+                      {state.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </Select>
+
+            <Select
+              label="Assignee"
+              hideLabel
+              value={assigneeId}
+              onChange={(event) => setAssigneeId(event.target.value)}
+            >
+              <option value={UNASSIGNED}>No assignee</option>
+              {people.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+            </Select>
+
+            <Select
+              label="Priority"
+              hideLabel
+              value={String(priority)}
+              onChange={(event) => setPriority(Number(event.target.value))}
+            >
+              {PRIORITY_LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {priorityLabel(level)}
+                </option>
+              ))}
+            </Select>
+
             <div className={styles.template}>
-              <span className={styles.templateLabel} id={`${formId}-cycle`}>
-                Cycle
+              <span className={styles.templateLabel} id={`${formId}-project`}>
+                Project
               </span>
               <Button
-                {...cycleMenu.props}
+                {...projectMenu.props}
                 variant="ghost"
                 fullWidth
-                aria-describedby={`${formId}-cycle`}
+                aria-describedby={`${formId}-project`}
               >
-                {cycleName ?? 'No cycle'}
+                {projectName ?? 'No project'}
               </Button>
             </div>
+
+            {teamRunsCycles ? (
+              <div className={styles.template}>
+                <span className={styles.templateLabel} id={`${formId}-cycle`}>
+                  Cycle
+                </span>
+                <Button
+                  {...cycleMenu.props}
+                  variant="ghost"
+                  fullWidth
+                  aria-describedby={`${formId}-cycle`}
+                >
+                  {cycleName ?? 'No cycle'}
+                </Button>
+              </div>
+            ) : null}
+
+            <div className={styles.template}>
+              <span className={styles.templateLabel} id={`${formId}-template`}>
+                Template
+              </span>
+              <Button
+                {...templateMenu.props}
+                variant="ghost"
+                fullWidth
+                aria-describedby={`${formId}-template`}
+                disabled={teamId === ''}
+              >
+                {templateName ?? 'No template'}
+              </Button>
+            </div>
+
+            <div className={styles.template}>
+              <span className={styles.templateLabel} id={`${formId}-form-template`}>
+                Form
+              </span>
+              <Button
+                {...formTemplateMenu.props}
+                variant="ghost"
+                fullWidth
+                aria-describedby={`${formId}-form-template`}
+                disabled={teamId === ''}
+              >
+                {formTemplateName ?? 'No form'}
+              </Button>
+            </div>
+
+            <Select
+              label="Repeat"
+              hideLabel
+              value={cadence ?? ''}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (next === '') {
+                  setCadence(null);
+                  return;
+                }
+                setCadence(next as RecurringCadence);
+                if (firstDueDate === '') setFirstDueDate(today(teamTimezone));
+              }}
+            >
+              <option value="">Does not repeat</option>
+              {CADENCES.map((option) => (
+                <option key={option} value={option}>
+                  {CADENCE_LABELS[option]}
+                </option>
+              ))}
+            </Select>
+
+            {cadence === null ? null : (
+              <Input
+                label="First due"
+                hideLabel
+                type="date"
+                value={firstDueDate === '' ? today(teamTimezone) : firstDueDate}
+                onChange={(event) => setFirstDueDate(event.target.value)}
+              />
+            )}
+          </div>
+
+          {formTemplate !== null && formFields.length > 0 ? (
+            <FormFillFields
+              fields={formFields}
+              answers={formAnswers}
+              onChange={(fieldId, value) =>
+                setFormAnswers((prev) => ({ ...prev, [fieldId]: value }))
+              }
+            />
           ) : null}
 
-          <div className={styles.template}>
-            <span className={styles.templateLabel} id={`${formId}-template`}>
-              Template
-            </span>
-            <Button
-              {...templateMenu.props}
-              variant="ghost"
-              fullWidth
-              aria-describedby={`${formId}-template`}
-              disabled={teamId === ''}
-            >
-              {templateName ?? 'No template'}
-            </Button>
-          </div>
-
-          <div className={styles.template}>
-            <span className={styles.templateLabel} id={`${formId}-form-template`}>
-              Form
-            </span>
-            <Button
-              {...formTemplateMenu.props}
-              variant="ghost"
-              fullWidth
-              aria-describedby={`${formId}-form-template`}
-              disabled={teamId === ''}
-            >
-              {formTemplateName ?? 'No form'}
-            </Button>
-          </div>
-
-          <Select
-            label="Repeat"
-            hideLabel
-            value={cadence ?? ''}
-            onChange={(event) => {
-              const next = event.target.value;
-              if (next === '') {
-                setCadence(null);
-                return;
-              }
-              setCadence(next as RecurringCadence);
-              if (firstDueDate === '') setFirstDueDate(today(teamTimezone));
-            }}
-          >
-            <option value="">Does not repeat</option>
-            {CADENCES.map((option) => (
-              <option key={option} value={option}>
-                {CADENCE_LABELS[option]}
-              </option>
-            ))}
-          </Select>
-
-          {cadence === null ? null : (
-            <Input
-              label="First due"
-              hideLabel
-              type="date"
-              value={firstDueDate === '' ? today(teamTimezone) : firstDueDate}
-              onChange={(event) => setFirstDueDate(event.target.value)}
-            />
+          {saveError === null ? null : (
+            <p className={styles.error} role="alert">
+              {saveError}
+            </p>
           )}
-        </div>
-
-        {formTemplate !== null && formFields.length > 0 ? (
-          <FormFillFields
-            fields={formFields}
-            answers={formAnswers}
-            onChange={(fieldId, value) => setFormAnswers((prev) => ({ ...prev, [fieldId]: value }))}
-          />
-        ) : null}
-
-        {saveError === null ? null : (
-          <p className={styles.error} role="alert">
-            {saveError}
-          </p>
-        )}
-        {/*
+          {/*
           Said out loud, because the alternative is silence about a decision the product made
           on the filer's behalf. A workspace template cannot carry a status — a status belongs
           to one team — so applying one to a team that has statuses drops it, and somebody who
           watched a field not fill in deserves to know it was not a bug.
         */}
-        {template !== null && template.dropped.length > 0 && (
-          <p className={styles.dropped} role="status">
-            {`This template does not set ${listOf(template.dropped)} for this team.`}
-          </p>
-        )}
-      </form>
+          {template !== null && template.dropped.length > 0 && (
+            <p className={styles.dropped} role="status">
+              {`This template does not set ${listOf(template.dropped)} for this team.`}
+            </p>
+          )}
+        </form>
 
-      <ProjectPicker
-        open={projectMenu.open}
-        onClose={projectMenu.hide}
-        trigger={projectMenu.ref}
-        teamIds={teamId === '' ? [] : [teamId]}
-        value={resolvedProjectId}
-        onSelect={setProjectId}
-      />
-      <CyclePicker
-        open={cycleMenu.open}
-        onClose={cycleMenu.hide}
-        trigger={cycleMenu.ref}
-        teamId={teamId === '' ? undefined : teamId}
-        value={resolvedCycleId}
-        onSelect={setCycleId}
-      />
-      <TemplatePicker
-        open={templateMenu.open}
-        onClose={templateMenu.hide}
-        trigger={templateMenu.ref}
-        teamId={teamId}
-        value={template?.templateId ?? null}
-        onSelect={pickTemplate}
-      />
-      <FormTemplatePicker
-        open={formTemplateMenu.open}
-        onClose={formTemplateMenu.hide}
-        trigger={formTemplateMenu.ref}
-        teamId={teamId}
-        value={formTemplate?.id ?? null}
-        onSelect={applyFormTemplate}
-      />
-    </Modal>
-    {leaving ? (
-      <Modal
-        open
-        onClose={() => setLeaving(false)}
-        title="Save this as a draft?"
-        size="sm"
-        footer={
-          <>
-            <Button variant="danger" onClick={() => void discardAndLeave()}>
-              Discard
-            </Button>
-            <Button onClick={() => setLeaving(false)}>Keep editing</Button>
-            <Button variant="primary" loading={draftBusy} onClick={() => void saveDraftAndLeave()}>
-              Save as draft
-            </Button>
-          </>
-        }
-      >
-        <p className={styles.dropped}>
-          Walking away keeps a local copy on this device until you log out. Saving puts it on
-          every device for six months.
-        </p>
-        {draftError === null ? null : (
-          <p className={styles.error} role="alert">
-            {draftError}
-          </p>
-        )}
+        <ProjectPicker
+          open={projectMenu.open}
+          onClose={projectMenu.hide}
+          trigger={projectMenu.ref}
+          teamIds={teamId === '' ? [] : [teamId]}
+          value={resolvedProjectId}
+          onSelect={setProjectId}
+        />
+        <CyclePicker
+          open={cycleMenu.open}
+          onClose={cycleMenu.hide}
+          trigger={cycleMenu.ref}
+          teamId={teamId === '' ? undefined : teamId}
+          value={resolvedCycleId}
+          onSelect={setCycleId}
+        />
+        <TemplatePicker
+          open={templateMenu.open}
+          onClose={templateMenu.hide}
+          trigger={templateMenu.ref}
+          teamId={teamId}
+          value={template?.templateId ?? null}
+          onSelect={pickTemplate}
+        />
+        <FormTemplatePicker
+          open={formTemplateMenu.open}
+          onClose={formTemplateMenu.hide}
+          trigger={formTemplateMenu.ref}
+          teamId={teamId}
+          value={formTemplate?.id ?? null}
+          onSelect={applyFormTemplate}
+        />
       </Modal>
-    ) : null}
+      {leaving ? (
+        <Modal
+          open
+          onClose={() => setLeaving(false)}
+          title="Save this as a draft?"
+          size="sm"
+          footer={
+            <>
+              <Button variant="danger" onClick={() => void discardAndLeave()}>
+                Discard
+              </Button>
+              <Button onClick={() => setLeaving(false)}>Keep editing</Button>
+              <Button
+                variant="primary"
+                loading={draftBusy}
+                onClick={() => void saveDraftAndLeave()}
+              >
+                Save as draft
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.dropped}>
+            Walking away keeps a local copy on this device until you log out. Saving puts it on
+            every device for six months.
+          </p>
+          {draftError === null ? null : (
+            <p className={styles.error} role="alert">
+              {draftError}
+            </p>
+          )}
+        </Modal>
+      ) : null}
     </>
   );
 }

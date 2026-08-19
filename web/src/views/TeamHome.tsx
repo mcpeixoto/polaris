@@ -115,9 +115,7 @@ export function TeamHome() {
             <EmptyState
               title="Nobody has joined this team"
               description="You can still file issues here. Add people from Settings → Members."
-              action={
-                <Button onClick={() => navigate('/settings/members')}>Open members</Button>
-              }
+              action={<Button onClick={() => navigate('/settings/members')}>Open members</Button>}
             />
           ) : (
             <ul className={styles.members}>
@@ -160,7 +158,11 @@ function snapshot(store: Store, teamKey: string): TeamHomeView | null {
     if (issue === undefined || issue.archivedAt !== undefined) continue;
     const state = store.workflowStates.get(issue.stateId);
     if (state === undefined) continue;
-    if (state.category === 'completed' || state.category === 'canceled' || state.category === 'duplicate') {
+    if (
+      state.category === 'completed' ||
+      state.category === 'canceled' ||
+      state.category === 'duplicate'
+    ) {
       continue;
     }
     openCount += 1;

@@ -34,7 +34,10 @@ export function formatGitBranchName(format: string, parts: GitBranchParts): stri
     const endRel = s.slice(start).indexOf('}');
     if (endRel < 0) break;
     const end = start + endRel;
-    const key = s.slice(start + 1, end).trim().toLowerCase();
+    const key = s
+      .slice(start + 1, end)
+      .trim()
+      .toLowerCase();
     if (key in repl) out += repl[key] ?? '';
     s = s.slice(end + 1);
   }

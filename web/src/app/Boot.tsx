@@ -7,9 +7,24 @@
  * so many apps of this kind are impossible to debug from a support ticket.
  */
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
-import { auth, currentWorkspace, isSignedIn, onAuthLost, setWorkspace, type Workspace } from '~/sync/api';
+import {
+  auth,
+  currentWorkspace,
+  isSignedIn,
+  onAuthLost,
+  setWorkspace,
+  type Workspace,
+} from '~/sync/api';
 import { shouldAttemptDevSession } from '~/sync/endpoint';
 import { SyncEngine, type EngineStatus } from '~/sync/engine';
 import { isOutdatedClientMessage } from '~/sync/outdated-client';

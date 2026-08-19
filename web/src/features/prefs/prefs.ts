@@ -77,7 +77,9 @@ export function getPrefs(): Preferences {
     fullNames: typeof stored.fullNames === 'boolean' ? stored.fullNames : DEFAULTS.fullNames,
     weekStartsOn: stored.weekStartsOn === 'sunday' ? 'sunday' : DEFAULTS.weekStartsOn,
     convertEmoticons:
-      typeof stored.convertEmoticons === 'boolean' ? stored.convertEmoticons : DEFAULTS.convertEmoticons,
+      typeof stored.convertEmoticons === 'boolean'
+        ? stored.convertEmoticons
+        : DEFAULTS.convertEmoticons,
     commentSubmit: stored.commentSubmit === 'enter' ? 'enter' : DEFAULTS.commentSubmit,
     fontSize: isFontSize(stored.fontSize) ? stored.fontSize : DEFAULTS.fontSize,
     pointerCursor:

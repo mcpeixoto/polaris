@@ -459,7 +459,8 @@
   --font-size-2xl: 24px;
 }
 
-:root[data-pointer='pointer'] :is(button, a, summary, [role='button'], [role='option'], [role='menuitem']) {
+:root[data-pointer='pointer']
+  :is(button, a, summary, [role='button'], [role='option'], [role='menuitem']) {
   cursor: pointer;
 }
 

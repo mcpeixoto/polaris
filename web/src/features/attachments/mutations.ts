@@ -41,14 +41,18 @@ export async function createAttachment(engine: SyncEngine, input: NewAttachment)
         input: {
           issueId: input.issueId,
           url: input.url.trim(),
-          ...(input.title === undefined || input.title.trim() === '' ? null : { title: input.title.trim() }),
+          ...(input.title === undefined || input.title.trim() === ''
+            ? null
+            : { title: input.title.trim() }),
         },
       },
       optimistic: [{ type: 'attachment', id: provisional.id, before: null, after: provisional }],
     });
     const real = fromWire('attachment', data.createAttachment.attachment as EntityOf<'attachment'>);
     const existing = store.get('attachment', real.id) ?? null;
-    const patch: EntityPatch[] = [{ type: 'attachment', id: real.id, before: existing, after: real }];
+    const patch: EntityPatch[] = [
+      { type: 'attachment', id: real.id, before: existing, after: real },
+    ];
     if (real.id !== provisional.id) {
       patch.unshift({ type: 'attachment', id: provisional.id, before: null, after: null });
     }

@@ -173,7 +173,10 @@ export function Projects() {
           const role: ExportRole = viewer?.role ?? 'member';
           const cap = exportCap(role, 'projects');
           if (cap === 0) return;
-          const ids = groups.flatMap((group) => group.rows).slice(0, cap).map((row) => row.id);
+          const ids = groups
+            .flatMap((group) => group.rows)
+            .slice(0, cap)
+            .map((row) => row.id);
           const slug = heading.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-');
           downloadCsv(`${slug || 'projects'}.csv`, projectsToCsv(engine.store, ids));
         },

@@ -46,13 +46,27 @@ export async function updateTeamArchive(
   });
 }
 
-export async function fetchArchivedIssues(teamId: UUID, signal?: AbortSignal): Promise<readonly Issue[]> {
-  const data = await gql<{ archivedIssues: Issue[] }>(ARCHIVED_ISSUES_QUERY, { teamId }, { signal });
+export async function fetchArchivedIssues(
+  teamId: UUID,
+  signal?: AbortSignal,
+): Promise<readonly Issue[]> {
+  const data = await gql<{ archivedIssues: Issue[] }>(
+    ARCHIVED_ISSUES_QUERY,
+    { teamId },
+    { signal },
+  );
   return data.archivedIssues.map((issue) => fromWire('issue', issue));
 }
 
-export async function fetchArchivedCycles(teamId: UUID, signal?: AbortSignal): Promise<readonly Cycle[]> {
-  const data = await gql<{ archivedCycles: Cycle[] }>(ARCHIVED_CYCLES_QUERY, { teamId }, { signal });
+export async function fetchArchivedCycles(
+  teamId: UUID,
+  signal?: AbortSignal,
+): Promise<readonly Cycle[]> {
+  const data = await gql<{ archivedCycles: Cycle[] }>(
+    ARCHIVED_CYCLES_QUERY,
+    { teamId },
+    { signal },
+  );
   return data.archivedCycles.map((cycle) => fromWire('cycle', cycle));
 }
 

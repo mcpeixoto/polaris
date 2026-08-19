@@ -102,7 +102,8 @@ function rankCycles(store: Store, teamId: UUID | undefined): readonly Ranked[] {
   }
   const order = { Current: 0, Upcoming: 1, Previous: 2 };
   return rows.sort((a, b) => {
-    const byHeading = order[a.heading as keyof typeof order] - order[b.heading as keyof typeof order];
+    const byHeading =
+      order[a.heading as keyof typeof order] - order[b.heading as keyof typeof order];
     if (byHeading !== 0) return byHeading;
     return Date.parse(a.cycle.startsAt) - Date.parse(b.cycle.startsAt);
   });

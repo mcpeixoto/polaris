@@ -7,11 +7,7 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 
-import {
-  archiveProjectLabel,
-  createProjectLabel,
-  updateProjectLabel,
-} from './mutations';
+import { archiveProjectLabel, createProjectLabel, updateProjectLabel } from './mutations';
 import styles from '../labels/LabelSettings.module.css';
 
 interface LabelView {

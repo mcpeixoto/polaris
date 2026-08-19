@@ -35,7 +35,17 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
-import { Avatar, Badge, Button, EmptyState, LabelChip, Menu, PriorityIcon, StateIcon, Tooltip } from '~/components';
+import {
+  Avatar,
+  Badge,
+  Button,
+  EmptyState,
+  LabelChip,
+  Menu,
+  PriorityIcon,
+  StateIcon,
+  Tooltip,
+} from '~/components';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
 import { downloadCsv, exportCap, issuesToCsv, type ExportRole } from '~/features/export/csv';
@@ -914,7 +924,11 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         {inTriage ? (
           <>
             <Tooltip label="Accept" keys="1">
-              <Button variant="primary" disabled={!canAct} onClick={() => commands.current.acceptTriage()}>
+              <Button
+                variant="primary"
+                disabled={!canAct}
+                onClick={() => commands.current.acceptTriage()}
+              >
                 Accept
               </Button>
             </Tooltip>
@@ -1008,102 +1022,102 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       />
 
       <div className={styles.body}>
-      {rows.length === 0 ? (
-        <EmptyState
-          className={styles.empty}
-          title={
-            filtered
-              ? 'Nothing matches this filter'
-              : source.kind === 'project'
-                ? 'No issues in this project yet'
-                : source.kind === 'cycle'
-                  ? 'No issues in this cycle yet'
-                  : source.kind === 'triage'
-                    ? 'Inbox is clear'
-                    : 'No issues in this team yet'
-          }
-          description={
-            filtered
-              ? 'Every issue here is excluded by a clause in the filter bar above.'
-              : source.kind === 'project'
-                ? 'Press C to file the first one. It will land in this project the moment you save.'
-                : source.kind === 'cycle'
-                  ? 'Press C to file the first one. It will land in this cycle the moment you save.'
-                  : source.kind === 'triage'
-                    ? 'Unreviewed work from outside the team lands here. Press C to file into triage, or 1 / 2 / 3 / H to accept, merge, decline or snooze.'
-                    : 'Press C to file the first one. It will land here the moment you save.'
-          }
-          action={
-            filtered ? (
-              <Button variant="secondary" onClick={() => view.setFilter(EMPTY_FILTER)}>
-                Clear the filter
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                onClick={() => registry.invoke('issue.create', { source: 'menu', context })}
-              >
-                Create an issue
-              </Button>
-            )
-          }
-        />
-      ) : !inTriage && view.display.layout === 'board' ? (
-        <Board
-          groups={groups}
-          display={view.display}
-          selected={selection.ids}
-          cursorId={cursorId}
-          label={`${scope.heading} issues`}
-          onOpen={onOpenRow}
-          onFocus={onFocusRow}
-          onToggle={onToggleRow}
-          onExtend={onExtendRow}
-        />
-      ) : (
-        <div
-          ref={scrollRef}
-          className={styles.scroller}
-          role="listbox"
-          aria-multiselectable="true"
-          aria-label={`${scope.heading} issues`}
-          aria-activedescendant={
-            cursorId !== null && cursorRendered ? rowDomId(cursorId) : undefined
-          }
-          tabIndex={0}
-        >
-          <div className={styles.sizer} style={{ height: virtualizer.getTotalSize() }}>
-            {virtualRows.map((virtualRow) => {
-              const row = rows[virtualRow.index];
-              if (row === undefined) return null;
-              return (
-                <div
-                  key={virtualRow.key}
-                  data-index={virtualRow.index}
-                  ref={virtualizer.measureElement}
-                  className={styles.slot}
-                  style={{ transform: `translateY(${virtualRow.start}px)` }}
+        {rows.length === 0 ? (
+          <EmptyState
+            className={styles.empty}
+            title={
+              filtered
+                ? 'Nothing matches this filter'
+                : source.kind === 'project'
+                  ? 'No issues in this project yet'
+                  : source.kind === 'cycle'
+                    ? 'No issues in this cycle yet'
+                    : source.kind === 'triage'
+                      ? 'Inbox is clear'
+                      : 'No issues in this team yet'
+            }
+            description={
+              filtered
+                ? 'Every issue here is excluded by a clause in the filter bar above.'
+                : source.kind === 'project'
+                  ? 'Press C to file the first one. It will land in this project the moment you save.'
+                  : source.kind === 'cycle'
+                    ? 'Press C to file the first one. It will land in this cycle the moment you save.'
+                    : source.kind === 'triage'
+                      ? 'Unreviewed work from outside the team lands here. Press C to file into triage, or 1 / 2 / 3 / H to accept, merge, decline or snooze.'
+                      : 'Press C to file the first one. It will land here the moment you save.'
+            }
+            action={
+              filtered ? (
+                <Button variant="secondary" onClick={() => view.setFilter(EMPTY_FILTER)}>
+                  Clear the filter
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={() => registry.invoke('issue.create', { source: 'menu', context })}
                 >
-                  {row.kind === 'header' ? (
-                    <GroupHeader row={row} />
-                  ) : (
-                    <IssueRow
-                      id={row.id}
-                      selected={selection.ids.has(row.id)}
-                      active={row.id === cursorId}
-                      onOpen={onOpenRow}
-                      onFocus={onFocusRow}
-                      onToggle={onToggleRow}
-                      onExtend={onExtendRow}
-                    />
-                  )}
-                </div>
-              );
-            })}
+                  Create an issue
+                </Button>
+              )
+            }
+          />
+        ) : !inTriage && view.display.layout === 'board' ? (
+          <Board
+            groups={groups}
+            display={view.display}
+            selected={selection.ids}
+            cursorId={cursorId}
+            label={`${scope.heading} issues`}
+            onOpen={onOpenRow}
+            onFocus={onFocusRow}
+            onToggle={onToggleRow}
+            onExtend={onExtendRow}
+          />
+        ) : (
+          <div
+            ref={scrollRef}
+            className={styles.scroller}
+            role="listbox"
+            aria-multiselectable="true"
+            aria-label={`${scope.heading} issues`}
+            aria-activedescendant={
+              cursorId !== null && cursorRendered ? rowDomId(cursorId) : undefined
+            }
+            tabIndex={0}
+          >
+            <div className={styles.sizer} style={{ height: virtualizer.getTotalSize() }}>
+              {virtualRows.map((virtualRow) => {
+                const row = rows[virtualRow.index];
+                if (row === undefined) return null;
+                return (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={virtualizer.measureElement}
+                    className={styles.slot}
+                    style={{ transform: `translateY(${virtualRow.start}px)` }}
+                  >
+                    {row.kind === 'header' ? (
+                      <GroupHeader row={row} />
+                    ) : (
+                      <IssueRow
+                        id={row.id}
+                        selected={selection.ids.has(row.id)}
+                        active={row.id === cursorId}
+                        onOpen={onOpenRow}
+                        onFocus={onFocusRow}
+                        onToggle={onToggleRow}
+                        onExtend={onExtendRow}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
-      {peekOpen ? <Peek issueId={cursorId} /> : null}
+        )}
+        {peekOpen ? <Peek issueId={cursorId} /> : null}
       </div>
     </div>
   );
@@ -1222,11 +1236,7 @@ const IssueRow = memo(function IssueRow({
         else onOpen(issue.identifier);
       }}
     >
-      <StateIcon
-        category={issue.stateCategory}
-        color={issue.stateColor}
-        label={issue.stateName}
-      />
+      <StateIcon category={issue.stateCategory} color={issue.stateColor} label={issue.stateName} />
       <span className={styles.identifier}>{issue.identifier}</span>
       <span className={styles.rowTitle}>{issue.title}</span>
       {issue.labels.length > 0 && (
@@ -1297,8 +1307,7 @@ function scopeOf(
     const team = store.teams.get(cycle.teamId);
     return {
       heading: heading ?? cycle.name,
-      team:
-        team === undefined ? null : { id: team.id, key: team.key, name: team.name },
+      team: team === undefined ? null : { id: team.id, key: team.key, name: team.name },
       timezone: team?.timezone ?? browserTimezone(),
     };
   }

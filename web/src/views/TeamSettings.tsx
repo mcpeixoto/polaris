@@ -733,7 +733,9 @@ function GitHubTeamAutomations({
       })
       .catch((failure: unknown) => {
         if (!live) return;
-        onError(failure instanceof ApiError ? failure.message : 'GitHub automations could not be loaded.');
+        onError(
+          failure instanceof ApiError ? failure.message : 'GitHub automations could not be loaded.',
+        );
       });
     return () => {
       live = false;
@@ -791,9 +793,9 @@ function GitHubTeamAutomations({
         GitHub status automations
       </h2>
       <p className={styles.sectionHint}>
-        When a linked pull request changes, move the issue to a status. Unconfigured teams
-        start an issue when a PR opens and complete it when every closing PR has merged.
-        Choosing No action for an event leaves the issue where it is.
+        When a linked pull request changes, move the issue to a status. Unconfigured teams start an
+        issue when a PR opens and complete it when every closing PR has merged. Choosing No action
+        for an event leaves the issue where it is.
       </p>
 
       <div className={styles.cadence}>
@@ -859,7 +861,12 @@ function GitHubMappingSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <Select label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
+    <Select
+      label={label}
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+    >
       <option value={NONE}>No action</option>
       {statuses.map((status) => (
         <option key={status.id} value={status.id}>
@@ -889,9 +896,9 @@ function DefaultTemplates({
         Default templates
       </h2>
       <p className={styles.sectionHint}>
-        Applied when a new issue is filed without a template. Members and everyone else get
-        a different starting point, because a bug report the team files every day is not
-        the form an outsider should land in.
+        Applied when a new issue is filed without a template. Members and everyone else get a
+        different starting point, because a bug report the team files every day is not the form an
+        outsider should land in.
       </p>
 
       <div className={styles.cadence}>
@@ -916,8 +923,7 @@ function DefaultTemplates({
           value={team.defaultTemplateForNonMembersId ?? ''}
           onChange={(event) =>
             onChange({
-              defaultTemplateForNonMembersId:
-                event.target.value === '' ? null : event.target.value,
+              defaultTemplateForNonMembersId: event.target.value === '' ? null : event.target.value,
             })
           }
         >
@@ -952,9 +958,9 @@ function RecurringIssues({
         Recurring issues
       </h2>
       <p className={styles.sectionHint}>
-        A snapshot plus a cadence. The next occurrence is filed after the current due date
-        passes, at 00:01 in this team&rsquo;s timezone — not when the current issue is
-        completed, and not by re-reading a template.
+        A snapshot plus a cadence. The next occurrence is filed after the current due date passes,
+        at 00:01 in this team&rsquo;s timezone — not when the current issue is completed, and not by
+        re-reading a template.
       </p>
 
       {team.recurring.length === 0 ? (
@@ -969,7 +975,11 @@ function RecurringIssues({
                   {CADENCE_LABELS[row.cadence]} · next {row.nextDueDate}
                 </span>
               </div>
-              <Button size="sm" onClick={() => onArchive(row.id)} aria-label={`Archive ${row.title}`}>
+              <Button
+                size="sm"
+                onClick={() => onArchive(row.id)}
+                aria-label={`Archive ${row.title}`}
+              >
                 Archive
               </Button>
             </li>

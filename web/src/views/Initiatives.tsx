@@ -24,11 +24,10 @@ export function Initiatives() {
   const { registry, context } = useKeymap();
   const create = () => registry.invoke('initiative.create', { source: 'menu', context });
 
-  const rows = useLiveQuery((store) => listInitiatives(store), [
-    'initiative',
-    'initiativeProject',
-    'user',
-  ]);
+  const rows = useLiveQuery(
+    (store) => listInitiatives(store),
+    ['initiative', 'initiativeProject', 'user'],
+  );
 
   return (
     <div className={styles.screen}>
@@ -92,9 +91,7 @@ function listInitiatives(store: Store): InitiativeRow[] {
     }
 
     const owner =
-      initiative.ownerId === undefined
-        ? null
-        : (store.users.get(initiative.ownerId)?.name ?? null);
+      initiative.ownerId === undefined ? null : (store.users.get(initiative.ownerId)?.name ?? null);
 
     rows.push({
       id: initiative.id,

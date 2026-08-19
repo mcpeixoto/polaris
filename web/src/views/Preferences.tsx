@@ -71,7 +71,9 @@ export function Preferences() {
             onChange={(event) => write({ fullNames: event.target.checked })}
             label="Show full names"
           />
-          <p className={styles.hint}>Off uses usernames. Mentions and the assignee picker follow this.</p>
+          <p className={styles.hint}>
+            Off uses usernames. Mentions and the assignee picker follow this.
+          </p>
 
           <div className={styles.field}>
             <Select
@@ -144,8 +146,8 @@ export function Preferences() {
             Automations
           </h2>
           <p className={styles.sectionNote}>
-            There is no workspace-wide default assignee. These two habits cover the cases
-            people actually ask for.
+            There is no workspace-wide default assignee. These two habits cover the cases people
+            actually ask for.
           </p>
 
           <Checkbox

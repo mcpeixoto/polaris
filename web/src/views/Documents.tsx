@@ -103,7 +103,9 @@ export function Documents() {
             <Button
               variant="primary"
               onClick={() => {
-                const input = document.querySelector<HTMLInputElement>('input[placeholder="New document…"]');
+                const input = document.querySelector<HTMLInputElement>(
+                  'input[placeholder="New document…"]',
+                );
                 input?.focus();
               }}
             >

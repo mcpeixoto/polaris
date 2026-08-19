@@ -37,7 +37,10 @@ export function GitHubSettings() {
     ['githubConnection'],
   );
   const userLink = useLiveQuery(
-    (store) => (viewer === null ? null : ([...store.githubUserLinks.values()].find((row) => row.userId === viewer.id) ?? null)),
+    (store) =>
+      viewer === null
+        ? null
+        : ([...store.githubUserLinks.values()].find((row) => row.userId === viewer.id) ?? null),
     ['githubUserLink'],
     [viewer?.id],
   );
@@ -132,7 +135,9 @@ export function GitHubSettings() {
         linkbacks: connection.linkbacks,
       });
     } catch (failure: unknown) {
-      setLoadError(failure instanceof ApiError ? failure.message : 'Could not save GitHub settings.');
+      setLoadError(
+        failure instanceof ApiError ? failure.message : 'Could not save GitHub settings.',
+      );
     } finally {
       setBusy(false);
     }
@@ -145,7 +150,9 @@ export function GitHubSettings() {
       await updateGitHubConnection({ linkCommits });
       setAttempt((n) => n + 1);
     } catch (failure: unknown) {
-      setLoadError(failure instanceof ApiError ? failure.message : 'Could not update commit linking.');
+      setLoadError(
+        failure instanceof ApiError ? failure.message : 'Could not update commit linking.',
+      );
     } finally {
       setBusy(false);
     }
@@ -170,7 +177,9 @@ export function GitHubSettings() {
     try {
       await linkGitHubLogin(loginDraft.trim());
     } catch (failure: unknown) {
-      setLoadError(failure instanceof ApiError ? failure.message : 'Could not save GitHub username.');
+      setLoadError(
+        failure instanceof ApiError ? failure.message : 'Could not save GitHub username.',
+      );
     } finally {
       setBusy(false);
     }
@@ -187,9 +196,9 @@ export function GitHubSettings() {
             Pull requests and commits
           </h2>
           <p className={styles.sectionHint}>
-            Link a pull request or commit to an issue when the title, description or branch
-            name contains the issue id, or a closing word such as fixes or closes. Copy git
-            branch name from an issue with the keyboard shortcut.
+            Link a pull request or commit to an issue when the title, description or branch name
+            contains the issue id, or a closing word such as fixes or closes. Copy git branch name
+            from an issue with the keyboard shortcut.
           </p>
         </section>
 
@@ -207,8 +216,8 @@ export function GitHubSettings() {
           {connection === null ? (
             <>
               <p className={styles.sectionHint}>
-                One GitHub connection per workspace. Admins enable it here; a GitHub App is
-                optional until you set POLARIS_GITHUB_CLIENT_ID on the server.
+                One GitHub connection per workspace. Admins enable it here; a GitHub App is optional
+                until you set POLARIS_GITHUB_CLIENT_ID on the server.
               </p>
               {isAdmin ? (
                 <div className={styles.row}>
@@ -267,8 +276,8 @@ export function GitHubSettings() {
             {connection.linkCommits && webhook !== null ? (
               <>
                 <p className={styles.sectionHint}>
-                  Add a GitHub org or repo webhook for Push events, content type
-                  application/json, with this URL and secret.
+                  Add a GitHub org or repo webhook for Push events, content type application/json,
+                  with this URL and secret.
                 </p>
                 <p className={styles.mono}>{webhook.url}</p>
                 <SecretField
@@ -293,8 +302,8 @@ export function GitHubSettings() {
               onChange={(event) => void onToggleLinkbacks(event.target.checked)}
             />
             <p className={styles.sectionHint}>
-              Private teams get the issue URL only. Turn this off if GitHub notifications
-              from those comments are noise.
+              Private teams get the issue URL only. Turn this off if GitHub notifications from those
+              comments are noise.
             </p>
           </section>
         ) : null}
@@ -304,13 +313,11 @@ export function GitHubSettings() {
             Your GitHub account
           </h2>
           <p className={styles.sectionHint}>
-            Linking your login attributes pull requests to you. Without OAuth app credentials
-            on the server you can type the username yourself.
+            Linking your login attributes pull requests to you. Without OAuth app credentials on the
+            server you can type the username yourself.
           </p>
           {userLink !== null ? (
-            <p className={styles.note}>
-              Connected as @{userLink.githubLogin}
-            </p>
+            <p className={styles.note}>Connected as @{userLink.githubLogin}</p>
           ) : null}
           <form onSubmit={(event) => void onSaveLogin(event)}>
             <Input
@@ -361,8 +368,8 @@ export function GitHubSettings() {
             </div>
             {oauthConfigured ? null : (
               <p className={styles.note}>
-                Connect with GitHub stays off until this install has POLARIS_GITHUB_CLIENT_ID
-                and POLARIS_GITHUB_CLIENT_SECRET.
+                Connect with GitHub stays off until this install has POLARIS_GITHUB_CLIENT_ID and
+                POLARIS_GITHUB_CLIENT_SECRET.
               </p>
             )}
           </form>
