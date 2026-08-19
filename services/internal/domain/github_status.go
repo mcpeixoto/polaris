@@ -9,6 +9,17 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
 	"github.com/peixotolabs/polaris/services/internal/platform"
+	"github.com/peixotolabs/polaris/services/internal/store"
+)
+
+type githubPREvent string
+
+const (
+	githubPRDrafted         githubPREvent = "drafted"
+	githubPROpened          githubPREvent = "opened"
+	githubPRReviewRequested githubPREvent = "review_requested"
+	githubPRReadyForMerge   githubPREvent = "ready_for_merge"
+	githubPRMerged          githubPREvent = "merged"
 )
 
 // githubAttachmentMeta is stored on GitHub-created attachment cards so a later webhook
@@ -34,10 +45,35 @@ func parseGitHubMeta(raw json.RawMessage) githubAttachmentMeta {
 func (s *Service) applyGitHubPRStatus(
 	ctx context.Context, p *authz.Principal, t gitHubTarget, in LinkGitHubPullRequestInput,
 ) error {
-	if in.Draft && !in.Merged {
+	ev := githubPRAutomationEvent(in)
+	auto, err := s.loadGitHubTeamAutomation(ctx, t.issue.WorkspaceID, t.issue.TeamID)
+	if err != nil {
+		return err
+	}
+	if auto.Configured {
+		target := auto.mappedState(ev)
+		if target == nil {
+			return nil
+		}
+		if ev == githubPRMerged {
+			if !closesOnMerge(t.class) {
+				return nil
+			}
+			done, err := s.allGitHubPRsMerged(ctx, p, t.issue.ID)
+			if err != nil || !done {
+				return err
+			}
+		}
+		return s.applyMappedWorkflowState(ctx, p, t.issue.ID, *target)
+	}
+
+	if ev == githubPRDrafted || ev == githubPRReviewRequested || ev == githubPRReadyForMerge {
 		return nil
 	}
-	if in.Merged && closesOnMerge(t.class) {
+	if ev == githubPRMerged {
+		if !closesOnMerge(t.class) {
+			return nil
+		}
 		done, err := s.allGitHubPRsMerged(ctx, p, t.issue.ID)
 		if err != nil {
 			return err
@@ -47,10 +83,36 @@ func (s *Service) applyGitHubPRStatus(
 		}
 		return nil
 	}
-	if in.Merged {
+	return s.moveIssueToCategory(ctx, p, t.issue.ID, CategoryStarted)
+}
+
+func (s *Service) applyMappedWorkflowState(ctx context.Context, p *authz.Principal, issueID, stateID uuid.UUID) error {
+	issue, err := s.GetIssue(ctx, p, issueID)
+	if err != nil {
+		return err
+	}
+	if issue.StateID == stateID {
 		return nil
 	}
-	return s.moveIssueToCategory(ctx, p, t.issue.ID, CategoryStarted)
+	st, err := s.db.Queries().GetWorkflowState(ctx, stateID)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return nil
+		}
+		return platform.Internal(err)
+	}
+	if st.TeamID != issue.TeamID || st.ArchivedAt != nil {
+		return nil
+	}
+	cur, err := s.db.Queries().GetWorkflowState(ctx, issue.StateID)
+	if err != nil {
+		return platform.Internal(err)
+	}
+	if cur.Category == CategoryCanceled || cur.Category == CategoryDuplicate {
+		return nil
+	}
+	_, _, err = s.UpdateIssue(ctx, p, UpdateIssueInput{ID: issueID, StateID: &stateID})
+	return err
 }
 
 func (s *Service) applyGitHubCommitStatus(

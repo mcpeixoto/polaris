@@ -66,3 +66,69 @@ func TestParsePush_BuildsBrowserURLs(t *testing.T) {
 		t.Fatal("a push to the default branch must mark its commits so merge automation can fire")
 	}
 }
+
+func TestParsePullRequest_OpenedWithReviewersIsStillOpened(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{
+		"action": "opened",
+		"pull_request": {
+			"html_url": "https://github.com/acme/app/pull/12",
+			"title": "Fixes ENG-1",
+			"number": 12,
+			"mergeable_state": "clean",
+			"requested_reviewers": [{"login": "ada"}],
+			"head": {"ref": "feat/eng-1"},
+			"base": {"repo": {"full_name": "acme/app"}}
+		}
+	}`)
+	got, err := ParsePullRequest(body)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if got.Input.ReviewRequested {
+		t.Fatal("reviewers on an opened payload must not classify as review_requested")
+	}
+	if got.Input.MergeableState != "" {
+		t.Fatalf("opened must not carry mergeable_state, got %q", got.Input.MergeableState)
+	}
+}
+
+func TestParsePullRequest_ReviewRequestedAndReadyForMerge(t *testing.T) {
+	t.Parallel()
+	review := []byte(`{
+		"action": "review_requested",
+		"pull_request": {
+			"html_url": "https://github.com/acme/app/pull/12",
+			"title": "Fixes ENG-1",
+			"number": 12,
+			"head": {"ref": "feat/eng-1"},
+			"base": {"repo": {"full_name": "acme/app"}}
+		}
+	}`)
+	got, err := ParsePullRequest(review)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !got.Input.ReviewRequested {
+		t.Fatal("review_requested must set the flag the status mapping reads")
+	}
+
+	sync := []byte(`{
+		"action": "synchronize",
+		"pull_request": {
+			"html_url": "https://github.com/acme/app/pull/12",
+			"title": "Fixes ENG-1",
+			"number": 12,
+			"mergeable_state": "clean",
+			"head": {"ref": "feat/eng-1"},
+			"base": {"repo": {"full_name": "acme/app"}}
+		}
+	}`)
+	got, err = ParsePullRequest(sync)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if got.Input.MergeableState != "clean" {
+		t.Fatalf("synchronize with a clean PR must pass mergeable_state, got %q", got.Input.MergeableState)
+	}
+}

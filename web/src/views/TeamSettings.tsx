@@ -20,7 +20,7 @@
  * useful half of the interaction rather than an exception to it.
  */
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -39,6 +39,12 @@ import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
 import { updateTeamArchive } from '~/features/archive/mutations';
 import { updateTeamCycles } from '~/features/cycles/mutations';
+import {
+  deleteGitHubTeamAutomation,
+  loadGitHubTeamAutomation,
+  updateGitHubTeamAutomation,
+  type GitHubTeamAutomation,
+} from '~/features/github/mutations';
 import { updateTeamTriage } from '~/features/triage/mutations';
 import {
   archiveStatus,
@@ -220,6 +226,8 @@ export function TeamSettings() {
             team={team}
             onChange={(patch) => run(updateTeamArchive(engine, team.id, patch))}
           />
+
+          <GitHubTeamAutomations teamId={team.id} statuses={team.statuses} onError={setError} />
 
           <section className={styles.section} aria-labelledby="statuses-heading">
             <h2 className={styles.sectionTitle} id="statuses-heading">
@@ -607,6 +615,206 @@ function ArchiveSettings({
         />
       </div>
     </section>
+  );
+}
+
+const NONE = '';
+
+interface MappingValues {
+  draftedStateId: string;
+  openedStateId: string;
+  reviewRequestedStateId: string;
+  readyForMergeStateId: string;
+  mergedStateId: string;
+}
+
+function firstOf(statuses: readonly StatusView[], category: StateCategory): string {
+  return statuses.find((status) => status.category === category)?.id ?? NONE;
+}
+
+function mappingValuesFrom(
+  auto: GitHubTeamAutomation,
+  statuses: readonly StatusView[],
+): MappingValues {
+  if (!auto.configured) {
+    return {
+      draftedStateId: NONE,
+      openedStateId: firstOf(statuses, 'started'),
+      reviewRequestedStateId: NONE,
+      readyForMergeStateId: NONE,
+      mergedStateId: firstOf(statuses, 'completed'),
+    };
+  }
+  return {
+    draftedStateId: auto.draftedStateId ?? NONE,
+    openedStateId: auto.openedStateId ?? NONE,
+    reviewRequestedStateId: auto.reviewRequestedStateId ?? NONE,
+    readyForMergeStateId: auto.readyForMergeStateId ?? NONE,
+    mergedStateId: auto.mergedStateId ?? NONE,
+  };
+}
+
+function asMappingId(value: string): string | null {
+  return value === NONE ? null : value;
+}
+
+function GitHubTeamAutomations({
+  teamId,
+  statuses,
+  onError,
+}: {
+  teamId: UUID;
+  statuses: readonly StatusView[];
+  onError: (message: string | null) => void;
+}) {
+  const [values, setValues] = useState<MappingValues | null>(null);
+  const [configured, setConfigured] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    loadGitHubTeamAutomation(teamId)
+      .then((auto) => {
+        if (!live) return;
+        setConfigured(auto.configured);
+        setValues(mappingValuesFrom(auto, statuses));
+      })
+      .catch((failure: unknown) => {
+        if (!live) return;
+        onError(failure instanceof ApiError ? failure.message : 'GitHub automations could not be loaded.');
+      });
+    return () => {
+      live = false;
+    };
+    // statuses are the team's live workflow; the first paint already has them, and a later
+    // rename must not refetch and clobber a select the user is holding.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId]);
+
+  const save = (next: MappingValues) => {
+    setValues(next);
+    setBusy(true);
+    onError(null);
+    updateGitHubTeamAutomation(teamId, {
+      draftedStateId: asMappingId(next.draftedStateId),
+      openedStateId: asMappingId(next.openedStateId),
+      reviewRequestedStateId: asMappingId(next.reviewRequestedStateId),
+      readyForMergeStateId: asMappingId(next.readyForMergeStateId),
+      mergedStateId: asMappingId(next.mergedStateId),
+    })
+      .then((auto) => {
+        setConfigured(auto.configured);
+        setValues(mappingValuesFrom(auto, statuses));
+      })
+      .catch((failure: unknown) => {
+        onError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+      })
+      .finally(() => setBusy(false));
+  };
+
+  const restore = () => {
+    setBusy(true);
+    onError(null);
+    deleteGitHubTeamAutomation(teamId)
+      .then((auto) => {
+        setConfigured(auto.configured);
+        setValues(mappingValuesFrom(auto, statuses));
+      })
+      .catch((failure: unknown) => {
+        onError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+      })
+      .finally(() => setBusy(false));
+  };
+
+  if (values === null) {
+    return null;
+  }
+
+  const live = statuses.filter((status) => status.category !== 'duplicate');
+  const patch = (key: keyof MappingValues, value: string) => save({ ...values, [key]: value });
+
+  return (
+    <section className={styles.section} aria-labelledby="github-automations-heading">
+      <h2 className={styles.sectionTitle} id="github-automations-heading">
+        GitHub status automations
+      </h2>
+      <p className={styles.sectionHint}>
+        When a linked pull request changes, move the issue to a status. Unconfigured teams
+        start an issue when a PR opens and complete it when every closing PR has merged.
+        Choosing No action for an event leaves the issue where it is.
+      </p>
+
+      <div className={styles.cadence}>
+        <GitHubMappingSelect
+          label="PR drafted"
+          value={values.draftedStateId}
+          statuses={live}
+          disabled={busy}
+          onChange={(value) => patch('draftedStateId', value)}
+        />
+        <GitHubMappingSelect
+          label="PR opened"
+          value={values.openedStateId}
+          statuses={live}
+          disabled={busy}
+          onChange={(value) => patch('openedStateId', value)}
+        />
+        <GitHubMappingSelect
+          label="Review requested"
+          value={values.reviewRequestedStateId}
+          statuses={live}
+          disabled={busy}
+          onChange={(value) => patch('reviewRequestedStateId', value)}
+        />
+        <GitHubMappingSelect
+          label="Ready to merge"
+          value={values.readyForMergeStateId}
+          statuses={live}
+          disabled={busy}
+          onChange={(value) => patch('readyForMergeStateId', value)}
+        />
+        <GitHubMappingSelect
+          label="PR merged"
+          value={values.mergedStateId}
+          statuses={live}
+          disabled={busy}
+          onChange={(value) => patch('mergedStateId', value)}
+        />
+      </div>
+
+      {configured ? (
+        <div className={styles.formActions}>
+          <Button variant="secondary" disabled={busy} onClick={restore}>
+            Restore defaults
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function GitHubMappingSelect({
+  label,
+  value,
+  statuses,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  statuses: readonly StatusView[];
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
+      <option value={NONE}>No action</option>
+      {statuses.map((status) => (
+        <option key={status.id} value={status.id}>
+          {status.name}
+        </option>
+      ))}
+    </Select>
   );
 }
 

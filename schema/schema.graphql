@@ -1435,6 +1435,27 @@ type GitHubCommitWebhook {
   secret: String!
 }
 
+"""
+GitHub pull-request status automations for one team.
+
+Not replicated: a mapping is a settings row, not a sync entity. When configured is
+false, opened moves to the first Started status and a merged closing PR moves to the
+first Completed status. A present row with a null field means no action for that event.
+"""
+type GitHubTeamAutomation {
+  teamId: UUID!
+  configured: Boolean!
+  draftedStateId: UUID
+  openedStateId: UUID
+  reviewRequestedStateId: UUID
+  readyForMergeStateId: UUID
+  mergedStateId: UUID
+}
+
+type GitHubTeamAutomationPayload {
+  githubTeamAutomation: GitHubTeamAutomation!
+}
+
 type GitHubConnectionPayload implements MutationResult {
   version: Int!
   githubConnection: GitHubConnection!
@@ -1474,6 +1495,20 @@ input LinkGitHubPullRequestInput {
   title: String
   body: String
   branchName: String
+  """Webhook-shaped flags so the public API can drive the same status automations."""
+  draft: Boolean
+  merged: Boolean
+  mergeableState: String
+  reviewRequested: Boolean
+}
+
+input UpdateGitHubTeamAutomationInput {
+  teamId: UUID!
+  draftedStateId: UUID
+  openedStateId: UUID
+  reviewRequestedStateId: UUID
+  readyForMergeStateId: UUID
+  mergedStateId: UUID
 }
 
 """
@@ -2111,6 +2146,8 @@ type Query {
   githubOAuthConfigured: Boolean!
   """Admin-only. The URL and secret to paste into GitHub for commit linking."""
   githubCommitWebhook: GitHubCommitWebhook
+  """Per-team GitHub PR status automations. Unconfigured teams use the product defaults."""
+  githubTeamAutomation(teamId: UUID!): GitHubTeamAutomation!
 }
 
 """
@@ -2339,4 +2376,6 @@ type Mutation {
   createGitHubUserLink(input: CreateGitHubUserLinkInput!): GitHubUserLinkPayload!
   deleteGitHubUserLink: DeletePayload!
   linkGitHubPullRequest(input: LinkGitHubPullRequestInput!, clientId: UUID, opId: UUID): GitHubLinkPayload! @idempotent
+  updateGitHubTeamAutomation(input: UpdateGitHubTeamAutomationInput!): GitHubTeamAutomationPayload!
+  deleteGitHubTeamAutomation(teamId: UUID!): GitHubTeamAutomationPayload!
 }

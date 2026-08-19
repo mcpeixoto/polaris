@@ -137,6 +137,90 @@ export async function unlinkGitHubLogin(): Promise<void> {
   await gql(DELETE_GITHUB_USER_LINK);
 }
 
+export const GITHUB_TEAM_AUTOMATION_FIELDS = /* GraphQL */ `
+  fragment GitHubTeamAutomationFields on GitHubTeamAutomation {
+    teamId
+    configured
+    draftedStateId
+    openedStateId
+    reviewRequestedStateId
+    readyForMergeStateId
+    mergedStateId
+  }
+`;
+
+export const GITHUB_TEAM_AUTOMATION_QUERY = /* GraphQL */ `
+  ${GITHUB_TEAM_AUTOMATION_FIELDS}
+  query GitHubTeamAutomation($teamId: UUID!) {
+    githubTeamAutomation(teamId: $teamId) {
+      ...GitHubTeamAutomationFields
+    }
+  }
+`;
+
+export const UPDATE_GITHUB_TEAM_AUTOMATION = /* GraphQL */ `
+  ${GITHUB_TEAM_AUTOMATION_FIELDS}
+  mutation UpdateGitHubTeamAutomation($input: UpdateGitHubTeamAutomationInput!) {
+    updateGitHubTeamAutomation(input: $input) {
+      githubTeamAutomation {
+        ...GitHubTeamAutomationFields
+      }
+    }
+  }
+`;
+
+export const DELETE_GITHUB_TEAM_AUTOMATION = /* GraphQL */ `
+  ${GITHUB_TEAM_AUTOMATION_FIELDS}
+  mutation DeleteGitHubTeamAutomation($teamId: UUID!) {
+    deleteGitHubTeamAutomation(teamId: $teamId) {
+      githubTeamAutomation {
+        ...GitHubTeamAutomationFields
+      }
+    }
+  }
+`;
+
+export interface GitHubTeamAutomation {
+  readonly teamId: string;
+  readonly configured: boolean;
+  readonly draftedStateId: string | null;
+  readonly openedStateId: string | null;
+  readonly reviewRequestedStateId: string | null;
+  readonly readyForMergeStateId: string | null;
+  readonly mergedStateId: string | null;
+}
+
+export async function loadGitHubTeamAutomation(teamId: string): Promise<GitHubTeamAutomation> {
+  const data = await gql<{ githubTeamAutomation: GitHubTeamAutomation }>(
+    GITHUB_TEAM_AUTOMATION_QUERY,
+    { teamId },
+  );
+  return data.githubTeamAutomation;
+}
+
+export async function updateGitHubTeamAutomation(
+  teamId: string,
+  mappings: {
+    draftedStateId: string | null;
+    openedStateId: string | null;
+    reviewRequestedStateId: string | null;
+    readyForMergeStateId: string | null;
+    mergedStateId: string | null;
+  },
+): Promise<GitHubTeamAutomation> {
+  const data = await gql<{
+    updateGitHubTeamAutomation: { githubTeamAutomation: GitHubTeamAutomation };
+  }>(UPDATE_GITHUB_TEAM_AUTOMATION, { input: { teamId, ...mappings } });
+  return data.updateGitHubTeamAutomation.githubTeamAutomation;
+}
+
+export async function deleteGitHubTeamAutomation(teamId: string): Promise<GitHubTeamAutomation> {
+  const data = await gql<{
+    deleteGitHubTeamAutomation: { githubTeamAutomation: GitHubTeamAutomation };
+  }>(DELETE_GITHUB_TEAM_AUTOMATION, { teamId });
+  return data.deleteGitHubTeamAutomation.githubTeamAutomation;
+}
+
 export async function startGitHubOAuth(): Promise<void> {
   await ensureFreshToken();
   let res: Response;

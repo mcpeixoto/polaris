@@ -559,3 +559,302 @@ func TestGitHubLinkback_PrivateTeamIsLinkOnly(t *testing.T) {
 		t.Fatalf("private linkback is still the URL, got %q", poster.comments[0].Body)
 	}
 }
+
+func TestGetGitHubTeamAutomation_UnconfiguredUsesNoRow(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	got, err := svc.GetGitHubTeamAutomation(ctx, f.Principal(), f.TeamID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Configured {
+		t.Fatal("a team with no mapping row is unconfigured, so the defaults still apply")
+	}
+	if got.OpenedStateID != nil || got.MergedStateID != nil {
+		t.Fatalf("unconfigured mappings must be empty, got %+v", got)
+	}
+}
+
+func TestUpdateGitHubTeamAutomation_OpenedMappingOverridesDefault(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	if _, err := svc.UpdateGitHubTeamAutomation(ctx, p, domain.UpdateGitHubTeamAutomationInput{
+		TeamID:        f.TeamID,
+		OpenedStateID: &f.Todo,
+	}); err != nil {
+		t.Fatalf("map: %v", err)
+	}
+	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Importer"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/12", Title: "Fixes ENG-1",
+	}); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	got, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != f.Todo {
+		t.Fatalf("opened mapping must beat the Started default, state=%s want %s", got.StateID, f.Todo)
+	}
+}
+
+func TestUpdateGitHubTeamAutomation_NullOpenedDisablesDefault(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	if _, err := svc.UpdateGitHubTeamAutomation(ctx, p, domain.UpdateGitHubTeamAutomationInput{TeamID: f.TeamID}); err != nil {
+		t.Fatalf("map: %v", err)
+	}
+	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Importer"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	start := issue.StateID
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/12", Title: "Fixes ENG-1",
+	}); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	got, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != start {
+		t.Fatalf("a configured row with a null opened mapping is no action, state=%s", got.StateID)
+	}
+}
+
+func TestUpdateGitHubTeamAutomation_DraftedAndReviewAndReadyForMerge(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	review, _, err := svc.CreateWorkflowState(ctx, p, domain.CreateWorkflowStateInput{
+		TeamID: f.TeamID, Name: "In Review", Category: domain.CategoryStarted, Color: "#f2c94c",
+	})
+	if err != nil {
+		t.Fatalf("review status: %v", err)
+	}
+	ready, _, err := svc.CreateWorkflowState(ctx, p, domain.CreateWorkflowStateInput{
+		TeamID: f.TeamID, Name: "Ready", Category: domain.CategoryStarted, Color: "#4cb782",
+	})
+	if err != nil {
+		t.Fatalf("ready status: %v", err)
+	}
+	if _, err := svc.UpdateGitHubTeamAutomation(ctx, p, domain.UpdateGitHubTeamAutomationInput{
+		TeamID:                 f.TeamID,
+		DraftedStateID:         &f.Backlog,
+		ReviewRequestedStateID: &review.ID,
+		ReadyForMergeStateID:   &ready.ID,
+	}); err != nil {
+		t.Fatalf("map: %v", err)
+	}
+
+	draftIssue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Draft me"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/21", Title: "Fixes ENG-1", Draft: true,
+	}); err != nil {
+		t.Fatalf("draft: %v", err)
+	}
+	got, err := svc.GetIssue(ctx, p, draftIssue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != f.Backlog {
+		t.Fatalf("drafted mapping must move the issue, state=%s want %s", got.StateID, f.Backlog)
+	}
+
+	reviewIssue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Review me"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/22", Title: "Fixes ENG-2", ReviewRequested: true,
+	}); err != nil {
+		t.Fatalf("review: %v", err)
+	}
+	got, err = svc.GetIssue(ctx, p, reviewIssue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != review.ID {
+		t.Fatalf("review-requested mapping must move the issue, state=%s want %s", got.StateID, review.ID)
+	}
+
+	readyIssue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Ready me"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/23", Title: "Fixes ENG-3", MergeableState: "clean",
+	}); err != nil {
+		t.Fatalf("ready: %v", err)
+	}
+	got, err = svc.GetIssue(ctx, p, readyIssue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != ready.ID {
+		t.Fatalf("ready-for-merge mapping must move the issue, state=%s want %s", got.StateID, ready.ID)
+	}
+}
+
+func TestUpdateGitHubTeamAutomation_MergedUsesMappedStatusWhenEveryPRMerged(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	shipped, _, err := svc.CreateWorkflowState(ctx, p, domain.CreateWorkflowStateInput{
+		TeamID: f.TeamID, Name: "Shipped", Category: domain.CategoryCompleted, Color: "#5e6ad2",
+	})
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if _, err := svc.UpdateGitHubTeamAutomation(ctx, p, domain.UpdateGitHubTeamAutomationInput{
+		TeamID:        f.TeamID,
+		MergedStateID: &shipped.ID,
+	}); err != nil {
+		t.Fatalf("map: %v", err)
+	}
+	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Importer"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if _, _, err := svc.IngestGitHubPullRequest(ctx, f.WorkspaceID, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/12", Title: "Fixes ENG-1", Merged: true,
+	}); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	got, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != shipped.ID {
+		t.Fatalf("merged mapping must land on the chosen status, state=%s want %s", got.StateID, shipped.ID)
+	}
+}
+
+func TestUpdateGitHubTeamAutomation_MemberCannotWrite(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	memberID := f.NewUser(t, "sam", "member", true)
+	member := f.PrincipalFor(memberID, authz.RoleMember, f.TeamID)
+	if _, err := svc.UpdateGitHubTeamAutomation(ctx, member, domain.UpdateGitHubTeamAutomationInput{
+		TeamID:        f.TeamID,
+		OpenedStateID: &f.Todo,
+	}); err == nil {
+		t.Fatal("a member must not write GitHub status mappings; that is team.update")
+	}
+
+	got, err := svc.GetGitHubTeamAutomation(ctx, member, f.TeamID)
+	if err != nil {
+		t.Fatalf("members can still read the mappings: %v", err)
+	}
+	if got.Configured {
+		t.Fatal("the refused write must not have persisted")
+	}
+}
+
+func TestUpdateGitHubTeamAutomation_RejectsAStatusFromAnotherTeam(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	other, _, err := svc.CreateTeam(ctx, p, domain.CreateTeamInput{Key: "DES", Name: "Design"})
+	if err != nil {
+		t.Fatalf("team: %v", err)
+	}
+	states, err := f.DB.Queries().ListWorkflowStatesForTeam(ctx, other.ID)
+	if err != nil {
+		t.Fatalf("states: %v", err)
+	}
+	if len(states) == 0 {
+		t.Fatal("a new team must seed statuses")
+	}
+	if _, err := svc.UpdateGitHubTeamAutomation(ctx, p, domain.UpdateGitHubTeamAutomationInput{
+		TeamID:        f.TeamID,
+		OpenedStateID: &states[0].ID,
+	}); err == nil {
+		t.Fatal("a mapping must not point at another team's status")
+	}
+}
+
+func TestDeleteGitHubTeamAutomation_RestoresDefaults(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	if _, err := svc.UpdateGitHubTeamAutomation(ctx, p, domain.UpdateGitHubTeamAutomationInput{TeamID: f.TeamID}); err != nil {
+		t.Fatalf("map: %v", err)
+	}
+	if _, err := svc.DeleteGitHubTeamAutomation(ctx, p, f.TeamID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	got, err := svc.GetGitHubTeamAutomation(ctx, p, f.TeamID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Configured {
+		t.Fatal("deleting the row must restore the product defaults")
+	}
+
+	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Importer"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
+		URL: "https://github.com/acme/app/pull/12", Title: "Fixes ENG-1",
+	}); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	moved, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if moved.StateID != f.InProgress {
+		t.Fatalf("defaults must apply again, state=%s want %s", moved.StateID, f.InProgress)
+	}
+}

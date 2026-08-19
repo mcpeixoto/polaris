@@ -572,6 +572,25 @@ type GitHubLinkPayload struct {
 
 func (GitHubLinkPayload) IsMutationResult() {}
 
+// GitHub pull-request status automations for one team.
+//
+// Not replicated: a mapping is a settings row, not a sync entity. When configured is
+// false, opened moves to the first Started status and a merged closing PR moves to the
+// first Completed status. A present row with a null field means no action for that event.
+type GitHubTeamAutomation struct {
+	TeamID                 uuid.UUID  `json:"teamId"`
+	Configured             bool       `json:"configured"`
+	DraftedStateID         *uuid.UUID `json:"draftedStateId,omitempty"`
+	OpenedStateID          *uuid.UUID `json:"openedStateId,omitempty"`
+	ReviewRequestedStateID *uuid.UUID `json:"reviewRequestedStateId,omitempty"`
+	ReadyForMergeStateID   *uuid.UUID `json:"readyForMergeStateId,omitempty"`
+	MergedStateID          *uuid.UUID `json:"mergedStateId,omitempty"`
+}
+
+type GitHubTeamAutomationPayload struct {
+	GithubTeamAutomation *GitHubTeamAutomation `json:"githubTeamAutomation"`
+}
+
 type GitHubUserLink struct {
 	ID          uuid.UUID `json:"id"`
 	WorkspaceID uuid.UUID `json:"workspaceId"`
@@ -895,6 +914,11 @@ type LinkGitHubPullRequestInput struct {
 	Title      *string `json:"title,omitempty"`
 	Body       *string `json:"body,omitempty"`
 	BranchName *string `json:"branchName,omitempty"`
+	// Webhook-shaped flags so the public API can drive the same status automations.
+	Draft           *bool   `json:"draft,omitempty"`
+	Merged          *bool   `json:"merged,omitempty"`
+	MergeableState  *string `json:"mergeableState,omitempty"`
+	ReviewRequested *bool   `json:"reviewRequested,omitempty"`
 }
 
 type Mutation struct {
@@ -1396,6 +1420,15 @@ type UpdateGitHubConnectionInput struct {
 	LinkCommits      *bool   `json:"linkCommits,omitempty"`
 	Linkbacks        *bool   `json:"linkbacks,omitempty"`
 	Enabled          *bool   `json:"enabled,omitempty"`
+}
+
+type UpdateGitHubTeamAutomationInput struct {
+	TeamID                 uuid.UUID  `json:"teamId"`
+	DraftedStateID         *uuid.UUID `json:"draftedStateId,omitempty"`
+	OpenedStateID          *uuid.UUID `json:"openedStateId,omitempty"`
+	ReviewRequestedStateID *uuid.UUID `json:"reviewRequestedStateId,omitempty"`
+	ReadyForMergeStateID   *uuid.UUID `json:"readyForMergeStateId,omitempty"`
+	MergedStateID          *uuid.UUID `json:"mergedStateId,omitempty"`
 }
 
 type UpdateInitiativeInput struct {

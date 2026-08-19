@@ -324,6 +324,7 @@ type Querier interface {
 	DeleteFormTemplateField(ctx context.Context, id uuid.UUID) (FormTemplateField, error)
 
 	DeleteGitHubConnection(ctx context.Context, workspaceID uuid.UUID) error
+	DeleteGitHubTeamAutomation(ctx context.Context, arg DeleteGitHubTeamAutomationParams) error
 	DeleteGitHubUserLink(ctx context.Context, arg DeleteGitHubUserLinkParams) error
 	DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
 	DeleteIssueRelation(ctx context.Context, id uuid.UUID) (IssueRelation, error)
@@ -396,6 +397,7 @@ type Querier interface {
 	GetGitHubConnectionAccessToken(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetGitHubConnectionByInstallation(ctx context.Context, installationID *int64) (GetGitHubConnectionByInstallationRow, error)
 	GetGitHubConnectionSecret(ctx context.Context, workspaceID uuid.UUID) (string, error)
+	GetGitHubTeamAutomation(ctx context.Context, arg GetGitHubTeamAutomationParams) (GithubTeamAutomation, error)
 	GetGitHubUserLink(ctx context.Context, arg GetGitHubUserLinkParams) (GetGitHubUserLinkRow, error)
 	GetGitHubUserLinkByLogin(ctx context.Context, arg GetGitHubUserLinkByLoginParams) (GetGitHubUserLinkByLoginRow, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
@@ -1317,6 +1319,7 @@ type Querier interface {
 	UpdateWebhookEnabled(ctx context.Context, arg UpdateWebhookEnabledParams) (UpdateWebhookEnabledRow, error)
 	UpdateWorkflowState(ctx context.Context, arg UpdateWorkflowStateParams) (WorkflowState, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
+	UpsertGitHubTeamAutomation(ctx context.Context, arg UpsertGitHubTeamAutomationParams) (GithubTeamAutomation, error)
 	// The inbox, and the subscriptions that decide who gets one.
 	//
 	// Every query that touches a notification is scoped by user_id as well as by id. The id

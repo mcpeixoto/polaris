@@ -3,6 +3,7 @@ package graph
 import (
 	"strings"
 
+	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
 	"github.com/peixotolabs/polaris/services/internal/graph/generated"
 	"github.com/peixotolabs/polaris/services/internal/platform"
@@ -36,6 +37,23 @@ func toGitHubUserLink(l model.GitHubUserLink) generated.GitHubUserLink {
 		CreatedAt:   l.CreatedAt,
 		UpdatedAt:   l.UpdatedAt,
 	}
+}
+
+func toGitHubTeamAutomation(a domain.GitHubTeamAutomation) generated.GitHubTeamAutomation {
+	return generated.GitHubTeamAutomation{
+		TeamID:                 a.TeamID,
+		Configured:             a.Configured,
+		DraftedStateID:         a.DraftedStateID,
+		OpenedStateID:          a.OpenedStateID,
+		ReviewRequestedStateID: a.ReviewRequestedStateID,
+		ReadyForMergeStateID:   a.ReadyForMergeStateID,
+		MergedStateID:          a.MergedStateID,
+	}
+}
+
+func githubTeamAutomationPayload(a domain.GitHubTeamAutomation) *generated.GitHubTeamAutomationPayload {
+	out := toGitHubTeamAutomation(a)
+	return &generated.GitHubTeamAutomationPayload{GithubTeamAutomation: &out}
 }
 
 func githubCommitWebhookURL(publicURL string, workspaceID string) string {
