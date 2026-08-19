@@ -260,15 +260,14 @@ type Querier interface {
 	// Cycles. Column lists follow the table order, same rule as issues.sql.
 	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
+	// Drafts are not replicated. Every query is scoped to one user in one workspace: a listing
+	// that omitted user_id would be a way to read somebody else's unsent work.
+	CreateDraft(ctx context.Context, arg CreateDraftParams) (Draft, error)
 	CreateFormTemplate(ctx context.Context, arg CreateFormTemplateParams) (CreateFormTemplateRow, error)
 	CreateFormTemplateField(ctx context.Context, arg CreateFormTemplateFieldParams) (FormTemplateField, error)
 	// Replicated columns only. access_token and commit_webhook_secret are never selected here.
 	CreateGitHubConnection(ctx context.Context, arg CreateGitHubConnectionParams) (CreateGitHubConnectionRow, error)
 	CreateGitHubUserLink(ctx context.Context, arg CreateGitHubUserLinkParams) (CreateGitHubUserLinkRow, error)
-
-	// Drafts are not replicated. Every query is scoped to one user in one workspace: a listing
-	// that omitted user_id would be a way to read somebody else's unsent work.
-	CreateDraft(ctx context.Context, arg CreateDraftParams) (Draft, error)
 	CreateInitiative(ctx context.Context, arg CreateInitiativeParams) (Initiative, error)
 	CreateInitiativeProject(ctx context.Context, arg CreateInitiativeProjectParams) (InitiativeProject, error)
 	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
@@ -1268,12 +1267,11 @@ type Querier interface {
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
 	UpdateCycle(ctx context.Context, arg UpdateCycleParams) (Cycle, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
+	UpdateDraftPayload(ctx context.Context, arg UpdateDraftPayloadParams) (Draft, error)
 	UpdateFormTemplate(ctx context.Context, arg UpdateFormTemplateParams) (UpdateFormTemplateRow, error)
 	UpdateFormTemplateField(ctx context.Context, arg UpdateFormTemplateFieldParams) (FormTemplateField, error)
 	UpdateGitHubConnection(ctx context.Context, arg UpdateGitHubConnectionParams) (UpdateGitHubConnectionRow, error)
 	UpdateGitHubUserLink(ctx context.Context, arg UpdateGitHubUserLinkParams) (UpdateGitHubUserLinkRow, error)
-
-	UpdateDraftPayload(ctx context.Context, arg UpdateDraftPayloadParams) (Draft, error)
 	UpdateInitiative(ctx context.Context, arg UpdateInitiativeParams) (Initiative, error)
 	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (UpdateIssueRow, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error

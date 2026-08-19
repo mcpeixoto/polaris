@@ -37,6 +37,11 @@ type Documents = {
     "\n  \n  mutation UpdateDocument($input: UpdateDocumentInput!, $clientId: UUID!, $opId: UUID!) {\n    updateDocument(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      document {\n        ...DocumentFields\n      }\n    }\n  }\n": typeof types.UpdateDocumentDocument,
     "\n  mutation ArchiveDocument($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveDocument(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveDocumentDocument,
     "\n  mutation DeleteDocument($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteDocument(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteDocumentDocument,
+    "\n  fragment DraftFields on Draft {\n    id\n    workspaceId\n    userId\n    kind\n    payload\n    createdAt\n    updatedAt\n  }\n": typeof types.DraftFieldsFragmentDoc,
+    "\n  \n  query Drafts {\n    drafts {\n      ...DraftFields\n    }\n  }\n": typeof types.DraftsDocument,
+    "\n  \n  mutation CreateDraft($input: CreateDraftInput!) {\n    createDraft(input: $input) {\n      version\n      draft {\n        ...DraftFields\n      }\n    }\n  }\n": typeof types.CreateDraftDocument,
+    "\n  \n  mutation UpdateDraft($input: UpdateDraftInput!) {\n    updateDraft(input: $input) {\n      version\n      draft {\n        ...DraftFields\n      }\n    }\n  }\n": typeof types.UpdateDraftDocument,
+    "\n  mutation DeleteDraft($id: UUID!) {\n    deleteDraft(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteDraftDocument,
     "\n  fragment FormTemplateFields on FormTemplate {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    properties\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.FormTemplateFieldsFragmentDoc,
     "\n  fragment FormTemplateFieldFields on FormTemplateField {\n    id\n    workspaceId\n    formTemplateId\n    fieldType\n    label\n    description\n    required\n    sortOrder\n    config\n    createdAt\n    updatedAt\n  }\n": typeof types.FormTemplateFieldFieldsFragmentDoc,
     "\n  \n  mutation CreateFormTemplate($input: CreateFormTemplateInput!) {\n    createFormTemplate(input: $input) {\n      version\n      template {\n        ...FormTemplateFields\n      }\n    }\n  }\n": typeof types.CreateFormTemplateDocument,
@@ -208,6 +213,11 @@ const documents: Documents = {
     "\n  \n  mutation UpdateDocument($input: UpdateDocumentInput!, $clientId: UUID!, $opId: UUID!) {\n    updateDocument(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      document {\n        ...DocumentFields\n      }\n    }\n  }\n": types.UpdateDocumentDocument,
     "\n  mutation ArchiveDocument($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveDocument(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.ArchiveDocumentDocument,
     "\n  mutation DeleteDocument($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteDocument(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.DeleteDocumentDocument,
+    "\n  fragment DraftFields on Draft {\n    id\n    workspaceId\n    userId\n    kind\n    payload\n    createdAt\n    updatedAt\n  }\n": types.DraftFieldsFragmentDoc,
+    "\n  \n  query Drafts {\n    drafts {\n      ...DraftFields\n    }\n  }\n": types.DraftsDocument,
+    "\n  \n  mutation CreateDraft($input: CreateDraftInput!) {\n    createDraft(input: $input) {\n      version\n      draft {\n        ...DraftFields\n      }\n    }\n  }\n": types.CreateDraftDocument,
+    "\n  \n  mutation UpdateDraft($input: UpdateDraftInput!) {\n    updateDraft(input: $input) {\n      version\n      draft {\n        ...DraftFields\n      }\n    }\n  }\n": types.UpdateDraftDocument,
+    "\n  mutation DeleteDraft($id: UUID!) {\n    deleteDraft(id: $id) {\n      version\n      id\n    }\n  }\n": types.DeleteDraftDocument,
     "\n  fragment FormTemplateFields on FormTemplate {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    properties\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.FormTemplateFieldsFragmentDoc,
     "\n  fragment FormTemplateFieldFields on FormTemplateField {\n    id\n    workspaceId\n    formTemplateId\n    fieldType\n    label\n    description\n    required\n    sortOrder\n    config\n    createdAt\n    updatedAt\n  }\n": types.FormTemplateFieldFieldsFragmentDoc,
     "\n  \n  mutation CreateFormTemplate($input: CreateFormTemplateInput!) {\n    createFormTemplate(input: $input) {\n      version\n      template {\n        ...FormTemplateFields\n      }\n    }\n  }\n": types.CreateFormTemplateDocument,
@@ -462,6 +472,26 @@ export function graphql(source: "\n  mutation ArchiveDocument($id: UUID!, $archi
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation DeleteDocument($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteDocument(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteDocument($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteDocument(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment DraftFields on Draft {\n    id\n    workspaceId\n    userId\n    kind\n    payload\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment DraftFields on Draft {\n    id\n    workspaceId\n    userId\n    kind\n    payload\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  query Drafts {\n    drafts {\n      ...DraftFields\n    }\n  }\n"): (typeof documents)["\n  \n  query Drafts {\n    drafts {\n      ...DraftFields\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateDraft($input: CreateDraftInput!) {\n    createDraft(input: $input) {\n      version\n      draft {\n        ...DraftFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateDraft($input: CreateDraftInput!) {\n    createDraft(input: $input) {\n      version\n      draft {\n        ...DraftFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateDraft($input: UpdateDraftInput!) {\n    updateDraft(input: $input) {\n      version\n      draft {\n        ...DraftFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateDraft($input: UpdateDraftInput!) {\n    updateDraft(input: $input) {\n      version\n      draft {\n        ...DraftFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteDraft($id: UUID!) {\n    deleteDraft(id: $id) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteDraft($id: UUID!) {\n    deleteDraft(id: $id) {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
