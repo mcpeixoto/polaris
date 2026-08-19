@@ -19,7 +19,7 @@
  * those lists, and a native select cannot do either.
  */
 
-import { useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -34,6 +34,9 @@ import {
   STATE_LABELS,
   Textarea,
 } from '~/components';
+import { createDraft, deleteDraft, updateDraft } from '~/features/drafts/mutations';
+import { readIssueComposerDraft, writeIssueComposerDraft } from '~/features/drafts/local';
+import { getPrefs } from '~/features/prefs/prefs';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import { CATEGORY_ORDER, type StateCategory, type UUID, type WorkflowState } from '~/store';
@@ -55,10 +58,12 @@ import { TemplatePicker } from '~/features/templates/TemplatePicker';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import type { IssueTemplate } from '~/store';
+import { buildCreateURL, type IssueComposerSeed } from './create-url';
 import styles from './CreateIssueModal.module.css';
 
 export interface CreateIssueModalProps {
   onClose: () => void;
+  seed?: IssueComposerSeed | undefined;
 }
 
 interface StateOption {
@@ -72,11 +77,31 @@ interface StateOption {
 /** The empty value of the assignee select. An `<option>` cannot carry null. */
 const UNASSIGNED = '';
 
-export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
+function isBlankSeed(seed: IssueComposerSeed | undefined): boolean {
+  if (seed === undefined) return true;
+  return (
+    seed.draftId === undefined &&
+    seed.templateId === undefined &&
+    seed.title === undefined &&
+    seed.description === undefined &&
+    seed.teamId === undefined &&
+    seed.teamKey === undefined &&
+    seed.stateId === undefined &&
+    seed.assigneeId === undefined &&
+    seed.priority === undefined &&
+    seed.estimate === undefined &&
+    seed.cycleId === undefined &&
+    seed.projectId === undefined &&
+    (seed.labelIds === undefined || seed.labelIds.length === 0)
+  );
+}
+
+export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const engine = useEngine();
   const viewerId = useViewerId();
   const formId = useId();
   const titleRef = useRef<HTMLInputElement>(null);
+  const local = isBlankSeed(seed) ? readIssueComposerDraft() : null;
 
   const teams = useLiveQuery(
     (store) =>
@@ -102,21 +127,36 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
     ['user'],
   );
 
-  const [chosenTeam, setChosenTeam] = useState<UUID | null>(null);
-  const [chosenState, setChosenState] = useState<UUID | null>(null);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [assigneeId, setAssigneeId] = useState<UUID>(UNASSIGNED);
-  const [priority, setPriority] = useState(0);
+  const [chosenTeam, setChosenTeam] = useState<UUID | null>(() => seed?.teamId ?? local?.teamId ?? null);
+  const [chosenState, setChosenState] = useState<UUID | null>(() => seed?.stateId ?? local?.stateId ?? null);
+  const [title, setTitle] = useState(() => seed?.title ?? local?.title ?? '');
+  const [description, setDescription] = useState(() => seed?.description ?? local?.description ?? '');
+  const [assigneeId, setAssigneeId] = useState<UUID>(() => {
+    const raw = seed?.assigneeId ?? local?.assigneeId;
+    if (raw === undefined) return UNASSIGNED;
+    if (raw === 'me') return UNASSIGNED;
+    return raw;
+  });
+  const [priority, setPriority] = useState(() => seed?.priority ?? local?.priority ?? 0);
   // `undefined` means inherit from `/project/:id`; `null` means the filer cleared it.
-  const [projectId, setProjectId] = useState<UUID | null | undefined>(undefined);
-  const [cycleId, setCycleId] = useState<UUID | null | undefined>(undefined);
+  const [projectId, setProjectId] = useState<UUID | null | undefined>(
+    () => seed?.projectId ?? local?.projectId ?? undefined,
+  );
+  const [cycleId, setCycleId] = useState<UUID | null | undefined>(
+    () => seed?.cycleId ?? local?.cycleId ?? undefined,
+  );
+  const [labelIds] = useState<readonly UUID[] | undefined>(() => seed?.labelIds);
+  const estimate = seed?.estimate ?? local?.estimate;
   const [template, setTemplate] = useState<TemplateDefaults | null>(null);
   const [formTemplate, setFormTemplate] = useState<FormTemplate | null>(null);
   const [formAnswers, setFormAnswers] = useState<FormAnswers>({});
   const [titleError, setTitleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const submitted = useRef(false);
 
   // The team the user is looking at, read from the path rather than passed in. This modal is
   // mounted by the shell, above the route that knows which team is on screen, so `useParams`
@@ -196,7 +236,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
    * edits it. Title and body are only overwritten when the template actually supplies them,
    * so choosing a template after typing does not silently discard what was typed.
    */
-  const applyTemplate = (chosen: IssueTemplate | null) => {
+  const applyTemplate = useCallback((chosen: IssueTemplate | null) => {
     if (chosen === null) {
       setTemplate(null);
       return;
@@ -212,7 +252,7 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
     if (defaults.stateId !== undefined) setChosenState(defaults.stateId);
     setAssigneeId(defaults.assigneeId ?? UNASSIGNED);
     setPriority(defaults.priority ?? 0);
-  };
+  }, [engine.store, teamId]);
 
   const applyFormTemplate = (chosen: FormTemplate | null) => {
     setFormTemplate(chosen);
@@ -263,6 +303,133 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
     return (states.find((state) => state.isDefault) ?? states[0])?.id ?? '';
   }, [chosenState, states, fromTriage]);
 
+  const seededTemplate = useRef(false);
+  useEffect(() => {
+    if (seededTemplate.current || teamId === '' || seed?.templateId === undefined) return;
+    const chosen = engine.store.issueTemplates.get(seed.templateId);
+    if (chosen === undefined) return;
+    seededTemplate.current = true;
+    applyTemplate(chosen);
+    if (seed.title !== undefined) setTitle(seed.title);
+    if (seed.description !== undefined) setDescription(seed.description);
+    if (seed.priority !== undefined) setPriority(seed.priority);
+    if (seed.stateId !== undefined) setChosenState(seed.stateId);
+    if (seed.assigneeId !== undefined && seed.assigneeId !== 'me') setAssigneeId(seed.assigneeId);
+  }, [applyTemplate, engine.store, seed, teamId]);
+
+  const assignedOnce = useRef(false);
+  useEffect(() => {
+    if (assignedOnce.current || viewerId === null) return;
+    if (seed?.assigneeId === 'me' || (seed?.assigneeId === undefined && local === null && getPrefs().autoAssignOnCreate)) {
+      if (assigneeId === UNASSIGNED) setAssigneeId(viewerId);
+    }
+    assignedOnce.current = true;
+  }, [assigneeId, local, seed?.assigneeId, viewerId]);
+
+  useEffect(() => {
+    if (submitted.current) return;
+    writeIssueComposerDraft({
+      kind: 'issue',
+      title,
+      description,
+      ...(teamId === '' ? null : { teamId }),
+      ...(stateId === '' ? null : { stateId }),
+      ...(assigneeId === UNASSIGNED ? null : { assigneeId }),
+      priority,
+      ...(resolvedProjectId === null || resolvedProjectId === undefined ? null : { projectId: resolvedProjectId }),
+      ...(resolvedCycleId === null || resolvedCycleId === undefined ? null : { cycleId: resolvedCycleId }),
+      ...(estimate === undefined ? null : { estimate }),
+      updatedAt: new Date().toISOString(),
+    });
+  }, [
+    assigneeId,
+    description,
+    estimate,
+    priority,
+    resolvedCycleId,
+    resolvedProjectId,
+    stateId,
+    teamId,
+    title,
+  ]);
+
+  const dirty = title.trim() !== '' || description.trim() !== '';
+
+  const leave = () => {
+    submitted.current = true;
+    setLeaving(false);
+    onClose();
+  };
+
+  const requestClose = () => {
+    if (leaving) return;
+    if (!dirty) {
+      writeIssueComposerDraft(null);
+      leave();
+      return;
+    }
+    setLeaving(true);
+    setDraftError(null);
+  };
+
+  const discardAndLeave = async () => {
+    writeIssueComposerDraft(null);
+    if (seed?.draftId !== undefined) {
+      try {
+        await deleteDraft(seed.draftId);
+      } catch {
+        /* local already gone; a failed delete leaves the saved copy to discard from Drafts */
+      }
+    }
+    leave();
+  };
+
+  const saveDraftAndLeave = async () => {
+    setDraftBusy(true);
+    setDraftError(null);
+    const payload = {
+      title: title.trim(),
+      description: description.trim(),
+      ...(teamId === '' ? null : { teamId }),
+      ...(stateId === '' ? null : { stateId }),
+      ...(assigneeId === UNASSIGNED ? null : { assigneeId }),
+      priority,
+      ...(resolvedProjectId === null || resolvedProjectId === undefined ? null : { projectId: resolvedProjectId }),
+      ...(resolvedCycleId === null || resolvedCycleId === undefined ? null : { cycleId: resolvedCycleId }),
+      ...(estimate === undefined ? null : { estimate }),
+    };
+    try {
+      if (seed?.draftId !== undefined) await updateDraft(seed.draftId, payload);
+      else await createDraft({ kind: 'issue', payload });
+      writeIssueComposerDraft(null);
+      leave();
+    } catch (failure) {
+      setDraftBusy(false);
+      setDraftError(
+        failure instanceof ApiError ? failure.message : 'The draft could not be saved.',
+      );
+    }
+  };
+
+  const copyCreateUrl = () => {
+    const team = teams.find((item) => item.id === teamId);
+    const state = states.find((item) => item.id === stateId);
+    const person = people.find((item) => item.id === assigneeId);
+    const url = buildCreateURL({
+      teamKey: team?.key,
+      title: title.trim() === '' ? undefined : title.trim(),
+      description: description.trim() === '' ? undefined : description.trim(),
+      statusName: state?.name,
+      priority,
+      assignee: person?.name,
+      estimate,
+      cycle: cycleName ?? undefined,
+      project: projectName ?? undefined,
+      template: templateName ?? undefined,
+    });
+    void navigator.clipboard?.writeText(`${window.location.origin}${url}`);
+  };
+
   const save = async () => {
     if (saving) return;
     const trimmed = title.trim();
@@ -299,6 +466,9 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
           formTemplate === null
             ? priority
             : priorityFromFormAnswers(formFields, formAnswers, priority),
+        ...(estimate === undefined ? null : { estimate }),
+        ...(labelIds === undefined || labelIds.length === 0 ? null : { labelIds: [...labelIds] }),
+        ...(seed?.projectMilestoneId === undefined ? null : { projectMilestoneId: seed.projectMilestoneId }),
         ...(resolvedProjectId === null ? null : { projectId: resolvedProjectId }),
         ...(resolvedCycleId === null || !teamRunsCycles ? null : { cycleId: resolvedCycleId }),
         ...(fromTriage ? { fromTriage: true } : null),
@@ -316,6 +486,9 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         ...(formTemplate === null ? null : { formTemplateId: formTemplate.id }),
         creatorId: viewerId ?? undefined,
       });
+      writeIssueComposerDraft(null);
+      if (seed?.draftId !== undefined) void deleteDraft(seed.draftId);
+      submitted.current = true;
       // Closed without waiting for anything else: the issue is already in the list, and the
       // outbox owns the rest of the story.
       onClose();
@@ -332,6 +505,8 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   // form as it stood when the dialog opened.
   const submitRef = useRef<() => void>(() => {});
   submitRef.current = () => void save();
+  const copyRef = useRef<() => void>(() => {});
+  copyRef.current = copyCreateUrl;
 
   // Everything the dialog covers belongs to the dialog: `J` must not scroll the list behind
   // it, and `C` must not open a second one.
@@ -350,6 +525,13 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         hidden: true,
         run: () => submitRef.current(),
       },
+      {
+        id: 'issue.copyComposerUrl',
+        title: 'Copy pre-filled create URL',
+        when: 'modal',
+        group: 'Issues',
+        run: () => copyRef.current(),
+      },
     ],
     [],
   );
@@ -360,15 +542,16 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
   };
 
   return (
+    <>
     <Modal
       open
-      onClose={onClose}
+      onClose={requestClose}
       title="New issue"
       size="lg"
       initialFocus={titleRef}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={requestClose}>Cancel</Button>
           <Button form={formId} type="submit" variant="primary" loading={saving}>
             Create issue
           </Button>
@@ -590,6 +773,36 @@ export function CreateIssueModal({ onClose }: CreateIssueModalProps) {
         onSelect={applyFormTemplate}
       />
     </Modal>
+    {leaving ? (
+      <Modal
+        open
+        onClose={() => setLeaving(false)}
+        title="Save this as a draft?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="danger" onClick={() => void discardAndLeave()}>
+              Discard
+            </Button>
+            <Button onClick={() => setLeaving(false)}>Keep editing</Button>
+            <Button variant="primary" loading={draftBusy} onClick={() => void saveDraftAndLeave()}>
+              Save as draft
+            </Button>
+          </>
+        }
+      >
+        <p className={styles.dropped}>
+          Walking away keeps a local copy on this device until you log out. Saving puts it on
+          every device for six months.
+        </p>
+        {draftError === null ? null : (
+          <p className={styles.error} role="alert">
+            {draftError}
+          </p>
+        )}
+      </Modal>
+    ) : null}
+    </>
   );
 }
 

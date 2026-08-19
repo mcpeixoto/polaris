@@ -157,6 +157,17 @@ function isTypingTarget(target: EventTarget | null): boolean {
 /** The chords that must reach the registry even from inside a text field. */
 function isGlobalChord(event: KeyboardEvent): boolean {
   if (event.key === 'Escape') return true;
+  // Enter-to-submit is a preference, not a global chord for every field. The comment
+  // composer opts in with `data-submit-chord="enter"` so a newline in a title still types
+  // a newline, and so lint-keymap never has to allow a per-component handler.
+  if (
+    event.key === 'Enter' &&
+    !event.shiftKey &&
+    event.target instanceof HTMLElement &&
+    event.target.dataset.submitChord === 'enter'
+  ) {
+    return true;
+  }
   const mod = event.metaKey || event.ctrlKey;
   if (!mod) return false;
   return event.key === 'k' || event.key === 'K' || event.key === 'Enter';

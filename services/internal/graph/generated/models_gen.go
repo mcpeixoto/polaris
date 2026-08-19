@@ -177,6 +177,13 @@ type CreateDocumentInput struct {
 	Body      *string    `json:"body,omitempty"`
 }
 
+type CreateDraftInput struct {
+	// Optional. The server mints one when this is absent.
+	ID      *uuid.UUID      `json:"id,omitempty"`
+	Kind    DraftKind       `json:"kind"`
+	Payload json.RawMessage `json:"payload"`
+}
+
 type CreateFormTemplateFieldInput struct {
 	FormTemplateID uuid.UUID             `json:"formTemplateId"`
 	FieldType      FormTemplateFieldType `json:"fieldType"`
@@ -444,6 +451,23 @@ type DocumentPayload struct {
 }
 
 func (DocumentPayload) IsMutationResult() {}
+
+type Draft struct {
+	ID          uuid.UUID       `json:"id"`
+	WorkspaceID uuid.UUID       `json:"workspaceId"`
+	UserID      uuid.UUID       `json:"userId"`
+	Kind        DraftKind       `json:"kind"`
+	Payload     json.RawMessage `json:"payload"`
+	CreatedAt   time.Time       `json:"createdAt"`
+	UpdatedAt   time.Time       `json:"updatedAt"`
+}
+
+type DraftPayload struct {
+	Version int    `json:"version"`
+	Draft   *Draft `json:"draft"`
+}
+
+func (DraftPayload) IsMutationResult() {}
 
 // The answer to "may this workspace do X", in one place.
 //
@@ -1397,6 +1421,11 @@ type UpdateDocumentInput struct {
 	Body  *string   `json:"body,omitempty"`
 }
 
+type UpdateDraftInput struct {
+	ID      uuid.UUID       `json:"id"`
+	Payload json.RawMessage `json:"payload"`
+}
+
 type UpdateFormTemplateFieldInput struct {
 	ID          uuid.UUID              `json:"id"`
 	FieldType   *FormTemplateFieldType `json:"fieldType,omitempty"`
@@ -1925,6 +1954,62 @@ func (e *ActorType) UnmarshalJSON(b []byte) error {
 }
 
 func (e ActorType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// An unsent issue or comment the author asked to keep. Personal; not replicated.
+type DraftKind string
+
+const (
+	DraftKindIssue   DraftKind = "ISSUE"
+	DraftKindComment DraftKind = "COMMENT"
+)
+
+var AllDraftKind = []DraftKind{
+	DraftKindIssue,
+	DraftKindComment,
+}
+
+func (e DraftKind) IsValid() bool {
+	switch e {
+	case DraftKindIssue, DraftKindComment:
+		return true
+	}
+	return false
+}
+
+func (e DraftKind) String() string {
+	return string(e)
+}
+
+func (e *DraftKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DraftKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DraftKind", str)
+	}
+	return nil
+}
+
+func (e DraftKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DraftKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DraftKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

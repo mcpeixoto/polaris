@@ -159,6 +159,16 @@ type Document struct {
 	DeletedAt   *time.Time
 }
 
+type Draft struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	Kind        string
+	Payload     json.RawMessage
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Favorite struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

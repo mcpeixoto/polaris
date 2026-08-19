@@ -20,13 +20,17 @@ import { ApiKeys } from '~/views/ApiKeys';
 import { Webhooks } from '~/views/Webhooks';
 import { GitHubSettings } from '~/views/GitHubSettings';
 import { ConnectServer } from '~/views/ConnectServer';
+import { CreateIssueFromUrl } from '~/views/CreateIssueFromUrl';
 import { CreateWorkspace } from '~/views/CreateWorkspace';
+import { Drafts } from '~/views/Drafts';
+import { ExportSettings } from '~/views/ExportSettings';
 import { Inbox } from '~/views/Inbox';
 import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
 import { MemberSettings } from '~/views/MemberSettings';
 import { MyIssues } from '~/views/MyIssues';
 import { NotificationSettings } from '~/views/NotificationSettings';
+import { Preferences } from '~/views/Preferences';
 import { ProjectShell } from '~/views/ProjectShell';
 import { ProjectOverview } from '~/views/ProjectOverview';
 import { ProjectIssues } from '~/views/ProjectIssues';
@@ -39,6 +43,7 @@ import { Triage } from '~/views/Triage';
 import { SavedView } from '~/views/SavedView';
 import { Search } from '~/views/Search';
 import { Templates } from '~/views/Templates';
+import { TeamHome } from '~/views/TeamHome';
 import { TeamSettings } from '~/views/TeamSettings';
 import { SignIn } from '~/views/SignIn';
 import { SignUp } from '~/views/SignUp';
@@ -53,6 +58,7 @@ import { CreateIssueModal } from '~/features/issue/CreateIssueModal';
 import { CreateProjectModal } from '~/features/projects/CreateProjectModal';
 import { CreateInitiativeModal } from '~/features/initiatives/CreateInitiativeModal';
 
+import { getPrefs } from '~/features/prefs/prefs';
 import { useQuery } from './context';
 import { AppShell } from './AppShell';
 import { Boot } from './Boot';
@@ -92,20 +98,26 @@ export function App() {
         >
           <DeepLinks />
           <AppShell
-            renderCreateIssue={({ onClose }) => <CreateIssueModal onClose={onClose} />}
+            renderCreateIssue={({ onClose, seed }) => (
+              <CreateIssueModal onClose={onClose} seed={seed} />
+            )}
             renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
             renderCreateInitiative={({ onClose }) => <CreateInitiativeModal onClose={onClose} />}
           >
             <Routes>
-              <Route path="/" element={<FirstTeam />} />
+              <Route path="/" element={<HomeRedirect />} />
               <Route path="/my-issues" element={<MyIssues />} />
               <Route path="/inbox" element={<Inbox />} />
               <Route path="/search" element={<Search />} />
+              <Route path="/drafts" element={<Drafts />} />
+              <Route path="/new" element={<CreateIssueFromUrl />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/initiatives" element={<Initiatives />} />
               <Route path="/initiative/:initiativeId" element={<InitiativeDetail />} />
               <Route path="/view/:viewId" element={<SavedView />} />
               <Route path="/team/:teamKey" element={<IssueList />} />
+              <Route path="/team/:teamKey/home" element={<TeamHome />} />
+              <Route path="/team/:teamKey/new" element={<CreateIssueFromUrl />} />
               <Route path="/team/:teamKey/projects" element={<Projects />} />
               <Route path="/team/:teamKey/cycles" element={<Cycles />} />
               <Route path="/team/:teamKey/triage" element={<Triage />} />
@@ -127,15 +139,17 @@ export function App() {
               <Route path="/settings/project-labels" element={<ProjectLabelSettings />} />
               <Route path="/settings/project-updates" element={<ProjectUpdateSettings />} />
               <Route path="/settings/notifications" element={<NotificationSettings />} />
+              <Route path="/settings/preferences" element={<Preferences />} />
               <Route path="/settings/templates" element={<Templates />} />
               <Route path="/settings/api-keys" element={<ApiKeys />} />
               <Route path="/settings/webhooks" element={<Webhooks />} />
               <Route path="/settings/github" element={<GitHubSettings />} />
+              <Route path="/settings/export" element={<ExportSettings />} />
               <Route path="/settings/trash" element={<Trash />} />
               <Route path="/settings/deleted-teams" element={<DeletedTeams />} />
               {/* Unknown paths go somewhere useful rather than to a dead end. A stale
                   bookmark to a renamed team should land the user in their own work. */}
-              <Route path="*" element={<FirstTeam />} />
+              <Route path="*" element={<HomeRedirect />} />
             </Routes>
           </AppShell>
           {/*
@@ -150,6 +164,21 @@ export function App() {
       </KeymapProvider>
     </BrowserRouter>
   );
+}
+
+/**
+ * Sends the user to the view they asked to land on.
+ *
+ * The default is still the first team's issue list — that is the product — but Preferences
+ * can point launch at My Issues, Inbox or Drafts instead. A missing team still falls
+ * through to the empty-state rather than inventing a dashboard.
+ */
+function HomeRedirect() {
+  const prefs = getPrefs();
+  if (prefs.homeView === 'my-issues') return <Navigate to="/my-issues" replace />;
+  if (prefs.homeView === 'inbox') return <Navigate to="/inbox" replace />;
+  if (prefs.homeView === 'drafts') return <Navigate to="/drafts" replace />;
+  return <FirstTeam />;
 }
 
 /**

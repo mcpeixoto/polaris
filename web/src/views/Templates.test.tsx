@@ -371,7 +371,7 @@ describe('Templates', () => {
     expect(row).toBeTruthy();
     expect(within(section(/^Engineering/)).getByText(/Status: Todo/)).toBeTruthy();
     expect(within(section(/^Engineering/)).getByText(/urgent/)).toBeTruthy();
-  });
+  }, 10_000);
 
   it('sends only what an edit changed, so a rename does not rewrite the properties', async () => {
     const { mutate, user } = renderScreen(

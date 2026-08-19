@@ -47,6 +47,7 @@ import {
 } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
+import { withAutoAssignOnStart } from './auto-assign';
 import {
   CREATE_ISSUE_RELATION,
   CREATE_SUB_ISSUE,
@@ -219,40 +220,44 @@ export function updateIssues(
   engine: SyncEngine,
   ids: readonly UUID[],
   fields: IssueFields,
+  viewerId?: UUID | null,
 ): Promise<void> {
-  return all(ids.map((id) => updateIssue(engine, id, fields)));
+  return all(ids.map((id) => updateIssue(engine, id, fields, viewerId)));
 }
 
 export async function updateIssue(
   engine: SyncEngine,
   id: UUID,
   fields: IssueFields,
+  viewerId?: UUID | null,
 ): Promise<void> {
   const before = engine.store.get('issue', id);
   if (before === undefined) return;
 
+  const next = withAutoAssignOnStart(engine.store, id, fields, viewerId ?? null);
+
   const after: Issue = unsnooze({
     ...before,
-    ...(fields.title === undefined ? null : { title: fields.title }),
-    ...(fields.description === undefined ? null : { description: fields.description }),
-    ...(fields.stateId === undefined ? null : { stateId: fields.stateId }),
-    ...(fields.priority === undefined ? null : { priority: fields.priority }),
-    ...(fields.assigneeId === undefined
+    ...(next.title === undefined ? null : { title: next.title }),
+    ...(next.description === undefined ? null : { description: next.description }),
+    ...(next.stateId === undefined ? null : { stateId: next.stateId }),
+    ...(next.priority === undefined ? null : { priority: next.priority }),
+    ...(next.assigneeId === undefined
       ? null
-      : { assigneeId: fields.assigneeId === null ? undefined : fields.assigneeId }),
-    ...(fields.projectId === undefined
+      : { assigneeId: next.assigneeId === null ? undefined : next.assigneeId }),
+    ...(next.projectId === undefined
       ? null
-      : { projectId: fields.projectId === null ? undefined : fields.projectId }),
-    ...(fields.cycleId === undefined
+      : { projectId: next.projectId === null ? undefined : next.projectId }),
+    ...(next.cycleId === undefined
       ? null
-      : { cycleId: fields.cycleId === null ? undefined : fields.cycleId }),
+      : { cycleId: next.cycleId === null ? undefined : next.cycleId }),
     updatedAt: new Date().toISOString(),
   });
   if (sameIssue(before, after)) return;
 
   await engine.mutate({
     mutation: UPDATE_ISSUE,
-    variables: { input: { id, ...updateInputOf(fields) } },
+    variables: { input: { id, ...updateInputOf(next) } },
     optimistic: [{ type: 'issue', id, before, after }],
   });
 }

@@ -1002,3 +1002,19 @@ type ProjectMilestone struct {
 	UpdatedAt   time.Time  `json:"updatedAt"`
 	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
 }
+
+// Draft is an unsent issue or comment the author asked to keep.
+//
+// Not on the sync stream. A draft is personal: the Drafts page loads the caller's rows on
+// demand, the same way invites and webhooks load, and a replica that held everybody's
+// abandoned titles would be both a leak and a waste. The payload is opaque JSON so an
+// issue draft and a comment draft share one table without a pile of nullable columns.
+type Draft struct {
+	ID          uuid.UUID       `json:"id"`
+	WorkspaceID uuid.UUID       `json:"workspaceId"`
+	UserID      uuid.UUID       `json:"userId"`
+	Kind        string          `json:"kind"`
+	Payload     json.RawMessage `json:"payload"`
+	CreatedAt   time.Time       `json:"createdAt"`
+	UpdatedAt   time.Time       `json:"updatedAt"`
+}
