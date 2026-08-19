@@ -483,6 +483,16 @@ func toInitiativeProject(ip model.InitiativeProject) generated.InitiativeProject
 	}
 }
 
+func toProjectDependency(dep model.ProjectDependency) generated.ProjectDependency {
+	return generated.ProjectDependency{
+		ID:                 dep.ID,
+		WorkspaceID:        dep.WorkspaceID,
+		BlockingProjectID:  dep.BlockingProjectID,
+		BlockedProjectID:   dep.BlockedProjectID,
+		CreatedAt:          dep.CreatedAt,
+	}
+}
+
 func toInitiativeStatus(v string) (generated.InitiativeStatus, error) {
 	switch v {
 	case model.InitiativeStatusProposed:

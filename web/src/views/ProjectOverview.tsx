@@ -8,6 +8,7 @@ import { useParams } from 'react-router';
 import { useEngine } from '~/app/context';
 import { Button, Select } from '~/components';
 import { ProjectGraph } from '~/features/projects/ProjectGraph';
+import { ProjectDependencies } from '~/features/projects/dependencies';
 import { createProjectUpdate } from '~/features/project-updates/mutations';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { latestProjectUpdate } from '~/features/project-updates/helpers';
@@ -121,6 +122,11 @@ export function ProjectOverview() {
             </Button>
           </div>
         </form>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Dependencies</h2>
+        <ProjectDependencies projectId={project.id} />
       </section>
 
       {project.description !== undefined && project.description !== '' && (

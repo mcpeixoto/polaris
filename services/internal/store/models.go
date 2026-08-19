@@ -393,6 +393,14 @@ type Project struct {
 	UpdatedAt             time.Time
 }
 
+type ProjectDependency struct {
+	ID                uuid.UUID
+	WorkspaceID       uuid.UUID
+	BlockingProjectID uuid.UUID
+	BlockedProjectID  uuid.UUID
+	CreatedAt         time.Time
+}
+
 type ProjectMember struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

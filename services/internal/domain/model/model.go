@@ -705,6 +705,16 @@ type ProjectUpdate struct {
 	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
+// ProjectDependency is an end→start link: the blocking project must finish before the
+// blocked project may start.
+type ProjectDependency struct {
+	ID                 uuid.UUID `json:"id"`
+	WorkspaceID        uuid.UUID `json:"workspaceId"`
+	BlockingProjectID  uuid.UUID `json:"blockingProjectId"`
+	BlockedProjectID   uuid.UUID `json:"blockedProjectId"`
+	CreatedAt          time.Time `json:"createdAt"`
+}
+
 type IssueHistoryEntry struct {
 	ID        uuid.UUID `json:"id"`
 	IssueID   uuid.UUID `json:"issueId"`

@@ -692,6 +692,15 @@ export interface ProjectUpdate {
   readonly updatedAt: Timestamp;
 }
 
+/** An end→start link: the blocking project must finish before the blocked may start. */
+export interface ProjectDependency {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly blockingProjectId: UUID;
+  readonly blockedProjectId: UUID;
+  readonly createdAt: Timestamp;
+}
+
 export interface Cycle {
   readonly id: UUID;
   readonly workspaceId: UUID;
@@ -732,6 +741,7 @@ export interface EntityByType {
   initiative: Initiative;
   initiativeProject: InitiativeProject;
   projectUpdate: ProjectUpdate;
+  projectDependency: ProjectDependency;
   cycle: Cycle;
   issue: Issue;
   issueLabel: IssueLabel;
@@ -774,6 +784,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'initiative',
   'initiativeProject',
   'projectUpdate',
+  'projectDependency',
   // Before issues: an issue may name a cycle.
   'cycle',
   'issue',

@@ -32,6 +32,7 @@ import {
   type Initiative,
   type InitiativeProject,
   type ProjectUpdate,
+  type ProjectDependency,
   type Label,
   type Notification,
   type Project,
@@ -150,6 +151,7 @@ export class Store {
     initiative: new Map(),
     initiativeProject: new Map(),
     projectUpdate: new Map(),
+    projectDependency: new Map(),
     cycle: new Map(),
     issue: new Map(),
     issueLabel: new Map(),
@@ -203,6 +205,8 @@ export class Store {
   private readonly projectMilestoneOf = new SetIndex<UUID>();
   private readonly initiativeProjectOf = new SetIndex<UUID>();
   private readonly projectUpdateOf = new SetIndex<UUID>();
+  private readonly projectDependencyBlockingOf = new SetIndex<UUID>();
+  private readonly projectDependencyBlockedByOf = new SetIndex<UUID>();
   private readonly cycleTeam = new SetIndex<UUID>();
   /** Keyed by user and view key together; see `preferenceKey`. */
   private readonly preferenceKeys = new Map<string, UUID>();
@@ -330,6 +334,10 @@ export class Store {
     return this.tables.projectUpdate as ReadonlyMap<UUID, ProjectUpdate>;
   }
 
+  get projectDependencies(): ReadonlyMap<UUID, ProjectDependency> {
+    return this.tables.projectDependency as ReadonlyMap<UUID, ProjectDependency>;
+  }
+
   get cycles(): ReadonlyMap<UUID, Cycle> {
     return this.tables.cycle as ReadonlyMap<UUID, Cycle>;
   }
@@ -427,6 +435,16 @@ export class Store {
 
   projectUpdateIdsFor(projectId: UUID): ReadonlySet<UUID> {
     return this.projectUpdateOf.get(projectId);
+  }
+
+  /** Dependencies where this project blocks others. */
+  projectDependencyBlockingIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectDependencyBlockingOf.get(projectId);
+  }
+
+  /** Dependencies where this project is blocked by others. */
+  projectDependencyBlockedByIdsFor(projectId: UUID): ReadonlySet<UUID> {
+    return this.projectDependencyBlockedByOf.get(projectId);
   }
 
   cycleIdsFor(teamId: UUID): ReadonlySet<UUID> {
@@ -740,6 +758,8 @@ export class Store {
     this.projectMilestoneOf.clear();
     this.initiativeProjectOf.clear();
     this.projectUpdateOf.clear();
+    this.projectDependencyBlockingOf.clear();
+    this.projectDependencyBlockedByOf.clear();
     this.cycleTeam.clear();
     this.preferenceKeys.clear();
     this.currentVersion = 0;
@@ -1041,6 +1061,21 @@ export class Store {
           next as ProjectUpdate,
         );
         break;
+      case 'projectDependency': {
+        const dep = next as ProjectDependency;
+        const before = previous as ProjectDependency | undefined;
+        if (before !== undefined) {
+          if (before.blockingProjectId !== dep.blockingProjectId) {
+            this.projectDependencyBlockingOf.remove(before.blockingProjectId, before.id);
+          }
+          if (before.blockedProjectId !== dep.blockedProjectId) {
+            this.projectDependencyBlockedByOf.remove(before.blockedProjectId, before.id);
+          }
+        }
+        this.projectDependencyBlockingOf.add(dep.blockingProjectId, dep.id);
+        this.projectDependencyBlockedByOf.add(dep.blockedProjectId, dep.id);
+        break;
+      }
       case 'cycle': {
         const cycle = next as Cycle;
         const before = previous as Cycle | undefined;
@@ -1141,6 +1176,12 @@ export class Store {
       case 'projectUpdate':
         this.unfileByProject(this.projectUpdateOf, entity as ProjectUpdate);
         break;
+      case 'projectDependency': {
+        const dep = entity as ProjectDependency;
+        this.projectDependencyBlockingOf.remove(dep.blockingProjectId, dep.id);
+        this.projectDependencyBlockedByOf.remove(dep.blockedProjectId, dep.id);
+        break;
+      }
       case 'cycle': {
         const cycle = entity as Cycle;
         this.cycleTeam.remove(cycle.teamId, cycle.id);

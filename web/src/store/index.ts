@@ -89,6 +89,7 @@ export type {
   InitiativeStatus,
   ProjectUpdate,
   ProjectUpdateHealth,
+  ProjectDependency,
   ProjectStatus,
   ProjectStatusCategory,
   ProjectTeam,

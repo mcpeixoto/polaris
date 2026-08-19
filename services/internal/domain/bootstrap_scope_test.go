@@ -52,6 +52,7 @@ type scene struct {
 	openIssue, blockedIssue, privateIssue         uuid.UUID
 	openDocument                                  uuid.UUID
 	openProjectUpdate                             uuid.UUID
+	openProjectDependency                         uuid.UUID
 	openInitiative                                uuid.UUID
 	openInitiativeProject                         uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
@@ -219,6 +220,18 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		t.Fatalf("link the project: %v", err)
 	}
 	s.openInitiativeProject = link.ID
+
+	blocker, _, err := svc.CreateProject(ctx, s.alice, domain.CreateProjectInput{
+		Name: "Platform foundation", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("create the blocking project: %v", err)
+	}
+	dep, _, err := svc.AddProjectDependency(ctx, s.alice, blocker.ID, project.ID)
+	if err != nil {
+		t.Fatalf("create the project dependency: %v", err)
+	}
+	s.openProjectDependency = dep.ID
 
 	// Favourites: alice pins something out of the private team and something workspace-wide,
 	// bob pins the team they share. A favourite carries only its owner's scope, which is what
@@ -447,6 +460,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "issue", s.openIssue},
 		{bobName, "document", s.openDocument},
 		{bobName, "projectUpdate", s.openProjectUpdate},
+		{bobName, "projectDependency", s.openProjectDependency},
 		{bobName, "initiative", s.openInitiative},
 		{bobName, "initiativeProject", s.openInitiativeProject},
 		{bobName, "favorite", s.bobsFavorite},
@@ -454,6 +468,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{gretaName, "issue", s.openIssue},
 		{gretaName, "document", s.openDocument},
 		{gretaName, "projectUpdate", s.openProjectUpdate},
+		{gretaName, "projectDependency", s.openProjectDependency},
 		{gretaName, "initiative", s.openInitiative},
 		{gretaName, "initiativeProject", s.openInitiativeProject},
 		{samName, "label", s.workspaceLabel},
