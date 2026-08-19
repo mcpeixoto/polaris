@@ -484,6 +484,47 @@ type ViewPreference struct {
 	UpdatedAt   time.Time
 }
 
+type Webhook struct {
+	ID                  uuid.UUID
+	WorkspaceID         uuid.UUID
+	CreatorID           uuid.UUID
+	Url                 string
+	Secret              string
+	Enabled             bool
+	AllPublicTeams      bool
+	TeamID              *uuid.UUID
+	ResourceTypes       []string
+	ConsecutiveFailures int32
+	DisabledAt          *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type WebhookCursor struct {
+	WorkspaceID uuid.UUID
+	Version     int64
+	UpdatedAt   time.Time
+}
+
+type WebhookDelivery struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	WebhookID      uuid.UUID
+	ChangeVersion  int64
+	EntityType     string
+	EntityID       uuid.UUID
+	Op             string
+	Payload        json.RawMessage
+	Attempt        int32
+	NextAttemptAt  time.Time
+	LastStatus     *int32
+	LastError      *string
+	LastDurationMs *int32
+	LastSnippet    *string
+	DeliveredAt    *time.Time
+	CreatedAt      time.Time
+}
+
 type WorkflowState struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

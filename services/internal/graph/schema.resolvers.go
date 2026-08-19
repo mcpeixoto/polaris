@@ -267,6 +267,7 @@ func (r *mutationResolver) CreateAttachment(ctx context.Context, input generated
 	return &generated.AttachmentPayload{Version: int(version), Attachment: &out}, nil
 }
 
+// UpdateAttachment is the resolver for the updateAttachment field.
 func (r *mutationResolver) UpdateAttachment(ctx context.Context, input generated.UpdateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.AttachmentPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
@@ -290,6 +291,7 @@ func (r *mutationResolver) UpdateAttachment(ctx context.Context, input generated
 	return &generated.AttachmentPayload{Version: int(version), Attachment: &out}, nil
 }
 
+// DeleteAttachment is the resolver for the deleteAttachment field.
 func (r *mutationResolver) DeleteAttachment(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
@@ -1701,6 +1703,62 @@ func (r *mutationResolver) RevokeAPIKey(ctx context.Context, id uuid.UUID) (*gen
 	return &generated.DeletePayload{Version: int(version), ID: revoked}, nil
 }
 
+// CreateWebhook is the resolver for the createWebhook field.
+func (r *mutationResolver) CreateWebhook(ctx context.Context, input generated.CreateWebhookInput) (*generated.WebhookCreatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	allPublic := false
+	if input.AllPublicTeams != nil {
+		allPublic = *input.AllPublicTeams
+	}
+	hook, secret, version, err := r.Svc.CreateWebhook(ctx, p, domain.CreateWebhookInput{
+		URL:            input.URL,
+		TeamID:         input.TeamID,
+		AllPublicTeams: allPublic,
+		ResourceTypes:  input.ResourceTypes,
+		Enabled:        input.Enabled,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toWebhook(hook)
+	return &generated.WebhookCreatePayload{
+		Version: int(version),
+		Created: &generated.WebhookCreated{Webhook: &out, Secret: secret},
+	}, nil
+}
+
+// UpdateWebhook is the resolver for the updateWebhook field.
+func (r *mutationResolver) UpdateWebhook(ctx context.Context, input generated.UpdateWebhookInput) (*generated.WebhookPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	hook, version, err := r.Svc.UpdateWebhook(ctx, p, domain.UpdateWebhookInput{
+		ID: input.ID, Enabled: input.Enabled,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toWebhook(hook)
+	return &generated.WebhookPayload{Version: int(version), Webhook: &out}, nil
+}
+
+// DeleteWebhook is the resolver for the deleteWebhook field.
+func (r *mutationResolver) DeleteWebhook(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	deleted, version, err := r.Svc.DeleteWebhook(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
+}
+
 // Viewer is the resolver for the viewer field.
 //
 // The one composite query in the schema: it is what the client asks for before it opens
@@ -2330,6 +2388,36 @@ func (r *queryResolver) APIKeys(ctx context.Context) ([]generated.APIKey, error)
 		return nil, PresentError(ctx, err)
 	}
 	return toAPIKeys(keys), nil
+}
+
+// Webhooks is the resolver for the webhooks field.
+func (r *queryResolver) Webhooks(ctx context.Context) ([]generated.Webhook, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	hooks, err := r.Svc.ListWebhooks(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toWebhooks(hooks), nil
+}
+
+// WebhookDeliveries is the resolver for the webhookDeliveries field.
+func (r *queryResolver) WebhookDeliveries(ctx context.Context, webhookID uuid.UUID, first *int) ([]generated.WebhookDelivery, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	n := 0
+	if first != nil {
+		n = *first
+	}
+	rows, err := r.Svc.ListWebhookDeliveries(ctx, p, webhookID, n)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toWebhookDeliveries(rows), nil
 }
 
 // Invites is the resolver for the invites field.

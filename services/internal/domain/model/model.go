@@ -539,6 +539,43 @@ type APIKey struct {
 	UpdatedAt  time.Time  `json:"updatedAt"`
 }
 
+// Webhook is an outbound HTTPS subscription.
+//
+// Not on the sync stream: it is an admin settings row that carries a signing secret we
+// have to keep in order to sign deliveries. Replicating it would put a live credential
+// on every device. The secret itself is absent here for the same reason APIKey has no
+// token — it exists in the create response and in the database column the delivery path
+// reads, and nowhere a listing or a replica can see it.
+type Webhook struct {
+	ID                  uuid.UUID  `json:"id"`
+	WorkspaceID         uuid.UUID  `json:"workspaceId"`
+	CreatorID           uuid.UUID  `json:"creatorId"`
+	URL                 string     `json:"url"`
+	Enabled             bool       `json:"enabled"`
+	AllPublicTeams      bool       `json:"allPublicTeams"`
+	TeamID              *uuid.UUID `json:"teamId,omitempty"`
+	ResourceTypes       []string   `json:"resourceTypes"`
+	ConsecutiveFailures int        `json:"consecutiveFailures"`
+	DisabledAt          *time.Time `json:"disabledAt,omitempty"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
+}
+
+// WebhookDelivery is one attempt log an admin can read to self-diagnose. The signed body
+// is not here: a listing of payloads is a second copy of every issue that went out.
+type WebhookDelivery struct {
+	ID             uuid.UUID  `json:"id"`
+	WebhookID      uuid.UUID  `json:"webhookId"`
+	ChangeVersion  int64      `json:"changeVersion"`
+	EntityType     string     `json:"entityType"`
+	Attempt        int        `json:"attempt"`
+	LastStatus     *int       `json:"lastStatus,omitempty"`
+	LastError      *string    `json:"lastError,omitempty"`
+	LastDurationMs *int       `json:"lastDurationMs,omitempty"`
+	DeliveredAt    *time.Time `json:"deliveredAt,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+}
+
 // Invite is an outstanding invitation to the workspace.
 //
 // Not on the sync stream, for the same reason APIKey is not: it is read on one settings

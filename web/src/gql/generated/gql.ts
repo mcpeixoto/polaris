@@ -76,6 +76,12 @@ type Documents = {
     "\n  \n  mutation SetViewPreference($viewKey: String!, $display: JSON!) {\n    setViewPreference(viewKey: $viewKey, display: $display) {\n      version\n      preference {\n        ...ViewPreferenceFields\n      }\n    }\n  }\n": typeof types.SetViewPreferenceDocument,
     "\n  \n  mutation AddFavorite($kind: FavoriteKind!, $targetId: UUID!, $afterFavoriteId: UUID) {\n    addFavorite(kind: $kind, targetId: $targetId, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": typeof types.AddFavoriteDocument,
     "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveFavoriteDocument,
+    "\n  fragment WebhookSummary on Webhook {\n    id\n    url\n    enabled\n    allPublicTeams\n    teamId\n    resourceTypes\n    consecutiveFailures\n    disabledAt\n    createdAt\n  }\n": typeof types.WebhookSummaryFragmentDoc,
+    "\n  \n  query Webhooks {\n    webhooks {\n      ...WebhookSummary\n    }\n  }\n": typeof types.WebhooksDocument,
+    "\n  query WebhookDeliveries($webhookId: UUID!) {\n    webhookDeliveries(webhookId: $webhookId, first: 20) {\n      id\n      attempt\n      lastStatus\n      lastError\n      deliveredAt\n      createdAt\n      entityType\n    }\n  }\n": typeof types.WebhookDeliveriesDocument,
+    "\n  \n  mutation CreateWebhook($input: CreateWebhookInput!) {\n    createWebhook(input: $input) {\n      version\n      created {\n        secret\n        webhook {\n          ...WebhookSummary\n        }\n      }\n    }\n  }\n": typeof types.CreateWebhookDocument,
+    "\n  \n  mutation UpdateWebhook($input: UpdateWebhookInput!) {\n    updateWebhook(input: $input) {\n      version\n      webhook {\n        ...WebhookSummary\n      }\n    }\n  }\n": typeof types.UpdateWebhookDocument,
+    "\n  mutation DeleteWebhook($id: UUID!) {\n    deleteWebhook(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteWebhookDocument,
     "\n  fragment IssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    estimate\n    dueDate\n    dueDateSource\n    parentId\n    subIssueSortOrder\n    templateId\n    projectId\n    projectMilestoneId\n    cycleId\n    snoozedUntil\n    autoClosedAt\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n": typeof types.IssueFieldsFragmentDoc,
     "\n  fragment TeamFields on Team {\n    id\n    workspaceId\n    key\n    name\n    description\n    icon\n    color\n    timezone\n    parentTeamId\n    private\n    estimateScale\n    estimateAllowZero\n    estimateExtended\n    cyclesEnabled\n    cycleDurationWeeks\n    cycleCooldownWeeks\n    cycleStartDay\n    cycleUpcomingCount\n    cycleAutoAddStarted\n    cycleAutoAddCompleted\n    triageEnabled\n    triageRequirePriority\n    autoCloseDays\n    autoArchiveDays\n    autoCloseParent\n    autoCloseChildren\n    createdAt\n    updatedAt\n    retiredAt\n    archivedAt\n  }\n": typeof types.TeamFieldsFragmentDoc,
     "\n  fragment StateFields on WorkflowState {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    color\n    category\n    position\n    isDefault\n    isSystem\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.StateFieldsFragmentDoc,
@@ -174,6 +180,12 @@ const documents: Documents = {
     "\n  \n  mutation SetViewPreference($viewKey: String!, $display: JSON!) {\n    setViewPreference(viewKey: $viewKey, display: $display) {\n      version\n      preference {\n        ...ViewPreferenceFields\n      }\n    }\n  }\n": types.SetViewPreferenceDocument,
     "\n  \n  mutation AddFavorite($kind: FavoriteKind!, $targetId: UUID!, $afterFavoriteId: UUID) {\n    addFavorite(kind: $kind, targetId: $targetId, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": types.AddFavoriteDocument,
     "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n": types.RemoveFavoriteDocument,
+    "\n  fragment WebhookSummary on Webhook {\n    id\n    url\n    enabled\n    allPublicTeams\n    teamId\n    resourceTypes\n    consecutiveFailures\n    disabledAt\n    createdAt\n  }\n": types.WebhookSummaryFragmentDoc,
+    "\n  \n  query Webhooks {\n    webhooks {\n      ...WebhookSummary\n    }\n  }\n": types.WebhooksDocument,
+    "\n  query WebhookDeliveries($webhookId: UUID!) {\n    webhookDeliveries(webhookId: $webhookId, first: 20) {\n      id\n      attempt\n      lastStatus\n      lastError\n      deliveredAt\n      createdAt\n      entityType\n    }\n  }\n": types.WebhookDeliveriesDocument,
+    "\n  \n  mutation CreateWebhook($input: CreateWebhookInput!) {\n    createWebhook(input: $input) {\n      version\n      created {\n        secret\n        webhook {\n          ...WebhookSummary\n        }\n      }\n    }\n  }\n": types.CreateWebhookDocument,
+    "\n  \n  mutation UpdateWebhook($input: UpdateWebhookInput!) {\n    updateWebhook(input: $input) {\n      version\n      webhook {\n        ...WebhookSummary\n      }\n    }\n  }\n": types.UpdateWebhookDocument,
+    "\n  mutation DeleteWebhook($id: UUID!) {\n    deleteWebhook(id: $id) {\n      version\n      id\n    }\n  }\n": types.DeleteWebhookDocument,
     "\n  fragment IssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    estimate\n    dueDate\n    dueDateSource\n    parentId\n    subIssueSortOrder\n    templateId\n    projectId\n    projectMilestoneId\n    cycleId\n    snoozedUntil\n    autoClosedAt\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n": types.IssueFieldsFragmentDoc,
     "\n  fragment TeamFields on Team {\n    id\n    workspaceId\n    key\n    name\n    description\n    icon\n    color\n    timezone\n    parentTeamId\n    private\n    estimateScale\n    estimateAllowZero\n    estimateExtended\n    cyclesEnabled\n    cycleDurationWeeks\n    cycleCooldownWeeks\n    cycleStartDay\n    cycleUpcomingCount\n    cycleAutoAddStarted\n    cycleAutoAddCompleted\n    triageEnabled\n    triageRequirePriority\n    autoCloseDays\n    autoArchiveDays\n    autoCloseParent\n    autoCloseChildren\n    createdAt\n    updatedAt\n    retiredAt\n    archivedAt\n  }\n": types.TeamFieldsFragmentDoc,
     "\n  fragment StateFields on WorkflowState {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    color\n    category\n    position\n    isDefault\n    isSystem\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.StateFieldsFragmentDoc,
@@ -472,6 +484,30 @@ export function graphql(source: "\n  \n  mutation AddFavorite($kind: FavoriteKin
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment WebhookSummary on Webhook {\n    id\n    url\n    enabled\n    allPublicTeams\n    teamId\n    resourceTypes\n    consecutiveFailures\n    disabledAt\n    createdAt\n  }\n"): (typeof documents)["\n  fragment WebhookSummary on Webhook {\n    id\n    url\n    enabled\n    allPublicTeams\n    teamId\n    resourceTypes\n    consecutiveFailures\n    disabledAt\n    createdAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  query Webhooks {\n    webhooks {\n      ...WebhookSummary\n    }\n  }\n"): (typeof documents)["\n  \n  query Webhooks {\n    webhooks {\n      ...WebhookSummary\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query WebhookDeliveries($webhookId: UUID!) {\n    webhookDeliveries(webhookId: $webhookId, first: 20) {\n      id\n      attempt\n      lastStatus\n      lastError\n      deliveredAt\n      createdAt\n      entityType\n    }\n  }\n"): (typeof documents)["\n  query WebhookDeliveries($webhookId: UUID!) {\n    webhookDeliveries(webhookId: $webhookId, first: 20) {\n      id\n      attempt\n      lastStatus\n      lastError\n      deliveredAt\n      createdAt\n      entityType\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateWebhook($input: CreateWebhookInput!) {\n    createWebhook(input: $input) {\n      version\n      created {\n        secret\n        webhook {\n          ...WebhookSummary\n        }\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateWebhook($input: CreateWebhookInput!) {\n    createWebhook(input: $input) {\n      version\n      created {\n        secret\n        webhook {\n          ...WebhookSummary\n        }\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateWebhook($input: UpdateWebhookInput!) {\n    updateWebhook(input: $input) {\n      version\n      webhook {\n        ...WebhookSummary\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateWebhook($input: UpdateWebhookInput!) {\n    updateWebhook(input: $input) {\n      version\n      webhook {\n        ...WebhookSummary\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteWebhook($id: UUID!) {\n    deleteWebhook(id: $id) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteWebhook($id: UUID!) {\n    deleteWebhook(id: $id) {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

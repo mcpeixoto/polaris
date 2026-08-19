@@ -56,6 +56,7 @@ type Querier interface {
 	// move a watermark backwards.
 	//
 	AdvanceNotificationEmailCursor(ctx context.Context, arg AdvanceNotificationEmailCursorParams) error
+	AdvanceWebhookCursor(ctx context.Context, arg AdvanceWebhookCursorParams) error
 	// AllocateIssueNumber takes a row lock on the team for the rest of the transaction.
 	//
 	// Deliberately not a sequence: sequences are non-transactional, so a rolled-back issue
@@ -193,6 +194,7 @@ type Querier interface {
 	// deleted issue does not inflate it.
 	//
 	CountIssuesWithLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
+	CountPendingWebhookDeliveries(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	CountProjectTeams(ctx context.Context, projectID uuid.UUID) (int64, error)
 	// CountTeamsInWorkspace is the number a plan's team limit is measured against.
 	//
@@ -279,6 +281,11 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Saved views, the display preferences of the views that have no row, and favourites.
 	CreateView(ctx context.Context, arg CreateViewParams) (CreateViewRow, error)
+	// Webhooks are not replicated. Queries that list or return a webhook to an API caller
+	// never select `secret`. The delivery path is the one place that needs it, and it is a
+	// separate query so a future listing that grows a field cannot accidentally start
+	// returning credentials.
+	CreateWebhook(ctx context.Context, arg CreateWebhookParams) (CreateWebhookRow, error)
 	CreateWorkflowState(ctx context.Context, arg CreateWorkflowStateParams) (WorkflowState, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
@@ -292,6 +299,8 @@ type Querier interface {
 	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) (Notification, error)
 	// Upcoming cycles that have not started: dropped when the team turns cycles off.
 	DeleteUpcomingCycles(ctx context.Context, arg DeleteUpcomingCyclesParams) ([]uuid.UUID, error)
+	DeleteWebhook(ctx context.Context, arg DeleteWebhookParams) (uuid.UUID, error)
+	DisableWebhook(ctx context.Context, id uuid.UUID) error
 	EnsureChangeLogPartition(ctx context.Context, month pgtype.Date) error
 	// ---------------------------------------------------------------------------------------
 	// Subscriptions.
@@ -305,6 +314,9 @@ type Querier interface {
 	// change stream.
 	//
 	EnsureIssueSubscription(ctx context.Context, arg EnsureIssueSubscriptionParams) (IssueSubscription, error)
+	// Pin the cursor at create time so turning a webhook on does not replay the workspace's
+	// entire change_log into a stranger's URL.
+	EnsureWebhookCursorAtLeast(ctx context.Context, arg EnsureWebhookCursorAtLeastParams) error
 	// FindGroupableHistoryEntry implements the folding rule: a run of same-kind changes by
 	// the same actor within a short window shows as one entry in the feed rather than five.
 	// Returning the existing row lets the writer update it instead of appending.
@@ -412,6 +424,8 @@ type Querier interface {
 	// sidebar renders them in after the visibility filter has been applied.
 	//
 	GetViewPositionAfter(ctx context.Context, arg GetViewPositionAfterParams) (string, error)
+	GetWebhook(ctx context.Context, arg GetWebhookParams) (GetWebhookRow, error)
+	GetWebhookCursor(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	GetWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowState, error)
 	// Includes archived rows: the singleton unique index is not partial on archived_at, so
 	// re-enabling triage must revive the existing status rather than insert a second one.
@@ -421,6 +435,7 @@ type Querier interface {
 	GetWorkspaceByURLKey(ctx context.Context, urlKey string) (Workspace, error)
 	GetWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	InitWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) error
+	InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDeliveryParams) (WebhookDelivery, error)
 	IsTeamMember(ctx context.Context, arg IsTeamMemberParams) (bool, error)
 	LastCycleNumber(ctx context.Context, teamID uuid.UUID) (int32, error)
 	LastProjectMilestoneSortOrder(ctx context.Context, projectID uuid.UUID) (string, error)
@@ -510,6 +525,8 @@ type Querier interface {
 	// at every call site that means nothing.
 	//
 	ListDigestRecipients(ctx context.Context, pageSize int32) ([]ListDigestRecipientsRow, error)
+	ListDueWebhookDeliveries(ctx context.Context, arg ListDueWebhookDeliveriesParams) ([]ListDueWebhookDeliveriesRow, error)
+	ListEnabledWebhooks(ctx context.Context, workspaceID uuid.UUID) ([]ListEnabledWebhooksRow, error)
 	ListFavorites(ctx context.Context, arg ListFavoritesParams) ([]Favorite, error)
 	// ListFavoritesForTarget is everybody's favourites pointing at one thing.
 	//
@@ -699,6 +716,8 @@ type Querier interface {
 	// bootstrap snapshot and the live change scope agreeing about who may see a view.
 	//
 	ListViewsForUser(ctx context.Context, arg ListViewsForUserParams) ([]ListViewsForUserRow, error)
+	ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeliveriesParams) ([]WebhookDelivery, error)
+	ListWebhooks(ctx context.Context, workspaceID uuid.UUID) ([]ListWebhooksRow, error)
 	ListWorkflowStatesForTeam(ctx context.Context, teamID uuid.UUID) ([]WorkflowState, error)
 	ListWorkflowStatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]WorkflowState, error)
 	ListWorkspacesForAccount(ctx context.Context, accountID *uuid.UUID) ([]ListWorkspacesForAccountRow, error)
@@ -715,6 +734,7 @@ type Querier interface {
 	// the job did, so `coalesce` here covers only the workspaces created since.
 	//
 	ListWorkspacesWithPendingNotifications(ctx context.Context) ([]uuid.UUID, error)
+	ListWorkspacesWithPendingWebhooks(ctx context.Context) ([]uuid.UUID, error)
 	// ListWorkspacesWithPurgeableIssues drives the retention sweep, which has no principal and
 	// therefore no workspace of its own. Distinct rather than a join over workspace, because
 	// the answer wanted is "where is there work to do", and most workspaces have none.
@@ -727,6 +747,8 @@ type Querier interface {
 	//
 	MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) ([]Notification, error)
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)
+	MarkWebhookDeliveryDelivered(ctx context.Context, arg MarkWebhookDeliveryDeliveredParams) error
+	MarkWebhookDeliveryFailed(ctx context.Context, arg MarkWebhookDeliveryFailedParams) error
 	// NotifySyncHub wakes the sync hubs for a workspace.
 	//
 	// Deliberately pg_notify rather than a Valkey PUBLISH after commit: NOTIFY is delivered
@@ -749,6 +771,7 @@ type Querier interface {
 	//
 	OldestRetainedVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	PruneChangeLogBefore(ctx context.Context, before time.Time) (int64, error)
+	PruneWebhookDeliveries(ctx context.Context, before time.Time) (int64, error)
 	// PurgeDeletedIssues hard-deletes a bounded batch of trashed issues and is the only
 	// statement in the product that removes an issue row.
 	//
@@ -780,6 +803,8 @@ type Querier interface {
 	// "what happened since V", and the two would drift on the day somebody fixes only one.
 	//
 	ReadChangesSince(ctx context.Context, arg ReadChangesSinceParams) ([]ChangeLog, error)
+	RecordWebhookFailure(ctx context.Context, id uuid.UUID) (int32, error)
+	RecordWebhookSuccess(ctx context.Context, id uuid.UUID) error
 	// A mutation that fails must not leave a claimed key behind: the client's retry would
 	// then read an empty result and believe the write succeeded.
 	//
@@ -1134,6 +1159,7 @@ type Querier interface {
 	UpdateUserNotificationPrefs(ctx context.Context, arg UpdateUserNotificationPrefsParams) (User, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpdateView(ctx context.Context, arg UpdateViewParams) (UpdateViewRow, error)
+	UpdateWebhookEnabled(ctx context.Context, arg UpdateWebhookEnabledParams) (UpdateWebhookEnabledRow, error)
 	UpdateWorkflowState(ctx context.Context, arg UpdateWorkflowStateParams) (WorkflowState, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
 	// The inbox, and the subscriptions that decide who gets one.

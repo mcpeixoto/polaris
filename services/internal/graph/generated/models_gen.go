@@ -281,6 +281,15 @@ type CreateViewInput struct {
 	Display     json.RawMessage `json:"display,omitempty"`
 }
 
+type CreateWebhookInput struct {
+	URL string `json:"url"`
+	// XOR with allPublicTeams: one team, or every public team.
+	TeamID         *uuid.UUID `json:"teamId,omitempty"`
+	AllPublicTeams *bool      `json:"allPublicTeams,omitempty"`
+	ResourceTypes  []string   `json:"resourceTypes"`
+	Enabled        *bool      `json:"enabled,omitempty"`
+}
+
 type CreateWorkflowStateInput struct {
 	TeamID       uuid.UUID     `json:"teamId"`
 	Name         string        `json:"name"`
@@ -1058,6 +1067,11 @@ type UpdateViewInput struct {
 	AfterViewID *uuid.UUID      `json:"afterViewId,omitempty"`
 }
 
+type UpdateWebhookInput struct {
+	ID      uuid.UUID `json:"id"`
+	Enabled bool      `json:"enabled"`
+}
+
 type UpdateWorkflowStateInput struct {
 	ID           uuid.UUID  `json:"id"`
 	Name         *string    `json:"name,omitempty"`
@@ -1166,6 +1180,57 @@ type Viewer struct {
 	// The sync watermark at the time of this response.
 	SyncVersion int `json:"syncVersion"`
 }
+
+// An outbound webhook. The signing secret is not on this type: it exists in the create
+// response and in the column the delivery path reads, and nowhere a listing can see it.
+type Webhook struct {
+	ID                  uuid.UUID  `json:"id"`
+	WorkspaceID         uuid.UUID  `json:"workspaceId"`
+	CreatorID           uuid.UUID  `json:"creatorId"`
+	URL                 string     `json:"url"`
+	Enabled             bool       `json:"enabled"`
+	AllPublicTeams      bool       `json:"allPublicTeams"`
+	TeamID              *uuid.UUID `json:"teamId,omitempty"`
+	ResourceTypes       []string   `json:"resourceTypes"`
+	ConsecutiveFailures int        `json:"consecutiveFailures"`
+	DisabledAt          *time.Time `json:"disabledAt,omitempty"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
+}
+
+type WebhookCreatePayload struct {
+	Version int             `json:"version"`
+	Created *WebhookCreated `json:"created"`
+}
+
+func (WebhookCreatePayload) IsMutationResult() {}
+
+type WebhookCreated struct {
+	Webhook *Webhook `json:"webhook"`
+	// Shown once. Used to HMAC the raw body. Not recoverable afterwards.
+	Secret string `json:"secret"`
+}
+
+// One delivery attempt, so an admin can self-diagnose a failing consumer.
+type WebhookDelivery struct {
+	ID             uuid.UUID  `json:"id"`
+	WebhookID      uuid.UUID  `json:"webhookId"`
+	ChangeVersion  int        `json:"changeVersion"`
+	EntityType     string     `json:"entityType"`
+	Attempt        int        `json:"attempt"`
+	LastStatus     *int       `json:"lastStatus,omitempty"`
+	LastError      *string    `json:"lastError,omitempty"`
+	LastDurationMs *int       `json:"lastDurationMs,omitempty"`
+	DeliveredAt    *time.Time `json:"deliveredAt,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+}
+
+type WebhookPayload struct {
+	Version int      `json:"version"`
+	Webhook *Webhook `json:"webhook"`
+}
+
+func (WebhookPayload) IsMutationResult() {}
 
 type WorkflowState struct {
 	ID          uuid.UUID     `json:"id"`

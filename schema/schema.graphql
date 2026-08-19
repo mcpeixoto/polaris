@@ -1021,6 +1021,69 @@ type ApiKeyPayload implements MutationResult {
 }
 
 """
+An outbound webhook. The signing secret is not on this type: it exists in the create
+response and in the column the delivery path reads, and nowhere a listing can see it.
+"""
+type Webhook {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  url: String!
+  enabled: Boolean!
+  allPublicTeams: Boolean!
+  teamId: UUID
+  resourceTypes: [String!]!
+  consecutiveFailures: Int!
+  disabledAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type WebhookCreated {
+  webhook: Webhook!
+  """Shown once. Used to HMAC the raw body. Not recoverable afterwards."""
+  secret: String!
+}
+
+type WebhookCreatePayload implements MutationResult {
+  version: Int!
+  created: WebhookCreated!
+}
+
+type WebhookPayload implements MutationResult {
+  version: Int!
+  webhook: Webhook!
+}
+
+"""One delivery attempt, so an admin can self-diagnose a failing consumer."""
+type WebhookDelivery {
+  id: UUID!
+  webhookId: UUID!
+  changeVersion: Int!
+  entityType: String!
+  attempt: Int!
+  lastStatus: Int
+  lastError: String
+  lastDurationMs: Int
+  deliveredAt: Time
+  createdAt: Time!
+}
+
+input CreateWebhookInput {
+  url: String!
+  """XOR with allPublicTeams: one team, or every public team."""
+  teamId: UUID
+  allPublicTeams: Boolean
+  resourceTypes: [String!]!
+  enabled: Boolean
+}
+
+input UpdateWebhookInput {
+  id: UUID!
+  enabled: Boolean!
+}
+
+"""
 A bulk update returns the issues it changed and the single version the whole batch landed
 at, because it emits one version block rather than one per issue.
 """
@@ -1422,6 +1485,10 @@ type Query {
   """The caller's own keys. Never anybody else's, and never the tokens."""
   apiKeys: [ApiKey!]!
 
+  """Workspace webhooks. Admins only; the signing secret is never returned."""
+  webhooks: [Webhook!]!
+  webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
+
   """Pending invitations. Admins only."""
   invites: [Invite!]!
 
@@ -1597,4 +1664,9 @@ type Mutation {
   """Returns the token exactly once. It is not recoverable afterwards."""
   createApiKey(input: CreateApiKeyInput!): ApiKeyPayload!
   revokeApiKey(id: UUID!): DeletePayload!
+
+  """Returns the signing secret exactly once."""
+  createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!
+  updateWebhook(input: UpdateWebhookInput!): WebhookPayload!
+  deleteWebhook(id: UUID!): DeletePayload!
 }

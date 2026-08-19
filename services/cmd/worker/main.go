@@ -16,6 +16,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/mailer"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/store"
+	"github.com/peixotolabs/polaris/services/internal/webhookout"
 )
 
 var revision = "dev"
@@ -218,6 +219,43 @@ func run() error {
 				return err
 			},
 			critical: false,
+		},
+		{
+			name:   "fan out webhooks",
+			every:  5 * time.Second,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.FanOutWebhooksAll(ctx, cfg.PublicURL)
+				if err == nil && n > 0 {
+					log.Debug("queued webhook deliveries", "rows", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
+			name:   "deliver webhooks",
+			every:  5 * time.Second,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.DeliverDueWebhooks(ctx, webhookout.Deliverer{}, time.Now())
+				if err == nil && n > 0 {
+					log.Debug("delivered webhooks", "rows", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
+			name:  "prune webhook deliveries",
+			every: 24 * time.Hour,
+			run: func(ctx context.Context) error {
+				n, err := svc.PruneWebhookDeliveries(ctx)
+				if err == nil && n > 0 {
+					log.Debug("pruned webhook deliveries", "rows", n)
+				}
+				return err
+			},
 		},
 	}
 

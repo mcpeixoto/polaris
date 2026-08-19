@@ -4,7 +4,7 @@
 those cards survive restore, duplicate-merge and a reload.
 
 This is inventory 6.8. File upload and authenticated blob serving stay out: there is no
-M1 `internal/files` path to extend. Webhooks stay the next slice.
+M1 `internal/files` path to extend. Webhooks are a separate slice.
 
 The visual bar is part of done. Links sit on the issue as a dense list, not a settings form.
 
