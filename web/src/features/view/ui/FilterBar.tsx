@@ -1168,6 +1168,8 @@ const FIELD_LABELS: Readonly<Record<FilterField, string>> = {
   blocking: 'Blocking',
   archived: 'Archived',
   deleted: 'Deleted',
+  template: 'Template',
+  recurring: 'Recurring',
 };
 
 /** Said in the add menu where the label alone would leave a real question open. */
@@ -1176,6 +1178,7 @@ const FIELD_HINTS: Partial<Record<FilterField, string>> = {
   subscriber: 'Following the issue',
   archived: 'Hidden by default',
   deleted: 'Hidden by default',
+  recurring: 'Minted on a schedule',
 };
 
 /** What a uuid reads as when the store has never seen it. */
@@ -1189,6 +1192,7 @@ const UNKNOWN_ENTITY: Partial<Record<FilterField, string>> = {
   parent: 'an unknown issue',
   blockedBy: 'an unknown issue',
   blocking: 'an unknown issue',
+  template: 'an unknown template',
 };
 
 interface FieldGroup {
@@ -1199,13 +1203,13 @@ interface FieldGroup {
 const GROUPED_FIELDS: readonly FieldGroup[] = [
   {
     heading: 'Properties',
-    fields: ['state', 'stateCategory', 'priority', 'estimate', 'label', 'team'],
+    fields: ['state', 'stateCategory', 'priority', 'estimate', 'label', 'team', 'template'],
   },
   { heading: 'People', fields: ['assignee', 'creator', 'subscriber'] },
   { heading: 'Dates', fields: ['dueDate', 'createdAt', 'updatedAt', 'completedAt'] },
   { heading: 'Text', fields: ['title', 'description'] },
   { heading: 'Relationships', fields: ['parent', 'blockedBy', 'blocking'] },
-  { heading: 'Lifecycle', fields: ['archived', 'deleted'] },
+  { heading: 'Lifecycle', fields: ['archived', 'deleted', 'recurring'] },
 ];
 
 /**
@@ -1320,6 +1324,8 @@ function entityName(store: Store, field: FilterField, id: UUID): string | null {
       return store.get('label', id)?.name ?? null;
     case 'team':
       return store.get('team', id)?.name ?? null;
+    case 'template':
+      return store.get('issueTemplate', id)?.name ?? null;
     case 'parent':
     case 'blockedBy':
     case 'blocking': {
@@ -1475,6 +1481,20 @@ function candidates(
         .filter((team) => team.archivedAt === undefined)
         .sort((a, b) => a.key.localeCompare(b.key))
         .map((team) => ({ id: team.id, label: team.name, hint: team.key }));
+    case 'template': {
+      const templates = [...store.issueTemplates.values()].filter(
+        (template) =>
+          template.archivedAt === undefined &&
+          (template.teamId === undefined || teamId === undefined || template.teamId === teamId),
+      );
+      return templates
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((template) => ({
+          id: template.id,
+          label: template.name,
+          hint: template.teamId === undefined ? undefined : teamName(store, template.teamId),
+        }));
+    }
     case 'parent':
     case 'blockedBy':
     case 'blocking': {

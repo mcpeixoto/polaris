@@ -69,6 +69,7 @@ var serverSideOnly = map[string]string{
 	"DeliverDueWebhooks":         "worker cron: POSTs signed webhook deliveries",
 	"DeliverNotificationDigests": "worker cron: sends the digest mail",
 	"AdvanceCycles":              "worker cron: closes ended cycles, rolls work, auto-adds",
+	"AdvanceRecurringIssues":     "worker cron: mints the next occurrence after the due date passes",
 	"AutoCloseIssues":            "worker cron: closes stale open issues per team period",
 	"AutoArchive":                "worker cron: archives stale closed issues, projects and cycles",
 	"SubscribeOnAction":          "internal: called by the write paths that auto-subscribe",

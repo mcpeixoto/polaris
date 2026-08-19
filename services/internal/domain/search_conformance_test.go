@@ -124,6 +124,8 @@ type conformanceFixture struct {
 		SortOrder         string      `json:"sortOrder"`
 		SubIssueSortOrder *string     `json:"subIssueSortOrder"`
 		LabelIDs          []uuid.UUID `json:"labelIds"`
+		TemplateID        *uuid.UUID  `json:"templateId"`
+		RecurringIssueID  *uuid.UUID  `json:"recurringIssueId"`
 		CompletedAt       *time.Time  `json:"completedAt"`
 		ArchivedAt        *time.Time  `json:"archivedAt"`
 		DeletedAt         *time.Time  `json:"deletedAt"`
@@ -267,6 +269,7 @@ func expandConformanceID(name string) string {
 var conformanceUUIDFields = map[string]bool{
 	"state": true, "assignee": true, "creator": true, "subscriber": true,
 	"label": true, "team": true, "parent": true, "blockedBy": true, "blocking": true,
+	"template": true,
 }
 
 func expandConformanceFilter(t *testing.T, raw json.RawMessage) []byte {
@@ -361,6 +364,21 @@ func insertConformanceWorkspace(t *testing.T, ctx context.Context, pool *pgxpool
 			l.ID, fx.Workspace.ID, l.TeamID, l.ParentID, l.IsGroup, l.Name, l.Color, l.Position)
 	}
 
+	for _, is := range fx.Issues {
+		if is.TemplateID != nil {
+			exec(`INSERT INTO issue_template (id, workspace_id, team_id, name, title, body, properties, position)
+			      VALUES ($1, $2, $3, 'Fixture', '', '', '{}'::jsonb, 'a0')
+			      ON CONFLICT (id) DO NOTHING`,
+				*is.TemplateID, fx.Workspace.ID, is.TeamID)
+		}
+		if is.RecurringIssueID != nil {
+			exec(`INSERT INTO recurring_issue (id, workspace_id, team_id, title, cadence, next_due_date)
+			      VALUES ($1, $2, $3, 'Fixture schedule', 'weekly', DATE '2026-09-01')
+			      ON CONFLICT (id) DO NOTHING`,
+				*is.RecurringIssueID, fx.Workspace.ID, is.TeamID)
+		}
+	}
+
 	// Parents before children: issue_parent_acyclic walks the chain.
 	for _, is := range fx.Issues {
 		var dueDate *time.Time
@@ -375,13 +393,13 @@ func insertConformanceWorkspace(t *testing.T, ctx context.Context, pool *pgxpool
 		exec(`INSERT INTO issue (
 		        id, workspace_id, team_id, number, title, description, state_id,
 		        assignee_id, creator_id, priority, estimate, due_date, parent_id,
-		        sort_order, sub_issue_sort_order,
+		        sort_order, sub_issue_sort_order, template_id, recurring_issue_id,
 		        completed_at, archived_at, deleted_at, created_at, updated_at)
 		      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-		              $16, $17, $18, $19, $20)`,
+		              $16, $17, $18, $19, $20, $21, $22)`,
 			is.ID, fx.Workspace.ID, is.TeamID, is.Number, is.Title, is.Description, is.StateID,
 			is.AssigneeID, is.CreatorID, is.Priority, is.Estimate, dueDate, is.ParentID,
-			is.SortOrder, is.SubIssueSortOrder,
+			is.SortOrder, is.SubIssueSortOrder, is.TemplateID, is.RecurringIssueID,
 			is.CompletedAt, is.ArchivedAt, is.DeletedAt, is.CreatedAt, is.UpdatedAt)
 
 		// team_id and group_id are left to issue_label_denormalise.

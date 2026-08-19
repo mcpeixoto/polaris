@@ -67,7 +67,9 @@ export type FilterField =
   | 'blockedBy'
   | 'blocking'
   | 'archived'
-  | 'deleted';
+  | 'deleted'
+  | 'template'
+  | 'recurring';
 
 export type FilterOp =
   | 'eq'
@@ -159,6 +161,8 @@ export const FILTER_FIELDS: Readonly<Record<FilterField, FilterFieldSpec>> = {
   // whole filter. See `compileFilter`.
   archived: { type: 'boolean', nullable: false, multi: false },
   deleted: { type: 'boolean', nullable: false, multi: false },
+  template: { type: 'uuid', nullable: true, multi: false },
+  recurring: { type: 'boolean', nullable: false, multi: false },
 };
 
 /**

@@ -111,6 +111,7 @@
       "priority": 1, "estimate": 3, "dueDate": "2026-09-01",
       "sortOrder": "a0",
       "labelIds": ["01900000-0000-7000-8000-0000000000d1", "01900000-0000-7000-8000-0000000000d3"],
+      "templateId": "01900000-0000-7000-8000-0000000000f1",
       "createdAt": "2026-08-01T09:00:00Z", "updatedAt": "2026-08-01T09:00:00Z"
     },
     {
@@ -124,6 +125,7 @@
       "priority": 3,
       "sortOrder": "a1",
       "labelIds": ["01900000-0000-7000-8000-0000000000d2"],
+      "recurringIssueId": "01900000-0000-7000-8000-0000000000f2",
       "createdAt": "2026-08-05T09:00:00Z", "updatedAt": "2026-08-05T09:00:00Z"
     },
     {
@@ -452,6 +454,26 @@
       "name": "deleted issues are reachable only by asking",
       "filter": { "field": "deleted", "op": "eq", "values": ["true"] },
       "expect": ["e7"]
+    },
+    {
+      "name": "template eq",
+      "filter": { "field": "template", "op": "eq", "values": ["f1"] },
+      "expect": ["e1"]
+    },
+    {
+      "name": "template isNull is how a view hides templated work",
+      "filter": { "field": "template", "op": "isNull" },
+      "expect": ["e2", "e3", "e4", "e5"]
+    },
+    {
+      "name": "recurring eq true",
+      "filter": { "field": "recurring", "op": "eq", "values": ["true"] },
+      "expect": ["e2"]
+    },
+    {
+      "name": "recurring eq false",
+      "filter": { "field": "recurring", "op": "eq", "values": ["false"] },
+      "expect": ["e1", "e3", "e4", "e5"]
     },
     {
       "name": "AND",

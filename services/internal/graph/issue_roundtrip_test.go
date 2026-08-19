@@ -437,7 +437,10 @@ var coveredElsewhere = map[string]string{
 	"clearMilestone": "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearCycle":     "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 
-	"fromTriage": "TestCreateIssue_FromTriageViewLandsInTriage",
+	"fromTriage":            "TestCreateIssue_FromTriageViewLandsInTriage",
+	"skipDefaultTemplate":   "TestCreateIssue_SkipDefaultTemplateLeavesTheIssueBlank",
+	"recurringCadence":      "TestCreateIssue_RecurringCadenceAttachesASchedule",
+	"recurringFirstDueDate": "TestCreateIssue_RecurringCadenceAttachesASchedule",
 }
 
 func TestIssueRoundTrip_TheTableCoversEveryInputField(t *testing.T) {
@@ -498,10 +501,11 @@ var storedButUnwritable = map[string]string{
 	// and every listing filter deleted rows out, so a non-zero value here would mean the API
 	// had just handed somebody a row from the trash. deletedIssues is the one read that
 	// returns them populated, and TestDeletedIssues_CarryWhenAndByWhom is what checks it.
-	"deletedAt":    "only ever set on a row the trash listing returns; this read cannot see one",
-	"deletedBy":    "same",
-	"snoozedUntil": "set by snoozeIssue, not by create; TestSnoozeIssue_HidesUntilTimeOrActivity",
-	"autoClosedAt": "set by the auto-close engine, not by create",
+	"deletedAt":        "only ever set on a row the trash listing returns; this read cannot see one",
+	"deletedBy":        "same",
+	"snoozedUntil":     "set by snoozeIssue, not by create; TestSnoozeIssue_HidesUntilTimeOrActivity",
+	"autoClosedAt":     "set by the auto-close engine, not by create",
+	"recurringIssueId": "set by createRecurringIssue, not by a stored input field; TestCreateIssue_RecurringCadenceAttachesASchedule",
 }
 
 func TestIssueRoundTrip_TheReadPathCarriesEveryStoredField(t *testing.T) {

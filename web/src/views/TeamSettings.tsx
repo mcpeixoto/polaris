@@ -47,6 +47,14 @@ import {
 } from '~/features/github/mutations';
 import { updateTeamTriage } from '~/features/triage/mutations';
 import {
+  archiveRecurringIssue,
+  CADENCE_LABELS,
+  createRecurringIssue,
+  updateTeamTemplates,
+} from '~/features/recurring/mutations';
+import { RecurringFields } from '~/features/recurring/RecurringFields';
+import { today } from '~/features/time';
+import {
   archiveStatus,
   createStatus,
   moveStatus,
@@ -56,7 +64,13 @@ import {
 import { deleteTeam, retireTeam, unretireTeam } from '~/features/team-lifecycle/mutations';
 import { moveTeam } from '~/features/team-lifecycle/move';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import { CATEGORY_ORDER, type StateCategory, type Store, type UUID } from '~/store';
+import {
+  CATEGORY_ORDER,
+  type RecurringCadence,
+  type StateCategory,
+  type Store,
+  type UUID,
+} from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './TeamSettings.module.css';
 
@@ -69,6 +83,19 @@ interface StatusView {
   readonly isDefault: boolean;
 }
 
+interface TemplateChoice {
+  readonly id: UUID;
+  readonly name: string;
+  readonly workspace: boolean;
+}
+
+interface RecurringRow {
+  readonly id: UUID;
+  readonly title: string;
+  readonly cadence: RecurringCadence;
+  readonly nextDueDate: string;
+}
+
 interface TeamView {
   readonly id: UUID;
   readonly key: string;
@@ -76,6 +103,7 @@ interface TeamView {
   readonly private: boolean;
   readonly retiredAt?: string;
   readonly parentTeamId?: UUID;
+  readonly timezone: string;
   readonly cyclesEnabled: boolean;
   readonly cycleDurationWeeks: number;
   readonly cycleCooldownWeeks: number;
@@ -89,6 +117,10 @@ interface TeamView {
   readonly autoArchiveDays: number;
   readonly autoCloseParent: boolean;
   readonly autoCloseChildren: boolean;
+  readonly defaultTemplateForMembersId?: UUID;
+  readonly defaultTemplateForNonMembersId?: UUID;
+  readonly templates: readonly TemplateChoice[];
+  readonly recurring: readonly RecurringRow[];
   readonly statuses: readonly StatusView[];
 }
 
@@ -136,7 +168,7 @@ export function TeamSettings() {
 
   const team = useLiveQuery(
     (store) => readTeam(store, teamKey),
-    ['team', 'workflowState'],
+    ['team', 'workflowState', 'issueTemplate', 'recurringIssue'],
     [teamKey],
   );
 
@@ -228,6 +260,26 @@ export function TeamSettings() {
           />
 
           <GitHubTeamAutomations teamId={team.id} statuses={team.statuses} onError={setError} />
+
+          <DefaultTemplates
+            team={team}
+            onChange={(patch) => run(updateTeamTemplates(engine, team.id, patch))}
+          />
+
+          <RecurringIssues
+            team={team}
+            onCreate={(input) =>
+              run(
+                createRecurringIssue(engine, {
+                  teamId: team.id,
+                  title: input.title,
+                  cadence: input.cadence,
+                  firstDueDate: input.firstDueDate,
+                }),
+              )
+            }
+            onArchive={(id) => run(archiveRecurringIssue(engine, id))}
+          />
 
           <section className={styles.section} aria-labelledby="statuses-heading">
             <h2 className={styles.sectionTitle} id="statuses-heading">
@@ -824,6 +876,137 @@ function weeks(from: number, to: number): number[] {
   return out;
 }
 
+function DefaultTemplates({
+  team,
+  onChange,
+}: {
+  team: TeamView;
+  onChange: (patch: Parameters<typeof updateTeamTemplates>[2]) => void;
+}) {
+  return (
+    <section className={styles.section} aria-labelledby="defaults-heading">
+      <h2 className={styles.sectionTitle} id="defaults-heading">
+        Default templates
+      </h2>
+      <p className={styles.sectionHint}>
+        Applied when a new issue is filed without a template. Members and everyone else get
+        a different starting point, because a bug report the team files every day is not
+        the form an outsider should land in.
+      </p>
+
+      <div className={styles.cadence}>
+        <Select
+          label="For members"
+          value={team.defaultTemplateForMembersId ?? ''}
+          onChange={(event) =>
+            onChange({
+              defaultTemplateForMembersId: event.target.value === '' ? null : event.target.value,
+            })
+          }
+        >
+          <option value="">None</option>
+          {team.templates.map((template) => (
+            <option key={template.id} value={template.id}>
+              {template.workspace ? `${template.name} · Workspace` : template.name}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="For everyone else"
+          value={team.defaultTemplateForNonMembersId ?? ''}
+          onChange={(event) =>
+            onChange({
+              defaultTemplateForNonMembersId:
+                event.target.value === '' ? null : event.target.value,
+            })
+          }
+        >
+          <option value="">None</option>
+          {team.templates.map((template) => (
+            <option key={template.id} value={template.id}>
+              {template.workspace ? `${template.name} · Workspace` : template.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </section>
+  );
+}
+
+function RecurringIssues({
+  team,
+  onCreate,
+  onArchive,
+}: {
+  team: TeamView;
+  onCreate: (input: { title: string; cadence: RecurringCadence; firstDueDate: string }) => void;
+  onArchive: (id: UUID) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [cadence, setCadence] = useState<RecurringCadence>('weekly');
+  const [firstDueDate, setFirstDueDate] = useState(today(team.timezone));
+
+  return (
+    <section className={styles.section} aria-labelledby="recurring-heading">
+      <h2 className={styles.sectionTitle} id="recurring-heading">
+        Recurring issues
+      </h2>
+      <p className={styles.sectionHint}>
+        A snapshot plus a cadence. The next occurrence is filed after the current due date
+        passes, at 00:01 in this team&rsquo;s timezone — not when the current issue is
+        completed, and not by re-reading a template.
+      </p>
+
+      {team.recurring.length === 0 ? (
+        <p className={styles.sectionHint}>No schedules yet.</p>
+      ) : (
+        <ul className={styles.recurringList}>
+          {team.recurring.map((row) => (
+            <li key={row.id} className={styles.recurringRow}>
+              <div className={styles.recurringText}>
+                <span className={styles.recurringTitle}>{row.title}</span>
+                <span className={styles.recurringMeta}>
+                  {CADENCE_LABELS[row.cadence]} · next {row.nextDueDate}
+                </span>
+              </div>
+              <Button size="sm" onClick={() => onArchive(row.id)} aria-label={`Archive ${row.title}`}>
+                Archive
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form
+        className={styles.addRecurring}
+        onSubmit={(event: FormEvent) => {
+          event.preventDefault();
+          const trimmed = title.trim();
+          if (trimmed === '' || firstDueDate === '') return;
+          onCreate({ title: trimmed, cadence, firstDueDate });
+          setTitle('');
+        }}
+      >
+        <Input
+          label="New schedule"
+          placeholder="Weekly status"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+        <RecurringFields
+          cadence={cadence}
+          firstDueDate={firstDueDate}
+          onCadence={setCadence}
+          onFirstDueDate={setFirstDueDate}
+        />
+        <Button type="submit" disabled={title.trim() === '' || firstDueDate === ''}>
+          Add schedule
+        </Button>
+      </form>
+    </section>
+  );
+}
+
 interface StatusRowProps {
   status: StatusView;
   first: boolean;
@@ -1195,6 +1378,32 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     return a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
   });
 
+  const templates: TemplateChoice[] = [...store.issueTemplates.values()]
+    .filter(
+      (template) =>
+        template.archivedAt === undefined &&
+        (template.teamId === undefined || template.teamId === team.id),
+    )
+    .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
+    .map((template) => ({
+      id: template.id,
+      name: template.name,
+      workspace: template.teamId === undefined,
+    }));
+
+  const recurring: RecurringRow[] = [];
+  for (const id of store.recurringIssueIdsFor(team.id)) {
+    const row = store.get('recurringIssue', id);
+    if (row === undefined || row.archivedAt !== undefined) continue;
+    recurring.push({
+      id: row.id,
+      title: row.title,
+      cadence: row.cadence,
+      nextDueDate: row.nextDueDate,
+    });
+  }
+  recurring.sort((a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : 0));
+
   return {
     id: team.id,
     key: team.key,
@@ -1215,6 +1424,11 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     autoArchiveDays: team.autoArchiveDays,
     autoCloseParent: team.autoCloseParent,
     autoCloseChildren: team.autoCloseChildren,
+    defaultTemplateForMembersId: team.defaultTemplateForMembersId,
+    defaultTemplateForNonMembersId: team.defaultTemplateForNonMembersId,
+    timezone: team.timezone,
+    templates,
+    recurring,
     statuses,
   };
 }

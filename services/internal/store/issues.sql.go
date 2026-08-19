@@ -52,7 +52,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 `
 
 type BulkUpdateIssuesParams struct {
@@ -111,6 +111,7 @@ type BulkUpdateIssuesRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // BulkUpdateIssues is the bulk-edit path: one property set across a selection, in one
@@ -187,6 +188,7 @@ func (q *Queries) BulkUpdateIssues(ctx context.Context, arg BulkUpdateIssuesPara
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -213,7 +215,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 `
 
 type ClearExternalAssigneesInTeamRow struct {
@@ -248,6 +250,7 @@ type ClearExternalAssigneesInTeamRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // ClearExternalAssigneesInTeam runs when a team becomes private: non-members may not
@@ -293,6 +296,7 @@ func (q *Queries) ClearExternalAssigneesInTeam(ctx context.Context, teamID uuid.
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -343,7 +347,8 @@ INSERT INTO issue (id, workspace_id, team_id, number, title, description,
                    state_id, assignee_id, creator_id, priority, sort_order,
                    started_at, completed_at, canceled_at,
                    estimate, due_date, due_date_source, parent_id, sub_issue_sort_order,
-                   template_id, form_template_id, project_id, project_milestone_id, cycle_id, snoozed_until)
+                   template_id, form_template_id, project_id, project_milestone_id, cycle_id, snoozed_until,
+                   recurring_issue_id)
 VALUES ($1, $2, $3, $4,
         $5, $6, $7,
         $8, $9, $10,
@@ -357,13 +362,13 @@ VALUES ($1, $2, $3, $4,
         $18, $19, $20,
         $21,
         $22, $23, $24,
-        $25)
+        $25, $26)
 RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 `
 
 type CreateIssueParams struct {
@@ -392,6 +397,7 @@ type CreateIssueParams struct {
 	ProjectMilestoneID *uuid.UUID
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 type CreateIssueRow struct {
@@ -426,6 +432,7 @@ type CreateIssueRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // Every list below is the issue table's columns, in the table's own order, minus
@@ -461,6 +468,7 @@ func (q *Queries) CreateIssue(ctx context.Context, arg CreateIssueParams) (Creat
 		arg.ProjectMilestoneID,
 		arg.CycleID,
 		arg.SnoozedUntil,
+		arg.RecurringIssueID,
 	)
 	var i CreateIssueRow
 	err := row.Scan(
@@ -495,6 +503,7 @@ func (q *Queries) CreateIssue(ctx context.Context, arg CreateIssueParams) (Creat
 		&i.CycleID,
 		&i.SnoozedUntil,
 		&i.AutoClosedAt,
+		&i.RecurringIssueID,
 	)
 	return i, err
 }
@@ -505,7 +514,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -542,6 +551,7 @@ type GetIssueRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 func (q *Queries) GetIssue(ctx context.Context, id uuid.UUID) (GetIssueRow, error) {
@@ -579,6 +589,7 @@ func (q *Queries) GetIssue(ctx context.Context, id uuid.UUID) (GetIssueRow, erro
 		&i.CycleID,
 		&i.SnoozedUntil,
 		&i.AutoClosedAt,
+		&i.RecurringIssueID,
 	)
 	return i, err
 }
@@ -589,7 +600,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE team_id = $1 AND number = $2 AND deleted_at IS NULL
 `
@@ -631,6 +642,7 @@ type GetIssueByTeamAndNumberRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 func (q *Queries) GetIssueByTeamAndNumber(ctx context.Context, arg GetIssueByTeamAndNumberParams) (GetIssueByTeamAndNumberRow, error) {
@@ -668,6 +680,7 @@ func (q *Queries) GetIssueByTeamAndNumber(ctx context.Context, arg GetIssueByTea
 		&i.CycleID,
 		&i.SnoozedUntil,
 		&i.AutoClosedAt,
+		&i.RecurringIssueID,
 	)
 	return i, err
 }
@@ -699,7 +712,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE
@@ -737,6 +750,7 @@ type GetIssueForUpdateRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // GetIssueForUpdate locks the row for the rest of the transaction. Used by every update
@@ -777,6 +791,7 @@ func (q *Queries) GetIssueForUpdate(ctx context.Context, id uuid.UUID) (GetIssue
 		&i.CycleID,
 		&i.SnoozedUntil,
 		&i.AutoClosedAt,
+		&i.RecurringIssueID,
 	)
 	return i, err
 }
@@ -890,7 +905,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-       project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+       project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE team_id = $1 AND archived_at IS NOT NULL AND deleted_at IS NULL
 ORDER BY archived_at DESC
@@ -928,6 +943,7 @@ type ListArchivedIssuesForTeamRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 func (q *Queries) ListArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]ListArchivedIssuesForTeamRow, error) {
@@ -971,6 +987,7 @@ func (q *Queries) ListArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUI
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -988,7 +1005,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE parent_id = $1 AND deleted_at IS NULL
 ORDER BY sub_issue_sort_order, id
@@ -1026,6 +1043,7 @@ type ListChildIssuesRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // ListChildIssues feeds the sub-issue list and the progress rollup on the parent. The
@@ -1076,6 +1094,7 @@ func (q *Queries) ListChildIssues(ctx context.Context, parentID *uuid.UUID) ([]L
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -1093,7 +1112,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE parent_id = ANY($1::uuid[])
   AND workspace_id = $2
@@ -1138,6 +1157,7 @@ type ListChildIssuesForParentsRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // ListChildIssuesForParents is ListChildIssues for a whole page of parents at once.
@@ -1190,6 +1210,7 @@ func (q *Queries) ListChildIssuesForParents(ctx context.Context, arg ListChildIs
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -1207,7 +1228,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE workspace_id = $1
   AND team_id = ANY($2::uuid[])
@@ -1254,6 +1275,7 @@ type ListDeletedIssuesRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // ListDeletedIssues is the "recently deleted" screen. Ordered by deletion time rather than
@@ -1299,6 +1321,7 @@ func (q *Queries) ListDeletedIssues(ctx context.Context, arg ListDeletedIssuesPa
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -1316,7 +1339,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE id = ANY($1::uuid[])
   AND workspace_id = $2
@@ -1363,6 +1386,7 @@ type ListIssuesByIDsRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // ListIssuesByIDs reads a scattered set of issues in one round trip, filtered to the teams
@@ -1414,6 +1438,7 @@ func (q *Queries) ListIssuesByIDs(ctx context.Context, arg ListIssuesByIDsParams
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -1431,7 +1456,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE project_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 ORDER BY sort_order
@@ -1469,6 +1494,7 @@ type ListIssuesForProjectRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // ListIssuesForProject is the project's Issues tab. Live issues only; archived and
@@ -1514,6 +1540,7 @@ func (q *Queries) ListIssuesForProject(ctx context.Context, projectID *uuid.UUID
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -1531,7 +1558,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE team_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 ORDER BY sort_order
@@ -1569,6 +1596,7 @@ type ListIssuesForTeamRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 func (q *Queries) ListIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]ListIssuesForTeamRow, error) {
@@ -1612,6 +1640,7 @@ func (q *Queries) ListIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]Li
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -1629,7 +1658,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE workspace_id = $1
   AND assignee_id = $2
@@ -1680,6 +1709,7 @@ type ListMyIssuesRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // ListMyIssues is everything assigned to the caller across every team they can see.
@@ -1733,6 +1763,7 @@ func (q *Queries) ListMyIssues(ctx context.Context, arg ListMyIssuesParams) ([]L
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -1750,7 +1781,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order, i.template_id, i.form_template_id, i.deleted_by,
-       i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
+       i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at, i.recurring_issue_id
 FROM issue i
 JOIN workflow_state ws ON ws.id = i.state_id
 WHERE i.team_id = $1
@@ -1797,6 +1828,7 @@ type ListStaleClosedIssuesRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // Stale closed work for auto-archive. The domain layer still refuses a row whose
@@ -1842,6 +1874,7 @@ func (q *Queries) ListStaleClosedIssues(ctx context.Context, arg ListStaleClosed
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -1859,7 +1892,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order, i.template_id, i.form_template_id, i.deleted_by,
-       i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
+       i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at, i.recurring_issue_id
 FROM issue i
 JOIN workflow_state ws ON ws.id = i.state_id
 WHERE i.team_id = $1
@@ -1906,6 +1939,7 @@ type ListStaleOpenIssuesRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // Stale open work for auto-close. Closed categories are already done; the engine
@@ -1953,6 +1987,7 @@ func (q *Queries) ListStaleOpenIssues(ctx context.Context, arg ListStaleOpenIssu
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -2063,7 +2098,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 `
 
 type RestoreIssueParams struct {
@@ -2103,6 +2138,7 @@ type RestoreIssueRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // RestoreIssue returns the row because a restore puts the issue back on the sync stream,
@@ -2150,6 +2186,103 @@ func (q *Queries) RestoreIssue(ctx context.Context, arg RestoreIssueParams) (Res
 		&i.CycleID,
 		&i.SnoozedUntil,
 		&i.AutoClosedAt,
+		&i.RecurringIssueID,
+	)
+	return i, err
+}
+
+const setIssueRecurringIssueID = `-- name: SetIssueRecurringIssueID :one
+UPDATE issue
+SET recurring_issue_id = $1
+WHERE id = $2 AND deleted_at IS NULL
+RETURNING id, workspace_id, team_id, number, title, description, state_id,
+          assignee_id, creator_id, priority, sort_order,
+          started_at, completed_at, canceled_at,
+          archived_at, deleted_at, created_at, updated_at,
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
+`
+
+type SetIssueRecurringIssueIDParams struct {
+	RecurringIssueID *uuid.UUID
+	ID               uuid.UUID
+}
+
+type SetIssueRecurringIssueIDRow struct {
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamID             uuid.UUID
+	Number             int64
+	Title              string
+	Description        string
+	StateID            uuid.UUID
+	AssigneeID         *uuid.UUID
+	CreatorID          *uuid.UUID
+	Priority           int16
+	SortOrder          string
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	ArchivedAt         *time.Time
+	DeletedAt          *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Estimate           *int16
+	DueDate            pgtype.Date
+	DueDateSource      string
+	ParentID           *uuid.UUID
+	SubIssueSortOrder  *string
+	TemplateID         *uuid.UUID
+	FormTemplateID     *uuid.UUID
+	DeletedBy          *uuid.UUID
+	ProjectID          *uuid.UUID
+	ProjectMilestoneID *uuid.UUID
+	CycleID            *uuid.UUID
+	SnoozedUntil       *time.Time
+	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
+}
+
+// SetIssueRecurringIssueID links an existing issue to a schedule (convert) or records
+// the schedule that just minted it. A dedicated write rather than stretching UpdateIssue:
+// the column is not a user-editable property, and a COALESCE on it would make "not
+// recurring" indistinguishable from "leave it alone".
+func (q *Queries) SetIssueRecurringIssueID(ctx context.Context, arg SetIssueRecurringIssueIDParams) (SetIssueRecurringIssueIDRow, error) {
+	row := q.db.QueryRow(ctx, setIssueRecurringIssueID, arg.RecurringIssueID, arg.ID)
+	var i SetIssueRecurringIssueIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.TeamID,
+		&i.Number,
+		&i.Title,
+		&i.Description,
+		&i.StateID,
+		&i.AssigneeID,
+		&i.CreatorID,
+		&i.Priority,
+		&i.SortOrder,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CanceledAt,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Estimate,
+		&i.DueDate,
+		&i.DueDateSource,
+		&i.ParentID,
+		&i.SubIssueSortOrder,
+		&i.TemplateID,
+		&i.FormTemplateID,
+		&i.DeletedBy,
+		&i.ProjectID,
+		&i.ProjectMilestoneID,
+		&i.CycleID,
+		&i.SnoozedUntil,
+		&i.AutoClosedAt,
+		&i.RecurringIssueID,
 	)
 	return i, err
 }
@@ -2162,7 +2295,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 `
 
 type SetIssueSnoozeParams struct {
@@ -2202,6 +2335,7 @@ type SetIssueSnoozeRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 func (q *Queries) SetIssueSnooze(ctx context.Context, arg SetIssueSnoozeParams) (SetIssueSnoozeRow, error) {
@@ -2239,6 +2373,7 @@ func (q *Queries) SetIssueSnooze(ctx context.Context, arg SetIssueSnoozeParams) 
 		&i.CycleID,
 		&i.SnoozedUntil,
 		&i.AutoClosedAt,
+		&i.RecurringIssueID,
 	)
 	return i, err
 }
@@ -2269,7 +2404,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 FROM issue
 WHERE workspace_id = $1
   AND team_id = ANY($2::uuid[])
@@ -2319,6 +2454,7 @@ type StreamIssuesForBootstrapRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 // StreamIssuesForBootstrap feeds the initial snapshot. Ordered by id (UUIDv7, so
@@ -2370,6 +2506,7 @@ func (q *Queries) StreamIssuesForBootstrap(ctx context.Context, arg StreamIssues
 			&i.CycleID,
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
+			&i.RecurringIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -2441,7 +2578,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
 `
 
 type UpdateIssueParams struct {
@@ -2511,6 +2648,7 @@ type UpdateIssueRow struct {
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
 }
 
 func (q *Queries) UpdateIssue(ctx context.Context, arg UpdateIssueParams) (UpdateIssueRow, error) {
@@ -2581,6 +2719,7 @@ func (q *Queries) UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Updat
 		&i.CycleID,
 		&i.SnoozedUntil,
 		&i.AutoClosedAt,
+		&i.RecurringIssueID,
 	)
 	return i, err
 }

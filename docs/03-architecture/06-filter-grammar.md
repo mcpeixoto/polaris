@@ -63,6 +63,8 @@ identically, and there is a conformance case for it.
 | `parent` | uuid or null | |
 | `blockedBy`, `blocking` | uuid | Relation traversal, one hop |
 | `archived`, `deleted` | bool | Default: both excluded unless a clause says otherwise |
+| `template` | uuid or null | Which template filed the issue |
+| `recurring` | bool | Whether the issue belongs to a recurring schedule |
 
 An unknown field is a **hard error**, not an ignored clause. Ignoring it would silently
 widen the result set, and a filter that silently matches more than it says is exactly the

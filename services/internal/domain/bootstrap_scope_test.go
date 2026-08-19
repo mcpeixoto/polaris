@@ -182,6 +182,15 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		t.Fatalf("enable cycles: %v", err)
 	}
 
+	if _, _, err := svc.CreateRecurringIssue(ctx, s.alice, domain.CreateRecurringIssueInput{
+		TeamID:       f.TeamID,
+		Title:        "Weekly status",
+		Cadence:      model.CadenceWeekly,
+		FirstDueDate: "2026-09-01",
+	}); err != nil {
+		t.Fatalf("create the recurring schedule: %v", err)
+	}
+
 	view := func(in domain.CreateViewInput) uuid.UUID {
 		row, _, err := svc.CreateView(ctx, s.alice, in)
 		if err != nil {

@@ -132,6 +132,13 @@ type Team struct {
 	AutoCloseParent   bool `json:"autoCloseParent"`
 	AutoCloseChildren bool `json:"autoCloseChildren"`
 
+	// Default templates applied when an issue is filed without one. Members and
+	// non-members are separate because an outsider filing into a triaged team should
+	// not silently pick up the team's own bug template, and a member creating from C
+	// should not pick up the intake form meant for everyone else.
+	DefaultTemplateForMembersID    *uuid.UUID `json:"defaultTemplateForMembersId,omitempty"`
+	DefaultTemplateForNonMembersID *uuid.UUID `json:"defaultTemplateForNonMembersId,omitempty"`
+
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	RetiredAt  *time.Time `json:"retiredAt,omitempty"`
@@ -234,6 +241,10 @@ type Issue struct {
 	// FormTemplateID records which form template made this issue — parallel provenance
 	// for intake reporting.
 	FormTemplateID *uuid.UUID `json:"formTemplateId,omitempty"`
+
+	// RecurringIssueID names the schedule that minted this issue, or that this issue
+	// was converted into. Filterable as "recurring". Absent means a one-off.
+	RecurringIssueID *uuid.UUID `json:"recurringIssueId,omitempty"`
 
 	// At most one project, as a column rather than a join: two projects on one issue is
 	// a state the schema cannot represent. A milestone implies its project.
@@ -588,6 +599,35 @@ type FormTemplate struct {
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
 }
 
+// RecurringIssue is a schedule that mints issues on a cadence.
+//
+// The title, body and properties are a snapshot taken when the schedule was created.
+// Editing a source template afterwards does not change them — that is the product rule,
+// and it is why they live here rather than being read back from issue_template at mint
+// time. nextDueDate is the due date of the current occurrence; the worker files the next
+// issue after that day has passed, at 00:01 in the team's timezone.
+type RecurringIssue struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      uuid.UUID  `json:"teamId"`
+
+	Title      string          `json:"title"`
+	Body       string          `json:"body"`
+	Properties json.RawMessage `json:"properties"`
+
+	TemplateID *uuid.UUID `json:"templateId,omitempty"`
+
+	Cadence     string `json:"cadence"`
+	NextDueDate Date   `json:"nextDueDate"`
+
+	LastCreatedAt *time.Time `json:"lastCreatedAt,omitempty"`
+
+	CreatedBy  *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
 // FormTemplateField is one input in a form template.
 type FormTemplateField struct {
 	ID             uuid.UUID             `json:"id"`
@@ -651,6 +691,15 @@ type ProjectTemplateIssue struct {
 	CreatedAt         time.Time       `json:"createdAt"`
 	UpdatedAt         time.Time       `json:"updatedAt"`
 }
+
+const (
+	CadenceDaily     = "daily"
+	CadenceWeekly    = "weekly"
+	CadenceBiweekly  = "biweekly"
+	CadenceMonthly   = "monthly"
+	CadenceQuarterly = "quarterly"
+	CadenceYearly    = "yearly"
+)
 
 // APIKey is a personal key, which acts as its owner.
 //

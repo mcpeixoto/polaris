@@ -15,7 +15,8 @@ func AsIssueRow[
 		ListIssuesByIDsRow | ListMyIssuesRow | ListDeletedIssuesRow |
 		ListChildIssuesForParentsRow |
 		StreamIssuesForBootstrapRow | BulkUpdateIssuesRow |
-		RestoreIssueRow | SetIssueSnoozeRow | ClearExternalAssigneesInTeamRow,
+		RestoreIssueRow | SetIssueSnoozeRow | ClearExternalAssigneesInTeamRow |
+		SetIssueRecurringIssueIDRow,
 ](r T) GetIssueRow {
 	return GetIssueRow(r)
 }
@@ -31,7 +32,7 @@ func IssueTableRow(i Issue) GetIssueRow {
 		CreatedAt: i.CreatedAt, UpdatedAt: i.UpdatedAt, Estimate: i.Estimate,
 		DueDate: i.DueDate, DueDateSource: i.DueDateSource, ParentID: i.ParentID,
 		SubIssueSortOrder: i.SubIssueSortOrder, TemplateID: i.TemplateID,
-		FormTemplateID: i.FormTemplateID, DeletedBy: i.DeletedBy,
+		FormTemplateID: i.FormTemplateID, RecurringIssueID: i.RecurringIssueID, DeletedBy: i.DeletedBy,
 		ProjectID: i.ProjectID, ProjectMilestoneID: i.ProjectMilestoneID,
 		CycleID: i.CycleID, SnoozedUntil: i.SnoozedUntil, AutoClosedAt: i.AutoClosedAt,
 	}

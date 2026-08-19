@@ -48,6 +48,8 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"Cycle", model.Cycle{}, generated.Cycle{}},
 		{"GitHubConnection", model.GitHubConnection{}, generated.GitHubConnection{}},
 		{"GitHubUserLink", model.GitHubUserLink{}, generated.GitHubUserLink{}},
+		{"IssueTemplate", model.IssueTemplate{}, generated.IssueTemplate{}},
+		{"RecurringIssue", model.RecurringIssue{}, generated.RecurringIssue{}},
 	}
 
 	for _, pair := range pairs {
@@ -111,6 +113,8 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 		{"ProjectMember", model.ProjectMember{}, func(v any) (any, error) { return toProjectMember(v.(model.ProjectMember)), nil }},
 		{"ProjectMilestone", model.ProjectMilestone{}, func(v any) (any, error) { return toProjectMilestone(v.(model.ProjectMilestone)), nil }},
 		{"Cycle", model.Cycle{}, func(v any) (any, error) { return toCycle(v.(model.Cycle)), nil }},
+		{"IssueTemplate", model.IssueTemplate{}, func(v any) (any, error) { return toIssueTemplate(v.(model.IssueTemplate)), nil }},
+		{"RecurringIssue", model.RecurringIssue{}, func(v any) (any, error) { return toRecurringIssue(v.(model.RecurringIssue)) }},
 	}
 
 	for _, c := range cases {
@@ -161,6 +165,7 @@ var enumValues = map[string]string{
 	"startDateGranularity":  model.GranularityQuarter,
 	"targetDateGranularity": model.GranularityQuarter,
 	"updateSchedule":        model.ProjectUpdateScheduleDefault,
+	"cadence":               model.CadenceWeekly,
 }
 
 // fillNonZero writes a distinguishable value into every field of v, recursively.

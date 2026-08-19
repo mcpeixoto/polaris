@@ -220,8 +220,8 @@ func (c *compiler) clause(n Node) (string, error) {
 	}
 }
 
-// flag compiles archived and deleted, which the user sees as booleans and the schema
-// stores as nullable timestamps.
+// flag compiles archived, deleted and recurring, which the user sees as booleans and the
+// schema stores as a nullable column (a timestamp, or a schedule id).
 //
 // Reduced to the set of boolean values the clause accepts, so eq, neq, in and notIn all
 // come out of one place. Writing four branches instead invites the empty-list cases to be
