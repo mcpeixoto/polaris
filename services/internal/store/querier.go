@@ -57,6 +57,11 @@ type Querier interface {
 	// move a watermark backwards.
 	//
 	AdvanceNotificationEmailCursor(ctx context.Context, arg AdvanceNotificationEmailCursorParams) error
+	// AdvanceRecurringIssue is the mint path: the due date of the occurrence just filed,
+	// and when it was filed. Separate from UpdateRecurringIssue so a settings edit cannot
+	// accidentally look like a mint (or the other way around).
+	//
+	AdvanceRecurringIssue(ctx context.Context, arg AdvanceRecurringIssueParams) (AdvanceRecurringIssueRow, error)
 	AdvanceWebhookCursor(ctx context.Context, arg AdvanceWebhookCursorParams) error
 	// AllocateIssueNumber takes a row lock on the team for the rest of the transaction.
 	//
@@ -84,6 +89,7 @@ type Querier interface {
 	ArchiveProjectMilestone(ctx context.Context, id uuid.UUID) error
 	ArchiveProjectStatus(ctx context.Context, id uuid.UUID) error
 	ArchiveProjectTemplate(ctx context.Context, id uuid.UUID) (ArchiveProjectTemplateRow, error)
+	ArchiveRecurringIssue(ctx context.Context, id uuid.UUID) (ArchiveRecurringIssueRow, error)
 	// Deleting a view archives it. Favourites and view_preference rows point at views by id
 	// with no foreign key, so a hard delete would leave a sidebar entry nothing can resolve —
 	// and the person who deleted a shared view is rarely the only person using it.
@@ -308,6 +314,8 @@ type Querier interface {
 	CreateProjectTemplateIssue(ctx context.Context, arg CreateProjectTemplateIssueParams) (ProjectTemplateIssue, error)
 	CreateProjectTemplateMilestone(ctx context.Context, arg CreateProjectTemplateMilestoneParams) (ProjectTemplateMilestone, error)
 	CreateProjectUpdate(ctx context.Context, arg CreateProjectUpdateParams) (ProjectUpdate, error)
+	// Recurring issue schedules. Column lists follow the table order, same rule as issues.sql.
+	CreateRecurringIssue(ctx context.Context, arg CreateRecurringIssueParams) (CreateRecurringIssueRow, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (AccountSession, error)
 	CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
@@ -480,6 +488,11 @@ type Querier interface {
 	GetProjectTemplateMilestone(ctx context.Context, id uuid.UUID) (ProjectTemplateMilestone, error)
 	GetProjectUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
 	GetProjectUpdateForUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
+	GetRecurringIssue(ctx context.Context, id uuid.UUID) (GetRecurringIssueRow, error)
+	// GetRecurringIssueForUpdate locks the row for a mint pass. Two workers racing on the
+	// same due date would otherwise both decide it had passed and file two issues.
+	//
+	GetRecurringIssueForUpdate(ctx context.Context, id uuid.UUID) (GetRecurringIssueForUpdateRow, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (AccountSession, error)
 	GetSortOrderAfter(ctx context.Context, arg GetSortOrderAfterParams) (string, error)
 	// Neighbour lookups for fractional-index insertion: find the sort_order either side of
@@ -525,6 +538,7 @@ type Querier interface {
 	LastProjectSortOrderForPriority(ctx context.Context, arg LastProjectSortOrderForPriorityParams) (string, error)
 	LastProjectStatusPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	ListAPIKeysForUser(ctx context.Context, userID uuid.UUID) ([]ListAPIKeysForUserRow, error)
+	ListActiveRecurringIssues(ctx context.Context) ([]ListActiveRecurringIssuesRow, error)
 	ListArchivedCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
 	ListArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]ListArchivedIssuesForTeamRow, error)
 	// Archived projects linked to this team. A project belongs to the workspace, but the
@@ -765,6 +779,7 @@ type Querier interface {
 	ListProjectTemplatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListProjectTemplatesInWorkspaceRow, error)
 	ListProjectUpdatesForProject(ctx context.Context, projectID uuid.UUID) ([]ProjectUpdate, error)
 	ListProjectsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Project, error)
+	ListRecurringIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]ListRecurringIssuesForTeamRow, error)
 	// ListReverseIssueRelations is the same links read from the far end: what blocks this
 	// issue, and what it is a duplicate of. Both listings are needed on the issue panel, which
 	// is why issue_relation carries an index on each side.
@@ -807,6 +822,7 @@ type Querier interface {
 	//
 	ListTeamMembershipsForTeams(ctx context.Context, arg ListTeamMembershipsForTeamsParams) ([]TeamMembership, error)
 	ListTeamsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Team, error)
+	ListTeamsUsingTemplateAsDefault(ctx context.Context, templateID *uuid.UUID) ([]Team, error)
 	ListTeamsWithAutoArchive(ctx context.Context) ([]Team, error)
 	ListTeamsWithAutoClose(ctx context.Context) ([]Team, error)
 	ListTeamsWithCyclesEnabled(ctx context.Context) ([]Team, error)
@@ -996,6 +1012,12 @@ type Querier interface {
 	SetDefaultWorkflowState(ctx context.Context, id uuid.UUID) error
 	SetGitHubConnectionAccessToken(ctx context.Context, arg SetGitHubConnectionAccessTokenParams) error
 	SetIssueCycle(ctx context.Context, arg SetIssueCycleParams) error
+	// SetIssueRecurringIssueID links an existing issue to a schedule (convert) or records
+	// the schedule that just minted it. A dedicated write rather than stretching UpdateIssue:
+	// the column is not a user-editable property, and a COALESCE on it would make "not
+	// recurring" indistinguishable from "leave it alone".
+	//
+	SetIssueRecurringIssueID(ctx context.Context, arg SetIssueRecurringIssueIDParams) (SetIssueRecurringIssueIDRow, error)
 	SetIssueSnooze(ctx context.Context, arg SetIssueSnoozeParams) (SetIssueSnoozeRow, error)
 	// SetIssueSubscription is the button. This is the one place `unsubscribed` may change,
 	// because this is the one place the user said so.
@@ -1193,6 +1215,17 @@ type Querier interface {
 	// teams — the same predicate authz.Visible uses for ScopeProject.
 	//
 	StreamProjectsForBootstrap(ctx context.Context, arg StreamProjectsForBootstrapParams) ([]Project, error)
+	// StreamRecurringIssuesForBootstrap feeds the initial snapshot. The predicate is the
+	// team's: a recurring schedule is team-scoped the same way a cycle is, and the change
+	// rows are emitted under TeamScope, so the snapshot must not ship a private team's
+	// schedules to someone who is not in it.
+	//
+	// Archived schedules are excluded — archiving emits a delete — even though
+	// issue.recurring_issue_id may still point at one. That column answers "was this
+	// minted from a schedule" from the server side; the replica filters on the live
+	// schedule rows.
+	//
+	StreamRecurringIssuesForBootstrap(ctx context.Context, arg StreamRecurringIssuesForBootstrapParams) ([]StreamRecurringIssuesForBootstrapRow, error)
 	// StreamViewPreferencesForBootstrap feeds the initial snapshot. A preference travels under
 	// its owner's user scope and under nothing else, so the whole visibility rule is "yours".
 	//
@@ -1249,6 +1282,7 @@ type Querier interface {
 	UnarchiveProject(ctx context.Context, id uuid.UUID) (Project, error)
 	UnarchiveProjectLabel(ctx context.Context, id uuid.UUID) (UnarchiveProjectLabelRow, error)
 	UnarchiveProjectStatus(ctx context.Context, id uuid.UUID) error
+	UnarchiveRecurringIssue(ctx context.Context, id uuid.UUID) (UnarchiveRecurringIssueRow, error)
 	// UnarchiveWorkflowState returns the row: the archive reached every client as a delete, so
 	// putting the status back is an upsert and needs the payload.
 	//
@@ -1285,6 +1319,7 @@ type Querier interface {
 	UpdateProjectTemplateIssue(ctx context.Context, arg UpdateProjectTemplateIssueParams) (ProjectTemplateIssue, error)
 	UpdateProjectTemplateMilestone(ctx context.Context, arg UpdateProjectTemplateMilestoneParams) (ProjectTemplateMilestone, error)
 	UpdateProjectUpdate(ctx context.Context, arg UpdateProjectUpdateParams) (ProjectUpdate, error)
+	UpdateRecurringIssue(ctx context.Context, arg UpdateRecurringIssueParams) (UpdateRecurringIssueRow, error)
 	UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error)
 	// UpdateTeamArchive is the close/archive periods and the parent/child automations.
 	// Kept apart from UpdateTeam so a settings form that only touches intake cannot
@@ -1303,6 +1338,12 @@ type Querier interface {
 	//
 	UpdateTeamEstimates(ctx context.Context, arg UpdateTeamEstimatesParams) (Team, error)
 	UpdateTeamParent(ctx context.Context, arg UpdateTeamParentParams) (Team, error)
+	// UpdateTeamTemplates is the two default-template pointers. Kept apart from UpdateTeam
+	// so a rename cannot accidentally clear a default, and so clearing one pointer is a
+	// three-state write (leave / set / clear) rather than a COALESCE that can never say
+	// "none".
+	//
+	UpdateTeamTemplates(ctx context.Context, arg UpdateTeamTemplatesParams) (Team, error)
 	// UpdateTeamTriage is the intake switch, kept apart from UpdateTeam for the same reason
 	// estimates and cycles are: enabling creates the reserved statuses, and a partial write
 	// that flipped the flag without them would leave a team that claims to have a queue and

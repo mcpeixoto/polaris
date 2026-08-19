@@ -59,6 +59,8 @@ const (
 	FieldBlocking      Field = "blocking"
 	FieldArchived      Field = "archived"
 	FieldDeleted       Field = "deleted"
+	FieldTemplate      Field = "template"
+	FieldRecurring     Field = "recurring"
 )
 
 // Op is the comparison a clause performs.
@@ -335,8 +337,9 @@ type fieldSpec struct {
 	// this set"; a join would return a row per *other* label and match nearly everything.
 	membership string
 
-	// flag marks archived and deleted, which the user sees as booleans and the schema
-	// stores as nullable timestamps.
+	// flag marks fields the user sees as booleans and the schema stores as a nullable
+	// column: archived/deleted as timestamps, recurring as the schedule id. Presence is
+	// true; NULL is false.
 	flag bool
 }
 
@@ -372,8 +375,10 @@ var fields = map[Field]fieldSpec{
 		` WHERE f_rel.related_issue_id = %[1]s.id AND f_rel.type = 'blocks' AND f_rel.issue_id = ANY(%[2]s))`},
 	FieldBlocking: {kind: kindUUID, membership: `EXISTS (SELECT 1 FROM issue_relation f_rel` +
 		` WHERE f_rel.issue_id = %[1]s.id AND f_rel.type = 'blocks' AND f_rel.related_issue_id = ANY(%[2]s))`},
-	FieldArchived: {kind: kindBool, column: "archived_at", flag: true},
-	FieldDeleted:  {kind: kindBool, column: "deleted_at", flag: true},
+	FieldArchived:  {kind: kindBool, column: "archived_at", flag: true},
+	FieldDeleted:   {kind: kindBool, column: "deleted_at", flag: true},
+	FieldTemplate:  {kind: kindUUID, column: "template_id", nullable: true},
+	FieldRecurring: {kind: kindBool, column: "recurring_issue_id", flag: true},
 }
 
 // knownOps exists so that an operator nobody has heard of reports itself as unknown

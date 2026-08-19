@@ -263,6 +263,11 @@ type Team {
   """Close remaining sub-issues when the parent is done."""
   autoCloseChildren: Boolean!
 
+  """Applied to new issues filed by members of this team, when they pick no template."""
+  defaultTemplateForMembersId: UUID
+  """Applied to new issues filed by everyone else. Form templates (later) may only be this one."""
+  defaultTemplateForNonMembersId: UUID
+
   createdAt: Time!
   updatedAt: Time!
   retiredAt: Time
@@ -282,6 +287,7 @@ type Team {
   issues: [Issue!]!
   labels: [Label!]!
   templates: [IssueTemplate!]!
+  recurringIssues: [RecurringIssue!]!
   cycles: [Cycle!]!
 }
 
@@ -367,6 +373,8 @@ type Issue {
   templateId: UUID
   """Which form template made this issue, for intake reporting."""
   formTemplateId: UUID
+  """The schedule that minted this issue, or that this issue was converted into."""
+  recurringIssueId: UUID
 
   """At most one project. Two projects on one issue is unrepresentable."""
   projectId: UUID
@@ -736,6 +744,43 @@ type ProjectTemplateIssue {
   sortOrder: String!
   createdAt: Time!
   updatedAt: Time!
+}
+
+"""
+A schedule that mints issues on a cadence.
+
+title, body and properties are a snapshot taken when the schedule was created. Editing
+a source template afterwards does not change them. nextDueDate is the due date of the
+current occurrence; the next issue is filed after that day has passed, at 00:01 in the
+team's timezone.
+"""
+type RecurringIssue {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  title: String!
+  body: String!
+  """Keys are the same names createIssue takes."""
+  properties: JSON!
+  """Provenance only. Null when the schedule was written by hand or converted from an issue."""
+  templateId: UUID
+  cadence: RecurringCadence!
+  """Calendar day, `2006-01-02`. The due date of the current occurrence."""
+  nextDueDate: String!
+  lastCreatedAt: Time
+  createdBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+enum RecurringCadence {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
 }
 
 """
@@ -1126,6 +1171,11 @@ type ProjectTemplateMilestonePayload implements MutationResult {
 type ProjectTemplateIssuePayload implements MutationResult {
   version: Int!
   issue: ProjectTemplateIssue!
+}
+
+type RecurringIssuePayload implements MutationResult {
+  version: Int!
+  recurringIssue: RecurringIssue!
 }
 
 enum ProjectStatusCategory {
@@ -1629,6 +1679,19 @@ input CreateIssueInput {
   cycleId: UUID
   """File into the team's triage status. The inbox's C, and an outsider filing into a team they can see."""
   fromTriage: Boolean
+  """
+  The team's member or non-member default is applied when templateId is omitted.
+  Set this when the composer cleared the applied default — otherwise the server would
+  put it back.
+  """
+  skipDefaultTemplate: Boolean
+  """
+  Makes the new issue the first occurrence of a schedule. Requires a first due date
+  (recurringFirstDueDate, or dueDate).
+  """
+  recurringCadence: RecurringCadence
+  """Calendar day, `2006-01-02`. The due date of the first occurrence."""
+  recurringFirstDueDate: String
 }
 
 input UpdateIssueInput {
@@ -1894,6 +1957,38 @@ input UpdateTeamArchiveInput {
   autoCloseChildren: Boolean
 }
 
+input UpdateTeamTemplatesInput {
+  teamId: UUID!
+  defaultTemplateForMembersId: UUID
+  clearDefaultTemplateForMembers: Boolean
+  defaultTemplateForNonMembersId: UUID
+  clearDefaultTemplateForNonMembers: Boolean
+}
+
+input CreateRecurringIssueInput {
+  teamId: UUID!
+  title: String!
+  body: String
+  properties: JSON
+  """Provenance only. The snapshot is taken now; later edits to this template are ignored."""
+  templateId: UUID
+  cadence: RecurringCadence!
+  """Calendar day, `2006-01-02`. The due date of the first occurrence, which is filed immediately."""
+  firstDueDate: String!
+  """Convert this existing issue into the first occurrence instead of filing a new one."""
+  sourceIssueId: UUID
+}
+
+input UpdateRecurringIssueInput {
+  id: UUID!
+  title: String
+  body: String
+  properties: JSON
+  cadence: RecurringCadence
+  """Calendar day, `2006-01-02`. The due date of the current occurrence."""
+  nextDueDate: String
+}
+
 input InviteInput {
   email: String!
   role: UserRole
@@ -2114,6 +2209,9 @@ type Query {
   projectTemplateMilestones(projectTemplateId: UUID!): [ProjectTemplateMilestone!]!
   projectTemplateIssues(projectTemplateId: UUID!): [ProjectTemplateIssue!]!
 
+  recurringIssues(teamId: UUID!): [RecurringIssue!]!
+  recurringIssue(id: UUID!): RecurringIssue
+
   projects: [Project!]!
   project(id: UUID!): Project
   projectStatuses: [ProjectStatus!]!
@@ -2290,6 +2388,7 @@ type Mutation {
   startCycleToday(id: UUID!, clientId: UUID, opId: UUID): CyclePayload! @idempotent
   updateTeamTriage(input: UpdateTeamTriageInput!): TeamPayload!
   updateTeamArchive(input: UpdateTeamArchiveInput!): TeamPayload!
+  updateTeamTemplates(input: UpdateTeamTemplatesInput!): TeamPayload!
 
   archiveCycle(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   archiveProject(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
@@ -2374,6 +2473,11 @@ type Mutation {
   createProjectTemplateIssue(input: CreateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
   updateProjectTemplateIssue(input: UpdateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
   deleteProjectTemplateIssue(id: UUID!): DeletePayload!
+
+  createRecurringIssue(input: CreateRecurringIssueInput!): RecurringIssuePayload!
+  updateRecurringIssue(input: UpdateRecurringIssueInput!): RecurringIssuePayload!
+  """Retires a schedule, or brings one back. Does not archive the issues it already minted."""
+  archiveRecurringIssue(id: UUID!, archived: Boolean!): DeletePayload!
 
   # ---- projects
 

@@ -221,6 +221,10 @@ function compileClause(clause: FilterClause, context: FilterContext): IssuePredi
         asBoolean,
       );
     }
+    case 'template':
+      return compileEquality(clause, (issue) => issue.templateId, asText);
+    case 'recurring':
+      return compileEquality(clause, (issue) => issue.recurringIssueId !== undefined, asBoolean);
   }
 }
 

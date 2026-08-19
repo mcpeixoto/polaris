@@ -39,7 +39,7 @@ import { readIssueComposerDraft, writeIssueComposerDraft } from '~/features/draf
 import { getPrefs } from '~/features/prefs/prefs';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
-import { CATEGORY_ORDER, type StateCategory, type UUID, type WorkflowState } from '~/store';
+import { CATEGORY_ORDER, type IssueTemplate, type RecurringCadence, type StateCategory, type UUID, type WorkflowState } from '~/store';
 import { ApiError } from '~/sync/api';
 import { createIssue } from './mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -59,6 +59,8 @@ import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import type { IssueTemplate } from '~/store';
 import { buildCreateURL, type IssueComposerSeed } from './create-url';
+import { CADENCE_LABELS, CADENCES, defaultTemplateFor } from '~/features/recurring/mutations';
+import { today } from '~/features/time';
 import styles from './CreateIssueModal.module.css';
 
 export interface CreateIssueModalProps {
@@ -111,6 +113,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
           id: team.id,
           key: team.key,
           name: team.name,
+          timezone: team.timezone,
           cyclesEnabled: team.cyclesEnabled,
           triageEnabled: team.triageEnabled,
         }))
@@ -150,6 +153,16 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const [template, setTemplate] = useState<TemplateDefaults | null>(null);
   const [formTemplate, setFormTemplate] = useState<FormTemplate | null>(null);
   const [formAnswers, setFormAnswers] = useState<FormAnswers>({});
+  /**
+   * How the template field got to its current value.
+   *
+   * `auto` is the team's member/non-member default, re-applied when the team changes.
+   * `cleared` is the filer saying they do not want that default — `skipDefaultTemplate`
+   * on the create, or the server would put it back. An explicit pick is neither.
+   */
+  const [templateIntent, setTemplateIntent] = useState<'auto' | 'cleared' | 'chosen'>('auto');
+  const [cadence, setCadence] = useState<RecurringCadence | null>(null);
+  const [firstDueDate, setFirstDueDate] = useState('');
   const [titleError, setTitleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -190,9 +203,11 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
 
   const resolvedProjectId = projectId === undefined ? fromProjectPath : projectId;
   const resolvedCycleId = cycleId === undefined ? fromCyclePath : cycleId;
-  const teamRunsCycles = teams.find((team) => team.id === teamId)?.cyclesEnabled === true;
+  const team = teams.find((candidate) => candidate.id === teamId);
+  const teamRunsCycles = team?.cyclesEnabled === true;
+  const teamTimezone = team?.timezone ?? 'UTC';
   const fromTriage =
-    fromTriagePath && teams.find((team) => team.id === teamId)?.triageEnabled === true;
+    fromTriagePath && team?.triageEnabled === true;
 
   const templateMenu = useMenuTrigger();
   const formTemplateMenu = useMenuTrigger();
@@ -262,6 +277,34 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     if (chosen.properties.priority !== undefined) setPriority(chosen.properties.priority);
   };
 
+  const pickTemplate = (chosen: IssueTemplate | null) => {
+    if (chosen === null) {
+      setTemplateIntent('cleared');
+      setTemplate(null);
+      return;
+    }
+    setTemplateIntent('chosen');
+    applyTemplate(chosen);
+  };
+
+  const defaultTemplateId = useLiveQuery(
+    (store) => defaultTemplateFor(store, teamId, viewerId)?.id ?? null,
+    ['team', 'issueTemplate', 'teamMembership'],
+    [teamId, viewerId ?? ''],
+  );
+
+  useEffect(() => {
+    if (templateIntent !== 'auto') return;
+    const chosen =
+      defaultTemplateId === null
+        ? null
+        : (engine.store.get('issueTemplate', defaultTemplateId) ?? null);
+    applyTemplate(chosen);
+    // The team's default is a reaction to the team (and who is filing) changing, not to
+    // every keystroke in the form. Re-running because `applyTemplate` closed over title
+    // would overwrite what the filer just typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId, defaultTemplateId, templateIntent]);
   const states = useLiveQuery(
     (store) =>
       teamId === ''
@@ -484,6 +527,14 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
               ...(template.labelIds.length === 0 ? null : { labelIds: template.labelIds }),
             }),
         ...(formTemplate === null ? null : { formTemplateId: formTemplate.id }),
+        ...(templateIntent === 'cleared' ? { skipDefaultTemplate: true } : null),
+        ...(cadence === null
+          ? null
+          : {
+              recurringCadence: cadence,
+              recurringFirstDueDate: firstDueDate === '' ? today(teamTimezone) : firstDueDate,
+              dueDate: firstDueDate === '' ? today(teamTimezone) : firstDueDate,
+            }),
         creatorId: viewerId ?? undefined,
       });
       writeIssueComposerDraft(null);
@@ -595,10 +646,10 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
               setChosenState(null);
               setCycleId(null);
               // The offering is team-scoped, so a template chosen for one team is not a
-              // template in another. Cleared rather than re-resolved: the prefilled title and
-              // description are the filer's text now, and silently rewriting what they are
-              // looking at because they corrected the team is worse than losing a template
-              // they can pick again.
+              // template in another. Back to `auto` rather than `cleared`: the new team's
+              // default is a different template, and silently keeping "no template" across
+              // that change would skip a default the filer never saw.
+              setTemplateIntent('auto');
               setTemplate(null);
             }}
           >
@@ -712,6 +763,38 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
               {formTemplateName ?? 'No form'}
             </Button>
           </div>
+
+          <Select
+            label="Repeat"
+            hideLabel
+            value={cadence ?? ''}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (next === '') {
+                setCadence(null);
+                return;
+              }
+              setCadence(next as RecurringCadence);
+              if (firstDueDate === '') setFirstDueDate(today(teamTimezone));
+            }}
+          >
+            <option value="">Does not repeat</option>
+            {CADENCES.map((option) => (
+              <option key={option} value={option}>
+                {CADENCE_LABELS[option]}
+              </option>
+            ))}
+          </Select>
+
+          {cadence === null ? null : (
+            <Input
+              label="First due"
+              hideLabel
+              type="date"
+              value={firstDueDate === '' ? today(teamTimezone) : firstDueDate}
+              onChange={(event) => setFirstDueDate(event.target.value)}
+            />
+          )}
         </div>
 
         {formTemplate !== null && formFields.length > 0 ? (
@@ -762,7 +845,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
         trigger={templateMenu.ref}
         teamId={teamId}
         value={template?.templateId ?? null}
-        onSelect={applyTemplate}
+        onSelect={pickTemplate}
       />
       <FormTemplatePicker
         open={formTemplateMenu.open}

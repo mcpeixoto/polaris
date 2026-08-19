@@ -673,6 +673,22 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "recurringIssue",
+			func(ctx context.Context, after uuid.UUID) ([]store.StreamRecurringIssuesForBootstrapRow, error) {
+				return q.StreamRecurringIssuesForBootstrap(ctx, store.StreamRecurringIssuesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(r store.StreamRecurringIssuesForBootstrapRow) (uuid.UUID, any) {
+				return r.ID, toRecurringIssue(store.GetRecurringIssueRow(r))
+			},
+		); err != nil {
+			return err
+		}
+
 		// Everything hanging off an issue. Guarded on the caller having a team at all: with
 		// none, every one of these statements is a scan that can only return nothing.
 		//
@@ -921,12 +937,15 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v12 adds projectDependency (end→start links between projects).
 // v13 adds view.projectId (attached project views as tabs).
 // v14 adds projectLabel and projectLabelLink (workspace taxonomy for projects).
+// v15 adds githubConnection and githubUserLink (GitHub v1 linking, no secrets).
+// v16 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
 // v18 adds project update reminder cadence on workspace and per-project schedule overrides.
 // v19 adds formTemplate, formTemplateField, and issue.formTemplateId.
 // v21 adds projectTemplate, projectTemplateMilestone, projectTemplateIssue, and project.projectTemplateId.
 // v22 adds githubConnection and githubUserLink (GitHub v1 linking, no secrets).
 // v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
-const ClientSchemaVersion = 23
+// v24 adds recurringIssue, team default template ids, and issue.recurringIssueId.
+const ClientSchemaVersion = 24
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

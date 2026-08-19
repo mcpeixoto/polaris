@@ -86,6 +86,9 @@ func toTeam(t store.Team) model.Team {
 		AutoCloseParent:   t.AutoCloseParent,
 		AutoCloseChildren: t.AutoCloseChildren,
 
+		DefaultTemplateForMembersID:    t.DefaultTemplateForMembersID,
+		DefaultTemplateForNonMembersID: t.DefaultTemplateForNonMembersID,
+
 		CreatedAt:  t.CreatedAt,
 		UpdatedAt:  t.UpdatedAt,
 		RetiredAt:  t.RetiredAt,
@@ -142,12 +145,13 @@ func toIssue(i store.GetIssueRow, teamKey string) model.Issue {
 		Priority:    int(i.Priority),
 		SortOrder:   i.SortOrder,
 
-		DueDateSource:      i.DueDateSource,
-		ParentID:           i.ParentID,
-		SubIssueSortOrder:  i.SubIssueSortOrder,
-		TemplateID:         i.TemplateID,
-		FormTemplateID:     i.FormTemplateID,
-		ProjectID:          i.ProjectID,
+		DueDateSource:     i.DueDateSource,
+		ParentID:          i.ParentID,
+		SubIssueSortOrder: i.SubIssueSortOrder,
+		TemplateID:        i.TemplateID,
+		FormTemplateID:    i.FormTemplateID,
+		RecurringIssueID:  i.RecurringIssueID,
+		ProjectID:         i.ProjectID,
 		ProjectMilestoneID: i.ProjectMilestoneID,
 		CycleID:            i.CycleID,
 		SnoozedUntil:       i.SnoozedUntil,
@@ -186,6 +190,25 @@ func toCycle(c store.Cycle) model.Cycle {
 		ArchivedAt:  c.ArchivedAt,
 		CreatedAt:   c.CreatedAt,
 		UpdatedAt:   c.UpdatedAt,
+	}
+}
+
+func toRecurringIssue(r store.GetRecurringIssueRow) model.RecurringIssue {
+	return model.RecurringIssue{
+		ID:            r.ID,
+		WorkspaceID:   r.WorkspaceID,
+		TeamID:        r.TeamID,
+		Title:         r.Title,
+		Body:          r.Body,
+		Properties:    r.Properties,
+		TemplateID:    r.TemplateID,
+		Cadence:       r.Cadence,
+		NextDueDate:   model.Date(r.NextDueDate.Time.Format(dateLayout)),
+		LastCreatedAt: r.LastCreatedAt,
+		CreatedBy:     r.CreatedBy,
+		CreatedAt:     r.CreatedAt,
+		UpdatedAt:     r.UpdatedAt,
+		ArchivedAt:    r.ArchivedAt,
 	}
 }
 

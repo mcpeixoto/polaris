@@ -56,6 +56,7 @@ import {
   type ProjectMilestone,
   type ProjectStatus,
   type ProjectTeam,
+  type RecurringIssue,
   type Team,
   type TeamMembership,
   type Timestamp,
@@ -178,6 +179,7 @@ export class Store {
     projectLabel: new Map(),
     projectLabelLink: new Map(),
     cycle: new Map(),
+    recurringIssue: new Map(),
     issue: new Map(),
     issueLabel: new Map(),
     issueRelation: new Map(),
@@ -240,6 +242,7 @@ export class Store {
   private readonly projectDependencyBlockingOf = new SetIndex<UUID>();
   private readonly projectDependencyBlockedByOf = new SetIndex<UUID>();
   private readonly cycleTeam = new SetIndex<UUID>();
+  private readonly recurringTeam = new SetIndex<UUID>();
   /** Keyed by user and view key together; see `preferenceKey`. */
   private readonly preferenceKeys = new Map<string, UUID>();
 
@@ -410,6 +413,10 @@ export class Store {
     return this.tables.cycle as ReadonlyMap<UUID, Cycle>;
   }
 
+  get recurringIssues(): ReadonlyMap<UUID, RecurringIssue> {
+    return this.tables.recurringIssue as ReadonlyMap<UUID, RecurringIssue>;
+  }
+
   get issueLabels(): ReadonlyMap<UUID, IssueLabel> {
     return this.tables.issueLabel as ReadonlyMap<UUID, IssueLabel>;
   }
@@ -531,6 +538,10 @@ export class Store {
 
   cycleIdsFor(teamId: UUID): ReadonlySet<UUID> {
     return this.cycleTeam.get(teamId);
+  }
+
+  recurringIssueIdsFor(teamId: UUID): ReadonlySet<UUID> {
+    return this.recurringTeam.get(teamId);
   }
 
   /** `issueLabel` rows, when the application itself is needed rather than the label. */
@@ -945,6 +956,9 @@ export class Store {
         for (const cycleId of [...this.cycleTeam.get(id)]) {
           this.forget('cycle', cycleId, deletes, touched);
         }
+        for (const recId of [...this.recurringTeam.get(id)]) {
+          this.forget('recurringIssue', recId, deletes, touched);
+        }
         break;
       case 'project':
         for (const rowId of [...this.projectTeamOf.get(id)]) {
@@ -1275,6 +1289,15 @@ export class Store {
         this.cycleTeam.add(cycle.teamId, cycle.id);
         break;
       }
+      case 'recurringIssue': {
+        const row = next as RecurringIssue;
+        const before = previous as RecurringIssue | undefined;
+        if (before !== undefined && before.teamId !== row.teamId) {
+          this.recurringTeam.remove(before.teamId, before.id);
+        }
+        this.recurringTeam.add(row.teamId, row.id);
+        break;
+      }
       default:
         break;
     }
@@ -1399,6 +1422,11 @@ export class Store {
       case 'cycle': {
         const cycle = entity as Cycle;
         this.cycleTeam.remove(cycle.teamId, cycle.id);
+        break;
+      }
+      case 'recurringIssue': {
+        const row = entity as RecurringIssue;
+        this.recurringTeam.remove(row.teamId, row.id);
         break;
       }
       default:
