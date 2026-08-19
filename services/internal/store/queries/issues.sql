@@ -29,7 +29,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until;
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at;
 
 -- name: GetIssue :one
 SELECT id, workspace_id, team_id, number, title, description, state_id,
@@ -37,7 +37,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -51,7 +51,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE id = $1 AND deleted_at IS NULL
 FOR UPDATE;
@@ -62,7 +62,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE team_id = sqlc.arg(team_id) AND number = sqlc.arg(number) AND deleted_at IS NULL;
 
@@ -104,6 +104,8 @@ SET title            = COALESCE(sqlc.narg(title), title),
                     ELSE COALESCE(sqlc.narg(cycle_id), cycle_id) END,
     snoozed_until = CASE WHEN sqlc.arg(clear_snooze)::boolean THEN NULL
                          ELSE COALESCE(sqlc.narg(snoozed_until), snoozed_until) END,
+    auto_closed_at = CASE WHEN sqlc.arg(clear_auto_closed)::boolean THEN NULL
+                          ELSE COALESCE(sqlc.narg(auto_closed_at), auto_closed_at) END,
     -- Category timestamps are set by the domain layer, which knows the transition rules
     -- (started_at is never cleared once set, because insights read it).
     started_at   = CASE WHEN sqlc.arg(set_timestamps)::boolean THEN sqlc.narg(started_at)   ELSE started_at   END,
@@ -115,7 +117,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until;
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at;
 
 -- BulkUpdateIssues is the bulk-edit path: one property set across a selection, in one
 -- statement, under one version block.
@@ -159,7 +161,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until;
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at;
 
 -- name: ArchiveIssue :exec
 UPDATE issue SET archived_at = now() WHERE id = $1 AND archived_at IS NULL;
@@ -196,7 +198,7 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until;
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at;
 
 -- ListDeletedIssues is the "recently deleted" screen. Ordered by deletion time rather than
 -- by sort_order, because the only question being asked here is "what did I just lose".
@@ -207,7 +209,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND team_id = ANY(sqlc.arg(team_ids)::uuid[])
@@ -221,7 +223,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE team_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 ORDER BY sort_order;
@@ -240,7 +242,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE parent_id = $1 AND deleted_at IS NULL
 ORDER BY sub_issue_sort_order, id;
@@ -261,7 +263,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE parent_id = ANY(sqlc.arg(parent_ids)::uuid[])
   AND workspace_id = sqlc.arg(workspace_id)
@@ -283,7 +285,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE id = ANY(sqlc.arg(ids)::uuid[])
   AND workspace_id = sqlc.arg(workspace_id)
@@ -303,7 +305,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND assignee_id = sqlc.arg(assignee_id)
@@ -324,7 +326,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND team_id = ANY(sqlc.arg(team_ids)::uuid[])
@@ -453,7 +455,7 @@ SELECT id, workspace_id, team_id, number, title, description, state_id,
        started_at, completed_at, canceled_at,
        archived_at, deleted_at, created_at, updated_at,
        estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
 FROM issue
 WHERE project_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 ORDER BY sort_order;
@@ -466,5 +468,54 @@ RETURNING id, workspace_id, team_id, number, title, description, state_id,
           started_at, completed_at, canceled_at,
           archived_at, deleted_at, created_at, updated_at,
           estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
-          project_id, project_milestone_id, cycle_id, snoozed_until;
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at;
+
+-- Stale open work for auto-close. Closed categories are already done; the engine
+-- then applies the cycle/project/due/children skips in the domain layer, because those
+-- are graph questions a single WHERE cannot answer without lying about a parent in
+-- another team.
+--
+-- name: ListStaleOpenIssues :many
+SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.state_id,
+       i.assignee_id, i.creator_id, i.priority, i.sort_order,
+       i.started_at, i.completed_at, i.canceled_at,
+       i.archived_at, i.deleted_at, i.created_at, i.updated_at,
+       i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order, i.template_id, i.deleted_by,
+       i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
+FROM issue i
+JOIN workflow_state ws ON ws.id = i.state_id
+WHERE i.team_id = sqlc.arg(team_id)
+  AND i.archived_at IS NULL AND i.deleted_at IS NULL
+  AND ws.category NOT IN ('completed', 'canceled', 'duplicate')
+  AND i.updated_at < sqlc.arg(cutoff)
+ORDER BY i.updated_at, i.id;
+
+-- Stale closed work for auto-archive. The domain layer still refuses a row whose
+-- parent, children or project would leave the graph inconsistent.
+--
+-- name: ListStaleClosedIssues :many
+SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.state_id,
+       i.assignee_id, i.creator_id, i.priority, i.sort_order,
+       i.started_at, i.completed_at, i.canceled_at,
+       i.archived_at, i.deleted_at, i.created_at, i.updated_at,
+       i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order, i.template_id, i.deleted_by,
+       i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
+FROM issue i
+JOIN workflow_state ws ON ws.id = i.state_id
+WHERE i.team_id = sqlc.arg(team_id)
+  AND i.archived_at IS NULL AND i.deleted_at IS NULL
+  AND ws.category IN ('completed', 'canceled', 'duplicate')
+  AND i.updated_at < sqlc.arg(cutoff)
+ORDER BY i.updated_at, i.id;
+
+-- name: ListArchivedIssuesForTeam :many
+SELECT id, workspace_id, team_id, number, title, description, state_id,
+       assignee_id, creator_id, priority, sort_order,
+       started_at, completed_at, canceled_at,
+       archived_at, deleted_at, created_at, updated_at,
+       estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, deleted_by,
+       project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at
+FROM issue
+WHERE team_id = $1 AND archived_at IS NOT NULL AND deleted_at IS NULL
+ORDER BY archived_at DESC;
 

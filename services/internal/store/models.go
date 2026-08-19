@@ -196,6 +196,7 @@ type Issue struct {
 	ProjectMilestoneID *uuid.UUID
 	CycleID            *uuid.UUID
 	SnoozedUntil       *time.Time
+	AutoClosedAt       *time.Time
 }
 
 type IssueHistory struct {
@@ -406,6 +407,10 @@ type Team struct {
 	CycleAutoAddCompleted bool
 	TriageEnabled         bool
 	TriageRequirePriority bool
+	AutoCloseDays         int16
+	AutoArchiveDays       int16
+	AutoCloseParent       bool
+	AutoCloseChildren     bool
 }
 
 type TeamMembership struct {

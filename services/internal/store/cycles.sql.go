@@ -12,6 +12,15 @@ import (
 	"github.com/google/uuid"
 )
 
+const archiveCycle = `-- name: ArchiveCycle :exec
+UPDATE cycle SET archived_at = now() WHERE id = $1 AND archived_at IS NULL
+`
+
+func (q *Queries) ArchiveCycle(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, archiveCycle, id)
+	return err
+}
+
 const completeCycle = `-- name: CompleteCycle :one
 UPDATE cycle SET completed_at = $1
 WHERE id = $2 AND completed_at IS NULL
@@ -169,13 +178,54 @@ func (q *Queries) LastCycleNumber(ctx context.Context, teamID uuid.UUID) (int32,
 	return number, err
 }
 
+const listArchivedCyclesForTeam = `-- name: ListArchivedCyclesForTeam :many
+SELECT id, workspace_id, team_id, number, name, description, starts_at, ends_at,
+       completed_at, archived_at, created_at, updated_at
+FROM cycle
+WHERE team_id = $1 AND archived_at IS NOT NULL
+ORDER BY archived_at DESC
+`
+
+func (q *Queries) ListArchivedCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error) {
+	rows, err := q.db.Query(ctx, listArchivedCyclesForTeam, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Cycle{}
+	for rows.Next() {
+		var i Cycle
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.Number,
+			&i.Name,
+			&i.Description,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.CompletedAt,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCyclelessIssuesByCategory = `-- name: ListCyclelessIssuesByCategory :many
 SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.state_id,
        i.assignee_id, i.creator_id, i.priority, i.sort_order,
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until
+       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.team_id = $1
@@ -229,6 +279,7 @@ func (q *Queries) ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyc
 			&i.ProjectMilestoneID,
 			&i.CycleID,
 			&i.SnoozedUntil,
+			&i.AutoClosedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -287,7 +338,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until
+       i.template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.cycle_id = $1
@@ -335,6 +386,58 @@ func (q *Queries) ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID)
 			&i.ProjectMilestoneID,
 			&i.CycleID,
 			&i.SnoozedUntil,
+			&i.AutoClosedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStaleCompletedCycles = `-- name: ListStaleCompletedCycles :many
+SELECT id, workspace_id, team_id, number, name, description, starts_at, ends_at,
+       completed_at, archived_at, created_at, updated_at
+FROM cycle
+WHERE team_id = $1
+  AND archived_at IS NULL
+  AND completed_at IS NOT NULL
+  AND completed_at < $2
+ORDER BY completed_at, id
+`
+
+type ListStaleCompletedCyclesParams struct {
+	TeamID uuid.UUID
+	Cutoff *time.Time
+}
+
+// Completed cycles past the team's archive period. A cycle that was never completed
+// is still the current or upcoming window and must not disappear under people's feet.
+func (q *Queries) ListStaleCompletedCycles(ctx context.Context, arg ListStaleCompletedCyclesParams) ([]Cycle, error) {
+	rows, err := q.db.Query(ctx, listStaleCompletedCycles, arg.TeamID, arg.Cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Cycle{}
+	for rows.Next() {
+		var i Cycle
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.Number,
+			&i.Name,
+			&i.Description,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.CompletedAt,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -416,4 +519,30 @@ func (q *Queries) StreamCyclesForBootstrap(ctx context.Context, arg StreamCycles
 		return nil, err
 	}
 	return items, nil
+}
+
+const unarchiveCycle = `-- name: UnarchiveCycle :one
+UPDATE cycle SET archived_at = NULL WHERE id = $1
+RETURNING id, workspace_id, team_id, number, name, description, starts_at, ends_at,
+          completed_at, archived_at, created_at, updated_at
+`
+
+func (q *Queries) UnarchiveCycle(ctx context.Context, id uuid.UUID) (Cycle, error) {
+	row := q.db.QueryRow(ctx, unarchiveCycle, id)
+	var i Cycle
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.TeamID,
+		&i.Number,
+		&i.Name,
+		&i.Description,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.CompletedAt,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

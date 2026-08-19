@@ -78,6 +78,11 @@ func toTeam(t store.Team) model.Team {
 		TriageEnabled:         t.TriageEnabled,
 		TriageRequirePriority: t.TriageRequirePriority,
 
+		AutoCloseDays:     int(t.AutoCloseDays),
+		AutoArchiveDays:   int(t.AutoArchiveDays),
+		AutoCloseParent:   t.AutoCloseParent,
+		AutoCloseChildren: t.AutoCloseChildren,
+
 		CreatedAt:  t.CreatedAt,
 		UpdatedAt:  t.UpdatedAt,
 		RetiredAt:  t.RetiredAt,
@@ -141,6 +146,7 @@ func toIssue(i store.Issue, teamKey string) model.Issue {
 		ProjectMilestoneID: i.ProjectMilestoneID,
 		CycleID:           i.CycleID,
 		SnoozedUntil:      i.SnoozedUntil,
+		AutoClosedAt:      i.AutoClosedAt,
 
 		StartedAt:   i.StartedAt,
 		CompletedAt: i.CompletedAt,

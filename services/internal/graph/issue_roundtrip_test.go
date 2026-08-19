@@ -488,6 +488,7 @@ var storedButUnwritable = map[string]string{
 	"deletedAt": "only ever set on a row the trash listing returns; this read cannot see one",
 	"deletedBy": "same",
 	"snoozedUntil": "set by snoozeIssue, not by create; TestSnoozeIssue_HidesUntilTimeOrActivity",
+	"autoClosedAt": "set by the auto-close engine, not by create",
 }
 
 func TestIssueRoundTrip_TheReadPathCarriesEveryStoredField(t *testing.T) {

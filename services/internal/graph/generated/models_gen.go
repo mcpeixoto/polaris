@@ -399,6 +399,8 @@ type Issue struct {
 	CycleID *uuid.UUID `json:"cycleId,omitempty"`
 	// Hidden from the triage inbox until this instant, or until the next edit or comment.
 	SnoozedUntil *time.Time `json:"snoozedUntil,omitempty"`
+	// Set when the auto-close engine moved this issue to a closed status. Cleared on reopen.
+	AutoClosedAt *time.Time `json:"autoClosedAt,omitempty"`
 	StartedAt    *time.Time `json:"startedAt,omitempty"`
 	CompletedAt  *time.Time `json:"completedAt,omitempty"`
 	CanceledAt   *time.Time `json:"canceledAt,omitempty"`
@@ -823,17 +825,25 @@ type Team struct {
 	// Off by default. Turning it on creates the Triage and Duplicate statuses if they are missing.
 	TriageEnabled bool `json:"triageEnabled"`
 	// An issue cannot leave Triage without a priority other than none.
-	TriageRequirePriority bool             `json:"triageRequirePriority"`
-	CreatedAt             time.Time        `json:"createdAt"`
-	UpdatedAt             time.Time        `json:"updatedAt"`
-	RetiredAt             *time.Time       `json:"retiredAt,omitempty"`
-	ArchivedAt            *time.Time       `json:"archivedAt,omitempty"`
-	States                []WorkflowState  `json:"states"`
-	Members               []TeamMembership `json:"members"`
-	Issues                []Issue          `json:"issues"`
-	Labels                []Label          `json:"labels"`
-	Templates             []IssueTemplate  `json:"templates"`
-	Cycles                []Cycle          `json:"cycles"`
+	TriageRequirePriority bool `json:"triageRequirePriority"`
+	// Days of inactivity before an open issue is auto-closed. Zero is off.
+	AutoCloseDays int `json:"autoCloseDays"`
+	// Days of inactivity after close before archival. Zero is off.
+	AutoArchiveDays int `json:"autoArchiveDays"`
+	// Close a parent when every sub-issue is done.
+	AutoCloseParent bool `json:"autoCloseParent"`
+	// Close remaining sub-issues when the parent is done.
+	AutoCloseChildren bool             `json:"autoCloseChildren"`
+	CreatedAt         time.Time        `json:"createdAt"`
+	UpdatedAt         time.Time        `json:"updatedAt"`
+	RetiredAt         *time.Time       `json:"retiredAt,omitempty"`
+	ArchivedAt        *time.Time       `json:"archivedAt,omitempty"`
+	States            []WorkflowState  `json:"states"`
+	Members           []TeamMembership `json:"members"`
+	Issues            []Issue          `json:"issues"`
+	Labels            []Label          `json:"labels"`
+	Templates         []IssueTemplate  `json:"templates"`
+	Cycles            []Cycle          `json:"cycles"`
 }
 
 type TeamMembership struct {
@@ -949,6 +959,14 @@ type UpdateProjectStatusInput struct {
 	Color       *string                `json:"color,omitempty"`
 	Category    *ProjectStatusCategory `json:"category,omitempty"`
 	IsDefault   *bool                  `json:"isDefault,omitempty"`
+}
+
+type UpdateTeamArchiveInput struct {
+	TeamID            uuid.UUID `json:"teamId"`
+	AutoCloseDays     *int      `json:"autoCloseDays,omitempty"`
+	AutoArchiveDays   *int      `json:"autoArchiveDays,omitempty"`
+	AutoCloseParent   *bool     `json:"autoCloseParent,omitempty"`
+	AutoCloseChildren *bool     `json:"autoCloseChildren,omitempty"`
 }
 
 type UpdateTeamCyclesInput struct {

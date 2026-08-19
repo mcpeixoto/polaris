@@ -61,6 +61,7 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
   const workspace = useQuery((store) => [...store.workspaces.values()][0], ['workspace']);
   const cyclesPath = useQuery((store) => pathToCycles(store), ['team', 'cycle']);
   const triagePath = useQuery((store) => pathToTriage(store), ['team']);
+  const archivesPath = useQuery((store) => pathToArchives(store), ['team']);
 
   const viewerId = useViewerId();
   const favorites = useLiveQuery(
@@ -174,13 +175,20 @@ export function AppShell({ children, renderCreateIssue, renderCreateProject }: A
         run: () => navigate(triagePath),
       },
       {
+        id: 'nav.archives',
+        title: 'Go to archives',
+        keys: ['g x'],
+        group: 'Navigation',
+        run: () => navigate(archivesPath),
+      },
+      {
         id: 'nav.trash',
         title: 'Go to trash',
         group: 'Navigation',
         run: () => navigate('/settings/trash'),
       },
     ],
-    [navigate, closeAll, cyclesPath, triagePath],
+    [navigate, closeAll, cyclesPath, triagePath, archivesPath],
   );
 
   return (
@@ -458,6 +466,17 @@ function pathToTriage(store: Store): string {
   const withTriage = teams.find((team) => team.triageEnabled) ?? teams[0];
   if (withTriage === undefined) return '/';
   return `/team/${withTriage.key}/triage`;
+}
+
+/**
+ * Where `G X` should land: the first team, because archives is per-team and there is no
+ * workspace-wide pile.
+ */
+function pathToArchives(store: Store): string {
+  const teams = [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key));
+  const first = teams[0];
+  if (first === undefined) return '/';
+  return `/team/${first.key}/archives`;
 }
 
 /**

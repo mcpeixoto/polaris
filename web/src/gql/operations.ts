@@ -34,6 +34,7 @@ export const ISSUE_FIELDS = /* GraphQL */ `
     projectMilestoneId
     cycleId
     snoozedUntil
+    autoClosedAt
     startedAt
     completedAt
     canceledAt
@@ -67,6 +68,10 @@ export const TEAM_FIELDS = /* GraphQL */ `
     cycleAutoAddCompleted
     triageEnabled
     triageRequirePriority
+    autoCloseDays
+    autoArchiveDays
+    autoCloseParent
+    autoCloseChildren
     createdAt
     updatedAt
     retiredAt
@@ -323,6 +328,18 @@ export const UPDATE_TEAM_TRIAGE = /* GraphQL */ `
   ${TEAM_FIELDS}
   mutation UpdateTeamTriage($input: UpdateTeamTriageInput!) {
     updateTeamTriage(input: $input) {
+      version
+      team {
+        ...TeamFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_TEAM_ARCHIVE = /* GraphQL */ `
+  ${TEAM_FIELDS}
+  mutation UpdateTeamArchive($input: UpdateTeamArchiveInput!) {
+    updateTeamArchive(input: $input) {
       version
       team {
         ...TeamFields

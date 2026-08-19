@@ -31,9 +31,10 @@ import { Triage } from '~/views/Triage';
 import { SavedView } from '~/views/SavedView';
 import { Search } from '~/views/Search';
 import { Templates } from '~/views/Templates';
+import { TeamSettings } from '~/views/TeamSettings';
 import { SignIn } from '~/views/SignIn';
 import { SignUp } from '~/views/SignUp';
-import { TeamSettings } from '~/views/TeamSettings';
+import { Archives } from '~/views/Archives';
 import { Trash } from '~/views/Trash';
 import { CreateIssueModal } from '~/features/issue/CreateIssueModal';
 import { CreateProjectModal } from '~/features/projects/CreateProjectModal';
@@ -91,6 +92,7 @@ export function App() {
               <Route path="/team/:teamKey/projects" element={<Projects />} />
               <Route path="/team/:teamKey/cycles" element={<Cycles />} />
               <Route path="/team/:teamKey/triage" element={<Triage />} />
+              <Route path="/team/:teamKey/archives" element={<Archives />} />
               <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
               <Route path="/issue/:identifier" element={<IssueDetail />} />
               <Route path="/project/:projectId" element={<ProjectDetail />} />

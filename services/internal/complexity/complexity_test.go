@@ -229,6 +229,8 @@ func TestNoPaginationArgumentGoesUnrecognised(t *testing.T) {
 		"durationWeeks":            "cadence length in weeks, not a row count",
 		"cooldownWeeks":            "gap after a cycle in weeks, not a row count",
 		"upcomingCount":            "how many future cycles to mint, not a page size",
+		"autoCloseDays":            "inactivity period in days, not a row count",
+		"autoArchiveDays":          "inactivity period in days, not a row count",
 	}
 
 	schema := generated.NewExecutableSchema(generated.Config{}).Schema()
