@@ -4,7 +4,7 @@
 **Migration:** `000058_pulse` (no-op slot; 000059 already on main)  
 **Client schema:** 40 (unchanged — Pulse reads existing `projectUpdate` rows)
 
-Dense feed of project status updates from the replica. Linear Pulse without inbox digests, custom feeds, Popular, audio, or a settings cadence.
+Dense feed of project status updates from the replica. Linear Pulse without inbox digests, custom feeds, Popular, or audio. Cadence shipped in `36-pulse-cadence.md`.
 
 ## Scope
 
@@ -12,12 +12,10 @@ Dense feed of project status updates from the replica. Linear Pulse without inbo
 - For me: projects the viewer leads, created, or is a member of
 - Guests cannot see the page or the sidebar item
 - `G` then `U`; `J`/`K` to move; Enter to open the project's Activity tab
-- No worker, no GraphQL, no replica shape change
+- No worker, no GraphQL, no replica shape change in v1 (digest is `36-pulse-cadence.md`)
 
 ## Deferred
 
-- Workspace enable + default digest cadence (Settings → Pulse)
-- Inbox summaries (~6:00 AM)
 - Popular tab (emoji / comment engagement)
 - Initiative updates (no replica type yet)
 - Custom feeds

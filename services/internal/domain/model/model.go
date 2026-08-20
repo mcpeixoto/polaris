@@ -60,6 +60,11 @@ type Workspace struct {
 	ProjectUpdateReminderWeekday      int `json:"projectUpdateReminderWeekday"`
 	ProjectUpdateReminderHour         int `json:"projectUpdateReminderHour"`
 
+	// PulseEnabled hides the feed and stops the morning digest when false.
+	PulseEnabled bool `json:"pulseEnabled"`
+	// PulseDigestCadence is off, daily, or weekly. Summaries land around 06:00 local.
+	PulseDigestCadence string `json:"pulseDigestCadence"`
+
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
@@ -482,6 +487,13 @@ const (
 	NotifySubIssueCompleted  = "sub_issue_completed"
 	NotifyViewIssueAdded     = "view_issue_added"
 	NotifyViewIssueCompleted = "view_issue_completed"
+	NotifyPulseDigest        = "pulse_digest"
+)
+
+const (
+	PulseDigestOff    = "off"
+	PulseDigestDaily  = "daily"
+	PulseDigestWeekly = "weekly"
 )
 
 // View is a saved filter plus how to display it.

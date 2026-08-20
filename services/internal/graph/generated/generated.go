@@ -1676,6 +1676,8 @@ type ComplexityRoot struct {
 		ProjectUpdateReminderHour         func(childComplexity int) int
 		ProjectUpdateReminderIntervalDays func(childComplexity int) int
 		ProjectUpdateReminderWeekday      func(childComplexity int) int
+		PulseDigestCadence                func(childComplexity int) int
+		PulseEnabled                      func(childComplexity int) int
 		SeatLimit                         func(childComplexity int) int
 		Teams                             func(childComplexity int) int
 		URLKey                            func(childComplexity int) int
@@ -10512,6 +10514,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Workspace.ProjectUpdateReminderWeekday(childComplexity), true
+	case "Workspace.pulseDigestCadence":
+		if e.ComplexityRoot.Workspace.PulseDigestCadence == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Workspace.PulseDigestCadence(childComplexity), true
+	case "Workspace.pulseEnabled":
+		if e.ComplexityRoot.Workspace.PulseEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Workspace.PulseEnabled(childComplexity), true
 	case "Workspace.seatLimit":
 		if e.ComplexityRoot.Workspace.SeatLimit == nil {
 			break
@@ -10852,6 +10866,14 @@ enum NotificationType {
   SUB_ISSUE_COMPLETED
   VIEW_ISSUE_ADDED
   VIEW_ISSUE_COMPLETED
+  PULSE_DIGEST
+}
+
+"""How often Pulse writes a morning inbox summary of project updates."""
+enum PulseDigestCadence {
+  OFF
+  DAILY
+  WEEKLY
 }
 
 enum FavoriteKind {
@@ -10890,6 +10912,10 @@ type Workspace {
   projectUpdateReminderWeekday: Int!
   """Hour of day in the lead's timezone when reminders would send (0–23)."""
   projectUpdateReminderHour: Int!
+  """When false, Pulse is hidden and the morning digest does not send."""
+  pulseEnabled: Boolean!
+  """Default inbox digest cadence. Summaries land around 06:00 in each member's timezone."""
+  pulseDigestCadence: PulseDigestCadence!
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
@@ -13642,6 +13668,8 @@ input UpdateWorkspaceInput {
   projectUpdateReminderIntervalDays: Int
   projectUpdateReminderWeekday: Int
   projectUpdateReminderHour: Int
+  pulseEnabled: Boolean
+  pulseDigestCadence: PulseDigestCadence
 }
 
 # ---------------------------------------------------------------- root
@@ -16848,6 +16876,10 @@ func (ec *executionContext) childFields_Workspace(ctx context.Context, field gra
 		return ec.fieldContext_Workspace_projectUpdateReminderWeekday(ctx, field)
 	case "projectUpdateReminderHour":
 		return ec.fieldContext_Workspace_projectUpdateReminderHour(ctx, field)
+	case "pulseEnabled":
+		return ec.fieldContext_Workspace_pulseEnabled(ctx, field)
+	case "pulseDigestCadence":
+		return ec.fieldContext_Workspace_pulseDigestCadence(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Workspace_createdAt(ctx, field)
 	case "updatedAt":
@@ -57258,6 +57290,52 @@ func (ec *executionContext) fieldContext_Workspace_projectUpdateReminderHour(_ c
 	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _Workspace_pulseEnabled(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Workspace_pulseEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PulseEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Workspace_pulseEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Workspace_pulseDigestCadence(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Workspace_pulseDigestCadence(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PulseDigestCadence, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v PulseDigestCadence) graphql.Marshaler {
+			return ec.marshalNPulseDigestCadence2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseDigestCadence(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Workspace_pulseDigestCadence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type PulseDigestCadence does not have child fields"))
+}
+
 func (ec *executionContext) _Workspace_createdAt(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -64581,7 +64659,7 @@ func (ec *executionContext) unmarshalInputUpdateWorkspaceInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "logoUrl", "projectUpdateReminderIntervalDays", "projectUpdateReminderWeekday", "projectUpdateReminderHour"}
+	fieldsInOrder := [...]string{"name", "logoUrl", "projectUpdateReminderIntervalDays", "projectUpdateReminderWeekday", "projectUpdateReminderHour", "pulseEnabled", "pulseDigestCadence"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -64623,6 +64701,20 @@ func (ec *executionContext) unmarshalInputUpdateWorkspaceInput(ctx context.Conte
 				return it, err
 			}
 			it.ProjectUpdateReminderHour = data
+		case "pulseEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pulseEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PulseEnabled = data
+		case "pulseDigestCadence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pulseDigestCadence"))
+			data, err := ec.unmarshalOPulseDigestCadence2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseDigestCadence(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PulseDigestCadence = data
 		}
 	}
 	return it, nil
@@ -77687,6 +77779,16 @@ func (ec *executionContext) _Workspace(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "pulseEnabled":
+			out.Values[i] = ec._Workspace_pulseEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pulseDigestCadence":
+			out.Values[i] = ec._Workspace_pulseDigestCadence(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createdAt":
 			out.Values[i] = ec._Workspace_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -80492,6 +80594,16 @@ func (ec *executionContext) marshalNProjectUpdateSchedule2githubᚗcomᚋpeixoto
 	return v
 }
 
+func (ec *executionContext) unmarshalNPulseDigestCadence2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseDigestCadence(ctx context.Context, v any) (PulseDigestCadence, error) {
+	var res PulseDigestCadence
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPulseDigestCadence2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseDigestCadence(ctx context.Context, sel ast.SelectionSet, v PulseDigestCadence) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNPurgePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPurgePayload(ctx context.Context, sel ast.SelectionSet, v PurgePayload) graphql.Marshaler {
 	return ec._PurgePayload(ctx, sel, &v)
 }
@@ -82071,6 +82183,22 @@ func (ec *executionContext) unmarshalOProjectUpdateSchedule2ᚖgithubᚗcomᚋpe
 }
 
 func (ec *executionContext) marshalOProjectUpdateSchedule2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateSchedule(ctx context.Context, sel ast.SelectionSet, v *ProjectUpdateSchedule) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOPulseDigestCadence2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseDigestCadence(ctx context.Context, v any) (*PulseDigestCadence, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(PulseDigestCadence)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOPulseDigestCadence2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseDigestCadence(ctx context.Context, sel ast.SelectionSet, v *PulseDigestCadence) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

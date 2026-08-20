@@ -30,6 +30,11 @@ export function Pulse() {
   const [tab, setTab] = useState<PulseTab>('for-me');
   const [cursor, setCursor] = useState(0);
 
+  const workspace = useLiveQuery(
+    (store: Store) => store.workspaces.get(store.workspaceId) ?? null,
+    ['workspace'],
+    [],
+  );
   const days = useLiveQuery(
     (store: Store) => listPulse(store, viewerId, tab, timezone),
     ['project', 'projectMember', 'projectUpdate', 'user'],
@@ -70,6 +75,22 @@ export function Pulse() {
 
   if (viewer !== null && viewer.role === 'guest') {
     return <Navigate to="/" replace />;
+  }
+
+  if (workspace !== null && !workspace.pulseEnabled) {
+    return (
+      <div className={styles.screen}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>Pulse</h1>
+        </header>
+        <div className={styles.empty}>
+          <EmptyState
+            title="Pulse is off"
+            description="An admin can turn it back on in Settings → Pulse. Morning inbox summaries stay off while it is."
+          />
+        </div>
+      </div>
+    );
   }
 
   return (

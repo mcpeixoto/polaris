@@ -114,7 +114,9 @@ export function AppShell({
   useDesktopNotifications(engine, viewerId);
   const showCustomers = viewer !== null && viewer.role !== 'guest';
   const showDashboards = showCustomers;
-  const showPulse = viewer === null || viewer.role !== 'guest';
+  const showPulse =
+    (viewer === null || viewer.role !== 'guest') &&
+    (workspace === undefined || workspace.pulseEnabled);
   const views = useLiveQuery(
     (store) => (viewerId === null ? [] : visibleViews(store, viewerId)),
     ['view', 'favorite'],
@@ -561,6 +563,10 @@ export function AppShell({
             <NavLink to="/settings/project-updates" className={navClass}>
               <NavGlyph name="bell" />
               <span className={styles.navLabel}>Project updates</span>
+            </NavLink>
+            <NavLink to="/settings/pulse" className={navClass}>
+              <NavGlyph name="pulse" />
+              <span className={styles.navLabel}>Pulse</span>
             </NavLink>
             <NavLink to="/settings/slas" className={navClass}>
               <NavGlyph name="bell" />

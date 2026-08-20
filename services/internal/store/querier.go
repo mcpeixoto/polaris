@@ -233,6 +233,9 @@ type Querier interface {
 	CountProjectTeams(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountProjectsFromTemplate(ctx context.Context, projectTemplateID *uuid.UUID) (int64, error)
 	CountProjectsWithProjectLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
+	// CountPulseForMeUpdatesSince is the Pulse "For me" predicate: lead, creator, or member.
+	//
+	CountPulseForMeUpdatesSince(ctx context.Context, arg CountPulseForMeUpdatesSinceParams) (int64, error)
 	// CountTeamsInWorkspace is the number a plan's team limit is measured against.
 	//
 	// Archived teams do not count, mirroring the seat rule in CountWorkspaceSeats: suspending
@@ -581,6 +584,7 @@ type Querier interface {
 	GetProjectTemplateMilestone(ctx context.Context, id uuid.UUID) (ProjectTemplateMilestone, error)
 	GetProjectUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
 	GetProjectUpdateForUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
+	GetPulseDigestCursor(ctx context.Context, arg GetPulseDigestCursorParams) (time.Time, error)
 	GetRecurringIssue(ctx context.Context, id uuid.UUID) (GetRecurringIssueRow, error)
 	// GetRecurringIssueForUpdate locks the row for a mint pass. Two workers racing on the
 	// same due date would otherwise both decide it had passed and file two issues.
@@ -898,6 +902,10 @@ type Querier interface {
 	ListProjectTemplatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListProjectTemplatesInWorkspaceRow, error)
 	ListProjectUpdatesForProject(ctx context.Context, projectID uuid.UUID) ([]ProjectUpdate, error)
 	ListProjectsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Project, error)
+	ListPulseDigestUsers(ctx context.Context, workspaceID uuid.UUID) ([]ListPulseDigestUsersRow, error)
+	// Pulse digest worker. The feed itself is replica-derived; this file is the
+	// scheduled inbox summary and the cursor that keeps a restart from sending twice.
+	ListPulseDigestWorkspaces(ctx context.Context) ([]ListPulseDigestWorkspacesRow, error)
 	ListRecurringIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]ListRecurringIssuesForTeamRow, error)
 	// ListReverseIssueRelations is the same links read from the far end: what blocks this
 	// issue, and what it is a duplicate of. Both listings are needed on the issue panel, which
@@ -1602,6 +1610,7 @@ type Querier interface {
 	// gets pgx.ErrNoRows has learnt "already delivered" and emits no change.
 	//
 	UpsertNotification(ctx context.Context, arg UpsertNotificationParams) (Notification, error)
+	UpsertPulseDigestCursor(ctx context.Context, arg UpsertPulseDigestCursorParams) error
 	// ---------------------------------------------------------------------------------------
 	// Display preferences for the built-in views.
 	// The id is only ever used when the row is created; the natural key is (user_id, view_key)

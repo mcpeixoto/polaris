@@ -835,6 +835,12 @@ type ProjectUpdate struct {
 	UpdatedAt   time.Time
 }
 
+type PulseDigestCursor struct {
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	LastSentAt  time.Time
+}
+
 type RecurringIssue struct {
 	ID            uuid.UUID
 	WorkspaceID   uuid.UUID
@@ -1075,6 +1081,8 @@ type Workspace struct {
 	ProjectUpdateReminderIntervalDays int16
 	ProjectUpdateReminderWeekday      int16
 	ProjectUpdateReminderHour         int16
+	PulseEnabled                      bool
+	PulseDigestCadence                string
 }
 
 type WorkspaceVersion struct {

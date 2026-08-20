@@ -299,6 +299,8 @@ func toNotificationType(v string) (generated.NotificationType, error) {
 		return generated.NotificationTypeViewIssueAdded, nil
 	case model.NotifyViewIssueCompleted:
 		return generated.NotificationTypeViewIssueCompleted, nil
+	case model.NotifyPulseDigest:
+		return generated.NotificationTypePulseDigest, nil
 	}
 	return "", platform.Internal(fmt.Errorf("unknown notification type %q", v))
 }

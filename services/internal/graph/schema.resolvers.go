@@ -1424,6 +1424,8 @@ func (r *mutationResolver) UpdateWorkspace(ctx context.Context, input generated.
 		ProjectUpdateReminderIntervalDays: input.ProjectUpdateReminderIntervalDays,
 		ProjectUpdateReminderWeekday:      input.ProjectUpdateReminderWeekday,
 		ProjectUpdateReminderHour:         input.ProjectUpdateReminderHour,
+		PulseEnabled:                      input.PulseEnabled,
+		PulseDigestCadence:                fromOptionalPulseCadence(input.PulseDigestCadence),
 	})
 	if err != nil {
 		return nil, PresentError(ctx, err)

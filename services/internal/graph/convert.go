@@ -3,6 +3,7 @@ package graph
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
@@ -34,6 +35,8 @@ func toWorkspace(w model.Workspace) generated.Workspace {
 		ProjectUpdateReminderIntervalDays: w.ProjectUpdateReminderIntervalDays,
 		ProjectUpdateReminderWeekday:      w.ProjectUpdateReminderWeekday,
 		ProjectUpdateReminderHour:         w.ProjectUpdateReminderHour,
+		PulseEnabled:                      w.PulseEnabled,
+		PulseDigestCadence:                toPulseDigestCadence(w.PulseDigestCadence),
 		CreatedAt:                         w.CreatedAt,
 		UpdatedAt:                         w.UpdatedAt,
 		ArchivedAt:                        w.ArchivedAt,
@@ -516,6 +519,22 @@ func fromTeamRole(r *generated.TeamRole) (string, error) {
 		return "member", nil
 	}
 	return "", platform.Validation("role", fmt.Sprintf("unknown team role %q", *r))
+}
+
+func toPulseDigestCadence(v string) generated.PulseDigestCadence {
+	c := generated.PulseDigestCadence(strings.ToUpper(v))
+	if !c.IsValid() {
+		return generated.PulseDigestCadenceDaily
+	}
+	return c
+}
+
+func fromOptionalPulseCadence(c *generated.PulseDigestCadence) *string {
+	if c == nil {
+		return nil
+	}
+	s := strings.ToLower(string(*c))
+	return &s
 }
 
 // --- optional inputs ------------------------------------------------------------

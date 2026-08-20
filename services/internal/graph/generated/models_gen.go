@@ -2459,11 +2459,13 @@ type UpdateWorkflowStateInput struct {
 }
 
 type UpdateWorkspaceInput struct {
-	Name                              *string `json:"name,omitempty"`
-	LogoURL                           *string `json:"logoUrl,omitempty"`
-	ProjectUpdateReminderIntervalDays *int    `json:"projectUpdateReminderIntervalDays,omitempty"`
-	ProjectUpdateReminderWeekday      *int    `json:"projectUpdateReminderWeekday,omitempty"`
-	ProjectUpdateReminderHour         *int    `json:"projectUpdateReminderHour,omitempty"`
+	Name                              *string             `json:"name,omitempty"`
+	LogoURL                           *string             `json:"logoUrl,omitempty"`
+	ProjectUpdateReminderIntervalDays *int                `json:"projectUpdateReminderIntervalDays,omitempty"`
+	ProjectUpdateReminderWeekday      *int                `json:"projectUpdateReminderWeekday,omitempty"`
+	ProjectUpdateReminderHour         *int                `json:"projectUpdateReminderHour,omitempty"`
+	PulseEnabled                      *bool               `json:"pulseEnabled,omitempty"`
+	PulseDigestCadence                *PulseDigestCadence `json:"pulseDigestCadence,omitempty"`
 }
 
 type User struct {
@@ -2681,13 +2683,17 @@ type Workspace struct {
 	// 0 = Sunday through 6 = Saturday.
 	ProjectUpdateReminderWeekday int `json:"projectUpdateReminderWeekday"`
 	// Hour of day in the lead's timezone when reminders would send (0–23).
-	ProjectUpdateReminderHour int        `json:"projectUpdateReminderHour"`
-	CreatedAt                 time.Time  `json:"createdAt"`
-	UpdatedAt                 time.Time  `json:"updatedAt"`
-	ArchivedAt                *time.Time `json:"archivedAt,omitempty"`
-	Teams                     []Team     `json:"teams"`
-	Users                     []User     `json:"users"`
-	Labels                    []Label    `json:"labels"`
+	ProjectUpdateReminderHour int `json:"projectUpdateReminderHour"`
+	// When false, Pulse is hidden and the morning digest does not send.
+	PulseEnabled bool `json:"pulseEnabled"`
+	// Default inbox digest cadence. Summaries land around 06:00 in each member's timezone.
+	PulseDigestCadence PulseDigestCadence `json:"pulseDigestCadence"`
+	CreatedAt          time.Time          `json:"createdAt"`
+	UpdatedAt          time.Time          `json:"updatedAt"`
+	ArchivedAt         *time.Time         `json:"archivedAt,omitempty"`
+	Teams              []Team             `json:"teams"`
+	Users              []User             `json:"users"`
+	Labels             []Label            `json:"labels"`
 	// What this workspace's plan permits, resolved by one service rather than scattered plan checks.
 	Entitlements *Entitlements `json:"entitlements"`
 }
@@ -3386,6 +3392,7 @@ const (
 	NotificationTypeSubIssueCompleted   NotificationType = "SUB_ISSUE_COMPLETED"
 	NotificationTypeViewIssueAdded      NotificationType = "VIEW_ISSUE_ADDED"
 	NotificationTypeViewIssueCompleted  NotificationType = "VIEW_ISSUE_COMPLETED"
+	NotificationTypePulseDigest         NotificationType = "PULSE_DIGEST"
 )
 
 var AllNotificationType = []NotificationType{
@@ -3399,11 +3406,12 @@ var AllNotificationType = []NotificationType{
 	NotificationTypeSubIssueCompleted,
 	NotificationTypeViewIssueAdded,
 	NotificationTypeViewIssueCompleted,
+	NotificationTypePulseDigest,
 }
 
 func (e NotificationType) IsValid() bool {
 	switch e {
-	case NotificationTypeIssueAssigned, NotificationTypeIssueStatusChanged, NotificationTypeIssuePriorityRaised, NotificationTypeIssueDue, NotificationTypeIssueBlocked, NotificationTypeComment, NotificationTypeMention, NotificationTypeSubIssueCompleted, NotificationTypeViewIssueAdded, NotificationTypeViewIssueCompleted:
+	case NotificationTypeIssueAssigned, NotificationTypeIssueStatusChanged, NotificationTypeIssuePriorityRaised, NotificationTypeIssueDue, NotificationTypeIssueBlocked, NotificationTypeComment, NotificationTypeMention, NotificationTypeSubIssueCompleted, NotificationTypeViewIssueAdded, NotificationTypeViewIssueCompleted, NotificationTypePulseDigest:
 		return true
 	}
 	return false
@@ -3614,6 +3622,64 @@ func (e *ProjectUpdateSchedule) UnmarshalJSON(b []byte) error {
 }
 
 func (e ProjectUpdateSchedule) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// How often Pulse writes a morning inbox summary of project updates.
+type PulseDigestCadence string
+
+const (
+	PulseDigestCadenceOff    PulseDigestCadence = "OFF"
+	PulseDigestCadenceDaily  PulseDigestCadence = "DAILY"
+	PulseDigestCadenceWeekly PulseDigestCadence = "WEEKLY"
+)
+
+var AllPulseDigestCadence = []PulseDigestCadence{
+	PulseDigestCadenceOff,
+	PulseDigestCadenceDaily,
+	PulseDigestCadenceWeekly,
+}
+
+func (e PulseDigestCadence) IsValid() bool {
+	switch e {
+	case PulseDigestCadenceOff, PulseDigestCadenceDaily, PulseDigestCadenceWeekly:
+		return true
+	}
+	return false
+}
+
+func (e PulseDigestCadence) String() string {
+	return string(e)
+}
+
+func (e *PulseDigestCadence) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PulseDigestCadence(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PulseDigestCadence", str)
+	}
+	return nil
+}
+
+func (e PulseDigestCadence) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PulseDigestCadence) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PulseDigestCadence) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

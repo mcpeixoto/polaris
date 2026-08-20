@@ -68,6 +68,7 @@ var serverSideOnly = map[string]string{
 	"FanOutWebhooks":             "internal: one workspace's pass, called by FanOutWebhooksAll",
 	"DeliverDueWebhooks":         "worker cron: POSTs signed webhook deliveries",
 	"DeliverNotificationDigests": "worker cron: sends the digest mail",
+	"DeliverPulseDigests":        "worker cron: writes Pulse morning inbox summaries",
 	"AdvanceCycles":              "worker cron: closes ended cycles, rolls work, auto-adds",
 	"AdvanceRecurringIssues":     "worker cron: mints the next occurrence after the due date passes",
 	"AutoCloseIssues":            "worker cron: closes stale open issues per team period",

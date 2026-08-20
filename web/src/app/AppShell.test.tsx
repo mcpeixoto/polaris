@@ -63,6 +63,8 @@ function seeded(extra: readonly [string, Entity][] = []): Store {
         name: 'Polaris',
         urlKey: 'polaris',
         plan: 'free',
+        pulseEnabled: true,
+        pulseDigestCadence: 'daily',
         createdAt: AT,
         updatedAt: AT,
       },
@@ -251,9 +253,13 @@ describe('the settings section', () => {
     ]) {
       expect(screen.getByRole('link', { name }), `${name} is not reachable`).toBeTruthy();
     }
-    for (const name of ['My Issues', 'Inbox', 'Pulse', 'Drafts', 'Search']) {
+    for (const name of ['My Issues', 'Inbox', 'Drafts', 'Search']) {
       expect(screen.getByRole('link', { name }), `${name} is not reachable`).toBeTruthy();
     }
+    expect(
+      screen.getAllByRole('link', { name: 'Pulse' }).length,
+      'Pulse feed and Pulse settings',
+    ).toBe(2);
   });
 
   it('opens a team at its home rather than its issue list', () => {
