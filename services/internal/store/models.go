@@ -185,6 +185,37 @@ type Cycle struct {
 	UpdatedAt   time.Time
 }
 
+type Dashboard struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      *uuid.UUID
+	OwnerID     *uuid.UUID
+	Name        string
+	Description string
+	Filter      json.RawMessage
+	CreatorID   *uuid.UUID
+	SortOrder   string
+	ArchivedAt  *time.Time
+	DeletedAt   *time.Time
+	DeletedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type DashboardTile struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	DashboardID uuid.UUID
+	Title       string
+	Measure     string
+	Slice       string
+	Display     string
+	Filter      json.RawMessage
+	SortOrder   string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Document struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

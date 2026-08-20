@@ -848,6 +848,135 @@ func (r *mutationResolver) ClearIssueSLA(ctx context.Context, issueID uuid.UUID,
 	return &generated.IssuePayload{Version: int(version), Issue: &out}, nil
 }
 
+// CreateDashboard is the resolver for the createDashboard field.
+func (r *mutationResolver) CreateDashboard(ctx context.Context, input generated.CreateDashboardInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DashboardPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromCreateDashboardInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Dashboard, int64, error) {
+			return r.Svc.CreateDashboard(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toDashboard(row)
+	return &generated.DashboardPayload{Version: int(version), Dashboard: &out}, nil
+}
+
+// UpdateDashboard is the resolver for the updateDashboard field.
+func (r *mutationResolver) UpdateDashboard(ctx context.Context, input generated.UpdateDashboardInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DashboardPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromUpdateDashboardInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Dashboard, int64, error) {
+			return r.Svc.UpdateDashboard(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toDashboard(row)
+	return &generated.DashboardPayload{Version: int(version), Dashboard: &out}, nil
+}
+
+// ArchiveDashboard is the resolver for the archiveDashboard field.
+func (r *mutationResolver) ArchiveDashboard(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id, "archived": archived},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.ArchiveDashboard(ctx, p, id, archived)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// DeleteDashboard is the resolver for the deleteDashboard field.
+func (r *mutationResolver) DeleteDashboard(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteDashboard(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// CreateDashboardTile is the resolver for the createDashboardTile field.
+func (r *mutationResolver) CreateDashboardTile(ctx context.Context, input generated.CreateDashboardTileInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DashboardTilePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromCreateDashboardTileInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.DashboardTile, int64, error) {
+			return r.Svc.CreateDashboardTile(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toDashboardTile(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DashboardTilePayload{Version: int(version), DashboardTile: &out}, nil
+}
+
+// UpdateDashboardTile is the resolver for the updateDashboardTile field.
+func (r *mutationResolver) UpdateDashboardTile(ctx context.Context, input generated.UpdateDashboardTileInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DashboardTilePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromUpdateDashboardTileInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.DashboardTile, int64, error) {
+			return r.Svc.UpdateDashboardTile(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toDashboardTile(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DashboardTilePayload{Version: int(version), DashboardTile: &out}, nil
+}
+
+// DeleteDashboardTile is the resolver for the deleteDashboardTile field.
+func (r *mutationResolver) DeleteDashboardTile(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteDashboardTile(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // CreateTeam is the resolver for the createTeam field.
 func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.CreateTeamInput) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)

@@ -349,6 +349,17 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	}); err != nil {
 		t.Fatalf("slaRule: %v", err)
 	}
+	dash, _, err := svc.CreateDashboard(ctx, p, domain.CreateDashboardInput{Name: "Delivery"})
+	if err != nil {
+		t.Fatalf("dashboard: %v", err)
+	}
+	if _, _, err := svc.CreateDashboardTile(ctx, p, domain.CreateDashboardTileInput{
+		DashboardID: dash.ID,
+		Title:       "Lead time",
+		Measure:     model.DashboardMeasureLeadTime,
+	}); err != nil {
+		t.Fatalf("dashboardTile: %v", err)
+	}
 	project, _, err = svc.CreateProject(ctx, p, domain.CreateProjectInput{
 		Name: "Launch pad", TeamIDs: []uuid.UUID{f.TeamID},
 	})

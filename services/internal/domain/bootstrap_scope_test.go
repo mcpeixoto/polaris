@@ -60,6 +60,8 @@ type scene struct {
 	openCustomer                                  uuid.UUID
 	openCustomerRequest                           uuid.UUID
 	openSlaRule                                   uuid.UUID
+	openDashboard                                 uuid.UUID
+	openDashboardTile                             uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
 	bobsFavorite                                  uuid.UUID
 
@@ -300,6 +302,22 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	}
 	s.openSlaRule = sla.ID
 
+	dash, _, err := svc.CreateDashboard(ctx, s.alice, domain.CreateDashboardInput{Name: "Delivery"})
+	if err != nil {
+		t.Fatalf("create the dashboard: %v", err)
+	}
+	s.openDashboard = dash.ID
+	tile, _, err := svc.CreateDashboardTile(ctx, s.alice, domain.CreateDashboardTileInput{
+		DashboardID: dash.ID,
+		Title:       "Cycle time",
+		Measure:     model.DashboardMeasureCycleTime,
+		Slice:       model.DashboardSliceTeam,
+	})
+	if err != nil {
+		t.Fatalf("create the dashboard tile: %v", err)
+	}
+	s.openDashboardTile = tile.ID
+
 	blocker, _, err := svc.CreateProject(ctx, s.alice, domain.CreateProjectInput{
 		Name: "Platform foundation", TeamIDs: []uuid.UUID{f.TeamID},
 	})
@@ -521,6 +539,10 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 			"a guest sees nothing related to customer requests"},
 		{gretaName, "slaRule", s.openSlaRule,
 			"a guest sees nothing related to SLA rules"},
+		{gretaName, "dashboard", s.openDashboard,
+			"a guest sees nothing related to dashboards"},
+		{gretaName, "dashboardTile", s.openDashboardTile,
+			"a guest sees nothing related to dashboard tiles"},
 
 		{samName, "issue", s.openIssue, "team content needs the team"},
 		{samName, "label", s.openLabel, "a team's label needs the team"},
@@ -579,6 +601,8 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "customer", s.openCustomer},
 		{bobName, "customerRequest", s.openCustomerRequest},
 		{bobName, "slaRule", s.openSlaRule},
+		{bobName, "dashboard", s.openDashboard},
+		{bobName, "dashboardTile", s.openDashboardTile},
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},
 		{gretaName, "issue", s.openIssue},
@@ -594,6 +618,8 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{samName, "view", s.workspaceView},
 		{samName, "customer", s.openCustomer},
 		{samName, "slaRule", s.openSlaRule},
+		{samName, "dashboard", s.openDashboard},
+		{samName, "dashboardTile", s.openDashboardTile},
 	} {
 		if !snapshots[present.who][present.entityType][present.id] {
 			t.Errorf("the snapshot for %s is missing the %s %s it is entitled to",

@@ -192,6 +192,47 @@ type ComplexityRoot struct {
 		Version func(childComplexity int) int
 	}
 
+	Dashboard struct {
+		ArchivedAt  func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		CreatorID   func(childComplexity int) int
+		DeletedAt   func(childComplexity int) int
+		DeletedBy   func(childComplexity int) int
+		Description func(childComplexity int) int
+		Filter      func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+		OwnerID     func(childComplexity int) int
+		SortOrder   func(childComplexity int) int
+		TeamID      func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	DashboardPayload struct {
+		Dashboard func(childComplexity int) int
+		Version   func(childComplexity int) int
+	}
+
+	DashboardTile struct {
+		CreatedAt   func(childComplexity int) int
+		DashboardID func(childComplexity int) int
+		Display     func(childComplexity int) int
+		Filter      func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Measure     func(childComplexity int) int
+		Slice       func(childComplexity int) int
+		SortOrder   func(childComplexity int) int
+		Title       func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	DashboardTilePayload struct {
+		DashboardTile func(childComplexity int) int
+		Version       func(childComplexity int) int
+	}
+
 	DeletePayload struct {
 		ID      func(childComplexity int) int
 		Version func(childComplexity int) int
@@ -602,6 +643,7 @@ type ComplexityRoot struct {
 		AddTeamMember                  func(childComplexity int, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) int
 		ArchiveCustomer                func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveCycle                   func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
+		ArchiveDashboard               func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveDocument                func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveFormTemplate            func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveInitiative              func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -621,6 +663,8 @@ type ComplexityRoot struct {
 		CreateComment                  func(childComplexity int, input CreateCommentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateCustomer                 func(childComplexity int, input CreateCustomerInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateCustomerRequest          func(childComplexity int, input CreateCustomerRequestInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateDashboard                func(childComplexity int, input CreateDashboardInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateDashboardTile            func(childComplexity int, input CreateDashboardTileInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateDocument                 func(childComplexity int, input CreateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateDraft                    func(childComplexity int, input CreateDraftInput) int
 		CreateFormTemplate             func(childComplexity int, input CreateFormTemplateInput) int
@@ -653,6 +697,8 @@ type ComplexityRoot struct {
 		DeleteComment                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteCustomer                 func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteCustomerRequest          func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteDashboard                func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteDashboardTile            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteDocument                 func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteDraft                    func(childComplexity int, id uuid.UUID) int
 		DeleteFormTemplateField        func(childComplexity int, id uuid.UUID) int
@@ -711,6 +757,8 @@ type ComplexityRoot struct {
 		UpdateCustomer                 func(childComplexity int, input UpdateCustomerInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateCustomerRequest          func(childComplexity int, input UpdateCustomerRequestInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateCycle                    func(childComplexity int, input UpdateCycleInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateDashboard                func(childComplexity int, input UpdateDashboardInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateDashboardTile            func(childComplexity int, input UpdateDashboardTileInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateDocument                 func(childComplexity int, input UpdateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateDraft                    func(childComplexity int, input UpdateDraftInput) int
 		UpdateFormTemplate             func(childComplexity int, input UpdateFormTemplateInput) int
@@ -1461,6 +1509,13 @@ type MutationResolver interface {
 	DeleteSLARule(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	SetIssueSLA(ctx context.Context, input SetIssueSLAInput, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
 	ClearIssueSLA(ctx context.Context, issueID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
+	CreateDashboard(ctx context.Context, input CreateDashboardInput, clientID *uuid.UUID, opID *uuid.UUID) (*DashboardPayload, error)
+	UpdateDashboard(ctx context.Context, input UpdateDashboardInput, clientID *uuid.UUID, opID *uuid.UUID) (*DashboardPayload, error)
+	ArchiveDashboard(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	DeleteDashboard(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	CreateDashboardTile(ctx context.Context, input CreateDashboardTileInput, clientID *uuid.UUID, opID *uuid.UUID) (*DashboardTilePayload, error)
+	UpdateDashboardTile(ctx context.Context, input UpdateDashboardTileInput, clientID *uuid.UUID, opID *uuid.UUID) (*DashboardTilePayload, error)
+	DeleteDashboardTile(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateTeam(ctx context.Context, input CreateTeamInput) (*TeamPayload, error)
 	UpdateTeam(ctx context.Context, input UpdateTeamInput) (*TeamPayload, error)
 	MoveTeam(ctx context.Context, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
@@ -2311,6 +2366,184 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CyclePayload.Version(childComplexity), true
+
+	case "Dashboard.archivedAt":
+		if e.ComplexityRoot.Dashboard.ArchivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.ArchivedAt(childComplexity), true
+	case "Dashboard.createdAt":
+		if e.ComplexityRoot.Dashboard.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.CreatedAt(childComplexity), true
+	case "Dashboard.creatorId":
+		if e.ComplexityRoot.Dashboard.CreatorID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.CreatorID(childComplexity), true
+	case "Dashboard.deletedAt":
+		if e.ComplexityRoot.Dashboard.DeletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.DeletedAt(childComplexity), true
+	case "Dashboard.deletedBy":
+		if e.ComplexityRoot.Dashboard.DeletedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.DeletedBy(childComplexity), true
+	case "Dashboard.description":
+		if e.ComplexityRoot.Dashboard.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.Description(childComplexity), true
+	case "Dashboard.filter":
+		if e.ComplexityRoot.Dashboard.Filter == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.Filter(childComplexity), true
+	case "Dashboard.id":
+		if e.ComplexityRoot.Dashboard.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.ID(childComplexity), true
+	case "Dashboard.name":
+		if e.ComplexityRoot.Dashboard.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.Name(childComplexity), true
+	case "Dashboard.ownerId":
+		if e.ComplexityRoot.Dashboard.OwnerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.OwnerID(childComplexity), true
+	case "Dashboard.sortOrder":
+		if e.ComplexityRoot.Dashboard.SortOrder == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.SortOrder(childComplexity), true
+	case "Dashboard.teamId":
+		if e.ComplexityRoot.Dashboard.TeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.TeamID(childComplexity), true
+	case "Dashboard.updatedAt":
+		if e.ComplexityRoot.Dashboard.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.UpdatedAt(childComplexity), true
+	case "Dashboard.workspaceId":
+		if e.ComplexityRoot.Dashboard.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Dashboard.WorkspaceID(childComplexity), true
+
+	case "DashboardPayload.dashboard":
+		if e.ComplexityRoot.DashboardPayload.Dashboard == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardPayload.Dashboard(childComplexity), true
+	case "DashboardPayload.version":
+		if e.ComplexityRoot.DashboardPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardPayload.Version(childComplexity), true
+
+	case "DashboardTile.createdAt":
+		if e.ComplexityRoot.DashboardTile.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.CreatedAt(childComplexity), true
+	case "DashboardTile.dashboardId":
+		if e.ComplexityRoot.DashboardTile.DashboardID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.DashboardID(childComplexity), true
+	case "DashboardTile.display":
+		if e.ComplexityRoot.DashboardTile.Display == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.Display(childComplexity), true
+	case "DashboardTile.filter":
+		if e.ComplexityRoot.DashboardTile.Filter == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.Filter(childComplexity), true
+	case "DashboardTile.id":
+		if e.ComplexityRoot.DashboardTile.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.ID(childComplexity), true
+	case "DashboardTile.measure":
+		if e.ComplexityRoot.DashboardTile.Measure == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.Measure(childComplexity), true
+	case "DashboardTile.slice":
+		if e.ComplexityRoot.DashboardTile.Slice == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.Slice(childComplexity), true
+	case "DashboardTile.sortOrder":
+		if e.ComplexityRoot.DashboardTile.SortOrder == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.SortOrder(childComplexity), true
+	case "DashboardTile.title":
+		if e.ComplexityRoot.DashboardTile.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.Title(childComplexity), true
+	case "DashboardTile.updatedAt":
+		if e.ComplexityRoot.DashboardTile.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.UpdatedAt(childComplexity), true
+	case "DashboardTile.workspaceId":
+		if e.ComplexityRoot.DashboardTile.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTile.WorkspaceID(childComplexity), true
+
+	case "DashboardTilePayload.dashboardTile":
+		if e.ComplexityRoot.DashboardTilePayload.DashboardTile == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTilePayload.DashboardTile(childComplexity), true
+	case "DashboardTilePayload.version":
+		if e.ComplexityRoot.DashboardTilePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DashboardTilePayload.Version(childComplexity), true
 
 	case "DeletePayload.id":
 		if e.ComplexityRoot.DeletePayload.ID == nil {
@@ -4158,6 +4391,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ArchiveCycle(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.archiveDashboard":
+		if e.ComplexityRoot.Mutation.ArchiveDashboard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveDashboard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ArchiveDashboard(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.archiveDocument":
 		if e.ComplexityRoot.Mutation.ArchiveDocument == nil {
 			break
@@ -4367,6 +4611,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateCustomerRequest(childComplexity, args["input"].(CreateCustomerRequestInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createDashboard":
+		if e.ComplexityRoot.Mutation.CreateDashboard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createDashboard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateDashboard(childComplexity, args["input"].(CreateDashboardInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createDashboardTile":
+		if e.ComplexityRoot.Mutation.CreateDashboardTile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createDashboardTile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateDashboardTile(childComplexity, args["input"].(CreateDashboardTileInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createDocument":
 		if e.ComplexityRoot.Mutation.CreateDocument == nil {
 			break
@@ -4719,6 +4985,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteCustomerRequest(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteDashboard":
+		if e.ComplexityRoot.Mutation.DeleteDashboard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteDashboard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteDashboard(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteDashboardTile":
+		if e.ComplexityRoot.Mutation.DeleteDashboardTile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteDashboardTile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteDashboardTile(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.deleteDocument":
 		if e.ComplexityRoot.Mutation.DeleteDocument == nil {
 			break
@@ -5342,6 +5630,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateCycle(childComplexity, args["input"].(UpdateCycleInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.updateDashboard":
+		if e.ComplexityRoot.Mutation.UpdateDashboard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDashboard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDashboard(childComplexity, args["input"].(UpdateDashboardInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.updateDashboardTile":
+		if e.ComplexityRoot.Mutation.UpdateDashboardTile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDashboardTile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDashboardTile(childComplexity, args["input"].(UpdateDashboardTileInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.updateDocument":
 		if e.ComplexityRoot.Mutation.UpdateDocument == nil {
 			break
@@ -8933,6 +9243,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateCommentInput,
 		ec.unmarshalInputCreateCustomerInput,
 		ec.unmarshalInputCreateCustomerRequestInput,
+		ec.unmarshalInputCreateDashboardInput,
+		ec.unmarshalInputCreateDashboardTileInput,
 		ec.unmarshalInputCreateDocumentInput,
 		ec.unmarshalInputCreateDraftInput,
 		ec.unmarshalInputCreateFormTemplateFieldInput,
@@ -8967,6 +9279,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateCustomerInput,
 		ec.unmarshalInputUpdateCustomerRequestInput,
 		ec.unmarshalInputUpdateCycleInput,
+		ec.unmarshalInputUpdateDashboardInput,
+		ec.unmarshalInputUpdateDashboardTileInput,
 		ec.unmarshalInputUpdateDocumentInput,
 		ec.unmarshalInputUpdateDraftInput,
 		ec.unmarshalInputUpdateFormTemplateFieldInput,
@@ -10134,6 +10448,32 @@ enum CustomerStatus {
   CHURNED
 }
 
+"""Insights measure a dashboard tile charts. Same vocabulary as the live Insights panel."""
+enum DashboardMeasure {
+  COUNT
+  EFFORT
+  CYCLE_TIME
+  LEAD_TIME
+  ISSUE_AGE
+  BURN_UP
+}
+
+"""Dimension a dashboard tile slices by. Same vocabulary as the live Insights panel."""
+enum DashboardSlice {
+  ASSIGNEE
+  PRIORITY
+  STATE_CATEGORY
+  TEAM
+  PROJECT
+  LABEL
+}
+
+enum DashboardTileDisplay {
+  CHART
+  TABLE
+  METRIC
+}
+
 """An external organisation whose feedback is attributed onto issues and projects."""
 type Customer {
   id: UUID!
@@ -10210,6 +10550,52 @@ type SlaRule {
 type SlaRulePayload implements MutationResult {
   version: Int!
   slaRule: SlaRule!
+}
+
+"""A page of Insights tiles, workspace / team / personal."""
+type Dashboard {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the dashboard spans the workspace."""
+  teamId: UUID
+  """Set means it is that person's private dashboard."""
+  ownerId: UUID
+  name: String!
+  description: String!
+  """Dashboard-level filter, AND-ed with each tile's filter. Same AST as views."""
+  filter: JSON!
+  creatorId: UUID
+  sortOrder: String!
+  archivedAt: Time
+  deletedAt: Time
+  deletedBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""One Insights chart, table, or metric on a dashboard."""
+type DashboardTile {
+  id: UUID!
+  workspaceId: UUID!
+  dashboardId: UUID!
+  title: String!
+  measure: DashboardMeasure!
+  slice: DashboardSlice!
+  display: DashboardTileDisplay!
+  filter: JSON!
+  sortOrder: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type DashboardPayload implements MutationResult {
+  version: Int!
+  dashboard: Dashboard!
+}
+
+type DashboardTilePayload implements MutationResult {
+  version: Int!
+  dashboardTile: DashboardTile!
 }
 
 type TeamPayload implements MutationResult {
@@ -11509,6 +11895,40 @@ input SetIssueSlaInput {
   durationMinutes: Int!
 }
 
+input CreateDashboardInput {
+  name: String!
+  description: String
+  teamId: UUID
+  """True keeps the dashboard private to its creator."""
+  private: Boolean
+  filter: JSON
+}
+
+input UpdateDashboardInput {
+  id: UUID!
+  name: String
+  description: String
+  filter: JSON
+}
+
+input CreateDashboardTileInput {
+  dashboardId: UUID!
+  title: String
+  measure: DashboardMeasure
+  slice: DashboardSlice
+  display: DashboardTileDisplay
+  filter: JSON
+}
+
+input UpdateDashboardTileInput {
+  id: UUID!
+  title: String
+  measure: DashboardMeasure
+  slice: DashboardSlice
+  display: DashboardTileDisplay
+  filter: JSON
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -11718,6 +12138,14 @@ type Mutation {
   deleteSlaRule(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   setIssueSla(input: SetIssueSlaInput!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
   clearIssueSla(issueId: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+
+  createDashboard(input: CreateDashboardInput!, clientId: UUID, opId: UUID): DashboardPayload! @idempotent
+  updateDashboard(input: UpdateDashboardInput!, clientId: UUID, opId: UUID): DashboardPayload! @idempotent
+  archiveDashboard(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  deleteDashboard(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  createDashboardTile(input: CreateDashboardTileInput!, clientId: UUID, opId: UUID): DashboardTilePayload! @idempotent
+  updateDashboardTile(input: UpdateDashboardTileInput!, clientId: UUID, opId: UUID): DashboardTilePayload! @idempotent
+  deleteDashboardTile(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!
@@ -12239,6 +12667,88 @@ func (ec *executionContext) childFields_CyclePayload(ctx context.Context, field 
 		return ec.fieldContext_CyclePayload_cycle(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CyclePayload", field.Name)
+}
+
+func (ec *executionContext) childFields_Dashboard(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Dashboard_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_Dashboard_workspaceId(ctx, field)
+	case "teamId":
+		return ec.fieldContext_Dashboard_teamId(ctx, field)
+	case "ownerId":
+		return ec.fieldContext_Dashboard_ownerId(ctx, field)
+	case "name":
+		return ec.fieldContext_Dashboard_name(ctx, field)
+	case "description":
+		return ec.fieldContext_Dashboard_description(ctx, field)
+	case "filter":
+		return ec.fieldContext_Dashboard_filter(ctx, field)
+	case "creatorId":
+		return ec.fieldContext_Dashboard_creatorId(ctx, field)
+	case "sortOrder":
+		return ec.fieldContext_Dashboard_sortOrder(ctx, field)
+	case "archivedAt":
+		return ec.fieldContext_Dashboard_archivedAt(ctx, field)
+	case "deletedAt":
+		return ec.fieldContext_Dashboard_deletedAt(ctx, field)
+	case "deletedBy":
+		return ec.fieldContext_Dashboard_deletedBy(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Dashboard_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_Dashboard_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Dashboard", field.Name)
+}
+
+func (ec *executionContext) childFields_DashboardPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_DashboardPayload_version(ctx, field)
+	case "dashboard":
+		return ec.fieldContext_DashboardPayload_dashboard(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DashboardPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_DashboardTile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_DashboardTile_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_DashboardTile_workspaceId(ctx, field)
+	case "dashboardId":
+		return ec.fieldContext_DashboardTile_dashboardId(ctx, field)
+	case "title":
+		return ec.fieldContext_DashboardTile_title(ctx, field)
+	case "measure":
+		return ec.fieldContext_DashboardTile_measure(ctx, field)
+	case "slice":
+		return ec.fieldContext_DashboardTile_slice(ctx, field)
+	case "display":
+		return ec.fieldContext_DashboardTile_display(ctx, field)
+	case "filter":
+		return ec.fieldContext_DashboardTile_filter(ctx, field)
+	case "sortOrder":
+		return ec.fieldContext_DashboardTile_sortOrder(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_DashboardTile_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_DashboardTile_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DashboardTile", field.Name)
+}
+
+func (ec *executionContext) childFields_DashboardTilePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_DashboardTilePayload_version(ctx, field)
+	case "dashboardTile":
+		return ec.fieldContext_DashboardTilePayload_dashboardTile(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DashboardTilePayload", field.Name)
 }
 
 func (ec *executionContext) childFields_DeletePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -14719,6 +15229,44 @@ func (ec *executionContext) field_Mutation_archiveCycle_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_archiveDashboard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_archiveDocument_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -15217,6 +15765,66 @@ func (ec *executionContext) field_Mutation_createCustomer_args(ctx context.Conte
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (CreateCustomerInput, error) {
 			return ec.unmarshalNCreateCustomerInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateCustomerInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createDashboardTile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateDashboardTileInput, error) {
+			return ec.unmarshalNCreateDashboardTileInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateDashboardTileInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createDashboard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateDashboardInput, error) {
+			return ec.unmarshalNCreateDashboardInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateDashboardInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -15900,6 +16508,66 @@ func (ec *executionContext) field_Mutation_deleteCustomerRequest_args(ctx contex
 }
 
 func (ec *executionContext) field_Mutation_deleteCustomer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteDashboardTile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteDashboard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -17315,6 +17983,66 @@ func (ec *executionContext) field_Mutation_updateCycle_args(ctx context.Context,
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (UpdateCycleInput, error) {
 			return ec.unmarshalNUpdateCycleInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateCycleInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDashboardTile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateDashboardTileInput, error) {
+			return ec.unmarshalNUpdateDashboardTileInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateDashboardTileInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDashboard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateDashboardInput, error) {
+			return ec.unmarshalNUpdateDashboardInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateDashboardInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -21239,6 +21967,691 @@ func (ec *executionContext) fieldContext_CyclePayload_cycle(_ context.Context, f
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Cycle(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Dashboard_id(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_workspaceId(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_teamId(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_teamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_ownerId(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_ownerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OwnerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_ownerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_name(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_description(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_filter(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_filter(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Filter, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_filter(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_creatorId(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_creatorId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatorID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_creatorId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_sortOrder(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_sortOrder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SortOrder, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_archivedAt(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_archivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_deletedAt(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_deletedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeletedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_deletedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_deletedBy(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_deletedBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeletedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_deletedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_createdAt(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Dashboard_updatedAt(ctx context.Context, field graphql.CollectedField, obj *Dashboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Dashboard_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Dashboard_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Dashboard", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardPayload_version(ctx context.Context, field graphql.CollectedField, obj *DashboardPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardPayload_dashboard(ctx context.Context, field graphql.CollectedField, obj *DashboardPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardPayload_dashboard(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Dashboard, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Dashboard) graphql.Marshaler {
+			return ec.marshalNDashboard2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboard(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardPayload_dashboard(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DashboardPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Dashboard(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DashboardTile_id(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTile_workspaceId(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTile_dashboardId(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_dashboardId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DashboardID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_dashboardId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTile_title(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_title(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTile_measure(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_measure(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Measure, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v DashboardMeasure) graphql.Marshaler {
+			return ec.marshalNDashboardMeasure2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardMeasure(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_measure(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type DashboardMeasure does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTile_slice(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_slice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slice, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v DashboardSlice) graphql.Marshaler {
+			return ec.marshalNDashboardSlice2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardSlice(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_slice(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type DashboardSlice does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTile_display(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_display(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Display, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v DashboardTileDisplay) graphql.Marshaler {
+			return ec.marshalNDashboardTileDisplay2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTileDisplay(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_display(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type DashboardTileDisplay does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTile_filter(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_filter(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Filter, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_filter(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTile_sortOrder(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_sortOrder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SortOrder, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTile_createdAt(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTile_updatedAt(ctx context.Context, field graphql.CollectedField, obj *DashboardTile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTile_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTile_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTile", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTilePayload_version(ctx context.Context, field graphql.CollectedField, obj *DashboardTilePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTilePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTilePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DashboardTilePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DashboardTilePayload_dashboardTile(ctx context.Context, field graphql.CollectedField, obj *DashboardTilePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DashboardTilePayload_dashboardTile(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DashboardTile, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DashboardTile) graphql.Marshaler {
+			return ec.marshalNDashboardTile2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTile(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DashboardTilePayload_dashboardTile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DashboardTilePayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DashboardTile(ctx, field)
 		},
 	}
 	return fc, nil
@@ -30245,6 +31658,405 @@ func (ec *executionContext) fieldContext_Mutation_clearIssueSla(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_clearIssueSla_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createDashboard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createDashboard(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateDashboard(ctx, fc.Args["input"].(CreateDashboardInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DashboardPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DashboardPayload) graphql.Marshaler {
+			return ec.marshalNDashboardPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createDashboard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DashboardPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createDashboard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDashboard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDashboard(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDashboard(ctx, fc.Args["input"].(UpdateDashboardInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DashboardPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DashboardPayload) graphql.Marshaler {
+			return ec.marshalNDashboardPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDashboard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DashboardPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDashboard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveDashboard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_archiveDashboard(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ArchiveDashboard(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_archiveDashboard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveDashboard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteDashboard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteDashboard(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteDashboard(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteDashboard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteDashboard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createDashboardTile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createDashboardTile(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateDashboardTile(ctx, fc.Args["input"].(CreateDashboardTileInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DashboardTilePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DashboardTilePayload) graphql.Marshaler {
+			return ec.marshalNDashboardTilePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTilePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createDashboardTile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DashboardTilePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createDashboardTile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDashboardTile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDashboardTile(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDashboardTile(ctx, fc.Args["input"].(UpdateDashboardTileInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DashboardTilePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DashboardTilePayload) graphql.Marshaler {
+			return ec.marshalNDashboardTilePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTilePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDashboardTile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DashboardTilePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDashboardTile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteDashboardTile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteDashboardTile(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteDashboardTile(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteDashboardTile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteDashboardTile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -50187,6 +51999,129 @@ func (ec *executionContext) unmarshalInputCreateCustomerRequestInput(ctx context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateDashboardInput(ctx context.Context, obj any) (CreateDashboardInput, error) {
+	var it CreateDashboardInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "description", "teamId", "private", "filter"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		case "private":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("private"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Private = data
+		case "filter":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Filter = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateDashboardTileInput(ctx context.Context, obj any) (CreateDashboardTileInput, error) {
+	var it CreateDashboardTileInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"dashboardId", "title", "measure", "slice", "display", "filter"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "dashboardId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dashboardId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DashboardID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "measure":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("measure"))
+			data, err := ec.unmarshalODashboardMeasure2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardMeasure(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Measure = data
+		case "slice":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("slice"))
+			data, err := ec.unmarshalODashboardSlice2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardSlice(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Slice = data
+		case "display":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("display"))
+			data, err := ec.unmarshalODashboardTileDisplay2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTileDisplay(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Display = data
+		case "filter":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Filter = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateDocumentInput(ctx context.Context, obj any) (CreateDocumentInput, error) {
 	var it CreateDocumentInput
 	if obj == nil {
@@ -52497,6 +54432,122 @@ func (ec *executionContext) unmarshalInputUpdateCycleInput(ctx context.Context, 
 				return it, err
 			}
 			it.EndsAt = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateDashboardInput(ctx context.Context, obj any) (UpdateDashboardInput, error) {
+	var it UpdateDashboardInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name", "description", "filter"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "filter":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Filter = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateDashboardTileInput(ctx context.Context, obj any) (UpdateDashboardTileInput, error) {
+	var it UpdateDashboardTileInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "title", "measure", "slice", "display", "filter"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "measure":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("measure"))
+			data, err := ec.unmarshalODashboardMeasure2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardMeasure(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Measure = data
+		case "slice":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("slice"))
+			data, err := ec.unmarshalODashboardSlice2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardSlice(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Slice = data
+		case "display":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("display"))
+			data, err := ec.unmarshalODashboardTileDisplay2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTileDisplay(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Display = data
+		case "filter":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Filter = data
 		}
 	}
 	return it, nil
@@ -55140,6 +57191,20 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._DeletePayload(ctx, sel, obj)
+	case DashboardTilePayload:
+		return ec._DashboardTilePayload(ctx, sel, &obj)
+	case *DashboardTilePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._DashboardTilePayload(ctx, sel, obj)
+	case DashboardPayload:
+		return ec._DashboardPayload(ctx, sel, &obj)
+	case *DashboardPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._DashboardPayload(ctx, sel, obj)
 	case CyclePayload:
 		return ec._CyclePayload(ctx, sel, &obj)
 	case *CyclePayload:
@@ -56226,6 +58291,283 @@ func (ec *executionContext) _CyclePayload(ctx context.Context, sel ast.Selection
 			}
 		case "cycle":
 			out.Values[i] = ec._CyclePayload_cycle(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var dashboardImplementors = []string{"Dashboard"}
+
+func (ec *executionContext) _Dashboard(ctx context.Context, sel ast.SelectionSet, obj *Dashboard) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dashboardImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Dashboard")
+		case "id":
+			out.Values[i] = ec._Dashboard_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._Dashboard_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamId":
+			out.Values[i] = ec._Dashboard_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "ownerId":
+			out.Values[i] = ec._Dashboard_ownerId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._Dashboard_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._Dashboard_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "filter":
+			out.Values[i] = ec._Dashboard_filter(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "creatorId":
+			out.Values[i] = ec._Dashboard_creatorId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "sortOrder":
+			out.Values[i] = ec._Dashboard_sortOrder(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archivedAt":
+			out.Values[i] = ec._Dashboard_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "deletedAt":
+			out.Values[i] = ec._Dashboard_deletedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "deletedBy":
+			out.Values[i] = ec._Dashboard_deletedBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Dashboard_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Dashboard_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var dashboardPayloadImplementors = []string{"DashboardPayload", "MutationResult"}
+
+func (ec *executionContext) _DashboardPayload(ctx context.Context, sel ast.SelectionSet, obj *DashboardPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dashboardPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DashboardPayload")
+		case "version":
+			out.Values[i] = ec._DashboardPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dashboard":
+			out.Values[i] = ec._DashboardPayload_dashboard(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var dashboardTileImplementors = []string{"DashboardTile"}
+
+func (ec *executionContext) _DashboardTile(ctx context.Context, sel ast.SelectionSet, obj *DashboardTile) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dashboardTileImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DashboardTile")
+		case "id":
+			out.Values[i] = ec._DashboardTile_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._DashboardTile_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dashboardId":
+			out.Values[i] = ec._DashboardTile_dashboardId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._DashboardTile_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "measure":
+			out.Values[i] = ec._DashboardTile_measure(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "slice":
+			out.Values[i] = ec._DashboardTile_slice(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "display":
+			out.Values[i] = ec._DashboardTile_display(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "filter":
+			out.Values[i] = ec._DashboardTile_filter(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sortOrder":
+			out.Values[i] = ec._DashboardTile_sortOrder(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._DashboardTile_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._DashboardTile_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var dashboardTilePayloadImplementors = []string{"DashboardTilePayload", "MutationResult"}
+
+func (ec *executionContext) _DashboardTilePayload(ctx context.Context, sel ast.SelectionSet, obj *DashboardTilePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dashboardTilePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DashboardTilePayload")
+		case "version":
+			out.Values[i] = ec._DashboardTilePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dashboardTile":
+			out.Values[i] = ec._DashboardTilePayload_dashboardTile(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -59224,6 +61566,55 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "clearIssueSla":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_clearIssueSla(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createDashboard":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createDashboard(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateDashboard":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDashboard(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveDashboard":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveDashboard(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteDashboard":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteDashboard(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createDashboardTile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createDashboardTile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateDashboardTile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDashboardTile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteDashboardTile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteDashboardTile(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -66409,6 +68800,16 @@ func (ec *executionContext) unmarshalNCreateCustomerRequestInput2githubᚗcomᚋ
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateDashboardInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateDashboardInput(ctx context.Context, v any) (CreateDashboardInput, error) {
+	res, err := ec.unmarshalInputCreateDashboardInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateDashboardTileInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateDashboardTileInput(ctx context.Context, v any) (CreateDashboardTileInput, error) {
+	res, err := ec.unmarshalInputCreateDashboardTileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateDocumentInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateDocumentInput(ctx context.Context, v any) (CreateDocumentInput, error) {
 	res, err := ec.unmarshalInputCreateDocumentInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -66659,6 +69060,84 @@ func (ec *executionContext) marshalNCyclePayload2ᚖgithubᚗcomᚋpeixotolabs�
 		return graphql.Null
 	}
 	return ec._CyclePayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDashboard2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboard(ctx context.Context, sel ast.SelectionSet, v *Dashboard) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Dashboard(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDashboardMeasure2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardMeasure(ctx context.Context, v any) (DashboardMeasure, error) {
+	var res DashboardMeasure
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDashboardMeasure2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardMeasure(ctx context.Context, sel ast.SelectionSet, v DashboardMeasure) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNDashboardPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardPayload(ctx context.Context, sel ast.SelectionSet, v DashboardPayload) graphql.Marshaler {
+	return ec._DashboardPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNDashboardPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardPayload(ctx context.Context, sel ast.SelectionSet, v *DashboardPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DashboardPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDashboardSlice2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardSlice(ctx context.Context, v any) (DashboardSlice, error) {
+	var res DashboardSlice
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDashboardSlice2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardSlice(ctx context.Context, sel ast.SelectionSet, v DashboardSlice) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNDashboardTile2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTile(ctx context.Context, sel ast.SelectionSet, v *DashboardTile) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DashboardTile(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDashboardTileDisplay2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTileDisplay(ctx context.Context, v any) (DashboardTileDisplay, error) {
+	var res DashboardTileDisplay
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDashboardTileDisplay2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTileDisplay(ctx context.Context, sel ast.SelectionSet, v DashboardTileDisplay) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNDashboardTilePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTilePayload(ctx context.Context, sel ast.SelectionSet, v DashboardTilePayload) graphql.Marshaler {
+	return ec._DashboardTilePayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNDashboardTilePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTilePayload(ctx context.Context, sel ast.SelectionSet, v *DashboardTilePayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DashboardTilePayload(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNDeletePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx context.Context, sel ast.SelectionSet, v DeletePayload) graphql.Marshaler {
@@ -68585,6 +71064,16 @@ func (ec *executionContext) unmarshalNUpdateCycleInput2githubᚗcomᚋpeixotolab
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateDashboardInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateDashboardInput(ctx context.Context, v any) (UpdateDashboardInput, error) {
+	res, err := ec.unmarshalInputUpdateDashboardInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateDashboardTileInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateDashboardTileInput(ctx context.Context, v any) (UpdateDashboardTileInput, error) {
+	res, err := ec.unmarshalInputUpdateDashboardTileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateDocumentInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateDocumentInput(ctx context.Context, v any) (UpdateDocumentInput, error) {
 	res, err := ec.unmarshalInputUpdateDocumentInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -69312,6 +71801,54 @@ func (ec *executionContext) marshalOCycle2ᚖgithubᚗcomᚋpeixotolabsᚋpolari
 		return graphql.Null
 	}
 	return ec._Cycle(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalODashboardMeasure2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardMeasure(ctx context.Context, v any) (*DashboardMeasure, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(DashboardMeasure)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODashboardMeasure2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardMeasure(ctx context.Context, sel ast.SelectionSet, v *DashboardMeasure) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalODashboardSlice2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardSlice(ctx context.Context, v any) (*DashboardSlice, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(DashboardSlice)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODashboardSlice2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardSlice(ctx context.Context, sel ast.SelectionSet, v *DashboardSlice) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalODashboardTileDisplay2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTileDisplay(ctx context.Context, v any) (*DashboardTileDisplay, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(DashboardTileDisplay)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODashboardTileDisplay2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardTileDisplay(ctx context.Context, sel ast.SelectionSet, v *DashboardTileDisplay) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalODocument2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDocument(ctx context.Context, sel ast.SelectionSet, v *Document) graphql.Marshaler {

@@ -963,6 +963,60 @@ type SlaRule struct {
 	UpdatedAt       time.Time       `json:"updatedAt"`
 }
 
+const (
+	DashboardMeasureCount     = "count"
+	DashboardMeasureEffort    = "effort"
+	DashboardMeasureCycleTime = "cycle_time"
+	DashboardMeasureLeadTime  = "lead_time"
+	DashboardMeasureIssueAge  = "issue_age"
+	DashboardMeasureBurnUp    = "burn_up"
+
+	DashboardSliceAssignee      = "assignee"
+	DashboardSlicePriority      = "priority"
+	DashboardSliceStateCategory = "state_category"
+	DashboardSliceTeam          = "team"
+	DashboardSliceProject       = "project"
+	DashboardSliceLabel         = "label"
+
+	DashboardDisplayChart  = "chart"
+	DashboardDisplayTable  = "table"
+	DashboardDisplayMetric = "metric"
+)
+
+// Dashboard is a page of Insights tiles. Personal when OwnerID is set, team-scoped when
+// TeamID is set, otherwise workspace-wide.
+type Dashboard struct {
+	ID          uuid.UUID       `json:"id"`
+	WorkspaceID uuid.UUID       `json:"workspaceId"`
+	TeamID      *uuid.UUID      `json:"teamId,omitempty"`
+	OwnerID     *uuid.UUID      `json:"ownerId,omitempty"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Filter      json.RawMessage `json:"filter"`
+	CreatorID   *uuid.UUID      `json:"creatorId,omitempty"`
+	SortOrder   string          `json:"sortOrder"`
+	ArchivedAt  *time.Time      `json:"archivedAt,omitempty"`
+	DeletedAt   *time.Time      `json:"deletedAt,omitempty"`
+	DeletedBy   *uuid.UUID      `json:"deletedBy,omitempty"`
+	CreatedAt   time.Time       `json:"createdAt"`
+	UpdatedAt   time.Time       `json:"updatedAt"`
+}
+
+// DashboardTile is one Insights chart on a dashboard.
+type DashboardTile struct {
+	ID          uuid.UUID       `json:"id"`
+	WorkspaceID uuid.UUID       `json:"workspaceId"`
+	DashboardID uuid.UUID       `json:"dashboardId"`
+	Title       string          `json:"title"`
+	Measure     string          `json:"measure"`
+	Slice       string          `json:"slice"`
+	Display     string          `json:"display"`
+	Filter      json.RawMessage `json:"filter"`
+	SortOrder   string          `json:"sortOrder"`
+	CreatedAt   time.Time       `json:"createdAt"`
+	UpdatedAt   time.Time       `json:"updatedAt"`
+}
+
 // Document is long-form markdown attached to a team or a project. The body is plain markdown
 // until collaborative editing lands; it is not a CRDT snapshot yet.
 type Document struct {

@@ -11,6 +11,8 @@ import {
   type Customer,
   type CustomerRequest,
   type SlaRule,
+  type Dashboard,
+  type DashboardTile,
   type Entity,
   type EntityOf,
   type EntityType,
@@ -118,8 +120,9 @@ import {
  * v33 adds team and issue-template email intake addresses.
  * v34 lands inline comments after v33 shipped: a 33 replica would otherwise keep
  * serving without the new comment columns.
+ * v35 adds dashboard and dashboardTile.
  */
-export const CLIENT_SCHEMA = 34;
+export const CLIENT_SCHEMA = 35;
 
 /**
  * One database per workspace per schema version.
@@ -198,6 +201,8 @@ interface PolarisSchema extends DBSchema {
   workflowState: { key: UUID; value: WorkflowState };
   customer: { key: UUID; value: Customer };
   slaRule: { key: UUID; value: SlaRule };
+  dashboard: { key: UUID; value: Dashboard };
+  dashboardTile: { key: UUID; value: DashboardTile };
   label: { key: UUID; value: Label };
   issueTemplate: { key: UUID; value: IssueTemplate };
   formTemplate: { key: UUID; value: FormTemplate };

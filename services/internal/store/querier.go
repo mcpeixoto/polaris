@@ -75,6 +75,7 @@ type Querier interface {
 	AppendIssueHistory(ctx context.Context, arg AppendIssueHistoryParams) error
 	ArchiveCustomer(ctx context.Context, id uuid.UUID) error
 	ArchiveCycle(ctx context.Context, id uuid.UUID) error
+	ArchiveDashboard(ctx context.Context, id uuid.UUID) error
 	ArchiveDocument(ctx context.Context, id uuid.UUID) error
 	ArchiveFormTemplate(ctx context.Context, id uuid.UUID) (ArchiveFormTemplateRow, error)
 	ArchiveInitiative(ctx context.Context, id uuid.UUID) error
@@ -271,6 +272,8 @@ type Querier interface {
 	CreateCustomerRequest(ctx context.Context, arg CreateCustomerRequestParams) (CustomerRequest, error)
 	// Cycles. Column lists follow the table order, same rule as issues.sql.
 	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
+	CreateDashboard(ctx context.Context, arg CreateDashboardParams) (Dashboard, error)
+	CreateDashboardTile(ctx context.Context, arg CreateDashboardTileParams) (DashboardTile, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	// Drafts are not replicated. Every query is scoped to one user in one workspace: a listing
 	// that omitted user_id would be a way to read somebody else's unsent work.
@@ -348,6 +351,7 @@ type Querier interface {
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
 	DeleteCustomerDomains(ctx context.Context, customerID uuid.UUID) error
 	DeleteCustomerRequest(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
+	DeleteDashboardTile(ctx context.Context, id uuid.UUID) (DashboardTile, error)
 	DeleteDraft(ctx context.Context, arg DeleteDraftParams) (uuid.UUID, error)
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
@@ -419,6 +423,10 @@ type Querier interface {
 	GetCustomerRequest(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
 	GetCustomerRequestForUpdate(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
 	GetCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
+	GetDashboard(ctx context.Context, id uuid.UUID) (Dashboard, error)
+	GetDashboardForUpdate(ctx context.Context, id uuid.UUID) (Dashboard, error)
+	GetDashboardTile(ctx context.Context, id uuid.UUID) (DashboardTile, error)
+	GetDashboardTileForUpdate(ctx context.Context, id uuid.UUID) (DashboardTile, error)
 	GetDefaultProjectStatus(ctx context.Context, workspaceID uuid.UUID) (ProjectStatus, error)
 	GetDefaultWorkflowStateForTeam(ctx context.Context, teamID uuid.UUID) (WorkflowState, error)
 	GetDocument(ctx context.Context, id uuid.UUID) (Document, error)
@@ -571,6 +579,8 @@ type Querier interface {
 	IsTeamMember(ctx context.Context, arg IsTeamMemberParams) (bool, error)
 	LastCustomerSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastCycleNumber(ctx context.Context, teamID uuid.UUID) (int32, error)
+	LastDashboardSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
+	LastDashboardTileSortOrder(ctx context.Context, dashboardID uuid.UUID) (string, error)
 	LastDocumentSortOrderForProject(ctx context.Context, projectID *uuid.UUID) (string, error)
 	LastDocumentSortOrderForTeam(ctx context.Context, teamID uuid.UUID) (string, error)
 	LastFormTemplateFieldSortOrder(ctx context.Context, formTemplateID uuid.UUID) (string, error)
@@ -617,6 +627,7 @@ type Querier interface {
 	// Cycle-less issues in a given category, for auto-add.
 	ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyclelessIssuesByCategoryParams) ([]ListCyclelessIssuesByCategoryRow, error)
 	ListCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
+	ListDashboardTiles(ctx context.Context, dashboardID uuid.UUID) ([]DashboardTile, error)
 	// ListDeletedIssues is the "recently deleted" screen. Ordered by deletion time rather than
 	// by sort_order, because the only question being asked here is "what did I just lose".
 	//
@@ -1089,6 +1100,7 @@ type Querier interface {
 	SnoozeNotification(ctx context.Context, arg SnoozeNotificationParams) (Notification, error)
 	SoftDeleteComment(ctx context.Context, id uuid.UUID) error
 	SoftDeleteCustomer(ctx context.Context, arg SoftDeleteCustomerParams) (Customer, error)
+	SoftDeleteDashboard(ctx context.Context, arg SoftDeleteDashboardParams) (Dashboard, error)
 	SoftDeleteDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	SoftDeleteInitiative(ctx context.Context, arg SoftDeleteInitiativeParams) (Initiative, error)
 	// SoftDeleteIssue records who as well as when.
@@ -1129,6 +1141,13 @@ type Querier interface {
 	//
 	StreamCustomersForBootstrap(ctx context.Context, arg StreamCustomersForBootstrapParams) ([]Customer, error)
 	StreamCyclesForBootstrap(ctx context.Context, arg StreamCyclesForBootstrapParams) ([]Cycle, error)
+	// StreamDashboardTilesForBootstrap: a tile follows its dashboard's visibility.
+	//
+	StreamDashboardTilesForBootstrap(ctx context.Context, arg StreamDashboardTilesForBootstrapParams) ([]DashboardTile, error)
+	// StreamDashboardsForBootstrap: workspace rows for members, team rows for membership,
+	// personal rows for the owner. Guests never call this.
+	//
+	StreamDashboardsForBootstrap(ctx context.Context, arg StreamDashboardsForBootstrapParams) ([]Dashboard, error)
 	StreamDocumentsForBootstrap(ctx context.Context, arg StreamDocumentsForBootstrapParams) ([]Document, error)
 	// StreamFavoritesForBootstrap ships the caller's own sidebar, minus the entries pointing at
 	// something this same snapshot does not carry.
@@ -1329,6 +1348,7 @@ type Querier interface {
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error
 	UnarchiveCustomer(ctx context.Context, id uuid.UUID) (Customer, error)
 	UnarchiveCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
+	UnarchiveDashboard(ctx context.Context, id uuid.UUID) (Dashboard, error)
 	UnarchiveDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	UnarchiveFormTemplate(ctx context.Context, id uuid.UUID) (UnarchiveFormTemplateRow, error)
 	UnarchiveInitiative(ctx context.Context, id uuid.UUID) (Initiative, error)
@@ -1370,6 +1390,8 @@ type Querier interface {
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error)
 	UpdateCustomerRequest(ctx context.Context, arg UpdateCustomerRequestParams) (CustomerRequest, error)
 	UpdateCycle(ctx context.Context, arg UpdateCycleParams) (Cycle, error)
+	UpdateDashboard(ctx context.Context, arg UpdateDashboardParams) (Dashboard, error)
+	UpdateDashboardTile(ctx context.Context, arg UpdateDashboardTileParams) (DashboardTile, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateDraftPayload(ctx context.Context, arg UpdateDraftPayloadParams) (Draft, error)
 	UpdateFormTemplate(ctx context.Context, arg UpdateFormTemplateParams) (UpdateFormTemplateRow, error)
