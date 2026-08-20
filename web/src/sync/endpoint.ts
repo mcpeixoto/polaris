@@ -118,7 +118,8 @@ export function isAnonymousAuthPath(pathname: string): boolean {
     pathname === '/signin' ||
     pathname === '/signup' ||
     pathname === '/welcome' ||
-    pathname.startsWith('/invite/')
+    pathname.startsWith('/invite/') ||
+    pathname.startsWith('/ask/')
   );
 }
 

@@ -19,9 +19,12 @@ describe('isLoopbackHostname', () => {
 });
 
 describe('isAnonymousAuthPath', () => {
-  it.each(['/signin', '/signup', '/welcome', '/invite/abc'])('skips auto-login on %s', (path) => {
-    expect(isAnonymousAuthPath(path)).toBe(true);
-  });
+  it.each(['/signin', '/signup', '/welcome', '/invite/abc', '/ask/deadbeef'])(
+    'skips auto-login on %s',
+    (path) => {
+      expect(isAnonymousAuthPath(path)).toBe(true);
+    },
+  );
 
   it.each(['/', '/team/ENG', '/invite', '/signin/extra'])('allows auto-login on %s', (path) => {
     expect(isAnonymousAuthPath(path)).toBe(false);

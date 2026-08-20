@@ -524,6 +524,22 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "askForm",
+			func(ctx context.Context, after uuid.UUID) ([]store.AskForm, error) {
+				return q.StreamAskFormsForBootstrap(ctx, store.StreamAskFormsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(row store.AskForm) (uuid.UUID, any) {
+				return row.ID, toAskForm(row)
+			},
+		); err != nil {
+			return err
+		}
+
 		if err := streamPages(ctx, w, "projectTemplate",
 			func(ctx context.Context, after uuid.UUID) ([]store.StreamProjectTemplatesForBootstrapRow, error) {
 				return q.StreamProjectTemplatesForBootstrap(ctx, store.StreamProjectTemplatesForBootstrapParams{
@@ -1078,7 +1094,9 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v36 adds viewSubscription (personal watches on a saved view).
 // v37 is reserved for a concurrent slice.
 // v38 adds gitlabConnection and gitlabUserLink (GitLab v1 linking, no secrets).
-const ClientSchemaVersion = 38
+// v39 is reserved for Pulse.
+// v40 adds askForm (shareable intake URLs; submit is HTTP, not GraphQL).
+const ClientSchemaVersion = 40
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

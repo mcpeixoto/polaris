@@ -129,6 +129,7 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 		{"SlaRule", model.SlaRule{}, func(v any) (any, error) { return toSlaRule(v.(model.SlaRule)) }},
 		{"Dashboard", model.Dashboard{}, func(v any) (any, error) { return toDashboard(v.(model.Dashboard)), nil }},
 		{"DashboardTile", model.DashboardTile{}, func(v any) (any, error) { return toDashboardTile(v.(model.DashboardTile)) }},
+		{"AskForm", model.AskForm{}, func(v any) (any, error) { return toAskForm(v.(model.AskForm)), nil }},
 		{"ViewSubscription", model.ViewSubscription{}, func(v any) (any, error) { return toViewSubscription(v.(model.ViewSubscription)), nil }},
 	}
 

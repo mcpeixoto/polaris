@@ -23,6 +23,7 @@ export default defineConfig({
       '/oauth/token': 'http://localhost:8088',
       '/oauth/revoke': 'http://localhost:8088',
       '/mcp': 'http://localhost:8088',
+      '/asks': 'http://localhost:8088',
       '/.well-known': 'http://localhost:8088',
       '/sync/bootstrap': 'http://localhost:8088',
       '/sync': { target: 'ws://localhost:8089', ws: true },
