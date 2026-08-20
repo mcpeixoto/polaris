@@ -128,8 +128,15 @@ type Comment struct {
 	EditedAt    *time.Time `json:"editedAt,omitempty"`
 	ResolvedAt  *time.Time `json:"resolvedAt,omitempty"`
 	ResolvedBy  *uuid.UUID `json:"resolvedBy,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
+	// Start of the highlighted span in the issue description, in UTF-16 code units.
+	// Set together with `anchorEnd` and `quote` on an inline comment; omitted otherwise.
+	AnchorStart *int `json:"anchorStart,omitempty"`
+	// End of the highlighted span (exclusive).
+	AnchorEnd *int `json:"anchorEnd,omitempty"`
+	// The selected text at the moment the comment was left, used to re-find the span after edits.
+	Quote     *string   `json:"quote,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 	// The issue this comment is on.
 	//
 	// Non-null, and it can be: a comment is only ever returned to somebody who can already read
@@ -167,6 +174,10 @@ type CreateCommentInput struct {
 	IssueID  uuid.UUID  `json:"issueId"`
 	Body     string     `json:"body"`
 	ParentID *uuid.UUID `json:"parentId,omitempty"`
+	// Set together with `anchorEnd` and `quote` to pin the comment to a span of the issue description.
+	AnchorStart *int    `json:"anchorStart,omitempty"`
+	AnchorEnd   *int    `json:"anchorEnd,omitempty"`
+	Quote       *string `json:"quote,omitempty"`
 }
 
 type CreateCustomerInput struct {

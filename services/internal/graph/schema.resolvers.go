@@ -161,9 +161,12 @@ func (r *mutationResolver) CreateComment(ctx context.Context, input generated.Cr
 	}
 
 	in := domain.CreateCommentInput{
-		IssueID:  input.IssueID,
-		Body:     input.Body,
-		ParentID: input.ParentID,
+		IssueID:     input.IssueID,
+		Body:        input.Body,
+		ParentID:    input.ParentID,
+		AnchorStart: input.AnchorStart,
+		AnchorEnd:   input.AnchorEnd,
+		Quote:       input.Quote,
 	}
 	comment, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.Comment, int64, error) {
