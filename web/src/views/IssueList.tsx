@@ -47,6 +47,7 @@ import {
   Tooltip,
 } from '~/components';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
+import { issueIdsForAdhocList } from '~/features/issue/adhocList';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
 import { liveIssueCountForTeam } from '~/features/team/issueLimit';
 import { TeamIssueLimitBanner } from '~/features/team/TeamIssueLimitBanner';
@@ -168,6 +169,17 @@ export type IssueListSource =
        */
       readonly kind: 'view';
       readonly viewId: UUID;
+    }
+  | {
+      /**
+       * Identifiers named in the URL, in that order.
+       *
+       * Not a view and not a filter: the path *is* the set. Tokens that do not resolve in
+       * this replica are omitted rather than erroring, so a link from last week still
+       * opens the issues that still exist.
+       */
+      readonly kind: 'adhoc';
+      readonly identifiers: readonly string[];
     };
 
 export interface IssueListProps {
@@ -285,7 +297,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
               ? `triage:${source.teamId}`
               : source.kind === 'label'
                 ? `label:${source.labelId}`
-                : `view:${source.viewId}`;
+                : source.kind === 'adhoc'
+                  ? `adhoc:${source.identifiers.join(',')}`
+                  : `view:${source.viewId}`;
   const includeCompleted = source.kind === 'assignee' && source.includeCompleted === true;
   const inTriage = source.kind === 'triage';
   const viewId = source.kind === 'view' ? source.viewId : null;
@@ -1181,7 +1195,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
                         ? 'No issues with this label yet'
                         : source.kind === 'assignee'
                           ? 'Nothing assigned'
-                          : 'No issues in this team yet'
+                          : source.kind === 'adhoc'
+                            ? 'None of these issues are here'
+                            : 'No issues in this team yet'
             }
             description={
               filtered
@@ -1194,7 +1210,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
                       ? 'Unreviewed work from outside the team lands here. Press C to file into triage, or 1 / 2 / 3 / H to accept, merge, decline or snooze.'
                       : source.kind === 'label' || source.kind === 'assignee'
                         ? 'Issues that pick up this assignment will appear here.'
-                        : 'Press C to file the first one. It will land here the moment you save.'
+                        : source.kind === 'adhoc'
+                          ? 'They may have been deleted, or they belong to a team you are not in.'
+                          : 'Press C to file the first one. It will land here the moment you save.'
             }
             action={
               filtered ? (
@@ -1511,6 +1529,14 @@ function scopeOf(
     };
   }
 
+  if (source.kind === 'adhoc') {
+    return {
+      heading: heading ?? source.identifiers.join(', '),
+      team: null,
+      timezone: browserTimezone(),
+    };
+  }
+
   const team = [...store.teams.values()].find((candidate) => candidate.key === teamKey);
   if (team === undefined) {
     return { heading: null, team: null, timezone: browserTimezone() };
@@ -1583,6 +1609,7 @@ function corpusIdsOf(
     if (view.projectId !== undefined) return store.index.byProject(view.projectId);
     return view.teamId === undefined ? store.index.active() : store.index.byTeam(view.teamId);
   }
+  if (source.kind === 'adhoc') return new Set(issueIdsForAdhocList(store, source.identifiers));
   return teamId === undefined ? null : store.index.byTeam(teamId);
 }
 
