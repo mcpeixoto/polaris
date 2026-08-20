@@ -324,6 +324,190 @@ func TestDeleteView_TellsTheWholeScopeToForgetIt(t *testing.T) {
 	}
 }
 
+// Sharing a private view has to revoke it from the owner's personal scope and republish it
+// under the workspace (or team) so everybody else actually receives it. A single upsert
+// under the new scope would leave the owner's other devices holding a private row the
+// listing no longer returns, and would never tell anyone else the view existed.
+func TestUpdateView_SharingAPrivateViewReachesTheTeam(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	admin := f.Principal()
+
+	mine := mustView(t, svc, admin, domain.CreateViewInput{
+		Name:    "My week",
+		Private: true,
+		TeamID:  &f.TeamID,
+		Filter:  json.RawMessage(`{"field":"assignee","op":"isNotNull"}`),
+	})
+
+	otherID := f.NewUser(t, "other", "member", true)
+	other := f.PrincipalFor(otherID, authz.RoleMember, f.TeamID)
+	if seen := viewIDs(t, svc, other); seen[mine.ID] {
+		t.Fatal("somebody else's private view was listed before it was shared")
+	}
+
+	share := false
+	after, _, err := svc.UpdateView(ctx, admin, domain.UpdateViewInput{ID: mine.ID, Private: &share})
+	if err != nil {
+		t.Fatalf("share view: %v", err)
+	}
+	if after.OwnerID != nil {
+		t.Fatalf("a shared view still has owner %s", *after.OwnerID)
+	}
+	if seen := viewIDs(t, svc, other); !seen[mine.ID] {
+		t.Fatal("a teammate was not shown a view that was just shared with their team")
+	}
+
+	var sawDelete, sawUpsert bool
+	for _, c := range changesForEntity(t, db, f.WorkspaceID, "view") {
+		if c.EntityID != mine.ID {
+			continue
+		}
+		scope, err := authz.ParseScope(c.Scope)
+		if err != nil {
+			t.Fatalf("parse scope: %v", err)
+		}
+		switch c.Op {
+		case string(domain.OpDelete):
+			if scope.Kind == authz.ScopeUser {
+				sawDelete = true
+			}
+		case string(domain.OpUpsert):
+			if scope.Kind == authz.ScopeTeam && len(scope.TeamIDs) == 1 && scope.TeamIDs[0] == f.TeamID {
+				sawUpsert = true
+			}
+		}
+	}
+	if !sawDelete {
+		t.Fatal("sharing did not emit a delete under the owner's user scope — their other devices keep a private copy")
+	}
+	if !sawUpsert {
+		t.Fatal("sharing did not emit an upsert under the team scope — teammates never learn the view exists")
+	}
+}
+
+// The reverse: making a shared view private has to tell the team to drop it, then republish
+// it under the caller's user scope. Otherwise every replica that bootstrapped the shared
+// row keeps rendering it.
+func TestUpdateView_MakingASharedViewPrivateHidesItFromEverybodyElse(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	admin := f.Principal()
+
+	shared := mustView(t, svc, admin, domain.CreateViewInput{
+		Name:   "Triage",
+		TeamID: &f.TeamID,
+		Filter: json.RawMessage(`{"field":"stateCategory","op":"in","values":["triage"]}`),
+	})
+
+	otherID := f.NewUser(t, "other", "member", true)
+	other := f.PrincipalFor(otherID, authz.RoleMember, f.TeamID)
+	if seen := viewIDs(t, svc, other); !seen[shared.ID] {
+		t.Fatal("a teammate could not see the shared view before it was made private")
+	}
+
+	hide := true
+	after, _, err := svc.UpdateView(ctx, admin, domain.UpdateViewInput{ID: shared.ID, Private: &hide})
+	if err != nil {
+		t.Fatalf("make private: %v", err)
+	}
+	if after.OwnerID == nil || *after.OwnerID != f.UserID {
+		t.Fatalf("a private view has owner %+v, want the caller", after.OwnerID)
+	}
+	if seen := viewIDs(t, svc, other); seen[shared.ID] {
+		t.Fatal("a teammate still sees a view that was made private")
+	}
+	if _, err := svc.GetView(ctx, other, shared.ID); platform.CodeOf(err) != platform.CodeNotFound {
+		t.Fatalf("reading a newly private view gave %v, want NOT_FOUND", err)
+	}
+
+	var sawTeamDelete, sawUserUpsert bool
+	for _, c := range changesForEntity(t, db, f.WorkspaceID, "view") {
+		if c.EntityID != shared.ID {
+			continue
+		}
+		scope, err := authz.ParseScope(c.Scope)
+		if err != nil {
+			t.Fatalf("parse scope: %v", err)
+		}
+		switch c.Op {
+		case string(domain.OpDelete):
+			if scope.Kind == authz.ScopeTeam {
+				sawTeamDelete = true
+			}
+		case string(domain.OpUpsert):
+			if scope.Kind == authz.ScopeUser && scope.UserID != nil && *scope.UserID == f.UserID {
+				sawUserUpsert = true
+			}
+		}
+	}
+	if !sawTeamDelete {
+		t.Fatal("making private did not emit a delete under the team scope — teammates keep the row")
+	}
+	if !sawUserUpsert {
+		t.Fatal("making private did not emit an upsert under the owner's user scope")
+	}
+}
+
+// A member can keep a private view, but publishing it to the whole workspace is an admin
+// action — the same gate CreateView uses for a shared workspace view.
+func TestUpdateView_SharingAWorkspaceViewIsAnAdminAction(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	memberID := f.NewUser(t, "mem", "member", true)
+	member := f.PrincipalFor(memberID, authz.RoleMember, f.TeamID)
+	mine := mustView(t, svc, member, domain.CreateViewInput{
+		Name:    "Personal",
+		Private: true,
+		Filter:  json.RawMessage(`{"field":"assignee","op":"isNotNull"}`),
+	})
+
+	share := false
+	_, _, err := svc.UpdateView(ctx, member, domain.UpdateViewInput{ID: mine.ID, Private: &share})
+	if platform.CodeOf(err) != platform.CodeForbidden {
+		t.Fatalf("a member sharing a workspace view gave %v, want FORBIDDEN", err)
+	}
+	after, err := svc.GetView(ctx, member, mine.ID)
+	if err != nil {
+		t.Fatalf("get view: %v", err)
+	}
+	if after.OwnerID == nil {
+		t.Fatal("the refused share cleared owner_id anyway")
+	}
+}
+
+func TestUpdateView_ProjectViewsCannotBecomePrivate(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	admin := f.Principal()
+
+	project, _, err := svc.CreateProject(ctx, admin, domain.CreateProjectInput{
+		Name: "Ship", TeamIDs: []uuid.UUID{f.TeamID}, MemberIDs: []uuid.UUID{admin.UserID},
+	})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	view := mustView(t, svc, admin, domain.CreateViewInput{
+		Name:      "Bugs",
+		ProjectID: &project.ID,
+		Filter:    json.RawMessage(`{}`),
+	})
+	hide := true
+	_, _, err = svc.UpdateView(ctx, admin, domain.UpdateViewInput{ID: view.ID, Private: &hide})
+	if platform.CodeOf(err) != platform.CodeValidation {
+		t.Fatalf("got %v, want VALIDATION", err)
+	}
+}
+
 // The natural key of a preference is (user, view key) and the write is an upsert, so the id
 // the caller mints is thrown away on every call but the first. Everything downstream has to
 // use the id the row actually has: a fresh one each time would leave every client holding a

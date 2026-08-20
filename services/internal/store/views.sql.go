@@ -1015,8 +1015,12 @@ SET name        = COALESCE($1, name),
     color       = COALESCE($4, color),
     filter      = COALESCE($5, filter),
     display     = COALESCE($6, display),
-    position    = COALESCE($7, position)
-WHERE id = $8 AND archived_at IS NULL
+    position    = COALESCE($7, position),
+    -- COALESCE cannot express "share this view" (owner_id → NULL). clear_owner is that
+    -- write; setting owner_id without it is "make private to this person".
+    owner_id    = CASE WHEN $8::boolean THEN NULL
+                       ELSE COALESCE($9, owner_id) END
+WHERE id = $10 AND archived_at IS NULL
 RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
           filter, display, position, created_by, archived_at, created_at, updated_at
 `
@@ -1029,6 +1033,8 @@ type UpdateViewParams struct {
 	Filter      []byte
 	Display     []byte
 	Position    *string
+	ClearOwner  bool
+	OwnerID     *uuid.UUID
 	ID          uuid.UUID
 }
 
@@ -1060,6 +1066,8 @@ func (q *Queries) UpdateView(ctx context.Context, arg UpdateViewParams) (UpdateV
 		arg.Filter,
 		arg.Display,
 		arg.Position,
+		arg.ClearOwner,
+		arg.OwnerID,
 		arg.ID,
 	)
 	var i UpdateViewRow

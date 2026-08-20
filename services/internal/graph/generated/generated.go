@@ -12763,6 +12763,15 @@ input UpdateViewInput {
   filter: JSON
   display: JSON
   afterViewId: UUID
+  """
+  True keeps the view to its owner. False shares it with everyone who can see its
+  scope. Omit to leave sharing unchanged.
+
+  Sharing is a visibility change: the old scope is told to forget the row, then the
+  new scope is told to take it. That is why this is a dedicated flag rather than an
+  owner id — a caller may only ever make a view private to themselves.
+  """
+  private: Boolean
 }
 
 input SetViewSubscriptionInput {
@@ -62711,7 +62720,7 @@ func (ec *executionContext) unmarshalInputUpdateViewInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "name", "description", "icon", "color", "filter", "display", "afterViewId"}
+	fieldsInOrder := [...]string{"id", "name", "description", "icon", "color", "filter", "display", "afterViewId", "private"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -62774,6 +62783,13 @@ func (ec *executionContext) unmarshalInputUpdateViewInput(ctx context.Context, o
 				return it, err
 			}
 			it.AfterViewID = data
+		case "private":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("private"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Private = data
 		}
 	}
 	return it, nil
