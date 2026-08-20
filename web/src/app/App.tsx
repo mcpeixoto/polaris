@@ -34,6 +34,7 @@ import { Inbox } from '~/views/Inbox';
 import { Pulse } from '~/views/Pulse';
 import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
+import { AdHocIssues } from '~/views/AdHocIssues';
 import { LabelView } from '~/views/LabelView';
 import { MemberSettings } from '~/views/MemberSettings';
 import { McpSettings } from '~/views/McpSettings';
@@ -191,6 +192,7 @@ function SignedInShell() {
         <Route path="/team/:teamKey/archives" element={<Archives />} />
         <Route path="/team/:teamKey/documents" element={<Documents />} />
         <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
+        <Route path="/issues/:identifiers" element={<AdHocIssues />} />
         <Route path="/issue/:identifier" element={<IssueDetail />} />
         <Route path="/project/:projectId" element={<ProjectShell />}>
           <Route index element={<ProjectOverview />} />
