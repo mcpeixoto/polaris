@@ -27,6 +27,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/graph/generated"
 	"github.com/peixotolabs/polaris/services/internal/httpapi"
 	ghclient "github.com/peixotolabs/polaris/services/internal/integrations/github"
+	glclient "github.com/peixotolabs/polaris/services/internal/integrations/gitlab"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
@@ -74,6 +75,7 @@ func run() error {
 	svc := domain.NewService(db)
 	svc.PublicURL = cfg.PublicURL
 	svc.SetGitHubCommentPoster(ghclient.CommentClient{})
+	svc.SetGitLabCommentPoster(glclient.CommentClient{})
 	tokens := httpapi.NewTokens(cfg.JWTSecret, cfg.AccessTokenTTL)
 
 	// Built once and shared: the router charges requests to these buckets and the GraphQL
