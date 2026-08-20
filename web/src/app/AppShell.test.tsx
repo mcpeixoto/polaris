@@ -249,7 +249,7 @@ describe('the settings section', () => {
     ]) {
       expect(screen.getByRole('link', { name }), `${name} is not reachable`).toBeTruthy();
     }
-    for (const name of ['My Issues', 'Inbox', 'Drafts', 'Search']) {
+    for (const name of ['My Issues', 'Inbox', 'Pulse', 'Drafts', 'Search']) {
       expect(screen.getByRole('link', { name }), `${name} is not reachable`).toBeTruthy();
     }
   });
