@@ -52,3 +52,8 @@ docker-compose.fleet.yml
 # Polaris and all of it is a fact about one machine, so it is kept beside its published
 # sibling (docs/05-infrastructure/05-deployment.md) and out of the tree.
 *.private.md
+
+# Keep-alive local stack (scripts/dev-up.sh). Machine-local PIDs and logs.
+.dev-pids
+.dev-stop
+.dev-logs/
