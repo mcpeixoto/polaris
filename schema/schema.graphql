@@ -2161,6 +2161,28 @@ type Invite {
   createdAt: Time!
 }
 
+"""
+A proposal to list a third-party integration in this workspace's directory.
+
+Deliberately not a `MutationResult` and not on the replica: the catalogue itself is
+derived from live connection rows, and a submission is an inbox item for the people
+who can connect new tools.
+"""
+type IntegrationSubmission {
+  id: UUID!
+  workspaceId: UUID!
+  submittedBy: UUID!
+  name: String!
+  website: String!
+  summary: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type IntegrationSubmissionPayload {
+  submission: IntegrationSubmission!
+}
+
 # ---------------------------------------------------------------- inputs
 
 input CreateIssueInput {
@@ -2552,6 +2574,12 @@ input InviteInput {
   teamIds: [UUID!]
 }
 
+input SubmitIntegrationInput {
+  name: String!
+  website: String!
+  summary: String!
+}
+
 input CreateApiKeyInput {
   name: String!
   """Empty means everything the owner can do. Narrowing only."""
@@ -2920,6 +2948,9 @@ type Query {
 
   """Pending invitations. Admins only."""
   invites: [Invite!]!
+
+  """Proposals to list a third-party integration. Members; not replicated."""
+  integrationSubmissions: [IntegrationSubmission!]!
 
   """
   Issues deleted within the restore window, so a mistaken delete is recoverable without a
@@ -3296,6 +3327,9 @@ type Mutation {
   ensureCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
   """Replace the personal ICS token. The previous feed URL stops working."""
   rotateCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
+
+  """Propose a third-party integration for this workspace's directory."""
+  submitIntegration(input: SubmitIntegrationInput!): IntegrationSubmissionPayload!
 
   # ---- drafts (personal, on-demand; not replicated)
 

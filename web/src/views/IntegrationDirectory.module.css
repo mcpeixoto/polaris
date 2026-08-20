@@ -88,3 +88,60 @@ a.row:focus-visible {
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
+
+.submit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.submitTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.error {
+  margin: 0;
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+}
+
+.notice {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.proposals {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.proposal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.proposalName {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.proposalSummary {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
