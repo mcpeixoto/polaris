@@ -542,6 +542,87 @@ func TestArchiveLabel_RefusesWhileStillInUse(t *testing.T) {
 	}
 }
 
+func TestMergeLabels_MovesApplicationsAndArchivesTheSource(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	bug := mustLabel(t, svc, p, domain.CreateLabelInput{Name: "bug"})
+	defect := mustLabel(t, svc, p, domain.CreateLabelInput{Name: "defect"})
+	issue := f.NewIssue(t, "A defect")
+	if _, _, err := svc.AddIssueLabel(ctx, p, issue, defect.ID); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	survived, _, err := svc.MergeLabels(ctx, p, defect.ID, bug.ID)
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if survived.ID != bug.ID {
+		t.Fatalf("survivor is %s, want %s", survived.ID, bug.ID)
+	}
+
+	if _, err := svc.GetLabel(ctx, p, defect.ID); platform.CodeOf(err) != platform.CodeNotFound {
+		t.Fatalf("source should be archived, got %v", err)
+	}
+
+	labels, err := svc.ListIssueLabels(ctx, p, issue)
+	if err != nil {
+		t.Fatalf("list applications: %v", err)
+	}
+	if len(labels) != 1 || labels[0].LabelID != bug.ID {
+		t.Fatalf("issue labels = %+v, want only bug", labels)
+	}
+}
+
+func TestMergeLabels_DropsTheSourceWhenTheSurvivorIsAlreadyOnTheIssue(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	bug := mustLabel(t, svc, p, domain.CreateLabelInput{Name: "bug"})
+	defect := mustLabel(t, svc, p, domain.CreateLabelInput{Name: "defect"})
+	issue := f.NewIssue(t, "Both names")
+	if _, _, err := svc.AddIssueLabel(ctx, p, issue, bug.ID); err != nil {
+		t.Fatalf("apply bug: %v", err)
+	}
+	if _, _, err := svc.AddIssueLabel(ctx, p, issue, defect.ID); err != nil {
+		t.Fatalf("apply defect: %v", err)
+	}
+
+	if _, _, err := svc.MergeLabels(ctx, p, defect.ID, bug.ID); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	labels, err := svc.ListIssueLabels(ctx, p, issue)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(labels) != 1 || labels[0].LabelID != bug.ID {
+		t.Fatalf("issue labels = %+v, want only bug", labels)
+	}
+}
+
+func TestMergeLabels_RefusesAGroupAndASelfMerge(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	group := mustLabel(t, svc, p, domain.CreateLabelInput{Name: "Priority", IsGroup: true})
+	bug := mustLabel(t, svc, p, domain.CreateLabelInput{Name: "bug"})
+	if _, _, err := svc.MergeLabels(ctx, p, group.ID, bug.ID); err == nil {
+		t.Fatal("a group was merged")
+	}
+	if _, _, err := svc.MergeLabels(ctx, p, bug.ID, bug.ID); err == nil {
+		t.Fatal("a label merged into itself")
+	}
+}
+
 // Labels are visible by their scope, judged by the one predicate every read path uses. A
 // guest is scoped to their teams and never sees workspace-wide entities.
 func TestListLabels_ShowsOnlyWhatTheCallersScopeAllows(t *testing.T) {

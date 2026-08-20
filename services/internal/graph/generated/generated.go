@@ -813,6 +813,7 @@ type ComplexityRoot struct {
 		MarkAllNotificationsRead       func(childComplexity int) int
 		MarkIssueDuplicate             func(childComplexity int, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		MarkNotificationRead           func(childComplexity int, id uuid.UUID, read bool) int
+		MergeLabels                    func(childComplexity int, sourceID uuid.UUID, intoID uuid.UUID) int
 		MoveFavorite                   func(childComplexity int, input MoveFavoriteInput) int
 		MoveTeam                       func(childComplexity int, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		PurgeDeletedIssues             func(childComplexity int, before *time.Time) int
@@ -1674,6 +1675,7 @@ type MutationResolver interface {
 	CreateLabel(ctx context.Context, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	UpdateLabel(ctx context.Context, input UpdateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	ArchiveLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
+	MergeLabels(ctx context.Context, sourceID uuid.UUID, intoID uuid.UUID) (*LabelPayload, error)
 	AddIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssueLabelPayload, error)
 	RemoveIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateProjectLabel(ctx context.Context, input CreateProjectLabelInput) (*ProjectLabelPayload, error)
@@ -5812,6 +5814,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MarkNotificationRead(childComplexity, args["id"].(uuid.UUID), args["read"].(bool)), true
+	case "Mutation.mergeLabels":
+		if e.ComplexityRoot.Mutation.MergeLabels == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_mergeLabels_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MergeLabels(childComplexity, args["sourceId"].(uuid.UUID), args["intoId"].(uuid.UUID)), true
 	case "Mutation.moveFavorite":
 		if e.ComplexityRoot.Mutation.MoveFavorite == nil {
 			break
@@ -13150,6 +13163,12 @@ type Mutation {
   archiving a non-empty group is refused to prevent, reached from the other side.
   """
   archiveLabel(id: UUID!, archived: Boolean!): DeletePayload!
+  """
+  Fold one label into another. Applications of the source move onto the survivor;
+  the source is then archived. Same scope, same group (or both ungrouped); neither
+  may be a group.
+  """
+  mergeLabels(sourceId: UUID!, intoId: UUID!): LabelPayload!
 
   """
   Adds one label. Not "set the labels": a whole-set write means two people adding
@@ -18428,6 +18447,28 @@ func (ec *executionContext) field_Mutation_markNotificationRead_args(ctx context
 		return nil, err
 	}
 	args["read"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_mergeLabels_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sourceId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sourceId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "intoId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["intoId"] = arg1
 	return args, nil
 }
 
@@ -36827,6 +36868,50 @@ func (ec *executionContext) fieldContext_Mutation_archiveLabel(ctx context.Conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_archiveLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_mergeLabels(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_mergeLabels(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MergeLabels(ctx, fc.Args["sourceId"].(uuid.UUID), fc.Args["intoId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *LabelPayload) graphql.Marshaler {
+			return ec.marshalNLabelPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐLabelPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_mergeLabels(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LabelPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_mergeLabels_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -66774,6 +66859,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "archiveLabel":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_archiveLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mergeLabels":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_mergeLabels(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

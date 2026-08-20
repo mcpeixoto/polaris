@@ -120,6 +120,7 @@ type Documents = {
     "\n  \n  mutation CreateLabel($input: CreateLabelInput!, $clientId: UUID, $opId: UUID) {\n    createLabel(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n": typeof types.CreateLabelDocument,
     "\n  \n  mutation UpdateLabel($input: UpdateLabelInput!, $clientId: UUID, $opId: UUID) {\n    updateLabel(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n": typeof types.UpdateLabelDocument,
     "\n  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {\n    archiveLabel(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveLabelDocument,
+    "\n  \n  mutation MergeLabels($sourceId: UUID!, $intoId: UUID!) {\n    mergeLabels(sourceId: $sourceId, intoId: $intoId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n": typeof types.MergeLabelsDocument,
     "\n  \n  mutation AddIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    addIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      issueLabel {\n        ...IssueLabelFields\n      }\n    }\n  }\n": typeof types.AddIssueLabelDocument,
     "\n  mutation RemoveIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    removeIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveIssueLabelDocument,
     "\n  fragment OauthClientFields on OauthClient {\n    id\n    workspaceId\n    creatorId\n    clientId\n    name\n    description\n    developer\n    developerUrl\n    imageUrl\n    redirectUris\n    allowedScopes\n    publicEnabled\n    clientCredentialsEnabled\n    webhookUrl\n    createdAt\n    updatedAt\n  }\n": typeof types.OauthClientFieldsFragmentDoc,
@@ -356,6 +357,7 @@ const documents: Documents = {
     "\n  \n  mutation CreateLabel($input: CreateLabelInput!, $clientId: UUID, $opId: UUID) {\n    createLabel(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n": types.CreateLabelDocument,
     "\n  \n  mutation UpdateLabel($input: UpdateLabelInput!, $clientId: UUID, $opId: UUID) {\n    updateLabel(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n": types.UpdateLabelDocument,
     "\n  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {\n    archiveLabel(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": types.ArchiveLabelDocument,
+    "\n  \n  mutation MergeLabels($sourceId: UUID!, $intoId: UUID!) {\n    mergeLabels(sourceId: $sourceId, intoId: $intoId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n": types.MergeLabelsDocument,
     "\n  \n  mutation AddIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    addIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      issueLabel {\n        ...IssueLabelFields\n      }\n    }\n  }\n": types.AddIssueLabelDocument,
     "\n  mutation RemoveIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    removeIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.RemoveIssueLabelDocument,
     "\n  fragment OauthClientFields on OauthClient {\n    id\n    workspaceId\n    creatorId\n    clientId\n    name\n    description\n    developer\n    developerUrl\n    imageUrl\n    redirectUris\n    allowedScopes\n    publicEnabled\n    clientCredentialsEnabled\n    webhookUrl\n    createdAt\n    updatedAt\n  }\n": types.OauthClientFieldsFragmentDoc,
@@ -924,6 +926,10 @@ export function graphql(source: "\n  \n  mutation UpdateLabel($input: UpdateLabe
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {\n    archiveLabel(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {\n    archiveLabel(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation MergeLabels($sourceId: UUID!, $intoId: UUID!) {\n    mergeLabels(sourceId: $sourceId, intoId: $intoId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation MergeLabels($sourceId: UUID!, $intoId: UUID!) {\n    mergeLabels(sourceId: $sourceId, intoId: $intoId) {\n      version\n      label {\n        ...LabelFields\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

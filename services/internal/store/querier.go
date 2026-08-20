@@ -375,6 +375,10 @@ type Querier interface {
 	DeleteGitLabTeamAutomation(ctx context.Context, arg DeleteGitLabTeamAutomationParams) error
 	DeleteGitLabUserLink(ctx context.Context, arg DeleteGitLabUserLinkParams) error
 	DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
+	// The remainder after RetargetIssueLabels: issues that already carried the survivor, so
+	// the source application is dropped rather than doubled.
+	//
+	DeleteIssueLabelsForLabel(ctx context.Context, labelID uuid.UUID) ([]IssueLabel, error)
 	DeleteIssueRelation(ctx context.Context, id uuid.UUID) (IssueRelation, error)
 	// Soft, not a DELETE: the unique index on (user_id, group_key) is what makes the fan-out
 	// idempotent, and removing the row would let a replayed version deliver the notification a
@@ -1077,6 +1081,12 @@ type Querier interface {
 	RestoreIssuesInTeam(ctx context.Context, arg RestoreIssuesInTeamParams) (int64, error)
 	RestoreProject(ctx context.Context, arg RestoreProjectParams) (Project, error)
 	RestoreTeam(ctx context.Context, arg RestoreTeamParams) (Team, error)
+	// RetargetIssueLabels is the bulk half of a label merge: every application of the source
+	// that would not collide with the survivor is rewritten in place. The row keeps its id,
+	// so the change stream is an upsert of the same entity rather than a delete-plus-add that
+	// would flicker the chip off and on.
+	//
+	RetargetIssueLabels(ctx context.Context, arg RetargetIssueLabelsParams) ([]IssueLabel, error)
 	RetireTeam(ctx context.Context, id uuid.UUID) (Team, error)
 	// Scoped by user_id as well as id: a key acts as its owner, so only its owner may retire
 	// it, and the rule is expressed where it cannot be skipped.

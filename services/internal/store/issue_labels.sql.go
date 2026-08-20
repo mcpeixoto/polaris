@@ -169,6 +169,43 @@ func (q *Queries) BulkRemoveIssueLabels(ctx context.Context, arg BulkRemoveIssue
 	return items, nil
 }
 
+const deleteIssueLabelsForLabel = `-- name: DeleteIssueLabelsForLabel :many
+DELETE FROM issue_label
+WHERE label_id = $1
+RETURNING id, workspace_id, issue_id, label_id, team_id, group_id, created_by, created_at
+`
+
+// The remainder after RetargetIssueLabels: issues that already carried the survivor, so
+// the source application is dropped rather than doubled.
+func (q *Queries) DeleteIssueLabelsForLabel(ctx context.Context, labelID uuid.UUID) ([]IssueLabel, error) {
+	rows, err := q.db.Query(ctx, deleteIssueLabelsForLabel, labelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueLabel{}
+	for rows.Next() {
+		var i IssueLabel
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.LabelID,
+			&i.TeamID,
+			&i.GroupID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listIssueLabels = `-- name: ListIssueLabels :many
 SELECT id, workspace_id, issue_id, label_id, team_id, group_id, created_by, created_at
 FROM issue_label
@@ -283,6 +320,56 @@ func (q *Queries) RemoveIssueLabel(ctx context.Context, arg RemoveIssueLabelPara
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const retargetIssueLabels = `-- name: RetargetIssueLabels :many
+UPDATE issue_label AS moving SET label_id = $1
+WHERE moving.label_id = $2
+  AND NOT EXISTS (
+    SELECT 1 FROM issue_label already
+    WHERE already.issue_id = moving.issue_id
+      AND already.label_id = $1
+  )
+RETURNING moving.id, moving.workspace_id, moving.issue_id, moving.label_id, moving.team_id,
+          moving.group_id, moving.created_by, moving.created_at
+`
+
+type RetargetIssueLabelsParams struct {
+	IntoID   uuid.UUID
+	SourceID uuid.UUID
+}
+
+// RetargetIssueLabels is the bulk half of a label merge: every application of the source
+// that would not collide with the survivor is rewritten in place. The row keeps its id,
+// so the change stream is an upsert of the same entity rather than a delete-plus-add that
+// would flicker the chip off and on.
+func (q *Queries) RetargetIssueLabels(ctx context.Context, arg RetargetIssueLabelsParams) ([]IssueLabel, error) {
+	rows, err := q.db.Query(ctx, retargetIssueLabels, arg.IntoID, arg.SourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueLabel{}
+	for rows.Next() {
+		var i IssueLabel
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.LabelID,
+			&i.TeamID,
+			&i.GroupID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const streamIssueLabelsForBootstrap = `-- name: StreamIssueLabelsForBootstrap :many
