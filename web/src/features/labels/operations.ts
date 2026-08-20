@@ -84,6 +84,18 @@ export const ARCHIVE_LABEL = /* GraphQL */ `
   }
 `;
 
+export const MERGE_LABELS = /* GraphQL */ `
+  ${LABEL_FIELDS}
+  mutation MergeLabels($sourceId: UUID!, $intoId: UUID!) {
+    mergeLabels(sourceId: $sourceId, intoId: $intoId) {
+      version
+      label {
+        ...LabelFields
+      }
+    }
+  }
+`;
+
 export const ADD_ISSUE_LABEL = /* GraphQL */ `
   ${ISSUE_LABEL_FIELDS}
   mutation AddIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {
