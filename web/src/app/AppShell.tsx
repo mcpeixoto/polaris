@@ -587,6 +587,10 @@ export function AppShell({
               <NavGlyph name="apps" />
               <span className={styles.navLabel}>OAuth apps</span>
             </NavLink>
+            <NavLink to="/settings/integrations" className={navClass}>
+              <NavGlyph name="apps" />
+              <span className={styles.navLabel}>Integrations</span>
+            </NavLink>
             <NavLink to="/settings/webhooks" className={navClass}>
               <NavGlyph name="webhook" />
               <span className={styles.navLabel}>Webhooks</span>

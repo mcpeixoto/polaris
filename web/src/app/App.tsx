@@ -36,6 +36,7 @@ import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
 import { AdHocIssues } from '~/views/AdHocIssues';
 import { LabelView } from '~/views/LabelView';
+import { IntegrationDirectory } from '~/views/IntegrationDirectory';
 import { MemberSettings } from '~/views/MemberSettings';
 import { McpSettings } from '~/views/McpSettings';
 import { MyIssues } from '~/views/MyIssues';
@@ -215,6 +216,7 @@ function SignedInShell() {
         <Route path="/settings/mcp" element={<McpSettings />} />
         <Route path="/settings/asks" element={<AskSettings />} />
         <Route path="/settings/oauth-apps" element={<OAuthApps />} />
+        <Route path="/settings/integrations" element={<IntegrationDirectory />} />
         <Route path="/settings/webhooks" element={<Webhooks />} />
         <Route path="/settings/github" element={<GitHubSettings />} />
         <Route path="/settings/gitlab" element={<GitLabSettings />} />

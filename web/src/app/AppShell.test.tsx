@@ -240,6 +240,7 @@ describe('the settings section', () => {
       'MCP',
       'Asks',
       'OAuth apps',
+      'Integrations',
       'Webhooks',
       'GitHub',
       'GitLab',
