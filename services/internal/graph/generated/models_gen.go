@@ -1035,6 +1035,26 @@ type InitiativeProjectPayload struct {
 
 func (InitiativeProjectPayload) IsMutationResult() {}
 
+// A proposal to list a third-party integration in this workspace's directory.
+//
+// Deliberately not a `MutationResult` and not on the replica: the catalogue itself is
+// derived from live connection rows, and a submission is an inbox item for the people
+// who can connect new tools.
+type IntegrationSubmission struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	SubmittedBy uuid.UUID `json:"submittedBy"`
+	Name        string    `json:"name"`
+	Website     string    `json:"website"`
+	Summary     string    `json:"summary"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type IntegrationSubmissionPayload struct {
+	Submission *IntegrationSubmission `json:"submission"`
+}
+
 type Invite struct {
 	ID          uuid.UUID   `json:"id"`
 	WorkspaceID uuid.UUID   `json:"workspaceId"`
@@ -1863,6 +1883,12 @@ type SLARulePayload struct {
 }
 
 func (SLARulePayload) IsMutationResult() {}
+
+type SubmitIntegrationInput struct {
+	Name    string `json:"name"`
+	Website string `json:"website"`
+	Summary string `json:"summary"`
+}
 
 type SubscriptionPayload struct {
 	Version      int                `json:"version"`
