@@ -842,6 +842,43 @@ export interface InitiativeProject {
   readonly createdAt: Timestamp;
 }
 
+export type CustomerStatus = 'active' | 'prospect' | 'churned';
+
+/** An external organisation whose feedback is attributed onto issues and projects. */
+export interface Customer {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly name: string;
+  readonly domains: readonly string[];
+  readonly revenue?: number;
+  readonly size?: number;
+  readonly tier?: string;
+  readonly status: CustomerStatus;
+  readonly ownerId?: UUID;
+  readonly logoUrl: string;
+  readonly creatorId?: UUID;
+  readonly sortOrder: string;
+  readonly archivedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+  readonly deletedBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/** Feedback attached to an issue and/or a project, optionally a customer. */
+export interface CustomerRequest {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly customerId?: UUID;
+  readonly issueId?: UUID;
+  readonly projectId?: UUID;
+  readonly body: string;
+  readonly important: boolean;
+  readonly creatorId?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 export type ProjectUpdateHealth = 'on_track' | 'at_risk' | 'off_track';
 
 export type ProjectUpdateSchedule = 'default' | 'never' | 'custom';
@@ -932,6 +969,7 @@ export interface EntityByType {
   team: Team;
   teamMembership: TeamMembership;
   workflowState: WorkflowState;
+  customer: Customer;
   label: Label;
   issueTemplate: IssueTemplate;
   formTemplate: FormTemplate;
@@ -953,6 +991,7 @@ export interface EntityByType {
   cycle: Cycle;
   recurringIssue: RecurringIssue;
   issue: Issue;
+  customerRequest: CustomerRequest;
   issueLabel: IssueLabel;
   issueRelation: IssueRelation;
   attachment: Attachment;
@@ -983,6 +1022,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'team',
   'teamMembership',
   'workflowState',
+  'customer',
   // Before issues: an issue may carry a labelId or a templateId.
   'label',
   'issueTemplate',
@@ -1007,6 +1047,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'cycle',
   'recurringIssue',
   'issue',
+  'customerRequest',
   // After issues, because each names one.
   'issueLabel',
   'issueRelation',

@@ -22,6 +22,20 @@ func TestVisible_WorkspaceScope(t *testing.T) {
 	}
 }
 
+func TestVisible_MembersOnlyWithholdsFromGuestsInTheTeam(t *testing.T) {
+	team := uuid.New()
+	member := &Principal{UserID: uuid.New(), Role: RoleMember, Teams: NewTeamSet(team)}
+	guest := &Principal{UserID: uuid.New(), Role: RoleGuest, Teams: NewTeamSet(team)}
+	scope := TeamScope(team, false).WithoutGuests()
+
+	if !Visible(member, scope) {
+		t.Error("a member in the team must still see the row")
+	}
+	if Visible(guest, scope) {
+		t.Error("a guest in the team must not see a members-only row")
+	}
+}
+
 func TestVisible_TeamScope(t *testing.T) {
 	teamA, teamB := uuid.New(), uuid.New()
 	p := &Principal{UserID: uuid.New(), Role: RoleMember, Teams: NewTeamSet(teamA)}

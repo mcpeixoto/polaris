@@ -607,9 +607,9 @@ type FormTemplate struct {
 // time. nextDueDate is the due date of the current occurrence; the worker files the next
 // issue after that day has passed, at 00:01 in the team's timezone.
 type RecurringIssue struct {
-	ID          uuid.UUID  `json:"id"`
-	WorkspaceID uuid.UUID  `json:"workspaceId"`
-	TeamID      uuid.UUID  `json:"teamId"`
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	TeamID      uuid.UUID `json:"teamId"`
 
 	Title      string          `json:"title"`
 	Body       string          `json:"body"`
@@ -852,6 +852,47 @@ type InitiativeProject struct {
 	InitiativeID uuid.UUID `json:"initiativeId"`
 	ProjectID    uuid.UUID `json:"projectId"`
 	CreatedAt    time.Time `json:"createdAt"`
+}
+
+const (
+	CustomerStatusActive   = "active"
+	CustomerStatusProspect = "prospect"
+	CustomerStatusChurned  = "churned"
+)
+
+// Customer is an external organisation whose feedback is attributed onto issues and projects.
+type Customer struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	Name        string     `json:"name"`
+	Domains     []string   `json:"domains"`
+	Revenue     *int32     `json:"revenue,omitempty"`
+	Size        *int32     `json:"size,omitempty"`
+	Tier        *string    `json:"tier,omitempty"`
+	Status      string     `json:"status"`
+	OwnerID     *uuid.UUID `json:"ownerId,omitempty"`
+	LogoURL     string     `json:"logoUrl"`
+	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	SortOrder   string     `json:"sortOrder"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt   *time.Time `json:"deletedAt,omitempty"`
+	DeletedBy   *uuid.UUID `json:"deletedBy,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
+// CustomerRequest is feedback attached to an issue and/or a project, optionally a customer.
+type CustomerRequest struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	CustomerID  *uuid.UUID `json:"customerId,omitempty"`
+	IssueID     *uuid.UUID `json:"issueId,omitempty"`
+	ProjectID   *uuid.UUID `json:"projectId,omitempty"`
+	Body        string     `json:"body"`
+	Important   bool       `json:"important"`
+	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
 // Document is long-form markdown attached to a team or a project. The body is plain markdown

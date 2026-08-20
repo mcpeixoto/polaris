@@ -8,6 +8,8 @@ import {
   type Attachment,
   type Document,
   type Cycle,
+  type Customer,
+  type CustomerRequest,
   type Entity,
   type EntityOf,
   type EntityType,
@@ -107,8 +109,9 @@ import {
  * v22 adds githubConnection and githubUserLink (GitHub v1 linking, no secrets).
  * v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
  * v24 adds recurringIssue, team default template ids, and issue.recurringIssueId.
+ * v25 adds customer and customerRequest.
  */
-export const CLIENT_SCHEMA = 24;
+export const CLIENT_SCHEMA = 25;
 
 /**
  * One database per workspace per schema version.
@@ -185,6 +188,7 @@ interface PolarisSchema extends DBSchema {
   team: { key: UUID; value: Team };
   teamMembership: { key: UUID; value: TeamMembership };
   workflowState: { key: UUID; value: WorkflowState };
+  customer: { key: UUID; value: Customer };
   label: { key: UUID; value: Label };
   issueTemplate: { key: UUID; value: IssueTemplate };
   formTemplate: { key: UUID; value: FormTemplate };
@@ -206,6 +210,7 @@ interface PolarisSchema extends DBSchema {
   cycle: { key: UUID; value: Cycle };
   recurringIssue: { key: UUID; value: RecurringIssue };
   issue: { key: UUID; value: Issue };
+  customerRequest: { key: UUID; value: CustomerRequest };
   issueLabel: { key: UUID; value: IssueLabel };
   issueRelation: { key: UUID; value: IssueRelation };
   attachment: { key: UUID; value: Attachment };

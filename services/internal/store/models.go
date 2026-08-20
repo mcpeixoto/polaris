@@ -128,6 +128,45 @@ type Comment struct {
 	UpdatedAt   time.Time
 }
 
+type Customer struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Name        string
+	Domains     []string
+	Revenue     *int32
+	Size        *int32
+	Tier        *string
+	Status      string
+	OwnerID     *uuid.UUID
+	LogoUrl     string
+	CreatorID   *uuid.UUID
+	SortOrder   string
+	ArchivedAt  *time.Time
+	DeletedAt   *time.Time
+	DeletedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type CustomerDomain struct {
+	WorkspaceID uuid.UUID
+	Domain      string
+	CustomerID  uuid.UUID
+}
+
+type CustomerRequest struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	CustomerID  *uuid.UUID
+	IssueID     *uuid.UUID
+	ProjectID   *uuid.UUID
+	Body        string
+	Important   bool
+	CreatorID   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Cycle struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

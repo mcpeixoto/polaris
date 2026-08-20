@@ -169,6 +169,25 @@ type CreateCommentInput struct {
 	ParentID *uuid.UUID `json:"parentId,omitempty"`
 }
 
+type CreateCustomerInput struct {
+	Name    string          `json:"name"`
+	Domains []string        `json:"domains,omitempty"`
+	Revenue *int            `json:"revenue,omitempty"`
+	Size    *int            `json:"size,omitempty"`
+	Tier    *string         `json:"tier,omitempty"`
+	Status  *CustomerStatus `json:"status,omitempty"`
+	OwnerID *uuid.UUID      `json:"ownerId,omitempty"`
+	LogoURL *string         `json:"logoUrl,omitempty"`
+}
+
+type CreateCustomerRequestInput struct {
+	CustomerID *uuid.UUID `json:"customerId,omitempty"`
+	IssueID    *uuid.UUID `json:"issueId,omitempty"`
+	ProjectID  *uuid.UUID `json:"projectId,omitempty"`
+	Body       *string    `json:"body,omitempty"`
+	Important  *bool      `json:"important,omitempty"`
+}
+
 type CreateDocumentInput struct {
 	TeamID uuid.UUID `json:"teamId"`
 	// When set, the document belongs to this project rather than the team home.
@@ -420,6 +439,61 @@ type CreateWorkflowStateInput struct {
 	Description  *string       `json:"description,omitempty"`
 	AfterStateID *uuid.UUID    `json:"afterStateId,omitempty"`
 }
+
+// An external organisation whose feedback is attributed onto issues and projects.
+type Customer struct {
+	ID          uuid.UUID      `json:"id"`
+	WorkspaceID uuid.UUID      `json:"workspaceId"`
+	Name        string         `json:"name"`
+	Domains     []string       `json:"domains"`
+	Revenue     *int           `json:"revenue,omitempty"`
+	Size        *int           `json:"size,omitempty"`
+	Tier        *string        `json:"tier,omitempty"`
+	Status      CustomerStatus `json:"status"`
+	OwnerID     *uuid.UUID     `json:"ownerId,omitempty"`
+	LogoURL     string         `json:"logoUrl"`
+	CreatorID   *uuid.UUID     `json:"creatorId,omitempty"`
+	SortOrder   string         `json:"sortOrder"`
+	ArchivedAt  *time.Time     `json:"archivedAt,omitempty"`
+	DeletedAt   *time.Time     `json:"deletedAt,omitempty"`
+	DeletedBy   *uuid.UUID     `json:"deletedBy,omitempty"`
+	CreatedAt   time.Time      `json:"createdAt"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
+	Owner       *User          `json:"owner,omitempty"`
+	Creator     *User          `json:"creator,omitempty"`
+}
+
+type CustomerPayload struct {
+	Version  int       `json:"version"`
+	Customer *Customer `json:"customer"`
+}
+
+func (CustomerPayload) IsMutationResult() {}
+
+// Feedback attached to an issue and/or a project, optionally a customer.
+type CustomerRequest struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	CustomerID  *uuid.UUID `json:"customerId,omitempty"`
+	IssueID     *uuid.UUID `json:"issueId,omitempty"`
+	ProjectID   *uuid.UUID `json:"projectId,omitempty"`
+	Body        string     `json:"body"`
+	Important   bool       `json:"important"`
+	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	Customer    *Customer  `json:"customer,omitempty"`
+	Issue       *Issue     `json:"issue,omitempty"`
+	Project     *Project   `json:"project,omitempty"`
+	Creator     *User      `json:"creator,omitempty"`
+}
+
+type CustomerRequestPayload struct {
+	Version         int              `json:"version"`
+	CustomerRequest *CustomerRequest `json:"customerRequest"`
+}
+
+func (CustomerRequestPayload) IsMutationResult() {}
 
 // A dated window on one team. Cooldown is a gap between cycles, not a row of this type.
 type Cycle struct {
@@ -1467,6 +1541,32 @@ type UpdateAttachmentInput struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 
+type UpdateCustomerInput struct {
+	ID           uuid.UUID       `json:"id"`
+	Name         *string         `json:"name,omitempty"`
+	Domains      []string        `json:"domains,omitempty"`
+	Revenue      *int            `json:"revenue,omitempty"`
+	ClearRevenue *bool           `json:"clearRevenue,omitempty"`
+	Size         *int            `json:"size,omitempty"`
+	ClearSize    *bool           `json:"clearSize,omitempty"`
+	Tier         *string         `json:"tier,omitempty"`
+	ClearTier    *bool           `json:"clearTier,omitempty"`
+	Status       *CustomerStatus `json:"status,omitempty"`
+	OwnerID      *uuid.UUID      `json:"ownerId,omitempty"`
+	ClearOwner   *bool           `json:"clearOwner,omitempty"`
+	LogoURL      *string         `json:"logoUrl,omitempty"`
+}
+
+type UpdateCustomerRequestInput struct {
+	ID            uuid.UUID  `json:"id"`
+	Body          *string    `json:"body,omitempty"`
+	Important     *bool      `json:"important,omitempty"`
+	CustomerID    *uuid.UUID `json:"customerId,omitempty"`
+	ClearCustomer *bool      `json:"clearCustomer,omitempty"`
+	IssueID       *uuid.UUID `json:"issueId,omitempty"`
+	ProjectID     *uuid.UUID `json:"projectId,omitempty"`
+}
+
 type UpdateCycleInput struct {
 	ID               uuid.UUID `json:"id"`
 	Name             *string   `json:"name,omitempty"`
@@ -2035,6 +2135,63 @@ func (e *ActorType) UnmarshalJSON(b []byte) error {
 }
 
 func (e ActorType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type CustomerStatus string
+
+const (
+	CustomerStatusActive   CustomerStatus = "ACTIVE"
+	CustomerStatusProspect CustomerStatus = "PROSPECT"
+	CustomerStatusChurned  CustomerStatus = "CHURNED"
+)
+
+var AllCustomerStatus = []CustomerStatus{
+	CustomerStatusActive,
+	CustomerStatusProspect,
+	CustomerStatusChurned,
+}
+
+func (e CustomerStatus) IsValid() bool {
+	switch e {
+	case CustomerStatusActive, CustomerStatusProspect, CustomerStatusChurned:
+		return true
+	}
+	return false
+}
+
+func (e CustomerStatus) String() string {
+	return string(e)
+}
+
+func (e *CustomerStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CustomerStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CustomerStatus", str)
+	}
+	return nil
+}
+
+func (e CustomerStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *CustomerStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e CustomerStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

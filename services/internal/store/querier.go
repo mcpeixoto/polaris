@@ -73,6 +73,7 @@ type Querier interface {
 	AllocateIssueNumber(ctx context.Context, id uuid.UUID) (int64, error)
 	AppendChange(ctx context.Context, arg AppendChangeParams) error
 	AppendIssueHistory(ctx context.Context, arg AppendIssueHistoryParams) error
+	ArchiveCustomer(ctx context.Context, id uuid.UUID) error
 	ArchiveCycle(ctx context.Context, id uuid.UUID) error
 	ArchiveDocument(ctx context.Context, id uuid.UUID) error
 	ArchiveFormTemplate(ctx context.Context, id uuid.UUID) (ArchiveFormTemplateRow, error)
@@ -263,6 +264,8 @@ type Querier interface {
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
 	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) (Attachment, error)
 	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
+	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
+	CreateCustomerRequest(ctx context.Context, arg CreateCustomerRequestParams) (CustomerRequest, error)
 	// Cycles. Column lists follow the table order, same rule as issues.sql.
 	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
@@ -329,6 +332,8 @@ type Querier interface {
 	CreateWorkflowState(ctx context.Context, arg CreateWorkflowStateParams) (WorkflowState, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
+	DeleteCustomerDomains(ctx context.Context, customerID uuid.UUID) error
+	DeleteCustomerRequest(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
 	DeleteDraft(ctx context.Context, arg DeleteDraftParams) (uuid.UUID, error)
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (int64, error)
@@ -394,6 +399,10 @@ type Querier interface {
 	GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
 	GetAttachmentByIssueURL(ctx context.Context, arg GetAttachmentByIssueURLParams) (Attachment, error)
 	GetComment(ctx context.Context, id uuid.UUID) (Comment, error)
+	GetCustomer(ctx context.Context, id uuid.UUID) (Customer, error)
+	GetCustomerForUpdate(ctx context.Context, id uuid.UUID) (Customer, error)
+	GetCustomerRequest(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
+	GetCustomerRequestForUpdate(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
 	GetCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
 	GetDefaultProjectStatus(ctx context.Context, workspaceID uuid.UUID) (ProjectStatus, error)
 	GetDefaultWorkflowStateForTeam(ctx context.Context, teamID uuid.UUID) (WorkflowState, error)
@@ -526,8 +535,10 @@ type Querier interface {
 	GetWorkspaceByURLKey(ctx context.Context, urlKey string) (Workspace, error)
 	GetWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	InitWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) error
+	InsertCustomerDomain(ctx context.Context, arg InsertCustomerDomainParams) error
 	InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDeliveryParams) (WebhookDelivery, error)
 	IsTeamMember(ctx context.Context, arg IsTeamMemberParams) (bool, error)
+	LastCustomerSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastCycleNumber(ctx context.Context, teamID uuid.UUID) (int32, error)
 	LastDocumentSortOrderForProject(ctx context.Context, projectID *uuid.UUID) (string, error)
 	LastDocumentSortOrderForTeam(ctx context.Context, teamID uuid.UUID) (string, error)
@@ -569,6 +580,8 @@ type Querier interface {
 	ListChildIssuesForParents(ctx context.Context, arg ListChildIssuesForParentsParams) ([]ListChildIssuesForParentsRow, error)
 	ListChildTeams(ctx context.Context, parentTeamID *uuid.UUID) ([]Team, error)
 	ListCommentsForIssue(ctx context.Context, issueID uuid.UUID) ([]Comment, error)
+	ListCustomerRequestIDsForCustomer(ctx context.Context, customerID *uuid.UUID) ([]uuid.UUID, error)
+	ListCustomersInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Customer, error)
 	// Cycle-less issues in a given category, for auto-add.
 	ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyclelessIssuesByCategoryParams) ([]ListCyclelessIssuesByCategoryRow, error)
 	ListCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
@@ -1031,6 +1044,7 @@ type Querier interface {
 	//
 	SnoozeNotification(ctx context.Context, arg SnoozeNotificationParams) (Notification, error)
 	SoftDeleteComment(ctx context.Context, id uuid.UUID) error
+	SoftDeleteCustomer(ctx context.Context, arg SoftDeleteCustomerParams) (Customer, error)
 	SoftDeleteDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	SoftDeleteInitiative(ctx context.Context, arg SoftDeleteInitiativeParams) (Initiative, error)
 	// SoftDeleteIssue records who as well as when.
@@ -1063,6 +1077,13 @@ type Querier interface {
 	// honest state is an accurate comment and a known cost.
 	//
 	StreamCommentsForBootstrap(ctx context.Context, arg StreamCommentsForBootstrapParams) ([]Comment, error)
+	// StreamCustomerRequestsForBootstrap: an issue-attached row follows the issue's team;
+	// a project-only row follows the project's teams. Guests never call this.
+	//
+	StreamCustomerRequestsForBootstrap(ctx context.Context, arg StreamCustomerRequestsForBootstrapParams) ([]CustomerRequest, error)
+	// StreamCustomersForBootstrap: workspace-scoped; guests never call this.
+	//
+	StreamCustomersForBootstrap(ctx context.Context, arg StreamCustomersForBootstrapParams) ([]Customer, error)
 	StreamCyclesForBootstrap(ctx context.Context, arg StreamCyclesForBootstrapParams) ([]Cycle, error)
 	StreamDocumentsForBootstrap(ctx context.Context, arg StreamDocumentsForBootstrapParams) ([]Document, error)
 	// StreamFavoritesForBootstrap ships the caller's own sidebar, minus the entries pointing at
@@ -1260,6 +1281,7 @@ type Querier interface {
 	TouchAPIKeyLastUsed(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error
+	UnarchiveCustomer(ctx context.Context, id uuid.UUID) (Customer, error)
 	UnarchiveCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
 	UnarchiveDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	UnarchiveFormTemplate(ctx context.Context, id uuid.UUID) (UnarchiveFormTemplateRow, error)
@@ -1299,6 +1321,8 @@ type Querier interface {
 	UnsubscribeNonMembersFromTeamIssues(ctx context.Context, teamID uuid.UUID) ([]IssueSubscription, error)
 	UpdateAttachment(ctx context.Context, arg UpdateAttachmentParams) (Attachment, error)
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
+	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error)
+	UpdateCustomerRequest(ctx context.Context, arg UpdateCustomerRequestParams) (CustomerRequest, error)
 	UpdateCycle(ctx context.Context, arg UpdateCycleParams) (Cycle, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateDraftPayload(ctx context.Context, arg UpdateDraftPayloadParams) (Draft, error)

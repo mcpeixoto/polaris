@@ -52,6 +52,9 @@ import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
 import { Relations, SubIssues } from '~/features/issue/relations';
 import { Links } from '~/features/attachments/Links';
+import { detectPlatform } from '~/keys';
+import { IssueCustomers } from '~/features/customers/IssueCustomers';
+import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
 import { browserTimezone } from '~/features/locale';
 import { RecurringDialog } from '~/features/recurring/RecurringDialog';
 import {
@@ -209,6 +212,7 @@ export function IssueDetail() {
   const [converting, setConverting] = useState(false);
   const [convertingBusy, setConvertingBusy] = useState(false);
   const [convertingError, setConvertingError] = useState<string | null>(null);
+  const [requestOpen, setRequestOpen] = useState(false);
 
   useKeyContext('detail');
 
@@ -304,8 +308,20 @@ export function IssueDetail() {
         group: 'Issues',
         run: () => commands.current.copyGitBranch(),
       },
+      ...(viewer !== null && viewer.role !== 'guest'
+        ? [
+            {
+              id: 'issueDetail.customerRequest',
+              title: 'Add customer request',
+              keys: detectPlatform() === 'mac' ? ['ctrl+r'] : ['ctrl+alt+r'],
+              when: 'detail' as const,
+              group: 'Customers',
+              run: () => setRequestOpen(true),
+            },
+          ]
+        : []),
     ],
-    [commentSubmit],
+    [commentSubmit, viewer],
   );
 
   if (issue === null) {
@@ -449,6 +465,10 @@ export function IssueDetail() {
         }}
       />
 
+      {requestOpen && (
+        <CreateCustomerRequestModal issueId={issue.id} onClose={() => setRequestOpen(false)} />
+      )}
+
       <div className={styles.body}>
         <div className={styles.main}>
           <TitleField
@@ -478,6 +498,8 @@ export function IssueDetail() {
           <Relations issueId={issue.id} />
 
           <Links issueId={issue.id} />
+
+          <IssueCustomers issueId={issue.id} />
 
           <Activity history={activity.history} names={names} />
 
