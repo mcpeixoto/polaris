@@ -243,6 +243,7 @@ describe('the settings section', () => {
       'Webhooks',
       'GitHub',
       'GitLab',
+      'Sentry',
       'Export',
       'Trash',
       'Deleted teams',

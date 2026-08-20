@@ -829,6 +829,19 @@ type RecurringIssue struct {
 	ArchivedAt    *time.Time
 }
 
+type SentryConnection struct {
+	ID               uuid.UUID
+	WorkspaceID      uuid.UUID
+	CreatorID        uuid.UUID
+	Enabled          bool
+	DefaultTeamID    uuid.UUID
+	OrganizationSlug *string
+	WebhookSecret    string
+	ConnectedAt      *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
 type SlaRule struct {
 	ID              uuid.UUID
 	WorkspaceID     uuid.UUID

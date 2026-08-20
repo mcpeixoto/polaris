@@ -188,6 +188,7 @@ type Querier interface {
 	// remain assigned to work they can no longer see.
 	//
 	ClearExternalAssigneesInTeam(ctx context.Context, teamID uuid.UUID) ([]ClearExternalAssigneesInTeamRow, error)
+	ClearSentryConnectionOrganizationSlug(ctx context.Context, workspaceID uuid.UUID) error
 	CompleteCycle(ctx context.Context, arg CompleteCycleParams) (Cycle, error)
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
 	ConsumeOauthAuthorizationCode(ctx context.Context, id uuid.UUID) (ConsumeOauthAuthorizationCodeRow, error)
@@ -340,6 +341,8 @@ type Querier interface {
 	CreateProjectUpdate(ctx context.Context, arg CreateProjectUpdateParams) (ProjectUpdate, error)
 	// Recurring issue schedules. Column lists follow the table order, same rule as issues.sql.
 	CreateRecurringIssue(ctx context.Context, arg CreateRecurringIssueParams) (CreateRecurringIssueRow, error)
+	// Replicated columns only. webhook_secret is never selected here.
+	CreateSentryConnection(ctx context.Context, arg CreateSentryConnectionParams) (CreateSentryConnectionRow, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (AccountSession, error)
 	CreateSlaRule(ctx context.Context, arg CreateSlaRuleParams) (SlaRule, error)
 	CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error)
@@ -381,6 +384,7 @@ type Querier interface {
 	DeleteProjectTemplateIssuesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
 	DeleteProjectTemplateMilestone(ctx context.Context, id uuid.UUID) error
 	DeleteProjectTemplateMilestonesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
+	DeleteSentryConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteSlaRule(ctx context.Context, id uuid.UUID) error
 	// Upcoming cycles that have not started: dropped when the team turns cycles off.
 	DeleteUpcomingCycles(ctx context.Context, arg DeleteUpcomingCyclesParams) ([]uuid.UUID, error)
@@ -554,6 +558,8 @@ type Querier interface {
 	// same due date would otherwise both decide it had passed and file two issues.
 	//
 	GetRecurringIssueForUpdate(ctx context.Context, id uuid.UUID) (GetRecurringIssueForUpdateRow, error)
+	GetSentryConnection(ctx context.Context, workspaceID uuid.UUID) (GetSentryConnectionRow, error)
+	GetSentryConnectionSecret(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (AccountSession, error)
 	GetSlaRule(ctx context.Context, id uuid.UUID) (SlaRule, error)
 	GetSlaRuleForUpdate(ctx context.Context, id uuid.UUID) (SlaRule, error)
@@ -1121,6 +1127,7 @@ type Querier interface {
 	// because this is the one place the user said so.
 	//
 	SetIssueSubscription(ctx context.Context, arg SetIssueSubscriptionParams) (IssueSubscription, error)
+	SetSentryConnectionSecret(ctx context.Context, arg SetSentryConnectionSecretParams) error
 	SetTeamsPrivate(ctx context.Context, ids []uuid.UUID) (int64, error)
 	SetUserRole(ctx context.Context, arg SetUserRoleParams) (User, error)
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) (User, error)
@@ -1348,6 +1355,7 @@ type Querier interface {
 	// schedule rows.
 	//
 	StreamRecurringIssuesForBootstrap(ctx context.Context, arg StreamRecurringIssuesForBootstrapParams) ([]StreamRecurringIssuesForBootstrapRow, error)
+	StreamSentryConnectionsForBootstrap(ctx context.Context, arg StreamSentryConnectionsForBootstrapParams) ([]StreamSentryConnectionsForBootstrapRow, error)
 	StreamSlaRulesForBootstrap(ctx context.Context, arg StreamSlaRulesForBootstrapParams) ([]SlaRule, error)
 	// StreamViewPreferencesForBootstrap feeds the initial snapshot. A preference travels under
 	// its owner's user scope and under nothing else, so the whole visibility rule is "yours".
@@ -1468,6 +1476,7 @@ type Querier interface {
 	UpdateProjectTemplateMilestone(ctx context.Context, arg UpdateProjectTemplateMilestoneParams) (ProjectTemplateMilestone, error)
 	UpdateProjectUpdate(ctx context.Context, arg UpdateProjectUpdateParams) (ProjectUpdate, error)
 	UpdateRecurringIssue(ctx context.Context, arg UpdateRecurringIssueParams) (UpdateRecurringIssueRow, error)
+	UpdateSentryConnection(ctx context.Context, arg UpdateSentryConnectionParams) (UpdateSentryConnectionRow, error)
 	UpdateSlaRule(ctx context.Context, arg UpdateSlaRuleParams) (SlaRule, error)
 	UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error)
 	// UpdateTeamArchive is the close/archive periods and the parent/child automations.

@@ -378,6 +378,11 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	}); err != nil {
 		t.Fatalf("link bob's GitLab account: %v", err)
 	}
+	if _, _, _, err := svc.CreateSentryConnection(ctx, s.alice, domain.CreateSentryConnectionInput{
+		DefaultTeamID: f.TeamID,
+	}); err != nil {
+		t.Fatalf("connect Sentry: %v", err)
+	}
 
 	// Favourites: alice pins something out of the private team and something workspace-wide,
 	// bob pins the team they share. A favourite carries only its owner's scope, which is what

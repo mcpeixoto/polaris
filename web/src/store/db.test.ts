@@ -371,6 +371,19 @@ function oneOfEach(): EntityRow[] {
         updatedAt: NOW,
       },
     },
+    {
+      type: 'sentryConnection',
+      entity: {
+        id: 'snc1',
+        workspaceId: 'w',
+        creatorId: 'u1',
+        enabled: true,
+        defaultTeamId: 't1',
+        organizationSlug: 'acme',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
     { type: 'team', entity: team('t1', 'ENG') },
     {
       type: 'teamMembership',
