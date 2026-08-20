@@ -16,6 +16,7 @@ import { CycleCalendarModal } from '~/features/cycles/CycleCalendarModal';
 import { CycleGraph } from '~/features/cycles/CycleGraph';
 import { CapacityDial } from '~/features/cycles/CapacityDial';
 import { cycleCapacity, type CycleCapacity } from '~/features/cycles/computeCapacity';
+import { inheritsCycleSchedule } from '~/features/cycles/inherit';
 import { startCycleToday, updateCycle } from '~/features/cycles/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Cycle, Store, UUID } from '~/store';
@@ -71,6 +72,15 @@ export function Cycles() {
     [team?.id ?? ''],
   );
 
+  const parent = useLiveQuery(
+    (store) =>
+      team === null || team.parentTeamId === undefined
+        ? null
+        : (store.get('team', team.parentTeamId) ?? null),
+    ['team'],
+    [team?.parentTeamId ?? ''],
+  );
+  const inherited = team !== null && inheritsCycleSchedule(team, parent);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuCycle, setMenuCycle] = useState<Cycle | null>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -212,6 +222,7 @@ export function Cycles() {
             },
           },
           ...(menuCycle !== null &&
+          !inherited &&
           menuPhase === 'Upcoming' &&
           isNextUpcoming(menuCycle, allCycles, Date.now())
             ? [
@@ -233,6 +244,7 @@ export function Cycles() {
         open={editOpen}
         cycle={editCycle}
         phase={editCycle === null ? 'Previous' : phaseOf(editCycle, Date.now())}
+        datesLocked={inherited}
         onClose={() => {
           setEditOpen(false);
           setEditCycle(null);

@@ -51,6 +51,12 @@ WHERE team_id = sqlc.arg(team_id)
   AND completed_at IS NULL
 RETURNING id;
 
+-- A single window, used when a sub-team remaps upcoming cycles onto a parent schedule.
+-- Issues on the row SET NULL via the FK; callers re-point open work first.
+-- name: DeleteCycle :one
+DELETE FROM cycle WHERE id = sqlc.arg(id)
+RETURNING id;
+
 -- Open work in a closing cycle: unstarted and started, not backlog/triage/canceled/completed.
 -- name: ListOpenIssuesInCycle :many
 SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.state_id,

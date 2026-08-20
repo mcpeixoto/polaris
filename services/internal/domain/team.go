@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -185,6 +186,18 @@ func (s *Service) CreateTeam(ctx context.Context, p *authz.Principal, in CreateT
 				return err
 			}
 			changes = append(changes, ownerChanges...)
+			if parentRow.CyclesEnabled {
+				inherited, extra, err := applyInheritedCycleSchedule(ctx, q, *parentRow, row, time.Now())
+				if err != nil {
+					return err
+				}
+				out = toTeam(inherited)
+				changes[0].Payload = out
+				// extra[0] is the same team upsert; keep cycle/issue rows only.
+				if len(extra) > 1 {
+					changes = append(changes, extra[1:]...)
+				}
+			}
 		}
 
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...)
