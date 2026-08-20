@@ -1,7 +1,7 @@
 # Integration directory submit
 
 **Status:** shipped on this branch  
-**Migration:** `000064_integration_submission` (Slack's `000063` is reserved on `feat/slack-v1`)  
+**Migration:** `000064_integration_submission`  
 **Client schema:** 43 (unchanged — submissions are not replicated)
 
 Propose a third-party integration from Settings → Integrations. The catalogue stays
