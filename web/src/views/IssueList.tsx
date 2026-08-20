@@ -50,6 +50,12 @@ import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
 import { liveIssueCountForTeam } from '~/features/team/issueLimit';
 import { TeamIssueLimitBanner } from '~/features/team/TeamIssueLimitBanner';
+import {
+  issueIdsForLabelView,
+  labelViewPath,
+  labelViewTitle,
+  userViewPath,
+} from '~/features/labels/labelView';
 import { setViewSubscription } from '~/features/view/mutations';
 import { downloadCsv, exportCap, issuesToCsv, type ExportRole } from '~/features/export/csv';
 import { personName, subscribePrefs, getPrefs } from '~/features/prefs/prefs';
@@ -130,6 +136,16 @@ export type IssueListSource =
   | {
       readonly kind: 'cycle';
       readonly cycleId: UUID;
+    }
+  | {
+      /**
+       * Every issue carrying one label, or every child of a label group.
+       *
+       * A group is never applied to an issue, so its view is the union of the labels under
+       * it. Team labels only exist on that team's issues; a workspace label spans teams.
+       */
+      readonly kind: 'label';
+      readonly labelId: UUID;
     }
   | {
       /**
@@ -267,7 +283,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             ? `cycle:${source.cycleId}`
             : source.kind === 'triage'
               ? `triage:${source.teamId}`
-              : `view:${source.viewId}`;
+              : source.kind === 'label'
+                ? `label:${source.labelId}`
+                : `view:${source.viewId}`;
   const includeCompleted = source.kind === 'assignee' && source.includeCompleted === true;
   const inTriage = source.kind === 'triage';
   const viewId = source.kind === 'view' ? source.viewId : null;
@@ -276,7 +294,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     (store) => scopeOf(store, source, teamKey, heading),
     // `view` too, because a saved view supplies the heading and the team a view-sourced list
     // is scoped to — renaming the view has to move this heading.
-    ['team', 'view', 'cycle'],
+    ['team', 'view', 'cycle', 'label', 'user'],
     [sourceKey, heading],
   );
 
@@ -819,6 +837,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     const missingView = source.kind === 'view';
     const missingProject = source.kind === 'project';
     const missingCycle = source.kind === 'cycle';
+    const missingLabel = source.kind === 'label';
     return (
       <div className={styles.screen}>
         <EmptyState
@@ -829,7 +848,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
                 ? 'No such project'
                 : missingCycle
                   ? 'No such cycle'
-                  : 'No such team'
+                  : missingLabel
+                    ? 'No such label'
+                    : 'No such team'
           }
           description={
             missingView
@@ -838,7 +859,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
                 ? 'This project has been deleted, or it belongs to a team you are not in.'
                 : missingCycle
                   ? 'This cycle has been removed, or it belongs to a team you are not in.'
-                  : `Nothing in this workspace has the key ${teamKey}.`
+                  : missingLabel
+                    ? 'This label has been archived, or it belongs to a team you are not in.'
+                    : `Nothing in this workspace has the key ${teamKey}.`
           }
         />
       </div>
@@ -1154,7 +1177,11 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
                     ? 'No issues in this cycle yet'
                     : source.kind === 'triage'
                       ? 'Inbox is clear'
-                      : 'No issues in this team yet'
+                      : source.kind === 'label'
+                        ? 'No issues with this label yet'
+                        : source.kind === 'assignee'
+                          ? 'Nothing assigned'
+                          : 'No issues in this team yet'
             }
             description={
               filtered
@@ -1165,7 +1192,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
                     ? 'Press C to file the first one. It will land in this cycle the moment you save.'
                     : source.kind === 'triage'
                       ? 'Unreviewed work from outside the team lands here. Press C to file into triage, or 1 / 2 / 3 / H to accept, merge, decline or snooze.'
-                      : 'Press C to file the first one. It will land here the moment you save.'
+                      : source.kind === 'label' || source.kind === 'assignee'
+                        ? 'Issues that pick up this assignment will appear here.'
+                        : 'Press C to file the first one. It will land here the moment you save.'
             }
             action={
               filtered ? (
@@ -1362,21 +1391,36 @@ const IssueRow = memo(function IssueRow({
       {issue.labels.length > 0 && (
         <span className={styles.labels}>
           {issue.labels.slice(0, 3).map((label) => (
-            <LabelChip key={label.id} name={label.name} color={label.color} compact />
+            <Link
+              key={label.id}
+              className={styles.chipLink}
+              to={labelViewPath(label.id)}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <LabelChip name={label.name} color={label.color} compact />
+            </Link>
           ))}
         </span>
       )}
       <span className={styles.meta}>
         <PriorityIcon priority={issue.priority} decorative />
-        {issue.assigneeName === null ? (
+        {issue.assigneeName === null || issue.assigneeId === null ? (
           <span className={styles.unassigned} aria-label="Unassigned" role="img" />
         ) : (
-          <Avatar
-            name={issue.assigneeName}
-            src={issue.assigneeAvatar}
-            size="xs"
-            colorKey={issue.assigneeId ?? issue.assigneeName}
-          />
+          <Link
+            className={styles.chipLink}
+            to={userViewPath(issue.assigneeId)}
+            onClick={(event) => event.stopPropagation()}
+            aria-label={issue.assigneeName}
+          >
+            <Avatar
+              name={issue.assigneeName}
+              src={issue.assigneeAvatar}
+              size="xs"
+              colorKey={issue.assigneeId}
+              decorative
+            />
+          </Link>
         )}
       </span>
     </div>
@@ -1427,6 +1471,18 @@ function scopeOf(
     const team = store.teams.get(cycle.teamId);
     return {
       heading: heading ?? cycle.name,
+      team: team === undefined ? null : { id: team.id, key: team.key, name: team.name },
+      timezone: team?.timezone ?? browserTimezone(),
+    };
+  }
+
+  if (source.kind === 'label') {
+    const title = labelViewTitle(store, source.labelId);
+    if (title === null) return { heading: null, team: null, timezone: browserTimezone() };
+    const label = store.labels.get(source.labelId);
+    const team = label?.teamId === undefined ? undefined : store.teams.get(label.teamId);
+    return {
+      heading: heading ?? title,
       team: team === undefined ? null : { id: team.id, key: team.key, name: team.name },
       timezone: team?.timezone ?? browserTimezone(),
     };
@@ -1519,6 +1575,7 @@ function corpusIdsOf(
   if (source.kind === 'assignee') return store.index.byAssignee(source.userId);
   if (source.kind === 'project') return store.index.byProject(source.projectId);
   if (source.kind === 'cycle') return store.index.byCycle(source.cycleId);
+  if (source.kind === 'label') return issueIdsForLabelView(store, source.labelId);
   if (source.kind === 'triage') return store.index.byTeam(source.teamId);
   if (source.kind === 'view') {
     const view = store.views.get(source.viewId);
