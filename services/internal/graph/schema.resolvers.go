@@ -2201,6 +2201,37 @@ func (r *mutationResolver) SetViewPreference(ctx context.Context, viewKey string
 	return &generated.ViewPreferencePayload{Version: int(version), Preference: &out}, nil
 }
 
+// SetViewSubscription is the resolver for the setViewSubscription field.
+func (r *mutationResolver) SetViewSubscription(ctx context.Context, input generated.SetViewSubscriptionInput) (*generated.ViewSubscriptionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, version, err := r.Svc.SetViewSubscription(ctx, p, domain.SetViewSubscriptionInput{
+		ViewID:    input.ViewID,
+		Added:     input.Added,
+		Completed: input.Completed,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toViewSubscription(row)
+	return &generated.ViewSubscriptionPayload{Version: int(version), ViewSubscription: &out}, nil
+}
+
+// DeleteViewSubscription is the resolver for the deleteViewSubscription field.
+func (r *mutationResolver) DeleteViewSubscription(ctx context.Context, viewID uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	deleted, version, err := r.Svc.DeleteViewSubscription(ctx, p, viewID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
+}
+
 // AddFavorite is the resolver for the addFavorite field.
 func (r *mutationResolver) AddFavorite(ctx context.Context, kind generated.FavoriteKind, targetID uuid.UUID, afterFavoriteID *uuid.UUID) (*generated.FavoritePayload, error) {
 	p, err := principalFrom(ctx)

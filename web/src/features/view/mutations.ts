@@ -35,6 +35,7 @@ import {
   type UUID,
   type View,
   type ViewPreference,
+  type ViewSubscription,
 } from '~/store';
 import type { DisplayOptions, FilterNode } from '~/filter';
 import { ApiError } from '~/sync/api';
@@ -44,8 +45,10 @@ import {
   ADD_FAVORITE,
   CREATE_VIEW,
   DELETE_VIEW,
+  DELETE_VIEW_SUBSCRIPTION,
   REMOVE_FAVORITE,
   SET_VIEW_PREFERENCE,
+  SET_VIEW_SUBSCRIPTION,
   UPDATE_VIEW,
 } from './operations';
 
@@ -240,6 +243,65 @@ export async function setViewPreference(
   }
 }
 
+export interface ViewSubscriptionChange {
+  readonly viewId: UUID;
+  readonly userId: UUID;
+  readonly added: boolean;
+  readonly completed: boolean;
+}
+
+/**
+ * Upserts the viewer's watch on a saved view, or removes it when both flags are off.
+ *
+ * Both-false is unsubscribe rather than a validation error because that is the Subscribe
+ * menu's off state. The unique (view, user) row is what makes two tabs honest.
+ */
+export async function setViewSubscription(
+  engine: SyncEngine,
+  input: ViewSubscriptionChange,
+): Promise<void> {
+  const store = engine.store;
+  const existingId = store.viewSubscriptionIdFor(input.userId, input.viewId);
+  const before =
+    existingId === undefined ? null : (store.get('viewSubscription', existingId) ?? null);
+
+  if (!input.added && !input.completed) {
+    if (before === null) return;
+    await engine.mutate({
+      mutation: DELETE_VIEW_SUBSCRIPTION,
+      variables: { viewId: input.viewId },
+      optimistic: [{ type: 'viewSubscription', id: before.id, before, after: null }],
+    });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const after: ViewSubscription = {
+    id: before?.id ?? uuidv7(),
+    workspaceId: store.workspaceId,
+    viewId: input.viewId,
+    userId: input.userId,
+    added: input.added,
+    completed: input.completed,
+    createdAt: before?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  try {
+    const data = await engine.mutate<{
+      setViewSubscription: { viewSubscription: ViewSubscription };
+    }>({
+      mutation: SET_VIEW_SUBSCRIPTION,
+      variables: { input: { viewId: input.viewId, added: input.added, completed: input.completed } },
+      optimistic: [{ type: 'viewSubscription', id: after.id, before, after }],
+    });
+    swapViewSubscription(store, after.id, data.setViewSubscription.viewSubscription);
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
+}
+
 /** Whether this person has favourited that thing. */
 export function isFavorite(
   store: Store,
@@ -373,6 +435,22 @@ function swapPreference(store: Store, provisionalId: UUID, wire: ViewPreference)
   ];
   if (real.id !== provisionalId) {
     patch.unshift({ type: 'viewPreference', id: provisionalId, before: null, after: null });
+  }
+  store.applyOptimistic(patch);
+}
+
+function swapViewSubscription(store: Store, provisionalId: UUID, wire: ViewSubscription): void {
+  const real = fromWire('viewSubscription', wire);
+  const patch: EntityPatch[] = [
+    {
+      type: 'viewSubscription',
+      id: real.id,
+      before: store.get('viewSubscription', real.id) ?? null,
+      after: real,
+    },
+  ];
+  if (real.id !== provisionalId) {
+    patch.unshift({ type: 'viewSubscription', id: provisionalId, before: null, after: null });
   }
   store.applyOptimistic(patch);
 }

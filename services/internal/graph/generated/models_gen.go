@@ -1628,6 +1628,14 @@ type SetIssueSLAInput struct {
 	DurationMinutes int       `json:"durationMinutes"`
 }
 
+type SetViewSubscriptionInput struct {
+	ViewID uuid.UUID `json:"viewId"`
+	// Notify when a newly created issue matches the view.
+	Added bool `json:"added"`
+	// Notify when an issue that matches the view is completed or canceled.
+	Completed bool `json:"completed"`
+}
+
 // A workspace policy for issue due dates. Rules are ordered by position; first match wins.
 // Applying one sets dueDate and dueDateSource=sla. Removing one clears an SLA-owned date.
 type SLARule struct {
@@ -2220,6 +2228,31 @@ type ViewPreferencePayload struct {
 }
 
 func (ViewPreferencePayload) IsMutationResult() {}
+
+// A personal subscription to a saved view.
+//
+// One person, one view, two independent event flags. Slack-channel subscriptions stay out
+// of this type: they need a Slack install. Self-triggered changes do not notify — that
+// rule is the fan-out's, not a column here.
+type ViewSubscription struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ViewID      uuid.UUID `json:"viewId"`
+	UserID      uuid.UUID `json:"userId"`
+	// Notify when a newly created issue matches the view.
+	Added bool `json:"added"`
+	// Notify when an issue that matches the view is completed or canceled.
+	Completed bool      `json:"completed"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type ViewSubscriptionPayload struct {
+	Version          int               `json:"version"`
+	ViewSubscription *ViewSubscription `json:"viewSubscription"`
+}
+
+func (ViewSubscriptionPayload) IsMutationResult() {}
 
 // What the client needs on boot, before it opens the sync socket.
 type Viewer struct {
@@ -3025,6 +3058,8 @@ const (
 	NotificationTypeComment             NotificationType = "COMMENT"
 	NotificationTypeMention             NotificationType = "MENTION"
 	NotificationTypeSubIssueCompleted   NotificationType = "SUB_ISSUE_COMPLETED"
+	NotificationTypeViewIssueAdded      NotificationType = "VIEW_ISSUE_ADDED"
+	NotificationTypeViewIssueCompleted  NotificationType = "VIEW_ISSUE_COMPLETED"
 )
 
 var AllNotificationType = []NotificationType{
@@ -3036,11 +3071,13 @@ var AllNotificationType = []NotificationType{
 	NotificationTypeComment,
 	NotificationTypeMention,
 	NotificationTypeSubIssueCompleted,
+	NotificationTypeViewIssueAdded,
+	NotificationTypeViewIssueCompleted,
 }
 
 func (e NotificationType) IsValid() bool {
 	switch e {
-	case NotificationTypeIssueAssigned, NotificationTypeIssueStatusChanged, NotificationTypeIssuePriorityRaised, NotificationTypeIssueDue, NotificationTypeIssueBlocked, NotificationTypeComment, NotificationTypeMention, NotificationTypeSubIssueCompleted:
+	case NotificationTypeIssueAssigned, NotificationTypeIssueStatusChanged, NotificationTypeIssuePriorityRaised, NotificationTypeIssueDue, NotificationTypeIssueBlocked, NotificationTypeComment, NotificationTypeMention, NotificationTypeSubIssueCompleted, NotificationTypeViewIssueAdded, NotificationTypeViewIssueCompleted:
 		return true
 	}
 	return false

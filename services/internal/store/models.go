@@ -886,6 +886,17 @@ type ViewPreference struct {
 	UpdatedAt   time.Time
 }
 
+type ViewSubscription struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	ViewID          uuid.UUID
+	UserID          uuid.UUID
+	NotifyAdded     bool
+	NotifyCompleted bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type Webhook struct {
 	ID                  uuid.UUID
 	WorkspaceID         uuid.UUID

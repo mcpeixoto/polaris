@@ -116,6 +116,8 @@ enum NotificationType {
   COMMENT
   MENTION
   SUB_ISSUE_COMPLETED
+  VIEW_ISSUE_ADDED
+  VIEW_ISSUE_COMPLETED
 }
 
 enum FavoriteKind {
@@ -612,6 +614,26 @@ type View {
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
+}
+
+"""
+A personal subscription to a saved view.
+
+One person, one view, two independent event flags. Slack-channel subscriptions stay out
+of this type: they need a Slack install. Self-triggered changes do not notify — that
+rule is the fan-out's, not a column here.
+"""
+type ViewSubscription {
+  id: UUID!
+  workspaceId: UUID!
+  viewId: UUID!
+  userId: UUID!
+  """Notify when a newly created issue matches the view."""
+  added: Boolean!
+  """Notify when an issue that matches the view is completed or canceled."""
+  completed: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
 }
 
 """
@@ -1307,6 +1329,11 @@ type NotificationsPayload implements MutationResult {
 type ViewPayload implements MutationResult {
   version: Int!
   view: View!
+}
+
+type ViewSubscriptionPayload implements MutationResult {
+  version: Int!
+  viewSubscription: ViewSubscription!
 }
 
 type ViewPreferencePayload implements MutationResult {
@@ -2093,6 +2120,14 @@ input UpdateViewInput {
   afterViewId: UUID
 }
 
+input SetViewSubscriptionInput {
+  viewId: UUID!
+  """Notify when a newly created issue matches the view."""
+  added: Boolean!
+  """Notify when an issue that matches the view is completed or canceled."""
+  completed: Boolean!
+}
+
 input CreateIssueTemplateInput {
   teamId: UUID
   name: String!
@@ -2875,6 +2910,12 @@ type Mutation {
   updateView(input: UpdateViewInput!): ViewPayload!
   deleteView(id: UUID!): DeletePayload!
   setViewPreference(viewKey: String!, display: JSON!): ViewPreferencePayload!
+  """
+  Subscribe to a saved view, or change which events fire. Passing added and completed
+  both false is an unsubscribe. The row is personal: only the caller can write their own.
+  """
+  setViewSubscription(input: SetViewSubscriptionInput!): ViewSubscriptionPayload!
+  deleteViewSubscription(viewId: UUID!): DeletePayload!
 
   addFavorite(kind: FavoriteKind!, targetId: UUID!, afterFavoriteId: UUID): FavoritePayload!
   removeFavorite(kind: FavoriteKind!, targetId: UUID!): DeletePayload!

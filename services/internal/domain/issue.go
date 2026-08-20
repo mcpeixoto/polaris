@@ -952,6 +952,32 @@ func (s *Service) GetIssue(ctx context.Context, p *authz.Principal, id uuid.UUID
 	return toIssue(store.AsIssueRow(row), team.Key), nil
 }
 
+// GetIssueByRef accepts a UUID or an ENG-123 identifier. MCP tools and other
+// integrations take whichever the caller has in hand; the GraphQL API already has
+// both shapes as separate fields, and duplicating that fork at every tool would
+// mean two code paths that disagree about private-team not-found.
+func (s *Service) GetIssueByRef(ctx context.Context, p *authz.Principal, ref string) (model.Issue, error) {
+	ref = strings.TrimSpace(ref)
+	if id, err := uuid.Parse(ref); err == nil {
+		return s.GetIssue(ctx, p, id)
+	}
+	found, err := s.lookupIssueByIdentifier(ctx, p.WorkspaceID, ref)
+	if err != nil {
+		return model.Issue{}, err
+	}
+	if found == nil {
+		return model.Issue{}, platform.NotFound("issue")
+	}
+	team, err := s.db.Queries().GetTeam(ctx, found.TeamID)
+	if err != nil {
+		return model.Issue{}, platform.Internal(err)
+	}
+	if !authz.Visible(p, authz.TeamScope(found.TeamID, team.Private)) {
+		return model.Issue{}, platform.NotFound("issue")
+	}
+	return *found, nil
+}
+
 func (s *Service) ListIssuesForTeam(ctx context.Context, p *authz.Principal, teamID uuid.UUID) ([]model.Issue, error) {
 	q := s.db.Queries()
 	team, err := q.GetTeam(ctx, teamID)

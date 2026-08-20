@@ -144,3 +144,37 @@ export const REMOVE_FAVORITE = /* GraphQL */ `
     }
   }
 `;
+
+export const VIEW_SUBSCRIPTION_FIELDS = /* GraphQL */ `
+  fragment ViewSubscriptionFields on ViewSubscription {
+    id
+    workspaceId
+    viewId
+    userId
+    added
+    completed
+    createdAt
+    updatedAt
+  }
+`;
+
+export const SET_VIEW_SUBSCRIPTION = /* GraphQL */ `
+  ${VIEW_SUBSCRIPTION_FIELDS}
+  mutation SetViewSubscription($input: SetViewSubscriptionInput!) {
+    setViewSubscription(input: $input) {
+      version
+      viewSubscription {
+        ...ViewSubscriptionFields
+      }
+    }
+  }
+`;
+
+export const DELETE_VIEW_SUBSCRIPTION = /* GraphQL */ `
+  mutation DeleteViewSubscription($viewId: UUID!) {
+    deleteViewSubscription(viewId: $viewId) {
+      version
+      id
+    }
+  }
+`;

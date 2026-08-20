@@ -50,6 +50,7 @@ import {
   type UUID,
   type View,
   type ViewPreference,
+  type ViewSubscription,
   type WorkflowState,
   type Workspace,
 } from './types';
@@ -121,8 +122,9 @@ import {
  * v34 lands inline comments after v33 shipped: a 33 replica would otherwise keep
  * serving without the new comment columns.
  * v35 adds dashboard and dashboardTile.
+ * v36 adds viewSubscription (personal watches on a saved view).
  */
-export const CLIENT_SCHEMA = 35;
+export const CLIENT_SCHEMA = 36;
 
 /**
  * One database per workspace per schema version.
@@ -233,6 +235,7 @@ interface PolarisSchema extends DBSchema {
   issueSubscription: { key: UUID; value: IssueSubscription };
   notification: { key: UUID; value: Notification };
   view: { key: UUID; value: View };
+  viewSubscription: { key: UUID; value: ViewSubscription };
   viewPreference: { key: UUID; value: ViewPreference };
   favorite: { key: UUID; value: Favorite };
   meta: { key: string; value: Meta };
