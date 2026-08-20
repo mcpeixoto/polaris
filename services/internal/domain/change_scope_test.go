@@ -341,6 +341,14 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	}); err != nil {
 		t.Fatalf("customerRequest: %v", err)
 	}
+	urgent := int32(1440)
+	if _, _, err := svc.CreateSlaRule(ctx, p, domain.CreateSlaRuleInput{
+		Filter:          json.RawMessage(`{"field":"priority","op":"eq","values":["1"]}`),
+		Action:          model.SlaActionApply,
+		DurationMinutes: &urgent,
+	}); err != nil {
+		t.Fatalf("slaRule: %v", err)
+	}
 	project, _, err = svc.CreateProject(ctx, p, domain.CreateProjectInput{
 		Name: "Launch pad", TeamIDs: []uuid.UUID{f.TeamID},
 	})

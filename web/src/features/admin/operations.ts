@@ -47,6 +47,7 @@ export const ENTITLEMENTS_QUERY = /* GraphQL */ `
         apiKeys
         sso
         auditLog
+        slas
         lapsed
       }
     }

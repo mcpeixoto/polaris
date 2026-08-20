@@ -244,6 +244,7 @@ type ComplexityRoot struct {
 		PrivateTeams       func(childComplexity int) int
 		SeatLimit          func(childComplexity int) int
 		SeatsUsed          func(childComplexity int) int
+		Slas               func(childComplexity int) int
 		Sso                func(childComplexity int) int
 		SubTeams           func(childComplexity int) int
 		TeamLimit          func(childComplexity int) int
@@ -612,6 +613,7 @@ type ComplexityRoot struct {
 		ArchiveRecurringIssue          func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveWorkflowState           func(childComplexity int, id uuid.UUID, archived bool) int
 		BulkUpdateIssues               func(childComplexity int, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		ClearIssueSLA                  func(childComplexity int, issueID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateAPIKey                   func(childComplexity int, input CreateAPIKeyInput) int
 		CreateAttachment               func(childComplexity int, input CreateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateComment                  func(childComplexity int, input CreateCommentInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -637,6 +639,7 @@ type ComplexityRoot struct {
 		CreateProjectTemplateMilestone func(childComplexity int, input CreateProjectTemplateMilestoneInput) int
 		CreateProjectUpdate            func(childComplexity int, input CreateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateRecurringIssue           func(childComplexity int, input CreateRecurringIssueInput) int
+		CreateSLARule                  func(childComplexity int, input CreateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateTeam                     func(childComplexity int, input CreateTeamInput) int
 		CreateView                     func(childComplexity int, input CreateViewInput) int
 		CreateWebhook                  func(childComplexity int, input CreateWebhookInput) int
@@ -661,6 +664,7 @@ type ComplexityRoot struct {
 		DeleteProjectTemplateIssue     func(childComplexity int, id uuid.UUID) int
 		DeleteProjectTemplateMilestone func(childComplexity int, id uuid.UUID) int
 		DeleteProjectUpdate            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteSLARule                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteTeam                     func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteView                     func(childComplexity int, id uuid.UUID) int
 		DeleteWebhook                  func(childComplexity int, id uuid.UUID) int
@@ -687,6 +691,7 @@ type ComplexityRoot struct {
 		RetireTeam                     func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RevokeAPIKey                   func(childComplexity int, id uuid.UUID) int
 		RevokeInvite                   func(childComplexity int, id uuid.UUID) int
+		SetIssueSLA                    func(childComplexity int, input SetIssueSLAInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		SetIssueSubscription           func(childComplexity int, issueID uuid.UUID, subscribed bool) int
 		SetUserRole                    func(childComplexity int, userID uuid.UUID, role UserRole) int
 		SetViewPreference              func(childComplexity int, viewKey string, display json.RawMessage) int
@@ -721,6 +726,7 @@ type ComplexityRoot struct {
 		UpdateProjectTemplateMilestone func(childComplexity int, input UpdateProjectTemplateMilestoneInput) int
 		UpdateProjectUpdate            func(childComplexity int, input UpdateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateRecurringIssue           func(childComplexity int, input UpdateRecurringIssueInput) int
+		UpdateSLARule                  func(childComplexity int, input UpdateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateTeam                     func(childComplexity int, input UpdateTeamInput) int
 		UpdateTeamArchive              func(childComplexity int, input UpdateTeamArchiveInput) int
 		UpdateTeamCycles               func(childComplexity int, input UpdateTeamCyclesInput) int
@@ -1051,6 +1057,8 @@ type ComplexityRoot struct {
 		Projects                     func(childComplexity int) int
 		RecurringIssue               func(childComplexity int, id uuid.UUID) int
 		RecurringIssues              func(childComplexity int, teamID uuid.UUID) int
+		SLARule                      func(childComplexity int, id uuid.UUID) int
+		SLARules                     func(childComplexity int) int
 		Search                       func(childComplexity int, input SearchInput) int
 		Team                         func(childComplexity int, id uuid.UUID) int
 		TeamByKey                    func(childComplexity int, key string) int
@@ -1094,6 +1102,22 @@ type ComplexityRoot struct {
 		Comments   func(childComplexity int) int
 		IssueCount func(childComplexity int) int
 		Issues     func(childComplexity int) int
+	}
+
+	SlaRule struct {
+		Action          func(childComplexity int) int
+		CreatedAt       func(childComplexity int) int
+		DurationMinutes func(childComplexity int) int
+		Filter          func(childComplexity int) int
+		ID              func(childComplexity int) int
+		Position        func(childComplexity int) int
+		UpdatedAt       func(childComplexity int) int
+		WorkspaceID     func(childComplexity int) int
+	}
+
+	SlaRulePayload struct {
+		SLARule func(childComplexity int) int
+		Version func(childComplexity int) int
 	}
 
 	SubscriptionPayload struct {
@@ -1363,6 +1387,11 @@ type MutationResolver interface {
 	CreateCustomerRequest(ctx context.Context, input CreateCustomerRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*CustomerRequestPayload, error)
 	UpdateCustomerRequest(ctx context.Context, input UpdateCustomerRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*CustomerRequestPayload, error)
 	DeleteCustomerRequest(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	CreateSLARule(ctx context.Context, input CreateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) (*SLARulePayload, error)
+	UpdateSLARule(ctx context.Context, input UpdateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) (*SLARulePayload, error)
+	DeleteSLARule(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	SetIssueSLA(ctx context.Context, input SetIssueSLAInput, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
+	ClearIssueSLA(ctx context.Context, issueID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
 	CreateTeam(ctx context.Context, input CreateTeamInput) (*TeamPayload, error)
 	UpdateTeam(ctx context.Context, input UpdateTeamInput) (*TeamPayload, error)
 	MoveTeam(ctx context.Context, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
@@ -1537,6 +1566,8 @@ type QueryResolver interface {
 	Customers(ctx context.Context) ([]Customer, error)
 	Customer(ctx context.Context, id uuid.UUID) (*Customer, error)
 	CustomerRequest(ctx context.Context, id uuid.UUID) (*CustomerRequest, error)
+	SLARules(ctx context.Context) ([]SLARule, error)
+	SLARule(ctx context.Context, id uuid.UUID) (*SLARule, error)
 	GithubConnection(ctx context.Context) (*GitHubConnection, error)
 	GithubUserLink(ctx context.Context) (*GitHubUserLink, error)
 	GithubOAuthConfigured(ctx context.Context) (bool, error)
@@ -2423,6 +2454,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Entitlements.SeatsUsed(childComplexity), true
+	case "Entitlements.slas":
+		if e.ComplexityRoot.Entitlements.Slas == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Entitlements.Slas(childComplexity), true
 	case "Entitlements.sso":
 		if e.ComplexityRoot.Entitlements.Sso == nil {
 			break
@@ -4173,6 +4210,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.BulkUpdateIssues(childComplexity, args["input"].(BulkUpdateIssuesInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.clearIssueSla":
+		if e.ComplexityRoot.Mutation.ClearIssueSLA == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_clearIssueSla_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ClearIssueSLA(childComplexity, args["issueId"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createApiKey":
 		if e.ComplexityRoot.Mutation.CreateAPIKey == nil {
 			break
@@ -4448,6 +4496,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateRecurringIssue(childComplexity, args["input"].(CreateRecurringIssueInput)), true
+	case "Mutation.createSlaRule":
+		if e.ComplexityRoot.Mutation.CreateSLARule == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createSlaRule_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateSLARule(childComplexity, args["input"].(CreateSLARuleInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createTeam":
 		if e.ComplexityRoot.Mutation.CreateTeam == nil {
 			break
@@ -4702,6 +4761,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteProjectUpdate(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteSlaRule":
+		if e.ComplexityRoot.Mutation.DeleteSLARule == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteSlaRule_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteSLARule(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.deleteTeam":
 		if e.ComplexityRoot.Mutation.DeleteTeam == nil {
 			break
@@ -4983,6 +5053,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeInvite(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.setIssueSla":
+		if e.ComplexityRoot.Mutation.SetIssueSLA == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setIssueSla_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetIssueSLA(childComplexity, args["input"].(SetIssueSLAInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.setIssueSubscription":
 		if e.ComplexityRoot.Mutation.SetIssueSubscription == nil {
 			break
@@ -5357,6 +5438,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateRecurringIssue(childComplexity, args["input"].(UpdateRecurringIssueInput)), true
+	case "Mutation.updateSlaRule":
+		if e.ComplexityRoot.Mutation.UpdateSLARule == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateSlaRule_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateSLARule(childComplexity, args["input"].(UpdateSLARuleInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.updateTeam":
 		if e.ComplexityRoot.Mutation.UpdateTeam == nil {
 			break
@@ -7075,6 +7167,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.RecurringIssues(childComplexity, args["teamId"].(uuid.UUID)), true
+	case "Query.slaRule":
+		if e.ComplexityRoot.Query.SLARule == nil {
+			break
+		}
+
+		args, err := ec.field_Query_slaRule_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.SLARule(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.slaRules":
+		if e.ComplexityRoot.Query.SLARules == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SLARules(childComplexity), true
 	case "Query.search":
 		if e.ComplexityRoot.Query.Search == nil {
 			break
@@ -7317,6 +7426,68 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SearchResults.Issues(childComplexity), true
+
+	case "SlaRule.action":
+		if e.ComplexityRoot.SlaRule.Action == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlaRule.Action(childComplexity), true
+	case "SlaRule.createdAt":
+		if e.ComplexityRoot.SlaRule.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlaRule.CreatedAt(childComplexity), true
+	case "SlaRule.durationMinutes":
+		if e.ComplexityRoot.SlaRule.DurationMinutes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlaRule.DurationMinutes(childComplexity), true
+	case "SlaRule.filter":
+		if e.ComplexityRoot.SlaRule.Filter == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlaRule.Filter(childComplexity), true
+	case "SlaRule.id":
+		if e.ComplexityRoot.SlaRule.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlaRule.ID(childComplexity), true
+	case "SlaRule.position":
+		if e.ComplexityRoot.SlaRule.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlaRule.Position(childComplexity), true
+	case "SlaRule.updatedAt":
+		if e.ComplexityRoot.SlaRule.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlaRule.UpdatedAt(childComplexity), true
+	case "SlaRule.workspaceId":
+		if e.ComplexityRoot.SlaRule.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlaRule.WorkspaceID(childComplexity), true
+
+	case "SlaRulePayload.slaRule":
+		if e.ComplexityRoot.SlaRulePayload.SLARule == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlaRulePayload.SLARule(childComplexity), true
+	case "SlaRulePayload.version":
+		if e.ComplexityRoot.SlaRulePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlaRulePayload.Version(childComplexity), true
 
 	case "SubscriptionPayload.subscription":
 		if e.ComplexityRoot.SubscriptionPayload.Subscription == nil {
@@ -8362,6 +8533,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateProjectTemplateMilestoneInput,
 		ec.unmarshalInputCreateProjectUpdateInput,
 		ec.unmarshalInputCreateRecurringIssueInput,
+		ec.unmarshalInputCreateSlaRuleInput,
 		ec.unmarshalInputCreateTeamInput,
 		ec.unmarshalInputCreateViewInput,
 		ec.unmarshalInputCreateWebhookInput,
@@ -8369,6 +8541,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputInviteInput,
 		ec.unmarshalInputLinkGitHubPullRequestInput,
 		ec.unmarshalInputSearchInput,
+		ec.unmarshalInputSetIssueSlaInput,
 		ec.unmarshalInputUpdateAttachmentInput,
 		ec.unmarshalInputUpdateCustomerInput,
 		ec.unmarshalInputUpdateCustomerRequestInput,
@@ -8393,6 +8566,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateProjectTemplateMilestoneInput,
 		ec.unmarshalInputUpdateProjectUpdateInput,
 		ec.unmarshalInputUpdateRecurringIssueInput,
+		ec.unmarshalInputUpdateSlaRuleInput,
 		ec.unmarshalInputUpdateTeamArchiveInput,
 		ec.unmarshalInputUpdateTeamCyclesInput,
 		ec.unmarshalInputUpdateTeamEstimatesInput,
@@ -8669,6 +8843,8 @@ type Entitlements {
   apiKeys: Boolean!
   sso: Boolean!
   auditLog: Boolean!
+  """Business+: SLA rules that own an issue's due date."""
+  slas: Boolean!
   """Set while a paid plan is lapsed: reads work, gated writes do not."""
   lapsed: Boolean!
 }
@@ -9576,6 +9752,31 @@ type CustomerPayload implements MutationResult {
 type CustomerRequestPayload implements MutationResult {
   version: Int!
   customerRequest: CustomerRequest!
+}
+
+enum SlaAction {
+  APPLY
+  REMOVE
+}
+
+"""
+A workspace policy for issue due dates. Rules are ordered by position; first match wins.
+Applying one sets dueDate and dueDateSource=sla. Removing one clears an SLA-owned date.
+"""
+type SlaRule {
+  id: UUID!
+  workspaceId: UUID!
+  position: String!
+  filter: JSON!
+  action: SlaAction!
+  durationMinutes: Int
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type SlaRulePayload implements MutationResult {
+  version: Int!
+  slaRule: SlaRule!
 }
 
 type TeamPayload implements MutationResult {
@@ -10742,6 +10943,25 @@ input UpdateCustomerRequestInput {
   projectId: UUID
 }
 
+input CreateSlaRuleInput {
+  filter: JSON
+  action: SlaAction!
+  durationMinutes: Int
+}
+
+input UpdateSlaRuleInput {
+  id: UUID!
+  filter: JSON
+  action: SlaAction
+  durationMinutes: Int
+  afterId: UUID
+}
+
+input SetIssueSlaInput {
+  issueId: UUID!
+  durationMinutes: Int!
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -10876,6 +11096,9 @@ type Query {
   customer(id: UUID!): Customer
   customerRequest(id: UUID!): CustomerRequest
 
+  slaRules: [SlaRule!]!
+  slaRule(id: UUID!): SlaRule
+
   """The workspace GitHub install, if any. Secrets are on githubCommitWebhook, not here."""
   githubConnection: GitHubConnection
   """The caller's linked GitHub account, if they have connected one."""
@@ -10936,6 +11159,12 @@ type Mutation {
   createCustomerRequest(input: CreateCustomerRequestInput!, clientId: UUID, opId: UUID): CustomerRequestPayload! @idempotent
   updateCustomerRequest(input: UpdateCustomerRequestInput!, clientId: UUID, opId: UUID): CustomerRequestPayload! @idempotent
   deleteCustomerRequest(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createSlaRule(input: CreateSlaRuleInput!, clientId: UUID, opId: UUID): SlaRulePayload! @idempotent
+  updateSlaRule(input: UpdateSlaRuleInput!, clientId: UUID, opId: UUID): SlaRulePayload! @idempotent
+  deleteSlaRule(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  setIssueSla(input: SetIssueSlaInput!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  clearIssueSla(issueId: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!
@@ -11557,6 +11786,8 @@ func (ec *executionContext) childFields_Entitlements(ctx context.Context, field 
 		return ec.fieldContext_Entitlements_sso(ctx, field)
 	case "auditLog":
 		return ec.fieldContext_Entitlements_auditLog(ctx, field)
+	case "slas":
+		return ec.fieldContext_Entitlements_slas(ctx, field)
 	case "lapsed":
 		return ec.fieldContext_Entitlements_lapsed(ctx, field)
 	}
@@ -12823,6 +13054,38 @@ func (ec *executionContext) childFields_SearchResults(ctx context.Context, field
 		return ec.fieldContext_SearchResults_issueCount(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SearchResults", field.Name)
+}
+
+func (ec *executionContext) childFields_SlaRule(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_SlaRule_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_SlaRule_workspaceId(ctx, field)
+	case "position":
+		return ec.fieldContext_SlaRule_position(ctx, field)
+	case "filter":
+		return ec.fieldContext_SlaRule_filter(ctx, field)
+	case "action":
+		return ec.fieldContext_SlaRule_action(ctx, field)
+	case "durationMinutes":
+		return ec.fieldContext_SlaRule_durationMinutes(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_SlaRule_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_SlaRule_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SlaRule", field.Name)
+}
+
+func (ec *executionContext) childFields_SlaRulePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_SlaRulePayload_version(ctx, field)
+	case "slaRule":
+		return ec.fieldContext_SlaRulePayload_slaRule(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SlaRulePayload", field.Name)
 }
 
 func (ec *executionContext) childFields_SubscriptionPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -14133,6 +14396,36 @@ func (ec *executionContext) field_Mutation_bulkUpdateIssues_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_clearIssueSla_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "issueId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["issueId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createApiKey_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -14691,6 +14984,36 @@ func (ec *executionContext) field_Mutation_createRecurringIssue_args(ctx context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createSlaRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateSLARuleInput, error) {
+			return ec.unmarshalNCreateSlaRuleInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateSLARuleInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createTeam_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -15162,6 +15485,36 @@ func (ec *executionContext) field_Mutation_deleteProjectUpdate_args(ctx context.
 }
 
 func (ec *executionContext) field_Mutation_deleteProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteSlaRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -15850,6 +16203,36 @@ func (ec *executionContext) field_Mutation_revokeInvite_args(ctx context.Context
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setIssueSla_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (SetIssueSLAInput, error) {
+			return ec.unmarshalNSetIssueSlaInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSetIssueSLAInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -16625,6 +17008,36 @@ func (ec *executionContext) field_Mutation_updateRecurringIssue_args(ctx context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateSlaRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateSLARuleInput, error) {
+			return ec.unmarshalNUpdateSlaRuleInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateSLARuleInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateTeamArchive_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -17310,6 +17723,20 @@ func (ec *executionContext) field_Query_search_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_slaRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -20899,6 +21326,29 @@ func (ec *executionContext) _Entitlements_auditLog(ctx context.Context, field gr
 	)
 }
 func (ec *executionContext) fieldContext_Entitlements_auditLog(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Entitlements", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Entitlements_slas(ctx context.Context, field graphql.CollectedField, obj *Entitlements) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Entitlements_slas(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slas, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Entitlements_slas(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Entitlements", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -28657,6 +29107,291 @@ func (ec *executionContext) fieldContext_Mutation_deleteCustomerRequest(ctx cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteCustomerRequest_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createSlaRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createSlaRule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateSLARule(ctx, fc.Args["input"].(CreateSLARuleInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *SLARulePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *SLARulePayload) graphql.Marshaler {
+			return ec.marshalNSlaRulePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARulePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createSlaRule(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SlaRulePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createSlaRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateSlaRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateSlaRule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateSLARule(ctx, fc.Args["input"].(UpdateSLARuleInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *SLARulePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *SLARulePayload) graphql.Marshaler {
+			return ec.marshalNSlaRulePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARulePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateSlaRule(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SlaRulePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateSlaRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteSlaRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteSlaRule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteSLARule(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteSlaRule(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteSlaRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setIssueSla(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setIssueSla(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetIssueSLA(ctx, fc.Args["input"].(SetIssueSLAInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *IssuePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *IssuePayload) graphql.Marshaler {
+			return ec.marshalNIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setIssueSla(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setIssueSla_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_clearIssueSla(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_clearIssueSla(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ClearIssueSLA(ctx, fc.Args["issueId"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *IssuePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *IssuePayload) graphql.Marshaler {
+			return ec.marshalNIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_clearIssueSla(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_clearIssueSla_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -40790,6 +41525,82 @@ func (ec *executionContext) fieldContext_Query_customerRequest(ctx context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_slaRules(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_slaRules(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SLARules(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []SLARule) graphql.Marshaler {
+			return ec.marshalNSlaRule2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARuleᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_slaRules(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SlaRule(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_slaRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_slaRule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().SLARule(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SLARule) graphql.Marshaler {
+			return ec.marshalOSlaRule2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARule(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_slaRule(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SlaRule(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_slaRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_githubConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -41491,6 +42302,245 @@ func (ec *executionContext) _SearchResults_issueCount(ctx context.Context, field
 }
 func (ec *executionContext) fieldContext_SearchResults_issueCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SearchResults", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SlaRule_id(ctx context.Context, field graphql.CollectedField, obj *SLARule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlaRule_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlaRule_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlaRule", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _SlaRule_workspaceId(ctx context.Context, field graphql.CollectedField, obj *SLARule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlaRule_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlaRule_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlaRule", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _SlaRule_position(ctx context.Context, field graphql.CollectedField, obj *SLARule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlaRule_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlaRule_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlaRule", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SlaRule_filter(ctx context.Context, field graphql.CollectedField, obj *SLARule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlaRule_filter(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Filter, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlaRule_filter(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlaRule", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _SlaRule_action(ctx context.Context, field graphql.CollectedField, obj *SLARule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlaRule_action(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Action, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v SLAAction) graphql.Marshaler {
+			return ec.marshalNSlaAction2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLAAction(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlaRule_action(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlaRule", field, false, false, errors.New("field of type SlaAction does not have child fields"))
+}
+
+func (ec *executionContext) _SlaRule_durationMinutes(ctx context.Context, field graphql.CollectedField, obj *SLARule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlaRule_durationMinutes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMinutes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SlaRule_durationMinutes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlaRule", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SlaRule_createdAt(ctx context.Context, field graphql.CollectedField, obj *SLARule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlaRule_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlaRule_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlaRule", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SlaRule_updatedAt(ctx context.Context, field graphql.CollectedField, obj *SLARule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlaRule_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlaRule_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlaRule", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SlaRulePayload_version(ctx context.Context, field graphql.CollectedField, obj *SLARulePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlaRulePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlaRulePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlaRulePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SlaRulePayload_slaRule(ctx context.Context, field graphql.CollectedField, obj *SLARulePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlaRulePayload_slaRule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SLARule, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SLARule) graphql.Marshaler {
+			return ec.marshalNSlaRule2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARule(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlaRulePayload_slaRule(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SlaRulePayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SlaRule(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _SubscriptionPayload_version(ctx context.Context, field graphql.CollectedField, obj *SubscriptionPayload) (ret graphql.Marshaler) {
@@ -48269,6 +49319,50 @@ func (ec *executionContext) unmarshalInputCreateRecurringIssueInput(ctx context.
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateSlaRuleInput(ctx context.Context, obj any) (CreateSLARuleInput, error) {
+	var it CreateSLARuleInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"filter", "action", "durationMinutes"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "filter":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Filter = data
+		case "action":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("action"))
+			data, err := ec.unmarshalNSlaAction2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLAAction(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Action = data
+		case "durationMinutes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("durationMinutes"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DurationMinutes = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateTeamInput(ctx context.Context, obj any) (CreateTeamInput, error) {
 	var it CreateTeamInput
 	if obj == nil {
@@ -48733,6 +49827,43 @@ func (ec *executionContext) unmarshalInputSearchInput(ctx context.Context, obj a
 				return it, err
 			}
 			it.IncludeArchived = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSetIssueSlaInput(ctx context.Context, obj any) (SetIssueSLAInput, error) {
+	var it SetIssueSLAInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"issueId", "durationMinutes"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "issueId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("issueId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IssueID = data
+		case "durationMinutes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("durationMinutes"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DurationMinutes = data
 		}
 	}
 	return it, nil
@@ -50515,6 +51646,64 @@ func (ec *executionContext) unmarshalInputUpdateRecurringIssueInput(ctx context.
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateSlaRuleInput(ctx context.Context, obj any) (UpdateSLARuleInput, error) {
+	var it UpdateSLARuleInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "filter", "action", "durationMinutes", "afterId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "filter":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚐRawMessage(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Filter = data
+		case "action":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("action"))
+			data, err := ec.unmarshalOSlaAction2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLAAction(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Action = data
+		case "durationMinutes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("durationMinutes"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DurationMinutes = data
+		case "afterId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("afterId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AfterID = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateTeamArchiveInput(ctx context.Context, obj any) (UpdateTeamArchiveInput, error) {
 	var it UpdateTeamArchiveInput
 	if obj == nil {
@@ -51201,6 +52390,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._SubscriptionPayload(ctx, sel, obj)
+	case SLARulePayload:
+		return ec._SlaRulePayload(ctx, sel, &obj)
+	case *SLARulePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._SlaRulePayload(ctx, sel, obj)
 	case RecurringIssuePayload:
 		return ec._RecurringIssuePayload(ctx, sel, &obj)
 	case *RecurringIssuePayload:
@@ -52899,6 +54095,11 @@ func (ec *executionContext) _Entitlements(ctx context.Context, sel ast.Selection
 			}
 		case "auditLog":
 			out.Values[i] = ec._Entitlements_auditLog(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "slas":
+			out.Values[i] = ec._Entitlements_slas(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -55459,6 +56660,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteCustomerRequest":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteCustomerRequest(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createSlaRule":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createSlaRule(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateSlaRule":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateSlaRule(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteSlaRule":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteSlaRule(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setIssueSla":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setIssueSla(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clearIssueSla":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_clearIssueSla(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -59467,6 +60703,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "slaRules":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_slaRules(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "slaRule":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_slaRule(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "githubConnection":
 			field := field
 
@@ -59782,6 +61062,122 @@ func (ec *executionContext) _SearchResults(ctx context.Context, sel ast.Selectio
 			}
 		case "issueCount":
 			out.Values[i] = ec._SearchResults_issueCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var slaRuleImplementors = []string{"SlaRule"}
+
+func (ec *executionContext) _SlaRule(ctx context.Context, sel ast.SelectionSet, obj *SLARule) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, slaRuleImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SlaRule")
+		case "id":
+			out.Values[i] = ec._SlaRule_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._SlaRule_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._SlaRule_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "filter":
+			out.Values[i] = ec._SlaRule_filter(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "action":
+			out.Values[i] = ec._SlaRule_action(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "durationMinutes":
+			out.Values[i] = ec._SlaRule_durationMinutes(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._SlaRule_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._SlaRule_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var slaRulePayloadImplementors = []string{"SlaRulePayload", "MutationResult"}
+
+func (ec *executionContext) _SlaRulePayload(ctx context.Context, sel ast.SelectionSet, obj *SLARulePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, slaRulePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SlaRulePayload")
+		case "version":
+			out.Values[i] = ec._SlaRulePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "slaRule":
+			out.Values[i] = ec._SlaRulePayload_slaRule(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -62053,6 +63449,11 @@ func (ec *executionContext) unmarshalNCreateRecurringIssueInput2githubᚗcomᚋp
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateSlaRuleInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateSLARuleInput(ctx context.Context, v any) (CreateSLARuleInput, error) {
+	res, err := ec.unmarshalInputCreateSlaRuleInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateTeamInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateTeamInput(ctx context.Context, v any) (CreateTeamInput, error) {
 	res, err := ec.unmarshalInputCreateTeamInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -63692,6 +65093,65 @@ func (ec *executionContext) marshalNSearchResults2ᚖgithubᚗcomᚋpeixotolabs�
 	return ec._SearchResults(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNSetIssueSlaInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSetIssueSLAInput(ctx context.Context, v any) (SetIssueSLAInput, error) {
+	res, err := ec.unmarshalInputSetIssueSlaInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNSlaAction2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLAAction(ctx context.Context, v any) (SLAAction, error) {
+	var res SLAAction
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNSlaAction2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLAAction(ctx context.Context, sel ast.SelectionSet, v SLAAction) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNSlaRule2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARule(ctx context.Context, sel ast.SelectionSet, v SLARule) graphql.Marshaler {
+	return ec._SlaRule(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSlaRule2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARuleᚄ(ctx context.Context, sel ast.SelectionSet, v []SLARule) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSlaRule2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARule(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSlaRule2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARule(ctx context.Context, sel ast.SelectionSet, v *SLARule) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SlaRule(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSlaRulePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARulePayload(ctx context.Context, sel ast.SelectionSet, v SLARulePayload) graphql.Marshaler {
+	return ec._SlaRulePayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSlaRulePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARulePayload(ctx context.Context, sel ast.SelectionSet, v *SLARulePayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SlaRulePayload(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNStateCategory2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐStateCategory(ctx context.Context, v any) (StateCategory, error) {
 	var res StateCategory
 	err := res.UnmarshalGQL(v)
@@ -64047,6 +65507,11 @@ func (ec *executionContext) unmarshalNUpdateProjectUpdateInput2githubᚗcomᚋpe
 
 func (ec *executionContext) unmarshalNUpdateRecurringIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateRecurringIssueInput(ctx context.Context, v any) (UpdateRecurringIssueInput, error) {
 	res, err := ec.unmarshalInputUpdateRecurringIssueInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateSlaRuleInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateSLARuleInput(ctx context.Context, v any) (UpdateSLARuleInput, error) {
+	res, err := ec.unmarshalInputUpdateSlaRuleInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -64901,6 +66366,29 @@ func (ec *executionContext) marshalORecurringIssue2ᚖgithubᚗcomᚋpeixotolabs
 		return graphql.Null
 	}
 	return ec._RecurringIssue(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOSlaAction2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLAAction(ctx context.Context, v any) (*SLAAction, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(SLAAction)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOSlaAction2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLAAction(ctx context.Context, sel ast.SelectionSet, v *SLAAction) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) marshalOSlaRule2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLARule(ctx context.Context, sel ast.SelectionSet, v *SLARule) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SlaRule(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

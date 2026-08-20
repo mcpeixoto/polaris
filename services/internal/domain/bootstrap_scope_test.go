@@ -59,6 +59,7 @@ type scene struct {
 	openInitiativeProject                         uuid.UUID
 	openCustomer                                  uuid.UUID
 	openCustomerRequest                           uuid.UUID
+	openSlaRule                                   uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
 	bobsFavorite                                  uuid.UUID
 
@@ -288,6 +289,17 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	}
 	s.openCustomerRequest = need.ID
 
+	urgent := int32(1440)
+	sla, _, err := svc.CreateSlaRule(ctx, s.alice, domain.CreateSlaRuleInput{
+		Filter:          json.RawMessage(`{"field":"priority","op":"eq","values":["1"]}`),
+		Action:          model.SlaActionApply,
+		DurationMinutes: &urgent,
+	})
+	if err != nil {
+		t.Fatalf("create the sla rule: %v", err)
+	}
+	s.openSlaRule = sla.ID
+
 	blocker, _, err := svc.CreateProject(ctx, s.alice, domain.CreateProjectInput{
 		Name: "Platform foundation", TeamIDs: []uuid.UUID{f.TeamID},
 	})
@@ -507,6 +519,8 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 			"a guest sees nothing related to customers"},
 		{gretaName, "customerRequest", s.openCustomerRequest,
 			"a guest sees nothing related to customer requests"},
+		{gretaName, "slaRule", s.openSlaRule,
+			"a guest sees nothing related to SLA rules"},
 
 		{samName, "issue", s.openIssue, "team content needs the team"},
 		{samName, "label", s.openLabel, "a team's label needs the team"},
@@ -564,6 +578,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "initiativeProject", s.openInitiativeProject},
 		{bobName, "customer", s.openCustomer},
 		{bobName, "customerRequest", s.openCustomerRequest},
+		{bobName, "slaRule", s.openSlaRule},
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},
 		{gretaName, "issue", s.openIssue},
@@ -578,6 +593,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{samName, "issueTemplate", s.workspaceTemplate},
 		{samName, "view", s.workspaceView},
 		{samName, "customer", s.openCustomer},
+		{samName, "slaRule", s.openSlaRule},
 	} {
 		if !snapshots[present.who][present.entityType][present.id] {
 			t.Errorf("the snapshot for %s is missing the %s %s it is entitled to",

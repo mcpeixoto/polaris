@@ -98,6 +98,8 @@ export type {
   InitiativeProject,
   Customer,
   CustomerRequest,
+  SlaAction,
+  SlaRule,
   RecurringCadence,
   RecurringIssue,
   InitiativeStatus,

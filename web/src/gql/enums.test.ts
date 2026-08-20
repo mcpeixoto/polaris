@@ -55,6 +55,7 @@ const MIRRORED: Readonly<Record<string, string>> = {
   ProjectUpdateHealth: 'ProjectUpdateHealth',
   TimeframeGranularity: 'TimeframeGranularity',
   CustomerStatus: 'CustomerStatus',
+  SlaAction: 'SlaAction',
 };
 
 describe('the enum spellings on the two sides of the API', () => {
