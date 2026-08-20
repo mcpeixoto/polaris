@@ -55,6 +55,7 @@ import { estimateLabel, estimateOptions, estimatesEnabled } from '~/features/est
 import { buildCreateURL } from '~/features/issue/create-url';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { archiveTemplate, createTemplate, updateTemplate } from '~/features/templates/mutations';
+import { updateIssueTemplateEmailIntake } from '~/features/email/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
@@ -94,6 +95,8 @@ interface TemplateRow {
   readonly archived: boolean;
   /** Team key when the template is team-scoped, so a create URL can name the team. */
   readonly teamKey: string | undefined;
+  readonly emailIntakeEnabled: boolean;
+  readonly emailIntakeAddress: string | undefined;
   /** What it prefills, resolved to names. Empty means it prefills nothing at all. */
   readonly prefills: readonly string[];
 }
@@ -405,6 +408,9 @@ function TemplateListRow({ row, onEdit, onArchive, onConvert }: TemplateListRowP
             ? 'Prefills nothing yet — an empty form under a name.'
             : row.prefills.join(' · ')}
         </span>
+        {row.emailIntakeEnabled && row.emailIntakeAddress !== undefined ? (
+          <span className={styles.prefills}>{row.emailIntakeAddress}</span>
+        ) : null}
       </div>
 
       <span className={styles.rowActions}>
@@ -526,6 +532,7 @@ interface TemplateEditorProps {
  *     all have estimates turned off.
  */
 function TemplateEditor({ scope, template, onSave, onCancel }: TemplateEditorProps) {
+  const engine = useEngine();
   const [name, setName] = useState(template?.name ?? '');
   const [description, setDescription] = useState(template?.description ?? '');
   const [title, setTitle] = useState(template?.title ?? '');
@@ -772,6 +779,31 @@ function TemplateEditor({ scope, template, onSave, onCancel }: TemplateEditorPro
           ))
         )}
       </fieldset>
+
+      {template !== null && template.teamId !== undefined ? (
+        <fieldset className={styles.properties}>
+          <legend className={styles.propertyLabel}>Create issues by email</legend>
+          <p className={styles.propertyNote}>
+            Mail to this template&rsquo;s address becomes an issue with these properties. Replies do
+            not create a second one. The subject and body overwrite title and description.
+          </p>
+          <Checkbox
+            label="Create issues by email"
+            checked={template.emailIntakeEnabled}
+            onChange={(event) => {
+              void updateIssueTemplateEmailIntake(engine, template.id, event.target.checked);
+            }}
+          />
+          {template.emailIntakeEnabled && template.emailIntakeAddress !== undefined ? (
+            <Input
+              label="Intake address"
+              value={template.emailIntakeAddress}
+              readOnly
+              onFocus={(event) => event.currentTarget.select()}
+            />
+          ) : null}
+        </fieldset>
+      ) : null}
 
       {saveError === null ? null : (
         <p className={styles.error} role="alert">
@@ -1022,6 +1054,8 @@ function rowOf(store: Store, template: IssueTemplate): TemplateRow {
     position: template.position,
     archived: template.archivedAt !== undefined,
     teamKey: template.teamId === undefined ? undefined : store.teams.get(template.teamId)?.key,
+    emailIntakeEnabled: template.emailIntakeEnabled === true,
+    emailIntakeAddress: template.emailIntakeAddress,
     prefills: prefillsOf(store, template),
   };
 }

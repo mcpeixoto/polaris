@@ -124,6 +124,8 @@ func toTeam(t model.Team) (generated.Team, error) {
 		AutoCloseChildren:              t.AutoCloseChildren,
 		DefaultTemplateForMembersID:    t.DefaultTemplateForMembersID,
 		DefaultTemplateForNonMembersID: t.DefaultTemplateForNonMembersID,
+		EmailIntakeEnabled:             t.EmailIntakeEnabled,
+		EmailIntakeAddress:             t.EmailIntakeAddress,
 		CreatedAt:                      t.CreatedAt,
 		UpdatedAt:                      t.UpdatedAt,
 		RetiredAt:                      t.RetiredAt,
