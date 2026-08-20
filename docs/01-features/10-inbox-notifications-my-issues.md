@@ -55,10 +55,8 @@ Browser notifications use the Push API (Safari doesn't support it — hence the 
 
 ## Pulse
 
-An AI-generated feed of **project and initiative updates**, available on all plans (not to guests).
+A feed of **project status updates**, available on all plans (not to guests). Sidebar item, `G` then `U`. Navigate with `J`/`K`; Enter opens the project's Activity tab.
 
-- Enable per workspace in Settings → Pulse, with a default digest cadence: weekly on Mondays, every weekday, or never. Individual users can override.
-- Sidebar page with tabs: **For me** (projects you're part of or likely care about), **Popular** (recent updates with emoji/comment engagement), **Recent** (everything by recency). Sidebar visibility configurable: always / only when badged / never.
-- **Inbox digests** arrive ~6:00 AM local time and include updates where: you're a project member, the project rolls up to an initiative you own, you explicitly subscribed, you're subscribed to all sub-projects of an initiative, or you're subscribed to all project updates for a team. Initiative updates arrive when you own the initiative or are a member of its projects.
-- **Custom feeds**: personal saved filters within Pulse. Not shareable, not subscribable by others.
-- **Pulse audio**: from an Inbox summary, Play reads the updates aloud. Inbox only, not the sidebar page.
+**Shipped (v1):** replica-derived `/pulse` with **For me** (projects you lead, created, or belong to) and **Recent**. No extra query — posts already in the replica.
+
+**Not yet:** workspace enable + digest cadence, Inbox summaries (~6:00 AM), Popular (emoji/comment engagement), initiative updates, custom feeds, Pulse audio.
