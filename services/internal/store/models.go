@@ -265,6 +265,8 @@ type Favorite struct {
 	Position    string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	FolderID    *uuid.UUID
+	Name        *string
 }
 
 type FormTemplate struct {

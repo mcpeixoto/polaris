@@ -60,6 +60,8 @@ export const FAVORITE_FIELDS = /* GraphQL */ `
     userId
     kind
     targetId
+    folderId
+    name
     position
     createdAt
     updatedAt
@@ -141,6 +143,42 @@ export const REMOVE_FAVORITE = /* GraphQL */ `
     removeFavorite(kind: $kind, targetId: $targetId) {
       version
       id
+    }
+  }
+`;
+
+export const CREATE_FAVORITE_FOLDER = /* GraphQL */ `
+  ${FAVORITE_FIELDS}
+  mutation CreateFavoriteFolder($name: String!, $afterFavoriteId: UUID) {
+    createFavoriteFolder(name: $name, afterFavoriteId: $afterFavoriteId) {
+      version
+      favorite {
+        ...FavoriteFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_FAVORITE_FOLDER = /* GraphQL */ `
+  ${FAVORITE_FIELDS}
+  mutation UpdateFavoriteFolder($id: UUID!, $name: String!) {
+    updateFavoriteFolder(id: $id, name: $name) {
+      version
+      favorite {
+        ...FavoriteFields
+      }
+    }
+  }
+`;
+
+export const MOVE_FAVORITE = /* GraphQL */ `
+  ${FAVORITE_FIELDS}
+  mutation MoveFavorite($input: MoveFavoriteInput!) {
+    moveFavorite(input: $input) {
+      version
+      favorite {
+        ...FavoriteFields
+      }
     }
   }
 `;
