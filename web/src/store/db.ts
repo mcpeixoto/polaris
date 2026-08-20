@@ -137,8 +137,9 @@ import {
  * v42 adds sentryConnection (Sentry webhook create/link, no secrets).
  * v43 adds cycleCalendarFeed (personal ICS token per team, no secrets).
  * v44 adds slackConnection (Slack webhook notify / slash / unfurls, no secrets).
+ * v45 adds workspace.pulseEnabled and workspace.pulseDigestCadence.
  */
-export const CLIENT_SCHEMA = 44;
+export const CLIENT_SCHEMA = 45;
 
 /**
  * One database per workspace per schema version.

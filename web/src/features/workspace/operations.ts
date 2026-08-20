@@ -11,6 +11,8 @@ export const WORKSPACE_FIELDS = /* GraphQL */ `
     projectUpdateReminderIntervalDays
     projectUpdateReminderWeekday
     projectUpdateReminderHour
+    pulseEnabled
+    pulseDigestCadence
     createdAt
     updatedAt
     archivedAt

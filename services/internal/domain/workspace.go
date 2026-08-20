@@ -267,6 +267,8 @@ type UpdateWorkspaceInput struct {
 	ProjectUpdateReminderIntervalDays *int
 	ProjectUpdateReminderWeekday      *int
 	ProjectUpdateReminderHour         *int
+	PulseEnabled                      *bool
+	PulseDigestCadence                *string
 }
 
 func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in UpdateWorkspaceInput) (model.Workspace, int64, error) {
@@ -287,6 +289,9 @@ func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in Up
 	); err != nil {
 		return model.Workspace{}, 0, err
 	}
+	if err := validatePulseDigestCadence(in.PulseDigestCadence); err != nil {
+		return model.Workspace{}, 0, err
+	}
 
 	var out model.Workspace
 	var version int64
@@ -298,6 +303,8 @@ func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in Up
 			ProjectUpdateReminderIntervalDays: int16PtrFromInt(in.ProjectUpdateReminderIntervalDays),
 			ProjectUpdateReminderWeekday:      int16PtrFromInt(in.ProjectUpdateReminderWeekday),
 			ProjectUpdateReminderHour:         int16PtrFromInt(in.ProjectUpdateReminderHour),
+			PulseEnabled:                      in.PulseEnabled,
+			PulseDigestCadence:                in.PulseDigestCadence,
 		})
 		if err != nil {
 			if store.IsNotFound(err) {

@@ -196,7 +196,11 @@ function dayFormatter(timezone: string): Intl.DateTimeFormat {
  * An unrecognised type still says something. A newer server can deliver a type this build
  * has never heard of, and a blank row is indistinguishable from a rendering fault.
  */
-export function describeEvent(type: NotificationType, identifier: string): string {
+export function describeEvent(
+  type: NotificationType,
+  identifier: string,
+  payload?: unknown,
+): string {
   switch (type) {
     case 'issue_assigned':
       return `assigned ${identifier} to you`;
@@ -218,9 +222,21 @@ export function describeEvent(type: NotificationType, identifier: string): strin
       return `${identifier} was added to a view you follow`;
     case 'view_issue_completed':
       return `completed ${identifier} in a view you follow`;
+    case 'pulse_digest': {
+      const count = pulseDigestCount(payload);
+      return count === 1 ? 'Pulse: 1 project update' : `Pulse: ${count} project updates`;
+    }
     default:
       return `updated ${identifier}`;
   }
+}
+
+function pulseDigestCount(payload: unknown): number {
+  if (payload !== null && typeof payload === 'object' && 'count' in payload) {
+    const n = Number((payload as { count: unknown }).count);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+  return 0;
 }
 
 /**

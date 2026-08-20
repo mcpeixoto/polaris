@@ -1147,7 +1147,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v42 adds sentryConnection (Sentry webhook create/link, no secrets).
 // v43 adds cycleCalendarFeed (personal ICS token per team, no secrets).
 // v44 adds slackConnection (Slack webhook notify / slash / unfurls, no secrets).
-const ClientSchemaVersion = 44
+// v45 adds workspace.pulseEnabled and workspace.pulseDigestCadence.
+const ClientSchemaVersion = 45
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

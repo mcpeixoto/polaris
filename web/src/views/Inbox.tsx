@@ -54,6 +54,7 @@ interface Row {
   readonly unread: boolean;
   readonly snoozedUntil: string | undefined;
   readonly issueIdentifier: string | undefined;
+  readonly href: string | undefined;
   readonly avatarName: string;
 }
 
@@ -111,14 +112,20 @@ export function Inbox() {
           id,
           // "Somebody" rather than a blank: the actor may be a user this client has not
           // replicated, or the system, and a row with no subject reads as a bug.
-          actor: actor?.displayName ?? 'Somebody',
+          actor:
+            actor?.displayName ?? (notification.type === 'pulse_digest' ? 'Polaris' : 'Somebody'),
           avatarName: actor?.displayName ?? 'Polaris',
-          event: describeEvent(notification.type, issue?.identifier ?? 'an issue'),
+          event: describeEvent(
+            notification.type,
+            issue?.identifier ?? 'an issue',
+            notification.payload,
+          ),
           tail: coalescedTail(notification.count),
           createdAt: notification.createdAt,
           unread: notification.readAt === undefined,
           snoozedUntil: notification.snoozedUntil,
           issueIdentifier: issue?.identifier,
+          href: notification.type === 'pulse_digest' ? '/pulse' : undefined,
         });
       }
 
@@ -136,6 +143,10 @@ export function Inbox() {
     (row: Row | undefined) => {
       if (row === undefined) return;
       if (row.unread) markNotificationRead(engine, row.id, true).catch(report);
+      if (row.href !== undefined) {
+        void navigate(row.href);
+        return;
+      }
       if (row.issueIdentifier !== undefined) void navigate(`/issue/${row.issueIdentifier}`);
     },
     [engine, navigate],
