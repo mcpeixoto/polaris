@@ -890,11 +890,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
           Display
         </Button>
         {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (
-          <Button
-            {...subscribe.props}
-            variant="ghost"
-            aria-pressed={watch !== null}
-          >
+          <Button {...subscribe.props} variant="ghost" aria-pressed={watch !== null}>
             {watch !== null ? 'Subscribed' : 'Subscribe'}
           </Button>
         ) : null}

@@ -232,8 +232,8 @@ export function NotificationSettings() {
             Saved views you follow
           </h2>
           <p className={styles.sectionNote}>
-            Subscribe from a saved view’s header. Turning both kinds of event off here is the
-            same as unsubscribing.
+            Subscribe from a saved view’s header. Turning both kinds of event off here is the same
+            as unsubscribing.
           </p>
           {watches.length === 0 ? (
             <p className={styles.warning}>You are not watching any saved views.</p>

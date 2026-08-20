@@ -292,7 +292,9 @@ export async function setViewSubscription(
       setViewSubscription: { viewSubscription: ViewSubscription };
     }>({
       mutation: SET_VIEW_SUBSCRIPTION,
-      variables: { input: { viewId: input.viewId, added: input.added, completed: input.completed } },
+      variables: {
+        input: { viewId: input.viewId, added: input.added, completed: input.completed },
+      },
       optimistic: [{ type: 'viewSubscription', id: after.id, before, after }],
     });
     swapViewSubscription(store, after.id, data.setViewSubscription.viewSubscription);
