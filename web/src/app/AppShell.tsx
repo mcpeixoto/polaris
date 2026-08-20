@@ -78,6 +78,7 @@ export function AppShell({
   const onInitiatives = pathname === '/initiatives' || pathname.startsWith('/initiative/');
   const onCustomers = pathname === '/customers' || pathname.startsWith('/customer/');
   const onDashboards = pathname === '/dashboards' || pathname.startsWith('/dashboard/');
+  const onPulse = pathname === '/pulse';
   const onCycles = pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
 
   const teams = useQuery(
@@ -94,6 +95,7 @@ export function AppShell({
   const viewer = useViewer();
   const showCustomers = viewer !== null && viewer.role !== 'guest';
   const showDashboards = showCustomers;
+  const showPulse = viewer === null || viewer.role !== 'guest';
   const favorites = useLiveQuery(
     (store) => (viewerId === null ? [] : favoriteLinks(store, viewerId)),
     ['favorite', 'view', 'team', 'issue', 'label'],
@@ -215,6 +217,17 @@ export function AppShell({
         group: 'Navigation',
         run: () => navigate('/inbox'),
       },
+      ...(showPulse
+        ? [
+            {
+              id: 'nav.pulse',
+              title: 'Go to Pulse',
+              keys: ['g u'],
+              group: 'Navigation',
+              run: () => navigate('/pulse'),
+            },
+          ]
+        : []),
       {
         id: 'nav.drafts',
         title: 'Go to Drafts',
@@ -337,6 +350,7 @@ export function AppShell({
       workspaceMenu.show,
       showCustomers,
       showDashboards,
+      showPulse,
     ],
   );
 
@@ -385,6 +399,12 @@ export function AppShell({
               <NavGlyph name="inbox" />
               <span className={styles.navLabel}>Inbox</span>
             </NavLink>
+            {showPulse && (
+              <NavLink to="/pulse" className={() => navClass({ isActive: onPulse })}>
+                <NavGlyph name="pulse" />
+                <span className={styles.navLabel}>Pulse</span>
+              </NavLink>
+            )}
             <NavLink to="/drafts" className={navClass}>
               <NavGlyph name="drafts" />
               <span className={styles.navLabel}>Drafts</span>
@@ -622,6 +642,7 @@ function navClass({ isActive }: { isActive: boolean }): string {
 type NavGlyphName =
   | 'issues'
   | 'inbox'
+  | 'pulse'
   | 'drafts'
   | 'search'
   | 'project'
@@ -685,6 +706,12 @@ function glyphPath(name: NavGlyphName) {
             d="M2.5 8.5h2.6l.8 1.8h4.2l.8-1.8h2.6V12a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 2.5 12V8.5Z"
             {...stroke}
           />
+        </>
+      );
+    case 'pulse':
+      return (
+        <>
+          <path d="M2.5 8h2.2l1.3-3.5 2.2 7 1.6-4.2H13.5" {...stroke} />
         </>
       );
     case 'search':
