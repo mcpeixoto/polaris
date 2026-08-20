@@ -241,8 +241,8 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
           </thead>
           <tbody>
             {data.burn.map((point) => (
-              <tr key={point.month}>
-                <td>{point.month}</td>
+              <tr key={point.period}>
+                <td>{point.period}</td>
                 <td>{formatValue(point.completed, data.unit)}</td>
               </tr>
             ))}

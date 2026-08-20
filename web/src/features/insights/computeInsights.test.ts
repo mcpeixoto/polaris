@@ -175,7 +175,7 @@ describe('buildInsights', () => {
     seed(store);
     const data = buildInsights(store, ['i1', 'i2'], 'burnUp', 'assignee');
     expect(data.chart).toBe('area');
-    expect(data.burn).toEqual([{ month: '2026-02', completed: 5 }]);
+    expect(data.burn).toEqual([{ period: '2026-02', completed: 5 }]);
     expect(data.total).toBe(5);
   });
 
@@ -184,6 +184,77 @@ describe('buildInsights', () => {
     seed(store);
     const data = buildInsights(store, ['i1', 'i2'], 'count', 'label');
     expect(data.buckets.map((bucket) => bucket.label).sort()).toEqual(['Bug', 'No label']);
+  });
+
+  it('slices by cycle and by originating template', () => {
+    const store = new Store('w');
+    seed(store);
+    store.applyChanges([
+      upsert(20, 'cycle', {
+        id: 'c1',
+        workspaceId: 'w',
+        teamId: 't1',
+        number: 1,
+        name: 'Cycle 1',
+        startsAt: '2026-02-01T00:00:00.000Z',
+        endsAt: '2026-02-15T00:00:00.000Z',
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+      upsert(21, 'issueTemplate', {
+        id: 'tpl1',
+        workspaceId: 'w',
+        name: 'Bug report',
+        title: '',
+        body: '',
+        properties: {},
+        position: 'a',
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+      upsert(
+        22,
+        'issue',
+        issue('i3', { cycleId: 'c1', templateId: 'tpl1', priority: 2, estimate: 1 }),
+      ),
+    ]);
+    const byCycle = buildInsights(store, ['i1', 'i3'], 'count', 'cycle');
+    expect(byCycle.buckets.map((bucket) => [bucket.label, bucket.value])).toEqual([
+      ['Cycle 1', 1],
+      ['No cycle', 1],
+    ]);
+    const byTemplate = buildInsights(store, ['i1', 'i3'], 'count', 'template');
+    expect(byTemplate.buckets.map((bucket) => [bucket.label, bucket.filter?.op])).toEqual([
+      ['Bug report', 'eq'],
+      ['No template', 'isNull'],
+    ]);
+  });
+
+  it('can include archived issues and burn up by week', () => {
+    const store = new Store('w');
+    seed(store);
+    store.applyChanges([
+      upsert(
+        30,
+        'issue',
+        issue('i9', {
+          archivedAt: '2026-02-20T00:00:00.000Z',
+          completedAt: '2026-02-18T00:00:00.000Z',
+          estimate: 3,
+        }),
+      ),
+    ]);
+    const hidden = buildInsights(store, ['i1', 'i9'], 'count', 'priority');
+    expect(hidden.total).toBe(1);
+    const shown = buildInsights(store, ['i1', 'i9'], 'count', 'priority', Date.parse(NOW), {
+      includeArchived: true,
+    });
+    expect(shown.total).toBe(2);
+    const weekly = buildInsights(store, ['i1', 'i9'], 'burnUp', 'assignee', Date.parse(NOW), {
+      includeArchived: true,
+      burnPeriod: 'week',
+    });
+    expect(weekly.burn.map((point) => point.period)).toEqual(['2026-02-09', '2026-02-16']);
   });
 });
 
