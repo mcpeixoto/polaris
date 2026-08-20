@@ -78,7 +78,11 @@ SET name        = COALESCE(sqlc.narg(name), name),
     color       = COALESCE(sqlc.narg(color), color),
     filter      = COALESCE(sqlc.narg(filter), filter),
     display     = COALESCE(sqlc.narg(display), display),
-    position    = COALESCE(sqlc.narg(position), position)
+    position    = COALESCE(sqlc.narg(position), position),
+    -- COALESCE cannot express "share this view" (owner_id → NULL). clear_owner is that
+    -- write; setting owner_id without it is "make private to this person".
+    owner_id    = CASE WHEN sqlc.arg(clear_owner)::boolean THEN NULL
+                       ELSE COALESCE(sqlc.narg(owner_id), owner_id) END
 WHERE id = sqlc.arg(id) AND archived_at IS NULL
 RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
           filter, display, position, created_by, archived_at, created_at, updated_at;

@@ -178,10 +178,10 @@ func (s *Service) CreateView(ctx context.Context, p *authz.Principal, in CreateV
 	return out, version, err
 }
 
-// UpdateViewInput carries no team id and no private flag, and that absence is deliberate:
-// moving a view between scopes is a visibility change, so it has to revoke the view from
-// everybody who just lost it. Hiding that behind the same partial update that renames a
-// view would mean a rename and a re-scope racing to decide who can see it.
+// UpdateViewInput can flip sharing. That is a visibility change: everybody who just lost
+// the view has to be told to drop it, under the scope it used to travel under, before the
+// new scope is told to take it. A rename that skipped that dance would leave a private
+// view sitting in every replica that had bootstrapped the shared one.
 type UpdateViewInput struct {
 	ID          uuid.UUID
 	Name        *string
@@ -196,6 +196,9 @@ type UpdateViewInput struct {
 	Display json.RawMessage
 
 	AfterViewID *uuid.UUID
+	// Private nil means leave sharing unchanged. True keeps the view to the caller;
+	// false shares it with everyone who can see its team or workspace scope.
+	Private *bool
 }
 
 func (s *Service) UpdateView(ctx context.Context, p *authz.Principal, in UpdateViewInput) (model.View, int64, error) {
@@ -230,10 +233,11 @@ func (s *Service) UpdateView(ctx context.Context, p *authz.Principal, in UpdateV
 	var out model.View
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
-		// Deliberately not re-gated on entitlement, unlike creation. A shared view that
+		// Deliberately not re-gated on entitlement for a rename. A shared view that
 		// already exists stays editable whatever the plan says today: the alternative is a
-		// saved view holding a filter somebody has to fix and cannot.
-		_, scope, err := s.requireViewAccess(ctx, q, p, in.ID)
+		// saved view holding a filter somebody has to fix and cannot. Sharing it *out* of
+		// private is gated below — that is a new shared view, and the plan still applies.
+		existing, oldScope, err := s.requireViewAccess(ctx, q, p, in.ID)
 		if err != nil {
 			return err
 		}
@@ -247,6 +251,43 @@ func (s *Service) UpdateView(ctx context.Context, p *authz.Principal, in UpdateV
 			position = &pos
 		}
 
+		clearOwner := false
+		var ownerID *uuid.UUID
+		newScope := oldScope
+		rescope := false
+		if in.Private != nil {
+			wantPrivate := *in.Private
+			currentlyPrivate := existing.OwnerID != nil
+			if wantPrivate != currentlyPrivate {
+				if existing.ProjectID != nil {
+					return platform.Validation("private", "project views cannot be private")
+				}
+				if wantPrivate {
+					ownerID = &p.UserID
+					newScope = authz.UserScope(p.UserID)
+				} else {
+					if err := requireCustomViews(ctx, q, p.WorkspaceID); err != nil {
+						return err
+					}
+					if existing.TeamID != nil {
+						team, err := s.requireTeamAccess(ctx, q, p, *existing.TeamID, authz.ActionTeamViewManage)
+						if err != nil {
+							return err
+						}
+						newScope = authz.TeamScope(team.ID, team.Private)
+					} else {
+						if !authz.Can(p, authz.ActionWorkspaceViewManage) {
+							return platform.Forbidden(
+								"only admins can share a view with the whole workspace")
+						}
+						newScope = authz.WorkspaceScope()
+					}
+					clearOwner = true
+				}
+				rescope = true
+			}
+		}
+
 		row, err := q.UpdateView(ctx, store.UpdateViewParams{
 			ID:          in.ID,
 			Name:        name,
@@ -256,6 +297,8 @@ func (s *Service) UpdateView(ctx context.Context, p *authz.Principal, in UpdateV
 			Filter:      filterJSON,
 			Display:     displayJSON,
 			Position:    position,
+			ClearOwner:  clearOwner,
+			OwnerID:     ownerID,
 		})
 		if err != nil {
 			if store.IsNotFound(err) {
@@ -266,9 +309,21 @@ func (s *Service) UpdateView(ctx context.Context, p *authz.Principal, in UpdateV
 		}
 		out = toView(store.GetViewRow(row))
 
+		if rescope {
+			// Forget under the old scope first so a replica that sat in both (the owner
+			// making their own view shared, or un-sharing a workspace view they can still
+			// see) processes delete-then-upsert and keeps the row. The other way around
+			// would drop it.
+			if _, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+				EntityType: "view", EntityID: out.ID, Op: OpDelete,
+				TeamID: scopeTeamID(oldScope, existing.TeamID), Scope: oldScope,
+			}); err != nil {
+				return err
+			}
+		}
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "view", EntityID: out.ID, Op: OpUpsert,
-			TeamID: scopeTeamID(scope, out.TeamID), Scope: scope, Payload: out,
+			TeamID: scopeTeamID(newScope, out.TeamID), Scope: newScope, Payload: out,
 		})
 		return err
 	})
