@@ -303,6 +303,7 @@ type Querier interface {
 	CreateGitLabUserLink(ctx context.Context, arg CreateGitLabUserLinkParams) (GitlabUserLink, error)
 	CreateInitiative(ctx context.Context, arg CreateInitiativeParams) (Initiative, error)
 	CreateInitiativeProject(ctx context.Context, arg CreateInitiativeProjectParams) (InitiativeProject, error)
+	CreateIntegrationSubmission(ctx context.Context, arg CreateIntegrationSubmissionParams) (IntegrationSubmission, error)
 	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
 	// Every list below is the issue table's columns, in the table's own order, minus
 	// search_vector. Minus, because the generated vector is roughly the size of the text it
@@ -748,6 +749,7 @@ type Querier interface {
 	ListInitiativeProjectIDs(ctx context.Context, initiativeID uuid.UUID) ([]uuid.UUID, error)
 	ListInitiativeProjects(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeProject, error)
 	ListInitiativesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Initiative, error)
+	ListIntegrationSubmissions(ctx context.Context, workspaceID uuid.UUID) ([]IntegrationSubmission, error)
 	ListIssueHistory(ctx context.Context, issueID uuid.UUID) ([]IssueHistory, error)
 	ListIssueLabels(ctx context.Context, issueID uuid.UUID) ([]IssueLabel, error)
 	// ListIssueLabelsForIssues is the same listing for a whole page of issues at once.

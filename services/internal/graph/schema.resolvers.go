@@ -3764,6 +3764,24 @@ func (r *mutationResolver) RotateCycleCalendarFeed(ctx context.Context, teamID u
 	}, nil
 }
 
+// SubmitIntegration is the resolver for the submitIntegration field.
+func (r *mutationResolver) SubmitIntegration(ctx context.Context, input generated.SubmitIntegrationInput) (*generated.IntegrationSubmissionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, err := r.Svc.SubmitIntegration(ctx, p, domain.SubmitIntegrationInput{
+		Name:    input.Name,
+		Website: input.Website,
+		Summary: input.Summary,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toIntegrationSubmission(row)
+	return &generated.IntegrationSubmissionPayload{Submission: &out}, nil
+}
+
 // CreateDraft is the resolver for the createDraft field.
 func (r *mutationResolver) CreateDraft(ctx context.Context, input generated.CreateDraftInput) (*generated.DraftPayload, error) {
 	p, err := principalFrom(ctx)
@@ -4695,6 +4713,19 @@ func (r *queryResolver) Invites(ctx context.Context) ([]generated.Invite, error)
 		return nil, PresentError(ctx, err)
 	}
 	return out, nil
+}
+
+// IntegrationSubmissions is the resolver for the integrationSubmissions field.
+func (r *queryResolver) IntegrationSubmissions(ctx context.Context) ([]generated.IntegrationSubmission, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListIntegrationSubmissions(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toIntegrationSubmissions(rows), nil
 }
 
 // DeletedIssues is the resolver for the deletedIssues field.
