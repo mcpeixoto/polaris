@@ -548,19 +548,21 @@ type ComplexityRoot struct {
 	}
 
 	IssueTemplate struct {
-		ArchivedAt  func(childComplexity int) int
-		Body        func(childComplexity int) int
-		CreatedAt   func(childComplexity int) int
-		CreatedBy   func(childComplexity int) int
-		Description func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Name        func(childComplexity int) int
-		Position    func(childComplexity int) int
-		Properties  func(childComplexity int) int
-		TeamID      func(childComplexity int) int
-		Title       func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
-		WorkspaceID func(childComplexity int) int
+		ArchivedAt         func(childComplexity int) int
+		Body               func(childComplexity int) int
+		CreatedAt          func(childComplexity int) int
+		CreatedBy          func(childComplexity int) int
+		Description        func(childComplexity int) int
+		EmailIntakeAddress func(childComplexity int) int
+		EmailIntakeEnabled func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		Name               func(childComplexity int) int
+		Position           func(childComplexity int) int
+		Properties         func(childComplexity int) int
+		TeamID             func(childComplexity int) int
+		Title              func(childComplexity int) int
+		UpdatedAt          func(childComplexity int) int
+		WorkspaceID        func(childComplexity int) int
 	}
 
 	IssueTemplatePayload struct {
@@ -714,6 +716,7 @@ type ComplexityRoot struct {
 		UpdateInitiative               func(childComplexity int, input UpdateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateIssue                    func(childComplexity int, input UpdateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateIssueTemplate            func(childComplexity int, input UpdateIssueTemplateInput) int
+		UpdateIssueTemplateEmailIntake func(childComplexity int, input UpdateIssueTemplateEmailIntakeInput) int
 		UpdateLabel                    func(childComplexity int, input UpdateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateNotificationPrefs        func(childComplexity int, prefs json.RawMessage) int
 		UpdateProfile                  func(childComplexity int, input UpdateProfileInput) int
@@ -730,6 +733,7 @@ type ComplexityRoot struct {
 		UpdateTeam                     func(childComplexity int, input UpdateTeamInput) int
 		UpdateTeamArchive              func(childComplexity int, input UpdateTeamArchiveInput) int
 		UpdateTeamCycles               func(childComplexity int, input UpdateTeamCyclesInput) int
+		UpdateTeamEmailIntake          func(childComplexity int, input UpdateTeamEmailIntakeInput) int
 		UpdateTeamEstimates            func(childComplexity int, input UpdateTeamEstimatesInput) int
 		UpdateTeamTemplates            func(childComplexity int, input UpdateTeamTemplatesInput) int
 		UpdateTeamTriage               func(childComplexity int, input UpdateTeamTriageInput) int
@@ -1145,6 +1149,8 @@ type ComplexityRoot struct {
 		DefaultTemplateForNonMembersID func(childComplexity int) int
 		DeletedAt                      func(childComplexity int) int
 		Description                    func(childComplexity int) int
+		EmailIntakeAddress             func(childComplexity int) int
+		EmailIntakeEnabled             func(childComplexity int) int
 		EstimateAllowZero              func(childComplexity int) int
 		EstimateExtended               func(childComplexity int) int
 		EstimateScale                  func(childComplexity int) int
@@ -1418,6 +1424,8 @@ type MutationResolver interface {
 	UpdateCycle(ctx context.Context, input UpdateCycleInput, clientID *uuid.UUID, opID *uuid.UUID) (*CyclePayload, error)
 	StartCycleToday(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*CyclePayload, error)
 	UpdateTeamTriage(ctx context.Context, input UpdateTeamTriageInput) (*TeamPayload, error)
+	UpdateTeamEmailIntake(ctx context.Context, input UpdateTeamEmailIntakeInput) (*TeamPayload, error)
+	UpdateIssueTemplateEmailIntake(ctx context.Context, input UpdateIssueTemplateEmailIntakeInput) (*IssueTemplatePayload, error)
 	UpdateTeamArchive(ctx context.Context, input UpdateTeamArchiveInput) (*TeamPayload, error)
 	UpdateTeamTemplates(ctx context.Context, input UpdateTeamTemplatesInput) (*TeamPayload, error)
 	ArchiveCycle(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
@@ -3798,6 +3806,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.IssueTemplate.Description(childComplexity), true
+	case "IssueTemplate.emailIntakeAddress":
+		if e.ComplexityRoot.IssueTemplate.EmailIntakeAddress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IssueTemplate.EmailIntakeAddress(childComplexity), true
+	case "IssueTemplate.emailIntakeEnabled":
+		if e.ComplexityRoot.IssueTemplate.EmailIntakeEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IssueTemplate.EmailIntakeEnabled(childComplexity), true
 	case "IssueTemplate.id":
 		if e.ComplexityRoot.IssueTemplate.ID == nil {
 			break
@@ -5306,6 +5326,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateIssueTemplate(childComplexity, args["input"].(UpdateIssueTemplateInput)), true
+	case "Mutation.updateIssueTemplateEmailIntake":
+		if e.ComplexityRoot.Mutation.UpdateIssueTemplateEmailIntake == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateIssueTemplateEmailIntake_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateIssueTemplateEmailIntake(childComplexity, args["input"].(UpdateIssueTemplateEmailIntakeInput)), true
 	case "Mutation.updateLabel":
 		if e.ComplexityRoot.Mutation.UpdateLabel == nil {
 			break
@@ -5482,6 +5513,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateTeamCycles(childComplexity, args["input"].(UpdateTeamCyclesInput)), true
+	case "Mutation.updateTeamEmailIntake":
+		if e.ComplexityRoot.Mutation.UpdateTeamEmailIntake == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTeamEmailIntake_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateTeamEmailIntake(childComplexity, args["input"].(UpdateTeamEmailIntakeInput)), true
 	case "Mutation.updateTeamEstimates":
 		if e.ComplexityRoot.Mutation.UpdateTeamEstimates == nil {
 			break
@@ -7616,6 +7658,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Team.Description(childComplexity), true
+	case "Team.emailIntakeAddress":
+		if e.ComplexityRoot.Team.EmailIntakeAddress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.EmailIntakeAddress(childComplexity), true
+	case "Team.emailIntakeEnabled":
+		if e.ComplexityRoot.Team.EmailIntakeEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Team.EmailIntakeEnabled(childComplexity), true
 	case "Team.estimateAllowZero":
 		if e.ComplexityRoot.Team.EstimateAllowZero == nil {
 			break
@@ -8554,6 +8608,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateGitHubTeamAutomationInput,
 		ec.unmarshalInputUpdateInitiativeInput,
 		ec.unmarshalInputUpdateIssueInput,
+		ec.unmarshalInputUpdateIssueTemplateEmailIntakeInput,
 		ec.unmarshalInputUpdateIssueTemplateInput,
 		ec.unmarshalInputUpdateLabelInput,
 		ec.unmarshalInputUpdateProfileInput,
@@ -8569,6 +8624,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateSlaRuleInput,
 		ec.unmarshalInputUpdateTeamArchiveInput,
 		ec.unmarshalInputUpdateTeamCyclesInput,
+		ec.unmarshalInputUpdateTeamEmailIntakeInput,
 		ec.unmarshalInputUpdateTeamEstimatesInput,
 		ec.unmarshalInputUpdateTeamInput,
 		ec.unmarshalInputUpdateTeamTemplatesInput,
@@ -8923,6 +8979,11 @@ type Team {
   defaultTemplateForMembersId: UUID
   """Applied to new issues filed by everyone else. Form templates (later) may only be this one."""
   defaultTemplateForNonMembersId: UUID
+
+  """Off by default. Turning it on mints a unique intake address for this team."""
+  emailIntakeEnabled: Boolean!
+  """The address that creates issues. Null until intake is enabled."""
+  emailIntakeAddress: String
 
   createdAt: Time!
   updatedAt: Time!
@@ -9305,6 +9366,10 @@ type IssueTemplate {
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
+  """Off by default. Team templates only — a workspace template has no team to file into."""
+  emailIntakeEnabled: Boolean!
+  """The address that creates issues from this template. Null until intake is enabled."""
+  emailIntakeAddress: String
 }
 
 enum FormTemplateFieldType {
@@ -10698,6 +10763,16 @@ input UpdateTeamTriageInput {
   requirePriority: Boolean
 }
 
+input UpdateTeamEmailIntakeInput {
+  teamId: UUID!
+  enabled: Boolean!
+}
+
+input UpdateIssueTemplateEmailIntakeInput {
+  templateId: UUID!
+  enabled: Boolean!
+}
+
 input UpdateTeamArchiveInput {
   teamId: UUID!
   autoCloseDays: Int
@@ -11225,6 +11300,8 @@ type Mutation {
   """Pull the next upcoming cycle forward to midnight today in the team's timezone. Irreversible."""
   startCycleToday(id: UUID!, clientId: UUID, opId: UUID): CyclePayload! @idempotent
   updateTeamTriage(input: UpdateTeamTriageInput!): TeamPayload!
+  updateTeamEmailIntake(input: UpdateTeamEmailIntakeInput!): TeamPayload!
+  updateIssueTemplateEmailIntake(input: UpdateIssueTemplateEmailIntakeInput!): IssueTemplatePayload!
   updateTeamArchive(input: UpdateTeamArchiveInput!): TeamPayload!
   updateTeamTemplates(input: UpdateTeamTemplatesInput!): TeamPayload!
 
@@ -12416,6 +12493,10 @@ func (ec *executionContext) childFields_IssueTemplate(ctx context.Context, field
 		return ec.fieldContext_IssueTemplate_updatedAt(ctx, field)
 	case "archivedAt":
 		return ec.fieldContext_IssueTemplate_archivedAt(ctx, field)
+	case "emailIntakeEnabled":
+		return ec.fieldContext_IssueTemplate_emailIntakeEnabled(ctx, field)
+	case "emailIntakeAddress":
+		return ec.fieldContext_IssueTemplate_emailIntakeAddress(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type IssueTemplate", field.Name)
 }
@@ -13156,6 +13237,10 @@ func (ec *executionContext) childFields_Team(ctx context.Context, field graphql.
 		return ec.fieldContext_Team_defaultTemplateForMembersId(ctx, field)
 	case "defaultTemplateForNonMembersId":
 		return ec.fieldContext_Team_defaultTemplateForNonMembersId(ctx, field)
+	case "emailIntakeEnabled":
+		return ec.fieldContext_Team_emailIntakeEnabled(ctx, field)
+	case "emailIntakeAddress":
+		return ec.fieldContext_Team_emailIntakeAddress(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Team_createdAt(ctx, field)
 	case "updatedAt":
@@ -16732,6 +16817,20 @@ func (ec *executionContext) field_Mutation_updateInitiative_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateIssueTemplateEmailIntake_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateIssueTemplateEmailIntakeInput, error) {
+			return ec.unmarshalNUpdateIssueTemplateEmailIntakeInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateIssueTemplateEmailIntakeInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateIssueTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -17058,6 +17157,20 @@ func (ec *executionContext) field_Mutation_updateTeamCycles_args(ctx context.Con
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (UpdateTeamCyclesInput, error) {
 			return ec.unmarshalNUpdateTeamCyclesInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamCyclesInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateTeamEmailIntake_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateTeamEmailIntakeInput, error) {
+			return ec.unmarshalNUpdateTeamEmailIntakeInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamEmailIntakeInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -26846,6 +26959,52 @@ func (ec *executionContext) fieldContext_IssueTemplate_archivedAt(_ context.Cont
 	return graphql.NewScalarFieldContext("IssueTemplate", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _IssueTemplate_emailIntakeEnabled(ctx context.Context, field graphql.CollectedField, obj *IssueTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IssueTemplate_emailIntakeEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EmailIntakeEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IssueTemplate_emailIntakeEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IssueTemplate", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _IssueTemplate_emailIntakeAddress(ctx context.Context, field graphql.CollectedField, obj *IssueTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IssueTemplate_emailIntakeAddress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EmailIntakeAddress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_IssueTemplate_emailIntakeAddress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IssueTemplate", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _IssueTemplatePayload_version(ctx context.Context, field graphql.CollectedField, obj *IssueTemplatePayload) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -30653,6 +30812,94 @@ func (ec *executionContext) fieldContext_Mutation_updateTeamTriage(ctx context.C
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateTeamTriage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateTeamEmailIntake(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateTeamEmailIntake(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateTeamEmailIntake(ctx, fc.Args["input"].(UpdateTeamEmailIntakeInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *TeamPayload) graphql.Marshaler {
+			return ec.marshalNTeamPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateTeamEmailIntake(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TeamPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTeamEmailIntake_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateIssueTemplateEmailIntake(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateIssueTemplateEmailIntake(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateIssueTemplateEmailIntake(ctx, fc.Args["input"].(UpdateIssueTemplateEmailIntakeInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *IssueTemplatePayload) graphql.Marshaler {
+			return ec.marshalNIssueTemplatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssueTemplatePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateIssueTemplateEmailIntake(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IssueTemplatePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateIssueTemplateEmailIntake_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -43242,6 +43489,52 @@ func (ec *executionContext) fieldContext_Team_defaultTemplateForNonMembersId(_ c
 	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type UUID does not have child fields"))
 }
 
+func (ec *executionContext) _Team_emailIntakeEnabled(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_emailIntakeEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EmailIntakeEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Team_emailIntakeEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Team_emailIntakeAddress(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Team_emailIntakeAddress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EmailIntakeAddress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Team_emailIntakeAddress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Team", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _Team_createdAt(ctx context.Context, field graphql.CollectedField, obj *Team) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -50789,6 +51082,43 @@ func (ec *executionContext) unmarshalInputUpdateIssueInput(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateIssueTemplateEmailIntakeInput(ctx context.Context, obj any) (UpdateIssueTemplateEmailIntakeInput, error) {
+	var it UpdateIssueTemplateEmailIntakeInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"templateId", "enabled"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "templateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("templateId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TemplateID = data
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateIssueTemplateInput(ctx context.Context, obj any) (UpdateIssueTemplateInput, error) {
 	var it UpdateIssueTemplateInput
 	if obj == nil {
@@ -51836,6 +52166,43 @@ func (ec *executionContext) unmarshalInputUpdateTeamCyclesInput(ctx context.Cont
 				return it, err
 			}
 			it.AutoAddCompleted = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateTeamEmailIntakeInput(ctx context.Context, obj any) (UpdateTeamEmailIntakeInput, error) {
+	var it UpdateTeamEmailIntakeInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"teamId", "enabled"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
 		}
 	}
 	return it, nil
@@ -56213,6 +56580,16 @@ func (ec *executionContext) _IssueTemplate(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "emailIntakeEnabled":
+			out.Values[i] = ec._IssueTemplate_emailIntakeEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "emailIntakeAddress":
+			out.Values[i] = ec._IssueTemplate_emailIntakeAddress(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -56877,6 +57254,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateTeamTriage":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateTeamTriage(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateTeamEmailIntake":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTeamEmailIntake(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateIssueTemplateEmailIntake":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateIssueTemplateEmailIntake(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -61397,6 +61788,16 @@ func (ec *executionContext) _Team(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "emailIntakeEnabled":
+			out.Values[i] = ec._Team_emailIntakeEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "emailIntakeAddress":
+			out.Values[i] = ec._Team_emailIntakeAddress(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "createdAt":
 			out.Values[i] = ec._Team_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -65450,6 +65851,11 @@ func (ec *executionContext) unmarshalNUpdateIssueInput2githubᚗcomᚋpeixotolab
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateIssueTemplateEmailIntakeInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateIssueTemplateEmailIntakeInput(ctx context.Context, v any) (UpdateIssueTemplateEmailIntakeInput, error) {
+	res, err := ec.unmarshalInputUpdateIssueTemplateEmailIntakeInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateIssueTemplateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateIssueTemplateInput(ctx context.Context, v any) (UpdateIssueTemplateInput, error) {
 	res, err := ec.unmarshalInputUpdateIssueTemplateInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -65522,6 +65928,11 @@ func (ec *executionContext) unmarshalNUpdateTeamArchiveInput2githubᚗcomᚋpeix
 
 func (ec *executionContext) unmarshalNUpdateTeamCyclesInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamCyclesInput(ctx context.Context, v any) (UpdateTeamCyclesInput, error) {
 	res, err := ec.unmarshalInputUpdateTeamCyclesInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateTeamEmailIntakeInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateTeamEmailIntakeInput(ctx context.Context, v any) (UpdateTeamEmailIntakeInput, error) {
+	res, err := ec.unmarshalInputUpdateTeamEmailIntakeInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

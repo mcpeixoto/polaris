@@ -76,6 +76,8 @@ export const TEAM_FIELDS = /* GraphQL */ `
     autoCloseChildren
     defaultTemplateForMembersId
     defaultTemplateForNonMembersId
+    emailIntakeEnabled
+    emailIntakeAddress
     createdAt
     updatedAt
     retiredAt
@@ -397,6 +399,18 @@ export const UPDATE_TEAM_TRIAGE = /* GraphQL */ `
   ${TEAM_FIELDS}
   mutation UpdateTeamTriage($input: UpdateTeamTriageInput!) {
     updateTeamTriage(input: $input) {
+      version
+      team {
+        ...TeamFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_TEAM_EMAIL_INTAKE = /* GraphQL */ `
+  ${TEAM_FIELDS}
+  mutation UpdateTeamEmailIntake($input: UpdateTeamEmailIntakeInput!) {
+    updateTeamEmailIntake(input: $input) {
       version
       team {
         ...TeamFields

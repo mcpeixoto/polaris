@@ -124,7 +124,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 type CreateTeamParams struct {
@@ -198,6 +199,9 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -211,7 +215,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 FROM team
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -255,6 +260,74 @@ func (q *Queries) GetTeam(ctx context.Context, id uuid.UUID) (Team, error) {
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
+	)
+	return i, err
+}
+
+const getTeamByEmailIntakeToken = `-- name: GetTeamByEmailIntakeToken :one
+SELECT id, workspace_id, key, name, description, icon, color, timezone,
+       parent_team_id, private, issue_counter, settings,
+       retired_at, archived_at, deleted_at, created_at, updated_at,
+       estimate_scale, estimate_allow_zero, estimate_extended,
+       cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+       cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+       triage_enabled, triage_require_priority,
+       auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
+FROM team
+WHERE email_intake_token = $1
+  AND email_intake_enabled
+  AND deleted_at IS NULL
+  AND archived_at IS NULL
+  AND retired_at IS NULL
+`
+
+func (q *Queries) GetTeamByEmailIntakeToken(ctx context.Context, token *string) (Team, error) {
+	row := q.db.QueryRow(ctx, getTeamByEmailIntakeToken, token)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.Color,
+		&i.Timezone,
+		&i.ParentTeamID,
+		&i.Private,
+		&i.IssueCounter,
+		&i.Settings,
+		&i.RetiredAt,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EstimateScale,
+		&i.EstimateAllowZero,
+		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
+		&i.TriageEnabled,
+		&i.TriageRequirePriority,
+		&i.AutoCloseDays,
+		&i.AutoArchiveDays,
+		&i.AutoCloseParent,
+		&i.AutoCloseChildren,
+		&i.DefaultTemplateForMembersID,
+		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -268,7 +341,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 FROM team
 WHERE workspace_id = $1 AND key = $2 AND deleted_at IS NULL
 `
@@ -317,6 +391,9 @@ func (q *Queries) GetTeamByKey(ctx context.Context, arg GetTeamByKeyParams) (Tea
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -348,7 +425,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 FROM team
 WHERE parent_team_id = $1 AND deleted_at IS NULL
 ORDER BY key
@@ -399,6 +477,9 @@ func (q *Queries) ListChildTeams(ctx context.Context, parentTeamID *uuid.UUID) (
 			&i.AutoCloseChildren,
 			&i.DefaultTemplateForMembersID,
 			&i.DefaultTemplateForNonMembersID,
+			&i.EmailIntakeEnabled,
+			&i.EmailIntakeToken,
+			&i.EmailIntakeAddress,
 		); err != nil {
 			return nil, err
 		}
@@ -419,7 +500,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 FROM team
 WHERE workspace_id = $1
   AND deleted_at IS NOT NULL
@@ -477,6 +559,9 @@ func (q *Queries) ListDeletedTeams(ctx context.Context, arg ListDeletedTeamsPara
 			&i.AutoCloseChildren,
 			&i.DefaultTemplateForMembersID,
 			&i.DefaultTemplateForNonMembersID,
+			&i.EmailIntakeEnabled,
+			&i.EmailIntakeToken,
+			&i.EmailIntakeAddress,
 		); err != nil {
 			return nil, err
 		}
@@ -643,7 +728,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 FROM team
 WHERE workspace_id = $1 AND deleted_at IS NULL
 ORDER BY key
@@ -694,6 +780,9 @@ func (q *Queries) ListTeamsInWorkspace(ctx context.Context, workspaceID uuid.UUI
 			&i.AutoCloseChildren,
 			&i.DefaultTemplateForMembersID,
 			&i.DefaultTemplateForNonMembersID,
+			&i.EmailIntakeEnabled,
+			&i.EmailIntakeToken,
+			&i.EmailIntakeAddress,
 		); err != nil {
 			return nil, err
 		}
@@ -714,7 +803,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 FROM team
 WHERE deleted_at IS NULL
   AND (default_template_for_members_id = $1
@@ -766,6 +856,9 @@ func (q *Queries) ListTeamsUsingTemplateAsDefault(ctx context.Context, templateI
 			&i.AutoCloseChildren,
 			&i.DefaultTemplateForMembersID,
 			&i.DefaultTemplateForNonMembersID,
+			&i.EmailIntakeEnabled,
+			&i.EmailIntakeToken,
+			&i.EmailIntakeAddress,
 		); err != nil {
 			return nil, err
 		}
@@ -786,7 +879,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 FROM team
 WHERE auto_archive_days > 0 AND deleted_at IS NULL AND archived_at IS NULL AND retired_at IS NULL
 ORDER BY workspace_id, key
@@ -837,6 +931,9 @@ func (q *Queries) ListTeamsWithAutoArchive(ctx context.Context) ([]Team, error) 
 			&i.AutoCloseChildren,
 			&i.DefaultTemplateForMembersID,
 			&i.DefaultTemplateForNonMembersID,
+			&i.EmailIntakeEnabled,
+			&i.EmailIntakeToken,
+			&i.EmailIntakeAddress,
 		); err != nil {
 			return nil, err
 		}
@@ -857,7 +954,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 FROM team
 WHERE auto_close_days > 0 AND deleted_at IS NULL AND archived_at IS NULL AND retired_at IS NULL
 ORDER BY workspace_id, key
@@ -908,6 +1006,9 @@ func (q *Queries) ListTeamsWithAutoClose(ctx context.Context) ([]Team, error) {
 			&i.AutoCloseChildren,
 			&i.DefaultTemplateForMembersID,
 			&i.DefaultTemplateForNonMembersID,
+			&i.EmailIntakeEnabled,
+			&i.EmailIntakeToken,
+			&i.EmailIntakeAddress,
 		); err != nil {
 			return nil, err
 		}
@@ -928,7 +1029,8 @@ SELECT id, workspace_id, key, name, description, icon, color, timezone,
        cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 FROM team
 WHERE cycles_enabled AND deleted_at IS NULL AND archived_at IS NULL AND retired_at IS NULL
 ORDER BY workspace_id, key
@@ -979,6 +1081,9 @@ func (q *Queries) ListTeamsWithCyclesEnabled(ctx context.Context) ([]Team, error
 			&i.AutoCloseChildren,
 			&i.DefaultTemplateForMembersID,
 			&i.DefaultTemplateForNonMembersID,
+			&i.EmailIntakeEnabled,
+			&i.EmailIntakeToken,
+			&i.EmailIntakeAddress,
 		); err != nil {
 			return nil, err
 		}
@@ -1042,7 +1147,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
           auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-          default_template_for_members_id, default_template_for_non_members_id
+          default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 type RestoreTeamParams struct {
@@ -1089,6 +1195,9 @@ func (q *Queries) RestoreTeam(ctx context.Context, arg RestoreTeamParams) (Team,
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -1105,7 +1214,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
           auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-          default_template_for_members_id, default_template_for_non_members_id
+          default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 func (q *Queries) RetireTeam(ctx context.Context, id uuid.UUID) (Team, error) {
@@ -1147,6 +1257,9 @@ func (q *Queries) RetireTeam(ctx context.Context, id uuid.UUID) (Team, error) {
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -1196,7 +1309,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
           auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-          default_template_for_members_id, default_template_for_non_members_id
+          default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 func (q *Queries) SoftDeleteTeam(ctx context.Context, id uuid.UUID) (Team, error) {
@@ -1238,6 +1352,9 @@ func (q *Queries) SoftDeleteTeam(ctx context.Context, id uuid.UUID) (Team, error
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -1254,7 +1371,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
           auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-          default_template_for_members_id, default_template_for_non_members_id
+          default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 func (q *Queries) UnretireTeam(ctx context.Context, id uuid.UUID) (Team, error) {
@@ -1296,6 +1414,9 @@ func (q *Queries) UnretireTeam(ctx context.Context, id uuid.UUID) (Team, error) 
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -1319,7 +1440,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 type UpdateTeamParams struct {
@@ -1383,6 +1505,9 @@ func (q *Queries) UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, e
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -1402,7 +1527,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
           auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-          default_template_for_members_id, default_template_for_non_members_id
+          default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 type UpdateTeamArchiveParams struct {
@@ -1461,6 +1587,9 @@ func (q *Queries) UpdateTeamArchive(ctx context.Context, arg UpdateTeamArchivePa
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -1484,7 +1613,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 type UpdateTeamCyclesParams struct {
@@ -1550,6 +1680,88 @@ func (q *Queries) UpdateTeamCycles(ctx context.Context, arg UpdateTeamCyclesPara
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
+	)
+	return i, err
+}
+
+const updateTeamEmailIntake = `-- name: UpdateTeamEmailIntake :one
+UPDATE team
+SET email_intake_enabled = $1,
+    email_intake_token   = COALESCE($2, email_intake_token),
+    email_intake_address = COALESCE($3, email_intake_address)
+WHERE id = $4 AND deleted_at IS NULL
+RETURNING id, workspace_id, key, name, description, icon, color, timezone,
+          parent_team_id, private, issue_counter, settings,
+          retired_at, archived_at, deleted_at, created_at, updated_at,
+          estimate_scale, estimate_allow_zero, estimate_extended,
+          cycles_enabled, cycle_duration_weeks, cycle_cooldown_weeks, cycle_start_day,
+          cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
+          triage_enabled, triage_require_priority,
+          auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
+          default_template_for_members_id, default_template_for_non_members_id,
+          email_intake_enabled, email_intake_token, email_intake_address
+`
+
+type UpdateTeamEmailIntakeParams struct {
+	EmailIntakeEnabled bool
+	EmailIntakeToken   *string
+	EmailIntakeAddress *string
+	ID                 uuid.UUID
+}
+
+// UpdateTeamEmailIntake is the create-issues-by-email switch. Kept apart from UpdateTeam
+// so a rename cannot mint or clear an intake address, and so enabling is the only write
+// that generates a token.
+func (q *Queries) UpdateTeamEmailIntake(ctx context.Context, arg UpdateTeamEmailIntakeParams) (Team, error) {
+	row := q.db.QueryRow(ctx, updateTeamEmailIntake,
+		arg.EmailIntakeEnabled,
+		arg.EmailIntakeToken,
+		arg.EmailIntakeAddress,
+		arg.ID,
+	)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.Color,
+		&i.Timezone,
+		&i.ParentTeamID,
+		&i.Private,
+		&i.IssueCounter,
+		&i.Settings,
+		&i.RetiredAt,
+		&i.ArchivedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EstimateScale,
+		&i.EstimateAllowZero,
+		&i.EstimateExtended,
+		&i.CyclesEnabled,
+		&i.CycleDurationWeeks,
+		&i.CycleCooldownWeeks,
+		&i.CycleStartDay,
+		&i.CycleUpcomingCount,
+		&i.CycleAutoAddStarted,
+		&i.CycleAutoAddCompleted,
+		&i.TriageEnabled,
+		&i.TriageRequirePriority,
+		&i.AutoCloseDays,
+		&i.AutoArchiveDays,
+		&i.AutoCloseParent,
+		&i.AutoCloseChildren,
+		&i.DefaultTemplateForMembersID,
+		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -1568,7 +1780,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
        triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 type UpdateTeamEstimatesParams struct {
@@ -1626,6 +1839,9 @@ func (q *Queries) UpdateTeamEstimates(ctx context.Context, arg UpdateTeamEstimat
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -1643,7 +1859,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
           auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-          default_template_for_members_id, default_template_for_non_members_id
+          default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 type UpdateTeamParentParams struct {
@@ -1691,6 +1908,9 @@ func (q *Queries) UpdateTeamParent(ctx context.Context, arg UpdateTeamParentPara
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -1714,7 +1934,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
           auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-          default_template_for_members_id, default_template_for_non_members_id
+          default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 type UpdateTeamTemplatesParams struct {
@@ -1774,6 +1995,9 @@ func (q *Queries) UpdateTeamTemplates(ctx context.Context, arg UpdateTeamTemplat
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }
@@ -1791,7 +2015,8 @@ RETURNING id, workspace_id, key, name, description, icon, color, timezone,
           cycle_upcoming_count, cycle_auto_add_started, cycle_auto_add_completed,
           triage_enabled, triage_require_priority,
        auto_close_days, auto_archive_days, auto_close_parent, auto_close_children,
-       default_template_for_members_id, default_template_for_non_members_id
+       default_template_for_members_id, default_template_for_non_members_id,
+       email_intake_enabled, email_intake_token, email_intake_address
 `
 
 type UpdateTeamTriageParams struct {
@@ -1843,6 +2068,9 @@ func (q *Queries) UpdateTeamTriage(ctx context.Context, arg UpdateTeamTriagePara
 		&i.AutoCloseChildren,
 		&i.DefaultTemplateForMembersID,
 		&i.DefaultTemplateForNonMembersID,
+		&i.EmailIntakeEnabled,
+		&i.EmailIntakeToken,
+		&i.EmailIntakeAddress,
 	)
 	return i, err
 }

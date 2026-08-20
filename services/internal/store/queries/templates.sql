@@ -8,17 +8,20 @@ VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.narg(team_id), sqlc.arg(name)
         COALESCE(sqlc.narg(title)::text, ''), COALESCE(sqlc.narg(body)::text, ''),
         sqlc.arg(properties), sqlc.arg(position), sqlc.narg(created_by))
 RETURNING id, workspace_id, team_id, name, description, title, body, properties,
-          position, created_by, archived_at, created_at, updated_at;
+          position, created_by, archived_at, created_at, updated_at,
+          email_intake_enabled, email_intake_token, email_intake_address;
 
 -- name: GetIssueTemplate :one
 SELECT id, workspace_id, team_id, name, description, title, body, properties,
-       position, created_by, archived_at, created_at, updated_at
+       position, created_by, archived_at, created_at, updated_at,
+          email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
 WHERE id = $1;
 
 -- name: ListIssueTemplatesInWorkspace :many
 SELECT id, workspace_id, team_id, name, description, title, body, properties,
-       position, created_by, archived_at, created_at, updated_at
+       position, created_by, archived_at, created_at, updated_at,
+          email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
 WHERE workspace_id = $1 AND archived_at IS NULL
 ORDER BY position;
@@ -28,7 +31,8 @@ ORDER BY position;
 --
 -- name: ListIssueTemplatesForTeam :many
 SELECT id, workspace_id, team_id, name, description, title, body, properties,
-       position, created_by, archived_at, created_at, updated_at
+       position, created_by, archived_at, created_at, updated_at,
+          email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND (team_id IS NULL OR team_id = sqlc.arg(team_id))
@@ -47,7 +51,8 @@ ORDER BY position;
 --
 -- name: StreamIssueTemplatesForBootstrap :many
 SELECT id, workspace_id, team_id, name, description, title, body, properties,
-       position, created_by, archived_at, created_at, updated_at
+       position, created_by, archived_at, created_at, updated_at,
+          email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND archived_at IS NULL
@@ -67,7 +72,8 @@ SET name        = COALESCE(sqlc.narg(name), name),
     position    = COALESCE(sqlc.narg(position), position)
 WHERE id = sqlc.arg(id) AND archived_at IS NULL
 RETURNING id, workspace_id, team_id, name, description, title, body, properties,
-          position, created_by, archived_at, created_at, updated_at;
+          position, created_by, archived_at, created_at, updated_at,
+          email_intake_enabled, email_intake_token, email_intake_address;
 
 -- Archived rather than deleted: issue.template_id references this row, and the question
 -- that column exists to answer — "is this template still worth having" — needs the
@@ -77,7 +83,8 @@ RETURNING id, workspace_id, team_id, name, description, title, body, properties,
 UPDATE issue_template SET archived_at = now()
 WHERE id = $1 AND archived_at IS NULL
 RETURNING id, workspace_id, team_id, name, description, title, body, properties,
-          position, created_by, archived_at, created_at, updated_at;
+          position, created_by, archived_at, created_at, updated_at,
+          email_intake_enabled, email_intake_token, email_intake_address;
 
 -- UnarchiveIssueTemplate returns the row for the reason UnarchiveLabel does: the archive
 -- reached every client as a delete, so only a payload can put it back.
@@ -86,7 +93,8 @@ RETURNING id, workspace_id, team_id, name, description, title, body, properties,
 UPDATE issue_template SET archived_at = NULL
 WHERE id = $1 AND archived_at IS NOT NULL
 RETURNING id, workspace_id, team_id, name, description, title, body, properties,
-          position, created_by, archived_at, created_at, updated_at;
+          position, created_by, archived_at, created_at, updated_at,
+          email_intake_enabled, email_intake_token, email_intake_address;
 
 -- name: GetIssueTemplatePositionAfter :one
 SELECT position FROM issue_template
@@ -107,3 +115,25 @@ LIMIT 1;
 -- name: CountIssuesFromTemplate :one
 SELECT count(*) FROM issue
 WHERE template_id = $1 AND deleted_at IS NULL;
+
+-- UpdateIssueTemplateEmailIntake is the per-template intake address. Team templates
+-- only: a workspace template has no team to file into.
+--
+-- name: UpdateIssueTemplateEmailIntake :one
+UPDATE issue_template
+SET email_intake_enabled = sqlc.arg(email_intake_enabled),
+    email_intake_token   = COALESCE(sqlc.narg(email_intake_token), email_intake_token),
+    email_intake_address = COALESCE(sqlc.narg(email_intake_address), email_intake_address)
+WHERE id = sqlc.arg(id) AND archived_at IS NULL
+RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+          position, created_by, archived_at, created_at, updated_at,
+          email_intake_enabled, email_intake_token, email_intake_address;
+
+-- name: GetIssueTemplateByEmailIntakeToken :one
+SELECT id, workspace_id, team_id, name, description, title, body, properties,
+       position, created_by, archived_at, created_at, updated_at,
+          email_intake_enabled, email_intake_token, email_intake_address
+FROM issue_template
+WHERE email_intake_token = sqlc.arg(token)
+  AND email_intake_enabled
+  AND archived_at IS NULL;

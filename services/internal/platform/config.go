@@ -188,6 +188,11 @@ type Config struct {
 	GitHubWebhookSecret string `envconfig:"POLARIS_GITHUB_WEBHOOK_SECRET"`
 	GitHubAppID         string `envconfig:"POLARIS_GITHUB_APP_ID"`
 	GitHubAppPrivateKey string `envconfig:"POLARIS_GITHUB_APP_PRIVATE_KEY"`
+
+	// Shared secret for POST /webhooks/email. Empty is the development stub: unsigned
+	// JSON is accepted so a local `curl` can file an issue without a mail server.
+	// Production must set this — an empty secret outside development refuses every post.
+	EmailWebhookSecret string `envconfig:"POLARIS_EMAIL_WEBHOOK_SECRET"`
 }
 
 // Registration modes.

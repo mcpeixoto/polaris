@@ -992,10 +992,14 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
 // v24 adds recurringIssue, team default template ids, and issue.recurringIssueId.
 // v25 adds customer and customerRequest.
-// v30 adds slaRule (workspace SLA policies).
+// v30 adds slaRule (workspace SLA policies). Number skipped 26–29 so concurrent
+// slices on other worktrees can take those without colliding on main.
 // v32 adds comment.anchorStart / anchorEnd / quote (inline comments on descriptions).
-// Numbers 26–29 and 31 are reserved for concurrent slices on other worktrees.
-const ClientSchemaVersion = 32
+// Number 31 is reserved for a concurrent slice.
+// v33 adds team and issue-template email intake addresses.
+// v34 lands inline comments after v33 shipped: a 33 replica would otherwise keep
+// serving without the new comment columns.
+const ClientSchemaVersion = 34
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

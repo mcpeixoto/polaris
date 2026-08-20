@@ -301,6 +301,14 @@ type IdempotencyKey struct {
 	CreatedAt   time.Time
 }
 
+type InboundEmail struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	IssueID     uuid.UUID
+	MessageID   string
+	CreatedAt   time.Time
+}
+
 type Initiative struct {
 	ID                    uuid.UUID
 	WorkspaceID           uuid.UUID
@@ -428,19 +436,22 @@ type IssueSubscription struct {
 }
 
 type IssueTemplate struct {
-	ID          uuid.UUID
-	WorkspaceID uuid.UUID
-	TeamID      *uuid.UUID
-	Name        string
-	Description *string
-	Title       string
-	Body        string
-	Properties  json.RawMessage
-	Position    string
-	CreatedBy   *uuid.UUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	ArchivedAt  *time.Time
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamID             *uuid.UUID
+	Name               string
+	Description        *string
+	Title              string
+	Body               string
+	Properties         json.RawMessage
+	Position           string
+	CreatedBy          *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	ArchivedAt         *time.Time
+	EmailIntakeEnabled bool
+	EmailIntakeToken   *string
+	EmailIntakeAddress *string
 }
 
 type Label struct {
@@ -713,6 +724,9 @@ type Team struct {
 	AutoCloseChildren              bool
 	DefaultTemplateForMembersID    *uuid.UUID
 	DefaultTemplateForNonMembersID *uuid.UUID
+	EmailIntakeEnabled             bool
+	EmailIntakeToken               *string
+	EmailIntakeAddress             *string
 }
 
 type TeamMembership struct {

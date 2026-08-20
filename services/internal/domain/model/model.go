@@ -139,6 +139,11 @@ type Team struct {
 	DefaultTemplateForMembersID    *uuid.UUID `json:"defaultTemplateForMembersId,omitempty"`
 	DefaultTemplateForNonMembersID *uuid.UUID `json:"defaultTemplateForNonMembersId,omitempty"`
 
+	// Email intake. The token that is the local-part of the address is not replicated:
+	// the settings screen copies the address, and that is the only thing a client needs.
+	EmailIntakeEnabled bool    `json:"emailIntakeEnabled"`
+	EmailIntakeAddress *string `json:"emailIntakeAddress,omitempty"`
+
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	RetiredAt  *time.Time `json:"retiredAt,omitempty"`
@@ -562,6 +567,9 @@ type IssueTemplate struct {
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+
+	EmailIntakeEnabled bool    `json:"emailIntakeEnabled"`
+	EmailIntakeAddress *string `json:"emailIntakeAddress,omitempty"`
 }
 
 // FormTemplateFieldType names a field kind in a form template.
