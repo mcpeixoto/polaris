@@ -1228,6 +1228,27 @@ type DashboardTilePayload implements MutationResult {
   dashboardTile: DashboardTile!
 }
 
+"""A shareable intake form. Submitting it creates a triage issue on the team."""
+type AskForm {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  name: String!
+  description: String!
+  """The public URL secret. Members copy `{origin}/ask/{token}` from settings."""
+  token: String!
+  creatorId: UUID
+  archivedAt: Time
+  deletedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type AskFormPayload implements MutationResult {
+  version: Int!
+  askForm: AskForm!
+}
+
 type TeamPayload implements MutationResult {
   version: Int!
   team: Team!
@@ -2572,6 +2593,18 @@ input UpdateDashboardTileInput {
   filter: JSON
 }
 
+input CreateAskFormInput {
+  teamId: UUID!
+  name: String!
+  description: String
+}
+
+input UpdateAskFormInput {
+  id: UUID!
+  name: String
+  description: String
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -2789,6 +2822,11 @@ type Mutation {
   createDashboardTile(input: CreateDashboardTileInput!, clientId: UUID, opId: UUID): DashboardTilePayload! @idempotent
   updateDashboardTile(input: UpdateDashboardTileInput!, clientId: UUID, opId: UUID): DashboardTilePayload! @idempotent
   deleteDashboardTile(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createAskForm(input: CreateAskFormInput!, clientId: UUID, opId: UUID): AskFormPayload! @idempotent
+  updateAskForm(input: UpdateAskFormInput!, clientId: UUID, opId: UUID): AskFormPayload! @idempotent
+  archiveAskForm(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  deleteAskForm(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!

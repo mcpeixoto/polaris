@@ -66,6 +66,20 @@ type ApiKey struct {
 	UpdatedAt   time.Time
 }
 
+type AskForm struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      uuid.UUID
+	Name        string
+	Description string
+	Token       string
+	CreatorID   *uuid.UUID
+	ArchivedAt  *time.Time
+	DeletedAt   *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Attachment struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

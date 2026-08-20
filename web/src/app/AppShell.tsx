@@ -249,6 +249,12 @@ export function AppShell({
         run: () => navigate('/settings/mcp'),
       },
       {
+        id: 'nav.asks',
+        title: 'Go to Asks',
+        group: 'Navigation',
+        run: () => navigate('/settings/asks'),
+      },
+      {
         id: 'nav.search',
         title: 'Search',
         // Global, and the search screen binds the same key in `list` to focus its own box.
@@ -494,6 +500,10 @@ export function AppShell({
             <NavLink to="/settings/mcp" className={navClass}>
               <NavGlyph name="key" />
               <span className={styles.navLabel}>MCP</span>
+            </NavLink>
+            <NavLink to="/settings/asks" className={navClass}>
+              <NavGlyph name="template" />
+              <span className={styles.navLabel}>Asks</span>
             </NavLink>
             <NavLink to="/settings/oauth-apps" className={navClass}>
               <NavGlyph name="apps" />

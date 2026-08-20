@@ -73,6 +73,7 @@ type Querier interface {
 	AllocateIssueNumber(ctx context.Context, id uuid.UUID) (int64, error)
 	AppendChange(ctx context.Context, arg AppendChangeParams) error
 	AppendIssueHistory(ctx context.Context, arg AppendIssueHistoryParams) error
+	ArchiveAskForm(ctx context.Context, id uuid.UUID) error
 	ArchiveCustomer(ctx context.Context, id uuid.UUID) error
 	ArchiveCycle(ctx context.Context, id uuid.UUID) error
 	ArchiveDashboard(ctx context.Context, id uuid.UUID) error
@@ -266,6 +267,7 @@ type Querier interface {
 	// later. Nothing above the store has a use for it.
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (CreateAPIKeyRow, error)
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
+	CreateAskForm(ctx context.Context, arg CreateAskFormParams) (AskForm, error)
 	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) (Attachment, error)
 	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
@@ -418,6 +420,9 @@ type Querier interface {
 	//
 	GetArchivedLabel(ctx context.Context, id uuid.UUID) (GetArchivedLabelRow, error)
 	GetArchivedProjectLabel(ctx context.Context, id uuid.UUID) (GetArchivedProjectLabelRow, error)
+	GetAskForm(ctx context.Context, id uuid.UUID) (AskForm, error)
+	GetAskFormByToken(ctx context.Context, token string) (AskForm, error)
+	GetAskFormForUpdate(ctx context.Context, id uuid.UUID) (AskForm, error)
 	GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, error)
 	GetAttachmentByIssueURL(ctx context.Context, arg GetAttachmentByIssueURLParams) (Attachment, error)
 	GetComment(ctx context.Context, id uuid.UUID) (Comment, error)
@@ -1111,6 +1116,7 @@ type Querier interface {
 	// have seen, and leaving it in the unread count would make the badge argue with the inbox.
 	//
 	SnoozeNotification(ctx context.Context, arg SnoozeNotificationParams) (Notification, error)
+	SoftDeleteAskForm(ctx context.Context, id uuid.UUID) (AskForm, error)
 	SoftDeleteComment(ctx context.Context, id uuid.UUID) error
 	SoftDeleteCustomer(ctx context.Context, arg SoftDeleteCustomerParams) (Customer, error)
 	SoftDeleteDashboard(ctx context.Context, arg SoftDeleteDashboardParams) (Dashboard, error)
@@ -1129,6 +1135,11 @@ type Querier interface {
 	SoftDeleteProject(ctx context.Context, arg SoftDeleteProjectParams) error
 	SoftDeleteProjectUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
 	SoftDeleteTeam(ctx context.Context, id uuid.UUID) (Team, error)
+	// StreamAskFormsForBootstrap: team-scoped intake forms. Guests and members only
+	// receive forms for teams they belong to. Archived and deleted rows stay out:
+	// a replica that held a retired form would keep offering a dead link.
+	//
+	StreamAskFormsForBootstrap(ctx context.Context, arg StreamAskFormsForBootstrapParams) ([]AskForm, error)
 	StreamAttachmentsForBootstrap(ctx context.Context, arg StreamAttachmentsForBootstrapParams) ([]Attachment, error)
 	// StreamCommentsForBootstrap ships EVERY live comment on every live issue the caller can
 	// see, paged by id.
@@ -1364,6 +1375,7 @@ type Querier interface {
 	TouchOauthTokenLastUsed(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error
+	UnarchiveAskForm(ctx context.Context, id uuid.UUID) (AskForm, error)
 	UnarchiveCustomer(ctx context.Context, id uuid.UUID) (Customer, error)
 	UnarchiveCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
 	UnarchiveDashboard(ctx context.Context, id uuid.UUID) (Dashboard, error)
@@ -1403,6 +1415,7 @@ type Querier interface {
 	// not members must not keep receiving notifications for work they can no longer reach.
 	//
 	UnsubscribeNonMembersFromTeamIssues(ctx context.Context, teamID uuid.UUID) ([]IssueSubscription, error)
+	UpdateAskForm(ctx context.Context, arg UpdateAskFormParams) (AskForm, error)
 	UpdateAttachment(ctx context.Context, arg UpdateAttachmentParams) (Attachment, error)
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error)

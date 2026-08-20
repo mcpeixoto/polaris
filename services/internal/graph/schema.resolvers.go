@@ -977,6 +977,76 @@ func (r *mutationResolver) DeleteDashboardTile(ctx context.Context, id uuid.UUID
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// CreateAskForm is the resolver for the createAskForm field.
+func (r *mutationResolver) CreateAskForm(ctx context.Context, input generated.CreateAskFormInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.AskFormPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromCreateAskFormInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.AskForm, int64, error) {
+			return r.Svc.CreateAskForm(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toAskForm(row)
+	return &generated.AskFormPayload{Version: int(version), AskForm: &out}, nil
+}
+
+// UpdateAskForm is the resolver for the updateAskForm field.
+func (r *mutationResolver) UpdateAskForm(ctx context.Context, input generated.UpdateAskFormInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.AskFormPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromUpdateAskFormInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.AskForm, int64, error) {
+			return r.Svc.UpdateAskForm(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toAskForm(row)
+	return &generated.AskFormPayload{Version: int(version), AskForm: &out}, nil
+}
+
+// ArchiveAskForm is the resolver for the archiveAskForm field.
+func (r *mutationResolver) ArchiveAskForm(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id, "archived": archived},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.ArchiveAskForm(ctx, p, id, archived)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// DeleteAskForm is the resolver for the deleteAskForm field.
+func (r *mutationResolver) DeleteAskForm(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteAskForm(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // CreateTeam is the resolver for the createTeam field.
 func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.CreateTeamInput) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)

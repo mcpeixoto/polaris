@@ -58,6 +58,7 @@ const HEADING_FROM_A_WRAPPER: Record<string, string> = {
   SignIn: 'AuthLayout renders the h1 for all three auth screens',
   SignUp: 'AuthLayout renders the h1 for all three auth screens',
   AcceptInvite: 'AuthLayout renders the h1 for all three auth screens',
+  AskFormPage: 'AuthLayout renders the h1 for the public intake form',
   CreateWorkspace: 'AuthLayout renders the h1 for all three auth screens',
   FirstTeam: 'redirects to a team; it renders no screen of its own',
   HomeRedirect: 'redirects to the preferred home view; it renders no screen of its own',

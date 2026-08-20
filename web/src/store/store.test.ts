@@ -17,6 +17,7 @@ import type {
   IssueRelation,
   IssueSubscription,
   IssueTemplate,
+  AskForm,
   Label,
   Notification,
   RecurringIssue,
@@ -306,6 +307,20 @@ function template(id: UUID, over: Partial<IssueTemplate> = {}): IssueTemplate {
   };
 }
 
+function askForm(id: UUID, over: Partial<AskForm> = {}): AskForm {
+  return {
+    id,
+    workspaceId: 'w1',
+    teamId: 't1',
+    name: 'IT requests',
+    description: '',
+    token: 'deadbeef',
+    createdAt: NOW,
+    updatedAt: NOW,
+    ...over,
+  };
+}
+
 function recurring(id: UUID, over: Partial<RecurringIssue> = {}): RecurringIssue {
   return {
     id,
@@ -353,6 +368,7 @@ async function seeded(): Promise<Store> {
     { type: 'label', entity: label('regression') },
     { type: 'label', entity: label('eng-only', { teamId: 't1' }) },
     { type: 'issueTemplate', entity: template('tpl1', { teamId: 't1' }) },
+    { type: 'askForm', entity: askForm('af1', { teamId: 't1' }) },
     { type: 'recurringIssue', entity: recurring('ri1', { teamId: 't1' }) },
     { type: 'view', entity: view('v1', { teamId: 't1' }) },
     { type: 'viewSubscription', entity: viewSubscription('vs1', 'v1', 'u1') },
@@ -908,6 +924,7 @@ describe('Store views, templates and favourites', () => {
     for (const [what, present] of [
       ['team label', store.labels.has('eng-only')],
       ['template', store.issueTemplates.has('tpl1')],
+      ['ask form', store.askForms.has('af1')],
       ['recurring', store.recurringIssues.has('ri1')],
       ['view', store.views.has('v1')],
       ['view subscription', store.viewSubscriptions.has('vs1')],
