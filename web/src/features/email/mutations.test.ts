@@ -60,18 +60,20 @@ describe('updateIssueTemplateEmailIntake', () => {
         payload: issueTemplate(),
       },
     ]);
-    mutate.mockImplementation(async (input: { optimistic?: Parameters<Store['applyOptimistic']>[0] }) => {
-      if (input.optimistic !== undefined) store.applyOptimistic(input.optimistic);
-      return {
-        updateIssueTemplateEmailIntake: {
-          template: {
-            ...issueTemplate(),
-            emailIntakeEnabled: true,
-            emailIntakeAddress: 'tpl@inbound.example',
+    mutate.mockImplementation(
+      async (input: { optimistic?: Parameters<Store['applyOptimistic']>[0] }) => {
+        if (input.optimistic !== undefined) store.applyOptimistic(input.optimistic);
+        return {
+          updateIssueTemplateEmailIntake: {
+            template: {
+              ...issueTemplate(),
+              emailIntakeEnabled: true,
+              emailIntakeAddress: 'tpl@inbound.example',
+            },
           },
-        },
-      };
-    });
+        };
+      },
+    );
 
     await updateIssueTemplateEmailIntake(engine, TEMPLATE, true);
 
