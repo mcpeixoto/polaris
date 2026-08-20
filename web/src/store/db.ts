@@ -22,6 +22,7 @@ import {
   type GitLabConnection,
   type GitLabUserLink,
   type SentryConnection,
+  type CycleCalendarFeed,
   type Issue,
   type IssueLabel,
   type IssueRelation,
@@ -133,8 +134,9 @@ import {
  * v40 adds askForm (shareable intake URLs).
  * v41 adds favorite.folderId / favorite.name and kind folder (sidebar folders).
  * v42 adds sentryConnection (Sentry webhook create/link, no secrets).
+ * v43 adds cycleCalendarFeed (personal ICS token per team, no secrets).
  */
-export const CLIENT_SCHEMA = 42;
+export const CLIENT_SCHEMA = 43;
 
 /**
  * One database per workspace per schema version.
@@ -211,6 +213,7 @@ interface PolarisSchema extends DBSchema {
   gitlabConnection: { key: UUID; value: GitLabConnection };
   gitlabUserLink: { key: UUID; value: GitLabUserLink };
   sentryConnection: { key: UUID; value: SentryConnection };
+  cycleCalendarFeed: { key: UUID; value: CycleCalendarFeed };
   team: { key: UUID; value: Team };
   teamMembership: { key: UUID; value: TeamMembership };
   workflowState: { key: UUID; value: WorkflowState };

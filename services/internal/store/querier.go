@@ -284,6 +284,9 @@ type Querier interface {
 	CreateCustomerRequest(ctx context.Context, arg CreateCustomerRequestParams) (CustomerRequest, error)
 	// Cycles. Column lists follow the table order, same rule as issues.sql.
 	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
+	// Replicated columns only. token is never selected here except on the owner-read
+	// and public-feed paths, which are not bootstrap.
+	CreateCycleCalendarFeed(ctx context.Context, arg CreateCycleCalendarFeedParams) (CreateCycleCalendarFeedRow, error)
 	CreateDashboard(ctx context.Context, arg CreateDashboardParams) (Dashboard, error)
 	CreateDashboardTile(ctx context.Context, arg CreateDashboardTileParams) (DashboardTile, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
@@ -454,6 +457,8 @@ type Querier interface {
 	GetCustomerRequest(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
 	GetCustomerRequestForUpdate(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
 	GetCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
+	GetCycleCalendarFeedByToken(ctx context.Context, token string) (GetCycleCalendarFeedByTokenRow, error)
+	GetCycleCalendarFeedForOwner(ctx context.Context, arg GetCycleCalendarFeedForOwnerParams) (CycleCalendarFeed, error)
 	GetDashboard(ctx context.Context, id uuid.UUID) (Dashboard, error)
 	GetDashboardForUpdate(ctx context.Context, id uuid.UUID) (Dashboard, error)
 	GetDashboardTile(ctx context.Context, id uuid.UUID) (DashboardTile, error)
@@ -1203,6 +1208,7 @@ type Querier interface {
 	// StreamCustomersForBootstrap: workspace-scoped; guests never call this.
 	//
 	StreamCustomersForBootstrap(ctx context.Context, arg StreamCustomersForBootstrapParams) ([]Customer, error)
+	StreamCycleCalendarFeedsForBootstrap(ctx context.Context, arg StreamCycleCalendarFeedsForBootstrapParams) ([]StreamCycleCalendarFeedsForBootstrapRow, error)
 	StreamCyclesForBootstrap(ctx context.Context, arg StreamCyclesForBootstrapParams) ([]Cycle, error)
 	// StreamDashboardTilesForBootstrap: a tile follows its dashboard's visibility.
 	//

@@ -199,6 +199,16 @@ type Cycle struct {
 	UpdatedAt   time.Time
 }
 
+type CycleCalendarFeed struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      uuid.UUID
+	UserID      uuid.UUID
+	Token       string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Dashboard struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

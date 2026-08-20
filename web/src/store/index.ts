@@ -81,6 +81,7 @@ export type {
   GitLabConnection,
   GitLabUserLink,
   SentryConnection,
+  CycleCalendarFeed,
   ProjectTemplate,
   ProjectTemplateMilestone,
   ProjectTemplateIssue,

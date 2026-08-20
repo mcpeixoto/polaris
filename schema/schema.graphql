@@ -329,6 +329,30 @@ type Cycle {
   updatedAt: Time!
 }
 
+"""
+The viewer's ICS subscription for one team. The feed token is not on this type:
+the replica only needs to know a feed exists. The URL that contains the token
+is on CycleCalendarFeedURL.
+"""
+type CycleCalendarFeed {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  userId: UUID!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type CycleCalendarFeedURL {
+  url: String!
+}
+
+type CycleCalendarFeedPayload implements MutationResult {
+  version: Int!
+  cycleCalendarFeed: CycleCalendarFeed!
+  url: String!
+}
+
 type WorkflowState {
   id: UUID!
   workspaceId: UUID!
@@ -2948,6 +2972,10 @@ type Query {
   sentryConnection: SentryConnection
   """Admin-only. The URL and secret to paste into a Sentry alert webhook or internal integration."""
   sentryWebhook: SentryWebhook
+  """The viewer's ICS subscription for this team, if they have minted one. Token is on cycleCalendarFeedURL."""
+  cycleCalendarFeed(teamId: UUID!): CycleCalendarFeed
+  """The HTTPS feed URL for this team's cycle calendar. Null until ensureCycleCalendarFeed has run."""
+  cycleCalendarFeedURL(teamId: UUID!): CycleCalendarFeedURL
 }
 
 """
@@ -3254,6 +3282,9 @@ type Mutation {
   updateSentryConnection(input: UpdateSentryConnectionInput!): SentryConnectionPayload!
   deleteSentryConnection: DeletePayload!
   linkSentryIssue(input: LinkSentryIssueInput!, clientId: UUID, opId: UUID): SentryLinkPayload! @idempotent
+
+  """Mint (or return) a personal ICS feed for this team's cycles."""
+  ensureCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
 
   # ---- drafts (personal, on-demand; not replicated)
 

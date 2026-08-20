@@ -3727,6 +3727,24 @@ func (r *mutationResolver) LinkSentryIssue(ctx context.Context, input generated.
 	return &generated.SentryLinkPayload{Version: int(version), Issue: &out, Attachment: &att}, nil
 }
 
+// EnsureCycleCalendarFeed is the resolver for the ensureCycleCalendarFeed field.
+func (r *mutationResolver) EnsureCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*generated.CycleCalendarFeedPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	feed, token, version, err := r.Svc.EnsureCycleCalendarFeed(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toCycleCalendarFeed(feed)
+	return &generated.CycleCalendarFeedPayload{
+		Version:           int(version),
+		CycleCalendarFeed: &out,
+		URL:               domain.CycleCalendarURL(r.PublicURL, token),
+	}, nil
+}
+
 // CreateDraft is the resolver for the createDraft field.
 func (r *mutationResolver) CreateDraft(ctx context.Context, input generated.CreateDraftInput) (*generated.DraftPayload, error) {
 	p, err := principalFrom(ctx)
@@ -5136,6 +5154,41 @@ func (r *queryResolver) SentryWebhook(ctx context.Context) (*generated.SentryWeb
 	return &generated.SentryWebhook{
 		URL:    sentryWebhookURL(r.PublicURL, p.WorkspaceID.String()),
 		Secret: secret,
+	}, nil
+}
+
+// CycleCalendarFeed is the resolver for the cycleCalendarFeed field.
+func (r *queryResolver) CycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*generated.CycleCalendarFeed, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	feed, err := r.Svc.GetCycleCalendarFeed(ctx, p, teamID)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	out := toCycleCalendarFeed(feed)
+	return &out, nil
+}
+
+// CycleCalendarFeedURL is the resolver for the cycleCalendarFeedURL field.
+func (r *queryResolver) CycleCalendarFeedURL(ctx context.Context, teamID uuid.UUID) (*generated.CycleCalendarFeedURL, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	token, err := r.Svc.GetCycleCalendarFeedToken(ctx, p, teamID)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.CycleCalendarFeedURL{
+		URL: domain.CycleCalendarURL(r.PublicURL, token),
 	}, nil
 }
 

@@ -388,6 +388,22 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			}
 		}
 
+		if err := streamPages(ctx, w, "cycleCalendarFeed",
+			func(ctx context.Context, after uuid.UUID) ([]store.StreamCycleCalendarFeedsForBootstrapRow, error) {
+				return q.StreamCycleCalendarFeedsForBootstrap(ctx, store.StreamCycleCalendarFeedsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					UserID:      p.UserID,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(c store.StreamCycleCalendarFeedsForBootstrapRow) (uuid.UUID, any) {
+				return c.ID, cycleCalendarFeedFromStream(c)
+			},
+		); err != nil {
+			return err
+		}
+
 		states, err := q.ListWorkflowStatesInWorkspace(ctx, p.WorkspaceID)
 		if err != nil {
 			return platform.Internal(err)
@@ -1115,7 +1131,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v40 adds askForm (shareable intake URLs; submit is HTTP, not GraphQL).
 // v41 adds favorite.folderId / favorite.name and kind folder (sidebar folders).
 // v42 adds sentryConnection (Sentry webhook create/link, no secrets).
-const ClientSchemaVersion = 42
+// v43 adds cycleCalendarFeed (personal ICS token per team, no secrets).
+const ClientSchemaVersion = 43
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

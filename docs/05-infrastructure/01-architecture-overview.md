@@ -121,6 +121,7 @@ empty workspace.
 | `/oauth/token`, `/oauth/revoke` | `api:8088` | Token exchange and revocation |
 | `/mcp`, `/mcp/readonly` | `api:8088` | Streamable HTTP MCP. Raise `proxy_read_timeout`. |
 | `/asks/` | `api:8088` | Public Asks intake. Token in the path is the credential. |
+| `/calendars/` | `api:8088` | Public cycle ICS feeds. Token in the path is the credential. |
 | `/.well-known/oauth-*` | `api:8088` | MCP OAuth discovery |
 | `/oauth/authorize` | `web:8080` | Consent screen (SPA) |
 | `/webhooks/` | `api:8088` | Inbound from GitHub/GitLab/Slack/Sentry/CI/email |
