@@ -73,6 +73,7 @@ const HEADING_FROM_A_WRAPPER: Record<string, string> = {
   MyIssues: 'renders IssueList, which carries the heading',
   LabelView: 'renders IssueList, which carries the heading',
   UserView: 'renders IssueList, which carries the heading',
+  AdHocIssues: 'renders IssueList, which carries the heading',
 };
 
 describe('routed screens', () => {
