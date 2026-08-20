@@ -1528,6 +1528,110 @@ type WebhookPayload implements MutationResult {
   webhook: Webhook!
 }
 
+"""
+A third-party OAuth application owned by this workspace.
+
+The client secret is not on this type: it exists in the create/rotate response and as a
+SHA-256 in the database, and nowhere a listing can see it. Applications are not replicated.
+"""
+type OauthClient {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  clientId: String!
+  name: String!
+  description: String
+  developer: String
+  developerUrl: String
+  imageUrl: String
+  redirectUris: [String!]!
+  allowedScopes: [String!]!
+  publicEnabled: Boolean!
+  clientCredentialsEnabled: Boolean!
+  webhookUrl: String
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+"""Public metadata for the consent screen. Secret and redirect URIs are never returned."""
+type OauthClientInfo {
+  clientId: String!
+  name: String!
+  description: String
+  developer: String
+  developerUrl: String
+  imageUrl: String
+  allowedScopes: [String!]!
+}
+
+type OauthClientCreated {
+  oauthClient: OauthClient!
+  """Shown once. Not recoverable — only its SHA-256 is stored."""
+  clientSecret: String!
+}
+
+type OauthClientCreatePayload implements MutationResult {
+  version: Int!
+  created: OauthClientCreated!
+}
+
+type OauthClientPayload implements MutationResult {
+  version: Int!
+  oauthClient: OauthClient!
+}
+
+type OauthClientSecretPayload implements MutationResult {
+  version: Int!
+  oauthClient: OauthClient!
+  clientSecret: String!
+}
+
+type OauthAuthorizationPayload {
+  """The registered redirect URI with code and state appended. The client navigates here."""
+  redirectUri: String!
+}
+
+input CreateOauthClientInput {
+  name: String!
+  developer: String
+  developerUrl: String
+  description: String
+  imageUrl: String
+  redirectUris: [String!]!
+  allowedScopes: [String!]
+  publicEnabled: Boolean
+  clientCredentialsEnabled: Boolean
+  webhookUrl: String
+}
+
+input UpdateOauthClientInput {
+  id: UUID!
+  name: String
+  developer: String
+  developerUrl: String
+  description: String
+  imageUrl: String
+  redirectUris: [String!]
+  allowedScopes: [String!]
+  publicEnabled: Boolean
+  clientCredentialsEnabled: Boolean
+  webhookUrl: String
+}
+
+input CreateOauthAuthorizationInput {
+  clientId: String!
+  redirectUri: String!
+  responseType: String!
+  scope: String!
+  state: String
+  """user (default) or app."""
+  actor: String
+  codeChallenge: String
+  codeChallengeMethod: String
+  teamIds: [UUID!]
+}
+
 """One delivery attempt, so an admin can self-diagnose a failing consumer."""
 type WebhookDelivery {
   id: UUID!
@@ -2417,6 +2521,12 @@ type Query {
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
 
+  """OAuth applications this workspace owns. Admins only; the secret is never returned."""
+  oauthClients: [OauthClient!]!
+  oauthClient(id: UUID!): OauthClient
+  """Public metadata for the consent screen. Any signed-in member may read it."""
+  oauthClientInfo(clientId: String!): OauthClientInfo!
+
   """
   The caller's saved drafts. Local composer restore never appears here — only drafts
   saved across devices, still inside the six-month window.
@@ -2717,6 +2827,14 @@ type Mutation {
   createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!
   updateWebhook(input: UpdateWebhookInput!): WebhookPayload!
   deleteWebhook(id: UUID!): DeletePayload!
+
+  """Returns the client secret exactly once."""
+  createOauthClient(input: CreateOauthClientInput!): OauthClientCreatePayload!
+  updateOauthClient(input: UpdateOauthClientInput!): OauthClientPayload!
+  rotateOauthClientSecret(id: UUID!): OauthClientSecretPayload!
+  deleteOauthClient(id: UUID!): DeletePayload!
+  """Consent: issues an authorization code and returns the redirect the browser should follow."""
+  createOauthAuthorization(input: CreateOauthAuthorizationInput!): OauthAuthorizationPayload!
 
   createGitHubConnection(input: CreateGitHubConnectionInput!): GitHubConnectionPayload!
   updateGitHubConnection(input: UpdateGitHubConnectionInput!): GitHubConnectionPayload!

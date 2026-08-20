@@ -150,6 +150,10 @@ func NewRouter(d Deps) http.Handler {
 	// budget, because a loop of unsigned posts would otherwise be free.
 	mux.Handle("POST /webhooks/email", d.Limits.Anonymous(http.HandlerFunc(email.inbound)))
 
+	oauth := &oauthHandlers{svc: d.Service}
+	mux.Handle("POST /oauth/token", d.Limits.Anonymous(http.HandlerFunc(oauth.token)))
+	mux.Handle("POST /oauth/revoke", d.Limits.Anonymous(http.HandlerFunc(oauth.revoke)))
+
 	var h http.Handler = mux
 	h = Authenticate(d.Tokens, d.Service)(h)
 	// Outside Authenticate, so a preflight is answered without a token: a browser sends no

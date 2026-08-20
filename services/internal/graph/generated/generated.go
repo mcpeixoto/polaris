@@ -632,6 +632,8 @@ type ComplexityRoot struct {
 		CreateIssueRelation            func(childComplexity int, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssueTemplate            func(childComplexity int, input CreateIssueTemplateInput) int
 		CreateLabel                    func(childComplexity int, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateOauthAuthorization       func(childComplexity int, input CreateOauthAuthorizationInput) int
+		CreateOauthClient              func(childComplexity int, input CreateOauthClientInput) int
 		CreateProject                  func(childComplexity int, input CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateProjectLabel             func(childComplexity int, input CreateProjectLabelInput) int
 		CreateProjectMilestone         func(childComplexity int, input CreateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -661,6 +663,7 @@ type ComplexityRoot struct {
 		DeleteIssue                    func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssueRelation            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteNotification             func(childComplexity int, id uuid.UUID) int
+		DeleteOauthClient              func(childComplexity int, id uuid.UUID) int
 		DeleteProject                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteProjectMilestone         func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteProjectTemplateIssue     func(childComplexity int, id uuid.UUID) int
@@ -693,6 +696,7 @@ type ComplexityRoot struct {
 		RetireTeam                     func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RevokeAPIKey                   func(childComplexity int, id uuid.UUID) int
 		RevokeInvite                   func(childComplexity int, id uuid.UUID) int
+		RotateOauthClientSecret        func(childComplexity int, id uuid.UUID) int
 		SetIssueSLA                    func(childComplexity int, input SetIssueSLAInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		SetIssueSubscription           func(childComplexity int, issueID uuid.UUID, subscribed bool) int
 		SetUserRole                    func(childComplexity int, userID uuid.UUID, role UserRole) int
@@ -719,6 +723,7 @@ type ComplexityRoot struct {
 		UpdateIssueTemplateEmailIntake func(childComplexity int, input UpdateIssueTemplateEmailIntakeInput) int
 		UpdateLabel                    func(childComplexity int, input UpdateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateNotificationPrefs        func(childComplexity int, prefs json.RawMessage) int
+		UpdateOauthClient              func(childComplexity int, input UpdateOauthClientInput) int
 		UpdateProfile                  func(childComplexity int, input UpdateProfileInput) int
 		UpdateProject                  func(childComplexity int, input UpdateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateProjectLabel             func(childComplexity int, input UpdateProjectLabelInput) int
@@ -770,6 +775,61 @@ type ComplexityRoot struct {
 	NotificationsPayload struct {
 		Notifications func(childComplexity int) int
 		Version       func(childComplexity int) int
+	}
+
+	OauthAuthorizationPayload struct {
+		RedirectURI func(childComplexity int) int
+	}
+
+	OauthClient struct {
+		AllowedScopes            func(childComplexity int) int
+		ArchivedAt               func(childComplexity int) int
+		ClientCredentialsEnabled func(childComplexity int) int
+		ClientID                 func(childComplexity int) int
+		CreatedAt                func(childComplexity int) int
+		CreatorID                func(childComplexity int) int
+		Description              func(childComplexity int) int
+		Developer                func(childComplexity int) int
+		DeveloperURL             func(childComplexity int) int
+		ID                       func(childComplexity int) int
+		ImageURL                 func(childComplexity int) int
+		Name                     func(childComplexity int) int
+		PublicEnabled            func(childComplexity int) int
+		RedirectUris             func(childComplexity int) int
+		UpdatedAt                func(childComplexity int) int
+		WebhookURL               func(childComplexity int) int
+		WorkspaceID              func(childComplexity int) int
+	}
+
+	OauthClientCreatePayload struct {
+		Created func(childComplexity int) int
+		Version func(childComplexity int) int
+	}
+
+	OauthClientCreated struct {
+		ClientSecret func(childComplexity int) int
+		OauthClient  func(childComplexity int) int
+	}
+
+	OauthClientInfo struct {
+		AllowedScopes func(childComplexity int) int
+		ClientID      func(childComplexity int) int
+		Description   func(childComplexity int) int
+		Developer     func(childComplexity int) int
+		DeveloperURL  func(childComplexity int) int
+		ImageURL      func(childComplexity int) int
+		Name          func(childComplexity int) int
+	}
+
+	OauthClientPayload struct {
+		OauthClient func(childComplexity int) int
+		Version     func(childComplexity int) int
+	}
+
+	OauthClientSecretPayload struct {
+		ClientSecret func(childComplexity int) int
+		OauthClient  func(childComplexity int) int
+		Version      func(childComplexity int) int
 	}
 
 	Project struct {
@@ -1046,6 +1106,9 @@ type ComplexityRoot struct {
 		Labels                       func(childComplexity int) int
 		MyIssues                     func(childComplexity int, includeCompleted *bool) int
 		Notifications                func(childComplexity int, includeRead *bool, includeSnoozed *bool, first *int) int
+		OauthClient                  func(childComplexity int, id uuid.UUID) int
+		OauthClientInfo              func(childComplexity int, clientID string) int
+		OauthClients                 func(childComplexity int) int
 		Project                      func(childComplexity int, id uuid.UUID) int
 		ProjectDependenciesBlockedBy func(childComplexity int, projectID uuid.UUID) int
 		ProjectDependenciesBlocking  func(childComplexity int, projectID uuid.UUID) int
@@ -1499,6 +1562,11 @@ type MutationResolver interface {
 	CreateWebhook(ctx context.Context, input CreateWebhookInput) (*WebhookCreatePayload, error)
 	UpdateWebhook(ctx context.Context, input UpdateWebhookInput) (*WebhookPayload, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	CreateOauthClient(ctx context.Context, input CreateOauthClientInput) (*OauthClientCreatePayload, error)
+	UpdateOauthClient(ctx context.Context, input UpdateOauthClientInput) (*OauthClientPayload, error)
+	RotateOauthClientSecret(ctx context.Context, id uuid.UUID) (*OauthClientSecretPayload, error)
+	DeleteOauthClient(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	CreateOauthAuthorization(ctx context.Context, input CreateOauthAuthorizationInput) (*OauthAuthorizationPayload, error)
 	CreateGitHubConnection(ctx context.Context, input CreateGitHubConnectionInput) (*GitHubConnectionPayload, error)
 	UpdateGitHubConnection(ctx context.Context, input UpdateGitHubConnectionInput) (*GitHubConnectionPayload, error)
 	DeleteGitHubConnection(ctx context.Context) (*DeletePayload, error)
@@ -1556,6 +1624,9 @@ type QueryResolver interface {
 	APIKeys(ctx context.Context) ([]APIKey, error)
 	Webhooks(ctx context.Context) ([]Webhook, error)
 	WebhookDeliveries(ctx context.Context, webhookID uuid.UUID, first *int) ([]WebhookDelivery, error)
+	OauthClients(ctx context.Context) ([]OauthClient, error)
+	OauthClient(ctx context.Context, id uuid.UUID) (*OauthClient, error)
+	OauthClientInfo(ctx context.Context, clientID string) (*OauthClientInfo, error)
 	Drafts(ctx context.Context) ([]Draft, error)
 	Invites(ctx context.Context) ([]Invite, error)
 	DeletedIssues(ctx context.Context) ([]Issue, error)
@@ -4417,6 +4488,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateLabel(childComplexity, args["input"].(CreateLabelInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createOauthAuthorization":
+		if e.ComplexityRoot.Mutation.CreateOauthAuthorization == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createOauthAuthorization_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateOauthAuthorization(childComplexity, args["input"].(CreateOauthAuthorizationInput)), true
+	case "Mutation.createOauthClient":
+		if e.ComplexityRoot.Mutation.CreateOauthClient == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createOauthClient_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateOauthClient(childComplexity, args["input"].(CreateOauthClientInput)), true
 	case "Mutation.createProject":
 		if e.ComplexityRoot.Mutation.CreateProject == nil {
 			break
@@ -4726,6 +4819,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteNotification(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.deleteOauthClient":
+		if e.ComplexityRoot.Mutation.DeleteOauthClient == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteOauthClient_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteOauthClient(childComplexity, args["id"].(uuid.UUID)), true
 	case "Mutation.deleteProject":
 		if e.ComplexityRoot.Mutation.DeleteProject == nil {
 			break
@@ -5073,6 +5177,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeInvite(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.rotateOauthClientSecret":
+		if e.ComplexityRoot.Mutation.RotateOauthClientSecret == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_rotateOauthClientSecret_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RotateOauthClientSecret(childComplexity, args["id"].(uuid.UUID)), true
 	case "Mutation.setIssueSla":
 		if e.ComplexityRoot.Mutation.SetIssueSLA == nil {
 			break
@@ -5359,6 +5474,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateNotificationPrefs(childComplexity, args["prefs"].(json.RawMessage)), true
+	case "Mutation.updateOauthClient":
+		if e.ComplexityRoot.Mutation.UpdateOauthClient == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateOauthClient_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateOauthClient(childComplexity, args["input"].(UpdateOauthClientInput)), true
 	case "Mutation.updateProfile":
 		if e.ComplexityRoot.Mutation.UpdateProfile == nil {
 			break
@@ -5724,6 +5850,217 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.NotificationsPayload.Version(childComplexity), true
+
+	case "OauthAuthorizationPayload.redirectUri":
+		if e.ComplexityRoot.OauthAuthorizationPayload.RedirectURI == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthAuthorizationPayload.RedirectURI(childComplexity), true
+
+	case "OauthClient.allowedScopes":
+		if e.ComplexityRoot.OauthClient.AllowedScopes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.AllowedScopes(childComplexity), true
+	case "OauthClient.archivedAt":
+		if e.ComplexityRoot.OauthClient.ArchivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.ArchivedAt(childComplexity), true
+	case "OauthClient.clientCredentialsEnabled":
+		if e.ComplexityRoot.OauthClient.ClientCredentialsEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.ClientCredentialsEnabled(childComplexity), true
+	case "OauthClient.clientId":
+		if e.ComplexityRoot.OauthClient.ClientID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.ClientID(childComplexity), true
+	case "OauthClient.createdAt":
+		if e.ComplexityRoot.OauthClient.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.CreatedAt(childComplexity), true
+	case "OauthClient.creatorId":
+		if e.ComplexityRoot.OauthClient.CreatorID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.CreatorID(childComplexity), true
+	case "OauthClient.description":
+		if e.ComplexityRoot.OauthClient.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.Description(childComplexity), true
+	case "OauthClient.developer":
+		if e.ComplexityRoot.OauthClient.Developer == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.Developer(childComplexity), true
+	case "OauthClient.developerUrl":
+		if e.ComplexityRoot.OauthClient.DeveloperURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.DeveloperURL(childComplexity), true
+	case "OauthClient.id":
+		if e.ComplexityRoot.OauthClient.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.ID(childComplexity), true
+	case "OauthClient.imageUrl":
+		if e.ComplexityRoot.OauthClient.ImageURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.ImageURL(childComplexity), true
+	case "OauthClient.name":
+		if e.ComplexityRoot.OauthClient.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.Name(childComplexity), true
+	case "OauthClient.publicEnabled":
+		if e.ComplexityRoot.OauthClient.PublicEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.PublicEnabled(childComplexity), true
+	case "OauthClient.redirectUris":
+		if e.ComplexityRoot.OauthClient.RedirectUris == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.RedirectUris(childComplexity), true
+	case "OauthClient.updatedAt":
+		if e.ComplexityRoot.OauthClient.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.UpdatedAt(childComplexity), true
+	case "OauthClient.webhookUrl":
+		if e.ComplexityRoot.OauthClient.WebhookURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.WebhookURL(childComplexity), true
+	case "OauthClient.workspaceId":
+		if e.ComplexityRoot.OauthClient.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClient.WorkspaceID(childComplexity), true
+
+	case "OauthClientCreatePayload.created":
+		if e.ComplexityRoot.OauthClientCreatePayload.Created == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientCreatePayload.Created(childComplexity), true
+	case "OauthClientCreatePayload.version":
+		if e.ComplexityRoot.OauthClientCreatePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientCreatePayload.Version(childComplexity), true
+
+	case "OauthClientCreated.clientSecret":
+		if e.ComplexityRoot.OauthClientCreated.ClientSecret == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientCreated.ClientSecret(childComplexity), true
+	case "OauthClientCreated.oauthClient":
+		if e.ComplexityRoot.OauthClientCreated.OauthClient == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientCreated.OauthClient(childComplexity), true
+
+	case "OauthClientInfo.allowedScopes":
+		if e.ComplexityRoot.OauthClientInfo.AllowedScopes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientInfo.AllowedScopes(childComplexity), true
+	case "OauthClientInfo.clientId":
+		if e.ComplexityRoot.OauthClientInfo.ClientID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientInfo.ClientID(childComplexity), true
+	case "OauthClientInfo.description":
+		if e.ComplexityRoot.OauthClientInfo.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientInfo.Description(childComplexity), true
+	case "OauthClientInfo.developer":
+		if e.ComplexityRoot.OauthClientInfo.Developer == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientInfo.Developer(childComplexity), true
+	case "OauthClientInfo.developerUrl":
+		if e.ComplexityRoot.OauthClientInfo.DeveloperURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientInfo.DeveloperURL(childComplexity), true
+	case "OauthClientInfo.imageUrl":
+		if e.ComplexityRoot.OauthClientInfo.ImageURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientInfo.ImageURL(childComplexity), true
+	case "OauthClientInfo.name":
+		if e.ComplexityRoot.OauthClientInfo.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientInfo.Name(childComplexity), true
+
+	case "OauthClientPayload.oauthClient":
+		if e.ComplexityRoot.OauthClientPayload.OauthClient == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientPayload.OauthClient(childComplexity), true
+	case "OauthClientPayload.version":
+		if e.ComplexityRoot.OauthClientPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientPayload.Version(childComplexity), true
+
+	case "OauthClientSecretPayload.clientSecret":
+		if e.ComplexityRoot.OauthClientSecretPayload.ClientSecret == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientSecretPayload.ClientSecret(childComplexity), true
+	case "OauthClientSecretPayload.oauthClient":
+		if e.ComplexityRoot.OauthClientSecretPayload.OauthClient == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientSecretPayload.OauthClient(childComplexity), true
+	case "OauthClientSecretPayload.version":
+		if e.ComplexityRoot.OauthClientSecretPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OauthClientSecretPayload.Version(childComplexity), true
 
 	case "Project.archivedAt":
 		if e.ComplexityRoot.Project.ArchivedAt == nil {
@@ -7059,6 +7396,34 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Notifications(childComplexity, args["includeRead"].(*bool), args["includeSnoozed"].(*bool), args["first"].(*int)), true
+	case "Query.oauthClient":
+		if e.ComplexityRoot.Query.OauthClient == nil {
+			break
+		}
+
+		args, err := ec.field_Query_oauthClient_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.OauthClient(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.oauthClientInfo":
+		if e.ComplexityRoot.Query.OauthClientInfo == nil {
+			break
+		}
+
+		args, err := ec.field_Query_oauthClientInfo_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.OauthClientInfo(childComplexity, args["clientId"].(string)), true
+	case "Query.oauthClients":
+		if e.ComplexityRoot.Query.OauthClients == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.OauthClients(childComplexity), true
 	case "Query.project":
 		if e.ComplexityRoot.Query.Project == nil {
 			break
@@ -8578,6 +8943,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateIssueInput,
 		ec.unmarshalInputCreateIssueTemplateInput,
 		ec.unmarshalInputCreateLabelInput,
+		ec.unmarshalInputCreateOauthAuthorizationInput,
+		ec.unmarshalInputCreateOauthClientInput,
 		ec.unmarshalInputCreateProjectInput,
 		ec.unmarshalInputCreateProjectLabelInput,
 		ec.unmarshalInputCreateProjectMilestoneInput,
@@ -8611,6 +8978,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateIssueTemplateEmailIntakeInput,
 		ec.unmarshalInputUpdateIssueTemplateInput,
 		ec.unmarshalInputUpdateLabelInput,
+		ec.unmarshalInputUpdateOauthClientInput,
 		ec.unmarshalInputUpdateProfileInput,
 		ec.unmarshalInputUpdateProjectInput,
 		ec.unmarshalInputUpdateProjectLabelInput,
@@ -10238,6 +10606,110 @@ type WebhookPayload implements MutationResult {
   webhook: Webhook!
 }
 
+"""
+A third-party OAuth application owned by this workspace.
+
+The client secret is not on this type: it exists in the create/rotate response and as a
+SHA-256 in the database, and nowhere a listing can see it. Applications are not replicated.
+"""
+type OauthClient {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  clientId: String!
+  name: String!
+  description: String
+  developer: String
+  developerUrl: String
+  imageUrl: String
+  redirectUris: [String!]!
+  allowedScopes: [String!]!
+  publicEnabled: Boolean!
+  clientCredentialsEnabled: Boolean!
+  webhookUrl: String
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+"""Public metadata for the consent screen. Secret and redirect URIs are never returned."""
+type OauthClientInfo {
+  clientId: String!
+  name: String!
+  description: String
+  developer: String
+  developerUrl: String
+  imageUrl: String
+  allowedScopes: [String!]!
+}
+
+type OauthClientCreated {
+  oauthClient: OauthClient!
+  """Shown once. Not recoverable — only its SHA-256 is stored."""
+  clientSecret: String!
+}
+
+type OauthClientCreatePayload implements MutationResult {
+  version: Int!
+  created: OauthClientCreated!
+}
+
+type OauthClientPayload implements MutationResult {
+  version: Int!
+  oauthClient: OauthClient!
+}
+
+type OauthClientSecretPayload implements MutationResult {
+  version: Int!
+  oauthClient: OauthClient!
+  clientSecret: String!
+}
+
+type OauthAuthorizationPayload {
+  """The registered redirect URI with code and state appended. The client navigates here."""
+  redirectUri: String!
+}
+
+input CreateOauthClientInput {
+  name: String!
+  developer: String
+  developerUrl: String
+  description: String
+  imageUrl: String
+  redirectUris: [String!]!
+  allowedScopes: [String!]
+  publicEnabled: Boolean
+  clientCredentialsEnabled: Boolean
+  webhookUrl: String
+}
+
+input UpdateOauthClientInput {
+  id: UUID!
+  name: String
+  developer: String
+  developerUrl: String
+  description: String
+  imageUrl: String
+  redirectUris: [String!]
+  allowedScopes: [String!]
+  publicEnabled: Boolean
+  clientCredentialsEnabled: Boolean
+  webhookUrl: String
+}
+
+input CreateOauthAuthorizationInput {
+  clientId: String!
+  redirectUri: String!
+  responseType: String!
+  scope: String!
+  state: String
+  """user (default) or app."""
+  actor: String
+  codeChallenge: String
+  codeChallengeMethod: String
+  teamIds: [UUID!]
+}
+
 """One delivery attempt, so an admin can self-diagnose a failing consumer."""
 type WebhookDelivery {
   id: UUID!
@@ -11127,6 +11599,12 @@ type Query {
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
 
+  """OAuth applications this workspace owns. Admins only; the secret is never returned."""
+  oauthClients: [OauthClient!]!
+  oauthClient(id: UUID!): OauthClient
+  """Public metadata for the consent screen. Any signed-in member may read it."""
+  oauthClientInfo(clientId: String!): OauthClientInfo!
+
   """
   The caller's saved drafts. Local composer restore never appears here — only drafts
   saved across devices, still inside the six-month window.
@@ -11427,6 +11905,14 @@ type Mutation {
   createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!
   updateWebhook(input: UpdateWebhookInput!): WebhookPayload!
   deleteWebhook(id: UUID!): DeletePayload!
+
+  """Returns the client secret exactly once."""
+  createOauthClient(input: CreateOauthClientInput!): OauthClientCreatePayload!
+  updateOauthClient(input: UpdateOauthClientInput!): OauthClientPayload!
+  rotateOauthClientSecret(id: UUID!): OauthClientSecretPayload!
+  deleteOauthClient(id: UUID!): DeletePayload!
+  """Consent: issues an authorization code and returns the redirect the browser should follow."""
+  createOauthAuthorization(input: CreateOauthAuthorizationInput!): OauthAuthorizationPayload!
 
   createGitHubConnection(input: CreateGitHubConnectionInput!): GitHubConnectionPayload!
   updateGitHubConnection(input: UpdateGitHubConnectionInput!): GitHubConnectionPayload!
@@ -12607,6 +13093,116 @@ func (ec *executionContext) childFields_NotificationsPayload(ctx context.Context
 		return ec.fieldContext_NotificationsPayload_notifications(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type NotificationsPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_OauthAuthorizationPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "redirectUri":
+		return ec.fieldContext_OauthAuthorizationPayload_redirectUri(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OauthAuthorizationPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_OauthClient(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_OauthClient_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_OauthClient_workspaceId(ctx, field)
+	case "creatorId":
+		return ec.fieldContext_OauthClient_creatorId(ctx, field)
+	case "clientId":
+		return ec.fieldContext_OauthClient_clientId(ctx, field)
+	case "name":
+		return ec.fieldContext_OauthClient_name(ctx, field)
+	case "description":
+		return ec.fieldContext_OauthClient_description(ctx, field)
+	case "developer":
+		return ec.fieldContext_OauthClient_developer(ctx, field)
+	case "developerUrl":
+		return ec.fieldContext_OauthClient_developerUrl(ctx, field)
+	case "imageUrl":
+		return ec.fieldContext_OauthClient_imageUrl(ctx, field)
+	case "redirectUris":
+		return ec.fieldContext_OauthClient_redirectUris(ctx, field)
+	case "allowedScopes":
+		return ec.fieldContext_OauthClient_allowedScopes(ctx, field)
+	case "publicEnabled":
+		return ec.fieldContext_OauthClient_publicEnabled(ctx, field)
+	case "clientCredentialsEnabled":
+		return ec.fieldContext_OauthClient_clientCredentialsEnabled(ctx, field)
+	case "webhookUrl":
+		return ec.fieldContext_OauthClient_webhookUrl(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_OauthClient_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_OauthClient_updatedAt(ctx, field)
+	case "archivedAt":
+		return ec.fieldContext_OauthClient_archivedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OauthClient", field.Name)
+}
+
+func (ec *executionContext) childFields_OauthClientCreatePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_OauthClientCreatePayload_version(ctx, field)
+	case "created":
+		return ec.fieldContext_OauthClientCreatePayload_created(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OauthClientCreatePayload", field.Name)
+}
+
+func (ec *executionContext) childFields_OauthClientCreated(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "oauthClient":
+		return ec.fieldContext_OauthClientCreated_oauthClient(ctx, field)
+	case "clientSecret":
+		return ec.fieldContext_OauthClientCreated_clientSecret(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OauthClientCreated", field.Name)
+}
+
+func (ec *executionContext) childFields_OauthClientInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "clientId":
+		return ec.fieldContext_OauthClientInfo_clientId(ctx, field)
+	case "name":
+		return ec.fieldContext_OauthClientInfo_name(ctx, field)
+	case "description":
+		return ec.fieldContext_OauthClientInfo_description(ctx, field)
+	case "developer":
+		return ec.fieldContext_OauthClientInfo_developer(ctx, field)
+	case "developerUrl":
+		return ec.fieldContext_OauthClientInfo_developerUrl(ctx, field)
+	case "imageUrl":
+		return ec.fieldContext_OauthClientInfo_imageUrl(ctx, field)
+	case "allowedScopes":
+		return ec.fieldContext_OauthClientInfo_allowedScopes(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OauthClientInfo", field.Name)
+}
+
+func (ec *executionContext) childFields_OauthClientPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_OauthClientPayload_version(ctx, field)
+	case "oauthClient":
+		return ec.fieldContext_OauthClientPayload_oauthClient(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OauthClientPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_OauthClientSecretPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_OauthClientSecretPayload_version(ctx, field)
+	case "oauthClient":
+		return ec.fieldContext_OauthClientSecretPayload_oauthClient(ctx, field)
+	case "clientSecret":
+		return ec.fieldContext_OauthClientSecretPayload_clientSecret(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OauthClientSecretPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_Project(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -14895,6 +15491,34 @@ func (ec *executionContext) field_Mutation_createLabel_args(ctx context.Context,
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createOauthAuthorization_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateOauthAuthorizationInput, error) {
+			return ec.unmarshalNCreateOauthAuthorizationInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateOauthAuthorizationInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createOauthClient_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateOauthClientInput, error) {
+			return ec.unmarshalNCreateOauthClientInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateOauthClientInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createProjectLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -15468,6 +16092,20 @@ func (ec *executionContext) field_Mutation_deleteIssue_args(ctx context.Context,
 }
 
 func (ec *executionContext) field_Mutation_deleteNotification_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteOauthClient_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -16291,6 +16929,20 @@ func (ec *executionContext) field_Mutation_revokeInvite_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_rotateOauthClientSecret_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setIssueSla_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -16916,6 +17568,20 @@ func (ec *executionContext) field_Mutation_updateNotificationPrefs_args(ctx cont
 		return nil, err
 	}
 	args["prefs"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateOauthClient_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateOauthClientInput, error) {
+			return ec.unmarshalNUpdateOauthClientInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateOauthClientInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -17654,6 +18320,34 @@ func (ec *executionContext) field_Query_notifications_args(ctx context.Context, 
 		return nil, err
 	}
 	args["first"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_oauthClientInfo_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_oauthClient_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -34405,6 +35099,226 @@ func (ec *executionContext) fieldContext_Mutation_deleteWebhook(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createOauthClient(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createOauthClient(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateOauthClient(ctx, fc.Args["input"].(CreateOauthClientInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *OauthClientCreatePayload) graphql.Marshaler {
+			return ec.marshalNOauthClientCreatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientCreatePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createOauthClient(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthClientCreatePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createOauthClient_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateOauthClient(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateOauthClient(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateOauthClient(ctx, fc.Args["input"].(UpdateOauthClientInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *OauthClientPayload) graphql.Marshaler {
+			return ec.marshalNOauthClientPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateOauthClient(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthClientPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateOauthClient_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_rotateOauthClientSecret(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_rotateOauthClientSecret(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RotateOauthClientSecret(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *OauthClientSecretPayload) graphql.Marshaler {
+			return ec.marshalNOauthClientSecretPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientSecretPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_rotateOauthClientSecret(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthClientSecretPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_rotateOauthClientSecret_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteOauthClient(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteOauthClient(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteOauthClient(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteOauthClient(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteOauthClient_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createOauthAuthorization(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createOauthAuthorization(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateOauthAuthorization(ctx, fc.Args["input"].(CreateOauthAuthorizationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *OauthAuthorizationPayload) graphql.Marshaler {
+			return ec.marshalNOauthAuthorizationPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthAuthorizationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createOauthAuthorization(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthAuthorizationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createOauthAuthorization_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createGitHubConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35372,6 +36286,824 @@ func (ec *executionContext) fieldContext_NotificationsPayload_notifications(_ co
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _OauthAuthorizationPayload_redirectUri(ctx context.Context, field graphql.CollectedField, obj *OauthAuthorizationPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthAuthorizationPayload_redirectUri(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RedirectURI, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthAuthorizationPayload_redirectUri(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthAuthorizationPayload", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_id(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_workspaceId(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_creatorId(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_creatorId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatorID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_creatorId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_clientId(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_clientId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_clientId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_name(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_description(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_developer(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_developer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Developer, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_developer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_developerUrl(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_developerUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeveloperURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_developerUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_imageUrl(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_imageUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ImageURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_imageUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_redirectUris(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_redirectUris(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RedirectUris, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_redirectUris(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_allowedScopes(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_allowedScopes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AllowedScopes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_allowedScopes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_publicEnabled(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_publicEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PublicEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_publicEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_clientCredentialsEnabled(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_clientCredentialsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientCredentialsEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_clientCredentialsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_webhookUrl(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_webhookUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WebhookURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_webhookUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_createdAt(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_updatedAt(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClient_archivedAt(ctx context.Context, field graphql.CollectedField, obj *OauthClient) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClient_archivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClient_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClient", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientCreatePayload_version(ctx context.Context, field graphql.CollectedField, obj *OauthClientCreatePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientCreatePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientCreatePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientCreatePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientCreatePayload_created(ctx context.Context, field graphql.CollectedField, obj *OauthClientCreatePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientCreatePayload_created(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Created, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *OauthClientCreated) graphql.Marshaler {
+			return ec.marshalNOauthClientCreated2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientCreated(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientCreatePayload_created(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OauthClientCreatePayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthClientCreated(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OauthClientCreated_oauthClient(ctx context.Context, field graphql.CollectedField, obj *OauthClientCreated) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientCreated_oauthClient(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OauthClient, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *OauthClient) graphql.Marshaler {
+			return ec.marshalNOauthClient2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClient(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientCreated_oauthClient(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OauthClientCreated",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthClient(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OauthClientCreated_clientSecret(ctx context.Context, field graphql.CollectedField, obj *OauthClientCreated) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientCreated_clientSecret(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientSecret, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientCreated_clientSecret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientCreated", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientInfo_clientId(ctx context.Context, field graphql.CollectedField, obj *OauthClientInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientInfo_clientId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientInfo_clientId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientInfo_name(ctx context.Context, field graphql.CollectedField, obj *OauthClientInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientInfo_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientInfo_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientInfo_description(ctx context.Context, field graphql.CollectedField, obj *OauthClientInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientInfo_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientInfo_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientInfo_developer(ctx context.Context, field graphql.CollectedField, obj *OauthClientInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientInfo_developer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Developer, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientInfo_developer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientInfo_developerUrl(ctx context.Context, field graphql.CollectedField, obj *OauthClientInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientInfo_developerUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeveloperURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientInfo_developerUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientInfo_imageUrl(ctx context.Context, field graphql.CollectedField, obj *OauthClientInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientInfo_imageUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ImageURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientInfo_imageUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientInfo_allowedScopes(ctx context.Context, field graphql.CollectedField, obj *OauthClientInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientInfo_allowedScopes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AllowedScopes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientInfo_allowedScopes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientInfo", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientPayload_version(ctx context.Context, field graphql.CollectedField, obj *OauthClientPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientPayload_oauthClient(ctx context.Context, field graphql.CollectedField, obj *OauthClientPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientPayload_oauthClient(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OauthClient, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *OauthClient) graphql.Marshaler {
+			return ec.marshalNOauthClient2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClient(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientPayload_oauthClient(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OauthClientPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthClient(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OauthClientSecretPayload_version(ctx context.Context, field graphql.CollectedField, obj *OauthClientSecretPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientSecretPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientSecretPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientSecretPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OauthClientSecretPayload_oauthClient(ctx context.Context, field graphql.CollectedField, obj *OauthClientSecretPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientSecretPayload_oauthClient(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OauthClient, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *OauthClient) graphql.Marshaler {
+			return ec.marshalNOauthClient2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClient(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientSecretPayload_oauthClient(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OauthClientSecretPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthClient(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OauthClientSecretPayload_clientSecret(ctx context.Context, field graphql.CollectedField, obj *OauthClientSecretPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OauthClientSecretPayload_clientSecret(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientSecret, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OauthClientSecretPayload_clientSecret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OauthClientSecretPayload", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Project_id(ctx context.Context, field graphql.CollectedField, obj *Project) (ret graphql.Marshaler) {
@@ -41046,6 +42778,126 @@ func (ec *executionContext) fieldContext_Query_webhookDeliveries(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_webhookDeliveries_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_oauthClients(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_oauthClients(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().OauthClients(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []OauthClient) graphql.Marshaler {
+			return ec.marshalNOauthClient2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_oauthClients(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthClient(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_oauthClient(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_oauthClient(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().OauthClient(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *OauthClient) graphql.Marshaler {
+			return ec.marshalOOauthClient2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClient(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_oauthClient(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthClient(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_oauthClient_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_oauthClientInfo(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_oauthClientInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().OauthClientInfo(ctx, fc.Args["clientId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *OauthClientInfo) graphql.Marshaler {
+			return ec.marshalNOauthClientInfo2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_oauthClientInfo(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OauthClientInfo(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_oauthClientInfo_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -49013,6 +50865,185 @@ func (ec *executionContext) unmarshalInputCreateLabelInput(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateOauthAuthorizationInput(ctx context.Context, obj any) (CreateOauthAuthorizationInput, error) {
+	var it CreateOauthAuthorizationInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"clientId", "redirectUri", "responseType", "scope", "state", "actor", "codeChallenge", "codeChallengeMethod", "teamIds"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "clientId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientID = data
+		case "redirectUri":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("redirectUri"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RedirectURI = data
+		case "responseType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseType"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseType = data
+		case "scope":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scope"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Scope = data
+		case "state":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.State = data
+		case "actor":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actor"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Actor = data
+		case "codeChallenge":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("codeChallenge"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CodeChallenge = data
+		case "codeChallengeMethod":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("codeChallengeMethod"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CodeChallengeMethod = data
+		case "teamIds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamIds"))
+			data, err := ec.unmarshalOUUID2ᚕgithubᚗcomᚋgoogleᚋuuidᚐUUIDᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamIds = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateOauthClientInput(ctx context.Context, obj any) (CreateOauthClientInput, error) {
+	var it CreateOauthClientInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "developer", "developerUrl", "description", "imageUrl", "redirectUris", "allowedScopes", "publicEnabled", "clientCredentialsEnabled", "webhookUrl"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "developer":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("developer"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Developer = data
+		case "developerUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("developerUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DeveloperURL = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "imageUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("imageUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ImageURL = data
+		case "redirectUris":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("redirectUris"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RedirectUris = data
+		case "allowedScopes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("allowedScopes"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AllowedScopes = data
+		case "publicEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publicEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PublicEnabled = data
+		case "clientCredentialsEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientCredentialsEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientCredentialsEnabled = data
+		case "webhookUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("webhookUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WebhookURL = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateProjectInput(ctx context.Context, obj any) (CreateProjectInput, error) {
 	var it CreateProjectInput
 	if obj == nil {
@@ -51256,6 +53287,106 @@ func (ec *executionContext) unmarshalInputUpdateLabelInput(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateOauthClientInput(ctx context.Context, obj any) (UpdateOauthClientInput, error) {
+	var it UpdateOauthClientInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name", "developer", "developerUrl", "description", "imageUrl", "redirectUris", "allowedScopes", "publicEnabled", "clientCredentialsEnabled", "webhookUrl"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "developer":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("developer"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Developer = data
+		case "developerUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("developerUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DeveloperURL = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "imageUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("imageUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ImageURL = data
+		case "redirectUris":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("redirectUris"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RedirectUris = data
+		case "allowedScopes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("allowedScopes"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AllowedScopes = data
+		case "publicEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publicEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PublicEnabled = data
+		case "clientCredentialsEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientCredentialsEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientCredentialsEnabled = data
+		case "webhookUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("webhookUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WebhookURL = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context, obj any) (UpdateProfileInput, error) {
 	var it UpdateProfileInput
 	if obj == nil {
@@ -52862,6 +54993,27 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._ProjectDependencyPayload(ctx, sel, obj)
+	case OauthClientSecretPayload:
+		return ec._OauthClientSecretPayload(ctx, sel, &obj)
+	case *OauthClientSecretPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._OauthClientSecretPayload(ctx, sel, obj)
+	case OauthClientPayload:
+		return ec._OauthClientPayload(ctx, sel, &obj)
+	case *OauthClientPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._OauthClientPayload(ctx, sel, obj)
+	case OauthClientCreatePayload:
+		return ec._OauthClientCreatePayload(ctx, sel, &obj)
+	case *OauthClientCreatePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._OauthClientCreatePayload(ctx, sel, obj)
 	case NotificationsPayload:
 		return ec._NotificationsPayload(ctx, sel, &obj)
 	case *NotificationsPayload:
@@ -57783,6 +59935,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createOauthClient":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createOauthClient(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateOauthClient":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateOauthClient(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rotateOauthClientSecret":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_rotateOauthClientSecret(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteOauthClient":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteOauthClient(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createOauthAuthorization":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createOauthAuthorization(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createGitHubConnection":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createGitHubConnection(ctx, field)
@@ -58056,6 +60243,407 @@ func (ec *executionContext) _NotificationsPayload(ctx context.Context, sel ast.S
 			}
 		case "notifications":
 			out.Values[i] = ec._NotificationsPayload_notifications(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oauthAuthorizationPayloadImplementors = []string{"OauthAuthorizationPayload"}
+
+func (ec *executionContext) _OauthAuthorizationPayload(ctx context.Context, sel ast.SelectionSet, obj *OauthAuthorizationPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oauthAuthorizationPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OauthAuthorizationPayload")
+		case "redirectUri":
+			out.Values[i] = ec._OauthAuthorizationPayload_redirectUri(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oauthClientImplementors = []string{"OauthClient"}
+
+func (ec *executionContext) _OauthClient(ctx context.Context, sel ast.SelectionSet, obj *OauthClient) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oauthClientImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OauthClient")
+		case "id":
+			out.Values[i] = ec._OauthClient_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._OauthClient_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "creatorId":
+			out.Values[i] = ec._OauthClient_creatorId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clientId":
+			out.Values[i] = ec._OauthClient_clientId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._OauthClient_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._OauthClient_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "developer":
+			out.Values[i] = ec._OauthClient_developer(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "developerUrl":
+			out.Values[i] = ec._OauthClient_developerUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "imageUrl":
+			out.Values[i] = ec._OauthClient_imageUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "redirectUris":
+			out.Values[i] = ec._OauthClient_redirectUris(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "allowedScopes":
+			out.Values[i] = ec._OauthClient_allowedScopes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "publicEnabled":
+			out.Values[i] = ec._OauthClient_publicEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clientCredentialsEnabled":
+			out.Values[i] = ec._OauthClient_clientCredentialsEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "webhookUrl":
+			out.Values[i] = ec._OauthClient_webhookUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._OauthClient_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._OauthClient_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archivedAt":
+			out.Values[i] = ec._OauthClient_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oauthClientCreatePayloadImplementors = []string{"OauthClientCreatePayload", "MutationResult"}
+
+func (ec *executionContext) _OauthClientCreatePayload(ctx context.Context, sel ast.SelectionSet, obj *OauthClientCreatePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oauthClientCreatePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OauthClientCreatePayload")
+		case "version":
+			out.Values[i] = ec._OauthClientCreatePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "created":
+			out.Values[i] = ec._OauthClientCreatePayload_created(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oauthClientCreatedImplementors = []string{"OauthClientCreated"}
+
+func (ec *executionContext) _OauthClientCreated(ctx context.Context, sel ast.SelectionSet, obj *OauthClientCreated) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oauthClientCreatedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OauthClientCreated")
+		case "oauthClient":
+			out.Values[i] = ec._OauthClientCreated_oauthClient(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clientSecret":
+			out.Values[i] = ec._OauthClientCreated_clientSecret(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oauthClientInfoImplementors = []string{"OauthClientInfo"}
+
+func (ec *executionContext) _OauthClientInfo(ctx context.Context, sel ast.SelectionSet, obj *OauthClientInfo) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oauthClientInfoImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OauthClientInfo")
+		case "clientId":
+			out.Values[i] = ec._OauthClientInfo_clientId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._OauthClientInfo_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._OauthClientInfo_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "developer":
+			out.Values[i] = ec._OauthClientInfo_developer(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "developerUrl":
+			out.Values[i] = ec._OauthClientInfo_developerUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "imageUrl":
+			out.Values[i] = ec._OauthClientInfo_imageUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "allowedScopes":
+			out.Values[i] = ec._OauthClientInfo_allowedScopes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oauthClientPayloadImplementors = []string{"OauthClientPayload", "MutationResult"}
+
+func (ec *executionContext) _OauthClientPayload(ctx context.Context, sel ast.SelectionSet, obj *OauthClientPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oauthClientPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OauthClientPayload")
+		case "version":
+			out.Values[i] = ec._OauthClientPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "oauthClient":
+			out.Values[i] = ec._OauthClientPayload_oauthClient(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oauthClientSecretPayloadImplementors = []string{"OauthClientSecretPayload", "MutationResult"}
+
+func (ec *executionContext) _OauthClientSecretPayload(ctx context.Context, sel ast.SelectionSet, obj *OauthClientSecretPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oauthClientSecretPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OauthClientSecretPayload")
+		case "version":
+			out.Values[i] = ec._OauthClientSecretPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "oauthClient":
+			out.Values[i] = ec._OauthClientSecretPayload_oauthClient(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clientSecret":
+			out.Values[i] = ec._OauthClientSecretPayload_clientSecret(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -60686,6 +63274,72 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_webhookDeliveries(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "oauthClients":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_oauthClients(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "oauthClient":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_oauthClient(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "oauthClientInfo":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_oauthClientInfo(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -63805,6 +66459,16 @@ func (ec *executionContext) unmarshalNCreateLabelInput2githubᚗcomᚋpeixotolab
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateOauthAuthorizationInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateOauthAuthorizationInput(ctx context.Context, v any) (CreateOauthAuthorizationInput, error) {
+	res, err := ec.unmarshalInputCreateOauthAuthorizationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateOauthClientInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateOauthClientInput(ctx context.Context, v any) (CreateOauthClientInput, error) {
+	res, err := ec.unmarshalInputCreateOauthClientInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateProjectInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateProjectInput(ctx context.Context, v any) (CreateProjectInput, error) {
 	res, err := ec.unmarshalInputCreateProjectInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -64859,6 +67523,116 @@ func (ec *executionContext) marshalNNotificationsPayload2ᚖgithubᚗcomᚋpeixo
 	return ec._NotificationsPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNOauthAuthorizationPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthAuthorizationPayload(ctx context.Context, sel ast.SelectionSet, v OauthAuthorizationPayload) graphql.Marshaler {
+	return ec._OauthAuthorizationPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOauthAuthorizationPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthAuthorizationPayload(ctx context.Context, sel ast.SelectionSet, v *OauthAuthorizationPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OauthAuthorizationPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOauthClient2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClient(ctx context.Context, sel ast.SelectionSet, v OauthClient) graphql.Marshaler {
+	return ec._OauthClient(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOauthClient2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientᚄ(ctx context.Context, sel ast.SelectionSet, v []OauthClient) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOauthClient2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClient(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOauthClient2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClient(ctx context.Context, sel ast.SelectionSet, v *OauthClient) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OauthClient(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOauthClientCreatePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientCreatePayload(ctx context.Context, sel ast.SelectionSet, v OauthClientCreatePayload) graphql.Marshaler {
+	return ec._OauthClientCreatePayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOauthClientCreatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientCreatePayload(ctx context.Context, sel ast.SelectionSet, v *OauthClientCreatePayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OauthClientCreatePayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOauthClientCreated2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientCreated(ctx context.Context, sel ast.SelectionSet, v *OauthClientCreated) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OauthClientCreated(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOauthClientInfo2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientInfo(ctx context.Context, sel ast.SelectionSet, v OauthClientInfo) graphql.Marshaler {
+	return ec._OauthClientInfo(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOauthClientInfo2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientInfo(ctx context.Context, sel ast.SelectionSet, v *OauthClientInfo) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OauthClientInfo(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOauthClientPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientPayload(ctx context.Context, sel ast.SelectionSet, v OauthClientPayload) graphql.Marshaler {
+	return ec._OauthClientPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOauthClientPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientPayload(ctx context.Context, sel ast.SelectionSet, v *OauthClientPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OauthClientPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOauthClientSecretPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientSecretPayload(ctx context.Context, sel ast.SelectionSet, v OauthClientSecretPayload) graphql.Marshaler {
+	return ec._OauthClientSecretPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOauthClientSecretPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClientSecretPayload(ctx context.Context, sel ast.SelectionSet, v *OauthClientSecretPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OauthClientSecretPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNProject2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProject(ctx context.Context, sel ast.SelectionSet, v Project) graphql.Marshaler {
 	return ec._Project(ctx, sel, &v)
 }
@@ -65866,6 +68640,11 @@ func (ec *executionContext) unmarshalNUpdateLabelInput2githubᚗcomᚋpeixotolab
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateOauthClientInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateOauthClientInput(ctx context.Context, v any) (UpdateOauthClientInput, error) {
+	res, err := ec.unmarshalInputUpdateOauthClientInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateProfileInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProfileInput(ctx context.Context, v any) (UpdateProfileInput, error) {
 	res, err := ec.unmarshalInputUpdateProfileInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -66671,6 +69450,13 @@ func (ec *executionContext) marshalOLabel2ᚖgithubᚗcomᚋpeixotolabsᚋpolari
 		return graphql.Null
 	}
 	return ec._Label(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOOauthClient2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐOauthClient(ctx context.Context, sel ast.SelectionSet, v *OauthClient) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._OauthClient(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOProject2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProject(ctx context.Context, sel ast.SelectionSet, v *Project) graphql.Marshaler {

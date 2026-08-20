@@ -18,6 +18,8 @@ import { UndoToast } from '~/features/undo/UndoToast';
 import { AcceptInvite } from '~/views/AcceptInvite';
 import { ApiKeys } from '~/views/ApiKeys';
 import { Webhooks } from '~/views/Webhooks';
+import { OAuthApps } from '~/views/OAuthApps';
+import { OAuthAuthorize } from '~/views/OAuthAuthorize';
 import { GitHubSettings } from '~/views/GitHubSettings';
 import { ConnectServer } from '~/views/ConnectServer';
 import { CreateIssueFromUrl } from '~/views/CreateIssueFromUrl';
@@ -135,6 +137,7 @@ export function App() {
 function SignedInShell() {
   const { pathname } = useLocation();
   if (pathname === '/welcome') return <Landing />;
+  if (pathname === '/oauth/authorize') return <OAuthAuthorize />;
 
   return (
     <AppShell
@@ -187,6 +190,7 @@ function SignedInShell() {
         <Route path="/settings/preferences" element={<Preferences />} />
         <Route path="/settings/templates" element={<Templates />} />
         <Route path="/settings/api-keys" element={<ApiKeys />} />
+        <Route path="/settings/oauth-apps" element={<OAuthApps />} />
         <Route path="/settings/webhooks" element={<Webhooks />} />
         <Route path="/settings/github" element={<GitHubSettings />} />
         <Route path="/settings/export" element={<ExportSettings />} />

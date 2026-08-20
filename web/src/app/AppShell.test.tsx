@@ -237,6 +237,7 @@ describe('the settings section', () => {
       'Notifications',
       'Templates',
       'API keys',
+      'OAuth apps',
       'Webhooks',
       'GitHub',
       'Export',

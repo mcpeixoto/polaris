@@ -320,6 +320,32 @@ type CreateLabelInput struct {
 	AfterLabelID *uuid.UUID `json:"afterLabelId,omitempty"`
 }
 
+type CreateOauthAuthorizationInput struct {
+	ClientID     string  `json:"clientId"`
+	RedirectURI  string  `json:"redirectUri"`
+	ResponseType string  `json:"responseType"`
+	Scope        string  `json:"scope"`
+	State        *string `json:"state,omitempty"`
+	// user (default) or app.
+	Actor               *string     `json:"actor,omitempty"`
+	CodeChallenge       *string     `json:"codeChallenge,omitempty"`
+	CodeChallengeMethod *string     `json:"codeChallengeMethod,omitempty"`
+	TeamIds             []uuid.UUID `json:"teamIds,omitempty"`
+}
+
+type CreateOauthClientInput struct {
+	Name                     string   `json:"name"`
+	Developer                *string  `json:"developer,omitempty"`
+	DeveloperURL             *string  `json:"developerUrl,omitempty"`
+	Description              *string  `json:"description,omitempty"`
+	ImageURL                 *string  `json:"imageUrl,omitempty"`
+	RedirectUris             []string `json:"redirectUris"`
+	AllowedScopes            []string `json:"allowedScopes,omitempty"`
+	PublicEnabled            *bool    `json:"publicEnabled,omitempty"`
+	ClientCredentialsEnabled *bool    `json:"clientCredentialsEnabled,omitempty"`
+	WebhookURL               *string  `json:"webhookUrl,omitempty"`
+}
+
 type CreateProjectInput struct {
 	Name        string     `json:"name"`
 	Summary     *string    `json:"summary,omitempty"`
@@ -1112,6 +1138,74 @@ type NotificationsPayload struct {
 
 func (NotificationsPayload) IsMutationResult() {}
 
+type OauthAuthorizationPayload struct {
+	// The registered redirect URI with code and state appended. The client navigates here.
+	RedirectURI string `json:"redirectUri"`
+}
+
+// A third-party OAuth application owned by this workspace.
+//
+// The client secret is not on this type: it exists in the create/rotate response and as a
+// SHA-256 in the database, and nowhere a listing can see it. Applications are not replicated.
+type OauthClient struct {
+	ID                       uuid.UUID  `json:"id"`
+	WorkspaceID              uuid.UUID  `json:"workspaceId"`
+	CreatorID                uuid.UUID  `json:"creatorId"`
+	ClientID                 string     `json:"clientId"`
+	Name                     string     `json:"name"`
+	Description              *string    `json:"description,omitempty"`
+	Developer                *string    `json:"developer,omitempty"`
+	DeveloperURL             *string    `json:"developerUrl,omitempty"`
+	ImageURL                 *string    `json:"imageUrl,omitempty"`
+	RedirectUris             []string   `json:"redirectUris"`
+	AllowedScopes            []string   `json:"allowedScopes"`
+	PublicEnabled            bool       `json:"publicEnabled"`
+	ClientCredentialsEnabled bool       `json:"clientCredentialsEnabled"`
+	WebhookURL               *string    `json:"webhookUrl,omitempty"`
+	CreatedAt                time.Time  `json:"createdAt"`
+	UpdatedAt                time.Time  `json:"updatedAt"`
+	ArchivedAt               *time.Time `json:"archivedAt,omitempty"`
+}
+
+type OauthClientCreatePayload struct {
+	Version int                 `json:"version"`
+	Created *OauthClientCreated `json:"created"`
+}
+
+func (OauthClientCreatePayload) IsMutationResult() {}
+
+type OauthClientCreated struct {
+	OauthClient *OauthClient `json:"oauthClient"`
+	// Shown once. Not recoverable — only its SHA-256 is stored.
+	ClientSecret string `json:"clientSecret"`
+}
+
+// Public metadata for the consent screen. Secret and redirect URIs are never returned.
+type OauthClientInfo struct {
+	ClientID      string   `json:"clientId"`
+	Name          string   `json:"name"`
+	Description   *string  `json:"description,omitempty"`
+	Developer     *string  `json:"developer,omitempty"`
+	DeveloperURL  *string  `json:"developerUrl,omitempty"`
+	ImageURL      *string  `json:"imageUrl,omitempty"`
+	AllowedScopes []string `json:"allowedScopes"`
+}
+
+type OauthClientPayload struct {
+	Version     int          `json:"version"`
+	OauthClient *OauthClient `json:"oauthClient"`
+}
+
+func (OauthClientPayload) IsMutationResult() {}
+
+type OauthClientSecretPayload struct {
+	Version      int          `json:"version"`
+	OauthClient  *OauthClient `json:"oauthClient"`
+	ClientSecret string       `json:"clientSecret"`
+}
+
+func (OauthClientSecretPayload) IsMutationResult() {}
+
 type Project struct {
 	ID                    uuid.UUID             `json:"id"`
 	WorkspaceID           uuid.UUID             `json:"workspaceId"`
@@ -1741,6 +1835,20 @@ type UpdateLabelInput struct {
 	ParentID     *uuid.UUID `json:"parentId,omitempty"`
 	ClearParent  *bool      `json:"clearParent,omitempty"`
 	AfterLabelID *uuid.UUID `json:"afterLabelId,omitempty"`
+}
+
+type UpdateOauthClientInput struct {
+	ID                       uuid.UUID `json:"id"`
+	Name                     *string   `json:"name,omitempty"`
+	Developer                *string   `json:"developer,omitempty"`
+	DeveloperURL             *string   `json:"developerUrl,omitempty"`
+	Description              *string   `json:"description,omitempty"`
+	ImageURL                 *string   `json:"imageUrl,omitempty"`
+	RedirectUris             []string  `json:"redirectUris,omitempty"`
+	AllowedScopes            []string  `json:"allowedScopes,omitempty"`
+	PublicEnabled            *bool     `json:"publicEnabled,omitempty"`
+	ClientCredentialsEnabled *bool     `json:"clientCredentialsEnabled,omitempty"`
+	WebhookURL               *string   `json:"webhookUrl,omitempty"`
 }
 
 type UpdateProfileInput struct {

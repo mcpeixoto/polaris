@@ -772,6 +772,43 @@ type WebhookDelivery struct {
 	CreatedAt      time.Time  `json:"createdAt"`
 }
 
+// OauthClient is a third-party application this workspace owns.
+//
+// Not on the sync stream: it is an admin settings row whose secret is a credential, and
+// putting either in every device's replica would be an exfiltration path. The secret itself
+// is absent here exactly as APIKey has no token.
+type OauthClient struct {
+	ID                       uuid.UUID  `json:"id"`
+	WorkspaceID              uuid.UUID  `json:"workspaceId"`
+	CreatorID                uuid.UUID  `json:"creatorId"`
+	ClientID                 string     `json:"clientId"`
+	Name                     string     `json:"name"`
+	Description              *string    `json:"description,omitempty"`
+	Developer                *string    `json:"developer,omitempty"`
+	DeveloperURL             *string    `json:"developerUrl,omitempty"`
+	ImageURL                 *string    `json:"imageUrl,omitempty"`
+	RedirectURIs             []string   `json:"redirectUris"`
+	AllowedScopes            []string   `json:"allowedScopes"`
+	PublicEnabled            bool       `json:"publicEnabled"`
+	ClientCredentialsEnabled bool       `json:"clientCredentialsEnabled"`
+	WebhookURL               *string    `json:"webhookUrl,omitempty"`
+	CreatedAt                time.Time  `json:"createdAt"`
+	UpdatedAt                time.Time  `json:"updatedAt"`
+	ArchivedAt               *time.Time `json:"archivedAt,omitempty"`
+}
+
+// OauthClientInfo is the public metadata a consent screen may show. No secret, no
+// redirect-URI list — those are checked on the server, not advertised.
+type OauthClientInfo struct {
+	ClientID      string   `json:"clientId"`
+	Name          string   `json:"name"`
+	Description   *string  `json:"description,omitempty"`
+	Developer     *string  `json:"developer,omitempty"`
+	DeveloperURL  *string  `json:"developerUrl,omitempty"`
+	ImageURL      *string  `json:"imageUrl,omitempty"`
+	AllowedScopes []string `json:"allowedScopes"`
+}
+
 // Invite is an outstanding invitation to the workspace.
 //
 // Not on the sync stream, for the same reason APIKey is not: it is read on one settings

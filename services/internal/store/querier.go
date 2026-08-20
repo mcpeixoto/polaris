@@ -85,6 +85,7 @@ type Querier interface {
 	//
 	ArchiveIssueTemplate(ctx context.Context, id uuid.UUID) (ArchiveIssueTemplateRow, error)
 	ArchiveLabel(ctx context.Context, id uuid.UUID) (ArchiveLabelRow, error)
+	ArchiveOauthApplication(ctx context.Context, arg ArchiveOauthApplicationParams) (uuid.UUID, error)
 	ArchiveProject(ctx context.Context, id uuid.UUID) error
 	ArchiveProjectLabel(ctx context.Context, id uuid.UUID) (ArchiveProjectLabelRow, error)
 	ArchiveProjectMilestone(ctx context.Context, id uuid.UUID) error
@@ -187,6 +188,7 @@ type Querier interface {
 	ClearExternalAssigneesInTeam(ctx context.Context, teamID uuid.UUID) ([]ClearExternalAssigneesInTeamRow, error)
 	CompleteCycle(ctx context.Context, arg CompleteCycleParams) (Cycle, error)
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
+	ConsumeOauthAuthorizationCode(ctx context.Context, id uuid.UUID) (ConsumeOauthAuthorizationCodeRow, error)
 	// CountAdminsInWorkspace guards the "you cannot demote or suspend the last admin"
 	// rule. Run inside the same transaction as the demotion, or two concurrent demotions
 	// each see one remaining admin and lock everyone out of the workspace.
@@ -233,6 +235,7 @@ type Querier interface {
 	// notification_unread_idx, which is why its predicate is that index's predicate verbatim.
 	//
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountUsersWithDisplayName(ctx context.Context, arg CountUsersWithDisplayNameParams) (int32, error)
 	// CountWorkspaceSeats is the number the seat limit is checked against.
 	//
 	// App users are excluded because a bot is not a person: charging for an integration's
@@ -297,6 +300,16 @@ type Querier interface {
 	CreateIssueRelation(ctx context.Context, arg CreateIssueRelationParams) (IssueRelation, error)
 	CreateIssueTemplate(ctx context.Context, arg CreateIssueTemplateParams) (CreateIssueTemplateRow, error)
 	CreateLabel(ctx context.Context, arg CreateLabelParams) (CreateLabelRow, error)
+	CreateOauthAppUser(ctx context.Context, arg CreateOauthAppUserParams) (OauthAppUser, error)
+	// OAuth applications and tokens.
+	//
+	// Secret and token hashes appear only in WHERE clauses and INSERT values, never in a
+	// SELECT list or RETURNING, for the same reason api_keys.sql keeps token_hash off the
+	// row structs: a leaked listing, a log line, or a GraphQL field added later must not
+	// become a working credential.
+	CreateOauthApplication(ctx context.Context, arg CreateOauthApplicationParams) (CreateOauthApplicationRow, error)
+	CreateOauthAuthorizationCode(ctx context.Context, arg CreateOauthAuthorizationCodeParams) (CreateOauthAuthorizationCodeRow, error)
+	CreateOauthToken(ctx context.Context, arg CreateOauthTokenParams) (CreateOauthTokenRow, error)
 	// ---------------------------------------------------------------------------------------
 	// project
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
@@ -480,6 +493,14 @@ type Querier interface {
 	// between "start at the beginning" and "crash on first run".
 	//
 	GetNotificationCursor(ctx context.Context, workspaceID uuid.UUID) (int64, error)
+	GetOauthAppUser(ctx context.Context, arg GetOauthAppUserParams) (OauthAppUser, error)
+	GetOauthApplication(ctx context.Context, id uuid.UUID) (GetOauthApplicationRow, error)
+	GetOauthApplicationByClientID(ctx context.Context, clientID string) (GetOauthApplicationByClientIDRow, error)
+	GetOauthApplicationSecretHashByClientID(ctx context.Context, clientID string) (GetOauthApplicationSecretHashByClientIDRow, error)
+	GetOauthAuthorizationCodeByHash(ctx context.Context, codeHash []byte) (GetOauthAuthorizationCodeByHashRow, error)
+	GetOauthToken(ctx context.Context, id uuid.UUID) (GetOauthTokenRow, error)
+	GetOauthTokenByAccessHash(ctx context.Context, accessTokenHash []byte) (GetOauthTokenByAccessHashRow, error)
+	GetOauthTokenByRefreshHash(ctx context.Context, refreshTokenHash []byte) (GetOauthTokenByRefreshHashRow, error)
 	GetProject(ctx context.Context, id uuid.UUID) (Project, error)
 	GetProjectDependency(ctx context.Context, id uuid.UUID) (ProjectDependency, error)
 	// GetProjectForUpdate locks the row so concurrent team/member edits cannot interleave
@@ -743,6 +764,9 @@ type Querier interface {
 	// scope_key sorts workspace labels (the all-zero sentinel) ahead of every team's, so a
 	// single pass over this result renders the picker's sections in order.
 	ListLabelsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListLabelsInWorkspaceRow, error)
+	// Client-credentials tokens for this app that are still live. Used to enforce the
+	// "same scopes, up to 1000; different scopes revoke the rest" rule.
+	ListLiveClientCredentialsTokens(ctx context.Context, applicationID uuid.UUID) ([]ListLiveClientCredentialsTokensRow, error)
 	// ListLiveIssueRelationsForIssue is both directions at once, filtered exactly the way the
 	// bootstrap stream filters.
 	//
@@ -784,6 +808,7 @@ type Querier interface {
 	// change.
 	//
 	ListNotificationsForIssue(ctx context.Context, arg ListNotificationsForIssueParams) ([]Notification, error)
+	ListOauthApplicationsForWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListOauthApplicationsForWorkspaceRow, error)
 	// Open work in a closing cycle: unstarted and started, not backlog/triage/canceled/completed.
 	ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID) ([]ListOpenIssuesInCycleRow, error)
 	ListPendingInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
@@ -889,6 +914,7 @@ type Querier interface {
 	//
 	MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) ([]Notification, error)
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)
+	MarkOauthRefreshRotated(ctx context.Context, arg MarkOauthRefreshRotatedParams) error
 	MarkWebhookDeliveryDelivered(ctx context.Context, arg MarkWebhookDeliveryDeliveredParams) error
 	MarkWebhookDeliveryFailed(ctx context.Context, arg MarkWebhookDeliveryFailedParams) error
 	// NotifySyncHub wakes the sync hubs for a workspace.
@@ -1015,6 +1041,7 @@ type Querier interface {
 	//
 	RevokeAPIKeysForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	RevokeAllSessionsForAccount(ctx context.Context, accountID uuid.UUID) error
+	RevokeClientCredentialsTokensForApplication(ctx context.Context, applicationID uuid.UUID) (int64, error)
 	// RevokeInvite is scoped to the workspace, and reports whether anything was revoked.
 	//
 	// Without the workspace_id an admin could cancel an invitation belonging to a workspace they
@@ -1027,11 +1054,16 @@ type Querier interface {
 	// and revoking it would suggest their access had been taken away when it has not.
 	//
 	RevokeInvite(ctx context.Context, arg RevokeInviteParams) (uuid.UUID, error)
+	RevokeOauthToken(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	RevokeOauthTokenByAccessHash(ctx context.Context, accessTokenHash []byte) (uuid.UUID, error)
+	RevokeOauthTokenByRefreshHash(ctx context.Context, refreshTokenHash []byte) (uuid.UUID, error)
+	RevokeOauthTokensForApplication(ctx context.Context, applicationID uuid.UUID) (int64, error)
 	// Re-inviting an address replaces the outstanding invite rather than accumulating rows,
 	// which is also what invite_workspace_email_pending_key enforces.
 	//
 	RevokePendingInvitesForEmail(ctx context.Context, arg RevokePendingInvitesForEmailParams) error
 	RevokeSession(ctx context.Context, id uuid.UUID) error
+	RotateOauthApplicationSecret(ctx context.Context, arg RotateOauthApplicationSecretParams) (RotateOauthApplicationSecretRow, error)
 	SetAccountPassword(ctx context.Context, arg SetAccountPasswordParams) error
 	SetCommentResolution(ctx context.Context, arg SetCommentResolutionParams) (Comment, error)
 	SetDefaultWorkflowState(ctx context.Context, id uuid.UUID) error
@@ -1292,6 +1324,7 @@ type Querier interface {
 	// who calls it.
 	//
 	TouchAPIKeyLastUsed(ctx context.Context, id uuid.UUID) error
+	TouchOauthTokenLastUsed(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error
 	UnarchiveCustomer(ctx context.Context, id uuid.UUID) (Customer, error)
@@ -1352,6 +1385,11 @@ type Querier interface {
 	//
 	UpdateIssueTemplateEmailIntake(ctx context.Context, arg UpdateIssueTemplateEmailIntakeParams) (UpdateIssueTemplateEmailIntakeRow, error)
 	UpdateLabel(ctx context.Context, arg UpdateLabelParams) (UpdateLabelRow, error)
+	// The domain loads the current row, applies the patch, and writes the whole mutable
+	// set. Partial COALESCE on arrays and booleans cannot tell "leave it" from "set empty"
+	// or "set false", and those are real updates on this screen.
+	//
+	UpdateOauthApplication(ctx context.Context, arg UpdateOauthApplicationParams) (UpdateOauthApplicationRow, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateProjectLabel(ctx context.Context, arg UpdateProjectLabelParams) (UpdateProjectLabelRow, error)
 	UpdateProjectMilestone(ctx context.Context, arg UpdateProjectMilestoneParams) (ProjectMilestone, error)

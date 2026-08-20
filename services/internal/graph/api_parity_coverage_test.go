@@ -74,6 +74,8 @@ var serverSideOnly = map[string]string{
 	"AutoArchive":                "worker cron: archives stale closed issues, projects and cycles",
 	"SubscribeOnAction":          "internal: called by the write paths that auto-subscribe",
 	"AuthenticateApiKey":         "auth middleware: exchanging a token for a principal is not a mutation a caller performs",
+	"AuthenticateOauthToken":     "auth middleware: exchanging an OAuth access token for a principal is not a mutation a caller performs",
+	"IsOauthAccessToken":         "auth middleware: prefix check so a pla_ bearer is not parsed as a JWT",
 	"DB":                         "accessor: hands the pool to the bootstrap and the sync hub",
 	"IngestGitHubPullRequest":    "inbound GitHub webhook: signed HTTP, not GraphQL",
 	"IngestGitHubPush":           "inbound GitHub commit webhook: signed HTTP, not GraphQL",

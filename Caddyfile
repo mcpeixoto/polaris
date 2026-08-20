@@ -47,6 +47,14 @@
 		reverse_proxy api:8088
 	}
 
+	handle /oauth/token {
+		reverse_proxy api:8088
+	}
+
+	handle /oauth/revoke {
+		reverse_proxy api:8088
+	}
+
 	handle /webhooks/* {
 		reverse_proxy api:8088
 	}

@@ -37,7 +37,7 @@ Per-IP limiting is meaningless unless the forwarded-address header is trusted on
 
 ## OAuth server
 
-Endpoints on `api`: `/oauth/authorize`, `/oauth/token`, `/oauth/revoke`.
+Token exchange and revocation are on `api`: `POST /oauth/token`, `POST /oauth/revoke`. Consent (`GET /oauth/authorize`) is the SPA on `web` — Caddy must not send every `/oauth/*` path to the API.
 
 Implementation notes that matter operationally:
 - **Refresh-token grace period of 30 minutes.** Store `(token, replaced_by, replayable_until)`; a client that loses the response can replay and get the same new pair. This removes an entire class of "integration randomly logged out" support tickets.
