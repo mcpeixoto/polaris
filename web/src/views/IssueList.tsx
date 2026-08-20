@@ -48,6 +48,8 @@ import {
 } from '~/components';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
+import { liveIssueCountForTeam } from '~/features/team/issueLimit';
+import { TeamIssueLimitBanner } from '~/features/team/TeamIssueLimitBanner';
 import { setViewSubscription } from '~/features/view/mutations';
 import { downloadCsv, exportCap, issuesToCsv, type ExportRole } from '~/features/export/csv';
 import { personName, subscribePrefs, getPrefs } from '~/features/prefs/prefs';
@@ -286,6 +288,16 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     },
     ['viewSubscription'],
     [viewId, viewerId],
+  );
+
+  const liveCount = useLiveQuery(
+    (store) => {
+      const teamId = scope.team?.id;
+      if (teamId === undefined) return 0;
+      return liveIssueCountForTeam(store, teamId);
+    },
+    ['issue'],
+    [scope.team?.id ?? ''],
   );
 
   const now = useTriageClock(scope.team?.id, inTriage);
@@ -916,6 +928,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
           </>
         )}
       </header>
+
+      {team === null ? null : <TeamIssueLimitBanner team={team} liveCount={liveCount} />}
 
       <FilterBar
         filter={view.filter}

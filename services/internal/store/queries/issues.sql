@@ -342,6 +342,13 @@ LIMIT sqlc.arg(page_size);
 SELECT count(*) FROM issue
 WHERE workspace_id = $1 AND archived_at IS NULL AND deleted_at IS NULL;
 
+-- CountNonArchivedIssuesForTeam is the 60,000-issue cap. Archived rows do not count;
+-- completed ones still do until they are archived.
+--
+-- name: CountNonArchivedIssuesForTeam :one
+SELECT count(*) FROM issue
+WHERE team_id = $1 AND archived_at IS NULL AND deleted_at IS NULL;
+
 -- PurgeDeletedIssues hard-deletes a bounded batch of trashed issues and is the only
 -- statement in the product that removes an issue row.
 --
