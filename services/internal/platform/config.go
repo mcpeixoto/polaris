@@ -189,6 +189,13 @@ type Config struct {
 	GitHubAppID         string `envconfig:"POLARIS_GITHUB_APP_ID"`
 	GitHubAppPrivateKey string `envconfig:"POLARIS_GITHUB_APP_PRIVATE_KEY"`
 
+	// Slack app credentials. Empty is supported: Settings → Slack still accepts a
+	// Slack incoming-webhook URL for outbound issue notifications. Slash commands,
+	// Events API unfurls, and inbound comments need the signing secret; unfurls
+	// also need the bot token.
+	SlackSigningSecret string `envconfig:"POLARIS_SLACK_SIGNING_SECRET"`
+	SlackBotToken      string `envconfig:"POLARIS_SLACK_BOT_TOKEN"`
+
 	// Shared secret for POST /webhooks/email. Empty is the development stub: unsigned
 	// JSON is accepted so a local `curl` can file an issue without a mail server.
 	// Production must set this — an empty secret outside development refuses every post.

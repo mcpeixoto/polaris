@@ -385,6 +385,20 @@ function oneOfEach(): EntityRow[] {
       },
     },
     {
+      type: 'slackConnection',
+      entity: {
+        id: 'slc1',
+        workspaceId: 'w',
+        creatorId: 'u1',
+        enabled: true,
+        defaultTeamId: 't1',
+        notifyIssues: true,
+        notifyComments: true,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
       type: 'cycleCalendarFeed',
       entity: {
         id: 'ccf1',

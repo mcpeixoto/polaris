@@ -125,6 +125,7 @@ const (
 	FeatureSSO                Feature = "sso"
 	FeatureAuditLog           Feature = "audit_log"
 	FeatureSLAs               Feature = "slas"
+	FeatureSlack              Feature = "slack"
 )
 
 // AllFeatures exists for the same reason as AllPlans: it is what lets a test prove the
@@ -132,7 +133,7 @@ const (
 var AllFeatures = []Feature{
 	FeaturePrivateTeams, FeatureSubTeams, FeatureMultiLevelSubTeams,
 	FeatureCustomViews, FeatureAPIKeys, FeatureSSO, FeatureAuditLog,
-	FeatureSLAs,
+	FeatureSLAs, FeatureSlack,
 }
 
 // Label names the feature in a sentence a customer reads, and is phrased to work as the
@@ -155,6 +156,8 @@ func (f Feature) Label() string {
 		return "The audit log"
 	case FeatureSLAs:
 		return "SLAs"
+	case FeatureSlack:
+		return "Slack"
 	}
 	return string(f)
 }
@@ -206,6 +209,7 @@ type Features struct {
 	SSO                bool
 	AuditLog           bool
 	SLAs               bool
+	Slack              bool
 }
 
 // The matrix. This table is the packaging decision, and everything else in this package is
@@ -218,6 +222,7 @@ type Features struct {
 //   - Custom views stay free because saved filters are how the tracker is used at all.
 //   - Personal API keys stay free because gating the API kills the integration ecosystem
 //     that makes an open-source tracker worth adopting. Free is rate-limited, not walled.
+//   - Slack stays free for the same reason: chat is how issues arrive.
 //
 // Private teams are Business+ (Pro and above). They are in the matrix so the client
 // renders one source of truth instead of hardcoding "everyone has this".
@@ -237,6 +242,7 @@ var matrix = map[Plan]Features{
 		SSO:                false,
 		AuditLog:           false,
 		SLAs:               false,
+		Slack:              true,
 	},
 	PlanPro: {
 		SeatLimit:          Unlimited,
@@ -250,6 +256,7 @@ var matrix = map[Plan]Features{
 		SSO:                false,
 		AuditLog:           false,
 		SLAs:               true,
+		Slack:              true,
 	},
 	PlanEnterprise: {
 		SeatLimit:          Unlimited,
@@ -263,6 +270,7 @@ var matrix = map[Plan]Features{
 		SSO:                true,
 		AuditLog:           true,
 		SLAs:               true,
+		Slack:              true,
 	},
 	// Unlimited on seats is the whole claim of an open-source tracker: anybody who wants
 	// to run this for 300 people without paying may. A seat count here would make the
@@ -279,6 +287,7 @@ var matrix = map[Plan]Features{
 		SSO:                false,
 		AuditLog:           false,
 		SLAs:               true,
+		Slack:              true,
 	},
 }
 
@@ -317,6 +326,8 @@ func (f Features) has(feat Feature) (allowed, known bool) {
 		return f.AuditLog, true
 	case FeatureSLAs:
 		return f.SLAs, true
+	case FeatureSlack:
+		return f.Slack, true
 	}
 	return false, false
 }
@@ -350,6 +361,7 @@ func (f Features) narrow(other Features) Features {
 		SSO:                f.SSO && other.SSO,
 		AuditLog:           f.AuditLog && other.AuditLog,
 		SLAs:               f.SLAs && other.SLAs,
+		Slack:              f.Slack && other.Slack,
 	}
 }
 

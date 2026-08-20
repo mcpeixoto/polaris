@@ -153,6 +153,15 @@ func NewRouter(d Deps) http.Handler {
 	sentry := &sentryHandlers{svc: d.Service}
 	mux.Handle("POST /webhooks/sentry/{workspaceId}", d.Limits.Anonymous(http.HandlerFunc(sentry.events)))
 
+	slack := &slackHandlers{
+		svc:           d.Service,
+		signingSecret: d.Config.SlackSigningSecret,
+		botToken:      d.Config.SlackBotToken,
+		publicURL:     d.Config.PublicURL,
+	}
+	mux.Handle("POST /webhooks/slack/{workspaceId}/command", d.Limits.Anonymous(http.HandlerFunc(slack.command)))
+	mux.Handle("POST /webhooks/slack/{workspaceId}/events", d.Limits.Anonymous(http.HandlerFunc(slack.events)))
+
 	email := &emailHandlers{svc: d.Service, cfg: d.Config}
 	// Inbound mail is unauthenticated: the shared secret is the credential. Anonymous
 	// budget, because a loop of unsigned posts would otherwise be free.

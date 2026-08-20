@@ -33,7 +33,7 @@ export function IntegrationDirectory() {
   const canSubmit = viewer !== null && viewer.role !== 'guest';
   const rows = useLiveQuery(
     (store: Store) => DIRECTORY.map((entry) => ({ entry, status: directoryStatus(store, entry) })),
-    ['githubConnection', 'gitlabConnection', 'sentryConnection', 'askForm'],
+    ['githubConnection', 'gitlabConnection', 'sentryConnection', 'slackConnection', 'askForm'],
   );
 
   return (

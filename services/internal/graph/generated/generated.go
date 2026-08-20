@@ -323,6 +323,7 @@ type ComplexityRoot struct {
 		PrivateTeams       func(childComplexity int) int
 		SeatLimit          func(childComplexity int) int
 		SeatsUsed          func(childComplexity int) int
+		Slack              func(childComplexity int) int
 		Slas               func(childComplexity int) int
 		Sso                func(childComplexity int) int
 		SubTeams           func(childComplexity int) int
@@ -806,6 +807,7 @@ type ComplexityRoot struct {
 		CreateRecurringIssue           func(childComplexity int, input CreateRecurringIssueInput) int
 		CreateSLARule                  func(childComplexity int, input CreateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateSentryConnection         func(childComplexity int, input CreateSentryConnectionInput) int
+		CreateSlackConnection          func(childComplexity int, input CreateSlackConnectionInput) int
 		CreateTeam                     func(childComplexity int, input CreateTeamInput) int
 		CreateView                     func(childComplexity int, input CreateViewInput) int
 		CreateWebhook                  func(childComplexity int, input CreateWebhookInput) int
@@ -839,6 +841,7 @@ type ComplexityRoot struct {
 		DeleteProjectUpdate            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteSLARule                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteSentryConnection         func(childComplexity int) int
+		DeleteSlackConnection          func(childComplexity int) int
 		DeleteTeam                     func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteView                     func(childComplexity int, id uuid.UUID) int
 		DeleteViewSubscription         func(childComplexity int, viewID uuid.UUID) int
@@ -920,6 +923,7 @@ type ComplexityRoot struct {
 		UpdateRecurringIssue           func(childComplexity int, input UpdateRecurringIssueInput) int
 		UpdateSLARule                  func(childComplexity int, input UpdateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateSentryConnection         func(childComplexity int, input UpdateSentryConnectionInput) int
+		UpdateSlackConnection          func(childComplexity int, input UpdateSlackConnectionInput) int
 		UpdateTeam                     func(childComplexity int, input UpdateTeamInput) int
 		UpdateTeamArchive              func(childComplexity int, input UpdateTeamArchiveInput) int
 		UpdateTeamCycles               func(childComplexity int, input UpdateTeamCyclesInput) int
@@ -1321,6 +1325,8 @@ type ComplexityRoot struct {
 		Search                       func(childComplexity int, input SearchInput) int
 		SentryConnection             func(childComplexity int) int
 		SentryWebhook                func(childComplexity int) int
+		SlackConnection              func(childComplexity int) int
+		SlackInbound                 func(childComplexity int) int
 		Team                         func(childComplexity int, id uuid.UUID) int
 		TeamByKey                    func(childComplexity int, key string) int
 		Teams                        func(childComplexity int) int
@@ -1407,6 +1413,33 @@ type ComplexityRoot struct {
 	SlaRulePayload struct {
 		SLARule func(childComplexity int) int
 		Version func(childComplexity int) int
+	}
+
+	SlackConnection struct {
+		ChannelName    func(childComplexity int) int
+		ConnectedAt    func(childComplexity int) int
+		CreatedAt      func(childComplexity int) int
+		CreatorID      func(childComplexity int) int
+		DefaultTeamID  func(childComplexity int) int
+		Enabled        func(childComplexity int) int
+		ID             func(childComplexity int) int
+		NotifyComments func(childComplexity int) int
+		NotifyIssues   func(childComplexity int) int
+		UpdatedAt      func(childComplexity int) int
+		WorkspaceID    func(childComplexity int) int
+	}
+
+	SlackConnectionPayload struct {
+		SlackConnection func(childComplexity int) int
+		Version         func(childComplexity int) int
+	}
+
+	SlackInbound struct {
+		BotTokenConfigured      func(childComplexity int) int
+		CommandURL              func(childComplexity int) int
+		EventsURL               func(childComplexity int) int
+		SigningSecretConfigured func(childComplexity int) int
+		WebhookConfigured       func(childComplexity int) int
 	}
 
 	SubscriptionPayload struct {
@@ -1842,6 +1875,9 @@ type MutationResolver interface {
 	UpdateSentryConnection(ctx context.Context, input UpdateSentryConnectionInput) (*SentryConnectionPayload, error)
 	DeleteSentryConnection(ctx context.Context) (*DeletePayload, error)
 	LinkSentryIssue(ctx context.Context, input LinkSentryIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*SentryLinkPayload, error)
+	CreateSlackConnection(ctx context.Context, input CreateSlackConnectionInput) (*SlackConnectionPayload, error)
+	UpdateSlackConnection(ctx context.Context, input UpdateSlackConnectionInput) (*SlackConnectionPayload, error)
+	DeleteSlackConnection(ctx context.Context) (*DeletePayload, error)
 	EnsureCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedPayload, error)
 	RotateCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedPayload, error)
 	SubmitIntegration(ctx context.Context, input SubmitIntegrationInput) (*IntegrationSubmissionPayload, error)
@@ -1929,6 +1965,8 @@ type QueryResolver interface {
 	GitlabTeamAutomation(ctx context.Context, teamID uuid.UUID) (*GitLabTeamAutomation, error)
 	SentryConnection(ctx context.Context) (*SentryConnection, error)
 	SentryWebhook(ctx context.Context) (*SentryWebhook, error)
+	SlackConnection(ctx context.Context) (*SlackConnection, error)
+	SlackInbound(ctx context.Context) (*SlackInbound, error)
 	CycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeed, error)
 	CycleCalendarFeedURL(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedURL, error)
 }
@@ -3133,6 +3171,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Entitlements.SeatsUsed(childComplexity), true
+	case "Entitlements.slack":
+		if e.ComplexityRoot.Entitlements.Slack == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Entitlements.Slack(childComplexity), true
 	case "Entitlements.slas":
 		if e.ComplexityRoot.Entitlements.Slas == nil {
 			break
@@ -5593,6 +5637,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateSentryConnection(childComplexity, args["input"].(CreateSentryConnectionInput)), true
+	case "Mutation.createSlackConnection":
+		if e.ComplexityRoot.Mutation.CreateSlackConnection == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createSlackConnection_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateSlackConnection(childComplexity, args["input"].(CreateSlackConnectionInput)), true
 	case "Mutation.createTeam":
 		if e.ComplexityRoot.Mutation.CreateTeam == nil {
 			break
@@ -5931,6 +5986,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteSentryConnection(childComplexity), true
+	case "Mutation.deleteSlackConnection":
+		if e.ComplexityRoot.Mutation.DeleteSlackConnection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteSlackConnection(childComplexity), true
 	case "Mutation.deleteTeam":
 		if e.ComplexityRoot.Mutation.DeleteTeam == nil {
 			break
@@ -6817,6 +6878,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateSentryConnection(childComplexity, args["input"].(UpdateSentryConnectionInput)), true
+	case "Mutation.updateSlackConnection":
+		if e.ComplexityRoot.Mutation.UpdateSlackConnection == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateSlackConnection_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateSlackConnection(childComplexity, args["input"].(UpdateSlackConnectionInput)), true
 	case "Mutation.updateTeam":
 		if e.ComplexityRoot.Mutation.UpdateTeam == nil {
 			break
@@ -8882,6 +8954,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SentryWebhook(childComplexity), true
+	case "Query.slackConnection":
+		if e.ComplexityRoot.Query.SlackConnection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SlackConnection(childComplexity), true
+	case "Query.slackInbound":
+		if e.ComplexityRoot.Query.SlackInbound == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SlackInbound(childComplexity), true
 	case "Query.team":
 		if e.ComplexityRoot.Query.Team == nil {
 			break
@@ -9275,6 +9359,117 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SlaRulePayload.Version(childComplexity), true
+
+	case "SlackConnection.channelName":
+		if e.ComplexityRoot.SlackConnection.ChannelName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.ChannelName(childComplexity), true
+	case "SlackConnection.connectedAt":
+		if e.ComplexityRoot.SlackConnection.ConnectedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.ConnectedAt(childComplexity), true
+	case "SlackConnection.createdAt":
+		if e.ComplexityRoot.SlackConnection.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.CreatedAt(childComplexity), true
+	case "SlackConnection.creatorId":
+		if e.ComplexityRoot.SlackConnection.CreatorID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.CreatorID(childComplexity), true
+	case "SlackConnection.defaultTeamId":
+		if e.ComplexityRoot.SlackConnection.DefaultTeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.DefaultTeamID(childComplexity), true
+	case "SlackConnection.enabled":
+		if e.ComplexityRoot.SlackConnection.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.Enabled(childComplexity), true
+	case "SlackConnection.id":
+		if e.ComplexityRoot.SlackConnection.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.ID(childComplexity), true
+	case "SlackConnection.notifyComments":
+		if e.ComplexityRoot.SlackConnection.NotifyComments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.NotifyComments(childComplexity), true
+	case "SlackConnection.notifyIssues":
+		if e.ComplexityRoot.SlackConnection.NotifyIssues == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.NotifyIssues(childComplexity), true
+	case "SlackConnection.updatedAt":
+		if e.ComplexityRoot.SlackConnection.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.UpdatedAt(childComplexity), true
+	case "SlackConnection.workspaceId":
+		if e.ComplexityRoot.SlackConnection.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.WorkspaceID(childComplexity), true
+
+	case "SlackConnectionPayload.slackConnection":
+		if e.ComplexityRoot.SlackConnectionPayload.SlackConnection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnectionPayload.SlackConnection(childComplexity), true
+	case "SlackConnectionPayload.version":
+		if e.ComplexityRoot.SlackConnectionPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnectionPayload.Version(childComplexity), true
+
+	case "SlackInbound.botTokenConfigured":
+		if e.ComplexityRoot.SlackInbound.BotTokenConfigured == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackInbound.BotTokenConfigured(childComplexity), true
+	case "SlackInbound.commandUrl":
+		if e.ComplexityRoot.SlackInbound.CommandURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackInbound.CommandURL(childComplexity), true
+	case "SlackInbound.eventsUrl":
+		if e.ComplexityRoot.SlackInbound.EventsURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackInbound.EventsURL(childComplexity), true
+	case "SlackInbound.signingSecretConfigured":
+		if e.ComplexityRoot.SlackInbound.SigningSecretConfigured == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackInbound.SigningSecretConfigured(childComplexity), true
+	case "SlackInbound.webhookConfigured":
+		if e.ComplexityRoot.SlackInbound.WebhookConfigured == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackInbound.WebhookConfigured(childComplexity), true
 
 	case "SubscriptionPayload.subscription":
 		if e.ComplexityRoot.SubscriptionPayload.Subscription == nil {
@@ -10403,6 +10598,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateRecurringIssueInput,
 		ec.unmarshalInputCreateSentryConnectionInput,
 		ec.unmarshalInputCreateSlaRuleInput,
+		ec.unmarshalInputCreateSlackConnectionInput,
 		ec.unmarshalInputCreateTeamInput,
 		ec.unmarshalInputCreateViewInput,
 		ec.unmarshalInputCreateWebhookInput,
@@ -10449,6 +10645,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateRecurringIssueInput,
 		ec.unmarshalInputUpdateSentryConnectionInput,
 		ec.unmarshalInputUpdateSlaRuleInput,
+		ec.unmarshalInputUpdateSlackConnectionInput,
 		ec.unmarshalInputUpdateTeamArchiveInput,
 		ec.unmarshalInputUpdateTeamCyclesInput,
 		ec.unmarshalInputUpdateTeamEmailIntakeInput,
@@ -10731,6 +10928,8 @@ type Entitlements {
   auditLog: Boolean!
   """Business+: SLA rules that own an issue's due date."""
   slas: Boolean!
+  """Slack integration. Stays free: gating chat is how an open-source tracker loses its ecosystem."""
+  slack: Boolean!
   """Set while a paid plan is lapsed: reads work, gated writes do not."""
   lapsed: Boolean!
 }
@@ -12653,6 +12852,55 @@ input LinkSentryIssueInput {
 }
 
 """
+Workspace Slack install. The incoming-webhook URL is not on this type: the replica
+carries the default team and notify toggles a client needs to render settings.
+One Slack connection per workspace.
+"""
+type SlackConnection {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  enabled: Boolean!
+  defaultTeamId: UUID!
+  channelName: String
+  notifyIssues: Boolean!
+  notifyComments: Boolean!
+  connectedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type SlackInbound {
+  commandUrl: String!
+  eventsUrl: String!
+  webhookConfigured: Boolean!
+  signingSecretConfigured: Boolean!
+  botTokenConfigured: Boolean!
+}
+
+type SlackConnectionPayload implements MutationResult {
+  version: Int!
+  slackConnection: SlackConnection!
+}
+
+input CreateSlackConnectionInput {
+  defaultTeamId: UUID!
+  channelName: String
+  webhookUrl: String
+  notifyIssues: Boolean
+  notifyComments: Boolean
+}
+
+input UpdateSlackConnectionInput {
+  defaultTeamId: UUID
+  channelName: String
+  webhookUrl: String
+  notifyIssues: Boolean
+  notifyComments: Boolean
+  enabled: Boolean
+}
+
+"""
 A bulk update returns the issues it changed and the single version the whole batch landed
 at, because it emits one version block rather than one per issue.
 """
@@ -13549,6 +13797,10 @@ type Query {
   sentryConnection: SentryConnection
   """Admin-only. The URL and secret to paste into a Sentry alert webhook or internal integration."""
   sentryWebhook: SentryWebhook
+  """The workspace Slack install, if any. Credentials are on slackInbound, not here."""
+  slackConnection: SlackConnection
+  """Admin-only. Inbound Slack URLs and whether env credentials / a webhook URL are set."""
+  slackInbound: SlackInbound
   """The viewer's ICS subscription for this team, if they have minted one. Token is on cycleCalendarFeedURL."""
   cycleCalendarFeed(teamId: UUID!): CycleCalendarFeed
   """The HTTPS feed URL for this team's cycle calendar. Null until ensureCycleCalendarFeed has run."""
@@ -13859,6 +14111,10 @@ type Mutation {
   updateSentryConnection(input: UpdateSentryConnectionInput!): SentryConnectionPayload!
   deleteSentryConnection: DeletePayload!
   linkSentryIssue(input: LinkSentryIssueInput!, clientId: UUID, opId: UUID): SentryLinkPayload! @idempotent
+
+  createSlackConnection(input: CreateSlackConnectionInput!): SlackConnectionPayload!
+  updateSlackConnection(input: UpdateSlackConnectionInput!): SlackConnectionPayload!
+  deleteSlackConnection: DeletePayload!
 
   """Mint (or return) a personal ICS feed for this team's cycles."""
   ensureCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
@@ -14454,6 +14710,8 @@ func (ec *executionContext) childFields_Entitlements(ctx context.Context, field 
 		return ec.fieldContext_Entitlements_auditLog(ctx, field)
 	case "slas":
 		return ec.fieldContext_Entitlements_slas(ctx, field)
+	case "slack":
+		return ec.fieldContext_Entitlements_slack(ctx, field)
 	case "lapsed":
 		return ec.fieldContext_Entitlements_lapsed(ctx, field)
 	}
@@ -16070,6 +16328,60 @@ func (ec *executionContext) childFields_SlaRulePayload(ctx context.Context, fiel
 		return ec.fieldContext_SlaRulePayload_slaRule(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SlaRulePayload", field.Name)
+}
+
+func (ec *executionContext) childFields_SlackConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_SlackConnection_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_SlackConnection_workspaceId(ctx, field)
+	case "creatorId":
+		return ec.fieldContext_SlackConnection_creatorId(ctx, field)
+	case "enabled":
+		return ec.fieldContext_SlackConnection_enabled(ctx, field)
+	case "defaultTeamId":
+		return ec.fieldContext_SlackConnection_defaultTeamId(ctx, field)
+	case "channelName":
+		return ec.fieldContext_SlackConnection_channelName(ctx, field)
+	case "notifyIssues":
+		return ec.fieldContext_SlackConnection_notifyIssues(ctx, field)
+	case "notifyComments":
+		return ec.fieldContext_SlackConnection_notifyComments(ctx, field)
+	case "connectedAt":
+		return ec.fieldContext_SlackConnection_connectedAt(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_SlackConnection_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_SlackConnection_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SlackConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_SlackConnectionPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_SlackConnectionPayload_version(ctx, field)
+	case "slackConnection":
+		return ec.fieldContext_SlackConnectionPayload_slackConnection(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SlackConnectionPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_SlackInbound(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "commandUrl":
+		return ec.fieldContext_SlackInbound_commandUrl(ctx, field)
+	case "eventsUrl":
+		return ec.fieldContext_SlackInbound_eventsUrl(ctx, field)
+	case "webhookConfigured":
+		return ec.fieldContext_SlackInbound_webhookConfigured(ctx, field)
+	case "signingSecretConfigured":
+		return ec.fieldContext_SlackInbound_signingSecretConfigured(ctx, field)
+	case "botTokenConfigured":
+		return ec.fieldContext_SlackInbound_botTokenConfigured(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SlackInbound", field.Name)
 }
 
 func (ec *executionContext) childFields_SubscriptionPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -18289,6 +18601,20 @@ func (ec *executionContext) field_Mutation_createSlaRule_args(ctx context.Contex
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createSlackConnection_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateSlackConnectionInput, error) {
+			return ec.unmarshalNCreateSlackConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateSlackConnectionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -20793,6 +21119,20 @@ func (ec *executionContext) field_Mutation_updateSlaRule_args(ctx context.Contex
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateSlackConnection_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateSlackConnectionInput, error) {
+			return ec.unmarshalNUpdateSlackConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateSlackConnectionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -26423,6 +26763,29 @@ func (ec *executionContext) _Entitlements_slas(ctx context.Context, field graphq
 	)
 }
 func (ec *executionContext) fieldContext_Entitlements_slas(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Entitlements", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Entitlements_slack(ctx context.Context, field graphql.CollectedField, obj *Entitlements) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Entitlements_slack(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slack, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Entitlements_slack(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Entitlements", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -42393,6 +42756,126 @@ func (ec *executionContext) fieldContext_Mutation_linkSentryIssue(ctx context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createSlackConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createSlackConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateSlackConnection(ctx, fc.Args["input"].(CreateSlackConnectionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SlackConnectionPayload) graphql.Marshaler {
+			return ec.marshalNSlackConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackConnectionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createSlackConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SlackConnectionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createSlackConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateSlackConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateSlackConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateSlackConnection(ctx, fc.Args["input"].(UpdateSlackConnectionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SlackConnectionPayload) graphql.Marshaler {
+			return ec.marshalNSlackConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackConnectionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateSlackConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SlackConnectionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateSlackConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteSlackConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteSlackConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().DeleteSlackConnection(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteSlackConnection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_ensureCycleCalendarFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -50964,6 +51447,70 @@ func (ec *executionContext) fieldContext_Query_sentryWebhook(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_slackConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_slackConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SlackConnection(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SlackConnection) graphql.Marshaler {
+			return ec.marshalOSlackConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackConnection(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_slackConnection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SlackConnection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_slackInbound(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_slackInbound(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SlackInbound(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SlackInbound) graphql.Marshaler {
+			return ec.marshalOSlackInbound2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackInbound(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_slackInbound(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SlackInbound(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_cycleCalendarFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -52224,6 +52771,429 @@ func (ec *executionContext) fieldContext_SlaRulePayload_slaRule(_ context.Contex
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _SlackConnection_id(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnection_workspaceId(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnection_creatorId(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_creatorId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatorID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_creatorId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnection_enabled(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnection_defaultTeamId(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_defaultTeamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultTeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_defaultTeamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnection_channelName(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_channelName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_channelName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnection_notifyIssues(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_notifyIssues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NotifyIssues, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_notifyIssues(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnection_notifyComments(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_notifyComments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NotifyComments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_notifyComments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnection_connectedAt(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_connectedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConnectedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_connectedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnection_createdAt(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnection_updatedAt(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnectionPayload_version(ctx context.Context, field graphql.CollectedField, obj *SlackConnectionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnectionPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnectionPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnectionPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SlackConnectionPayload_slackConnection(ctx context.Context, field graphql.CollectedField, obj *SlackConnectionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnectionPayload_slackConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SlackConnection, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SlackConnection) graphql.Marshaler {
+			return ec.marshalNSlackConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackConnection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnectionPayload_slackConnection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SlackConnectionPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SlackConnection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SlackInbound_commandUrl(ctx context.Context, field graphql.CollectedField, obj *SlackInbound) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackInbound_commandUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CommandURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackInbound_commandUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackInbound", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SlackInbound_eventsUrl(ctx context.Context, field graphql.CollectedField, obj *SlackInbound) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackInbound_eventsUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EventsURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackInbound_eventsUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackInbound", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SlackInbound_webhookConfigured(ctx context.Context, field graphql.CollectedField, obj *SlackInbound) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackInbound_webhookConfigured(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WebhookConfigured, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackInbound_webhookConfigured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackInbound", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SlackInbound_signingSecretConfigured(ctx context.Context, field graphql.CollectedField, obj *SlackInbound) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackInbound_signingSecretConfigured(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SigningSecretConfigured, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackInbound_signingSecretConfigured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackInbound", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SlackInbound_botTokenConfigured(ctx context.Context, field graphql.CollectedField, obj *SlackInbound) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackInbound_botTokenConfigured(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BotTokenConfigured, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackInbound_botTokenConfigured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackInbound", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _SubscriptionPayload_version(ctx context.Context, field graphql.CollectedField, obj *SubscriptionPayload) (ret graphql.Marshaler) {
@@ -59802,6 +60772,64 @@ func (ec *executionContext) unmarshalInputCreateSlaRuleInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateSlackConnectionInput(ctx context.Context, obj any) (CreateSlackConnectionInput, error) {
+	var it CreateSlackConnectionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"defaultTeamId", "channelName", "webhookUrl", "notifyIssues", "notifyComments"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "defaultTeamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultTeamId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefaultTeamID = data
+		case "channelName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ChannelName = data
+		case "webhookUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("webhookUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WebhookURL = data
+		case "notifyIssues":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notifyIssues"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NotifyIssues = data
+		case "notifyComments":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notifyComments"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NotifyComments = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateTeamInput(ctx context.Context, obj any) (CreateTeamInput, error) {
 	var it CreateTeamInput
 	if obj == nil {
@@ -62883,6 +63911,71 @@ func (ec *executionContext) unmarshalInputUpdateSlaRuleInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateSlackConnectionInput(ctx context.Context, obj any) (UpdateSlackConnectionInput, error) {
+	var it UpdateSlackConnectionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"defaultTeamId", "channelName", "webhookUrl", "notifyIssues", "notifyComments", "enabled"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "defaultTeamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultTeamId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefaultTeamID = data
+		case "channelName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ChannelName = data
+		case "webhookUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("webhookUrl"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WebhookURL = data
+		case "notifyIssues":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notifyIssues"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NotifyIssues = data
+		case "notifyComments":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notifyComments"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NotifyComments = data
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateTeamArchiveInput(ctx context.Context, obj any) (UpdateTeamArchiveInput, error) {
 	var it UpdateTeamArchiveInput
 	if obj == nil {
@@ -63620,6 +64713,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._SubscriptionPayload(ctx, sel, obj)
+	case SlackConnectionPayload:
+		return ec._SlackConnectionPayload(ctx, sel, &obj)
+	case *SlackConnectionPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._SlackConnectionPayload(ctx, sel, obj)
 	case SLARulePayload:
 		return ec._SlaRulePayload(ctx, sel, &obj)
 	case *SLARulePayload:
@@ -65971,6 +67071,11 @@ func (ec *executionContext) _Entitlements(ctx context.Context, sel ast.Selection
 			}
 		case "slas":
 			out.Values[i] = ec._Entitlements_slas(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "slack":
+			out.Values[i] = ec._Entitlements_slack(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -70131,6 +71236,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createSlackConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createSlackConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateSlackConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateSlackConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteSlackConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteSlackConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "ensureCycleCalendarFeed":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_ensureCycleCalendarFeed(ctx, field)
@@ -74182,6 +75308,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "slackConnection":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_slackConnection(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "slackInbound":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_slackInbound(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "cycleCalendarFeed":
 			field := field
 
@@ -74759,6 +75929,195 @@ func (ec *executionContext) _SlaRulePayload(ctx context.Context, sel ast.Selecti
 			}
 		case "slaRule":
 			out.Values[i] = ec._SlaRulePayload_slaRule(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var slackConnectionImplementors = []string{"SlackConnection"}
+
+func (ec *executionContext) _SlackConnection(ctx context.Context, sel ast.SelectionSet, obj *SlackConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, slackConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SlackConnection")
+		case "id":
+			out.Values[i] = ec._SlackConnection_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._SlackConnection_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "creatorId":
+			out.Values[i] = ec._SlackConnection_creatorId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabled":
+			out.Values[i] = ec._SlackConnection_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "defaultTeamId":
+			out.Values[i] = ec._SlackConnection_defaultTeamId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "channelName":
+			out.Values[i] = ec._SlackConnection_channelName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "notifyIssues":
+			out.Values[i] = ec._SlackConnection_notifyIssues(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "notifyComments":
+			out.Values[i] = ec._SlackConnection_notifyComments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "connectedAt":
+			out.Values[i] = ec._SlackConnection_connectedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._SlackConnection_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._SlackConnection_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var slackConnectionPayloadImplementors = []string{"SlackConnectionPayload", "MutationResult"}
+
+func (ec *executionContext) _SlackConnectionPayload(ctx context.Context, sel ast.SelectionSet, obj *SlackConnectionPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, slackConnectionPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SlackConnectionPayload")
+		case "version":
+			out.Values[i] = ec._SlackConnectionPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "slackConnection":
+			out.Values[i] = ec._SlackConnectionPayload_slackConnection(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var slackInboundImplementors = []string{"SlackInbound"}
+
+func (ec *executionContext) _SlackInbound(ctx context.Context, sel ast.SelectionSet, obj *SlackInbound) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, slackInboundImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SlackInbound")
+		case "commandUrl":
+			out.Values[i] = ec._SlackInbound_commandUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventsUrl":
+			out.Values[i] = ec._SlackInbound_eventsUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "webhookConfigured":
+			out.Values[i] = ec._SlackInbound_webhookConfigured(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "signingSecretConfigured":
+			out.Values[i] = ec._SlackInbound_signingSecretConfigured(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "botTokenConfigured":
+			out.Values[i] = ec._SlackInbound_botTokenConfigured(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -77225,6 +78584,11 @@ func (ec *executionContext) unmarshalNCreateSlaRuleInput2githubᚗcomᚋpeixotol
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateSlackConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateSlackConnectionInput(ctx context.Context, v any) (CreateSlackConnectionInput, error) {
+	res, err := ec.unmarshalInputCreateSlackConnectionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateTeamInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateTeamInput(ctx context.Context, v any) (CreateTeamInput, error) {
 	res, err := ec.unmarshalInputCreateTeamInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -79327,6 +80691,30 @@ func (ec *executionContext) marshalNSlaRulePayload2ᚖgithubᚗcomᚋpeixotolabs
 	return ec._SlaRulePayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNSlackConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackConnection(ctx context.Context, sel ast.SelectionSet, v *SlackConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SlackConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSlackConnectionPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackConnectionPayload(ctx context.Context, sel ast.SelectionSet, v SlackConnectionPayload) graphql.Marshaler {
+	return ec._SlackConnectionPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSlackConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackConnectionPayload(ctx context.Context, sel ast.SelectionSet, v *SlackConnectionPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SlackConnectionPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNStateCategory2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐStateCategory(ctx context.Context, v any) (StateCategory, error) {
 	var res StateCategory
 	err := res.UnmarshalGQL(v)
@@ -79732,6 +81120,11 @@ func (ec *executionContext) unmarshalNUpdateSentryConnectionInput2githubᚗcom�
 
 func (ec *executionContext) unmarshalNUpdateSlaRuleInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateSLARuleInput(ctx context.Context, v any) (UpdateSLARuleInput, error) {
 	res, err := ec.unmarshalInputUpdateSlaRuleInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateSlackConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateSlackConnectionInput(ctx context.Context, v any) (UpdateSlackConnectionInput, error) {
+	res, err := ec.unmarshalInputUpdateSlackConnectionInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -80742,6 +82135,20 @@ func (ec *executionContext) marshalOSlaRule2ᚖgithubᚗcomᚋpeixotolabsᚋpola
 		return graphql.Null
 	}
 	return ec._SlaRule(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSlackConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackConnection(ctx context.Context, sel ast.SelectionSet, v *SlackConnection) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SlackConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSlackInbound2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackInbound(ctx context.Context, sel ast.SelectionSet, v *SlackInbound) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SlackInbound(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

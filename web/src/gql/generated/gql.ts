@@ -14,7 +14,7 @@ import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-
  * Learn more about it here: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client#reducing-bundle-size
  */
 type Documents = {
-    "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        slas\n        lapsed\n      }\n    }\n  }\n": typeof types.EntitlementsDocument,
+    "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        slas\n        slack\n        lapsed\n      }\n    }\n  }\n": typeof types.EntitlementsDocument,
     "\n  query Invites {\n    invites {\n      id\n      email\n      role\n      invitedBy\n      teamIds\n      expiresAt\n      createdAt\n    }\n  }\n": typeof types.InvitesDocument,
     "\n  mutation InviteToWorkspace($input: InviteInput!) {\n    inviteToWorkspace(input: $input) {\n      id\n      email\n      role\n      expiresAt\n      token\n    }\n  }\n": typeof types.InviteToWorkspaceDocument,
     "\n  mutation RevokeInvite($id: UUID!) {\n    revokeInvite(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.RevokeInviteDocument,
@@ -181,6 +181,11 @@ type Documents = {
     "\n  \n  mutation CreateSentryConnection($input: CreateSentryConnectionInput!) {\n    createSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": typeof types.CreateSentryConnectionDocument,
     "\n  \n  mutation UpdateSentryConnection($input: UpdateSentryConnectionInput!) {\n    updateSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": typeof types.UpdateSentryConnectionDocument,
     "\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n": typeof types.DeleteSentryConnectionDocument,
+    "\n  fragment SlackConnectionFields on SlackConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    defaultTeamId\n    channelName\n    notifyIssues\n    notifyComments\n    connectedAt\n    createdAt\n    updatedAt\n  }\n": typeof types.SlackConnectionFieldsFragmentDoc,
+    "\n  query SlackInbound {\n    slackInbound {\n      commandUrl\n      eventsUrl\n      webhookConfigured\n      signingSecretConfigured\n      botTokenConfigured\n    }\n  }\n": typeof types.SlackInboundDocument,
+    "\n  \n  mutation CreateSlackConnection($input: CreateSlackConnectionInput!) {\n    createSlackConnection(input: $input) {\n      version\n      slackConnection {\n        ...SlackConnectionFields\n      }\n    }\n  }\n": typeof types.CreateSlackConnectionDocument,
+    "\n  \n  mutation UpdateSlackConnection($input: UpdateSlackConnectionInput!) {\n    updateSlackConnection(input: $input) {\n      version\n      slackConnection {\n        ...SlackConnectionFields\n      }\n    }\n  }\n": typeof types.UpdateSlackConnectionDocument,
+    "\n  mutation DeleteSlackConnection {\n    deleteSlackConnection {\n      version\n      id\n    }\n  }\n": typeof types.DeleteSlackConnectionDocument,
     "\n  fragment SlaRuleFields on SlaRule {\n    id\n    workspaceId\n    position\n    filter\n    action\n    durationMinutes\n    createdAt\n    updatedAt\n  }\n": typeof types.SlaRuleFieldsFragmentDoc,
     "\n  \n  mutation CreateSlaRule($input: CreateSlaRuleInput!, $clientId: UUID!, $opId: UUID!) {\n    createSlaRule(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      slaRule {\n        ...SlaRuleFields\n      }\n    }\n  }\n": typeof types.CreateSlaRuleDocument,
     "\n  \n  mutation UpdateSlaRule($input: UpdateSlaRuleInput!, $clientId: UUID!, $opId: UUID!) {\n    updateSlaRule(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      slaRule {\n        ...SlaRuleFields\n      }\n    }\n  }\n": typeof types.UpdateSlaRuleDocument,
@@ -260,7 +265,7 @@ type Documents = {
     "\n  \n  mutation UpdateProfile($input: UpdateProfileInput!) {\n    updateProfile(input: $input) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.UpdateProfileDocument,
 };
 const documents: Documents = {
-    "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        slas\n        lapsed\n      }\n    }\n  }\n": types.EntitlementsDocument,
+    "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        slas\n        slack\n        lapsed\n      }\n    }\n  }\n": types.EntitlementsDocument,
     "\n  query Invites {\n    invites {\n      id\n      email\n      role\n      invitedBy\n      teamIds\n      expiresAt\n      createdAt\n    }\n  }\n": types.InvitesDocument,
     "\n  mutation InviteToWorkspace($input: InviteInput!) {\n    inviteToWorkspace(input: $input) {\n      id\n      email\n      role\n      expiresAt\n      token\n    }\n  }\n": types.InviteToWorkspaceDocument,
     "\n  mutation RevokeInvite($id: UUID!) {\n    revokeInvite(id: $id) {\n      version\n      id\n    }\n  }\n": types.RevokeInviteDocument,
@@ -427,6 +432,11 @@ const documents: Documents = {
     "\n  \n  mutation CreateSentryConnection($input: CreateSentryConnectionInput!) {\n    createSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": types.CreateSentryConnectionDocument,
     "\n  \n  mutation UpdateSentryConnection($input: UpdateSentryConnectionInput!) {\n    updateSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": types.UpdateSentryConnectionDocument,
     "\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n": types.DeleteSentryConnectionDocument,
+    "\n  fragment SlackConnectionFields on SlackConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    defaultTeamId\n    channelName\n    notifyIssues\n    notifyComments\n    connectedAt\n    createdAt\n    updatedAt\n  }\n": types.SlackConnectionFieldsFragmentDoc,
+    "\n  query SlackInbound {\n    slackInbound {\n      commandUrl\n      eventsUrl\n      webhookConfigured\n      signingSecretConfigured\n      botTokenConfigured\n    }\n  }\n": types.SlackInboundDocument,
+    "\n  \n  mutation CreateSlackConnection($input: CreateSlackConnectionInput!) {\n    createSlackConnection(input: $input) {\n      version\n      slackConnection {\n        ...SlackConnectionFields\n      }\n    }\n  }\n": types.CreateSlackConnectionDocument,
+    "\n  \n  mutation UpdateSlackConnection($input: UpdateSlackConnectionInput!) {\n    updateSlackConnection(input: $input) {\n      version\n      slackConnection {\n        ...SlackConnectionFields\n      }\n    }\n  }\n": types.UpdateSlackConnectionDocument,
+    "\n  mutation DeleteSlackConnection {\n    deleteSlackConnection {\n      version\n      id\n    }\n  }\n": types.DeleteSlackConnectionDocument,
     "\n  fragment SlaRuleFields on SlaRule {\n    id\n    workspaceId\n    position\n    filter\n    action\n    durationMinutes\n    createdAt\n    updatedAt\n  }\n": types.SlaRuleFieldsFragmentDoc,
     "\n  \n  mutation CreateSlaRule($input: CreateSlaRuleInput!, $clientId: UUID!, $opId: UUID!) {\n    createSlaRule(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      slaRule {\n        ...SlaRuleFields\n      }\n    }\n  }\n": types.CreateSlaRuleDocument,
     "\n  \n  mutation UpdateSlaRule($input: UpdateSlaRuleInput!, $clientId: UUID!, $opId: UUID!) {\n    updateSlaRule(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      slaRule {\n        ...SlaRuleFields\n      }\n    }\n  }\n": types.UpdateSlaRuleDocument,
@@ -523,7 +533,7 @@ export function graphql(source: string): unknown;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        slas\n        lapsed\n      }\n    }\n  }\n"): (typeof documents)["\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        slas\n        lapsed\n      }\n    }\n  }\n"];
+export function graphql(source: "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        slas\n        slack\n        lapsed\n      }\n    }\n  }\n"): (typeof documents)["\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        slas\n        slack\n        lapsed\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -1188,6 +1198,26 @@ export function graphql(source: "\n  \n  mutation UpdateSentryConnection($input:
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment SlackConnectionFields on SlackConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    defaultTeamId\n    channelName\n    notifyIssues\n    notifyComments\n    connectedAt\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment SlackConnectionFields on SlackConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    defaultTeamId\n    channelName\n    notifyIssues\n    notifyComments\n    connectedAt\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query SlackInbound {\n    slackInbound {\n      commandUrl\n      eventsUrl\n      webhookConfigured\n      signingSecretConfigured\n      botTokenConfigured\n    }\n  }\n"): (typeof documents)["\n  query SlackInbound {\n    slackInbound {\n      commandUrl\n      eventsUrl\n      webhookConfigured\n      signingSecretConfigured\n      botTokenConfigured\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateSlackConnection($input: CreateSlackConnectionInput!) {\n    createSlackConnection(input: $input) {\n      version\n      slackConnection {\n        ...SlackConnectionFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateSlackConnection($input: CreateSlackConnectionInput!) {\n    createSlackConnection(input: $input) {\n      version\n      slackConnection {\n        ...SlackConnectionFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateSlackConnection($input: UpdateSlackConnectionInput!) {\n    updateSlackConnection(input: $input) {\n      version\n      slackConnection {\n        ...SlackConnectionFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateSlackConnection($input: UpdateSlackConnectionInput!) {\n    updateSlackConnection(input: $input) {\n      version\n      slackConnection {\n        ...SlackConnectionFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteSlackConnection {\n    deleteSlackConnection {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteSlackConnection {\n    deleteSlackConnection {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
