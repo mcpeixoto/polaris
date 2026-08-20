@@ -470,6 +470,8 @@ func toIssueTemplate(t store.GetIssueTemplateRow) model.IssueTemplate {
 		CreatedAt:   t.CreatedAt,
 		UpdatedAt:   t.UpdatedAt,
 		ArchivedAt:  t.ArchivedAt,
+		EmailIntakeEnabled: t.EmailIntakeEnabled,
+		EmailIntakeAddress: emailIntakeAddressFor(t.EmailIntakeEnabled, t.EmailIntakeAddress),
 	}
 }
 

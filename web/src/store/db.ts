@@ -114,8 +114,9 @@ import {
  *
  * v30 adds slaRule (workspace SLA policies). Numbers 26–29 are reserved for concurrent
  * slices landing on other worktrees, so this bump cannot collide with theirs on main.
+ * v33 adds team and issue-template email intake addresses.
  */
-export const CLIENT_SCHEMA = 30;
+export const CLIENT_SCHEMA = 33;
 
 /**
  * One database per workspace per schema version.
