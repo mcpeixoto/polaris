@@ -81,7 +81,7 @@ const ENUM_FIELDS: Readonly<Record<EntityType, readonly string[]>> = {
   // `plan` looks like an enum and deliberately is not, on either side: it is `String!` in
   // the schema and `string` in the store, because the entitlement matrix is Go and only the
   // plan's *name* is data. Adding it here would upper-case a value nothing else upper-cases.
-  workspace: [],
+  workspace: ['pulseDigestCadence'],
   user: ['role', 'status', 'kind'],
   githubConnection: [],
   githubUserLink: [],

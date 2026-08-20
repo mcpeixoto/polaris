@@ -92,6 +92,8 @@ function buildRows(): EntityRow[] {
     projectUpdateReminderIntervalDays: 7,
     projectUpdateReminderWeekday: 3,
     projectUpdateReminderHour: 9,
+    pulseEnabled: true,
+    pulseDigestCadence: 'daily',
     createdAt: AT,
     updatedAt: AT,
   };

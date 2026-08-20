@@ -92,8 +92,13 @@ function desktopSnapshot(store: Store, viewerId: UUID | null): DesktopSnapshot |
     const issue = row.issueId === undefined ? undefined : store.get('issue', row.issueId);
     const identifier = issue?.identifier ?? 'an issue';
     bodies.set(row.id, {
-      body: describeEvent(row.type, identifier),
-      route: issue === undefined ? '/inbox' : `/issue/${issue.identifier}`,
+      body: describeEvent(row.type, identifier, row.payload),
+      route:
+        row.type === 'pulse_digest'
+          ? '/pulse'
+          : issue === undefined
+            ? '/inbox'
+            : `/issue/${issue.identifier}`,
     });
   }
   return { desktop, unread, bodies };

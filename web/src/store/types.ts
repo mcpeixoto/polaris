@@ -80,6 +80,10 @@ export interface Workspace {
   readonly projectUpdateReminderWeekday: number;
   /** Hour of day (0–23) when reminders would send in the lead's timezone. */
   readonly projectUpdateReminderHour: number;
+  /** When false, Pulse is hidden and the morning digest does not send. */
+  readonly pulseEnabled: boolean;
+  /** Inbox digest cadence. Summaries land around 06:00 in each member's timezone. */
+  readonly pulseDigestCadence: 'off' | 'daily' | 'weekly';
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly archivedAt?: Timestamp;
@@ -587,7 +591,8 @@ export type NotificationType =
   | 'mention'
   | 'sub_issue_completed'
   | 'view_issue_added'
-  | 'view_issue_completed';
+  | 'view_issue_completed'
+  | 'pulse_digest';
 
 /**
  * One inbox row, derived from a change-log row rather than re-derived from entities.

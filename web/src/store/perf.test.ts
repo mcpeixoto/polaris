@@ -73,6 +73,8 @@ function buildRows(): {
     projectUpdateReminderIntervalDays: 7,
     projectUpdateReminderWeekday: 3,
     projectUpdateReminderHour: 9,
+    pulseEnabled: true,
+    pulseDigestCadence: 'daily',
     createdAt: now,
     updatedAt: now,
   };

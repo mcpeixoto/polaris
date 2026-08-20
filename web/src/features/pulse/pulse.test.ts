@@ -29,6 +29,8 @@ function workspace(): Entity {
     projectUpdateReminderIntervalDays: 7,
     projectUpdateReminderWeekday: 3,
     projectUpdateReminderHour: 9,
+    pulseEnabled: true,
+    pulseDigestCadence: 'daily',
     createdAt: CREATED,
     updatedAt: CREATED,
   };

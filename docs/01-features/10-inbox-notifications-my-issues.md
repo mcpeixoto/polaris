@@ -59,4 +59,4 @@ A feed of **project status updates**, available on all plans (not to guests). Si
 
 **Shipped (v1):** replica-derived `/pulse` with **For me** (projects you lead, created, or belong to) and **Recent**. No extra query — posts already in the replica.
 
-**Not yet:** workspace enable + digest cadence, Inbox summaries (~6:00 AM), Popular (emoji/comment engagement), initiative updates, custom feeds, Pulse audio.
+**Not yet:** Popular (emoji/comment engagement), initiative updates, custom feeds, Pulse audio.

@@ -117,7 +117,7 @@ RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
           plan_expires_at, seat_limit, plan_lapsed_at,
           project_update_reminder_interval_days, project_update_reminder_weekday,
-          project_update_reminder_hour
+          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
 `
 
 type CreateWorkspaceParams struct {
@@ -154,6 +154,8 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.ProjectUpdateReminderIntervalDays,
 		&i.ProjectUpdateReminderWeekday,
 		&i.ProjectUpdateReminderHour,
+		&i.PulseEnabled,
+		&i.PulseDigestCadence,
 	)
 	return i, err
 }
@@ -163,7 +165,7 @@ SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
        plan_expires_at, seat_limit, plan_lapsed_at,
        project_update_reminder_interval_days, project_update_reminder_weekday,
-       project_update_reminder_hour
+       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
 FROM workspace
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -188,6 +190,8 @@ func (q *Queries) GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, er
 		&i.ProjectUpdateReminderIntervalDays,
 		&i.ProjectUpdateReminderWeekday,
 		&i.ProjectUpdateReminderHour,
+		&i.PulseEnabled,
+		&i.PulseDigestCadence,
 	)
 	return i, err
 }
@@ -197,7 +201,7 @@ SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
        plan_expires_at, seat_limit, plan_lapsed_at,
        project_update_reminder_interval_days, project_update_reminder_weekday,
-       project_update_reminder_hour
+       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
 FROM workspace
 WHERE url_key = $1 AND deleted_at IS NULL
 `
@@ -222,6 +226,8 @@ func (q *Queries) GetWorkspaceByURLKey(ctx context.Context, urlKey string) (Work
 		&i.ProjectUpdateReminderIntervalDays,
 		&i.ProjectUpdateReminderWeekday,
 		&i.ProjectUpdateReminderHour,
+		&i.PulseEnabled,
+		&i.PulseDigestCadence,
 	)
 	return i, err
 }
@@ -349,13 +355,15 @@ SET name     = COALESCE($1, name),
     project_update_reminder_weekday = COALESCE(
         $5, project_update_reminder_weekday),
     project_update_reminder_hour = COALESCE(
-        $6, project_update_reminder_hour)
-WHERE id = $7 AND deleted_at IS NULL
+        $6, project_update_reminder_hour),
+    pulse_enabled = COALESCE($7, pulse_enabled),
+    pulse_digest_cadence = COALESCE($8, pulse_digest_cadence)
+WHERE id = $9 AND deleted_at IS NULL
 RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
           plan_expires_at, seat_limit, plan_lapsed_at,
           project_update_reminder_interval_days, project_update_reminder_weekday,
-          project_update_reminder_hour
+          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
 `
 
 type UpdateWorkspaceParams struct {
@@ -365,6 +373,8 @@ type UpdateWorkspaceParams struct {
 	ProjectUpdateReminderIntervalDays *int16
 	ProjectUpdateReminderWeekday      *int16
 	ProjectUpdateReminderHour         *int16
+	PulseEnabled                      *bool
+	PulseDigestCadence                *string
 	ID                                uuid.UUID
 }
 
@@ -376,6 +386,8 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		arg.ProjectUpdateReminderIntervalDays,
 		arg.ProjectUpdateReminderWeekday,
 		arg.ProjectUpdateReminderHour,
+		arg.PulseEnabled,
+		arg.PulseDigestCadence,
 		arg.ID,
 	)
 	var i Workspace
@@ -396,6 +408,8 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		&i.ProjectUpdateReminderIntervalDays,
 		&i.ProjectUpdateReminderWeekday,
 		&i.ProjectUpdateReminderHour,
+		&i.PulseEnabled,
+		&i.PulseDigestCadence,
 	)
 	return i, err
 }

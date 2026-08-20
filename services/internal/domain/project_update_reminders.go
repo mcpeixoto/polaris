@@ -35,6 +35,18 @@ func validateProjectUpdateSchedule(schedule *string) error {
 	}
 }
 
+func validatePulseDigestCadence(cadence *string) error {
+	if cadence == nil {
+		return nil
+	}
+	switch *cadence {
+	case model.PulseDigestOff, model.PulseDigestDaily, model.PulseDigestWeekly:
+		return nil
+	default:
+		return platform.Validation("pulseDigestCadence", "cadence must be off, daily, or weekly")
+	}
+}
+
 func int16PtrFromInt(v *int) *int16 {
 	if v == nil {
 		return nil

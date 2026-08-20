@@ -44,6 +44,8 @@ function workspace(): Workspace {
     projectUpdateReminderIntervalDays: 7,
     projectUpdateReminderWeekday: 3,
     projectUpdateReminderHour: 9,
+    pulseEnabled: true,
+    pulseDigestCadence: 'daily',
     createdAt: NOW,
     updatedAt: NOW,
   };
