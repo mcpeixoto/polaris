@@ -199,6 +199,24 @@ type CreateCustomerRequestInput struct {
 	Important  *bool      `json:"important,omitempty"`
 }
 
+type CreateDashboardInput struct {
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	TeamID      *uuid.UUID `json:"teamId,omitempty"`
+	// True keeps the dashboard private to its creator.
+	Private *bool           `json:"private,omitempty"`
+	Filter  json.RawMessage `json:"filter,omitempty"`
+}
+
+type CreateDashboardTileInput struct {
+	DashboardID uuid.UUID             `json:"dashboardId"`
+	Title       *string               `json:"title,omitempty"`
+	Measure     *DashboardMeasure     `json:"measure,omitempty"`
+	Slice       *DashboardSlice       `json:"slice,omitempty"`
+	Display     *DashboardTileDisplay `json:"display,omitempty"`
+	Filter      json.RawMessage       `json:"filter,omitempty"`
+}
+
 type CreateDocumentInput struct {
 	TeamID uuid.UUID `json:"teamId"`
 	// When set, the document belongs to this project rather than the team home.
@@ -560,6 +578,56 @@ type CyclePayload struct {
 }
 
 func (CyclePayload) IsMutationResult() {}
+
+// A page of Insights tiles, workspace / team / personal.
+type Dashboard struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	// Null means the dashboard spans the workspace.
+	TeamID *uuid.UUID `json:"teamId,omitempty"`
+	// Set means it is that person's private dashboard.
+	OwnerID     *uuid.UUID `json:"ownerId,omitempty"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	// Dashboard-level filter, AND-ed with each tile's filter. Same AST as views.
+	Filter     json.RawMessage `json:"filter"`
+	CreatorID  *uuid.UUID      `json:"creatorId,omitempty"`
+	SortOrder  string          `json:"sortOrder"`
+	ArchivedAt *time.Time      `json:"archivedAt,omitempty"`
+	DeletedAt  *time.Time      `json:"deletedAt,omitempty"`
+	DeletedBy  *uuid.UUID      `json:"deletedBy,omitempty"`
+	CreatedAt  time.Time       `json:"createdAt"`
+	UpdatedAt  time.Time       `json:"updatedAt"`
+}
+
+type DashboardPayload struct {
+	Version   int        `json:"version"`
+	Dashboard *Dashboard `json:"dashboard"`
+}
+
+func (DashboardPayload) IsMutationResult() {}
+
+// One Insights chart, table, or metric on a dashboard.
+type DashboardTile struct {
+	ID          uuid.UUID            `json:"id"`
+	WorkspaceID uuid.UUID            `json:"workspaceId"`
+	DashboardID uuid.UUID            `json:"dashboardId"`
+	Title       string               `json:"title"`
+	Measure     DashboardMeasure     `json:"measure"`
+	Slice       DashboardSlice       `json:"slice"`
+	Display     DashboardTileDisplay `json:"display"`
+	Filter      json.RawMessage      `json:"filter"`
+	SortOrder   string               `json:"sortOrder"`
+	CreatedAt   time.Time            `json:"createdAt"`
+	UpdatedAt   time.Time            `json:"updatedAt"`
+}
+
+type DashboardTilePayload struct {
+	Version       int            `json:"version"`
+	DashboardTile *DashboardTile `json:"dashboardTile"`
+}
+
+func (DashboardTilePayload) IsMutationResult() {}
 
 type DeletePayload struct {
 	Version int       `json:"version"`
@@ -1724,6 +1792,22 @@ type UpdateCycleInput struct {
 	EndsAt *time.Time `json:"endsAt,omitempty"`
 }
 
+type UpdateDashboardInput struct {
+	ID          uuid.UUID       `json:"id"`
+	Name        *string         `json:"name,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	Filter      json.RawMessage `json:"filter,omitempty"`
+}
+
+type UpdateDashboardTileInput struct {
+	ID      uuid.UUID             `json:"id"`
+	Title   *string               `json:"title,omitempty"`
+	Measure *DashboardMeasure     `json:"measure,omitempty"`
+	Slice   *DashboardSlice       `json:"slice,omitempty"`
+	Display *DashboardTileDisplay `json:"display,omitempty"`
+	Filter  json.RawMessage       `json:"filter,omitempty"`
+}
+
 type UpdateDocumentInput struct {
 	ID    uuid.UUID `json:"id"`
 	Title *string   `json:"title,omitempty"`
@@ -2370,6 +2454,191 @@ func (e *CustomerStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e CustomerStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Insights measure a dashboard tile charts. Same vocabulary as the live Insights panel.
+type DashboardMeasure string
+
+const (
+	DashboardMeasureCount     DashboardMeasure = "COUNT"
+	DashboardMeasureEffort    DashboardMeasure = "EFFORT"
+	DashboardMeasureCycleTime DashboardMeasure = "CYCLE_TIME"
+	DashboardMeasureLeadTime  DashboardMeasure = "LEAD_TIME"
+	DashboardMeasureIssueAge  DashboardMeasure = "ISSUE_AGE"
+	DashboardMeasureBurnUp    DashboardMeasure = "BURN_UP"
+)
+
+var AllDashboardMeasure = []DashboardMeasure{
+	DashboardMeasureCount,
+	DashboardMeasureEffort,
+	DashboardMeasureCycleTime,
+	DashboardMeasureLeadTime,
+	DashboardMeasureIssueAge,
+	DashboardMeasureBurnUp,
+}
+
+func (e DashboardMeasure) IsValid() bool {
+	switch e {
+	case DashboardMeasureCount, DashboardMeasureEffort, DashboardMeasureCycleTime, DashboardMeasureLeadTime, DashboardMeasureIssueAge, DashboardMeasureBurnUp:
+		return true
+	}
+	return false
+}
+
+func (e DashboardMeasure) String() string {
+	return string(e)
+}
+
+func (e *DashboardMeasure) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DashboardMeasure(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DashboardMeasure", str)
+	}
+	return nil
+}
+
+func (e DashboardMeasure) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DashboardMeasure) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DashboardMeasure) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Dimension a dashboard tile slices by. Same vocabulary as the live Insights panel.
+type DashboardSlice string
+
+const (
+	DashboardSliceAssignee      DashboardSlice = "ASSIGNEE"
+	DashboardSlicePriority      DashboardSlice = "PRIORITY"
+	DashboardSliceStateCategory DashboardSlice = "STATE_CATEGORY"
+	DashboardSliceTeam          DashboardSlice = "TEAM"
+	DashboardSliceProject       DashboardSlice = "PROJECT"
+	DashboardSliceLabel         DashboardSlice = "LABEL"
+)
+
+var AllDashboardSlice = []DashboardSlice{
+	DashboardSliceAssignee,
+	DashboardSlicePriority,
+	DashboardSliceStateCategory,
+	DashboardSliceTeam,
+	DashboardSliceProject,
+	DashboardSliceLabel,
+}
+
+func (e DashboardSlice) IsValid() bool {
+	switch e {
+	case DashboardSliceAssignee, DashboardSlicePriority, DashboardSliceStateCategory, DashboardSliceTeam, DashboardSliceProject, DashboardSliceLabel:
+		return true
+	}
+	return false
+}
+
+func (e DashboardSlice) String() string {
+	return string(e)
+}
+
+func (e *DashboardSlice) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DashboardSlice(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DashboardSlice", str)
+	}
+	return nil
+}
+
+func (e DashboardSlice) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DashboardSlice) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DashboardSlice) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DashboardTileDisplay string
+
+const (
+	DashboardTileDisplayChart  DashboardTileDisplay = "CHART"
+	DashboardTileDisplayTable  DashboardTileDisplay = "TABLE"
+	DashboardTileDisplayMetric DashboardTileDisplay = "METRIC"
+)
+
+var AllDashboardTileDisplay = []DashboardTileDisplay{
+	DashboardTileDisplayChart,
+	DashboardTileDisplayTable,
+	DashboardTileDisplayMetric,
+}
+
+func (e DashboardTileDisplay) IsValid() bool {
+	switch e {
+	case DashboardTileDisplayChart, DashboardTileDisplayTable, DashboardTileDisplayMetric:
+		return true
+	}
+	return false
+}
+
+func (e DashboardTileDisplay) String() string {
+	return string(e)
+}
+
+func (e *DashboardTileDisplay) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DashboardTileDisplay(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DashboardTileDisplay", str)
+	}
+	return nil
+}
+
+func (e DashboardTileDisplay) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DashboardTileDisplay) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DashboardTileDisplay) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

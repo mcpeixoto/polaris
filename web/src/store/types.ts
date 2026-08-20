@@ -903,6 +903,57 @@ export interface SlaRule {
   readonly updatedAt: Timestamp;
 }
 
+export type DashboardMeasure =
+  | 'count'
+  | 'effort'
+  | 'cycle_time'
+  | 'lead_time'
+  | 'issue_age'
+  | 'burn_up';
+
+export type DashboardSlice =
+  | 'assignee'
+  | 'priority'
+  | 'state_category'
+  | 'team'
+  | 'project'
+  | 'label';
+
+export type DashboardTileDisplay = 'chart' | 'table' | 'metric';
+
+/** A page of Insights tiles. Personal when ownerId is set, team-scoped when teamId is. */
+export interface Dashboard {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly teamId?: UUID;
+  readonly ownerId?: UUID;
+  readonly name: string;
+  readonly description: string;
+  readonly filter: FilterNode;
+  readonly creatorId?: UUID;
+  readonly sortOrder: string;
+  readonly archivedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+  readonly deletedBy?: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/** One Insights chart, table, or metric on a dashboard. */
+export interface DashboardTile {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly dashboardId: UUID;
+  readonly title: string;
+  readonly measure: DashboardMeasure;
+  readonly slice: DashboardSlice;
+  readonly display: DashboardTileDisplay;
+  readonly filter: FilterNode;
+  readonly sortOrder: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 export type ProjectUpdateHealth = 'on_track' | 'at_risk' | 'off_track';
 
 export type ProjectUpdateSchedule = 'default' | 'never' | 'custom';
@@ -995,6 +1046,8 @@ export interface EntityByType {
   workflowState: WorkflowState;
   customer: Customer;
   slaRule: SlaRule;
+  dashboard: Dashboard;
+  dashboardTile: DashboardTile;
   label: Label;
   issueTemplate: IssueTemplate;
   formTemplate: FormTemplate;
@@ -1049,6 +1102,8 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'workflowState',
   'customer',
   'slaRule',
+  'dashboard',
+  'dashboardTile',
   // Before issues: an issue may carry a labelId or a templateId.
   'label',
   'issueTemplate',
