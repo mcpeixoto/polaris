@@ -46,6 +46,11 @@ func (s *Service) UpdateCycle(
 		if err != nil {
 			return err
 		}
+		if in.StartsAt != nil || in.EndsAt != nil {
+			if err := refuseInheritedCycleDates(ctx, q, team); err != nil {
+				return err
+			}
+		}
 
 		now := time.Now()
 		phase := classifyCyclePhase(row, now)
@@ -101,6 +106,17 @@ func (s *Service) UpdateCycle(
 
 		out = toCycle(updated)
 		changes := append([]Change{cycleChange(team, out)}, extra...)
+		if in.EndsAt != nil || in.StartsAt != nil {
+			fresh, err := q.GetTeam(ctx, team.ID)
+			if err != nil {
+				return platform.Internal(err)
+			}
+			propagated, err := s.propagateCycleSchedule(ctx, q, fresh, now)
+			if err != nil {
+				return err
+			}
+			changes = append(changes, propagated...)
+		}
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...)
 		return err
 	})
@@ -129,6 +145,9 @@ func (s *Service) StartCycleToday(
 
 		team, err := s.requireTeamAccess(ctx, q, p, target.TeamID, authz.ActionTeamUpdate)
 		if err != nil {
+			return err
+		}
+		if err := refuseInheritedCycleDates(ctx, q, team); err != nil {
 			return err
 		}
 		if !team.CyclesEnabled {
@@ -203,6 +222,16 @@ func (s *Service) StartCycleToday(
 			return err
 		}
 		changes = append(changes, filled...)
+
+		fresh, err := q.GetTeam(ctx, team.ID)
+		if err != nil {
+			return platform.Internal(err)
+		}
+		propagated, err := s.propagateCycleSchedule(ctx, q, fresh, now)
+		if err != nil {
+			return err
+		}
+		changes = append(changes, propagated...)
 
 		out = toCycle(updated)
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...)

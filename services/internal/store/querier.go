@@ -378,6 +378,9 @@ type Querier interface {
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
 	DeleteCustomerDomains(ctx context.Context, customerID uuid.UUID) error
 	DeleteCustomerRequest(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
+	// A single window, used when a sub-team remaps upcoming cycles onto a parent schedule.
+	// Issues on the row SET NULL via the FK; callers re-point open work first.
+	DeleteCycle(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteDashboardTile(ctx context.Context, id uuid.UUID) (DashboardTile, error)
 	DeleteDraft(ctx context.Context, arg DeleteDraftParams) (uuid.UUID, error)
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
