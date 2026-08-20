@@ -366,6 +366,21 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			}
 		}
 
+		if includeWorkspaceScoped {
+			if err := streamPages(ctx, w, "slaRule",
+				func(ctx context.Context, after uuid.UUID) ([]store.SlaRule, error) {
+					return q.StreamSlaRulesForBootstrap(ctx, store.StreamSlaRulesForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(r store.SlaRule) (uuid.UUID, any) { return r.ID, toSlaRule(r) },
+			); err != nil {
+				return err
+			}
+		}
+
 		// Labels and templates come before the issues, and that is not cosmetic: an
 		// application names a label and an issue may name the template it was created from,
 		// so a client applying rows as they arrive would otherwise hold a chip with no name
@@ -977,8 +992,9 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
 // v24 adds recurringIssue, team default template ids, and issue.recurringIssueId.
 // v25 adds customer and customerRequest.
+// v30 adds slaRule (workspace SLA policies).
 // v32 adds comment.anchorStart / anchorEnd / quote (inline comments on descriptions).
-// Numbers 26–31 are reserved for concurrent slices on other worktrees.
+// Numbers 26–29 and 31 are reserved for concurrent slices on other worktrees.
 const ClientSchemaVersion = 32
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.

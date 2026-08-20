@@ -51,6 +51,7 @@ import { SignUp } from '~/views/SignUp';
 import { Archives } from '~/views/Archives';
 import { Trash } from '~/views/Trash';
 import { DeletedTeams } from '~/views/DeletedTeams';
+import { SlaSettings } from '~/views/SlaSettings';
 import { DocumentDetail } from '~/views/DocumentDetail';
 import { Documents } from '~/views/Documents';
 import { Initiatives } from '~/views/Initiatives';
@@ -181,6 +182,7 @@ function SignedInShell() {
         <Route path="/settings/labels" element={<LabelSettings />} />
         <Route path="/settings/project-labels" element={<ProjectLabelSettings />} />
         <Route path="/settings/project-updates" element={<ProjectUpdateSettings />} />
+        <Route path="/settings/slas" element={<SlaSettings />} />
         <Route path="/settings/notifications" element={<NotificationSettings />} />
         <Route path="/settings/preferences" element={<Preferences />} />
         <Route path="/settings/templates" element={<Templates />} />

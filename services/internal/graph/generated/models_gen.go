@@ -407,6 +407,12 @@ type CreateRecurringIssueInput struct {
 	SourceIssueID *uuid.UUID `json:"sourceIssueId,omitempty"`
 }
 
+type CreateSLARuleInput struct {
+	Filter          json.RawMessage `json:"filter,omitempty"`
+	Action          SLAAction       `json:"action"`
+	DurationMinutes *int            `json:"durationMinutes,omitempty"`
+}
+
 type CreateTeamInput struct {
 	Key         string  `json:"key"`
 	Name        string  `json:"name"`
@@ -600,6 +606,8 @@ type Entitlements struct {
 	APIKeys            bool `json:"apiKeys"`
 	Sso                bool `json:"sso"`
 	AuditLog           bool `json:"auditLog"`
+	// Business+: SLA rules that own an issue's due date.
+	Slas bool `json:"slas"`
 	// Set while a paid plan is lapsed: reads work, gated writes do not.
 	Lapsed bool `json:"lapsed"`
 }
@@ -1449,6 +1457,31 @@ type SearchResults struct {
 	IssueCount int `json:"issueCount"`
 }
 
+type SetIssueSLAInput struct {
+	IssueID         uuid.UUID `json:"issueId"`
+	DurationMinutes int       `json:"durationMinutes"`
+}
+
+// A workspace policy for issue due dates. Rules are ordered by position; first match wins.
+// Applying one sets dueDate and dueDateSource=sla. Removing one clears an SLA-owned date.
+type SLARule struct {
+	ID              uuid.UUID       `json:"id"`
+	WorkspaceID     uuid.UUID       `json:"workspaceId"`
+	Position        string          `json:"position"`
+	Filter          json.RawMessage `json:"filter"`
+	Action          SLAAction       `json:"action"`
+	DurationMinutes *int            `json:"durationMinutes,omitempty"`
+	CreatedAt       time.Time       `json:"createdAt"`
+	UpdatedAt       time.Time       `json:"updatedAt"`
+}
+
+type SLARulePayload struct {
+	Version int      `json:"version"`
+	SLARule *SLARule `json:"slaRule"`
+}
+
+func (SLARulePayload) IsMutationResult() {}
+
 type SubscriptionPayload struct {
 	Version      int                `json:"version"`
 	Subscription *IssueSubscription `json:"subscription"`
@@ -1797,6 +1830,14 @@ type UpdateRecurringIssueInput struct {
 	Cadence    *RecurringCadence `json:"cadence,omitempty"`
 	// Calendar day, `2006-01-02`. The due date of the current occurrence.
 	NextDueDate *string `json:"nextDueDate,omitempty"`
+}
+
+type UpdateSLARuleInput struct {
+	ID              uuid.UUID       `json:"id"`
+	Filter          json.RawMessage `json:"filter,omitempty"`
+	Action          *SLAAction      `json:"action,omitempty"`
+	DurationMinutes *int            `json:"durationMinutes,omitempty"`
+	AfterID         *uuid.UUID      `json:"afterId,omitempty"`
 }
 
 type UpdateTeamArchiveInput struct {
@@ -2938,6 +2979,61 @@ func (e *RelationType) UnmarshalJSON(b []byte) error {
 }
 
 func (e RelationType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SLAAction string
+
+const (
+	SLAActionApply  SLAAction = "APPLY"
+	SLAActionRemove SLAAction = "REMOVE"
+)
+
+var AllSLAAction = []SLAAction{
+	SLAActionApply,
+	SLAActionRemove,
+}
+
+func (e SLAAction) IsValid() bool {
+	switch e {
+	case SLAActionApply, SLAActionRemove:
+		return true
+	}
+	return false
+}
+
+func (e SLAAction) String() string {
+	return string(e)
+}
+
+func (e *SLAAction) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SLAAction(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SlaAction", str)
+	}
+	return nil
+}
+
+func (e SLAAction) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SLAAction) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SLAAction) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

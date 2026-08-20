@@ -10,6 +10,7 @@ import {
   type Cycle,
   type Customer,
   type CustomerRequest,
+  type SlaRule,
   type Entity,
   type EntityOf,
   type EntityType,
@@ -110,8 +111,9 @@ import {
  * v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
  * v24 adds recurringIssue, team default template ids, and issue.recurringIssueId.
  * v25 adds customer and customerRequest.
+ * v30 adds slaRule (workspace SLA policies).
  * v32 adds comment.anchorStart / anchorEnd / quote (inline comments on descriptions).
- * Numbers 26–31 are reserved for concurrent slices on other worktrees.
+ * Numbers 26–29 and 31 are reserved for concurrent slices on other worktrees.
  */
 export const CLIENT_SCHEMA = 32;
 
@@ -191,6 +193,7 @@ interface PolarisSchema extends DBSchema {
   teamMembership: { key: UUID; value: TeamMembership };
   workflowState: { key: UUID; value: WorkflowState };
   customer: { key: UUID; value: Customer };
+  slaRule: { key: UUID; value: SlaRule };
   label: { key: UUID; value: Label };
   issueTemplate: { key: UUID; value: IssueTemplate };
   formTemplate: { key: UUID; value: FormTemplate };

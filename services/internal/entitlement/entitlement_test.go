@@ -47,6 +47,7 @@ func TestFeatures_MatchesTheGraphQLContract(t *testing.T) {
 		"apiKeys":            "APIKeys",
 		"sso":                "SSO",
 		"auditLog":           "AuditLog",
+		"slas":               "SLAs",
 	}
 
 	path := filepath.Join("..", "..", "..", "schema", "schema.graphql")
@@ -152,17 +153,17 @@ func TestFor_EveryPlan(t *testing.T) {
 				SeatLimit: 5, TeamLimit: 2, HistoryDays: 90,
 				PrivateTeams: false, SubTeams: false, MultiLevelSubTeams: false,
 				CustomViews: true, APIKeys: true,
-				SSO: false, AuditLog: false,
+				SSO: false, AuditLog: false, SLAs: false,
 			},
 		},
 		{
-			name: "pro lifts the caps and nothing else",
+			name: "pro lifts the caps and adds SLAs",
 			plan: PlanPro,
 			want: Features{
 				SeatLimit: Unlimited, TeamLimit: Unlimited, HistoryDays: Unlimited,
 				PrivateTeams: true, SubTeams: true, MultiLevelSubTeams: false,
 				CustomViews: true, APIKeys: true,
-				SSO: false, AuditLog: false,
+				SSO: false, AuditLog: false, SLAs: true,
 			},
 		},
 		{
@@ -172,7 +173,7 @@ func TestFor_EveryPlan(t *testing.T) {
 				SeatLimit: Unlimited, TeamLimit: Unlimited, HistoryDays: Unlimited,
 				PrivateTeams: true, SubTeams: true, MultiLevelSubTeams: true,
 				CustomViews: true, APIKeys: true,
-				SSO: true, AuditLog: true,
+				SSO: true, AuditLog: true, SLAs: true,
 			},
 		},
 		{
@@ -184,7 +185,7 @@ func TestFor_EveryPlan(t *testing.T) {
 				SeatLimit: Unlimited, TeamLimit: Unlimited, HistoryDays: Unlimited,
 				PrivateTeams: true, SubTeams: true, MultiLevelSubTeams: true,
 				CustomViews: true, APIKeys: true,
-				SSO: false, AuditLog: false,
+				SSO: false, AuditLog: false, SLAs: true,
 			},
 		},
 		{
@@ -225,7 +226,7 @@ func TestMatrix_CoversEveryPlan(t *testing.T) {
 // A Feature constant that has() does not answer is denied through the default branch, and
 // the symptom is a customer paying for something the code has never heard of.
 func TestFeatures_EveryFeatureIsClassified(t *testing.T) {
-	if len(AllFeatures) != 7 {
+	if len(AllFeatures) != 8 {
 		t.Fatalf("AllFeatures has %d entries: classify the new one in has(), then update this count", len(AllFeatures))
 	}
 	for _, f := range AllFeatures {
@@ -302,11 +303,11 @@ func TestAllow_EveryPlanEveryFeature(t *testing.T) {
 			// Custom views and API keys stay free; private teams are Business+.
 			plan:  PlanFree,
 			allow: []Feature{FeatureCustomViews, FeatureAPIKeys},
-			deny:  []Feature{FeaturePrivateTeams, FeatureSubTeams, FeatureMultiLevelSubTeams, FeatureSSO, FeatureAuditLog},
+			deny:  []Feature{FeaturePrivateTeams, FeatureSubTeams, FeatureMultiLevelSubTeams, FeatureSSO, FeatureAuditLog, FeatureSLAs},
 		},
 		{
 			plan:  PlanPro,
-			allow: []Feature{FeaturePrivateTeams, FeatureSubTeams, FeatureCustomViews, FeatureAPIKeys},
+			allow: []Feature{FeaturePrivateTeams, FeatureSubTeams, FeatureCustomViews, FeatureAPIKeys, FeatureSLAs},
 			deny:  []Feature{FeatureMultiLevelSubTeams, FeatureSSO, FeatureAuditLog},
 		},
 		{
@@ -316,7 +317,7 @@ func TestAllow_EveryPlanEveryFeature(t *testing.T) {
 		},
 		{
 			plan:  PlanSelfHosted,
-			allow: []Feature{FeaturePrivateTeams, FeatureSubTeams, FeatureMultiLevelSubTeams, FeatureCustomViews, FeatureAPIKeys},
+			allow: []Feature{FeaturePrivateTeams, FeatureSubTeams, FeatureMultiLevelSubTeams, FeatureCustomViews, FeatureAPIKeys, FeatureSLAs},
 			deny:  []Feature{FeatureSSO, FeatureAuditLog},
 		},
 	}

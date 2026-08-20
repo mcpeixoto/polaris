@@ -29,6 +29,7 @@ import {
   type Cycle,
   type Customer,
   type CustomerRequest,
+  type SlaRule,
   type Entity,
   type EntityOf,
   type EntityType,
@@ -163,6 +164,7 @@ export class Store {
     teamMembership: new Map(),
     workflowState: new Map(),
     customer: new Map(),
+    slaRule: new Map(),
     label: new Map(),
     issueTemplate: new Map(),
     formTemplate: new Map(),
@@ -422,6 +424,10 @@ export class Store {
 
   get customers(): ReadonlyMap<UUID, Customer> {
     return this.tables.customer as ReadonlyMap<UUID, Customer>;
+  }
+
+  get slaRules(): ReadonlyMap<UUID, SlaRule> {
+    return this.tables.slaRule as ReadonlyMap<UUID, SlaRule>;
   }
 
   get customerRequests(): ReadonlyMap<UUID, CustomerRequest> {

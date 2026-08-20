@@ -289,6 +289,10 @@ export interface DueDatePickerProps extends PickerProps {
   now?: number | undefined;
   /** `null` clears the due date. */
   onSelect: (dueDate: DateOnly | null) => void;
+  /** Takes the issue out of SLA ownership so a human can set the date again. */
+  onClearSla?: () => void;
+  /** Applies a duration as an SLA-owned due date. */
+  onSetSla?: (minutes: number) => void;
 }
 
 /**
@@ -320,6 +324,8 @@ export function DueDatePicker({
   timezone,
   now,
   onSelect,
+  onClearSla,
+  onSetSla,
 }: DueDatePickerProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [point, setPoint] = useState<Point | null>(null);
@@ -447,6 +453,18 @@ export function DueDatePicker({
             the team, or take the issue out of its scope.
           </p>
           <div className={styles.footer}>
+            {onClearSla === undefined ? null : (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  onClearSla();
+                  onClose();
+                }}
+              >
+                Remove SLA
+              </Button>
+            )}
             <Button size="sm" variant="primary" onClick={onClose}>
               Close
             </Button>
@@ -512,6 +530,30 @@ export function DueDatePicker({
             >
               No due date
             </Button>
+            {onSetSla === undefined ? null : (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    onSetSla(1440);
+                    onClose();
+                  }}
+                >
+                  24-hour SLA
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    onSetSla(10080);
+                    onClose();
+                  }}
+                >
+                  1-week SLA
+                </Button>
+              </>
+            )}
           </div>
         </>
       )}

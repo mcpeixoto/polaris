@@ -124,6 +124,7 @@ const (
 	FeatureAPIKeys            Feature = "api_keys"
 	FeatureSSO                Feature = "sso"
 	FeatureAuditLog           Feature = "audit_log"
+	FeatureSLAs               Feature = "slas"
 )
 
 // AllFeatures exists for the same reason as AllPlans: it is what lets a test prove the
@@ -131,6 +132,7 @@ const (
 var AllFeatures = []Feature{
 	FeaturePrivateTeams, FeatureSubTeams, FeatureMultiLevelSubTeams,
 	FeatureCustomViews, FeatureAPIKeys, FeatureSSO, FeatureAuditLog,
+	FeatureSLAs,
 }
 
 // Label names the feature in a sentence a customer reads, and is phrased to work as the
@@ -151,6 +153,8 @@ func (f Feature) Label() string {
 		return "SAML SSO"
 	case FeatureAuditLog:
 		return "The audit log"
+	case FeatureSLAs:
+		return "SLAs"
 	}
 	return string(f)
 }
@@ -201,6 +205,7 @@ type Features struct {
 	APIKeys            bool
 	SSO                bool
 	AuditLog           bool
+	SLAs               bool
 }
 
 // The matrix. This table is the packaging decision, and everything else in this package is
@@ -231,6 +236,7 @@ var matrix = map[Plan]Features{
 		APIKeys:            true,
 		SSO:                false,
 		AuditLog:           false,
+		SLAs:               false,
 	},
 	PlanPro: {
 		SeatLimit:          Unlimited,
@@ -243,6 +249,7 @@ var matrix = map[Plan]Features{
 		APIKeys:            true,
 		SSO:                false,
 		AuditLog:           false,
+		SLAs:               true,
 	},
 	PlanEnterprise: {
 		SeatLimit:          Unlimited,
@@ -255,6 +262,7 @@ var matrix = map[Plan]Features{
 		APIKeys:            true,
 		SSO:                true,
 		AuditLog:           true,
+		SLAs:               true,
 	},
 	// Unlimited on seats is the whole claim of an open-source tracker: anybody who wants
 	// to run this for 300 people without paying may. A seat count here would make the
@@ -270,6 +278,7 @@ var matrix = map[Plan]Features{
 		APIKeys:            true,
 		SSO:                false,
 		AuditLog:           false,
+		SLAs:               true,
 	},
 }
 
@@ -306,6 +315,8 @@ func (f Features) has(feat Feature) (allowed, known bool) {
 		return f.SSO, true
 	case FeatureAuditLog:
 		return f.AuditLog, true
+	case FeatureSLAs:
+		return f.SLAs, true
 	}
 	return false, false
 }
@@ -338,6 +349,7 @@ func (f Features) narrow(other Features) Features {
 		APIKeys:            f.APIKeys && other.APIKeys,
 		SSO:                f.SSO && other.SSO,
 		AuditLog:           f.AuditLog && other.AuditLog,
+		SLAs:               f.SLAs && other.SLAs,
 	}
 }
 
