@@ -3746,6 +3746,24 @@ func (r *mutationResolver) EnsureCycleCalendarFeed(ctx context.Context, teamID u
 	}, nil
 }
 
+// RotateCycleCalendarFeed is the resolver for the rotateCycleCalendarFeed field.
+func (r *mutationResolver) RotateCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*generated.CycleCalendarFeedPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	feed, token, version, err := r.Svc.RotateCycleCalendarFeed(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toCycleCalendarFeed(feed)
+	return &generated.CycleCalendarFeedPayload{
+		Version:           int(version),
+		CycleCalendarFeed: &out,
+		URL:               domain.CycleCalendarURL(r.PublicURL, token),
+	}, nil
+}
+
 // CreateDraft is the resolver for the createDraft field.
 func (r *mutationResolver) CreateDraft(ctx context.Context, input generated.CreateDraftInput) (*generated.DraftPayload, error) {
 	p, err := principalFrom(ctx)

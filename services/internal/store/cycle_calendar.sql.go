@@ -116,6 +116,44 @@ func (q *Queries) GetCycleCalendarFeedForOwner(ctx context.Context, arg GetCycle
 	return i, err
 }
 
+const rotateCycleCalendarFeedToken = `-- name: RotateCycleCalendarFeedToken :one
+UPDATE cycle_calendar_feed
+SET token = $1
+WHERE team_id = $2 AND user_id = $3
+RETURNING id, workspace_id, team_id, user_id, created_at, updated_at
+`
+
+type RotateCycleCalendarFeedTokenParams struct {
+	Token  string
+	TeamID uuid.UUID
+	UserID uuid.UUID
+}
+
+type RotateCycleCalendarFeedTokenRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamID      uuid.UUID
+	UserID      uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// RotateCycleCalendarFeedToken replaces the secret. The previous URL 404s from this
+// statement's commit; RETURNING omits token for the same reason Create does.
+func (q *Queries) RotateCycleCalendarFeedToken(ctx context.Context, arg RotateCycleCalendarFeedTokenParams) (RotateCycleCalendarFeedTokenRow, error) {
+	row := q.db.QueryRow(ctx, rotateCycleCalendarFeedToken, arg.Token, arg.TeamID, arg.UserID)
+	var i RotateCycleCalendarFeedTokenRow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.TeamID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const streamCycleCalendarFeedsForBootstrap = `-- name: StreamCycleCalendarFeedsForBootstrap :many
 SELECT id, workspace_id, team_id, user_id, created_at, updated_at
 FROM cycle_calendar_feed
