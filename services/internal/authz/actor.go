@@ -101,20 +101,34 @@ type Principal struct {
 	// Set when the caller authenticated with an API key or OAuth token rather than a
 	// session, in which case the granted scopes further narrow what they may do.
 	Scopes []string
+
+	// ActorType is ActorAppUser when this principal is an OAuth app installation.
+	ActorType ActorType
+
+	// ApplicationID is set when the caller authenticated with an OAuth access token.
+	ApplicationID uuid.UUID
 }
 
 func (p *Principal) IsGuest() bool { return p.Role == RoleGuest }
 
-func (p *Principal) Actor() Actor { return UserActor(p.UserID) }
+func (p *Principal) Actor() Actor {
+	if p != nil && p.ActorType == ActorAppUser {
+		return AppActor(p.UserID)
+	}
+	return UserActor(p.UserID)
+}
 
 // HasScope reports whether an API-key or OAuth caller was granted a scope. A session
 // caller has no scope restrictions and always passes.
 func (p *Principal) HasScope(want string) bool {
-	if len(p.Scopes) == 0 {
+	if p == nil || len(p.Scopes) == 0 {
 		return true
 	}
 	for _, s := range p.Scopes {
 		if s == want || s == "admin" {
+			return true
+		}
+		if want == "read" && (s == "write" || s == "issues:create" || s == "comments:create") {
 			return true
 		}
 	}

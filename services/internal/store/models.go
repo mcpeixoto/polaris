@@ -502,6 +502,75 @@ type NotificationEmailCursor struct {
 	LastSentAt time.Time
 }
 
+type OauthAppUser struct {
+	ApplicationID uuid.UUID
+	WorkspaceID   uuid.UUID
+	UserID        uuid.UUID
+	CreatedAt     time.Time
+}
+
+type OauthApplication struct {
+	ID                       uuid.UUID
+	WorkspaceID              uuid.UUID
+	CreatorID                uuid.UUID
+	Name                     string
+	Description              *string
+	Developer                *string
+	DeveloperUrl             *string
+	ImageUrl                 *string
+	ClientID                 string
+	ClientSecretHash         []byte
+	ClientSecretPrefix       string
+	RedirectUris             []string
+	AllowedScopes            []string
+	PublicEnabled            bool
+	ClientCredentialsEnabled bool
+	WebhookUrl               *string
+	ArchivedAt               *time.Time
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+}
+
+type OauthAuthorizationCode struct {
+	ID                  uuid.UUID
+	ApplicationID       uuid.UUID
+	WorkspaceID         uuid.UUID
+	UserID              uuid.UUID
+	ActorKind           string
+	CodeHash            []byte
+	RedirectUri         string
+	Scopes              []string
+	CodeChallenge       *string
+	CodeChallengeMethod *string
+	TeamIds             []uuid.UUID
+	ExpiresAt           time.Time
+	ConsumedAt          *time.Time
+	CreatedAt           time.Time
+}
+
+type OauthToken struct {
+	ID                     uuid.UUID
+	ApplicationID          uuid.UUID
+	WorkspaceID            uuid.UUID
+	UserID                 uuid.UUID
+	AuthorizingUserID      *uuid.UUID
+	GrantType              string
+	AccessTokenHash        []byte
+	RefreshTokenHash       []byte
+	Scopes                 []string
+	TeamIds                []uuid.UUID
+	AccessExpiresAt        time.Time
+	RefreshExpiresAt       *time.Time
+	RevokedAt              *time.Time
+	LastUsedAt             *time.Time
+	ReplacedBy             *uuid.UUID
+	RefreshReplayableUntil *time.Time
+	SuccessorAccessToken   *string
+	SuccessorRefreshToken  *string
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
 type Project struct {
 	ID                         uuid.UUID
 	WorkspaceID                uuid.UUID

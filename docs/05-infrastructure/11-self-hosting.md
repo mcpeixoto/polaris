@@ -417,6 +417,7 @@ correct.
 | `/sync` | `sync` `:8089` | WebSocket upgrade must be enabled. Idle read timeout must be long — an idle socket is this service's normal state |
 | `/graphql` | `api` `:8088` | |
 | `/auth/*` | `api` `:8088` | |
+| `/oauth/token`, `/oauth/revoke` | `api` `:8088` | Token exchange and revocation. Consent (`GET /oauth/authorize`) is the SPA. |
 | `/healthz`, `/readyz` | `api` `:8088` | Or wherever you want your uptime check to land |
 | everything else | web `:8080` | The SPA, which handles its own client-side routing |
 

@@ -28,7 +28,7 @@ func principal(role Role, teams ...uuid.UUID) *Principal {
 // somebody adding an action to come back and classify it rather than only appending to
 // the const block.
 func TestEveryActionIsClassified(t *testing.T) {
-	const want = 32
+	const want = 33
 	if len(AllActions) != want {
 		t.Fatalf("AllActions has %d entries, expected %d — a new action must be added to "+
 			"AllActions and to teamScoped if it is team-scoped", len(AllActions), want)
@@ -118,6 +118,9 @@ func TestGuestsAreScopedNotWeakened(t *testing.T) {
 	}
 	if Can(guest, ActionWebhookManage) {
 		t.Error("a guest must not create webhooks — they push workspace data to a URL")
+	}
+	if Can(guest, ActionOauthClientManage) {
+		t.Error("a guest must not create OAuth applications")
 	}
 	if Can(guest, ActionTeamJoin) {
 		t.Error("a guest must not add themselves to teams")

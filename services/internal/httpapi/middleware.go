@@ -140,6 +140,27 @@ func Authenticate(tokens *Tokens, svc *domain.Service) func(http.Handler) http.H
 				return
 			}
 
+			if domain.IsOauthAccessToken(token) {
+				principal, err := svc.AuthenticateOauthToken(r.Context(), token)
+				if err != nil {
+					writeError(w, r, err)
+					return
+				}
+				if ws := workspaceFromRequest(r); ws != uuid.Nil && ws != principal.WorkspaceID {
+					writeError(w, r, platform.Unauthorized("this access token does not belong to that workspace"))
+					return
+				}
+				ctx := r.Context()
+				if principal.AccountID != uuid.Nil {
+					ctx = WithAccount(ctx, principal.AccountID)
+				}
+				ctx = authz.WithPrincipal(ctx, principal)
+				ctx = platform.WithLogger(ctx, platform.Log(ctx).With(
+					"workspace", principal.WorkspaceID, "user", principal.UserID, "auth", "oauth"))
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			claims, err := tokens.Parse(token)
 			if err != nil {
 				// An expired token is the normal case, not an attack: the client
@@ -169,11 +190,17 @@ func Authenticate(tokens *Tokens, svc *domain.Service) func(http.Handler) http.H
 // RequireAuth rejects a request with no authenticated account.
 func RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := AccountFrom(r.Context()); !ok {
-			writeError(w, r, platform.Unauthorized(""))
+		if _, ok := AccountFrom(r.Context()); ok {
+			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(r.Context()))
+		// OAuth actor=app tokens resolve a principal with no account: the app user has
+		// no login. GraphQL still has a caller.
+		if _, ok := authz.PrincipalFrom(r.Context()); ok {
+			next.ServeHTTP(w, r)
+			return
+		}
+		writeError(w, r, platform.Unauthorized(""))
 	})
 }
 
