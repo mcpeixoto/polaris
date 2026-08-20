@@ -207,6 +207,18 @@
   overflow: hidden;
 }
 
+.chipLink {
+  display: inline-flex;
+  color: inherit;
+  text-decoration: none;
+}
+
+.chipLink:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
 .meta {
   display: flex;
   align-items: center;

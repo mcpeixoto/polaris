@@ -34,6 +34,7 @@ import { Inbox } from '~/views/Inbox';
 import { Pulse } from '~/views/Pulse';
 import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
+import { LabelView } from '~/views/LabelView';
 import { MemberSettings } from '~/views/MemberSettings';
 import { McpSettings } from '~/views/McpSettings';
 import { MyIssues } from '~/views/MyIssues';
@@ -48,6 +49,7 @@ import { Projects } from '~/views/Projects';
 import { CycleDetail } from '~/views/CycleDetail';
 import { Cycles } from '~/views/Cycles';
 import { Triage } from '~/views/Triage';
+import { UserView } from '~/views/UserView';
 import { SavedView } from '~/views/SavedView';
 import { Search } from '~/views/Search';
 import { Templates } from '~/views/Templates';
@@ -178,6 +180,8 @@ function SignedInShell() {
         <Route path="/dashboards" element={<Dashboards />} />
         <Route path="/dashboard/:dashboardId" element={<DashboardDetail />} />
         <Route path="/view/:viewId" element={<SavedView />} />
+        <Route path="/label/:labelId" element={<LabelView />} />
+        <Route path="/user/:userId" element={<UserView />} />
         <Route path="/team/:teamKey" element={<IssueList />} />
         <Route path="/team/:teamKey/home" element={<TeamHome />} />
         <Route path="/team/:teamKey/new" element={<CreateIssueFromUrl />} />

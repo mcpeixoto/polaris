@@ -7,6 +7,7 @@
  */
 
 import { type ReactNode } from 'react';
+import { Link } from 'react-router';
 
 import {
   Avatar,
@@ -17,6 +18,7 @@ import {
   StateIcon,
 } from '~/components';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
+import { labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { DueDateValue } from '~/features/issue/properties';
 import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -73,13 +75,13 @@ export function Peek({ issueId }: { issueId: UUID | null }) {
           {priorityLabel(issue.priority)}
         </Fact>
         <Fact label="Assignee">
-          {issue.assigneeName === null ? (
+          {issue.assigneeName === null || issue.assigneeId === null ? (
             'No assignee'
           ) : (
-            <>
-              <Avatar name={issue.assigneeName} src={issue.assigneeAvatar} size="xs" />
+            <Link className={styles.entityLink} to={userViewPath(issue.assigneeId)}>
+              <Avatar name={issue.assigneeName} src={issue.assigneeAvatar} size="xs" decorative />
               {issue.assigneeName}
-            </>
+            </Link>
           )}
         </Fact>
         {issue.cycleName === null ? null : <Fact label="Cycle">{issue.cycleName}</Fact>}
@@ -105,7 +107,9 @@ export function Peek({ issueId }: { issueId: UUID | null }) {
       {issue.labels.length > 0 && (
         <div className={styles.labels}>
           {issue.labels.map((label) => (
-            <LabelChip key={label.id} compact name={label.name} color={label.color} />
+            <Link key={label.id} className={styles.entityLink} to={labelViewPath(label.id)}>
+              <LabelChip compact name={label.name} color={label.color} />
+            </Link>
           ))}
         </div>
       )}
@@ -144,6 +148,7 @@ interface PeekIssue {
   readonly stateCategory: StateCategory;
   readonly stateColor: string | undefined;
   readonly priority: number;
+  readonly assigneeId: UUID | null;
   readonly assigneeName: string | null;
   readonly assigneeAvatar: string | null;
   readonly cycleName: string | null;
@@ -181,6 +186,7 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
     stateCategory: state?.category ?? 'backlog',
     stateColor: state?.color,
     priority: found.priority,
+    assigneeId: found.assigneeId ?? null,
     assigneeName: assignee?.displayName ?? null,
     assigneeAvatar: assignee?.avatarUrl ?? null,
     cycleName: found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
