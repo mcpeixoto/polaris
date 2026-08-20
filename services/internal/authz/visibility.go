@@ -79,6 +79,10 @@ type Scope struct {
 
 	// UserID is the sole recipient for ScopeUser.
 	UserID *uuid.UUID `json:"user_id,omitempty"`
+
+	// MembersOnly withholds the row from guests even when they sit in a matching team.
+	// Customers and customer requests are workspace features guests must not see.
+	MembersOnly bool `json:"members_only,omitempty"`
 }
 
 func WorkspaceScope() Scope { return Scope{Kind: ScopeWorkspace} }
@@ -93,6 +97,12 @@ func ProjectScope(teamIDs []uuid.UUID) Scope {
 
 func UserScope(userID uuid.UUID) Scope {
 	return Scope{Kind: ScopeUser, UserID: &userID}
+}
+
+// WithoutGuests marks a team- or project-scoped row as invisible to guests.
+func (s Scope) WithoutGuests() Scope {
+	s.MembersOnly = true
+	return s
 }
 
 func (s Scope) MarshalJSONB() (json.RawMessage, error) {
@@ -133,10 +143,16 @@ func Visible(p *Principal, s Scope) bool {
 		return !p.IsGuest()
 
 	case ScopeTeam:
+		if s.MembersOnly && p.IsGuest() {
+			return false
+		}
 		return p.Teams.HasAny(s.TeamIDs)
 
 	case ScopeProject:
 		// A project is visible if the principal is in any of its teams.
+		if s.MembersOnly && p.IsGuest() {
+			return false
+		}
 		return p.Teams.HasAny(s.TeamIDs)
 
 	case ScopeIssueShared:

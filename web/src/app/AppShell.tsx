@@ -11,7 +11,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 
 import { toFilterParam } from '~/filter';
-import { useViewerId } from '~/hooks/useViewer';
+import { useViewer, useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { Menu } from '~/components';
@@ -44,6 +44,8 @@ export interface AppShellProps {
    */
   renderCreateProject?: (props: { onClose: () => void }) => ReactNode;
   renderCreateInitiative?: (props: { onClose: () => void }) => ReactNode;
+  renderCreateCustomer?: (props: { onClose: () => void }) => ReactNode;
+  renderCreateCustomerRequest?: (props: { onClose: () => void }) => ReactNode;
 }
 
 export function AppShell({
@@ -51,6 +53,8 @@ export function AppShell({
   renderCreateIssue,
   renderCreateProject,
   renderCreateInitiative,
+  renderCreateCustomer,
+  renderCreateCustomerRequest,
 }: AppShellProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -60,6 +64,8 @@ export function AppShell({
   const [createSeed, setCreateSeed] = useState<IssueComposerSeed | undefined>();
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [createInitiativeOpen, setCreateInitiativeOpen] = useState(false);
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
+  const [createCustomerRequestOpen, setCreateCustomerRequestOpen] = useState(false);
   const session = useWorkspaceSession();
   const workspaceMenu = useMenuTrigger();
   const onProjects =
@@ -67,6 +73,7 @@ export function AppShell({
     pathname.startsWith('/project/') ||
     /\/team\/[^/]+\/projects(?:\/|$)/.test(pathname);
   const onInitiatives = pathname === '/initiatives' || pathname.startsWith('/initiative/');
+  const onCustomers = pathname === '/customers' || pathname.startsWith('/customer/');
   const onCycles = pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
 
   const teams = useQuery(
@@ -80,6 +87,8 @@ export function AppShell({
   const archivesPath = useQuery((store) => pathToArchives(store), ['team']);
 
   const viewerId = useViewerId();
+  const viewer = useViewer();
+  const showCustomers = viewer !== null && viewer.role !== 'guest';
   const favorites = useLiveQuery(
     (store) => (viewerId === null ? [] : favoriteLinks(store, viewerId)),
     ['favorite', 'view', 'team', 'issue', 'label'],
@@ -98,6 +107,8 @@ export function AppShell({
     setCreateSeed(undefined);
     setCreateProjectOpen(false);
     setCreateInitiativeOpen(false);
+    setCreateCustomerOpen(false);
+    setCreateCustomerRequestOpen(false);
   }, []);
 
   const openCreate = useCallback((seed?: IssueComposerSeed) => {
@@ -158,6 +169,22 @@ export function AppShell({
         group: 'Initiatives',
         run: () => setCreateInitiativeOpen(true),
       },
+      ...(showCustomers
+        ? [
+            {
+              id: 'customer.create',
+              title: 'Create customer',
+              group: 'Customers',
+              run: () => setCreateCustomerOpen(true),
+            },
+            {
+              id: 'customerRequest.create',
+              title: 'Create customer request',
+              group: 'Customers',
+              run: () => setCreateCustomerRequestOpen(true),
+            },
+          ]
+        : []),
       {
         id: 'nav.myIssues',
         title: 'Go to My Issues',
@@ -223,6 +250,17 @@ export function AppShell({
         group: 'Navigation',
         run: () => navigate('/initiatives'),
       },
+      ...(showCustomers
+        ? [
+            {
+              id: 'nav.customers',
+              title: 'Go to Customers',
+              keys: ['g q'],
+              group: 'Navigation',
+              run: () => navigate('/customers'),
+            },
+          ]
+        : []),
       {
         id: 'nav.cycles',
         title: 'Go to current cycle',
@@ -251,7 +289,16 @@ export function AppShell({
         run: () => navigate('/settings/trash'),
       },
     ],
-    [navigate, closeAll, cyclesPath, triagePath, archivesPath, openCreate, workspaceMenu.show],
+    [
+      navigate,
+      closeAll,
+      cyclesPath,
+      triagePath,
+      archivesPath,
+      openCreate,
+      workspaceMenu.show,
+      showCustomers,
+    ],
   );
 
   const workspaceItems = session.workspaces.map((item) => ({
@@ -315,6 +362,12 @@ export function AppShell({
               <NavGlyph name="initiative" />
               <span className={styles.navLabel}>Initiatives</span>
             </NavLink>
+            {showCustomers && (
+              <NavLink to="/customers" className={() => navClass({ isActive: onCustomers })}>
+                <NavGlyph name="customer" />
+                <span className={styles.navLabel}>Customers</span>
+              </NavLink>
+            )}
             <NavLink to={cyclesPath} className={() => navClass({ isActive: onCycles })}>
               <NavGlyph name="cycle" />
               <span className={styles.navLabel}>Cycles</span>
@@ -426,6 +479,10 @@ export function AppShell({
         {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
         {createInitiativeOpen &&
           renderCreateInitiative?.({ onClose: () => setCreateInitiativeOpen(false) })}
+        {createCustomerOpen &&
+          renderCreateCustomer?.({ onClose: () => setCreateCustomerOpen(false) })}
+        {createCustomerRequestOpen &&
+          renderCreateCustomerRequest?.({ onClose: () => setCreateCustomerRequestOpen(false) })}
       </div>
     </CreateIssueProvider>
   );
@@ -502,6 +559,7 @@ type NavGlyphName =
   | 'search'
   | 'project'
   | 'initiative'
+  | 'customer'
   | 'cycle'
   | 'view'
   | 'members'
@@ -579,6 +637,13 @@ function glyphPath(name: NavGlyphName) {
           <circle cx="8" cy="8" r="5.25" {...stroke} />
           <circle cx="8" cy="8" r="2" {...stroke} />
           <path d="M8 2.75v2M8 11.25v2M2.75 8h2M11.25 8h2" {...stroke} />
+        </>
+      );
+    case 'customer':
+      return (
+        <>
+          <rect x="2.5" y="4.5" width="11" height="9" rx="1.5" {...stroke} />
+          <path d="M5.5 4.5V3.5A2.5 2.5 0 0 1 10.5 3.5V4.5M6 9.5h4" {...stroke} />
         </>
       );
     case 'cycle':

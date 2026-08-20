@@ -332,6 +332,15 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	}); err != nil {
 		t.Fatalf("initiative: %v", err)
 	}
+	cust, _, err := svc.CreateCustomer(ctx, p, domain.CreateCustomerInput{Name: "Acme"})
+	if err != nil {
+		t.Fatalf("customer: %v", err)
+	}
+	if _, _, err := svc.CreateCustomerRequest(ctx, p, domain.CreateCustomerRequestInput{
+		CustomerID: &cust.ID, IssueID: &issue.ID, Body: "Need SSO",
+	}); err != nil {
+		t.Fatalf("customerRequest: %v", err)
+	}
 	project, _, err = svc.CreateProject(ctx, p, domain.CreateProjectInput{
 		Name: "Launch pad", TeamIDs: []uuid.UUID{f.TeamID},
 	})

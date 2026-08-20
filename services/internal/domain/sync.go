@@ -351,6 +351,21 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			}
 		}
 
+		if includeWorkspaceScoped {
+			if err := streamPages(ctx, w, "customer",
+				func(ctx context.Context, after uuid.UUID) ([]store.Customer, error) {
+					return q.StreamCustomersForBootstrap(ctx, store.StreamCustomersForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(c store.Customer) (uuid.UUID, any) { return c.ID, toCustomer(c) },
+			); err != nil {
+				return err
+			}
+		}
+
 		// Labels and templates come before the issues, and that is not cosmetic: an
 		// application names a label and an issue may name the template it was created from,
 		// so a client applying rows as they arrive would otherwise hold a chip with no name
@@ -713,6 +728,22 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 				return err
 			}
 
+			if includeWorkspaceScoped {
+				if err := streamPages(ctx, w, "customerRequest",
+					func(ctx context.Context, after uuid.UUID) ([]store.CustomerRequest, error) {
+						return q.StreamCustomerRequestsForBootstrap(ctx, store.StreamCustomerRequestsForBootstrapParams{
+							WorkspaceID: p.WorkspaceID,
+							TeamIds:     teamIDs,
+							AfterID:     after,
+							PageSize:    bootstrapPageSize,
+						})
+					},
+					func(r store.CustomerRequest) (uuid.UUID, any) { return r.ID, toCustomerRequest(r) },
+				); err != nil {
+					return err
+				}
+			}
+
 			// Label applications and relations, after the issues that name them and before
 			// the comments, in the dependency order this whole function is written in.
 			//
@@ -945,7 +976,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v22 adds githubConnection and githubUserLink (GitHub v1 linking, no secrets).
 // v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
 // v24 adds recurringIssue, team default template ids, and issue.recurringIssueId.
-const ClientSchemaVersion = 24
+// v25 adds customer and customerRequest.
+const ClientSchemaVersion = 25
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

@@ -55,9 +55,13 @@ import { DocumentDetail } from '~/views/DocumentDetail';
 import { Documents } from '~/views/Documents';
 import { Initiatives } from '~/views/Initiatives';
 import { InitiativeDetail } from '~/views/InitiativeDetail';
+import { Customers } from '~/views/Customers';
+import { CustomerDetail } from '~/views/CustomerDetail';
 import { CreateIssueModal } from '~/features/issue/CreateIssueModal';
 import { CreateProjectModal } from '~/features/projects/CreateProjectModal';
 import { CreateInitiativeModal } from '~/features/initiatives/CreateInitiativeModal';
+import { CreateCustomerModal } from '~/features/customers/CreateCustomerModal';
+import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
 
 import { getPrefs } from '~/features/prefs/prefs';
 import { useQuery } from './context';
@@ -136,6 +140,10 @@ function SignedInShell() {
       renderCreateIssue={({ onClose, seed }) => <CreateIssueModal onClose={onClose} seed={seed} />}
       renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
       renderCreateInitiative={({ onClose }) => <CreateInitiativeModal onClose={onClose} />}
+      renderCreateCustomer={({ onClose }) => <CreateCustomerModal onClose={onClose} />}
+      renderCreateCustomerRequest={({ onClose }) => (
+        <CreateCustomerRequestModal onClose={onClose} />
+      )}
     >
       <Routes>
         <Route path="/" element={<HomeRedirect />} />
@@ -147,6 +155,8 @@ function SignedInShell() {
         <Route path="/projects" element={<Projects />} />
         <Route path="/initiatives" element={<Initiatives />} />
         <Route path="/initiative/:initiativeId" element={<InitiativeDetail />} />
+        <Route path="/customers" element={<Customers />} />
+        <Route path="/customer/:customerId" element={<CustomerDetail />} />
         <Route path="/view/:viewId" element={<SavedView />} />
         <Route path="/team/:teamKey" element={<IssueList />} />
         <Route path="/team/:teamKey/home" element={<TeamHome />} />

@@ -1030,6 +1030,65 @@ type InitiativeProjectPayload implements MutationResult {
   initiativeProject: InitiativeProject!
 }
 
+enum CustomerStatus {
+  ACTIVE
+  PROSPECT
+  CHURNED
+}
+
+"""An external organisation whose feedback is attributed onto issues and projects."""
+type Customer {
+  id: UUID!
+  workspaceId: UUID!
+  name: String!
+  domains: [String!]!
+  revenue: Int
+  size: Int
+  tier: String
+  status: CustomerStatus!
+  ownerId: UUID
+  logoUrl: String!
+  creatorId: UUID
+  sortOrder: String!
+  archivedAt: Time
+  deletedAt: Time
+  deletedBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+
+  owner: User
+  creator: User
+}
+
+"""Feedback attached to an issue and/or a project, optionally a customer."""
+type CustomerRequest {
+  id: UUID!
+  workspaceId: UUID!
+  customerId: UUID
+  issueId: UUID
+  projectId: UUID
+  body: String!
+  important: Boolean!
+  creatorId: UUID
+  createdAt: Time!
+  updatedAt: Time!
+
+  customer: Customer
+  issue: Issue
+  project: Project
+  creator: User
+}
+
+type CustomerPayload implements MutationResult {
+  version: Int!
+  customer: Customer!
+}
+
+type CustomerRequestPayload implements MutationResult {
+  version: Int!
+  customerRequest: CustomerRequest!
+}
+
 type TeamPayload implements MutationResult {
   version: Int!
   team: Team!
@@ -2145,6 +2204,51 @@ input UpdateInitiativeInput {
   clearTarget: Boolean
 }
 
+input CreateCustomerInput {
+  name: String!
+  domains: [String!]
+  revenue: Int
+  size: Int
+  tier: String
+  status: CustomerStatus
+  ownerId: UUID
+  logoUrl: String
+}
+
+input UpdateCustomerInput {
+  id: UUID!
+  name: String
+  domains: [String!]
+  revenue: Int
+  clearRevenue: Boolean
+  size: Int
+  clearSize: Boolean
+  tier: String
+  clearTier: Boolean
+  status: CustomerStatus
+  ownerId: UUID
+  clearOwner: Boolean
+  logoUrl: String
+}
+
+input CreateCustomerRequestInput {
+  customerId: UUID
+  issueId: UUID
+  projectId: UUID
+  body: String
+  important: Boolean
+}
+
+input UpdateCustomerRequestInput {
+  id: UUID!
+  body: String
+  important: Boolean
+  customerId: UUID
+  clearCustomer: Boolean
+  issueId: UUID
+  projectId: UUID
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -2275,6 +2379,10 @@ type Query {
   initiatives: [Initiative!]!
   initiative(id: UUID!): Initiative
 
+  customers: [Customer!]!
+  customer(id: UUID!): Customer
+  customerRequest(id: UUID!): CustomerRequest
+
   """The workspace GitHub install, if any. Secrets are on githubCommitWebhook, not here."""
   githubConnection: GitHubConnection
   """The caller's linked GitHub account, if they have connected one."""
@@ -2327,6 +2435,14 @@ type Mutation {
   deleteInitiative(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   addInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): InitiativeProjectPayload! @idempotent
   removeInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createCustomer(input: CreateCustomerInput!, clientId: UUID, opId: UUID): CustomerPayload! @idempotent
+  updateCustomer(input: UpdateCustomerInput!, clientId: UUID, opId: UUID): CustomerPayload! @idempotent
+  archiveCustomer(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  deleteCustomer(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  createCustomerRequest(input: CreateCustomerRequestInput!, clientId: UUID, opId: UUID): CustomerRequestPayload! @idempotent
+  updateCustomerRequest(input: UpdateCustomerRequestInput!, clientId: UUID, opId: UUID): CustomerRequestPayload! @idempotent
+  deleteCustomerRequest(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!

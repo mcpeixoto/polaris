@@ -14,6 +14,7 @@ import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadg
 import { latestProjectUpdate } from '~/features/project-updates/helpers';
 import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { IssueCustomers } from '~/features/customers/IssueCustomers';
 import type { ProjectUpdateHealth } from '~/store';
 import styles from './ProjectOverview.module.css';
 
@@ -134,6 +135,8 @@ export function ProjectOverview() {
           <p className={styles.body}>{project.description}</p>
         </section>
       )}
+
+      <IssueCustomers projectId={project.id} />
     </div>
   );
 }

@@ -50,6 +50,8 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"GitHubUserLink", model.GitHubUserLink{}, generated.GitHubUserLink{}},
 		{"IssueTemplate", model.IssueTemplate{}, generated.IssueTemplate{}},
 		{"RecurringIssue", model.RecurringIssue{}, generated.RecurringIssue{}},
+		{"Customer", model.Customer{}, generated.Customer{}},
+		{"CustomerRequest", model.CustomerRequest{}, generated.CustomerRequest{}},
 	}
 
 	for _, pair := range pairs {
@@ -115,6 +117,8 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 		{"Cycle", model.Cycle{}, func(v any) (any, error) { return toCycle(v.(model.Cycle)), nil }},
 		{"IssueTemplate", model.IssueTemplate{}, func(v any) (any, error) { return toIssueTemplate(v.(model.IssueTemplate)), nil }},
 		{"RecurringIssue", model.RecurringIssue{}, func(v any) (any, error) { return toRecurringIssue(v.(model.RecurringIssue)) }},
+		{"Customer", model.Customer{}, func(v any) (any, error) { return toCustomer(v.(model.Customer)) }},
+		{"CustomerRequest", model.CustomerRequest{}, func(v any) (any, error) { return toCustomerRequest(v.(model.CustomerRequest)), nil }},
 	}
 
 	for _, c := range cases {

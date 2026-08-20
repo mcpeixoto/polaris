@@ -27,6 +27,8 @@ import {
   type Attachment,
   type Document,
   type Cycle,
+  type Customer,
+  type CustomerRequest,
   type Entity,
   type EntityOf,
   type EntityType,
@@ -160,6 +162,7 @@ export class Store {
     team: new Map(),
     teamMembership: new Map(),
     workflowState: new Map(),
+    customer: new Map(),
     label: new Map(),
     issueTemplate: new Map(),
     formTemplate: new Map(),
@@ -181,6 +184,7 @@ export class Store {
     cycle: new Map(),
     recurringIssue: new Map(),
     issue: new Map(),
+    customerRequest: new Map(),
     issueLabel: new Map(),
     issueRelation: new Map(),
     attachment: new Map(),
@@ -243,6 +247,9 @@ export class Store {
   private readonly projectDependencyBlockedByOf = new SetIndex<UUID>();
   private readonly cycleTeam = new SetIndex<UUID>();
   private readonly recurringTeam = new SetIndex<UUID>();
+  private readonly customerRequestCustomer = new SetIndex<UUID>();
+  private readonly customerRequestIssue = new SetIndex<UUID>();
+  private readonly customerRequestProject = new SetIndex<UUID>();
   /** Keyed by user and view key together; see `preferenceKey`. */
   private readonly preferenceKeys = new Map<string, UUID>();
 
@@ -413,6 +420,14 @@ export class Store {
     return this.tables.cycle as ReadonlyMap<UUID, Cycle>;
   }
 
+  get customers(): ReadonlyMap<UUID, Customer> {
+    return this.tables.customer as ReadonlyMap<UUID, Customer>;
+  }
+
+  get customerRequests(): ReadonlyMap<UUID, CustomerRequest> {
+    return this.tables.customerRequest as ReadonlyMap<UUID, CustomerRequest>;
+  }
+
   get recurringIssues(): ReadonlyMap<UUID, RecurringIssue> {
     return this.tables.recurringIssue as ReadonlyMap<UUID, RecurringIssue>;
   }
@@ -542,6 +557,18 @@ export class Store {
 
   recurringIssueIdsFor(teamId: UUID): ReadonlySet<UUID> {
     return this.recurringTeam.get(teamId);
+  }
+
+  customerRequestIdsForCustomer(customerId: UUID): ReadonlySet<UUID> {
+    return this.customerRequestCustomer.get(customerId);
+  }
+
+  customerRequestIdsForIssue(issueId: UUID): ReadonlySet<UUID> {
+    return this.customerRequestIssue.get(issueId);
+  }
+
+  customerRequestIdsForProject(projectId: UUID): ReadonlySet<UUID> {
+    return this.customerRequestProject.get(projectId);
   }
 
   /** `issueLabel` rows, when the application itself is needed rather than the label. */
@@ -976,6 +1003,9 @@ export class Store {
         for (const rowId of [...this.projectLabelIndex.rowIdsForProject(id)]) {
           this.forget('projectLabelLink', rowId, deletes, touched);
         }
+        for (const rowId of [...this.customerRequestProject.get(id)]) {
+          this.forget('customerRequest', rowId, deletes, touched);
+        }
         break;
       case 'issue':
         for (const commentId of [...this.commentIssue.get(id)]) {
@@ -1001,9 +1031,17 @@ export class Store {
         for (const rowId of [...this.notificationIndex.rowIdsForIssue(id)]) {
           this.forget('notification', rowId, deletes, touched);
         }
+        for (const rowId of [...this.customerRequestIssue.get(id)]) {
+          this.forget('customerRequest', rowId, deletes, touched);
+        }
         // Sub-issues are deliberately NOT cascaded. A child may live in a team the user
         // still belongs to — cross-team sub-issues are normal — and deleting it here
         // would remove work nobody has lost access to. It stays, parentless.
+        break;
+      case 'customer':
+        for (const rowId of [...this.customerRequestCustomer.get(id)]) {
+          this.forget('customerRequest', rowId, deletes, touched);
+        }
         break;
       case 'label':
         for (const rowId of [...this.labelIndex.rowIdsForLabel(id)]) {
@@ -1298,6 +1336,14 @@ export class Store {
         this.recurringTeam.add(row.teamId, row.id);
         break;
       }
+      case 'customerRequest': {
+        const row = next as CustomerRequest;
+        const before = previous as CustomerRequest | undefined;
+        this.fileOptional(this.customerRequestCustomer, before?.customerId, row.customerId, row.id);
+        this.fileOptional(this.customerRequestIssue, before?.issueId, row.issueId, row.id);
+        this.fileOptional(this.customerRequestProject, before?.projectId, row.projectId, row.id);
+        break;
+      }
       default:
         break;
     }
@@ -1429,6 +1475,19 @@ export class Store {
         this.recurringTeam.remove(row.teamId, row.id);
         break;
       }
+      case 'customerRequest': {
+        const row = entity as CustomerRequest;
+        if (row.customerId !== undefined) {
+          this.customerRequestCustomer.remove(row.customerId, row.id);
+        }
+        if (row.issueId !== undefined) {
+          this.customerRequestIssue.remove(row.issueId, row.id);
+        }
+        if (row.projectId !== undefined) {
+          this.customerRequestProject.remove(row.projectId, row.id);
+        }
+        break;
+      }
       default:
         break;
     }
@@ -1479,6 +1538,16 @@ export class Store {
 
   private unfileByProject(index: SetIndex<UUID>, entity: ProjectScoped): void {
     index.remove(entity.projectId, entity.id);
+  }
+
+  private fileOptional(
+    index: SetIndex<UUID>,
+    previous: UUID | undefined,
+    next: UUID | undefined,
+    rowId: UUID,
+  ): void {
+    if (previous !== undefined && previous !== next) index.remove(previous, rowId);
+    if (next !== undefined) index.add(next, rowId);
   }
 
   /**

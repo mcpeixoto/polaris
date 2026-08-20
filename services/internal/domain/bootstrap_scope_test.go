@@ -57,6 +57,8 @@ type scene struct {
 	openProjectLabelLink                          uuid.UUID
 	openInitiative                                uuid.UUID
 	openInitiativeProject                         uuid.UUID
+	openCustomer                                  uuid.UUID
+	openCustomerRequest                           uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
 	bobsFavorite                                  uuid.UUID
 
@@ -273,6 +275,19 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	}
 	s.openInitiativeProject = link.ID
 
+	cust, _, err := svc.CreateCustomer(ctx, s.alice, domain.CreateCustomerInput{Name: "Acme"})
+	if err != nil {
+		t.Fatalf("create the customer: %v", err)
+	}
+	s.openCustomer = cust.ID
+	need, _, err := svc.CreateCustomerRequest(ctx, s.alice, domain.CreateCustomerRequestInput{
+		CustomerID: &cust.ID, IssueID: &s.openIssue, Body: "Need SSO",
+	})
+	if err != nil {
+		t.Fatalf("create the customer request: %v", err)
+	}
+	s.openCustomerRequest = need.ID
+
 	blocker, _, err := svc.CreateProject(ctx, s.alice, domain.CreateProjectInput{
 		Name: "Platform foundation", TeamIDs: []uuid.UUID{f.TeamID},
 	})
@@ -488,6 +503,10 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 			"a guest is scoped to their teams and never receives workspace-wide entities"},
 		{gretaName, "view", s.workspaceView,
 			"a guest is scoped to their teams and never receives workspace-wide entities"},
+		{gretaName, "customer", s.openCustomer,
+			"a guest sees nothing related to customers"},
+		{gretaName, "customerRequest", s.openCustomerRequest,
+			"a guest sees nothing related to customer requests"},
 
 		{samName, "issue", s.openIssue, "team content needs the team"},
 		{samName, "label", s.openLabel, "a team's label needs the team"},
@@ -543,6 +562,8 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "projectLabelLink", s.openProjectLabelLink},
 		{bobName, "initiative", s.openInitiative},
 		{bobName, "initiativeProject", s.openInitiativeProject},
+		{bobName, "customer", s.openCustomer},
+		{bobName, "customerRequest", s.openCustomerRequest},
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},
 		{gretaName, "issue", s.openIssue},
@@ -556,6 +577,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{samName, "label", s.workspaceLabel},
 		{samName, "issueTemplate", s.workspaceTemplate},
 		{samName, "view", s.workspaceView},
+		{samName, "customer", s.openCustomer},
 	} {
 		if !snapshots[present.who][present.entityType][present.id] {
 			t.Errorf("the snapshot for %s is missing the %s %s it is entitled to",

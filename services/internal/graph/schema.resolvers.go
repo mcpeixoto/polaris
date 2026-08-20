@@ -610,6 +610,141 @@ func (r *mutationResolver) RemoveInitiativeProject(ctx context.Context, initiati
 	return &generated.DeletePayload{Version: int(version), ID: projectID}, nil
 }
 
+// CreateCustomer is the resolver for the createCustomer field.
+func (r *mutationResolver) CreateCustomer(ctx context.Context, input generated.CreateCustomerInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.CustomerPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromCreateCustomerInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Customer, int64, error) {
+			return r.Svc.CreateCustomer(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toCustomer(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.CustomerPayload{Version: int(version), Customer: &out}, nil
+}
+
+// UpdateCustomer is the resolver for the updateCustomer field.
+func (r *mutationResolver) UpdateCustomer(ctx context.Context, input generated.UpdateCustomerInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.CustomerPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromUpdateCustomerInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Customer, int64, error) {
+			return r.Svc.UpdateCustomer(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toCustomer(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.CustomerPayload{Version: int(version), Customer: &out}, nil
+}
+
+// ArchiveCustomer is the resolver for the archiveCustomer field.
+func (r *mutationResolver) ArchiveCustomer(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id, "archived": archived},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.ArchiveCustomer(ctx, p, id, archived)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// DeleteCustomer is the resolver for the deleteCustomer field.
+func (r *mutationResolver) DeleteCustomer(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteCustomer(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// CreateCustomerRequest is the resolver for the createCustomerRequest field.
+func (r *mutationResolver) CreateCustomerRequest(ctx context.Context, input generated.CreateCustomerRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.CustomerRequestPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromCreateCustomerRequestInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.CustomerRequest, int64, error) {
+			return r.Svc.CreateCustomerRequest(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toCustomerRequest(row)
+	return &generated.CustomerRequestPayload{Version: int(version), CustomerRequest: &out}, nil
+}
+
+// UpdateCustomerRequest is the resolver for the updateCustomerRequest field.
+func (r *mutationResolver) UpdateCustomerRequest(ctx context.Context, input generated.UpdateCustomerRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.CustomerRequestPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromUpdateCustomerRequestInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.CustomerRequest, int64, error) {
+			return r.Svc.UpdateCustomerRequest(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toCustomerRequest(row)
+	return &generated.CustomerRequestPayload{Version: int(version), CustomerRequest: &out}, nil
+}
+
+// DeleteCustomerRequest is the resolver for the deleteCustomerRequest field.
+func (r *mutationResolver) DeleteCustomerRequest(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteCustomerRequest(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // CreateTeam is the resolver for the createTeam field.
 func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.CreateTeamInput) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)
@@ -3904,6 +4039,58 @@ func (r *queryResolver) Initiative(ctx context.Context, id uuid.UUID) (*generate
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
+	return &out, nil
+}
+
+// Customers is the resolver for the customers field.
+func (r *queryResolver) Customers(ctx context.Context) ([]generated.Customer, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListCustomers(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := make([]generated.Customer, 0, len(rows))
+	for _, row := range rows {
+		converted, err := toCustomer(row)
+		if err != nil {
+			return nil, PresentError(ctx, err)
+		}
+		out = append(out, converted)
+	}
+	return out, nil
+}
+
+// Customer is the resolver for the customer field.
+func (r *queryResolver) Customer(ctx context.Context, id uuid.UUID) (*generated.Customer, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, err := r.Svc.GetCustomer(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toCustomer(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &out, nil
+}
+
+// CustomerRequest is the resolver for the customerRequest field.
+func (r *queryResolver) CustomerRequest(ctx context.Context, id uuid.UUID) (*generated.CustomerRequest, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, err := r.Svc.GetCustomerRequest(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toCustomerRequest(row)
 	return &out, nil
 }
 
