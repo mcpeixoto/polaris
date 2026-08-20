@@ -180,6 +180,9 @@ type Documents = {
     "\n  \n  mutation SetViewPreference($viewKey: String!, $display: JSON!) {\n    setViewPreference(viewKey: $viewKey, display: $display) {\n      version\n      preference {\n        ...ViewPreferenceFields\n      }\n    }\n  }\n": typeof types.SetViewPreferenceDocument,
     "\n  \n  mutation AddFavorite($kind: FavoriteKind!, $targetId: UUID!, $afterFavoriteId: UUID) {\n    addFavorite(kind: $kind, targetId: $targetId, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": typeof types.AddFavoriteDocument,
     "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveFavoriteDocument,
+    "\n  fragment ViewSubscriptionFields on ViewSubscription {\n    id\n    workspaceId\n    viewId\n    userId\n    added\n    completed\n    createdAt\n    updatedAt\n  }\n": typeof types.ViewSubscriptionFieldsFragmentDoc,
+    "\n  \n  mutation SetViewSubscription($input: SetViewSubscriptionInput!) {\n    setViewSubscription(input: $input) {\n      version\n      viewSubscription {\n        ...ViewSubscriptionFields\n      }\n    }\n  }\n": typeof types.SetViewSubscriptionDocument,
+    "\n  mutation DeleteViewSubscription($viewId: UUID!) {\n    deleteViewSubscription(viewId: $viewId) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteViewSubscriptionDocument,
     "\n  fragment WebhookSummary on Webhook {\n    id\n    url\n    enabled\n    allPublicTeams\n    teamId\n    resourceTypes\n    consecutiveFailures\n    disabledAt\n    createdAt\n  }\n": typeof types.WebhookSummaryFragmentDoc,
     "\n  \n  query Webhooks {\n    webhooks {\n      ...WebhookSummary\n    }\n  }\n": typeof types.WebhooksDocument,
     "\n  query WebhookDeliveries($webhookId: UUID!) {\n    webhookDeliveries(webhookId: $webhookId, first: 20) {\n      id\n      attempt\n      lastStatus\n      lastError\n      deliveredAt\n      createdAt\n      entityType\n    }\n  }\n": typeof types.WebhookDeliveriesDocument,
@@ -393,6 +396,9 @@ const documents: Documents = {
     "\n  \n  mutation SetViewPreference($viewKey: String!, $display: JSON!) {\n    setViewPreference(viewKey: $viewKey, display: $display) {\n      version\n      preference {\n        ...ViewPreferenceFields\n      }\n    }\n  }\n": types.SetViewPreferenceDocument,
     "\n  \n  mutation AddFavorite($kind: FavoriteKind!, $targetId: UUID!, $afterFavoriteId: UUID) {\n    addFavorite(kind: $kind, targetId: $targetId, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": types.AddFavoriteDocument,
     "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n": types.RemoveFavoriteDocument,
+    "\n  fragment ViewSubscriptionFields on ViewSubscription {\n    id\n    workspaceId\n    viewId\n    userId\n    added\n    completed\n    createdAt\n    updatedAt\n  }\n": types.ViewSubscriptionFieldsFragmentDoc,
+    "\n  \n  mutation SetViewSubscription($input: SetViewSubscriptionInput!) {\n    setViewSubscription(input: $input) {\n      version\n      viewSubscription {\n        ...ViewSubscriptionFields\n      }\n    }\n  }\n": types.SetViewSubscriptionDocument,
+    "\n  mutation DeleteViewSubscription($viewId: UUID!) {\n    deleteViewSubscription(viewId: $viewId) {\n      version\n      id\n    }\n  }\n": types.DeleteViewSubscriptionDocument,
     "\n  fragment WebhookSummary on Webhook {\n    id\n    url\n    enabled\n    allPublicTeams\n    teamId\n    resourceTypes\n    consecutiveFailures\n    disabledAt\n    createdAt\n  }\n": types.WebhookSummaryFragmentDoc,
     "\n  \n  query Webhooks {\n    webhooks {\n      ...WebhookSummary\n    }\n  }\n": types.WebhooksDocument,
     "\n  query WebhookDeliveries($webhookId: UUID!) {\n    webhookDeliveries(webhookId: $webhookId, first: 20) {\n      id\n      attempt\n      lastStatus\n      lastError\n      deliveredAt\n      createdAt\n      entityType\n    }\n  }\n": types.WebhookDeliveriesDocument,
@@ -1118,6 +1124,18 @@ export function graphql(source: "\n  \n  mutation AddFavorite($kind: FavoriteKin
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment ViewSubscriptionFields on ViewSubscription {\n    id\n    workspaceId\n    viewId\n    userId\n    added\n    completed\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment ViewSubscriptionFields on ViewSubscription {\n    id\n    workspaceId\n    viewId\n    userId\n    added\n    completed\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation SetViewSubscription($input: SetViewSubscriptionInput!) {\n    setViewSubscription(input: $input) {\n      version\n      viewSubscription {\n        ...ViewSubscriptionFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation SetViewSubscription($input: SetViewSubscriptionInput!) {\n    setViewSubscription(input: $input) {\n      version\n      viewSubscription {\n        ...ViewSubscriptionFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteViewSubscription($viewId: UUID!) {\n    deleteViewSubscription(viewId: $viewId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteViewSubscription($viewId: UUID!) {\n    deleteViewSubscription(viewId: $viewId) {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

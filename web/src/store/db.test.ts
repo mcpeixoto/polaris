@@ -29,6 +29,7 @@ import type {
   UUID,
   View,
   ViewPreference,
+  ViewSubscription,
   Workspace,
 } from './types';
 
@@ -292,6 +293,16 @@ function oneOfEach(): EntityRow[] {
     kind: 'view',
     targetId: 'v1',
     position: 'a0',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const viewSubscription: ViewSubscription = {
+    id: 'vs1',
+    workspaceId: 'w',
+    viewId: 'v1',
+    userId: 'u1',
+    added: true,
+    completed: false,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -599,6 +610,7 @@ function oneOfEach(): EntityRow[] {
     { type: 'issueSubscription', entity: issueSubscription },
     { type: 'notification', entity: notification },
     { type: 'view', entity: view },
+    { type: 'viewSubscription', entity: viewSubscription },
     { type: 'viewPreference', entity: viewPreference },
     { type: 'favorite', entity: favorite },
   ];

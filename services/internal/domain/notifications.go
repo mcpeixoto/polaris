@@ -288,7 +288,22 @@ func deliveriesFor(ctx context.Context, c *fanOutCache, r store.ChangeLog) ([]no
 	if err != nil {
 		return nil, err
 	}
-	return notify.Deliveries(ev, subject, audience), nil
+	deliveries := notify.Deliveries(ev, subject, audience)
+	if r.EntityType == notify.EntityIssue && len(r.Payload) > 0 {
+		var issue model.Issue
+		if err := json.Unmarshal(r.Payload, &issue); err == nil {
+			category, err := c.categoryOf(ctx, issue.StateID)
+			if err != nil {
+				return nil, err
+			}
+			extra, err := viewSubscriptionDeliveries(ctx, c, r, issue, category)
+			if err != nil {
+				return nil, err
+			}
+			deliveries = append(deliveries, extra...)
+		}
+	}
+	return deliveries, nil
 }
 
 // fanOutCache memoises the reads one pass makes over and over.
@@ -306,8 +321,10 @@ type fanOutCache struct {
 	category    map[uuid.UUID]string
 	// recipient records whether an id names somebody in this workspace, and muted what
 	// they have switched off. Both are filled by keep.
-	recipient map[uuid.UUID]bool
-	muted     map[uuid.UUID]map[string]bool
+	recipient      map[uuid.UUID]bool
+	muted          map[uuid.UUID]map[string]bool
+	viewSubs       []store.ListViewSubscriptionsForFanOutRow
+	viewSubsLoaded bool
 }
 
 func newFanOutCache(q *store.Queries, workspaceID uuid.UUID) *fanOutCache {

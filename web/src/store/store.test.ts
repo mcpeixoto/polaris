@@ -26,6 +26,7 @@ import type {
   UUID,
   View,
   ViewPreference,
+  ViewSubscription,
   WorkflowState,
   Workspace,
 } from './types';
@@ -264,6 +265,19 @@ function viewPreference(id: UUID, userId: UUID, viewKey: string): ViewPreference
   };
 }
 
+function viewSubscription(id: UUID, viewId: UUID, userId: UUID): ViewSubscription {
+  return {
+    id,
+    workspaceId: 'w1',
+    viewId,
+    userId,
+    added: true,
+    completed: false,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
 function favorite(id: UUID, kind: Favorite['kind'], targetId: UUID): Favorite {
   return {
     id,
@@ -341,6 +355,7 @@ async function seeded(): Promise<Store> {
     { type: 'issueTemplate', entity: template('tpl1', { teamId: 't1' }) },
     { type: 'recurringIssue', entity: recurring('ri1', { teamId: 't1' }) },
     { type: 'view', entity: view('v1', { teamId: 't1' }) },
+    { type: 'viewSubscription', entity: viewSubscription('vs1', 'v1', 'u1') },
     { type: 'viewPreference', entity: viewPreference('vp1', 'u1', 'my-issues') },
     { type: 'favorite', entity: favorite('f1', 'view', 'v1') },
     { type: 'issueSubscription', entity: subscription('sub1', 'i1', 'u1') },
@@ -895,6 +910,7 @@ describe('Store views, templates and favourites', () => {
       ['template', store.issueTemplates.has('tpl1')],
       ['recurring', store.recurringIssues.has('ri1')],
       ['view', store.views.has('v1')],
+      ['view subscription', store.viewSubscriptions.has('vs1')],
     ] as const) {
       if (present) {
         throw new Error(
@@ -917,6 +933,19 @@ describe('Store views, templates and favourites', () => {
         'a favourite pointing at something the replica no longer holds is a sidebar row that cannot be opened, renamed or removed',
       );
     }
+    if (store.viewSubscriptions.has('vs1')) {
+      throw new Error(
+        'a watch on a view this replica no longer holds would keep notifying nobody who can open it',
+      );
+    }
+  });
+
+  it('finds a view subscription by user and view together', async () => {
+    const store = await seeded();
+    expect(store.viewSubscriptionIdFor('u1', 'v1')).toBe('vs1');
+    store.applyChanges([upsert(101, 'viewSubscription', viewSubscription('vs2', 'v1', 'u2'))]);
+    expect(store.viewSubscriptionIdFor('u1', 'v1')).toBe('vs1');
+    expect(store.viewSubscriptionIdFor('u2', 'v1')).toBe('vs2');
   });
 
   it('finds a view preference by user and key together', async () => {

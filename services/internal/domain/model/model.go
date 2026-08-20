@@ -480,6 +480,8 @@ const (
 	NotifyComment            = "comment"
 	NotifyMention            = "mention"
 	NotifySubIssueCompleted  = "sub_issue_completed"
+	NotifyViewIssueAdded     = "view_issue_added"
+	NotifyViewIssueCompleted = "view_issue_completed"
 )
 
 // View is a saved filter plus how to display it.
@@ -511,6 +513,22 @@ type View struct {
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
+// ViewSubscription is one person's watch on a saved view.
+//
+// Added fires when a newly created issue matches the view. Completed fires when an issue
+// that currently matches is completed or canceled. Slack-channel subscriptions are a
+// different row and a different milestone.
+type ViewSubscription struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ViewID      uuid.UUID `json:"viewId"`
+	UserID      uuid.UUID `json:"userId"`
+	Added       bool      `json:"added"`
+	Completed   bool      `json:"completed"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // ViewPreference remembers display options for the views that have no row of their own —

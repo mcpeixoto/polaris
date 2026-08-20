@@ -119,6 +119,8 @@ empty workspace.
 | `/sync` | `sync:8089` | Needs WebSocket upgrade and a read timeout of an hour, or idle sockets die every 60s |
 | `/sync/bootstrap` | `api:8088` | Streaming snapshot, long response. **Must be matched before `/sync`** |
 | `/oauth/token`, `/oauth/revoke` | `api:8088` | Token exchange and revocation |
+| `/mcp`, `/mcp/readonly` | `api:8088` | Streamable HTTP MCP. Raise `proxy_read_timeout`. |
+| `/.well-known/oauth-*` | `api:8088` | MCP OAuth discovery |
 | `/oauth/authorize` | `web:8080` | Consent screen (SPA) |
 | `/webhooks/` | `api:8088` | Inbound from GitHub/GitLab/Slack/Sentry/CI/email |
 | `/files/` | `api:8088` | Auth check → 302 to a presigned object-store URL |

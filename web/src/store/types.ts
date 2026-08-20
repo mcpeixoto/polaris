@@ -505,7 +505,9 @@ export type NotificationType =
   | 'issue_blocked'
   | 'comment'
   | 'mention'
-  | 'sub_issue_completed';
+  | 'sub_issue_completed'
+  | 'view_issue_added'
+  | 'view_issue_completed';
 
 /**
  * One inbox row, derived from a change-log row rather than re-derived from entities.
@@ -563,6 +565,23 @@ export interface View {
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly archivedAt?: Timestamp;
+}
+
+/**
+ * A personal subscription to a saved view.
+ *
+ * Slack-channel subscriptions are a different row and a different milestone. Self-triggered
+ * changes do not notify — that rule is the fan-out's, not a column here.
+ */
+export interface ViewSubscription {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly viewId: UUID;
+  readonly userId: UUID;
+  readonly added: boolean;
+  readonly completed: boolean;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
 }
 
 /**
@@ -1078,6 +1097,7 @@ export interface EntityByType {
   issueSubscription: IssueSubscription;
   notification: Notification;
   view: View;
+  viewSubscription: ViewSubscription;
   viewPreference: ViewPreference;
   favorite: Favorite;
 }
@@ -1139,6 +1159,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   // After comments, because a notification may name one.
   'notification',
   'view',
+  'viewSubscription',
   'viewPreference',
   // Last: a favourite may point at any of the above.
   'favorite',

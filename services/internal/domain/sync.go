@@ -930,6 +930,20 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "viewSubscription",
+			func(ctx context.Context, after uuid.UUID) ([]store.ViewSubscription, error) {
+				return q.StreamViewSubscriptionsForBootstrap(ctx, store.StreamViewSubscriptionsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					UserID:      p.UserID,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(row store.ViewSubscription) (uuid.UUID, any) { return row.ID, toViewSubscription(row) },
+		); err != nil {
+			return err
+		}
+
 		if err := streamPages(ctx, w, "viewPreference",
 			func(ctx context.Context, after uuid.UUID) ([]store.ViewPreference, error) {
 				return q.StreamViewPreferencesForBootstrap(ctx, store.StreamViewPreferencesForBootstrapParams{
@@ -1028,7 +1042,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v34 lands inline comments after v33 shipped: a 33 replica would otherwise keep
 // serving without the new comment columns.
 // v35 adds dashboard and dashboardTile (Insights tiles on a page).
-const ClientSchemaVersion = 35
+// v36 adds viewSubscription (personal watches on a saved view).
+const ClientSchemaVersion = 36
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //
