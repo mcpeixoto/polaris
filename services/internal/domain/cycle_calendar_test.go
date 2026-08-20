@@ -9,6 +9,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
+	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/testutil"
 )
 
@@ -49,6 +50,66 @@ func TestEnsureCycleCalendarFeed_MintsOnceAndStaysPersonal(t *testing.T) {
 	}
 	if theirs.ID == feed.ID || theirsToken == token {
 		t.Fatal("two members of the same team must not share a feed token")
+	}
+}
+
+func TestRotateCycleCalendarFeed_InvalidatesThePreviousURL(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	on := true
+	if _, _, err := svc.UpdateTeamCycles(ctx, p, domain.UpdateTeamCyclesInput{
+		TeamID: f.TeamID, Enabled: &on,
+	}); err != nil {
+		t.Fatalf("enable cycles: %v", err)
+	}
+	first, oldToken, _, err := svc.EnsureCycleCalendarFeed(ctx, p, f.TeamID)
+	if err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+
+	rotated, newToken, version, err := svc.RotateCycleCalendarFeed(ctx, p, f.TeamID)
+	if err != nil {
+		t.Fatalf("rotate: %v", err)
+	}
+	if rotated.ID != first.ID {
+		t.Fatalf("rotate minted a second feed (%s vs %s)", rotated.ID, first.ID)
+	}
+	if newToken == oldToken {
+		t.Fatal("rotate kept the leaked token")
+	}
+	if !strings.HasPrefix(newToken, "cal_") {
+		t.Fatalf("token %q should be a cal_ secret", newToken)
+	}
+	if version == 0 {
+		t.Fatal("rotate must emit so other devices know the feed row moved")
+	}
+
+	if _, err := svc.GetPublicCycleCalendar(ctx, oldToken); platform.CodeOf(err) != platform.CodeNotFound {
+		t.Fatalf("old token still served: %v", err)
+	}
+	if _, err := svc.GetPublicCycleCalendar(ctx, newToken); err != nil {
+		t.Fatalf("new token should serve: %v", err)
+	}
+
+	again, same, _, err := svc.EnsureCycleCalendarFeed(ctx, p, f.TeamID)
+	if err != nil {
+		t.Fatalf("ensure after rotate: %v", err)
+	}
+	if again.ID != first.ID || same != newToken {
+		t.Fatalf("ensure after rotate should keep the new token, got %s %s", again.ID, same)
+	}
+}
+
+func TestRotateCycleCalendarFeed_WithoutAFeedIsNotFound(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	if _, _, _, err := svc.RotateCycleCalendarFeed(context.Background(), f.Principal(), f.TeamID); platform.CodeOf(err) != platform.CodeNotFound {
+		t.Fatalf("rotate with no feed: %v", err)
 	}
 }
 

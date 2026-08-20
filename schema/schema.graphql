@@ -3294,6 +3294,8 @@ type Mutation {
 
   """Mint (or return) a personal ICS feed for this team's cycles."""
   ensureCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
+  """Replace the personal ICS token. The previous feed URL stops working."""
+  rotateCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
 
   # ---- drafts (personal, on-demand; not replicated)
 

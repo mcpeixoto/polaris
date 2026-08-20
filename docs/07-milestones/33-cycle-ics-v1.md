@@ -18,4 +18,4 @@ Subscribe to a team's cycle calendar from the Cycles ⋯ menu: add to Google Cal
 
 - Per-cycle (rather than per-team) feeds
 - Sub-team cycle inheritance (4.8)
-- Rotating a leaked token from the UI
+- Token rotation — shipped in `34-ics-token-rotate.md`
