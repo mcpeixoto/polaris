@@ -84,6 +84,47 @@ func (s *Service) EnsureCycleCalendarFeed(
 	return out, secret, version, nil
 }
 
+// RotateCycleCalendarFeed replaces the personal ICS token. The previous feed URL
+// stops working the moment this returns; that is the whole point of the mutation.
+func (s *Service) RotateCycleCalendarFeed(
+	ctx context.Context, p *authz.Principal, teamID uuid.UUID,
+) (model.CycleCalendarFeed, string, int64, error) {
+	if err := s.requireCycleCalendarTeam(ctx, p, teamID); err != nil {
+		return model.CycleCalendarFeed{}, "", 0, err
+	}
+
+	secret, err := newCycleCalendarToken()
+	if err != nil {
+		return model.CycleCalendarFeed{}, "", 0, err
+	}
+
+	var out model.CycleCalendarFeed
+	var version int64
+	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		row, err := q.RotateCycleCalendarFeedToken(ctx, store.RotateCycleCalendarFeedTokenParams{
+			Token:  secret,
+			TeamID: teamID,
+			UserID: p.UserID,
+		})
+		if err != nil {
+			if store.IsNotFound(err) {
+				return platform.NotFound("cycleCalendarFeed")
+			}
+			return platform.Internal(err)
+		}
+		out = cycleCalendarFeedFromRotate(row)
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "cycleCalendarFeed", EntityID: out.ID, Op: OpUpsert,
+			Scope: authz.UserScope(p.UserID), Payload: out,
+		})
+		return err
+	})
+	if err != nil {
+		return model.CycleCalendarFeed{}, "", 0, err
+	}
+	return out, secret, version, nil
+}
+
 func (s *Service) GetCycleCalendarFeed(
 	ctx context.Context, p *authz.Principal, teamID uuid.UUID,
 ) (model.CycleCalendarFeed, error) {
@@ -192,6 +233,13 @@ func newCycleCalendarToken() (string, error) {
 }
 
 func cycleCalendarFeedFromCreate(r store.CreateCycleCalendarFeedRow) model.CycleCalendarFeed {
+	return model.CycleCalendarFeed{
+		ID: r.ID, WorkspaceID: r.WorkspaceID, TeamID: r.TeamID, UserID: r.UserID,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+	}
+}
+
+func cycleCalendarFeedFromRotate(r store.RotateCycleCalendarFeedTokenRow) model.CycleCalendarFeed {
 	return model.CycleCalendarFeed{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, TeamID: r.TeamID, UserID: r.UserID,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,

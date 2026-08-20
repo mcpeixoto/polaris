@@ -856,6 +856,7 @@ type ComplexityRoot struct {
 		RetireTeam                     func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RevokeAPIKey                   func(childComplexity int, id uuid.UUID) int
 		RevokeInvite                   func(childComplexity int, id uuid.UUID) int
+		RotateCycleCalendarFeed        func(childComplexity int, teamID uuid.UUID) int
 		RotateOauthClientSecret        func(childComplexity int, id uuid.UUID) int
 		SetIssueSLA                    func(childComplexity int, input SetIssueSLAInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		SetIssueSubscription           func(childComplexity int, issueID uuid.UUID, subscribed bool) int
@@ -1825,6 +1826,7 @@ type MutationResolver interface {
 	DeleteSentryConnection(ctx context.Context) (*DeletePayload, error)
 	LinkSentryIssue(ctx context.Context, input LinkSentryIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*SentryLinkPayload, error)
 	EnsureCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedPayload, error)
+	RotateCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedPayload, error)
 	CreateDraft(ctx context.Context, input CreateDraftInput) (*DraftPayload, error)
 	UpdateDraft(ctx context.Context, input UpdateDraftInput) (*DraftPayload, error)
 	DeleteDraft(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
@@ -6201,6 +6203,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeInvite(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.rotateCycleCalendarFeed":
+		if e.ComplexityRoot.Mutation.RotateCycleCalendarFeed == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_rotateCycleCalendarFeed_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RotateCycleCalendarFeed(childComplexity, args["teamId"].(uuid.UUID)), true
 	case "Mutation.rotateOauthClientSecret":
 		if e.ComplexityRoot.Mutation.RotateOauthClientSecret == nil {
 			break
@@ -13725,6 +13738,8 @@ type Mutation {
 
   """Mint (or return) a personal ICS feed for this team's cycles."""
   ensureCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
+  """Replace the personal ICS token. The previous feed URL stops working."""
+  rotateCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
 
   # ---- drafts (personal, on-demand; not replicated)
 
@@ -19551,6 +19566,20 @@ func (ec *executionContext) field_Mutation_revokeInvite_args(ctx context.Context
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_rotateCycleCalendarFeed_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
 	return args, nil
 }
 
@@ -42015,6 +42044,50 @@ func (ec *executionContext) fieldContext_Mutation_ensureCycleCalendarFeed(ctx co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_ensureCycleCalendarFeed_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_rotateCycleCalendarFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_rotateCycleCalendarFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RotateCycleCalendarFeed(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *CycleCalendarFeedPayload) graphql.Marshaler {
+			return ec.marshalNCycleCalendarFeedPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleCalendarFeedPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_rotateCycleCalendarFeed(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CycleCalendarFeedPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_rotateCycleCalendarFeed_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -69443,6 +69516,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "ensureCycleCalendarFeed":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_ensureCycleCalendarFeed(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rotateCycleCalendarFeed":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_rotateCycleCalendarFeed(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
