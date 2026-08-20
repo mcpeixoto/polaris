@@ -170,6 +170,10 @@ which is not true of every system.
 | `POLARIS_SHUTDOWN_GRACE` | `20s` | How long in-flight requests get to finish on `SIGTERM`. Make your container runtime's stop timeout larger than this or the runtime will `SIGKILL` mid-drain |
 | `POLARIS_RATE_LIMIT_ENABLED` | `true` | See *Rate limits* |
 | `POLARIS_SMTP_*`, `POLARIS_MAIL_*` | see *Email* | Optional, and absence is supported |
+| `POLARIS_GITHUB_*` | empty | Optional GitHub App OAuth. The product runs without them |
+| `POLARIS_SLACK_SIGNING_SECRET` | empty | Slack request signature. Required for slash commands and Events API; outbound channel webhooks work without it |
+| `POLARIS_SLACK_BOT_TOKEN` | empty | Slack bot token (`xoxb-…`). Required for link unfurls (`chat.unfurl`) |
+| `POLARIS_EMAIL_WEBHOOK_SECRET` | empty | Inbound email-to-issue. Empty is a development stub |
 
 **Connection pool arithmetic.** The default of 10 is low because it is a *per-process*
 number and the defaults assume a pooler in front. Three processes at 10 is 30 backends

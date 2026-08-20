@@ -610,6 +610,10 @@ export function AppShell({
               <NavGlyph name="sentry" />
               <span className={styles.navLabel}>Sentry</span>
             </NavLink>
+            <NavLink to="/settings/slack" className={navClass}>
+              <NavGlyph name="slack" />
+              <span className={styles.navLabel}>Slack</span>
+            </NavLink>
             <NavLink to="/settings/export" className={navClass}>
               <NavGlyph name="export" />
               <span className={styles.navLabel}>Export</span>
@@ -875,6 +879,7 @@ type NavGlyphName =
   | 'github'
   | 'gitlab'
   | 'sentry'
+  | 'slack'
   | 'export'
   | 'prefs'
   | 'trash';
@@ -1066,6 +1071,12 @@ function glyphPath(name: NavGlyphName) {
         <>
           <circle cx="8" cy="8" r="5.25" {...stroke} />
           <path d="M8 5.25V8.75M8 11v.01" {...stroke} />
+        </>
+      );
+    case 'slack':
+      return (
+        <>
+          <path d="M3.5 5.5h3v3h-3zM9.5 5.5h3v3h-3zM3.5 9.5h3v3h-3zM9.5 9.5h3v3h-3z" {...stroke} />
         </>
       );
     case 'export':

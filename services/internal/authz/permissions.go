@@ -94,6 +94,11 @@ const (
 	// that would otherwise sit in a member's clipboard.
 	ActionSentryManage Action = "sentry.manage"
 
+	// Connecting Slack for the workspace: inbound slash commands and an outgoing channel
+	// webhook. Admin because the install covers every team and the webhook URL is a
+	// credential that would otherwise sit in a member's clipboard.
+	ActionSlackManage Action = "slack.manage"
+
 	// Third-party OAuth applications owned by this workspace. Admin because a client
 	// secret is a workspace-wide credential, and every admin of the owning workspace is
 	// meant to be able to manage the app.
@@ -117,7 +122,7 @@ var AllActions = []Action{
 	ActionWorkspaceViewManage, ActionTeamViewManage,
 	ActionWorkspaceTemplateManage, ActionTeamTemplateManage,
 	ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete, ActionProjectStatusManage,
-	ActionAPIKeyManage, ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionSentryManage, ActionOauthClientManage,
+	ActionAPIKeyManage, ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionSentryManage, ActionSlackManage, ActionOauthClientManage,
 }
 
 // Deliberately absent: notifications, subscriptions, favourites and view preferences.
@@ -168,7 +173,7 @@ func Can(p *Principal, a Action) bool {
 		// team-scoped equivalents are not.
 		ActionWorkspaceLabelManage, ActionWorkspaceViewManage, ActionWorkspaceTemplateManage,
 		ActionProjectStatusManage,
-		ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionSentryManage, ActionOauthClientManage:
+		ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionSentryManage, ActionSlackManage, ActionOauthClientManage:
 		return p.Role.IsAdmin()
 
 	case ActionTeamJoin, ActionAPIKeyManage, ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete:

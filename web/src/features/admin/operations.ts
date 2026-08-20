@@ -48,6 +48,7 @@ export const ENTITLEMENTS_QUERY = /* GraphQL */ `
         sso
         auditLog
         slas
+        slack
         lapsed
       }
     }

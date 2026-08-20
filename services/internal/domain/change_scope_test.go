@@ -210,6 +210,9 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	if _, _, _, err := svc.CreateSentryConnection(ctx, p, domain.CreateSentryConnectionInput{DefaultTeamID: f.TeamID}); err != nil {
 		t.Fatalf("sentryConnection: %v", err)
 	}
+	if _, _, err := svc.CreateSlackConnection(ctx, p, domain.CreateSlackConnectionInput{DefaultTeamID: f.TeamID}); err != nil {
+		t.Fatalf("slackConnection: %v", err)
+	}
 	if _, _, _, err := svc.EnsureCycleCalendarFeed(ctx, p, f.TeamID); err != nil {
 		t.Fatalf("cycleCalendarFeed: %v", err)
 	}

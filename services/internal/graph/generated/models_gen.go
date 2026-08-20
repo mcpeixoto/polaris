@@ -503,6 +503,14 @@ type CreateSLARuleInput struct {
 	DurationMinutes *int            `json:"durationMinutes,omitempty"`
 }
 
+type CreateSlackConnectionInput struct {
+	DefaultTeamID  uuid.UUID `json:"defaultTeamId"`
+	ChannelName    *string   `json:"channelName,omitempty"`
+	WebhookURL     *string   `json:"webhookUrl,omitempty"`
+	NotifyIssues   *bool     `json:"notifyIssues,omitempty"`
+	NotifyComments *bool     `json:"notifyComments,omitempty"`
+}
+
 type CreateTeamInput struct {
 	Key         string  `json:"key"`
 	Name        string  `json:"name"`
@@ -772,6 +780,8 @@ type Entitlements struct {
 	AuditLog           bool `json:"auditLog"`
 	// Business+: SLA rules that own an issue's due date.
 	Slas bool `json:"slas"`
+	// Slack integration. Stays free: gating chat is how an open-source tracker loses its ecosystem.
+	Slack bool `json:"slack"`
 	// Set while a paid plan is lapsed: reads work, gated writes do not.
 	Lapsed bool `json:"lapsed"`
 }
@@ -1884,6 +1894,38 @@ type SLARulePayload struct {
 
 func (SLARulePayload) IsMutationResult() {}
 
+// Workspace Slack install. The incoming-webhook URL is not on this type: the replica
+// carries the default team and notify toggles a client needs to render settings.
+// One Slack connection per workspace.
+type SlackConnection struct {
+	ID             uuid.UUID  `json:"id"`
+	WorkspaceID    uuid.UUID  `json:"workspaceId"`
+	CreatorID      uuid.UUID  `json:"creatorId"`
+	Enabled        bool       `json:"enabled"`
+	DefaultTeamID  uuid.UUID  `json:"defaultTeamId"`
+	ChannelName    *string    `json:"channelName,omitempty"`
+	NotifyIssues   bool       `json:"notifyIssues"`
+	NotifyComments bool       `json:"notifyComments"`
+	ConnectedAt    *time.Time `json:"connectedAt,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+}
+
+type SlackConnectionPayload struct {
+	Version         int              `json:"version"`
+	SlackConnection *SlackConnection `json:"slackConnection"`
+}
+
+func (SlackConnectionPayload) IsMutationResult() {}
+
+type SlackInbound struct {
+	CommandURL              string `json:"commandUrl"`
+	EventsURL               string `json:"eventsUrl"`
+	WebhookConfigured       bool   `json:"webhookConfigured"`
+	SigningSecretConfigured bool   `json:"signingSecretConfigured"`
+	BotTokenConfigured      bool   `json:"botTokenConfigured"`
+}
+
 type SubmitIntegrationInput struct {
 	Name    string `json:"name"`
 	Website string `json:"website"`
@@ -2317,6 +2359,15 @@ type UpdateSLARuleInput struct {
 	Action          *SLAAction      `json:"action,omitempty"`
 	DurationMinutes *int            `json:"durationMinutes,omitempty"`
 	AfterID         *uuid.UUID      `json:"afterId,omitempty"`
+}
+
+type UpdateSlackConnectionInput struct {
+	DefaultTeamID  *uuid.UUID `json:"defaultTeamId,omitempty"`
+	ChannelName    *string    `json:"channelName,omitempty"`
+	WebhookURL     *string    `json:"webhookUrl,omitempty"`
+	NotifyIssues   *bool      `json:"notifyIssues,omitempty"`
+	NotifyComments *bool      `json:"notifyComments,omitempty"`
+	Enabled        *bool      `json:"enabled,omitempty"`
 }
 
 type UpdateTeamArchiveInput struct {

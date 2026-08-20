@@ -194,6 +194,8 @@ type Entitlements {
   auditLog: Boolean!
   """Business+: SLA rules that own an issue's due date."""
   slas: Boolean!
+  """Slack integration. Stays free: gating chat is how an open-source tracker loses its ecosystem."""
+  slack: Boolean!
   """Set while a paid plan is lapsed: reads work, gated writes do not."""
   lapsed: Boolean!
 }
@@ -2116,6 +2118,55 @@ input LinkSentryIssueInput {
 }
 
 """
+Workspace Slack install. The incoming-webhook URL is not on this type: the replica
+carries the default team and notify toggles a client needs to render settings.
+One Slack connection per workspace.
+"""
+type SlackConnection {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  enabled: Boolean!
+  defaultTeamId: UUID!
+  channelName: String
+  notifyIssues: Boolean!
+  notifyComments: Boolean!
+  connectedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type SlackInbound {
+  commandUrl: String!
+  eventsUrl: String!
+  webhookConfigured: Boolean!
+  signingSecretConfigured: Boolean!
+  botTokenConfigured: Boolean!
+}
+
+type SlackConnectionPayload implements MutationResult {
+  version: Int!
+  slackConnection: SlackConnection!
+}
+
+input CreateSlackConnectionInput {
+  defaultTeamId: UUID!
+  channelName: String
+  webhookUrl: String
+  notifyIssues: Boolean
+  notifyComments: Boolean
+}
+
+input UpdateSlackConnectionInput {
+  defaultTeamId: UUID
+  channelName: String
+  webhookUrl: String
+  notifyIssues: Boolean
+  notifyComments: Boolean
+  enabled: Boolean
+}
+
+"""
 A bulk update returns the issues it changed and the single version the whole batch landed
 at, because it emits one version block rather than one per issue.
 """
@@ -3012,6 +3063,10 @@ type Query {
   sentryConnection: SentryConnection
   """Admin-only. The URL and secret to paste into a Sentry alert webhook or internal integration."""
   sentryWebhook: SentryWebhook
+  """The workspace Slack install, if any. Credentials are on slackInbound, not here."""
+  slackConnection: SlackConnection
+  """Admin-only. Inbound Slack URLs and whether env credentials / a webhook URL are set."""
+  slackInbound: SlackInbound
   """The viewer's ICS subscription for this team, if they have minted one. Token is on cycleCalendarFeedURL."""
   cycleCalendarFeed(teamId: UUID!): CycleCalendarFeed
   """The HTTPS feed URL for this team's cycle calendar. Null until ensureCycleCalendarFeed has run."""
@@ -3322,6 +3377,10 @@ type Mutation {
   updateSentryConnection(input: UpdateSentryConnectionInput!): SentryConnectionPayload!
   deleteSentryConnection: DeletePayload!
   linkSentryIssue(input: LinkSentryIssueInput!, clientId: UUID, opId: UUID): SentryLinkPayload! @idempotent
+
+  createSlackConnection(input: CreateSlackConnectionInput!): SlackConnectionPayload!
+  updateSlackConnection(input: UpdateSlackConnectionInput!): SlackConnectionPayload!
+  deleteSlackConnection: DeletePayload!
 
   """Mint (or return) a personal ICS feed for this team's cycles."""
   ensureCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!

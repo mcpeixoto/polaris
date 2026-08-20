@@ -58,6 +58,7 @@ export interface FeatureMatrix {
   readonly sso: boolean;
   readonly auditLog: boolean;
   readonly slas: boolean;
+  readonly slack: boolean;
 }
 
 export interface Entitlements {
@@ -72,7 +73,7 @@ export interface Entitlements {
 
 /** The features a screen in this milestone can gate on. */
 export type GatedFeature =
-  'apiKeys' | 'privateTeams' | 'subTeams' | 'customViews' | 'sso' | 'auditLog' | 'slas';
+  'apiKeys' | 'privateTeams' | 'subTeams' | 'customViews' | 'sso' | 'auditLog' | 'slas' | 'slack';
 
 /** How each one is named to a person. The wire's key is not a phrase anybody reads. */
 const FEATURE_LABELS: Readonly<Record<GatedFeature, string>> = {
@@ -83,6 +84,7 @@ const FEATURE_LABELS: Readonly<Record<GatedFeature, string>> = {
   sso: 'Single sign-on',
   auditLog: 'The audit log',
   slas: 'SLAs',
+  slack: 'Slack',
 };
 
 /**
@@ -172,6 +174,7 @@ interface EntitlementsResponse {
       readonly sso: boolean;
       readonly auditLog: boolean;
       readonly slas: boolean;
+      readonly slack: boolean;
       readonly lapsed: boolean;
     };
   };
@@ -261,6 +264,7 @@ export function useEntitlements(): Entitlements {
       sso: answer.sso,
       auditLog: answer.auditLog,
       slas: answer.slas,
+      slack: answer.slack,
     },
     confirmed: true,
     reload,

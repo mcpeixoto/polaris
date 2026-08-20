@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -134,9 +135,11 @@ func run() error {
 func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
 	es := generated.NewExecutableSchema(generated.Config{
 		Resolvers: &graph.Resolver{
-			Svc:                   svc,
-			PublicURL:             cfg.PublicURL,
-			GitHubOAuthConfigured: cfg.GitHubOAuthConfigured(),
+			Svc:                    svc,
+			PublicURL:              cfg.PublicURL,
+			GitHubOAuthConfigured:  cfg.GitHubOAuthConfigured(),
+			SlackSigningConfigured: strings.TrimSpace(cfg.SlackSigningSecret) != "",
+			SlackBotConfigured:     strings.TrimSpace(cfg.SlackBotToken) != "",
 		},
 		Directives: graph.Directives(),
 	})

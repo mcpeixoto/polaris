@@ -3728,6 +3728,67 @@ func (r *mutationResolver) LinkSentryIssue(ctx context.Context, input generated.
 	return &generated.SentryLinkPayload{Version: int(version), Issue: &out, Attachment: &att}, nil
 }
 
+// CreateSlackConnection is the resolver for the createSlackConnection field.
+func (r *mutationResolver) CreateSlackConnection(ctx context.Context, input generated.CreateSlackConnectionInput) (*generated.SlackConnectionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	conn, version, err := r.Svc.CreateSlackConnection(ctx, p, domain.CreateSlackConnectionInput{
+		DefaultTeamID:  input.DefaultTeamID,
+		ChannelName:    input.ChannelName,
+		WebhookURL:     input.WebhookURL,
+		NotifyIssues:   input.NotifyIssues,
+		NotifyComments: input.NotifyComments,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toSlackConnection(conn)
+	return &generated.SlackConnectionPayload{Version: int(version), SlackConnection: &out}, nil
+}
+
+// UpdateSlackConnection is the resolver for the updateSlackConnection field.
+func (r *mutationResolver) UpdateSlackConnection(ctx context.Context, input generated.UpdateSlackConnectionInput) (*generated.SlackConnectionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.UpdateSlackConnectionInput{
+		DefaultTeamID:  input.DefaultTeamID,
+		NotifyIssues:   input.NotifyIssues,
+		NotifyComments: input.NotifyComments,
+		Enabled:        input.Enabled,
+		WebhookURL:     input.WebhookURL,
+	}
+	if input.ChannelName != nil {
+		if strings.TrimSpace(*input.ChannelName) == "" {
+			in.ClearChannelName = true
+		} else {
+			in.ChannelName = input.ChannelName
+		}
+	}
+	conn, version, err := r.Svc.UpdateSlackConnection(ctx, p, in)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toSlackConnection(conn)
+	return &generated.SlackConnectionPayload{Version: int(version), SlackConnection: &out}, nil
+}
+
+// DeleteSlackConnection is the resolver for the deleteSlackConnection field.
+func (r *mutationResolver) DeleteSlackConnection(ctx context.Context) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	id, version, err := r.Svc.DeleteSlackConnection(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // EnsureCycleCalendarFeed is the resolver for the ensureCycleCalendarFeed field.
 func (r *mutationResolver) EnsureCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*generated.CycleCalendarFeedPayload, error) {
 	p, err := principalFrom(ctx)
@@ -5204,6 +5265,46 @@ func (r *queryResolver) SentryWebhook(ctx context.Context) (*generated.SentryWeb
 	return &generated.SentryWebhook{
 		URL:    sentryWebhookURL(r.PublicURL, p.WorkspaceID.String()),
 		Secret: secret,
+	}, nil
+}
+
+// SlackConnection is the resolver for the slackConnection field.
+func (r *queryResolver) SlackConnection(ctx context.Context) (*generated.SlackConnection, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	conn, err := r.Svc.GetSlackConnection(ctx, p)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	out := toSlackConnection(conn)
+	return &out, nil
+}
+
+// SlackInbound is the resolver for the slackInbound field.
+func (r *queryResolver) SlackInbound(ctx context.Context) (*generated.SlackInbound, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	configured, err := r.Svc.SlackWebhookConfigured(ctx, p)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	id := p.WorkspaceID.String()
+	return &generated.SlackInbound{
+		CommandURL:              slackInboundURL(r.PublicURL, id, "command"),
+		EventsURL:               slackInboundURL(r.PublicURL, id, "events"),
+		WebhookConfigured:       configured,
+		SigningSecretConfigured: r.SlackSigningConfigured,
+		BotTokenConfigured:      r.SlackBotConfigured,
 	}, nil
 }
 
