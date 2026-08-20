@@ -65,11 +65,7 @@ export interface NewView {
   /** Attaches the view as a tab on this project. */
   readonly projectId?: UUID | undefined;
   /**
-   * Keeps the view to its creator.
-   *
-   * Decided at creation and never afterwards: `UpdateViewInput` has no `private` field, so a
-   * view cannot be flipped between shared and private. The dialog says so rather than letting
-   * somebody find out by looking for the switch.
+   * Keeps the view to its creator. Can be flipped later with `updateView({ private })`.
    */
   readonly private?: boolean | undefined;
   readonly icon?: string | undefined;
@@ -86,6 +82,14 @@ export interface ViewFields {
   readonly filter?: FilterNode | undefined;
   readonly display?: DisplayOptions | undefined;
   readonly afterViewId?: UUID | undefined;
+  /**
+   * True keeps the view to `ownerId`. False shares it. Omit to leave sharing unchanged.
+   *
+   * The optimistic row has to match the server's owner_id rule or the sidebar shows the
+   * view in the wrong section for one round trip.
+   */
+  readonly private?: boolean | undefined;
+  readonly ownerId?: UUID | undefined;
 }
 
 /** Saves the current filter and display options as a named view, returning its local id. */
@@ -146,8 +150,16 @@ export async function updateView(engine: SyncEngine, id: UUID, fields: ViewField
   const before = store.get('view', id);
   if (before === undefined) return;
 
+  const { ownerId: previousOwner, ...rest } = before;
   const after: View = {
-    ...before,
+    ...rest,
+    ...(fields.private === true && fields.ownerId !== undefined
+      ? { ownerId: fields.ownerId }
+      : fields.private === false
+        ? null
+        : previousOwner === undefined
+          ? null
+          : { ownerId: previousOwner }),
     ...(fields.name === undefined ? null : { name: fields.name.trim() }),
     ...(fields.description === undefined ? null : { description: fields.description }),
     ...(fields.icon === undefined ? null : { icon: fields.icon }),
@@ -169,6 +181,7 @@ export async function updateView(engine: SyncEngine, id: UUID, fields: ViewField
         ...(fields.filter === undefined ? null : { filter: fields.filter }),
         ...(fields.display === undefined ? null : { display: fields.display }),
         ...(fields.afterViewId === undefined ? null : { afterViewId: fields.afterViewId }),
+        ...(fields.private === undefined ? null : { private: fields.private }),
       },
     },
     optimistic: [{ type: 'view', id, before, after }],

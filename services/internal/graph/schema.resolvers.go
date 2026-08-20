@@ -2248,6 +2248,7 @@ func (r *mutationResolver) UpdateView(ctx context.Context, input generated.Updat
 		Filter:      input.Filter,
 		Display:     input.Display,
 		AfterViewID: input.AfterViewID,
+		Private:     input.Private,
 	})
 	if err != nil {
 		return nil, PresentError(ctx, err)
