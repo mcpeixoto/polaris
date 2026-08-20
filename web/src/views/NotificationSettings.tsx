@@ -19,6 +19,7 @@
 import { useEngine } from '~/app/context';
 import { Button, Checkbox, EmptyState, Select } from '~/components';
 import { report, updateNotificationPrefs } from '~/features/inbox/mutations';
+import { requestNotificationPermission } from '~/platform/runtime';
 import { setViewSubscription } from '~/features/view/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
@@ -165,6 +166,34 @@ export function NotificationSettings() {
       </header>
 
       <div className={styles.body}>
+        <section className={styles.section} aria-labelledby="desktop-heading">
+          <h2 className={styles.sectionTitle} id="desktop-heading">
+            Desktop
+          </h2>
+          <p className={styles.sectionNote}>
+            Browser notifications for new inbox items. The tab badge still updates either way.
+          </p>
+          <Checkbox
+            checked={prefs.desktop === true}
+            onChange={(event) => {
+              const on = event.target.checked;
+              if (!on) {
+                write({ desktop: false });
+                return;
+              }
+              void requestNotificationPermission().then((granted) => {
+                if (granted) write({ desktop: true });
+              });
+            }}
+            label="Browser notifications"
+          />
+          {prefs.desktop === true ? (
+            <p className={styles.warning}>
+              New unread items also appear as a system notification once this page has permission.
+            </p>
+          ) : null}
+        </section>
+
         <section className={styles.section} aria-labelledby="email-heading">
           <h2 className={styles.sectionTitle} id="email-heading">
             Email
