@@ -9,6 +9,7 @@ import { detectPlatform } from '~/keys';
 import { Store, type Change, type Issue, type Team, type WorkflowState } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
+import { AdHocIssues } from './AdHocIssues';
 import { IssueList } from './IssueList';
 import { Triage } from './Triage';
 
@@ -574,5 +575,29 @@ describe('triage', () => {
     const sent = mutate.mock.calls[0]?.[0] as { mutation: string; variables: { id: string } };
     expect(sent.mutation).toContain('acceptTriageIssue');
     expect(sent.variables.id).toBe('issue-9');
+  });
+});
+
+describe('an ad-hoc identifier URL', () => {
+  it('lists exactly the named issues, in the URL order of their identifiers', () => {
+    const store = seeded();
+    const mutate = vi.fn().mockResolvedValue({});
+    const engine = { store, mutate } as unknown as SyncEngine;
+    render(
+      <MemoryRouter initialEntries={['/issues/ENG-3,ENG-1,MISSING-9']}>
+        <KeymapProvider>
+          <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+            <Routes>
+              <Route path="/issues/:identifiers" element={<AdHocIssues />} />
+            </Routes>
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('heading', { name: 'ENG-3, ENG-1, MISSING-9' })).toBeTruthy();
+    expect(screen.getByText('Rewrite the seeder')).toBeTruthy();
+    expect(screen.getByText('Fix the flake')).toBeTruthy();
+    expect(screen.queryByText('Ship the importer')).toBeNull();
   });
 });
