@@ -17,9 +17,10 @@ import {
 } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 
-import { useViewer, useViewerId } from '~/hooks/useViewer';
+import { useDesktopNotifications } from '~/features/inbox/desktop';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
+import { useViewer, useViewerId } from '~/hooks/useViewer';
 import { Menu } from '~/components';
 import { gotoLabelItems, labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { personName } from '~/features/prefs/prefs';
@@ -109,6 +110,8 @@ export function AppShell({
 
   const viewerId = useViewerId();
   const viewer = useViewer();
+  const engine = useEngine();
+  useDesktopNotifications(engine, viewerId);
   const showCustomers = viewer !== null && viewer.role !== 'guest';
   const showDashboards = showCustomers;
   const showPulse = viewer === null || viewer.role !== 'guest';
