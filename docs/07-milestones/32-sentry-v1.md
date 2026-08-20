@@ -1,6 +1,6 @@
 # Sentry v1 (create issue from webhook, link)
 
-**Status:** in progress  
+**Status:** shipped on main  
 **Migration:** `000061_sentry`  
 **Client schema:** 42
 
