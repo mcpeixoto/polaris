@@ -192,6 +192,23 @@ export interface SentryConnection {
 }
 
 /**
+ * The workspace Slack install. The incoming-webhook URL is not replicated.
+ */
+export interface SlackConnection {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly creatorId: UUID;
+  readonly enabled: boolean;
+  readonly defaultTeamId: UUID;
+  readonly channelName?: string;
+  readonly notifyIssues: boolean;
+  readonly notifyComments: boolean;
+  readonly connectedAt?: Timestamp;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/**
  * The viewer's ICS subscription for one team. The feed token is not replicated.
  */
 export interface CycleCalendarFeed {
@@ -1133,6 +1150,7 @@ export interface EntityByType {
   gitlabConnection: GitLabConnection;
   gitlabUserLink: GitLabUserLink;
   sentryConnection: SentryConnection;
+  slackConnection: SlackConnection;
   cycleCalendarFeed: CycleCalendarFeed;
   team: Team;
   teamMembership: TeamMembership;
@@ -1197,6 +1215,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'team',
   'teamMembership',
   'sentryConnection',
+  'slackConnection',
   'cycleCalendarFeed',
   'workflowState',
   'customer',

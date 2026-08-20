@@ -62,6 +62,7 @@ type Querier interface {
 	// accidentally look like a mint (or the other way around).
 	//
 	AdvanceRecurringIssue(ctx context.Context, arg AdvanceRecurringIssueParams) (AdvanceRecurringIssueRow, error)
+	AdvanceSlackNotifyCursor(ctx context.Context, arg AdvanceSlackNotifyCursorParams) error
 	AdvanceWebhookCursor(ctx context.Context, arg AdvanceWebhookCursorParams) error
 	// AllocateIssueNumber takes a row lock on the team for the rest of the transaction.
 	//
@@ -194,6 +195,7 @@ type Querier interface {
 	//
 	ClearFavoritesInFolder(ctx context.Context, folderID uuid.UUID) ([]Favorite, error)
 	ClearSentryConnectionOrganizationSlug(ctx context.Context, workspaceID uuid.UUID) error
+	ClearSlackConnectionChannelName(ctx context.Context, workspaceID uuid.UUID) error
 	CompleteCycle(ctx context.Context, arg CompleteCycleParams) (Cycle, error)
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
 	ConsumeOauthAuthorizationCode(ctx context.Context, id uuid.UUID) (ConsumeOauthAuthorizationCodeRow, error)
@@ -358,6 +360,8 @@ type Querier interface {
 	CreateSentryConnection(ctx context.Context, arg CreateSentryConnectionParams) (CreateSentryConnectionRow, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (AccountSession, error)
 	CreateSlaRule(ctx context.Context, arg CreateSlaRuleParams) (SlaRule, error)
+	// Replicated columns only. webhook_url and notify_cursor are never selected here.
+	CreateSlackConnection(ctx context.Context, arg CreateSlackConnectionParams) (CreateSlackConnectionRow, error)
 	CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Saved views, the display preferences of the views that have no row, and favourites.
@@ -403,6 +407,7 @@ type Querier interface {
 	DeleteProjectTemplateMilestonesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
 	DeleteSentryConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteSlaRule(ctx context.Context, id uuid.UUID) error
+	DeleteSlackConnection(ctx context.Context, workspaceID uuid.UUID) error
 	// Upcoming cycles that have not started: dropped when the team turns cycles off.
 	DeleteUpcomingCycles(ctx context.Context, arg DeleteUpcomingCyclesParams) ([]uuid.UUID, error)
 	DeleteViewSubscription(ctx context.Context, id uuid.UUID) error
@@ -583,6 +588,9 @@ type Querier interface {
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (AccountSession, error)
 	GetSlaRule(ctx context.Context, id uuid.UUID) (SlaRule, error)
 	GetSlaRuleForUpdate(ctx context.Context, id uuid.UUID) (SlaRule, error)
+	GetSlackConnection(ctx context.Context, workspaceID uuid.UUID) (GetSlackConnectionRow, error)
+	GetSlackConnectionForNotify(ctx context.Context, workspaceID uuid.UUID) (GetSlackConnectionForNotifyRow, error)
+	GetSlackConnectionWebhookURL(ctx context.Context, workspaceID uuid.UUID) (*string, error)
 	GetSortOrderAfter(ctx context.Context, arg GetSortOrderAfterParams) (string, error)
 	// Neighbour lookups for fractional-index insertion: find the sort_order either side of
 	// the target position so a new key can be minted between them.
@@ -968,6 +976,7 @@ type Querier interface {
 	// the job did, so `coalesce` here covers only the workspaces created since.
 	//
 	ListWorkspacesWithPendingNotifications(ctx context.Context) ([]uuid.UUID, error)
+	ListWorkspacesWithPendingSlack(ctx context.Context) ([]uuid.UUID, error)
 	ListWorkspacesWithPendingWebhooks(ctx context.Context) ([]uuid.UUID, error)
 	// ListWorkspacesWithPurgeableIssues drives the retention sweep, which has no principal and
 	// therefore no workspace of its own. Distinct rather than a join over workspace, because
@@ -1159,6 +1168,7 @@ type Querier interface {
 	//
 	SetIssueSubscription(ctx context.Context, arg SetIssueSubscriptionParams) (IssueSubscription, error)
 	SetSentryConnectionSecret(ctx context.Context, arg SetSentryConnectionSecretParams) error
+	SetSlackConnectionWebhookURL(ctx context.Context, arg SetSlackConnectionWebhookURLParams) error
 	SetTeamsPrivate(ctx context.Context, ids []uuid.UUID) (int64, error)
 	SetUserRole(ctx context.Context, arg SetUserRoleParams) (User, error)
 	SetUserStatus(ctx context.Context, arg SetUserStatusParams) (User, error)
@@ -1389,6 +1399,7 @@ type Querier interface {
 	StreamRecurringIssuesForBootstrap(ctx context.Context, arg StreamRecurringIssuesForBootstrapParams) ([]StreamRecurringIssuesForBootstrapRow, error)
 	StreamSentryConnectionsForBootstrap(ctx context.Context, arg StreamSentryConnectionsForBootstrapParams) ([]StreamSentryConnectionsForBootstrapRow, error)
 	StreamSlaRulesForBootstrap(ctx context.Context, arg StreamSlaRulesForBootstrapParams) ([]SlaRule, error)
+	StreamSlackConnectionsForBootstrap(ctx context.Context, arg StreamSlackConnectionsForBootstrapParams) ([]StreamSlackConnectionsForBootstrapRow, error)
 	// StreamViewPreferencesForBootstrap feeds the initial snapshot. A preference travels under
 	// its owner's user scope and under nothing else, so the whole visibility rule is "yours".
 	//
@@ -1511,6 +1522,7 @@ type Querier interface {
 	UpdateRecurringIssue(ctx context.Context, arg UpdateRecurringIssueParams) (UpdateRecurringIssueRow, error)
 	UpdateSentryConnection(ctx context.Context, arg UpdateSentryConnectionParams) (UpdateSentryConnectionRow, error)
 	UpdateSlaRule(ctx context.Context, arg UpdateSlaRuleParams) (SlaRule, error)
+	UpdateSlackConnection(ctx context.Context, arg UpdateSlackConnectionParams) (UpdateSlackConnectionRow, error)
 	UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error)
 	// UpdateTeamArchive is the close/archive periods and the parent/child automations.
 	// Kept apart from UpdateTeam so a settings form that only touches intake cannot

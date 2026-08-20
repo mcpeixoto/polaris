@@ -383,6 +383,11 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	}); err != nil {
 		t.Fatalf("connect Sentry: %v", err)
 	}
+	if _, _, err := svc.CreateSlackConnection(ctx, s.alice, domain.CreateSlackConnectionInput{
+		DefaultTeamID: f.TeamID,
+	}); err != nil {
+		t.Fatalf("connect Slack: %v", err)
+	}
 	if _, _, _, err := svc.EnsureCycleCalendarFeed(ctx, s.bob, f.TeamID); err != nil {
 		t.Fatalf("bob's cycle calendar feed: %v", err)
 	}

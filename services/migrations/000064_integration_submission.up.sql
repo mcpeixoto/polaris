@@ -2,7 +2,7 @@
 --
 -- Not replicated: this is an admin-facing inbox of "please list this tool", not a
 -- credential and not something every replica needs in order to render the catalogue
--- that already ships. Slack's 000063 is reserved on feat/slack-v1.
+-- that already ships. Slack follows as 000065.
 
 CREATE TABLE integration_submission (
   id           uuid PRIMARY KEY,

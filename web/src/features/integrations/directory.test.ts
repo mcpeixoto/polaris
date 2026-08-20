@@ -37,7 +37,7 @@ describe('directoryStatus', () => {
     const githubEntry = DIRECTORY.find((entry) => entry.id === 'github')!;
     const slack = DIRECTORY.find((entry) => entry.id === 'slack')!;
     expect(directoryStatus(store, githubEntry)).toBe('available');
-    expect(directoryStatus(store, slack)).toBe('coming');
+    expect(directoryStatus(store, slack)).toBe('available');
   });
 
   it('marks GitHub connected once a workspace install is on the replica', () => {

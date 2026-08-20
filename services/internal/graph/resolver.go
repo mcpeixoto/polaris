@@ -33,6 +33,8 @@ type Resolver struct {
 	// settings UI still works without them; Connect-with-GitHub stays disabled until they
 	// exist.
 	GitHubOAuthConfigured bool
+	SlackSigningConfigured bool
+	SlackBotConfigured     bool
 }
 
 // principalFrom returns the caller, or the error every resolver returns when there is not

@@ -386,6 +386,20 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			); err != nil {
 				return err
 			}
+			if err := streamPages(ctx, w, "slackConnection",
+				func(ctx context.Context, after uuid.UUID) ([]store.StreamSlackConnectionsForBootstrapRow, error) {
+					return q.StreamSlackConnectionsForBootstrap(ctx, store.StreamSlackConnectionsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(c store.StreamSlackConnectionsForBootstrapRow) (uuid.UUID, any) {
+					return c.ID, slackConnectionFromStream(c)
+				},
+			); err != nil {
+				return err
+			}
 		}
 
 		if err := streamPages(ctx, w, "cycleCalendarFeed",
@@ -1132,7 +1146,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v41 adds favorite.folderId / favorite.name and kind folder (sidebar folders).
 // v42 adds sentryConnection (Sentry webhook create/link, no secrets).
 // v43 adds cycleCalendarFeed (personal ICS token per team, no secrets).
-const ClientSchemaVersion = 43
+// v44 adds slackConnection (Slack webhook notify / slash / unfurls, no secrets).
+const ClientSchemaVersion = 44
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

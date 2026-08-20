@@ -263,6 +263,19 @@ func run() error {
 			critical: false,
 		},
 		{
+			name:   "fan out slack",
+			every:  5 * time.Second,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.FanOutSlackAll(ctx, cfg.PublicURL, webhookout.Deliverer{})
+				if err == nil && n > 0 {
+					log.Debug("posted slack notifications", "rows", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
 			name:  "prune webhook deliveries",
 			every: 24 * time.Hour,
 			run: func(ctx context.Context) error {
