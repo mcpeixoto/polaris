@@ -46,6 +46,7 @@ export interface AppShellProps {
   renderCreateInitiative?: (props: { onClose: () => void }) => ReactNode;
   renderCreateCustomer?: (props: { onClose: () => void }) => ReactNode;
   renderCreateCustomerRequest?: (props: { onClose: () => void }) => ReactNode;
+  renderCreateDashboard?: (props: { onClose: () => void }) => ReactNode;
 }
 
 export function AppShell({
@@ -55,6 +56,7 @@ export function AppShell({
   renderCreateInitiative,
   renderCreateCustomer,
   renderCreateCustomerRequest,
+  renderCreateDashboard,
 }: AppShellProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -66,6 +68,7 @@ export function AppShell({
   const [createInitiativeOpen, setCreateInitiativeOpen] = useState(false);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [createCustomerRequestOpen, setCreateCustomerRequestOpen] = useState(false);
+  const [createDashboardOpen, setCreateDashboardOpen] = useState(false);
   const session = useWorkspaceSession();
   const workspaceMenu = useMenuTrigger();
   const onProjects =
@@ -74,6 +77,7 @@ export function AppShell({
     /\/team\/[^/]+\/projects(?:\/|$)/.test(pathname);
   const onInitiatives = pathname === '/initiatives' || pathname.startsWith('/initiative/');
   const onCustomers = pathname === '/customers' || pathname.startsWith('/customer/');
+  const onDashboards = pathname === '/dashboards' || pathname.startsWith('/dashboard/');
   const onCycles = pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
 
   const teams = useQuery(
@@ -89,6 +93,7 @@ export function AppShell({
   const viewerId = useViewerId();
   const viewer = useViewer();
   const showCustomers = viewer !== null && viewer.role !== 'guest';
+  const showDashboards = showCustomers;
   const favorites = useLiveQuery(
     (store) => (viewerId === null ? [] : favoriteLinks(store, viewerId)),
     ['favorite', 'view', 'team', 'issue', 'label'],
@@ -109,6 +114,7 @@ export function AppShell({
     setCreateInitiativeOpen(false);
     setCreateCustomerOpen(false);
     setCreateCustomerRequestOpen(false);
+    setCreateDashboardOpen(false);
   }, []);
 
   const openCreate = useCallback((seed?: IssueComposerSeed) => {
@@ -182,6 +188,16 @@ export function AppShell({
               title: 'Create customer request',
               group: 'Customers',
               run: () => setCreateCustomerRequestOpen(true),
+            },
+          ]
+        : []),
+      ...(showDashboards
+        ? [
+            {
+              id: 'dashboard.create',
+              title: 'Create dashboard',
+              group: 'Dashboards',
+              run: () => setCreateDashboardOpen(true),
             },
           ]
         : []),
@@ -261,6 +277,16 @@ export function AppShell({
             },
           ]
         : []),
+      ...(showDashboards
+        ? [
+            {
+              id: 'nav.dashboards',
+              title: 'Go to Dashboards',
+              group: 'Navigation',
+              run: () => navigate('/dashboards'),
+            },
+          ]
+        : []),
       {
         id: 'nav.cycles',
         title: 'Go to current cycle',
@@ -298,6 +324,7 @@ export function AppShell({
       openCreate,
       workspaceMenu.show,
       showCustomers,
+      showDashboards,
     ],
   );
 
@@ -366,6 +393,12 @@ export function AppShell({
               <NavLink to="/customers" className={() => navClass({ isActive: onCustomers })}>
                 <NavGlyph name="customer" />
                 <span className={styles.navLabel}>Customers</span>
+              </NavLink>
+            )}
+            {showDashboards && (
+              <NavLink to="/dashboards" className={() => navClass({ isActive: onDashboards })}>
+                <NavGlyph name="dashboard" />
+                <span className={styles.navLabel}>Dashboards</span>
               </NavLink>
             )}
             <NavLink to={cyclesPath} className={() => navClass({ isActive: onCycles })}>
@@ -491,6 +524,8 @@ export function AppShell({
           renderCreateCustomer?.({ onClose: () => setCreateCustomerOpen(false) })}
         {createCustomerRequestOpen &&
           renderCreateCustomerRequest?.({ onClose: () => setCreateCustomerRequestOpen(false) })}
+        {createDashboardOpen &&
+          renderCreateDashboard?.({ onClose: () => setCreateDashboardOpen(false) })}
       </div>
     </CreateIssueProvider>
   );
@@ -568,6 +603,7 @@ type NavGlyphName =
   | 'project'
   | 'initiative'
   | 'customer'
+  | 'dashboard'
   | 'cycle'
   | 'view'
   | 'members'
@@ -653,6 +689,15 @@ function glyphPath(name: NavGlyphName) {
         <>
           <rect x="2.5" y="4.5" width="11" height="9" rx="1.5" {...stroke} />
           <path d="M5.5 4.5V3.5A2.5 2.5 0 0 1 10.5 3.5V4.5M6 9.5h4" {...stroke} />
+        </>
+      );
+    case 'dashboard':
+      return (
+        <>
+          <rect x="2.5" y="2.5" width="4.75" height="4.75" rx="0.75" {...stroke} />
+          <rect x="8.75" y="2.5" width="4.75" height="4.75" rx="0.75" {...stroke} />
+          <rect x="2.5" y="8.75" width="4.75" height="4.75" rx="0.75" {...stroke} />
+          <rect x="8.75" y="8.75" width="4.75" height="4.75" rx="0.75" {...stroke} />
         </>
       );
     case 'cycle':

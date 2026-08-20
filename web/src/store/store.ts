@@ -30,6 +30,8 @@ import {
   type Customer,
   type CustomerRequest,
   type SlaRule,
+  type Dashboard,
+  type DashboardTile,
   type Entity,
   type EntityOf,
   type EntityType,
@@ -165,6 +167,8 @@ export class Store {
     workflowState: new Map(),
     customer: new Map(),
     slaRule: new Map(),
+    dashboard: new Map(),
+    dashboardTile: new Map(),
     label: new Map(),
     issueTemplate: new Map(),
     formTemplate: new Map(),
@@ -252,6 +256,7 @@ export class Store {
   private readonly customerRequestCustomer = new SetIndex<UUID>();
   private readonly customerRequestIssue = new SetIndex<UUID>();
   private readonly customerRequestProject = new SetIndex<UUID>();
+  private readonly dashboardTileOf = new SetIndex<UUID>();
   /** Keyed by user and view key together; see `preferenceKey`. */
   private readonly preferenceKeys = new Map<string, UUID>();
 
@@ -432,6 +437,18 @@ export class Store {
 
   get customerRequests(): ReadonlyMap<UUID, CustomerRequest> {
     return this.tables.customerRequest as ReadonlyMap<UUID, CustomerRequest>;
+  }
+
+  get dashboards(): ReadonlyMap<UUID, Dashboard> {
+    return this.tables.dashboard as ReadonlyMap<UUID, Dashboard>;
+  }
+
+  get dashboardTiles(): ReadonlyMap<UUID, DashboardTile> {
+    return this.tables.dashboardTile as ReadonlyMap<UUID, DashboardTile>;
+  }
+
+  tileIdsForDashboard(dashboardId: UUID): ReadonlySet<UUID> {
+    return this.dashboardTileOf.get(dashboardId);
   }
 
   get recurringIssues(): ReadonlyMap<UUID, RecurringIssue> {
@@ -1049,6 +1066,11 @@ export class Store {
           this.forget('customerRequest', rowId, deletes, touched);
         }
         break;
+      case 'dashboard':
+        for (const rowId of [...this.dashboardTileOf.get(id)]) {
+          this.forget('dashboardTile', rowId, deletes, touched);
+        }
+        break;
       case 'label':
         for (const rowId of [...this.labelIndex.rowIdsForLabel(id)]) {
           this.forget('issueLabel', rowId, deletes, touched);
@@ -1350,6 +1372,15 @@ export class Store {
         this.fileOptional(this.customerRequestProject, before?.projectId, row.projectId, row.id);
         break;
       }
+      case 'dashboardTile': {
+        const row = next as DashboardTile;
+        const before = previous as DashboardTile | undefined;
+        if (before !== undefined && before.dashboardId !== row.dashboardId) {
+          this.dashboardTileOf.remove(before.dashboardId, before.id);
+        }
+        this.dashboardTileOf.add(row.dashboardId, row.id);
+        break;
+      }
       default:
         break;
     }
@@ -1492,6 +1523,11 @@ export class Store {
         if (row.projectId !== undefined) {
           this.customerRequestProject.remove(row.projectId, row.id);
         }
+        break;
+      }
+      case 'dashboardTile': {
+        const row = entity as DashboardTile;
+        this.dashboardTileOf.remove(row.dashboardId, row.id);
         break;
       }
       default:

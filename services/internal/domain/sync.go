@@ -364,9 +364,7 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			); err != nil {
 				return err
 			}
-		}
 
-		if includeWorkspaceScoped {
 			if err := streamPages(ctx, w, "slaRule",
 				func(ctx context.Context, after uuid.UUID) ([]store.SlaRule, error) {
 					return q.StreamSlaRulesForBootstrap(ctx, store.StreamSlaRulesForBootstrapParams{
@@ -376,6 +374,36 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 					})
 				},
 				func(r store.SlaRule) (uuid.UUID, any) { return r.ID, toSlaRule(r) },
+			); err != nil {
+				return err
+			}
+
+			if err := streamPages(ctx, w, "dashboard",
+				func(ctx context.Context, after uuid.UUID) ([]store.Dashboard, error) {
+					return q.StreamDashboardsForBootstrap(ctx, store.StreamDashboardsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						UserID:      &p.UserID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(d store.Dashboard) (uuid.UUID, any) { return d.ID, toDashboard(d) },
+			); err != nil {
+				return err
+			}
+
+			if err := streamPages(ctx, w, "dashboardTile",
+				func(ctx context.Context, after uuid.UUID) ([]store.DashboardTile, error) {
+					return q.StreamDashboardTilesForBootstrap(ctx, store.StreamDashboardTilesForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						UserID:      &p.UserID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(tile store.DashboardTile) (uuid.UUID, any) { return tile.ID, toDashboardTile(tile) },
 			); err != nil {
 				return err
 			}
@@ -999,7 +1027,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v33 adds team and issue-template email intake addresses.
 // v34 lands inline comments after v33 shipped: a 33 replica would otherwise keep
 // serving without the new comment columns.
-const ClientSchemaVersion = 34
+// v35 adds dashboard and dashboardTile (Insights tiles on a page).
+const ClientSchemaVersion = 35
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

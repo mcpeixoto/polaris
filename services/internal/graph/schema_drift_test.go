@@ -53,6 +53,8 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"Customer", model.Customer{}, generated.Customer{}},
 		{"CustomerRequest", model.CustomerRequest{}, generated.CustomerRequest{}},
 		{"SlaRule", model.SlaRule{}, generated.SLARule{}},
+		{"Dashboard", model.Dashboard{}, generated.Dashboard{}},
+		{"DashboardTile", model.DashboardTile{}, generated.DashboardTile{}},
 	}
 
 	for _, pair := range pairs {
@@ -122,6 +124,8 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 		{"CustomerRequest", model.CustomerRequest{}, func(v any) (any, error) { return toCustomerRequest(v.(model.CustomerRequest)), nil }},
 		{"Comment", model.Comment{}, func(v any) (any, error) { return toComment(v.(model.Comment)) }},
 		{"SlaRule", model.SlaRule{}, func(v any) (any, error) { return toSlaRule(v.(model.SlaRule)) }},
+		{"Dashboard", model.Dashboard{}, func(v any) (any, error) { return toDashboard(v.(model.Dashboard)), nil }},
+		{"DashboardTile", model.DashboardTile{}, func(v any) (any, error) { return toDashboardTile(v.(model.DashboardTile)) }},
 	}
 
 	for _, c := range cases {
@@ -175,6 +179,9 @@ var enumValues = map[string]string{
 	"cadence":               model.CadenceWeekly,
 	"type":                  string(authz.ActorUser),
 	"action":                model.SlaActionApply,
+	"measure":               model.DashboardMeasureCount,
+	"slice":                 model.DashboardSliceAssignee,
+	"display":               model.DashboardDisplayChart,
 }
 
 // fillNonZero writes a distinguishable value into every field of v, recursively.
