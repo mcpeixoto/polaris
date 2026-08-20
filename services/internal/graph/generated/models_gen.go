@@ -758,9 +758,13 @@ type Favorite struct {
 	UserID      uuid.UUID    `json:"userId"`
 	Kind        FavoriteKind `json:"kind"`
 	TargetID    uuid.UUID    `json:"targetId"`
-	Position    string       `json:"position"`
-	CreatedAt   time.Time    `json:"createdAt"`
-	UpdatedAt   time.Time    `json:"updatedAt"`
+	// The folder this entry sits in. Null means the sidebar root. Folders themselves are always root.
+	FolderID *uuid.UUID `json:"folderId,omitempty"`
+	// The heading, for a folder. Null for every other kind.
+	Name      *string   `json:"name,omitempty"`
+	Position  string    `json:"position"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type FavoritePayload struct {
@@ -1295,6 +1299,15 @@ type LinkSentryIssueInput struct {
 	IssueID uuid.UUID `json:"issueId"`
 	URL     string    `json:"url"`
 	Title   *string   `json:"title,omitempty"`
+}
+
+type MoveFavoriteInput struct {
+	ID uuid.UUID `json:"id"`
+	// The folder to sit in. Ignored when clearFolder is set.
+	FolderID *uuid.UUID `json:"folderId,omitempty"`
+	// Lift it to the sidebar root.
+	ClearFolder     *bool      `json:"clearFolder,omitempty"`
+	AfterFavoriteID *uuid.UUID `json:"afterFavoriteId,omitempty"`
 }
 
 type Mutation struct {
@@ -3060,10 +3073,11 @@ func (e EstimateScale) MarshalJSON() ([]byte, error) {
 type FavoriteKind string
 
 const (
-	FavoriteKindView  FavoriteKind = "VIEW"
-	FavoriteKindTeam  FavoriteKind = "TEAM"
-	FavoriteKindIssue FavoriteKind = "ISSUE"
-	FavoriteKindLabel FavoriteKind = "LABEL"
+	FavoriteKindView   FavoriteKind = "VIEW"
+	FavoriteKindTeam   FavoriteKind = "TEAM"
+	FavoriteKindIssue  FavoriteKind = "ISSUE"
+	FavoriteKindLabel  FavoriteKind = "LABEL"
+	FavoriteKindFolder FavoriteKind = "FOLDER"
 )
 
 var AllFavoriteKind = []FavoriteKind{
@@ -3071,11 +3085,12 @@ var AllFavoriteKind = []FavoriteKind{
 	FavoriteKindTeam,
 	FavoriteKindIssue,
 	FavoriteKindLabel,
+	FavoriteKindFolder,
 }
 
 func (e FavoriteKind) IsValid() bool {
 	switch e {
-	case FavoriteKindView, FavoriteKindTeam, FavoriteKindIssue, FavoriteKindLabel:
+	case FavoriteKindView, FavoriteKindTeam, FavoriteKindIssue, FavoriteKindLabel, FavoriteKindFolder:
 		return true
 	}
 	return false

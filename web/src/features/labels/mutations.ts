@@ -44,6 +44,7 @@ import {
   ADD_ISSUE_LABEL,
   ARCHIVE_LABEL,
   CREATE_LABEL,
+  MERGE_LABELS,
   REMOVE_ISSUE_LABEL,
   UPDATE_LABEL,
 } from './operations';
@@ -202,6 +203,21 @@ export async function archiveLabel(engine: SyncEngine, labelId: UUID): Promise<v
   await engine.mutate({
     mutation: ARCHIVE_LABEL,
     variables: { id: labelId, archived: true },
+  });
+}
+
+/**
+ * Fold one label into another. The source disappears; its chips move onto the survivor.
+ *
+ * Not optimistic. The server rewrites every application and then archives the source, and
+ * a local patch that guessed which issue_label rows would be upserts vs deletes would be
+ * wrong the moment two labels already sat on the same issue. Settings is a watched screen.
+ */
+export async function mergeLabels(engine: SyncEngine, sourceId: UUID, intoId: UUID): Promise<void> {
+  if (sourceId === intoId) return;
+  await engine.mutate({
+    mutation: MERGE_LABELS,
+    variables: { sourceId, intoId },
   });
 }
 

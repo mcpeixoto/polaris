@@ -188,6 +188,11 @@ type Querier interface {
 	// remain assigned to work they can no longer see.
 	//
 	ClearExternalAssigneesInTeam(ctx context.Context, teamID uuid.UUID) ([]ClearExternalAssigneesInTeamRow, error)
+	// Children of a folder that is about to disappear. The FK would SET NULL on its own,
+	// but that write never hits the change stream, so a replica that watched the delete
+	// would keep pointing at a folder that is gone. The caller upserts these first.
+	//
+	ClearFavoritesInFolder(ctx context.Context, folderID uuid.UUID) ([]Favorite, error)
 	ClearSentryConnectionOrganizationSlug(ctx context.Context, workspaceID uuid.UUID) error
 	CompleteCycle(ctx context.Context, arg CompleteCycleParams) (Cycle, error)
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
@@ -373,6 +378,10 @@ type Querier interface {
 	DeleteGitLabTeamAutomation(ctx context.Context, arg DeleteGitLabTeamAutomationParams) error
 	DeleteGitLabUserLink(ctx context.Context, arg DeleteGitLabUserLinkParams) error
 	DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
+	// The remainder after RetargetIssueLabels: issues that already carried the survivor, so
+	// the source application is dropped rather than doubled.
+	//
+	DeleteIssueLabelsForLabel(ctx context.Context, labelID uuid.UUID) ([]IssueLabel, error)
 	DeleteIssueRelation(ctx context.Context, id uuid.UUID) (IssueRelation, error)
 	// Soft, not a DELETE: the unique index on (user_id, group_key) is what makes the fan-out
 	// idempotent, and removing the row would let a replayed version deliver the notification a
@@ -450,6 +459,7 @@ type Querier interface {
 	GetDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	GetDocumentForUpdate(ctx context.Context, id uuid.UUID) (Document, error)
 	GetDraft(ctx context.Context, arg GetDraftParams) (Draft, error)
+	GetFavorite(ctx context.Context, id uuid.UUID) (Favorite, error)
 	GetFavoritePositionAfter(ctx context.Context, arg GetFavoritePositionAfterParams) (string, error)
 	GetFormTemplate(ctx context.Context, id uuid.UUID) (GetFormTemplateRow, error)
 	GetFormTemplateField(ctx context.Context, id uuid.UUID) (FormTemplateField, error)
@@ -1077,6 +1087,12 @@ type Querier interface {
 	RestoreIssuesInTeam(ctx context.Context, arg RestoreIssuesInTeamParams) (int64, error)
 	RestoreProject(ctx context.Context, arg RestoreProjectParams) (Project, error)
 	RestoreTeam(ctx context.Context, arg RestoreTeamParams) (Team, error)
+	// RetargetIssueLabels is the bulk half of a label merge: every application of the source
+	// that would not collide with the survivor is rewritten in place. The row keeps its id,
+	// so the change stream is an upsert of the same entity rather than a delete-plus-add that
+	// would flicker the chip off and on.
+	//
+	RetargetIssueLabels(ctx context.Context, arg RetargetIssueLabelsParams) ([]IssueLabel, error)
 	RetireTeam(ctx context.Context, id uuid.UUID) (Team, error)
 	// Scoped by user_id as well as id: a key acts as its owner, so only its owner may retire
 	// it, and the rule is expressed where it cannot be skipped.
@@ -1447,6 +1463,7 @@ type Querier interface {
 	UpdateDashboardTile(ctx context.Context, arg UpdateDashboardTileParams) (DashboardTile, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateDraftPayload(ctx context.Context, arg UpdateDraftPayloadParams) (Draft, error)
+	UpdateFavorite(ctx context.Context, arg UpdateFavoriteParams) (Favorite, error)
 	UpdateFormTemplate(ctx context.Context, arg UpdateFormTemplateParams) (UpdateFormTemplateRow, error)
 	UpdateFormTemplateField(ctx context.Context, arg UpdateFormTemplateFieldParams) (FormTemplateField, error)
 	UpdateGitHubConnection(ctx context.Context, arg UpdateGitHubConnectionParams) (UpdateGitHubConnectionRow, error)

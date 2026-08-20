@@ -7,6 +7,11 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/graph/generated"
 )
 
+type sentryLinked struct {
+	Issue      model.Issue
+	Attachment model.Attachment
+}
+
 func toSentryConnection(c model.SentryConnection) generated.SentryConnection {
 	return generated.SentryConnection{
 		ID:               c.ID,
