@@ -2,7 +2,7 @@
 
 **Goal:** a live burn-up on the cycle detail page — scope and completed cumulative lines plus cycle success — computed from the replica. Inventory 4.5 scoped down.
 
-Target dotted line, started-over-time series, historical snapshots and capacity dial stay later slices.
+Target line, started series, completed bars, assignee distribution and capacity dial now live in `25-cycle-graph-capacity.md`. Historical snapshots for completed cycles stay later.
 
 ---
 
