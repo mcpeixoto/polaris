@@ -88,6 +88,7 @@ const ENUM_FIELDS: Readonly<Record<EntityType, readonly string[]>> = {
   gitlabConnection: [],
   gitlabUserLink: [],
   sentryConnection: [],
+  cycleCalendarFeed: [],
   team: ['estimateScale'],
   teamMembership: ['role'],
   workflowState: ['category'],

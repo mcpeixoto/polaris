@@ -192,6 +192,18 @@ export interface SentryConnection {
 }
 
 /**
+ * The viewer's ICS subscription for one team. The feed token is not replicated.
+ */
+export interface CycleCalendarFeed {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly teamId: UUID;
+  readonly userId: UUID;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/**
  * Delivery preferences. Every key is optional and absence means the default, so a client
  * built before a notification type existed does not have to know about it.
  */
@@ -1116,6 +1128,7 @@ export interface EntityByType {
   gitlabConnection: GitLabConnection;
   gitlabUserLink: GitLabUserLink;
   sentryConnection: SentryConnection;
+  cycleCalendarFeed: CycleCalendarFeed;
   team: Team;
   teamMembership: TeamMembership;
   workflowState: WorkflowState;
@@ -1179,6 +1192,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'team',
   'teamMembership',
   'sentryConnection',
+  'cycleCalendarFeed',
   'workflowState',
   'customer',
   'slaRule',

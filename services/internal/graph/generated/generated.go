@@ -206,6 +206,25 @@ type ComplexityRoot struct {
 		WorkspaceID func(childComplexity int) int
 	}
 
+	CycleCalendarFeed struct {
+		CreatedAt   func(childComplexity int) int
+		ID          func(childComplexity int) int
+		TeamID      func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		UserID      func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	CycleCalendarFeedPayload struct {
+		CycleCalendarFeed func(childComplexity int) int
+		URL               func(childComplexity int) int
+		Version           func(childComplexity int) int
+	}
+
+	CycleCalendarFeedURL struct {
+		URL func(childComplexity int) int
+	}
+
 	CyclePayload struct {
 		Cycle   func(childComplexity int) int
 		Version func(childComplexity int) int
@@ -809,6 +828,7 @@ type ComplexityRoot struct {
 		DeleteView                     func(childComplexity int, id uuid.UUID) int
 		DeleteViewSubscription         func(childComplexity int, viewID uuid.UUID) int
 		DeleteWebhook                  func(childComplexity int, id uuid.UUID) int
+		EnsureCycleCalendarFeed        func(childComplexity int, teamID uuid.UUID) int
 		InviteToWorkspace              func(childComplexity int, input InviteInput) int
 		LinkGitHubPullRequest          func(childComplexity int, input LinkGitHubPullRequestInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		LinkGitLabMergeRequest         func(childComplexity int, input LinkGitLabMergeRequestInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -1227,6 +1247,8 @@ type ComplexityRoot struct {
 		CustomerRequest              func(childComplexity int, id uuid.UUID) int
 		Customers                    func(childComplexity int) int
 		Cycle                        func(childComplexity int, id uuid.UUID) int
+		CycleCalendarFeed            func(childComplexity int, teamID uuid.UUID) int
+		CycleCalendarFeedURL         func(childComplexity int, teamID uuid.UUID) int
 		Cycles                       func(childComplexity int, teamID uuid.UUID) int
 		DeletedIssues                func(childComplexity int) int
 		DeletedTeams                 func(childComplexity int) int
@@ -1802,6 +1824,7 @@ type MutationResolver interface {
 	UpdateSentryConnection(ctx context.Context, input UpdateSentryConnectionInput) (*SentryConnectionPayload, error)
 	DeleteSentryConnection(ctx context.Context) (*DeletePayload, error)
 	LinkSentryIssue(ctx context.Context, input LinkSentryIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*SentryLinkPayload, error)
+	EnsureCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedPayload, error)
 	CreateDraft(ctx context.Context, input CreateDraftInput) (*DraftPayload, error)
 	UpdateDraft(ctx context.Context, input UpdateDraftInput) (*DraftPayload, error)
 	DeleteDraft(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
@@ -1885,6 +1908,8 @@ type QueryResolver interface {
 	GitlabTeamAutomation(ctx context.Context, teamID uuid.UUID) (*GitLabTeamAutomation, error)
 	SentryConnection(ctx context.Context) (*SentryConnection, error)
 	SentryWebhook(ctx context.Context) (*SentryWebhook, error)
+	CycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeed, error)
+	CycleCalendarFeedURL(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedURL, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -2611,6 +2636,69 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Cycle.WorkspaceID(childComplexity), true
+
+	case "CycleCalendarFeed.createdAt":
+		if e.ComplexityRoot.CycleCalendarFeed.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CycleCalendarFeed.CreatedAt(childComplexity), true
+	case "CycleCalendarFeed.id":
+		if e.ComplexityRoot.CycleCalendarFeed.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CycleCalendarFeed.ID(childComplexity), true
+	case "CycleCalendarFeed.teamId":
+		if e.ComplexityRoot.CycleCalendarFeed.TeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CycleCalendarFeed.TeamID(childComplexity), true
+	case "CycleCalendarFeed.updatedAt":
+		if e.ComplexityRoot.CycleCalendarFeed.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CycleCalendarFeed.UpdatedAt(childComplexity), true
+	case "CycleCalendarFeed.userId":
+		if e.ComplexityRoot.CycleCalendarFeed.UserID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CycleCalendarFeed.UserID(childComplexity), true
+	case "CycleCalendarFeed.workspaceId":
+		if e.ComplexityRoot.CycleCalendarFeed.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CycleCalendarFeed.WorkspaceID(childComplexity), true
+
+	case "CycleCalendarFeedPayload.cycleCalendarFeed":
+		if e.ComplexityRoot.CycleCalendarFeedPayload.CycleCalendarFeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CycleCalendarFeedPayload.CycleCalendarFeed(childComplexity), true
+	case "CycleCalendarFeedPayload.url":
+		if e.ComplexityRoot.CycleCalendarFeedPayload.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CycleCalendarFeedPayload.URL(childComplexity), true
+	case "CycleCalendarFeedPayload.version":
+		if e.ComplexityRoot.CycleCalendarFeedPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CycleCalendarFeedPayload.Version(childComplexity), true
+
+	case "CycleCalendarFeedURL.url":
+		if e.ComplexityRoot.CycleCalendarFeedURL.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CycleCalendarFeedURL.URL(childComplexity), true
 
 	case "CyclePayload.cycle":
 		if e.ComplexityRoot.CyclePayload.Cycle == nil {
@@ -5810,6 +5898,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteWebhook(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.ensureCycleCalendarFeed":
+		if e.ComplexityRoot.Mutation.EnsureCycleCalendarFeed == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_ensureCycleCalendarFeed_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.EnsureCycleCalendarFeed(childComplexity, args["teamId"].(uuid.UUID)), true
 	case "Mutation.inviteToWorkspace":
 		if e.ComplexityRoot.Mutation.InviteToWorkspace == nil {
 			break
@@ -8166,6 +8265,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Cycle(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.cycleCalendarFeed":
+		if e.ComplexityRoot.Query.CycleCalendarFeed == nil {
+			break
+		}
+
+		args, err := ec.field_Query_cycleCalendarFeed_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CycleCalendarFeed(childComplexity, args["teamId"].(uuid.UUID)), true
+	case "Query.cycleCalendarFeedURL":
+		if e.ComplexityRoot.Query.CycleCalendarFeedURL == nil {
+			break
+		}
+
+		args, err := ec.field_Query_cycleCalendarFeedURL_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CycleCalendarFeedURL(childComplexity, args["teamId"].(uuid.UUID)), true
 	case "Query.cycles":
 		if e.ComplexityRoot.Query.Cycles == nil {
 			break
@@ -10637,6 +10758,30 @@ type Cycle {
   archivedAt: Time
   createdAt: Time!
   updatedAt: Time!
+}
+
+"""
+The viewer's ICS subscription for one team. The feed token is not on this type:
+the replica only needs to know a feed exists. The URL that contains the token
+is on CycleCalendarFeedURL.
+"""
+type CycleCalendarFeed {
+  id: UUID!
+  workspaceId: UUID!
+  teamId: UUID!
+  userId: UUID!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type CycleCalendarFeedURL {
+  url: String!
+}
+
+type CycleCalendarFeedPayload implements MutationResult {
+  version: Int!
+  cycleCalendarFeed: CycleCalendarFeed!
+  url: String!
 }
 
 type WorkflowState {
@@ -13258,6 +13403,10 @@ type Query {
   sentryConnection: SentryConnection
   """Admin-only. The URL and secret to paste into a Sentry alert webhook or internal integration."""
   sentryWebhook: SentryWebhook
+  """The viewer's ICS subscription for this team, if they have minted one. Token is on cycleCalendarFeedURL."""
+  cycleCalendarFeed(teamId: UUID!): CycleCalendarFeed
+  """The HTTPS feed URL for this team's cycle calendar. Null until ensureCycleCalendarFeed has run."""
+  cycleCalendarFeedURL(teamId: UUID!): CycleCalendarFeedURL
 }
 
 """
@@ -13564,6 +13713,9 @@ type Mutation {
   updateSentryConnection(input: UpdateSentryConnectionInput!): SentryConnectionPayload!
   deleteSentryConnection: DeletePayload!
   linkSentryIssue(input: LinkSentryIssueInput!, clientId: UUID, opId: UUID): SentryLinkPayload! @idempotent
+
+  """Mint (or return) a personal ICS feed for this team's cycles."""
+  ensureCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
 
   # ---- drafts (personal, on-demand; not replicated)
 
@@ -13909,6 +14061,44 @@ func (ec *executionContext) childFields_Cycle(ctx context.Context, field graphql
 		return ec.fieldContext_Cycle_updatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Cycle", field.Name)
+}
+
+func (ec *executionContext) childFields_CycleCalendarFeed(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_CycleCalendarFeed_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_CycleCalendarFeed_workspaceId(ctx, field)
+	case "teamId":
+		return ec.fieldContext_CycleCalendarFeed_teamId(ctx, field)
+	case "userId":
+		return ec.fieldContext_CycleCalendarFeed_userId(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_CycleCalendarFeed_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_CycleCalendarFeed_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CycleCalendarFeed", field.Name)
+}
+
+func (ec *executionContext) childFields_CycleCalendarFeedPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_CycleCalendarFeedPayload_version(ctx, field)
+	case "cycleCalendarFeed":
+		return ec.fieldContext_CycleCalendarFeedPayload_cycleCalendarFeed(ctx, field)
+	case "url":
+		return ec.fieldContext_CycleCalendarFeedPayload_url(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CycleCalendarFeedPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_CycleCalendarFeedURL(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "url":
+		return ec.fieldContext_CycleCalendarFeedURL_url(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CycleCalendarFeedURL", field.Name)
 }
 
 func (ec *executionContext) childFields_CyclePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -18641,6 +18831,20 @@ func (ec *executionContext) field_Mutation_deleteWebhook_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_ensureCycleCalendarFeed_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_inviteToWorkspace_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -20646,6 +20850,34 @@ func (ec *executionContext) field_Query_customer_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_cycleCalendarFeedURL_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_cycleCalendarFeed_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teamId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teamId"] = arg0
 	return args, nil
 }
 
@@ -24089,6 +24321,245 @@ func (ec *executionContext) _Cycle_updatedAt(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_Cycle_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Cycle", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CycleCalendarFeed_id(ctx context.Context, field graphql.CollectedField, obj *CycleCalendarFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CycleCalendarFeed_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CycleCalendarFeed_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CycleCalendarFeed", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _CycleCalendarFeed_workspaceId(ctx context.Context, field graphql.CollectedField, obj *CycleCalendarFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CycleCalendarFeed_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CycleCalendarFeed_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CycleCalendarFeed", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _CycleCalendarFeed_teamId(ctx context.Context, field graphql.CollectedField, obj *CycleCalendarFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CycleCalendarFeed_teamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CycleCalendarFeed_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CycleCalendarFeed", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _CycleCalendarFeed_userId(ctx context.Context, field graphql.CollectedField, obj *CycleCalendarFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CycleCalendarFeed_userId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CycleCalendarFeed_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CycleCalendarFeed", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _CycleCalendarFeed_createdAt(ctx context.Context, field graphql.CollectedField, obj *CycleCalendarFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CycleCalendarFeed_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CycleCalendarFeed_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CycleCalendarFeed", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CycleCalendarFeed_updatedAt(ctx context.Context, field graphql.CollectedField, obj *CycleCalendarFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CycleCalendarFeed_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CycleCalendarFeed_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CycleCalendarFeed", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CycleCalendarFeedPayload_version(ctx context.Context, field graphql.CollectedField, obj *CycleCalendarFeedPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CycleCalendarFeedPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CycleCalendarFeedPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CycleCalendarFeedPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CycleCalendarFeedPayload_cycleCalendarFeed(ctx context.Context, field graphql.CollectedField, obj *CycleCalendarFeedPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CycleCalendarFeedPayload_cycleCalendarFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CycleCalendarFeed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *CycleCalendarFeed) graphql.Marshaler {
+			return ec.marshalNCycleCalendarFeed2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleCalendarFeed(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CycleCalendarFeedPayload_cycleCalendarFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CycleCalendarFeedPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CycleCalendarFeed(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CycleCalendarFeedPayload_url(ctx context.Context, field graphql.CollectedField, obj *CycleCalendarFeedPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CycleCalendarFeedPayload_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CycleCalendarFeedPayload_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CycleCalendarFeedPayload", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CycleCalendarFeedURL_url(ctx context.Context, field graphql.CollectedField, obj *CycleCalendarFeedURL) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CycleCalendarFeedURL_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CycleCalendarFeedURL_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CycleCalendarFeedURL", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _CyclePayload_version(ctx context.Context, field graphql.CollectedField, obj *CyclePayload) (ret graphql.Marshaler) {
@@ -41497,6 +41968,50 @@ func (ec *executionContext) fieldContext_Mutation_linkSentryIssue(ctx context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_ensureCycleCalendarFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_ensureCycleCalendarFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().EnsureCycleCalendarFeed(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *CycleCalendarFeedPayload) graphql.Marshaler {
+			return ec.marshalNCycleCalendarFeedPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleCalendarFeedPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_ensureCycleCalendarFeed(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CycleCalendarFeedPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_ensureCycleCalendarFeed_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -49900,6 +50415,94 @@ func (ec *executionContext) fieldContext_Query_sentryWebhook(_ context.Context, 
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_SentryWebhook(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_cycleCalendarFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_cycleCalendarFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CycleCalendarFeed(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *CycleCalendarFeed) graphql.Marshaler {
+			return ec.marshalOCycleCalendarFeed2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleCalendarFeed(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_cycleCalendarFeed(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CycleCalendarFeed(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_cycleCalendarFeed_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_cycleCalendarFeedURL(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_cycleCalendarFeedURL(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CycleCalendarFeedURL(ctx, fc.Args["teamId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *CycleCalendarFeedURL) graphql.Marshaler {
+			return ec.marshalOCycleCalendarFeedURL2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleCalendarFeedURL(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_cycleCalendarFeedURL(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CycleCalendarFeedURL(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_cycleCalendarFeedURL_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -62729,6 +63332,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._CyclePayload(ctx, sel, obj)
+	case CycleCalendarFeedPayload:
+		return ec._CycleCalendarFeedPayload(ctx, sel, &obj)
+	case *CycleCalendarFeedPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._CycleCalendarFeedPayload(ctx, sel, obj)
 	case CustomerRequestPayload:
 		return ec._CustomerRequestPayload(ctx, sel, &obj)
 	case *CustomerRequestPayload:
@@ -63903,6 +64513,155 @@ func (ec *executionContext) _Cycle(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Cycle_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var cycleCalendarFeedImplementors = []string{"CycleCalendarFeed"}
+
+func (ec *executionContext) _CycleCalendarFeed(ctx context.Context, sel ast.SelectionSet, obj *CycleCalendarFeed) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cycleCalendarFeedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CycleCalendarFeed")
+		case "id":
+			out.Values[i] = ec._CycleCalendarFeed_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._CycleCalendarFeed_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamId":
+			out.Values[i] = ec._CycleCalendarFeed_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userId":
+			out.Values[i] = ec._CycleCalendarFeed_userId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._CycleCalendarFeed_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._CycleCalendarFeed_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var cycleCalendarFeedPayloadImplementors = []string{"CycleCalendarFeedPayload", "MutationResult"}
+
+func (ec *executionContext) _CycleCalendarFeedPayload(ctx context.Context, sel ast.SelectionSet, obj *CycleCalendarFeedPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cycleCalendarFeedPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CycleCalendarFeedPayload")
+		case "version":
+			out.Values[i] = ec._CycleCalendarFeedPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cycleCalendarFeed":
+			out.Values[i] = ec._CycleCalendarFeedPayload_cycleCalendarFeed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._CycleCalendarFeedPayload_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var cycleCalendarFeedURLImplementors = []string{"CycleCalendarFeedURL"}
+
+func (ec *executionContext) _CycleCalendarFeedURL(ctx context.Context, sel ast.SelectionSet, obj *CycleCalendarFeedURL) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cycleCalendarFeedURLImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CycleCalendarFeedURL")
+		case "url":
+			out.Values[i] = ec._CycleCalendarFeedURL_url(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -68665,6 +69424,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "ensureCycleCalendarFeed":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_ensureCycleCalendarFeed(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createDraft":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createDraft(ctx, field)
@@ -72673,6 +73439,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "cycleCalendarFeed":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_cycleCalendarFeed(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "cycleCalendarFeedURL":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_cycleCalendarFeedURL(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -75800,6 +76610,30 @@ func (ec *executionContext) marshalNCycle2ᚖgithubᚗcomᚋpeixotolabsᚋpolari
 	return ec._Cycle(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCycleCalendarFeed2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleCalendarFeed(ctx context.Context, sel ast.SelectionSet, v *CycleCalendarFeed) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CycleCalendarFeed(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCycleCalendarFeedPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleCalendarFeedPayload(ctx context.Context, sel ast.SelectionSet, v CycleCalendarFeedPayload) graphql.Marshaler {
+	return ec._CycleCalendarFeedPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCycleCalendarFeedPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleCalendarFeedPayload(ctx context.Context, sel ast.SelectionSet, v *CycleCalendarFeedPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CycleCalendarFeedPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNCyclePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCyclePayload(ctx context.Context, sel ast.SelectionSet, v CyclePayload) graphql.Marshaler {
 	return ec._CyclePayload(ctx, sel, &v)
 }
@@ -78745,6 +79579,20 @@ func (ec *executionContext) marshalOCycle2ᚖgithubᚗcomᚋpeixotolabsᚋpolari
 		return graphql.Null
 	}
 	return ec._Cycle(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOCycleCalendarFeed2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleCalendarFeed(ctx context.Context, sel ast.SelectionSet, v *CycleCalendarFeed) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CycleCalendarFeed(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOCycleCalendarFeedURL2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycleCalendarFeedURL(ctx context.Context, sel ast.SelectionSet, v *CycleCalendarFeedURL) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CycleCalendarFeedURL(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalODashboardMeasure2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDashboardMeasure(ctx context.Context, v any) (*DashboardMeasure, error) {

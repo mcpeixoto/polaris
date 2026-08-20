@@ -164,6 +164,11 @@ func NewRouter(d Deps) http.Handler {
 	mux.Handle("GET /asks/{token}", d.Limits.Anonymous(http.HandlerFunc(asks.get)))
 	mux.Handle("POST /asks/{token}", d.Limits.Anonymous(http.HandlerFunc(asks.submit)))
 
+	calendars := &cycleCalendarHandlers{svc: d.Service}
+	// Public ICS: the token in the path is the credential. Anonymous budget, because
+	// a guessed-token loop would otherwise be free.
+	mux.Handle("GET /calendars/cycles/{token}", d.Limits.Anonymous(http.HandlerFunc(calendars.feed)))
+
 	oauth := &oauthHandlers{svc: d.Service}
 	mux.Handle("POST /oauth/token", d.Limits.Anonymous(http.HandlerFunc(oauth.token)))
 	mux.Handle("POST /oauth/revoke", d.Limits.Anonymous(http.HandlerFunc(oauth.revoke)))
