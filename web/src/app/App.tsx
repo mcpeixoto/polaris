@@ -30,6 +30,7 @@ import { CreateWorkspace } from '~/views/CreateWorkspace';
 import { Drafts } from '~/views/Drafts';
 import { ExportSettings } from '~/views/ExportSettings';
 import { Inbox } from '~/views/Inbox';
+import { Pulse } from '~/views/Pulse';
 import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
 import { MemberSettings } from '~/views/MemberSettings';
@@ -164,6 +165,7 @@ function SignedInShell() {
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/my-issues" element={<MyIssues />} />
         <Route path="/inbox" element={<Inbox />} />
+        <Route path="/pulse" element={<Pulse />} />
         <Route path="/search" element={<Search />} />
         <Route path="/drafts" element={<Drafts />} />
         <Route path="/new" element={<CreateIssueFromUrl />} />
