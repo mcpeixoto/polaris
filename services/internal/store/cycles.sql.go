@@ -104,6 +104,20 @@ func (q *Queries) CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle
 	return i, err
 }
 
+const deleteCycle = `-- name: DeleteCycle :one
+DELETE FROM cycle WHERE id = $1
+RETURNING id
+`
+
+// A single window, used when a sub-team remaps upcoming cycles onto a parent schedule.
+// Issues on the row SET NULL via the FK; callers re-point open work first.
+func (q *Queries) DeleteCycle(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, deleteCycle, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const deleteUpcomingCycles = `-- name: DeleteUpcomingCycles :many
 DELETE FROM cycle
 WHERE team_id = $1

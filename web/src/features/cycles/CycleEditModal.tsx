@@ -13,6 +13,8 @@ export interface CycleEditModalProps {
   open: boolean;
   cycle: Cycle | null;
   phase: 'Current' | 'Upcoming' | 'Previous';
+  /** Dates follow a parent team; only name and description stay editable. */
+  datesLocked?: boolean | undefined;
   onClose: () => void;
   onSave: (edit: {
     name: string;
@@ -23,7 +25,14 @@ export interface CycleEditModalProps {
   }) => void;
 }
 
-export function CycleEditModal({ open, cycle, phase, onClose, onSave }: CycleEditModalProps) {
+export function CycleEditModal({
+  open,
+  cycle,
+  phase,
+  datesLocked = false,
+  onClose,
+  onSave,
+}: CycleEditModalProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -41,8 +50,8 @@ export function CycleEditModal({ open, cycle, phase, onClose, onSave }: CycleEdi
 
   if (cycle === null) return null;
 
-  const canEditStart = phase === 'Upcoming';
-  const canEditEnd = phase === 'Current' || phase === 'Upcoming';
+  const canEditStart = !datesLocked && phase === 'Upcoming';
+  const canEditEnd = !datesLocked && (phase === 'Current' || phase === 'Upcoming');
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -69,11 +78,13 @@ export function CycleEditModal({ open, cycle, phase, onClose, onSave }: CycleEdi
       onClose={onClose}
       title={`Edit ${cycle.name}`}
       description={
-        phase === 'Current'
-          ? 'The current cycle can only move its end date. Shortening it creates a pause before the next cycle.'
-          : phase === 'Upcoming'
-            ? 'Upcoming cycles can move both start and end.'
-            : 'Past cycles keep their dates; only the name and description can change here.'
+        datesLocked
+          ? "This sub-team inherits its parent's cycle dates. Rename the window here; change the schedule on the parent team."
+          : phase === 'Current'
+            ? 'The current cycle can only move its end date. Shortening it creates a pause before the next cycle.'
+            : phase === 'Upcoming'
+              ? 'Upcoming cycles can move both start and end.'
+              : 'Past cycles keep their dates; only the name and description can change here.'
       }
       initialFocus={nameRef}
       footer={
