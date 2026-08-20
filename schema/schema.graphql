@@ -1056,6 +1056,32 @@ enum CustomerStatus {
   CHURNED
 }
 
+"""Insights measure a dashboard tile charts. Same vocabulary as the live Insights panel."""
+enum DashboardMeasure {
+  COUNT
+  EFFORT
+  CYCLE_TIME
+  LEAD_TIME
+  ISSUE_AGE
+  BURN_UP
+}
+
+"""Dimension a dashboard tile slices by. Same vocabulary as the live Insights panel."""
+enum DashboardSlice {
+  ASSIGNEE
+  PRIORITY
+  STATE_CATEGORY
+  TEAM
+  PROJECT
+  LABEL
+}
+
+enum DashboardTileDisplay {
+  CHART
+  TABLE
+  METRIC
+}
+
 """An external organisation whose feedback is attributed onto issues and projects."""
 type Customer {
   id: UUID!
@@ -1132,6 +1158,52 @@ type SlaRule {
 type SlaRulePayload implements MutationResult {
   version: Int!
   slaRule: SlaRule!
+}
+
+"""A page of Insights tiles, workspace / team / personal."""
+type Dashboard {
+  id: UUID!
+  workspaceId: UUID!
+  """Null means the dashboard spans the workspace."""
+  teamId: UUID
+  """Set means it is that person's private dashboard."""
+  ownerId: UUID
+  name: String!
+  description: String!
+  """Dashboard-level filter, AND-ed with each tile's filter. Same AST as views."""
+  filter: JSON!
+  creatorId: UUID
+  sortOrder: String!
+  archivedAt: Time
+  deletedAt: Time
+  deletedBy: UUID
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""One Insights chart, table, or metric on a dashboard."""
+type DashboardTile {
+  id: UUID!
+  workspaceId: UUID!
+  dashboardId: UUID!
+  title: String!
+  measure: DashboardMeasure!
+  slice: DashboardSlice!
+  display: DashboardTileDisplay!
+  filter: JSON!
+  sortOrder: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type DashboardPayload implements MutationResult {
+  version: Int!
+  dashboard: Dashboard!
+}
+
+type DashboardTilePayload implements MutationResult {
+  version: Int!
+  dashboardTile: DashboardTile!
 }
 
 type TeamPayload implements MutationResult {
@@ -2431,6 +2503,40 @@ input SetIssueSlaInput {
   durationMinutes: Int!
 }
 
+input CreateDashboardInput {
+  name: String!
+  description: String
+  teamId: UUID
+  """True keeps the dashboard private to its creator."""
+  private: Boolean
+  filter: JSON
+}
+
+input UpdateDashboardInput {
+  id: UUID!
+  name: String
+  description: String
+  filter: JSON
+}
+
+input CreateDashboardTileInput {
+  dashboardId: UUID!
+  title: String
+  measure: DashboardMeasure
+  slice: DashboardSlice
+  display: DashboardTileDisplay
+  filter: JSON
+}
+
+input UpdateDashboardTileInput {
+  id: UUID!
+  title: String
+  measure: DashboardMeasure
+  slice: DashboardSlice
+  display: DashboardTileDisplay
+  filter: JSON
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -2640,6 +2746,14 @@ type Mutation {
   deleteSlaRule(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   setIssueSla(input: SetIssueSlaInput!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
   clearIssueSla(issueId: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+
+  createDashboard(input: CreateDashboardInput!, clientId: UUID, opId: UUID): DashboardPayload! @idempotent
+  updateDashboard(input: UpdateDashboardInput!, clientId: UUID, opId: UUID): DashboardPayload! @idempotent
+  archiveDashboard(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  deleteDashboard(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  createDashboardTile(input: CreateDashboardTileInput!, clientId: UUID, opId: UUID): DashboardTilePayload! @idempotent
+  updateDashboardTile(input: UpdateDashboardTileInput!, clientId: UUID, opId: UUID): DashboardTilePayload! @idempotent
+  deleteDashboardTile(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!

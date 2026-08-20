@@ -90,6 +90,8 @@ const ENUM_FIELDS: Readonly<Record<EntityType, readonly string[]>> = {
   workflowState: ['category'],
   customer: ['status'],
   slaRule: ['action'],
+  dashboard: [],
+  dashboardTile: ['measure', 'slice', 'display'],
   label: [],
   issueTemplate: [],
   formTemplate: [],

@@ -60,11 +60,14 @@ import { Initiatives } from '~/views/Initiatives';
 import { InitiativeDetail } from '~/views/InitiativeDetail';
 import { Customers } from '~/views/Customers';
 import { CustomerDetail } from '~/views/CustomerDetail';
+import { Dashboards } from '~/views/Dashboards';
+import { DashboardDetail } from '~/views/DashboardDetail';
 import { CreateIssueModal } from '~/features/issue/CreateIssueModal';
 import { CreateProjectModal } from '~/features/projects/CreateProjectModal';
 import { CreateInitiativeModal } from '~/features/initiatives/CreateInitiativeModal';
 import { CreateCustomerModal } from '~/features/customers/CreateCustomerModal';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
+import { CreateDashboardModal } from '~/features/dashboards/CreateDashboardModal';
 
 import { getPrefs } from '~/features/prefs/prefs';
 import { useQuery } from './context';
@@ -148,6 +151,7 @@ function SignedInShell() {
       renderCreateCustomerRequest={({ onClose }) => (
         <CreateCustomerRequestModal onClose={onClose} />
       )}
+      renderCreateDashboard={({ onClose }) => <CreateDashboardModal onClose={onClose} />}
     >
       <Routes>
         <Route path="/" element={<HomeRedirect />} />
@@ -161,6 +165,8 @@ function SignedInShell() {
         <Route path="/initiative/:initiativeId" element={<InitiativeDetail />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/customer/:customerId" element={<CustomerDetail />} />
+        <Route path="/dashboards" element={<Dashboards />} />
+        <Route path="/dashboard/:dashboardId" element={<DashboardDetail />} />
         <Route path="/view/:viewId" element={<SavedView />} />
         <Route path="/team/:teamKey" element={<IssueList />} />
         <Route path="/team/:teamKey/home" element={<TeamHome />} />
