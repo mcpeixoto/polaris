@@ -190,13 +190,16 @@ type Documents = {
     "\n  \n  mutation UpdateIssueTemplateEmailIntake($input: UpdateIssueTemplateEmailIntakeInput!) {\n    updateIssueTemplateEmailIntake(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": typeof types.UpdateIssueTemplateEmailIntakeDocument,
     "\n  fragment ViewFields on View {\n    id\n    workspaceId\n    teamId\n    projectId\n    ownerId\n    name\n    description\n    icon\n    color\n    filter\n    display\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.ViewFieldsFragmentDoc,
     "\n  fragment ViewPreferenceFields on ViewPreference {\n    id\n    workspaceId\n    userId\n    viewKey\n    display\n    createdAt\n    updatedAt\n  }\n": typeof types.ViewPreferenceFieldsFragmentDoc,
-    "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    position\n    createdAt\n    updatedAt\n  }\n": typeof types.FavoriteFieldsFragmentDoc,
+    "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    folderId\n    name\n    position\n    createdAt\n    updatedAt\n  }\n": typeof types.FavoriteFieldsFragmentDoc,
     "\n  \n  mutation CreateView($input: CreateViewInput!) {\n    createView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n": typeof types.CreateViewDocument,
     "\n  \n  mutation UpdateView($input: UpdateViewInput!) {\n    updateView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n": typeof types.UpdateViewDocument,
     "\n  mutation DeleteView($id: UUID!) {\n    deleteView(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteViewDocument,
     "\n  \n  mutation SetViewPreference($viewKey: String!, $display: JSON!) {\n    setViewPreference(viewKey: $viewKey, display: $display) {\n      version\n      preference {\n        ...ViewPreferenceFields\n      }\n    }\n  }\n": typeof types.SetViewPreferenceDocument,
     "\n  \n  mutation AddFavorite($kind: FavoriteKind!, $targetId: UUID!, $afterFavoriteId: UUID) {\n    addFavorite(kind: $kind, targetId: $targetId, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": typeof types.AddFavoriteDocument,
     "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveFavoriteDocument,
+    "\n  \n  mutation CreateFavoriteFolder($name: String!, $afterFavoriteId: UUID) {\n    createFavoriteFolder(name: $name, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": typeof types.CreateFavoriteFolderDocument,
+    "\n  \n  mutation UpdateFavoriteFolder($id: UUID!, $name: String!) {\n    updateFavoriteFolder(id: $id, name: $name) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": typeof types.UpdateFavoriteFolderDocument,
+    "\n  \n  mutation MoveFavorite($input: MoveFavoriteInput!) {\n    moveFavorite(input: $input) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": typeof types.MoveFavoriteDocument,
     "\n  fragment ViewSubscriptionFields on ViewSubscription {\n    id\n    workspaceId\n    viewId\n    userId\n    added\n    completed\n    createdAt\n    updatedAt\n  }\n": typeof types.ViewSubscriptionFieldsFragmentDoc,
     "\n  \n  mutation SetViewSubscription($input: SetViewSubscriptionInput!) {\n    setViewSubscription(input: $input) {\n      version\n      viewSubscription {\n        ...ViewSubscriptionFields\n      }\n    }\n  }\n": typeof types.SetViewSubscriptionDocument,
     "\n  mutation DeleteViewSubscription($viewId: UUID!) {\n    deleteViewSubscription(viewId: $viewId) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteViewSubscriptionDocument,
@@ -423,13 +426,16 @@ const documents: Documents = {
     "\n  \n  mutation UpdateIssueTemplateEmailIntake($input: UpdateIssueTemplateEmailIntakeInput!) {\n    updateIssueTemplateEmailIntake(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": types.UpdateIssueTemplateEmailIntakeDocument,
     "\n  fragment ViewFields on View {\n    id\n    workspaceId\n    teamId\n    projectId\n    ownerId\n    name\n    description\n    icon\n    color\n    filter\n    display\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.ViewFieldsFragmentDoc,
     "\n  fragment ViewPreferenceFields on ViewPreference {\n    id\n    workspaceId\n    userId\n    viewKey\n    display\n    createdAt\n    updatedAt\n  }\n": types.ViewPreferenceFieldsFragmentDoc,
-    "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    position\n    createdAt\n    updatedAt\n  }\n": types.FavoriteFieldsFragmentDoc,
+    "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    folderId\n    name\n    position\n    createdAt\n    updatedAt\n  }\n": types.FavoriteFieldsFragmentDoc,
     "\n  \n  mutation CreateView($input: CreateViewInput!) {\n    createView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n": types.CreateViewDocument,
     "\n  \n  mutation UpdateView($input: UpdateViewInput!) {\n    updateView(input: $input) {\n      version\n      view {\n        ...ViewFields\n      }\n    }\n  }\n": types.UpdateViewDocument,
     "\n  mutation DeleteView($id: UUID!) {\n    deleteView(id: $id) {\n      version\n      id\n    }\n  }\n": types.DeleteViewDocument,
     "\n  \n  mutation SetViewPreference($viewKey: String!, $display: JSON!) {\n    setViewPreference(viewKey: $viewKey, display: $display) {\n      version\n      preference {\n        ...ViewPreferenceFields\n      }\n    }\n  }\n": types.SetViewPreferenceDocument,
     "\n  \n  mutation AddFavorite($kind: FavoriteKind!, $targetId: UUID!, $afterFavoriteId: UUID) {\n    addFavorite(kind: $kind, targetId: $targetId, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": types.AddFavoriteDocument,
     "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n": types.RemoveFavoriteDocument,
+    "\n  \n  mutation CreateFavoriteFolder($name: String!, $afterFavoriteId: UUID) {\n    createFavoriteFolder(name: $name, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": types.CreateFavoriteFolderDocument,
+    "\n  \n  mutation UpdateFavoriteFolder($id: UUID!, $name: String!) {\n    updateFavoriteFolder(id: $id, name: $name) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": types.UpdateFavoriteFolderDocument,
+    "\n  \n  mutation MoveFavorite($input: MoveFavoriteInput!) {\n    moveFavorite(input: $input) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n": types.MoveFavoriteDocument,
     "\n  fragment ViewSubscriptionFields on ViewSubscription {\n    id\n    workspaceId\n    viewId\n    userId\n    added\n    completed\n    createdAt\n    updatedAt\n  }\n": types.ViewSubscriptionFieldsFragmentDoc,
     "\n  \n  mutation SetViewSubscription($input: SetViewSubscriptionInput!) {\n    setViewSubscription(input: $input) {\n      version\n      viewSubscription {\n        ...ViewSubscriptionFields\n      }\n    }\n  }\n": types.SetViewSubscriptionDocument,
     "\n  mutation DeleteViewSubscription($viewId: UUID!) {\n    deleteViewSubscription(viewId: $viewId) {\n      version\n      id\n    }\n  }\n": types.DeleteViewSubscriptionDocument,
@@ -1201,7 +1207,7 @@ export function graphql(source: "\n  fragment ViewPreferenceFields on ViewPrefer
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    position\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    position\n    createdAt\n    updatedAt\n  }\n"];
+export function graphql(source: "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    folderId\n    name\n    position\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    folderId\n    name\n    position\n    createdAt\n    updatedAt\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -1226,6 +1232,18 @@ export function graphql(source: "\n  \n  mutation AddFavorite($kind: FavoriteKin
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RemoveFavorite($kind: FavoriteKind!, $targetId: UUID!) {\n    removeFavorite(kind: $kind, targetId: $targetId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateFavoriteFolder($name: String!, $afterFavoriteId: UUID) {\n    createFavoriteFolder(name: $name, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateFavoriteFolder($name: String!, $afterFavoriteId: UUID) {\n    createFavoriteFolder(name: $name, afterFavoriteId: $afterFavoriteId) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateFavoriteFolder($id: UUID!, $name: String!) {\n    updateFavoriteFolder(id: $id, name: $name) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateFavoriteFolder($id: UUID!, $name: String!) {\n    updateFavoriteFolder(id: $id, name: $name) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation MoveFavorite($input: MoveFavoriteInput!) {\n    moveFavorite(input: $input) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation MoveFavorite($input: MoveFavoriteInput!) {\n    moveFavorite(input: $input) {\n      version\n      favorite {\n        ...FavoriteFields\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

@@ -395,6 +395,8 @@ func toFavorite(f model.Favorite) (generated.Favorite, error) {
 		UserID:      f.UserID,
 		Kind:        kind,
 		TargetID:    f.TargetID,
+		FolderID:    f.FolderID,
+		Name:        f.Name,
 		Position:    f.Position,
 		CreatedAt:   f.CreatedAt,
 		UpdatedAt:   f.UpdatedAt,
@@ -423,6 +425,8 @@ func toFavoriteKind(v string) (generated.FavoriteKind, error) {
 		return generated.FavoriteKindIssue, nil
 	case model.FavoriteLabel:
 		return generated.FavoriteKindLabel, nil
+	case model.FavoriteFolder:
+		return generated.FavoriteKindFolder, nil
 	}
 	return "", platform.Internal(fmt.Errorf("unknown favourite kind %q", v))
 }
@@ -437,6 +441,8 @@ func fromFavoriteKind(k generated.FavoriteKind) (string, error) {
 		return model.FavoriteIssue, nil
 	case generated.FavoriteKindLabel:
 		return model.FavoriteLabel, nil
+	case generated.FavoriteKindFolder:
+		return model.FavoriteFolder, nil
 	}
 	return "", platform.Validation("kind", "that is not something you can favourite")
 }

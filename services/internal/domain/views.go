@@ -423,7 +423,7 @@ func (s *Service) ListViewPreferences(ctx context.Context, p *authz.Principal) (
 func (s *Service) AddFavorite(
 	ctx context.Context, p *authz.Principal, kind string, targetID uuid.UUID, afterID *uuid.UUID,
 ) (model.Favorite, int64, error) {
-	if !validFavoriteKind(kind) {
+	if !validFavoriteKind(kind) || kind == model.FavoriteFolder {
 		return model.Favorite{}, 0, platform.Validation("kind",
 			"a favourite points at a view, a team, an issue or a label")
 	}
@@ -504,6 +504,21 @@ func (s *Service) RemoveFavorite(
 		}
 		removed = row.ID
 
+		if row.Kind == model.FavoriteFolder {
+			children, err := q.ClearFavoritesInFolder(ctx, row.ID)
+			if err != nil {
+				return platform.Internal(err)
+			}
+			for _, child := range children {
+				if _, err := s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+					EntityType: "favorite", EntityID: child.ID, Op: OpUpsert,
+					Scope: authz.UserScope(p.UserID), Payload: toFavorite(child),
+				}); err != nil {
+					return err
+				}
+			}
+		}
+
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "favorite", EntityID: row.ID, Op: OpDelete,
 			Scope: authz.UserScope(p.UserID),
@@ -544,6 +559,174 @@ func (s *Service) ListFavorites(ctx context.Context, p *authz.Principal) ([]mode
 		out = append(out, toFavorite(r))
 	}
 	return out, nil
+}
+
+// CreateFavoriteFolder adds a named grouping to the caller's sidebar.
+//
+// The folder is itself a favourite: kind folder, target its own id, name the heading.
+// That keeps one entity on the sync stream rather than a second table whose rows would
+// have to be scoped, bootstrapped and forgotten in parallel. Nested folders stay out —
+// the constraint is in Postgres, and this refuses before it gets there so the error is
+// about folders rather than a check violation.
+func (s *Service) CreateFavoriteFolder(
+	ctx context.Context, p *authz.Principal, name string, afterID *uuid.UUID,
+) (model.Favorite, int64, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return model.Favorite{}, 0, platform.Validation("name", "a folder needs a name")
+	}
+
+	var out model.Favorite
+	var version int64
+	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		pos, err := favoritePosition(ctx, q, p, afterID)
+		if err != nil {
+			return err
+		}
+		id, err := uuid.NewV7()
+		if err != nil {
+			return platform.Internal(err)
+		}
+		row, err := q.AddFavorite(ctx, store.AddFavoriteParams{
+			ID:          id,
+			WorkspaceID: p.WorkspaceID,
+			UserID:      p.UserID,
+			Kind:        model.FavoriteFolder,
+			TargetID:    id,
+			Name:        &name,
+			Position:    pos,
+		})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		out = toFavorite(row)
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "favorite", EntityID: out.ID, Op: OpUpsert,
+			Scope: authz.UserScope(p.UserID), Payload: out,
+		})
+		return err
+	})
+	return out, version, err
+}
+
+// UpdateFavoriteFolder changes the heading. Anything other than a folder of the
+// caller's is "no such folder" — the same answer as a missing id, so this is not an
+// oracle for other people's sidebars.
+func (s *Service) UpdateFavoriteFolder(
+	ctx context.Context, p *authz.Principal, id uuid.UUID, name string,
+) (model.Favorite, int64, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return model.Favorite{}, 0, platform.Validation("name", "a folder needs a name")
+	}
+
+	var out model.Favorite
+	var version int64
+	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		existing, err := q.GetFavorite(ctx, id)
+		if err != nil {
+			if store.IsNotFound(err) {
+				return platform.NotFound("folder")
+			}
+			return platform.Internal(err)
+		}
+		if existing.UserID != p.UserID || existing.Kind != model.FavoriteFolder {
+			return platform.NotFound("folder")
+		}
+		row, err := q.UpdateFavorite(ctx, store.UpdateFavoriteParams{
+			ID:          id,
+			UserID:      p.UserID,
+			Name:        &name,
+			ClearFolder: false,
+		})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		out = toFavorite(row)
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "favorite", EntityID: out.ID, Op: OpUpsert,
+			Scope: authz.UserScope(p.UserID), Payload: out,
+		})
+		return err
+	})
+	return out, version, err
+}
+
+type MoveFavoriteInput struct {
+	ID              uuid.UUID
+	FolderID        *uuid.UUID
+	ClearFolder     bool
+	AfterFavoriteID *uuid.UUID
+}
+
+// MoveFavorite puts a favourite in a folder, lifts it out, or slides it along the sidebar.
+func (s *Service) MoveFavorite(
+	ctx context.Context, p *authz.Principal, in MoveFavoriteInput,
+) (model.Favorite, int64, error) {
+	if in.ClearFolder && in.FolderID != nil {
+		return model.Favorite{}, 0, platform.Validation("folderId",
+			"clearFolder and folderId cannot both be set")
+	}
+
+	var out model.Favorite
+	var version int64
+	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		existing, err := q.GetFavorite(ctx, in.ID)
+		if err != nil {
+			if store.IsNotFound(err) {
+				return platform.NotFound("favorite")
+			}
+			return platform.Internal(err)
+		}
+		if existing.UserID != p.UserID {
+			return platform.NotFound("favorite")
+		}
+		if existing.Kind == model.FavoriteFolder && (in.FolderID != nil || in.ClearFolder) {
+			return platform.Validation("folderId", "folders do not nest")
+		}
+
+		if in.FolderID != nil {
+			folder, err := q.GetFavorite(ctx, *in.FolderID)
+			if err != nil {
+				if store.IsNotFound(err) {
+					return platform.Validation("folderId", "no such folder")
+				}
+				return platform.Internal(err)
+			}
+			if folder.UserID != p.UserID || folder.Kind != model.FavoriteFolder {
+				return platform.Validation("folderId", "no such folder")
+			}
+			if folder.ID == existing.ID {
+				return platform.Validation("folderId", "a favourite cannot sit in itself")
+			}
+		}
+
+		var pos *string
+		if in.AfterFavoriteID != nil {
+			computed, err := favoritePosition(ctx, q, p, in.AfterFavoriteID)
+			if err != nil {
+				return err
+			}
+			pos = &computed
+		}
+		row, err := q.UpdateFavorite(ctx, store.UpdateFavoriteParams{
+			ID:          in.ID,
+			UserID:      p.UserID,
+			FolderID:    in.FolderID,
+			ClearFolder: in.ClearFolder,
+			Position:    pos,
+		})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		out = toFavorite(row)
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "favorite", EntityID: out.ID, Op: OpUpsert,
+			Scope: authz.UserScope(p.UserID), Payload: out,
+		})
+		return err
+	})
+	return out, version, err
 }
 
 // --- shared plumbing ---------------------------------------------------------------
@@ -881,7 +1064,7 @@ func favoritePosition(
 
 func validFavoriteKind(kind string) bool {
 	switch kind {
-	case model.FavoriteView, model.FavoriteTeam, model.FavoriteIssue, model.FavoriteLabel:
+	case model.FavoriteView, model.FavoriteTeam, model.FavoriteIssue, model.FavoriteLabel, model.FavoriteFolder:
 		return true
 	}
 	return false
@@ -954,6 +1137,16 @@ func favoriteTargetScope(
 			return missingFavoriteTarget(err)
 		}
 		return authz.TeamScope(team.ID, team.Private), true, nil
+
+	case model.FavoriteFolder:
+		f, err := q.GetFavorite(ctx, targetID)
+		if err != nil {
+			return missingFavoriteTarget(err)
+		}
+		if f.WorkspaceID != workspaceID || f.Kind != model.FavoriteFolder {
+			return authz.Scope{}, false, nil
+		}
+		return authz.UserScope(f.UserID), true, nil
 	}
 	return authz.Scope{}, false, nil
 }
@@ -1013,6 +1206,8 @@ func toFavorite(f store.Favorite) model.Favorite {
 		UserID:      f.UserID,
 		Kind:        f.Kind,
 		TargetID:    f.TargetID,
+		FolderID:    f.FolderID,
+		Name:        f.Name,
 		Position:    f.Position,
 		CreatedAt:   f.CreatedAt,
 		UpdatedAt:   f.UpdatedAt,
