@@ -223,6 +223,10 @@ type Querier interface {
 	// deleted issue does not inflate it.
 	//
 	CountIssuesWithLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
+	// CountNonArchivedIssuesForTeam is the 60,000-issue cap. Archived rows do not count;
+	// completed ones still do until they are archived.
+	//
+	CountNonArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUID) (int64, error)
 	CountPendingWebhookDeliveries(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	CountProjectTeams(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountProjectsFromTemplate(ctx context.Context, projectTemplateID *uuid.UUID) (int64, error)
