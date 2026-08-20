@@ -131,7 +131,7 @@ import {
  * v38 adds gitlabConnection and gitlabUserLink (GitLab v1 linking, no secrets).
  * v39 is reserved for Pulse.
  * v40 adds askForm (shareable intake URLs).
- * v41 is reserved for a concurrent slice.
+ * v41 adds favorite.folderId / favorite.name and kind folder (sidebar folders).
  * v42 adds sentryConnection (Sentry webhook create/link, no secrets).
  */
 export const CLIENT_SCHEMA = 42;

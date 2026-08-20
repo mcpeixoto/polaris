@@ -15,11 +15,12 @@ import (
 
 const addFavorite = `-- name: AddFavorite :one
 
-INSERT INTO favorite (id, workspace_id, user_id, kind, target_id, position)
+INSERT INTO favorite (id, workspace_id, user_id, kind, target_id, folder_id, name, position)
 VALUES ($1, $2, $3, $4,
-        $5, $6)
+        $5, $6, $7, $8)
 ON CONFLICT (user_id, kind, target_id) DO UPDATE SET position = EXCLUDED.position
-RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at
+RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+          folder_id, name
 `
 
 type AddFavoriteParams struct {
@@ -28,6 +29,8 @@ type AddFavoriteParams struct {
 	UserID      uuid.UUID
 	Kind        string
 	TargetID    uuid.UUID
+	FolderID    *uuid.UUID
+	Name        *string
 	Position    string
 }
 
@@ -43,6 +46,8 @@ func (q *Queries) AddFavorite(ctx context.Context, arg AddFavoriteParams) (Favor
 		arg.UserID,
 		arg.Kind,
 		arg.TargetID,
+		arg.FolderID,
+		arg.Name,
 		arg.Position,
 	)
 	var i Favorite
@@ -55,6 +60,8 @@ func (q *Queries) AddFavorite(ctx context.Context, arg AddFavoriteParams) (Favor
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FolderID,
+		&i.Name,
 	)
 	return i, err
 }
@@ -110,6 +117,47 @@ func (q *Queries) ArchiveView(ctx context.Context, id uuid.UUID) (ArchiveViewRow
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const clearFavoritesInFolder = `-- name: ClearFavoritesInFolder :many
+UPDATE favorite SET folder_id = NULL
+WHERE folder_id = $1::uuid
+RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+          folder_id, name
+`
+
+// Children of a folder that is about to disappear. The FK would SET NULL on its own,
+// but that write never hits the change stream, so a replica that watched the delete
+// would keep pointing at a folder that is gone. The caller upserts these first.
+func (q *Queries) ClearFavoritesInFolder(ctx context.Context, folderID uuid.UUID) ([]Favorite, error) {
+	rows, err := q.db.Query(ctx, clearFavoritesInFolder, folderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Favorite{}
+	for rows.Next() {
+		var i Favorite
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.Kind,
+			&i.TargetID,
+			&i.Position,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.FolderID,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const createView = `-- name: CreateView :one
@@ -194,6 +242,31 @@ func (q *Queries) CreateView(ctx context.Context, arg CreateViewParams) (CreateV
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getFavorite = `-- name: GetFavorite :one
+SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+       folder_id, name
+FROM favorite
+WHERE id = $1
+`
+
+func (q *Queries) GetFavorite(ctx context.Context, id uuid.UUID) (Favorite, error) {
+	row := q.db.QueryRow(ctx, getFavorite, id)
+	var i Favorite
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.Kind,
+		&i.TargetID,
+		&i.Position,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FolderID,
+		&i.Name,
 	)
 	return i, err
 }
@@ -356,7 +429,8 @@ func (q *Queries) GetViewPositionAfterForProject(ctx context.Context, arg GetVie
 }
 
 const listFavorites = `-- name: ListFavorites :many
-SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at
+SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+       folder_id, name
 FROM favorite
 WHERE workspace_id = $1 AND user_id = $2
 ORDER BY position
@@ -385,6 +459,8 @@ func (q *Queries) ListFavorites(ctx context.Context, arg ListFavoritesParams) ([
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.FolderID,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -397,7 +473,8 @@ func (q *Queries) ListFavorites(ctx context.Context, arg ListFavoritesParams) ([
 }
 
 const listFavoritesForTarget = `-- name: ListFavoritesForTarget :many
-SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at
+SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+       folder_id, name
 FROM favorite
 WHERE workspace_id = $1
   AND kind = $2
@@ -439,6 +516,8 @@ func (q *Queries) ListFavoritesForTarget(ctx context.Context, arg ListFavoritesF
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.FolderID,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -570,7 +649,8 @@ func (q *Queries) ListViewsForUser(ctx context.Context, arg ListViewsForUserPara
 const removeFavorite = `-- name: RemoveFavorite :one
 DELETE FROM favorite
 WHERE user_id = $1 AND kind = $2 AND target_id = $3
-RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at
+RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+          folder_id, name
 `
 
 type RemoveFavoriteParams struct {
@@ -593,19 +673,22 @@ func (q *Queries) RemoveFavorite(ctx context.Context, arg RemoveFavoriteParams) 
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FolderID,
+		&i.Name,
 	)
 	return i, err
 }
 
 const streamFavoritesForBootstrap = `-- name: StreamFavoritesForBootstrap :many
 SELECT f.id, f.workspace_id, f.user_id, f.kind, f.target_id, f.position,
-       f.created_at, f.updated_at
+       f.created_at, f.updated_at, f.folder_id, f.name
 FROM favorite f
 WHERE f.workspace_id = $1
   AND f.user_id = $2
   AND f.id > $3
   AND (
-    (f.kind = 'view' AND EXISTS (
+    f.kind = 'folder'
+    OR (f.kind = 'view' AND EXISTS (
       SELECT 1 FROM view v
       WHERE v.id = f.target_id
         AND v.workspace_id = $1
@@ -700,6 +783,8 @@ func (q *Queries) StreamFavoritesForBootstrap(ctx context.Context, arg StreamFav
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.FolderID,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -875,6 +960,51 @@ func (q *Queries) StreamViewsForBootstrap(ctx context.Context, arg StreamViewsFo
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateFavorite = `-- name: UpdateFavorite :one
+UPDATE favorite
+SET name      = COALESCE($1, name),
+    folder_id = CASE WHEN $2::boolean THEN NULL
+                     ELSE COALESCE($3, folder_id) END,
+    position  = COALESCE($4, position)
+WHERE id = $5 AND user_id = $6
+RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+          folder_id, name
+`
+
+type UpdateFavoriteParams struct {
+	Name        *string
+	ClearFolder bool
+	FolderID    *uuid.UUID
+	Position    *string
+	ID          uuid.UUID
+	UserID      uuid.UUID
+}
+
+func (q *Queries) UpdateFavorite(ctx context.Context, arg UpdateFavoriteParams) (Favorite, error) {
+	row := q.db.QueryRow(ctx, updateFavorite,
+		arg.Name,
+		arg.ClearFolder,
+		arg.FolderID,
+		arg.Position,
+		arg.ID,
+		arg.UserID,
+	)
+	var i Favorite
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.Kind,
+		&i.TargetID,
+		&i.Position,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FolderID,
+		&i.Name,
+	)
+	return i, err
 }
 
 const updateView = `-- name: UpdateView :one

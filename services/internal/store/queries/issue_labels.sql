@@ -93,3 +93,27 @@ DELETE FROM issue_label
 WHERE issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
   AND label_id = ANY(sqlc.arg(label_ids)::uuid[])
 RETURNING id, workspace_id, issue_id, label_id, team_id, group_id, created_by, created_at;
+
+-- RetargetIssueLabels is the bulk half of a label merge: every application of the source
+-- that would not collide with the survivor is rewritten in place. The row keeps its id,
+-- so the change stream is an upsert of the same entity rather than a delete-plus-add that
+-- would flicker the chip off and on.
+--
+-- name: RetargetIssueLabels :many
+UPDATE issue_label AS moving SET label_id = sqlc.arg(into_id)
+WHERE moving.label_id = sqlc.arg(source_id)
+  AND NOT EXISTS (
+    SELECT 1 FROM issue_label already
+    WHERE already.issue_id = moving.issue_id
+      AND already.label_id = sqlc.arg(into_id)
+  )
+RETURNING moving.id, moving.workspace_id, moving.issue_id, moving.label_id, moving.team_id,
+          moving.group_id, moving.created_by, moving.created_at;
+
+-- The remainder after RetargetIssueLabels: issues that already carried the survivor, so
+-- the source application is dropped rather than doubled.
+--
+-- name: DeleteIssueLabelsForLabel :many
+DELETE FROM issue_label
+WHERE label_id = $1
+RETURNING id, workspace_id, issue_id, label_id, team_id, group_id, created_by, created_at;

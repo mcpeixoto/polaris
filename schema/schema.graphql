@@ -125,6 +125,7 @@ enum FavoriteKind {
   TEAM
   ISSUE
   LABEL
+  FOLDER
 }
 
 # ---------------------------------------------------------------- types
@@ -657,6 +658,10 @@ type Favorite {
   userId: UUID!
   kind: FavoriteKind!
   targetId: UUID!
+  """The folder this entry sits in. Null means the sidebar root. Folders themselves are always root."""
+  folderId: UUID
+  """The heading, for a folder. Null for every other kind."""
+  name: String
   position: String!
   createdAt: Time!
   updatedAt: Time!
@@ -2313,6 +2318,15 @@ input SetViewSubscriptionInput {
   completed: Boolean!
 }
 
+input MoveFavoriteInput {
+  id: UUID!
+  """The folder to sit in. Ignored when clearFolder is set."""
+  folderId: UUID
+  """Lift it to the sidebar root."""
+  clearFolder: Boolean
+  afterFavoriteId: UUID
+}
+
 input CreateIssueTemplateInput {
   teamId: UUID
   name: String!
@@ -3089,6 +3103,12 @@ type Mutation {
   archiving a non-empty group is refused to prevent, reached from the other side.
   """
   archiveLabel(id: UUID!, archived: Boolean!): DeletePayload!
+  """
+  Fold one label into another. Applications of the source move onto the survivor;
+  the source is then archived. Same scope, same group (or both ungrouped); neither
+  may be a group.
+  """
+  mergeLabels(sourceId: UUID!, intoId: UUID!): LabelPayload!
 
   """
   Adds one label. Not "set the labels": a whole-set write means two people adding
@@ -3133,6 +3153,13 @@ type Mutation {
 
   addFavorite(kind: FavoriteKind!, targetId: UUID!, afterFavoriteId: UUID): FavoritePayload!
   removeFavorite(kind: FavoriteKind!, targetId: UUID!): DeletePayload!
+  createFavoriteFolder(name: String!, afterFavoriteId: UUID): FavoritePayload!
+  updateFavoriteFolder(id: UUID!, name: String!): FavoritePayload!
+  """
+  Move a favourite into a folder, out of one, or along the sidebar. `clearFolder`
+  lifts it to the root; `folderId` puts it in that folder. Neither leaves it where it is.
+  """
+  moveFavorite(input: MoveFavoriteInput!): FavoritePayload!
 
   # ---- templates
 

@@ -312,8 +312,10 @@ type ComplexityRoot struct {
 
 	Favorite struct {
 		CreatedAt   func(childComplexity int) int
+		FolderID    func(childComplexity int) int
 		ID          func(childComplexity int) int
 		Kind        func(childComplexity int) int
+		Name        func(childComplexity int) int
 		Position    func(childComplexity int) int
 		TargetID    func(childComplexity int) int
 		UpdatedAt   func(childComplexity int) int
@@ -745,6 +747,7 @@ type ComplexityRoot struct {
 		CreateDashboardTile            func(childComplexity int, input CreateDashboardTileInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateDocument                 func(childComplexity int, input CreateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateDraft                    func(childComplexity int, input CreateDraftInput) int
+		CreateFavoriteFolder           func(childComplexity int, name string, afterFavoriteID *uuid.UUID) int
 		CreateFormTemplate             func(childComplexity int, input CreateFormTemplateInput) int
 		CreateFormTemplateField        func(childComplexity int, input CreateFormTemplateFieldInput) int
 		CreateGitHubConnection         func(childComplexity int, input CreateGitHubConnectionInput) int
@@ -813,6 +816,8 @@ type ComplexityRoot struct {
 		MarkAllNotificationsRead       func(childComplexity int) int
 		MarkIssueDuplicate             func(childComplexity int, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		MarkNotificationRead           func(childComplexity int, id uuid.UUID, read bool) int
+		MergeLabels                    func(childComplexity int, sourceID uuid.UUID, intoID uuid.UUID) int
+		MoveFavorite                   func(childComplexity int, input MoveFavoriteInput) int
 		MoveTeam                       func(childComplexity int, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		PurgeDeletedIssues             func(childComplexity int, before *time.Time) int
 		RemoveFavorite                 func(childComplexity int, kind FavoriteKind, targetID uuid.UUID) int
@@ -852,6 +857,7 @@ type ComplexityRoot struct {
 		UpdateDashboardTile            func(childComplexity int, input UpdateDashboardTileInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateDocument                 func(childComplexity int, input UpdateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateDraft                    func(childComplexity int, input UpdateDraftInput) int
+		UpdateFavoriteFolder           func(childComplexity int, id uuid.UUID, name string) int
 		UpdateFormTemplate             func(childComplexity int, input UpdateFormTemplateInput) int
 		UpdateFormTemplateField        func(childComplexity int, input UpdateFormTemplateFieldInput) int
 		UpdateGitHubConnection         func(childComplexity int, input UpdateGitHubConnectionInput) int
@@ -1703,6 +1709,7 @@ type MutationResolver interface {
 	CreateLabel(ctx context.Context, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	UpdateLabel(ctx context.Context, input UpdateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	ArchiveLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
+	MergeLabels(ctx context.Context, sourceID uuid.UUID, intoID uuid.UUID) (*LabelPayload, error)
 	AddIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssueLabelPayload, error)
 	RemoveIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateProjectLabel(ctx context.Context, input CreateProjectLabelInput) (*ProjectLabelPayload, error)
@@ -1725,6 +1732,9 @@ type MutationResolver interface {
 	DeleteViewSubscription(ctx context.Context, viewID uuid.UUID) (*DeletePayload, error)
 	AddFavorite(ctx context.Context, kind FavoriteKind, targetID uuid.UUID, afterFavoriteID *uuid.UUID) (*FavoritePayload, error)
 	RemoveFavorite(ctx context.Context, kind FavoriteKind, targetID uuid.UUID) (*DeletePayload, error)
+	CreateFavoriteFolder(ctx context.Context, name string, afterFavoriteID *uuid.UUID) (*FavoritePayload, error)
+	UpdateFavoriteFolder(ctx context.Context, id uuid.UUID, name string) (*FavoritePayload, error)
+	MoveFavorite(ctx context.Context, input MoveFavoriteInput) (*FavoritePayload, error)
 	CreateIssueTemplate(ctx context.Context, input CreateIssueTemplateInput) (*IssueTemplatePayload, error)
 	UpdateIssueTemplate(ctx context.Context, input UpdateIssueTemplateInput) (*IssueTemplatePayload, error)
 	ArchiveIssueTemplate(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
@@ -3045,6 +3055,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Favorite.CreatedAt(childComplexity), true
+	case "Favorite.folderId":
+		if e.ComplexityRoot.Favorite.FolderID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Favorite.FolderID(childComplexity), true
 	case "Favorite.id":
 		if e.ComplexityRoot.Favorite.ID == nil {
 			break
@@ -3057,6 +3073,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Favorite.Kind(childComplexity), true
+	case "Favorite.name":
+		if e.ComplexityRoot.Favorite.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Favorite.Name(childComplexity), true
 	case "Favorite.position":
 		if e.ComplexityRoot.Favorite.Position == nil {
 			break
@@ -5131,6 +5153,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateDraft(childComplexity, args["input"].(CreateDraftInput)), true
+	case "Mutation.createFavoriteFolder":
+		if e.ComplexityRoot.Mutation.CreateFavoriteFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createFavoriteFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateFavoriteFolder(childComplexity, args["name"].(string), args["afterFavoriteId"].(*uuid.UUID)), true
 	case "Mutation.createFormTemplate":
 		if e.ComplexityRoot.Mutation.CreateFormTemplate == nil {
 			break
@@ -5849,6 +5882,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MarkNotificationRead(childComplexity, args["id"].(uuid.UUID), args["read"].(bool)), true
+	case "Mutation.mergeLabels":
+		if e.ComplexityRoot.Mutation.MergeLabels == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_mergeLabels_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MergeLabels(childComplexity, args["sourceId"].(uuid.UUID), args["intoId"].(uuid.UUID)), true
+	case "Mutation.moveFavorite":
+		if e.ComplexityRoot.Mutation.MoveFavorite == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_moveFavorite_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MoveFavorite(childComplexity, args["input"].(MoveFavoriteInput)), true
 	case "Mutation.moveTeam":
 		if e.ComplexityRoot.Mutation.MoveTeam == nil {
 			break
@@ -6278,6 +6333,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateDraft(childComplexity, args["input"].(UpdateDraftInput)), true
+	case "Mutation.updateFavoriteFolder":
+		if e.ComplexityRoot.Mutation.UpdateFavoriteFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateFavoriteFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateFavoriteFolder(childComplexity, args["id"].(uuid.UUID), args["name"].(string)), true
 	case "Mutation.updateFormTemplate":
 		if e.ComplexityRoot.Mutation.UpdateFormTemplate == nil {
 			break
@@ -10119,6 +10185,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputLinkGitHubPullRequestInput,
 		ec.unmarshalInputLinkGitLabMergeRequestInput,
 		ec.unmarshalInputLinkSentryIssueInput,
+		ec.unmarshalInputMoveFavoriteInput,
 		ec.unmarshalInputSearchInput,
 		ec.unmarshalInputSetIssueSlaInput,
 		ec.unmarshalInputSetViewSubscriptionInput,
@@ -10368,6 +10435,7 @@ enum FavoriteKind {
   TEAM
   ISSUE
   LABEL
+  FOLDER
 }
 
 # ---------------------------------------------------------------- types
@@ -10900,6 +10968,10 @@ type Favorite {
   userId: UUID!
   kind: FavoriteKind!
   targetId: UUID!
+  """The folder this entry sits in. Null means the sidebar root. Folders themselves are always root."""
+  folderId: UUID
+  """The heading, for a folder. Null for every other kind."""
+  name: String
   position: String!
   createdAt: Time!
   updatedAt: Time!
@@ -12556,6 +12628,15 @@ input SetViewSubscriptionInput {
   completed: Boolean!
 }
 
+input MoveFavoriteInput {
+  id: UUID!
+  """The folder to sit in. Ignored when clearFolder is set."""
+  folderId: UUID
+  """Lift it to the sidebar root."""
+  clearFolder: Boolean
+  afterFavoriteId: UUID
+}
+
 input CreateIssueTemplateInput {
   teamId: UUID
   name: String!
@@ -13332,6 +13413,12 @@ type Mutation {
   archiving a non-empty group is refused to prevent, reached from the other side.
   """
   archiveLabel(id: UUID!, archived: Boolean!): DeletePayload!
+  """
+  Fold one label into another. Applications of the source move onto the survivor;
+  the source is then archived. Same scope, same group (or both ungrouped); neither
+  may be a group.
+  """
+  mergeLabels(sourceId: UUID!, intoId: UUID!): LabelPayload!
 
   """
   Adds one label. Not "set the labels": a whole-set write means two people adding
@@ -13376,6 +13463,13 @@ type Mutation {
 
   addFavorite(kind: FavoriteKind!, targetId: UUID!, afterFavoriteId: UUID): FavoritePayload!
   removeFavorite(kind: FavoriteKind!, targetId: UUID!): DeletePayload!
+  createFavoriteFolder(name: String!, afterFavoriteId: UUID): FavoritePayload!
+  updateFavoriteFolder(id: UUID!, name: String!): FavoritePayload!
+  """
+  Move a favourite into a folder, out of one, or along the sidebar. ` + "`" + `clearFolder` + "`" + `
+  lifts it to the root; ` + "`" + `folderId` + "`" + ` puts it in that folder. Neither leaves it where it is.
+  """
+  moveFavorite(input: MoveFavoriteInput!): FavoritePayload!
 
   # ---- templates
 
@@ -14037,6 +14131,10 @@ func (ec *executionContext) childFields_Favorite(ctx context.Context, field grap
 		return ec.fieldContext_Favorite_kind(ctx, field)
 	case "targetId":
 		return ec.fieldContext_Favorite_targetId(ctx, field)
+	case "folderId":
+		return ec.fieldContext_Favorite_folderId(ctx, field)
+	case "name":
+		return ec.fieldContext_Favorite_name(ctx, field)
 	case "position":
 		return ec.fieldContext_Favorite_position(ctx, field)
 	case "createdAt":
@@ -17321,6 +17419,28 @@ func (ec *executionContext) field_Mutation_createDraft_args(ctx context.Context,
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createFavoriteFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "afterFavoriteId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["afterFavoriteId"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createFormTemplateField_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -18685,6 +18805,42 @@ func (ec *executionContext) field_Mutation_markNotificationRead_args(ctx context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_mergeLabels_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sourceId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sourceId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "intoId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["intoId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_moveFavorite_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (MoveFavoriteInput, error) {
+			return ec.unmarshalNMoveFavoriteInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐMoveFavoriteInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_moveTeam_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -19740,6 +19896,28 @@ func (ec *executionContext) field_Mutation_updateDraft_args(ctx context.Context,
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateFavoriteFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg1
 	return args, nil
 }
 
@@ -25704,6 +25882,52 @@ func (ec *executionContext) _Favorite_targetId(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_Favorite_targetId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Favorite", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Favorite_folderId(ctx context.Context, field graphql.CollectedField, obj *Favorite) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Favorite_folderId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FolderID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Favorite_folderId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Favorite", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Favorite_name(ctx context.Context, field graphql.CollectedField, obj *Favorite) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Favorite_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Favorite_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Favorite", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Favorite_position(ctx context.Context, field graphql.CollectedField, obj *Favorite) (ret graphql.Marshaler) {
@@ -37019,6 +37243,50 @@ func (ec *executionContext) fieldContext_Mutation_archiveLabel(ctx context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_mergeLabels(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_mergeLabels(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MergeLabels(ctx, fc.Args["sourceId"].(uuid.UUID), fc.Args["intoId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *LabelPayload) graphql.Marshaler {
+			return ec.marshalNLabelPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐLabelPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_mergeLabels(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LabelPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_mergeLabels_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_addIssueLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38021,6 +38289,138 @@ func (ec *executionContext) fieldContext_Mutation_removeFavorite(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_removeFavorite_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createFavoriteFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createFavoriteFolder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateFavoriteFolder(ctx, fc.Args["name"].(string), fc.Args["afterFavoriteId"].(*uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *FavoritePayload) graphql.Marshaler {
+			return ec.marshalNFavoritePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFavoritePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createFavoriteFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FavoritePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createFavoriteFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateFavoriteFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateFavoriteFolder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateFavoriteFolder(ctx, fc.Args["id"].(uuid.UUID), fc.Args["name"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *FavoritePayload) graphql.Marshaler {
+			return ec.marshalNFavoritePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFavoritePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateFavoriteFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FavoritePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateFavoriteFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_moveFavorite(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_moveFavorite(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MoveFavorite(ctx, fc.Args["input"].(MoveFavoriteInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *FavoritePayload) graphql.Marshaler {
+			return ec.marshalNFavoritePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFavoritePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_moveFavorite(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FavoritePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_moveFavorite_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -58788,6 +59188,57 @@ func (ec *executionContext) unmarshalInputLinkSentryIssueInput(ctx context.Conte
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputMoveFavoriteInput(ctx context.Context, obj any) (MoveFavoriteInput, error) {
+	var it MoveFavoriteInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "folderId", "clearFolder", "afterFavoriteId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "folderId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("folderId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FolderID = data
+		case "clearFolder":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearFolder"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearFolder = data
+		case "afterFavoriteId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("afterFavoriteId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AfterFavoriteID = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSearchInput(ctx context.Context, obj any) (SearchInput, error) {
 	var it SearchInput
 	if obj == nil {
@@ -64231,6 +64682,16 @@ func (ec *executionContext) _Favorite(ctx context.Context, sel ast.SelectionSet,
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "folderId":
+			out.Values[i] = ec._Favorite_folderId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._Favorite_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "position":
 			out.Values[i] = ec._Favorite_position(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -67553,6 +68014,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "mergeLabels":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_mergeLabels(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "addIssueLabel":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addIssueLabel(ctx, field)
@@ -67703,6 +68171,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "removeFavorite":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_removeFavorite(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createFavoriteFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createFavoriteFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateFavoriteFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateFavoriteFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "moveFavorite":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_moveFavorite(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -76294,6 +76783,11 @@ func (ec *executionContext) unmarshalNLinkGitLabMergeRequestInput2githubᚗcom�
 
 func (ec *executionContext) unmarshalNLinkSentryIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐLinkSentryIssueInput(ctx context.Context, v any) (LinkSentryIssueInput, error) {
 	res, err := ec.unmarshalInputLinkSentryIssueInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNMoveFavoriteInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐMoveFavoriteInput(ctx context.Context, v any) (MoveFavoriteInput, error) {
+	res, err := ec.unmarshalInputMoveFavoriteInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

@@ -27,7 +27,13 @@ import { Badge, Button, Checkbox, EmptyState, IconButton, Input, Select } from '
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
-import { archiveLabel, createLabel, DEFAULT_LABEL_COLOR, updateLabel } from './mutations';
+import {
+  archiveLabel,
+  createLabel,
+  DEFAULT_LABEL_COLOR,
+  mergeLabels,
+  updateLabel,
+} from './mutations';
 import styles from './LabelSettings.module.css';
 
 interface LabelView {
@@ -148,8 +154,14 @@ export function LabelSettings() {
                   <li key={row.id}>
                     <LabelRow
                       row={row}
+                      mergeInto={
+                        row.isGroup
+                          ? []
+                          : scope.roots.filter((other) => !other.isGroup && other.id !== row.id)
+                      }
                       onEdit={(fields) => run(updateLabel(engine, row.id, fields))}
                       onArchive={() => run(archiveLabel(engine, row.id))}
+                      onMerge={(intoId) => run(mergeLabels(engine, row.id, intoId))}
                     />
                     {!row.isGroup ? null : (
                       <ul className={styles.children}>
@@ -157,8 +169,12 @@ export function LabelSettings() {
                           <li key={child.id}>
                             <LabelRow
                               row={child}
+                              mergeInto={(scope.children.get(row.id) ?? []).filter(
+                                (other) => other.id !== child.id,
+                              )}
                               onEdit={(fields) => run(updateLabel(engine, child.id, fields))}
                               onArchive={() => run(archiveLabel(engine, child.id))}
+                              onMerge={(intoId) => run(mergeLabels(engine, child.id, intoId))}
                               onUngroup={() =>
                                 run(updateLabel(engine, child.id, { parentId: null }))
                               }
@@ -280,12 +296,14 @@ function CreateLabel({ scope, groups, onCreate }: CreateLabelProps) {
 
 interface LabelRowProps {
   row: LabelView;
+  mergeInto?: readonly LabelView[];
   onEdit: (fields: { name?: string; color?: string }) => void;
   onArchive: () => void;
+  onMerge?: ((intoId: UUID) => void) | undefined;
   onUngroup?: (() => void) | undefined;
 }
 
-function LabelRow({ row, onEdit, onArchive, onUngroup }: LabelRowProps) {
+function LabelRow({ row, mergeInto = [], onEdit, onArchive, onMerge, onUngroup }: LabelRowProps) {
   const [name, setName] = useState(row.name);
 
   // Committed on blur rather than on every keystroke. Each keystroke is a mutation with its
@@ -342,6 +360,28 @@ function LabelRow({ row, onEdit, onArchive, onUngroup }: LabelRowProps) {
       <span className={styles.uses}>
         {row.isGroup ? '' : `${row.uses} ${row.uses === 1 ? 'issue' : 'issues'}`}
       </span>
+
+      {onMerge === undefined || mergeInto.length === 0 ? (
+        <span />
+      ) : (
+        <Select
+          label={`Merge ${row.name} into`}
+          hideLabel
+          value=""
+          onChange={(event) => {
+            const intoId = event.target.value;
+            if (intoId === '') return;
+            onMerge(intoId);
+          }}
+        >
+          <option value="">Merge into…</option>
+          {mergeInto.map((other) => (
+            <option key={other.id} value={other.id}>
+              {other.name}
+            </option>
+          ))}
+        </Select>
+      )}
 
       <span>
         {onUngroup === undefined ? null : (

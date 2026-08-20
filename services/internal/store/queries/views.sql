@@ -171,11 +171,12 @@ LIMIT sqlc.arg(page_size);
 -- there would read as the drag not having worked.
 --
 -- name: AddFavorite :one
-INSERT INTO favorite (id, workspace_id, user_id, kind, target_id, position)
+INSERT INTO favorite (id, workspace_id, user_id, kind, target_id, folder_id, name, position)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(user_id), sqlc.arg(kind),
-        sqlc.arg(target_id), sqlc.arg(position))
+        sqlc.arg(target_id), sqlc.narg(folder_id), sqlc.narg(name), sqlc.arg(position))
 ON CONFLICT (user_id, kind, target_id) DO UPDATE SET position = EXCLUDED.position
-RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at;
+RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+          folder_id, name;
 
 -- Returns the removed row because the caller knows the target, not the id the change
 -- stream needs.
@@ -183,10 +184,12 @@ RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, upda
 -- name: RemoveFavorite :one
 DELETE FROM favorite
 WHERE user_id = sqlc.arg(user_id) AND kind = sqlc.arg(kind) AND target_id = sqlc.arg(target_id)
-RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at;
+RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+          folder_id, name;
 
 -- name: ListFavorites :many
-SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at
+SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+       folder_id, name
 FROM favorite
 WHERE workspace_id = sqlc.arg(workspace_id) AND user_id = sqlc.arg(user_id)
 ORDER BY position;
@@ -211,13 +214,14 @@ ORDER BY position;
 --
 -- name: StreamFavoritesForBootstrap :many
 SELECT f.id, f.workspace_id, f.user_id, f.kind, f.target_id, f.position,
-       f.created_at, f.updated_at
+       f.created_at, f.updated_at, f.folder_id, f.name
 FROM favorite f
 WHERE f.workspace_id = sqlc.arg(workspace_id)
   AND f.user_id = sqlc.arg(user_id)
   AND f.id > sqlc.arg(after_id)
   AND (
-    (f.kind = 'view' AND EXISTS (
+    f.kind = 'folder'
+    OR (f.kind = 'view' AND EXISTS (
       SELECT 1 FROM view v
       WHERE v.id = f.target_id
         AND v.workspace_id = sqlc.arg(workspace_id)
@@ -272,7 +276,8 @@ LIMIT sqlc.arg(page_size);
 -- its own owner's scope.
 --
 -- name: ListFavoritesForTarget :many
-SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at
+SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+       folder_id, name
 FROM favorite
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND kind = sqlc.arg(kind)
@@ -290,3 +295,29 @@ SELECT position FROM favorite
 WHERE user_id = $1
 ORDER BY position DESC
 LIMIT 1;
+
+-- name: GetFavorite :one
+SELECT id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+       folder_id, name
+FROM favorite
+WHERE id = $1;
+
+-- name: UpdateFavorite :one
+UPDATE favorite
+SET name      = COALESCE(sqlc.narg(name), name),
+    folder_id = CASE WHEN sqlc.arg(clear_folder)::boolean THEN NULL
+                     ELSE COALESCE(sqlc.narg(folder_id), folder_id) END,
+    position  = COALESCE(sqlc.narg(position), position)
+WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id)
+RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+          folder_id, name;
+
+-- Children of a folder that is about to disappear. The FK would SET NULL on its own,
+-- but that write never hits the change stream, so a replica that watched the delete
+-- would keep pointing at a folder that is gone. The caller upserts these first.
+--
+-- name: ClearFavoritesInFolder :many
+UPDATE favorite SET folder_id = NULL
+WHERE folder_id = sqlc.arg(folder_id)::uuid
+RETURNING id, workspace_id, user_id, kind, target_id, position, created_at, updated_at,
+          folder_id, name;

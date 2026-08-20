@@ -104,9 +104,62 @@
 .sectionTitle {
   margin: 0 0 var(--space-1);
   padding: 0 var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   color: var(--text-tertiary);
+}
+
+.folder {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: var(--space-2);
+}
+
+.folderHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 28px;
+  padding: 0 var(--space-2);
+}
+
+.folderName {
+  flex: 1;
+  min-width: 0;
+}
+
+.folderName input,
+.folderCreate input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.folderCreate {
+  padding: 0 var(--space-2) var(--space-1);
+}
+
+.folderAction {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.folderAction:hover {
+  color: var(--text-primary);
 }
 
 .navItem {

@@ -651,12 +651,14 @@ export interface Favorite {
   readonly userId: UUID;
   readonly kind: FavoriteKind;
   readonly targetId: UUID;
+  readonly folderId?: UUID;
+  readonly name?: string;
   readonly position: string;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
 }
 
-export type FavoriteKind = 'view' | 'team' | 'issue' | 'label';
+export type FavoriteKind = 'view' | 'team' | 'issue' | 'label' | 'folder';
 
 export interface IssueTemplate {
   readonly id: UUID;

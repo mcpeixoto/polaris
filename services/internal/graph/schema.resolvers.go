@@ -1917,6 +1917,20 @@ func (r *mutationResolver) ArchiveLabel(ctx context.Context, id uuid.UUID, archi
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// MergeLabels is the resolver for the mergeLabels field.
+func (r *mutationResolver) MergeLabels(ctx context.Context, sourceID uuid.UUID, intoID uuid.UUID) (*generated.LabelPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	label, version, err := r.Svc.MergeLabels(ctx, p, sourceID, intoID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toLabel(label)
+	return &generated.LabelPayload{Version: int(version), Label: &out}, nil
+}
+
 // AddIssueLabel is the resolver for the addIssueLabel field.
 func (r *mutationResolver) AddIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssueLabelPayload, error) {
 	p, err := principalFrom(ctx)
@@ -2340,6 +2354,63 @@ func (r *mutationResolver) RemoveFavorite(ctx context.Context, kind generated.Fa
 		return nil, PresentError(ctx, err)
 	}
 	return &generated.DeletePayload{Version: int(version), ID: removed}, nil
+}
+
+// CreateFavoriteFolder is the resolver for the createFavoriteFolder field.
+func (r *mutationResolver) CreateFavoriteFolder(ctx context.Context, name string, afterFavoriteID *uuid.UUID) (*generated.FavoritePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	favorite, version, err := r.Svc.CreateFavoriteFolder(ctx, p, name, afterFavoriteID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toFavorite(favorite)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.FavoritePayload{Version: int(version), Favorite: &out}, nil
+}
+
+// UpdateFavoriteFolder is the resolver for the updateFavoriteFolder field.
+func (r *mutationResolver) UpdateFavoriteFolder(ctx context.Context, id uuid.UUID, name string) (*generated.FavoritePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	favorite, version, err := r.Svc.UpdateFavoriteFolder(ctx, p, id, name)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toFavorite(favorite)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.FavoritePayload{Version: int(version), Favorite: &out}, nil
+}
+
+// MoveFavorite is the resolver for the moveFavorite field.
+func (r *mutationResolver) MoveFavorite(ctx context.Context, input generated.MoveFavoriteInput) (*generated.FavoritePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	clear := input.ClearFolder != nil && *input.ClearFolder
+	favorite, version, err := r.Svc.MoveFavorite(ctx, p, domain.MoveFavoriteInput{
+		ID:              input.ID,
+		FolderID:        input.FolderID,
+		ClearFolder:     clear,
+		AfterFavoriteID: input.AfterFavoriteID,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toFavorite(favorite)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.FavoritePayload{Version: int(version), Favorite: &out}, nil
 }
 
 // CreateIssueTemplate is the resolver for the createIssueTemplate field.
@@ -5078,8 +5149,3 @@ type (
 	mutationResolver struct{ *Resolver }
 	queryResolver    struct{ *Resolver }
 )
-
-type sentryLinked struct {
-	Issue      model.Issue
-	Attachment model.Attachment
-}

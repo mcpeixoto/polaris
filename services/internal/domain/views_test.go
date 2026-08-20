@@ -561,6 +561,87 @@ func TestAddFavorite_AfterIDPlacesItBetweenItsNeighbours(t *testing.T) {
 	}
 }
 
+func TestCreateFavoriteFolder_GroupsTheSidebar(t *testing.T) {
+	t.Parallel()
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	admin := f.Principal()
+	ctx := context.Background()
+
+	folder, _, err := svc.CreateFavoriteFolder(ctx, admin, "Later", nil)
+	if err != nil {
+		t.Fatalf("create folder: %v", err)
+	}
+	if folder.Kind != model.FavoriteFolder || folder.Name == nil || *folder.Name != "Later" {
+		t.Fatalf("folder = %+v, want named Later", folder)
+	}
+	if folder.TargetID != folder.ID {
+		t.Fatal("a folder's target is itself, so bootstrap does not have to look elsewhere")
+	}
+
+	if _, _, err := svc.AddFavorite(ctx, admin, model.FavoriteTeam, f.TeamID, nil); err != nil {
+		t.Fatalf("favourite the team: %v", err)
+	}
+	favs, err := svc.ListFavorites(ctx, admin)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var teamFav model.Favorite
+	for _, fav := range favs {
+		if fav.Kind == model.FavoriteTeam {
+			teamFav = fav
+		}
+	}
+	if teamFav.ID == uuid.Nil {
+		t.Fatal("the team was not favourited")
+	}
+
+	moved, _, err := svc.MoveFavorite(ctx, admin, domain.MoveFavoriteInput{
+		ID:       teamFav.ID,
+		FolderID: &folder.ID,
+	})
+	if err != nil {
+		t.Fatalf("move into folder: %v", err)
+	}
+	if moved.FolderID == nil || *moved.FolderID != folder.ID {
+		t.Fatalf("moved folderId = %v, want %s", moved.FolderID, folder.ID)
+	}
+
+	if _, _, err := svc.MoveFavorite(ctx, admin, domain.MoveFavoriteInput{
+		ID:       folder.ID,
+		FolderID: &folder.ID,
+	}); err == nil {
+		t.Fatal("a folder must not sit in itself")
+	}
+
+	if _, _, err := svc.RemoveFavorite(ctx, admin, model.FavoriteFolder, folder.ID); err != nil {
+		t.Fatalf("delete folder: %v", err)
+	}
+	favs, err = svc.ListFavorites(ctx, admin)
+	if err != nil {
+		t.Fatalf("list after delete: %v", err)
+	}
+	for _, fav := range favs {
+		if fav.Kind == model.FavoriteFolder {
+			t.Fatal("the folder survived its delete")
+		}
+		if fav.ID == teamFav.ID && fav.FolderID != nil {
+			t.Fatal("deleting a folder must lift its children to the root, not leave them pointing at a missing heading")
+		}
+	}
+}
+
+func TestCreateFavoriteFolder_BlankNameIsRefused(t *testing.T) {
+	t.Parallel()
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	if _, _, err := svc.CreateFavoriteFolder(context.Background(), f.Principal(), "  ", nil); err == nil {
+		t.Fatal("a folder without a name must be refused")
+	}
+}
+
 // --- helpers ------------------------------------------------------------------------
 
 func mustView(t *testing.T, svc *domain.Service, p *authz.Principal, in domain.CreateViewInput) model.View {
