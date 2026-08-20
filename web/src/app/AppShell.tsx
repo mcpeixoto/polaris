@@ -436,6 +436,10 @@ export function AppShell({
               <NavGlyph name="bell" />
               <span className={styles.navLabel}>Project updates</span>
             </NavLink>
+            <NavLink to="/settings/slas" className={navClass}>
+              <NavGlyph name="bell" />
+              <span className={styles.navLabel}>SLAs</span>
+            </NavLink>
             <NavLink to="/settings/notifications" className={navClass}>
               <NavGlyph name="bell" />
               <span className={styles.navLabel}>Notifications</span>

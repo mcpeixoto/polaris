@@ -745,6 +745,106 @@ func (r *mutationResolver) DeleteCustomerRequest(ctx context.Context, id uuid.UU
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// CreateSLARule is the resolver for the createSlaRule field.
+func (r *mutationResolver) CreateSLARule(ctx context.Context, input generated.CreateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.SLARulePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromCreateSlaRuleInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.SlaRule, int64, error) {
+			return r.Svc.CreateSlaRule(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toSlaRule(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.SLARulePayload{Version: int(version), SLARule: &out}, nil
+}
+
+// UpdateSLARule is the resolver for the updateSlaRule field.
+func (r *mutationResolver) UpdateSLARule(ctx context.Context, input generated.UpdateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.SLARulePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromUpdateSlaRuleInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.SlaRule, int64, error) {
+			return r.Svc.UpdateSlaRule(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toSlaRule(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.SLARulePayload{Version: int(version), SLARule: &out}, nil
+}
+
+// DeleteSLARule is the resolver for the deleteSlaRule field.
+func (r *mutationResolver) DeleteSLARule(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteSlaRule(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// SetIssueSLA is the resolver for the setIssueSla field.
+func (r *mutationResolver) SetIssueSLA(ctx context.Context, input generated.SetIssueSLAInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.SetIssueSLAInput{IssueID: input.IssueID, DurationMinutes: int32(input.DurationMinutes)}
+	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Issue, int64, error) {
+			return r.Svc.SetIssueSLA(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateIssue(ctx, p, selectionFor(ctx, "IssuePayload").childOrNone("issue", "Issue"), issue)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.IssuePayload{Version: int(version), Issue: &out}, nil
+}
+
+// ClearIssueSLA is the resolver for the clearIssueSla field.
+func (r *mutationResolver) ClearIssueSLA(ctx context.Context, issueID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"issueId": issueID},
+		func(ctx context.Context) (model.Issue, int64, error) {
+			return r.Svc.ClearIssueSLA(ctx, p, issueID)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateIssue(ctx, p, selectionFor(ctx, "IssuePayload").childOrNone("issue", "Issue"), issue)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.IssuePayload{Version: int(version), Issue: &out}, nil
+}
+
 // CreateTeam is the resolver for the createTeam field.
 func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.CreateTeamInput) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)
@@ -4091,6 +4191,44 @@ func (r *queryResolver) CustomerRequest(ctx context.Context, id uuid.UUID) (*gen
 		return nil, PresentError(ctx, err)
 	}
 	out := toCustomerRequest(row)
+	return &out, nil
+}
+
+// SLARules is the resolver for the slaRules field.
+func (r *queryResolver) SLARules(ctx context.Context) ([]generated.SLARule, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListSlaRules(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := make([]generated.SLARule, 0, len(rows))
+	for _, row := range rows {
+		converted, err := toSlaRule(row)
+		if err != nil {
+			return nil, PresentError(ctx, err)
+		}
+		out = append(out, converted)
+	}
+	return out, nil
+}
+
+// SLARule is the resolver for the slaRule field.
+func (r *queryResolver) SLARule(ctx context.Context, id uuid.UUID) (*generated.SLARule, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, err := r.Svc.GetSlaRule(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toSlaRule(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
 	return &out, nil
 }
 

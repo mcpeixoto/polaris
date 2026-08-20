@@ -52,6 +52,7 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"RecurringIssue", model.RecurringIssue{}, generated.RecurringIssue{}},
 		{"Customer", model.Customer{}, generated.Customer{}},
 		{"CustomerRequest", model.CustomerRequest{}, generated.CustomerRequest{}},
+		{"SlaRule", model.SlaRule{}, generated.SLARule{}},
 	}
 
 	for _, pair := range pairs {
@@ -119,6 +120,7 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 		{"RecurringIssue", model.RecurringIssue{}, func(v any) (any, error) { return toRecurringIssue(v.(model.RecurringIssue)) }},
 		{"Customer", model.Customer{}, func(v any) (any, error) { return toCustomer(v.(model.Customer)) }},
 		{"CustomerRequest", model.CustomerRequest{}, func(v any) (any, error) { return toCustomerRequest(v.(model.CustomerRequest)), nil }},
+		{"SlaRule", model.SlaRule{}, func(v any) (any, error) { return toSlaRule(v.(model.SlaRule)) }},
 	}
 
 	for _, c := range cases {
@@ -170,6 +172,7 @@ var enumValues = map[string]string{
 	"targetDateGranularity": model.GranularityQuarter,
 	"updateSchedule":        model.ProjectUpdateScheduleDefault,
 	"cadence":               model.CadenceWeekly,
+	"action":                model.SlaActionApply,
 }
 
 // fillNonZero writes a distinguishable value into every field of v, recursively.

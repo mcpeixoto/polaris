@@ -879,6 +879,20 @@ export interface CustomerRequest {
   readonly updatedAt: Timestamp;
 }
 
+export type SlaAction = 'apply' | 'remove';
+
+/** A workspace policy: first match wins. Applying one owns the issue's due date. */
+export interface SlaRule {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly position: string;
+  readonly filter: FilterNode;
+  readonly action: SlaAction;
+  readonly durationMinutes?: number;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 export type ProjectUpdateHealth = 'on_track' | 'at_risk' | 'off_track';
 
 export type ProjectUpdateSchedule = 'default' | 'never' | 'custom';
@@ -970,6 +984,7 @@ export interface EntityByType {
   teamMembership: TeamMembership;
   workflowState: WorkflowState;
   customer: Customer;
+  slaRule: SlaRule;
   label: Label;
   issueTemplate: IssueTemplate;
   formTemplate: FormTemplate;
@@ -1023,6 +1038,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'teamMembership',
   'workflowState',
   'customer',
+  'slaRule',
   // Before issues: an issue may carry a labelId or a templateId.
   'label',
   'issueTemplate',

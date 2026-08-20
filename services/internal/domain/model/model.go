@@ -895,6 +895,24 @@ type CustomerRequest struct {
 	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
+const (
+	SlaActionApply  = "apply"
+	SlaActionRemove = "remove"
+)
+
+// SlaRule is a workspace policy: first match wins. Applying one sets the issue's due date
+// and marks dueDateSource as sla; removing one clears an SLA-owned date.
+type SlaRule struct {
+	ID              uuid.UUID       `json:"id"`
+	WorkspaceID     uuid.UUID       `json:"workspaceId"`
+	Position        string          `json:"position"`
+	Filter          json.RawMessage `json:"filter"`
+	Action          string          `json:"action"`
+	DurationMinutes *int32          `json:"durationMinutes,omitempty"`
+	CreatedAt       time.Time       `json:"createdAt"`
+	UpdatedAt       time.Time       `json:"updatedAt"`
+}
+
 // Document is long-form markdown attached to a team or a project. The body is plain markdown
 // until collaborative editing lands; it is not a CRDT snapshot yet.
 type Document struct {

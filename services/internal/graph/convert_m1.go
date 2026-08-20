@@ -719,6 +719,7 @@ func toEntitlements(f entitlement.Features, plan string, seatsUsed int, lapsed b
 		APIKeys:            f.APIKeys,
 		Sso:                f.SSO,
 		AuditLog:           f.AuditLog,
+		Slas:               f.SLAs,
 		Lapsed:             lapsed,
 	}
 }

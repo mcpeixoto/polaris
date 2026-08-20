@@ -317,6 +317,15 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			}
 		}
 
+		if err := s.applyMatchingSLA(ctx, q, p, id); err != nil {
+			return err
+		}
+		refreshed, err := q.GetIssue(ctx, id)
+		if err != nil {
+			return platform.Internal(err)
+		}
+		out = toIssue(store.AsIssueRow(refreshed), team.Key)
+
 		return s.em.History(ctx, q, p.WorkspaceID, p.Actor(), row.CreatedAt,
 			HistoryEntry{IssueID: id, Kind: "created"})
 	})
@@ -511,6 +520,10 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 		team, err := s.requireTeamAccess(ctx, q, p, before.TeamID, authz.ActionIssueUpdate)
 		if err != nil {
 			return err
+		}
+		if before.DueDateSource == model.DueDateSLA && (in.DueDate != nil || in.ClearDueDate) {
+			return platform.Validation("dueDate",
+				"this date is set by an SLA, so it is not yours to move")
 		}
 
 		if err := validateIssueCycle(ctx, q, before.TeamID, in.CycleID); err != nil {
@@ -796,6 +809,14 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 		if err := s.em.History(ctx, q, p.WorkspaceID, p.Actor(), before.CreatedAt, history...); err != nil {
 			return err
 		}
+		if err := s.applyMatchingSLA(ctx, q, p, in.ID); err != nil {
+			return err
+		}
+		refreshed, err := q.GetIssue(ctx, in.ID)
+		if err != nil {
+			return platform.Internal(err)
+		}
+		out = toIssue(store.AsIssueRow(refreshed), team.Key)
 		return s.applyFamilyClose(ctx, q, p, team, store.AsIssueRow(row), newState, map[uuid.UUID]bool{})
 	})
 	return out, version, err

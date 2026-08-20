@@ -57,6 +57,7 @@ export interface FeatureMatrix {
   readonly apiKeys: boolean;
   readonly sso: boolean;
   readonly auditLog: boolean;
+  readonly slas: boolean;
 }
 
 export interface Entitlements {
@@ -71,7 +72,7 @@ export interface Entitlements {
 
 /** The features a screen in this milestone can gate on. */
 export type GatedFeature =
-  'apiKeys' | 'privateTeams' | 'subTeams' | 'customViews' | 'sso' | 'auditLog';
+  'apiKeys' | 'privateTeams' | 'subTeams' | 'customViews' | 'sso' | 'auditLog' | 'slas';
 
 /** How each one is named to a person. The wire's key is not a phrase anybody reads. */
 const FEATURE_LABELS: Readonly<Record<GatedFeature, string>> = {
@@ -81,6 +82,7 @@ const FEATURE_LABELS: Readonly<Record<GatedFeature, string>> = {
   customViews: 'Custom views',
   sso: 'Single sign-on',
   auditLog: 'The audit log',
+  slas: 'SLAs',
 };
 
 /**
@@ -169,6 +171,7 @@ interface EntitlementsResponse {
       readonly apiKeys: boolean;
       readonly sso: boolean;
       readonly auditLog: boolean;
+      readonly slas: boolean;
       readonly lapsed: boolean;
     };
   };
@@ -257,6 +260,7 @@ export function useEntitlements(): Entitlements {
       apiKeys: answer.apiKeys,
       sso: answer.sso,
       auditLog: answer.auditLog,
+      slas: answer.slas,
     },
     confirmed: true,
     reload,

@@ -240,6 +240,7 @@ func TestNoPaginationArgumentGoesUnrecognised(t *testing.T) {
 		"updateReminderHour":                "per-project reminder hour 0-23, not a row count",
 		"revenue":                           "customer revenue, not a row count",
 		"size":                              "customer employee count, not a row count",
+		"durationMinutes":                   "SLA duration in minutes, not a row count",
 	}
 
 	schema := generated.NewExecutableSchema(generated.Config{}).Schema()

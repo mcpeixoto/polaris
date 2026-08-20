@@ -378,7 +378,10 @@ func (s *Service) AddIssueLabel(
 		}
 
 		out, version, err = s.applyIssueLabel(ctx, q, p, issue.ID, issue.TeamID, team.Private, labelID)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.applyMatchingSLA(ctx, q, p, issue.ID)
 	})
 	if err != nil {
 		var conflict errLabelGroupConflict
@@ -492,7 +495,10 @@ func (s *Service) RemoveIssueLabel(
 			EntityType: "issueLabel", EntityID: row.ID, Op: OpDelete,
 			TeamID: &issue.TeamID, Scope: authz.TeamScope(issue.TeamID, team.Private),
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		return s.applyMatchingSLA(ctx, q, p, issue.ID)
 	})
 	return removed, version, err
 }
