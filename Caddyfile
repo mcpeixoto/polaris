@@ -59,6 +59,10 @@
 		reverse_proxy api:8088
 	}
 
+	handle /asks/* {
+		reverse_proxy api:8088
+	}
+
 	handle /.well-known/* {
 		reverse_proxy api:8088
 	}

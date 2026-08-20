@@ -59,6 +59,29 @@ type APIKeyPayload struct {
 
 func (APIKeyPayload) IsMutationResult() {}
 
+// A shareable intake form. Submitting it creates a triage issue on the team.
+type AskForm struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	TeamID      uuid.UUID `json:"teamId"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	// The public URL secret. Members copy `{origin}/ask/{token}` from settings.
+	Token      string     `json:"token"`
+	CreatorID  *uuid.UUID `json:"creatorId,omitempty"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt  *time.Time `json:"deletedAt,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+}
+
+type AskFormPayload struct {
+	Version int      `json:"version"`
+	AskForm *AskForm `json:"askForm"`
+}
+
+func (AskFormPayload) IsMutationResult() {}
+
 // A link card on an issue. Recreating the same URL updates this row instead of minting another.
 type Attachment struct {
 	ID          uuid.UUID `json:"id"`
@@ -159,6 +182,12 @@ type CreateAPIKeyInput struct {
 	// Empty means everything the owner can do. Narrowing only.
 	Scopes    []string   `json:"scopes,omitempty"`
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+}
+
+type CreateAskFormInput struct {
+	TeamID      uuid.UUID `json:"teamId"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description,omitempty"`
 }
 
 type CreateAttachmentInput struct {
@@ -1850,6 +1879,12 @@ type TeamPayload struct {
 }
 
 func (TeamPayload) IsMutationResult() {}
+
+type UpdateAskFormInput struct {
+	ID          uuid.UUID `json:"id"`
+	Name        *string   `json:"name,omitempty"`
+	Description *string   `json:"description,omitempty"`
+}
 
 type UpdateAttachmentInput struct {
 	ID       uuid.UUID       `json:"id"`

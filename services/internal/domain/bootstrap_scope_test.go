@@ -62,6 +62,7 @@ type scene struct {
 	openSlaRule                                   uuid.UUID
 	openDashboard                                 uuid.UUID
 	openDashboardTile                             uuid.UUID
+	openAskForm, privateAskForm                   uuid.UUID
 	bobsViewSubscription                          uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
 	bobsFavorite                                  uuid.UUID
@@ -146,6 +147,21 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	}
 	formTemplate("Bug intake", nil)
 	formTemplate("Design intake", &design.ID)
+
+	ask, _, err := svc.CreateAskForm(ctx, s.alice, domain.CreateAskFormInput{
+		TeamID: f.TeamID, Name: "IT requests",
+	})
+	if err != nil {
+		t.Fatalf("create the open ask form: %v", err)
+	}
+	s.openAskForm = ask.ID
+	privateAsk, _, err := svc.CreateAskForm(ctx, s.alice, domain.CreateAskFormInput{
+		TeamID: design.ID, Name: "Design requests",
+	})
+	if err != nil {
+		t.Fatalf("create the private ask form: %v", err)
+	}
+	s.privateAskForm = privateAsk.ID
 
 	projectTemplate := func(name string, teamID *uuid.UUID) uuid.UUID {
 		row, _, err := svc.CreateProjectTemplate(ctx, s.alice, domain.CreateProjectTemplateInput{
@@ -536,6 +552,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 	}{
 		{bobName, "label", s.privateLabel, "a private team's labels are that team's"},
 		{bobName, "issueTemplate", s.privateTemplate, "a private team's templates are that team's"},
+		{bobName, "askForm", s.privateAskForm, "a private team's intake forms are that team's"},
 		{bobName, "view", s.privateTeamView, "a private team's saved views are that team's"},
 		{bobName, "issue", s.privateIssue, "a private team's issues are that team's"},
 		{bobName, "view", s.alicesOwnView,
@@ -567,6 +584,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 
 		{samName, "issue", s.openIssue, "team content needs the team"},
 		{samName, "label", s.openLabel, "a team's label needs the team"},
+		{samName, "askForm", s.openAskForm, "a team's intake form needs the team"},
 		{samName, "favorite", s.bobsFavorite, "a sidebar is one person's"},
 
 		// Archived work is never cached, so nothing hanging off it may be either. Each of
@@ -610,8 +628,10 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{aliceName, "viewPreference", s.alicesPreference},
 		{aliceName, "favorite", s.alicesPrivateFavorite},
 		{aliceName, "issue", s.privateIssue},
+		{aliceName, "askForm", s.privateAskForm},
 		{bobName, "label", s.workspaceLabel},
 		{bobName, "issue", s.openIssue},
+		{bobName, "askForm", s.openAskForm},
 		{bobName, "document", s.openDocument},
 		{bobName, "projectUpdate", s.openProjectUpdate},
 		{bobName, "projectDependency", s.openProjectDependency},
@@ -628,6 +648,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},
 		{gretaName, "issue", s.openIssue},
+		{gretaName, "askForm", s.openAskForm},
 		{gretaName, "document", s.openDocument},
 		{gretaName, "projectUpdate", s.openProjectUpdate},
 		{gretaName, "projectDependency", s.openProjectDependency},

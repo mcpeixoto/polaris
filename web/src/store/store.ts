@@ -47,6 +47,7 @@ import {
   type IssueTemplate,
   type FormTemplate,
   type FormTemplateField,
+  type AskForm,
   type ProjectTemplate,
   type ProjectTemplateMilestone,
   type ProjectTemplateIssue,
@@ -178,6 +179,7 @@ export class Store {
     issueTemplate: new Map(),
     formTemplate: new Map(),
     formTemplateField: new Map(),
+    askForm: new Map(),
     projectTemplate: new Map(),
     projectTemplateMilestone: new Map(),
     projectTemplateIssue: new Map(),
@@ -235,6 +237,7 @@ export class Store {
   private readonly templateTeam = new SetIndex<UUID>();
   private readonly formTemplateTeam = new SetIndex<UUID>();
   private readonly formTemplateFieldOf = new SetIndex<UUID>();
+  private readonly askFormTeam = new SetIndex<UUID>();
   private readonly projectTemplateTeam = new SetIndex<UUID>();
   private readonly projectTemplateMilestoneOf = new SetIndex<UUID>();
   private readonly projectTemplateIssueOf = new SetIndex<UUID>();
@@ -382,6 +385,10 @@ export class Store {
 
   get formTemplateFields(): ReadonlyMap<UUID, FormTemplateField> {
     return this.tables.formTemplateField as ReadonlyMap<UUID, FormTemplateField>;
+  }
+
+  get askForms(): ReadonlyMap<UUID, AskForm> {
+    return this.tables.askForm as ReadonlyMap<UUID, AskForm>;
   }
 
   get projectTemplates(): ReadonlyMap<UUID, ProjectTemplate> {
@@ -639,6 +646,10 @@ export class Store {
 
   formTemplateFieldIdsFor(formTemplateId: UUID): ReadonlySet<UUID> {
     return this.formTemplateFieldOf.get(formTemplateId);
+  }
+
+  askFormIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
+    return this.askFormTeam.get(teamId);
   }
 
   projectTemplateIdsForTeam(teamId: UUID): ReadonlySet<UUID> {
@@ -943,6 +954,7 @@ export class Store {
     this.templateTeam.clear();
     this.formTemplateTeam.clear();
     this.formTemplateFieldOf.clear();
+    this.askFormTeam.clear();
     this.projectTemplateTeam.clear();
     this.projectTemplateMilestoneOf.clear();
     this.projectTemplateIssueOf.clear();
@@ -1023,6 +1035,9 @@ export class Store {
         }
         for (const formTemplateId of [...this.formTemplateTeam.get(id)]) {
           this.forget('formTemplate', formTemplateId, deletes, touched);
+        }
+        for (const askFormId of [...this.askFormTeam.get(id)]) {
+          this.forget('askForm', askFormId, deletes, touched);
         }
         for (const projectTemplateId of [...this.projectTemplateTeam.get(id)]) {
           this.forget('projectTemplate', projectTemplateId, deletes, touched);
@@ -1236,6 +1251,9 @@ export class Store {
         this.formTemplateFieldOf.add(row.formTemplateId, row.id);
         break;
       }
+      case 'askForm':
+        this.fileByTeam(this.askFormTeam, previous as AskForm | undefined, next as AskForm);
+        break;
       case 'projectTemplate':
         this.fileByTeam(
           this.projectTemplateTeam,
@@ -1477,6 +1495,9 @@ export class Store {
         this.formTemplateFieldOf.remove(row.formTemplateId, row.id);
         break;
       }
+      case 'askForm':
+        this.unfileByTeam(this.askFormTeam, entity as AskForm);
+        break;
       case 'projectTemplate':
         this.unfileByTeam(this.projectTemplateTeam, entity as ProjectTemplate);
         break;

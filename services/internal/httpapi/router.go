@@ -155,6 +155,12 @@ func NewRouter(d Deps) http.Handler {
 	// budget, because a loop of unsigned posts would otherwise be free.
 	mux.Handle("POST /webhooks/email", d.Limits.Anonymous(http.HandlerFunc(email.inbound)))
 
+	asks := &askHandlers{svc: d.Service}
+	// Public intake: the token in the path is the credential. Anonymous budget, because
+	// a guessed-token loop would otherwise be free.
+	mux.Handle("GET /asks/{token}", d.Limits.Anonymous(http.HandlerFunc(asks.get)))
+	mux.Handle("POST /asks/{token}", d.Limits.Anonymous(http.HandlerFunc(asks.submit)))
+
 	oauth := &oauthHandlers{svc: d.Service}
 	mux.Handle("POST /oauth/token", d.Limits.Anonymous(http.HandlerFunc(oauth.token)))
 	mux.Handle("POST /oauth/revoke", d.Limits.Anonymous(http.HandlerFunc(oauth.revoke)))

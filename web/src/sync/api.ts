@@ -261,6 +261,27 @@ export const auth = {
   },
 };
 
+export const asks = {
+  get(token: string) {
+    return request<{ name: string; description: string; teamName: string }>(`/asks/${token}`, {
+      method: 'GET',
+      skipAuth: true,
+    });
+  },
+
+  submit(
+    token: string,
+    body: {
+      title: string;
+      description: string;
+      requesterName: string;
+      requesterEmail: string;
+    },
+  ) {
+    return post<{ ok: string }>(`/asks/${token}`, body, { skipAuth: true });
+  },
+};
+
 export interface Workspace {
   id: string;
   name: string;
