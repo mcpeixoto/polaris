@@ -172,6 +172,11 @@ type Documents = {
     "\n  \n  mutation UpdateRecurringIssue($input: UpdateRecurringIssueInput!) {\n    updateRecurringIssue(input: $input) {\n      version\n      recurringIssue {\n        ...RecurringIssueFields\n      }\n    }\n  }\n": typeof types.UpdateRecurringIssueDocument,
     "\n  mutation ArchiveRecurringIssue($id: UUID!, $archived: Boolean!) {\n    archiveRecurringIssue(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveRecurringIssueDocument,
     "\n  query Search($input: SearchInput!) {\n    search(input: $input) {\n      issueCount\n      issues {\n        id\n        identifier\n        title\n        priority\n        state {\n          id\n          name\n          category\n          color\n        }\n        assignee {\n          id\n          displayName\n          avatarUrl\n        }\n      }\n      comments {\n        id\n        issueId\n        body\n        createdAt\n      }\n    }\n  }\n": typeof types.SearchDocument,
+    "\n  fragment SentryConnectionFields on SentryConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    defaultTeamId\n    organizationSlug\n    connectedAt\n    createdAt\n    updatedAt\n  }\n": typeof types.SentryConnectionFieldsFragmentDoc,
+    "\n  query SentrySettings {\n    sentryWebhook {\n      url\n      secret\n    }\n  }\n": typeof types.SentrySettingsDocument,
+    "\n  \n  mutation CreateSentryConnection($input: CreateSentryConnectionInput!) {\n    createSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": typeof types.CreateSentryConnectionDocument,
+    "\n  \n  mutation UpdateSentryConnection($input: UpdateSentryConnectionInput!) {\n    updateSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": typeof types.UpdateSentryConnectionDocument,
+    "\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n": typeof types.DeleteSentryConnectionDocument,
     "\n  fragment SlaRuleFields on SlaRule {\n    id\n    workspaceId\n    position\n    filter\n    action\n    durationMinutes\n    createdAt\n    updatedAt\n  }\n": typeof types.SlaRuleFieldsFragmentDoc,
     "\n  \n  mutation CreateSlaRule($input: CreateSlaRuleInput!, $clientId: UUID!, $opId: UUID!) {\n    createSlaRule(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      slaRule {\n        ...SlaRuleFields\n      }\n    }\n  }\n": typeof types.CreateSlaRuleDocument,
     "\n  \n  mutation UpdateSlaRule($input: UpdateSlaRuleInput!, $clientId: UUID!, $opId: UUID!) {\n    updateSlaRule(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      slaRule {\n        ...SlaRuleFields\n      }\n    }\n  }\n": typeof types.UpdateSlaRuleDocument,
@@ -409,6 +414,11 @@ const documents: Documents = {
     "\n  \n  mutation UpdateRecurringIssue($input: UpdateRecurringIssueInput!) {\n    updateRecurringIssue(input: $input) {\n      version\n      recurringIssue {\n        ...RecurringIssueFields\n      }\n    }\n  }\n": types.UpdateRecurringIssueDocument,
     "\n  mutation ArchiveRecurringIssue($id: UUID!, $archived: Boolean!) {\n    archiveRecurringIssue(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": types.ArchiveRecurringIssueDocument,
     "\n  query Search($input: SearchInput!) {\n    search(input: $input) {\n      issueCount\n      issues {\n        id\n        identifier\n        title\n        priority\n        state {\n          id\n          name\n          category\n          color\n        }\n        assignee {\n          id\n          displayName\n          avatarUrl\n        }\n      }\n      comments {\n        id\n        issueId\n        body\n        createdAt\n      }\n    }\n  }\n": types.SearchDocument,
+    "\n  fragment SentryConnectionFields on SentryConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    defaultTeamId\n    organizationSlug\n    connectedAt\n    createdAt\n    updatedAt\n  }\n": types.SentryConnectionFieldsFragmentDoc,
+    "\n  query SentrySettings {\n    sentryWebhook {\n      url\n      secret\n    }\n  }\n": types.SentrySettingsDocument,
+    "\n  \n  mutation CreateSentryConnection($input: CreateSentryConnectionInput!) {\n    createSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": types.CreateSentryConnectionDocument,
+    "\n  \n  mutation UpdateSentryConnection($input: UpdateSentryConnectionInput!) {\n    updateSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": types.UpdateSentryConnectionDocument,
+    "\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n": types.DeleteSentryConnectionDocument,
     "\n  fragment SlaRuleFields on SlaRule {\n    id\n    workspaceId\n    position\n    filter\n    action\n    durationMinutes\n    createdAt\n    updatedAt\n  }\n": types.SlaRuleFieldsFragmentDoc,
     "\n  \n  mutation CreateSlaRule($input: CreateSlaRuleInput!, $clientId: UUID!, $opId: UUID!) {\n    createSlaRule(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      slaRule {\n        ...SlaRuleFields\n      }\n    }\n  }\n": types.CreateSlaRuleDocument,
     "\n  \n  mutation UpdateSlaRule($input: UpdateSlaRuleInput!, $clientId: UUID!, $opId: UUID!) {\n    updateSlaRule(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      slaRule {\n        ...SlaRuleFields\n      }\n    }\n  }\n": types.UpdateSlaRuleDocument,
@@ -1134,6 +1144,26 @@ export function graphql(source: "\n  mutation ArchiveRecurringIssue($id: UUID!, 
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  query Search($input: SearchInput!) {\n    search(input: $input) {\n      issueCount\n      issues {\n        id\n        identifier\n        title\n        priority\n        state {\n          id\n          name\n          category\n          color\n        }\n        assignee {\n          id\n          displayName\n          avatarUrl\n        }\n      }\n      comments {\n        id\n        issueId\n        body\n        createdAt\n      }\n    }\n  }\n"): (typeof documents)["\n  query Search($input: SearchInput!) {\n    search(input: $input) {\n      issueCount\n      issues {\n        id\n        identifier\n        title\n        priority\n        state {\n          id\n          name\n          category\n          color\n        }\n        assignee {\n          id\n          displayName\n          avatarUrl\n        }\n      }\n      comments {\n        id\n        issueId\n        body\n        createdAt\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment SentryConnectionFields on SentryConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    defaultTeamId\n    organizationSlug\n    connectedAt\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment SentryConnectionFields on SentryConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    defaultTeamId\n    organizationSlug\n    connectedAt\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query SentrySettings {\n    sentryWebhook {\n      url\n      secret\n    }\n  }\n"): (typeof documents)["\n  query SentrySettings {\n    sentryWebhook {\n      url\n      secret\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateSentryConnection($input: CreateSentryConnectionInput!) {\n    createSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateSentryConnection($input: CreateSentryConnectionInput!) {\n    createSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateSentryConnection($input: UpdateSentryConnectionInput!) {\n    updateSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateSentryConnection($input: UpdateSentryConnectionInput!) {\n    updateSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

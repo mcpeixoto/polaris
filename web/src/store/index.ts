@@ -80,6 +80,7 @@ export type {
   GitHubUserLink,
   GitLabConnection,
   GitLabUserLink,
+  SentryConnection,
   ProjectTemplate,
   ProjectTemplateMilestone,
   ProjectTemplateIssue,

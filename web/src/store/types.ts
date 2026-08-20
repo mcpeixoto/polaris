@@ -177,6 +177,21 @@ export interface GitLabUserLink {
 }
 
 /**
+ * The workspace Sentry install. The webhook secret is not replicated.
+ */
+export interface SentryConnection {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly creatorId: UUID;
+  readonly enabled: boolean;
+  readonly defaultTeamId: UUID;
+  readonly organizationSlug?: string;
+  readonly connectedAt?: Timestamp;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/**
  * Delivery preferences. Every key is optional and absence means the default, so a client
  * built before a notification type existed does not have to know about it.
  */
@@ -1100,6 +1115,7 @@ export interface EntityByType {
   githubUserLink: GitHubUserLink;
   gitlabConnection: GitLabConnection;
   gitlabUserLink: GitLabUserLink;
+  sentryConnection: SentryConnection;
   team: Team;
   teamMembership: TeamMembership;
   workflowState: WorkflowState;
@@ -1162,6 +1178,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'gitlabUserLink',
   'team',
   'teamMembership',
+  'sentryConnection',
   'workflowState',
   'customer',
   'slaRule',

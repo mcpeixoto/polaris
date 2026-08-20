@@ -516,6 +516,11 @@ export type CreateRecurringIssueInput = {
   title: Scalars['String']['input'];
 };
 
+export type CreateSentryConnectionInput = {
+  defaultTeamId: Scalars['UUID']['input'];
+  organizationSlug?: InputMaybe<Scalars['String']['input']>;
+};
+
 export type CreateSlaRuleInput = {
   action: SlaAction;
   durationMinutes?: InputMaybe<Scalars['Int']['input']>;
@@ -1378,6 +1383,12 @@ export type LinkGitLabMergeRequestInput = {
   url: Scalars['String']['input'];
 };
 
+export type LinkSentryIssueInput = {
+  issueId: Scalars['UUID']['input'];
+  title?: InputMaybe<Scalars['String']['input']>;
+  url: Scalars['String']['input'];
+};
+
 export type MoveFavoriteInput = {
   afterFavoriteId?: InputMaybe<Scalars['UUID']['input']>;
   /** Lift it to the sidebar root. */
@@ -1469,6 +1480,7 @@ export type Mutation = {
   createProjectTemplateMilestone: ProjectTemplateMilestonePayload;
   createProjectUpdate: ProjectUpdatePayload;
   createRecurringIssue: RecurringIssuePayload;
+  createSentryConnection: SentryConnectionPayload;
   createSlaRule: SlaRulePayload;
   createTeam: TeamPayload;
   createView: ViewPayload;
@@ -1502,6 +1514,7 @@ export type Mutation = {
   deleteProjectTemplateIssue: DeletePayload;
   deleteProjectTemplateMilestone: DeletePayload;
   deleteProjectUpdate: DeletePayload;
+  deleteSentryConnection: DeletePayload;
   deleteSlaRule: DeletePayload;
   /** Soft-deletes a team and its issues. Restorable within 30 days. */
   deleteTeam: DeletePayload;
@@ -1511,6 +1524,7 @@ export type Mutation = {
   inviteToWorkspace: InvitePayload;
   linkGitHubPullRequest: GitHubLinkPayload;
   linkGitLabMergeRequest: GitLabLinkPayload;
+  linkSentryIssue: SentryLinkPayload;
   markAllNotificationsRead: NotificationsPayload;
   /** The issue being viewed is the duplicate; canonicalId is the one it duplicates. */
   markIssueDuplicate: IssuePayload;
@@ -1612,6 +1626,7 @@ export type Mutation = {
   updateProjectTemplateMilestone: ProjectTemplateMilestonePayload;
   updateProjectUpdate: ProjectUpdatePayload;
   updateRecurringIssue: RecurringIssuePayload;
+  updateSentryConnection: SentryConnectionPayload;
   updateSlaRule: SlaRulePayload;
   updateTeam: TeamPayload;
   updateTeamArchive: TeamPayload;
@@ -2018,6 +2033,11 @@ export type MutationCreateRecurringIssueArgs = {
 };
 
 
+export type MutationCreateSentryConnectionArgs = {
+  input: CreateSentryConnectionInput;
+};
+
+
 export type MutationCreateSlaRuleArgs = {
   clientId?: InputMaybe<Scalars['UUID']['input']>;
   input: CreateSlaRuleInput;
@@ -2234,6 +2254,13 @@ export type MutationLinkGitHubPullRequestArgs = {
 export type MutationLinkGitLabMergeRequestArgs = {
   clientId?: InputMaybe<Scalars['UUID']['input']>;
   input: LinkGitLabMergeRequestInput;
+  opId?: InputMaybe<Scalars['UUID']['input']>;
+};
+
+
+export type MutationLinkSentryIssueArgs = {
+  clientId?: InputMaybe<Scalars['UUID']['input']>;
+  input: LinkSentryIssueInput;
   opId?: InputMaybe<Scalars['UUID']['input']>;
 };
 
@@ -2652,6 +2679,11 @@ export type MutationUpdateProjectUpdateArgs = {
 
 export type MutationUpdateRecurringIssueArgs = {
   input: UpdateRecurringIssueInput;
+};
+
+
+export type MutationUpdateSentryConnectionArgs = {
+  input: UpdateSentryConnectionInput;
 };
 
 
@@ -3213,6 +3245,10 @@ export type Query = {
   recurringIssue?: Maybe<RecurringIssue>;
   recurringIssues: Array<RecurringIssue>;
   search: SearchResults;
+  /** The workspace Sentry install, if any. Secrets are on sentryWebhook, not here. */
+  sentryConnection?: Maybe<SentryConnection>;
+  /** Admin-only. The URL and secret to paste into a Sentry alert webhook or internal integration. */
+  sentryWebhook?: Maybe<SentryWebhook>;
   slaRule?: Maybe<SlaRule>;
   slaRules: Array<SlaRule>;
   team?: Maybe<Team>;
@@ -3555,6 +3591,39 @@ export type SearchResults = {
   /** Total matches before the limit, so the UI can say "showing 25 of 400". */
   issueCount: Scalars['Int']['output'];
   issues: Array<Issue>;
+};
+
+/**
+ * Workspace Sentry install. The webhook secret is not on this type: the replica
+ * carries the default team a client needs to render settings, and nothing that
+ * could be a credential. One Sentry organization per workspace; cloud only.
+ */
+export type SentryConnection = {
+  connectedAt?: Maybe<Scalars['Time']['output']>;
+  createdAt: Scalars['Time']['output'];
+  creatorId: Scalars['UUID']['output'];
+  defaultTeamId: Scalars['UUID']['output'];
+  enabled: Scalars['Boolean']['output'];
+  id: Scalars['UUID']['output'];
+  organizationSlug?: Maybe<Scalars['String']['output']>;
+  updatedAt: Scalars['Time']['output'];
+  workspaceId: Scalars['UUID']['output'];
+};
+
+export type SentryConnectionPayload = MutationResult & {
+  sentryConnection: SentryConnection;
+  version: Scalars['Int']['output'];
+};
+
+export type SentryLinkPayload = MutationResult & {
+  attachment: Attachment;
+  issue: Issue;
+  version: Scalars['Int']['output'];
+};
+
+export type SentryWebhook = {
+  secret: Scalars['String']['output'];
+  url: Scalars['String']['output'];
 };
 
 export type SetIssueSlaInput = {
@@ -4038,6 +4107,14 @@ export type UpdateRecurringIssueInput = {
   nextDueDate?: InputMaybe<Scalars['String']['input']>;
   properties?: InputMaybe<Scalars['JSON']['input']>;
   title?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UpdateSentryConnectionInput = {
+  defaultTeamId?: InputMaybe<Scalars['UUID']['input']>;
+  enabled?: InputMaybe<Scalars['Boolean']['input']>;
+  organizationSlug?: InputMaybe<Scalars['String']['input']>;
+  /** Replace the generated webhook secret with Sentry's client secret (HMAC). */
+  webhookSecret?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UpdateSlaRuleInput = {
@@ -5383,6 +5460,32 @@ export type SearchQueryVariables = Exact<{
 
 export type SearchQuery = { search: { issueCount: number, issues: Array<{ id: string, identifier: string, title: string, priority: number, state: { id: string, name: string, category: StateCategory, color: string }, assignee?: { id: string, displayName: string, avatarUrl?: string | null } | null }>, comments: Array<{ id: string, issueId: string, body: string, createdAt: string }> } };
 
+export type SentryConnectionFieldsFragment = { id: string, workspaceId: string, creatorId: string, enabled: boolean, defaultTeamId: string, organizationSlug?: string | null, connectedAt?: string | null, createdAt: string, updatedAt: string };
+
+export type SentrySettingsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type SentrySettingsQuery = { sentryWebhook?: { url: string, secret: string } | null };
+
+export type CreateSentryConnectionMutationVariables = Exact<{
+  input: CreateSentryConnectionInput;
+}>;
+
+
+export type CreateSentryConnectionMutation = { createSentryConnection: { version: number, sentryConnection: { id: string, workspaceId: string, creatorId: string, enabled: boolean, defaultTeamId: string, organizationSlug?: string | null, connectedAt?: string | null, createdAt: string, updatedAt: string } } };
+
+export type UpdateSentryConnectionMutationVariables = Exact<{
+  input: UpdateSentryConnectionInput;
+}>;
+
+
+export type UpdateSentryConnectionMutation = { updateSentryConnection: { version: number, sentryConnection: { id: string, workspaceId: string, creatorId: string, enabled: boolean, defaultTeamId: string, organizationSlug?: string | null, connectedAt?: string | null, createdAt: string, updatedAt: string } } };
+
+export type DeleteSentryConnectionMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type DeleteSentryConnectionMutation = { deleteSentryConnection: { version: number, id: string } };
+
 export type SlaRuleFieldsFragment = { id: string, workspaceId: string, position: string, filter: unknown, action: SlaAction, durationMinutes?: number | null, createdAt: string, updatedAt: string };
 
 export type CreateSlaRuleMutationVariables = Exact<{
@@ -5945,6 +6048,7 @@ export const ProjectMemberFieldsFragmentDoc = {"kind":"Document","definitions":[
 export const ProjectMilestoneFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProjectMilestoneFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ProjectMilestone"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"projectId"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"targetDate"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"archivedAt"}}]}}]} as unknown as DocumentNode<ProjectMilestoneFieldsFragment, unknown>;
 export const ProjectDependencyFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProjectDependencyFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ProjectDependency"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"blockingProjectId"}},{"kind":"Field","name":{"kind":"Name","value":"blockedProjectId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}}]}}]} as unknown as DocumentNode<ProjectDependencyFieldsFragment, unknown>;
 export const RecurringIssueFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RecurringIssueFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"RecurringIssue"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"body"}},{"kind":"Field","name":{"kind":"Name","value":"properties"}},{"kind":"Field","name":{"kind":"Name","value":"templateId"}},{"kind":"Field","name":{"kind":"Name","value":"cadence"}},{"kind":"Field","name":{"kind":"Name","value":"nextDueDate"}},{"kind":"Field","name":{"kind":"Name","value":"lastCreatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"archivedAt"}}]}}]} as unknown as DocumentNode<RecurringIssueFieldsFragment, unknown>;
+export const SentryConnectionFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"SentryConnectionFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SentryConnection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"creatorId"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"defaultTeamId"}},{"kind":"Field","name":{"kind":"Name","value":"organizationSlug"}},{"kind":"Field","name":{"kind":"Name","value":"connectedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<SentryConnectionFieldsFragment, unknown>;
 export const SlaRuleFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"SlaRuleFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SlaRule"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"filter"}},{"kind":"Field","name":{"kind":"Name","value":"action"}},{"kind":"Field","name":{"kind":"Name","value":"durationMinutes"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<SlaRuleFieldsFragment, unknown>;
 export const IssueTemplateFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"IssueTemplateFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"IssueTemplate"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"body"}},{"kind":"Field","name":{"kind":"Name","value":"properties"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"archivedAt"}},{"kind":"Field","name":{"kind":"Name","value":"emailIntakeEnabled"}},{"kind":"Field","name":{"kind":"Name","value":"emailIntakeAddress"}}]}}]} as unknown as DocumentNode<IssueTemplateFieldsFragment, unknown>;
 export const ViewFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ViewFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"View"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"projectId"}},{"kind":"Field","name":{"kind":"Name","value":"ownerId"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"icon"}},{"kind":"Field","name":{"kind":"Name","value":"color"}},{"kind":"Field","name":{"kind":"Name","value":"filter"}},{"kind":"Field","name":{"kind":"Name","value":"display"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"archivedAt"}}]}}]} as unknown as DocumentNode<ViewFieldsFragment, unknown>;
@@ -6080,6 +6184,10 @@ export const CreateRecurringIssueDocument = {"kind":"Document","definitions":[{"
 export const UpdateRecurringIssueDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateRecurringIssue"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateRecurringIssueInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateRecurringIssue"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"recurringIssue"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"RecurringIssueFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RecurringIssueFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"RecurringIssue"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"body"}},{"kind":"Field","name":{"kind":"Name","value":"properties"}},{"kind":"Field","name":{"kind":"Name","value":"templateId"}},{"kind":"Field","name":{"kind":"Name","value":"cadence"}},{"kind":"Field","name":{"kind":"Name","value":"nextDueDate"}},{"kind":"Field","name":{"kind":"Name","value":"lastCreatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"archivedAt"}}]}}]} as unknown as DocumentNode<UpdateRecurringIssueMutation, UpdateRecurringIssueMutationVariables>;
 export const ArchiveRecurringIssueDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ArchiveRecurringIssue"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"archived"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Boolean"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"archiveRecurringIssue"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"archived"},"value":{"kind":"Variable","name":{"kind":"Name","value":"archived"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<ArchiveRecurringIssueMutation, ArchiveRecurringIssueMutationVariables>;
 export const SearchDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Search"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SearchInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"search"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"issueCount"}},{"kind":"Field","name":{"kind":"Name","value":"issues"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"identifier"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}},{"kind":"Field","name":{"kind":"Name","value":"state"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"category"}},{"kind":"Field","name":{"kind":"Name","value":"color"}}]}},{"kind":"Field","name":{"kind":"Name","value":"assignee"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"displayName"}},{"kind":"Field","name":{"kind":"Name","value":"avatarUrl"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"comments"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"issueId"}},{"kind":"Field","name":{"kind":"Name","value":"body"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}}]}}]}}]}}]} as unknown as DocumentNode<SearchQuery, SearchQueryVariables>;
+export const SentrySettingsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"SentrySettings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sentryWebhook"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"secret"}}]}}]}}]} as unknown as DocumentNode<SentrySettingsQuery, SentrySettingsQueryVariables>;
+export const CreateSentryConnectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateSentryConnection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateSentryConnectionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createSentryConnection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"sentryConnection"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"SentryConnectionFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"SentryConnectionFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SentryConnection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"creatorId"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"defaultTeamId"}},{"kind":"Field","name":{"kind":"Name","value":"organizationSlug"}},{"kind":"Field","name":{"kind":"Name","value":"connectedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<CreateSentryConnectionMutation, CreateSentryConnectionMutationVariables>;
+export const UpdateSentryConnectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateSentryConnection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateSentryConnectionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateSentryConnection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"sentryConnection"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"SentryConnectionFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"SentryConnectionFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SentryConnection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"creatorId"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"defaultTeamId"}},{"kind":"Field","name":{"kind":"Name","value":"organizationSlug"}},{"kind":"Field","name":{"kind":"Name","value":"connectedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<UpdateSentryConnectionMutation, UpdateSentryConnectionMutationVariables>;
+export const DeleteSentryConnectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteSentryConnection"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteSentryConnection"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<DeleteSentryConnectionMutation, DeleteSentryConnectionMutationVariables>;
 export const CreateSlaRuleDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateSlaRule"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateSlaRuleInput"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"clientId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"opId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createSlaRule"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}},{"kind":"Argument","name":{"kind":"Name","value":"clientId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"clientId"}}},{"kind":"Argument","name":{"kind":"Name","value":"opId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"opId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"slaRule"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"SlaRuleFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"SlaRuleFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SlaRule"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"filter"}},{"kind":"Field","name":{"kind":"Name","value":"action"}},{"kind":"Field","name":{"kind":"Name","value":"durationMinutes"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<CreateSlaRuleMutation, CreateSlaRuleMutationVariables>;
 export const UpdateSlaRuleDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateSlaRule"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateSlaRuleInput"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"clientId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"opId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateSlaRule"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}},{"kind":"Argument","name":{"kind":"Name","value":"clientId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"clientId"}}},{"kind":"Argument","name":{"kind":"Name","value":"opId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"opId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"slaRule"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"SlaRuleFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"SlaRuleFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SlaRule"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"filter"}},{"kind":"Field","name":{"kind":"Name","value":"action"}},{"kind":"Field","name":{"kind":"Name","value":"durationMinutes"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<UpdateSlaRuleMutation, UpdateSlaRuleMutationVariables>;
 export const DeleteSlaRuleDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteSlaRule"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"clientId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"opId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteSlaRule"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"clientId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"clientId"}}},{"kind":"Argument","name":{"kind":"Name","value":"opId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"opId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<DeleteSlaRuleMutation, DeleteSlaRuleMutationVariables>;
