@@ -290,6 +290,7 @@ function resolveDisplay(params: URLSearchParams): Required<DisplayOptions> {
     direction: parsed.direction ?? DEFAULT_DISPLAY.direction,
     showSubIssues: parsed.showSubIssues ?? DEFAULT_DISPLAY.showSubIssues,
     showCompleted: parsed.showCompleted ?? DEFAULT_DISPLAY.showCompleted,
+    showSnoozed: parsed.showSnoozed ?? DEFAULT_DISPLAY.showSnoozed,
     properties: parsed.properties ?? DEFAULT_DISPLAY.properties,
   };
 }
