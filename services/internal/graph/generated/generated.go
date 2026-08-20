@@ -542,6 +542,21 @@ type ComplexityRoot struct {
 		Version           func(childComplexity int) int
 	}
 
+	IntegrationSubmission struct {
+		CreatedAt   func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+		SubmittedBy func(childComplexity int) int
+		Summary     func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		Website     func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	IntegrationSubmissionPayload struct {
+		Submission func(childComplexity int) int
+	}
+
 	Invite struct {
 		AcceptedAt  func(childComplexity int) int
 		CreatedAt   func(childComplexity int) int
@@ -866,6 +881,7 @@ type ComplexityRoot struct {
 		SnoozeIssue                    func(childComplexity int, id uuid.UUID, until time.Time, clientID *uuid.UUID, opID *uuid.UUID) int
 		SnoozeNotification             func(childComplexity int, id uuid.UUID, until *time.Time) int
 		StartCycleToday                func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		SubmitIntegration              func(childComplexity int, input SubmitIntegrationInput) int
 		SuspendUser                    func(childComplexity int, userID uuid.UUID, suspended bool) int
 		UnretireTeam                   func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateAskForm                  func(childComplexity int, input UpdateAskFormInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -1270,6 +1286,7 @@ type ComplexityRoot struct {
 		GitlabWebhook                func(childComplexity int) int
 		Initiative                   func(childComplexity int, id uuid.UUID) int
 		Initiatives                  func(childComplexity int) int
+		IntegrationSubmissions       func(childComplexity int) int
 		Invites                      func(childComplexity int) int
 		Issue                        func(childComplexity int, id uuid.UUID) int
 		IssueByIdentifier            func(childComplexity int, identifier string) int
@@ -1827,6 +1844,7 @@ type MutationResolver interface {
 	LinkSentryIssue(ctx context.Context, input LinkSentryIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*SentryLinkPayload, error)
 	EnsureCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedPayload, error)
 	RotateCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedPayload, error)
+	SubmitIntegration(ctx context.Context, input SubmitIntegrationInput) (*IntegrationSubmissionPayload, error)
 	CreateDraft(ctx context.Context, input CreateDraftInput) (*DraftPayload, error)
 	UpdateDraft(ctx context.Context, input UpdateDraftInput) (*DraftPayload, error)
 	DeleteDraft(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
@@ -1881,6 +1899,7 @@ type QueryResolver interface {
 	OauthClientInfo(ctx context.Context, clientID string) (*OauthClientInfo, error)
 	Drafts(ctx context.Context) ([]Draft, error)
 	Invites(ctx context.Context) ([]Invite, error)
+	IntegrationSubmissions(ctx context.Context) ([]IntegrationSubmission, error)
 	DeletedIssues(ctx context.Context) ([]Issue, error)
 	DeletedTeams(ctx context.Context) ([]Team, error)
 	ArchivedIssues(ctx context.Context, teamID uuid.UUID) ([]Issue, error)
@@ -3974,6 +3993,62 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.InitiativeProjectPayload.Version(childComplexity), true
+
+	case "IntegrationSubmission.createdAt":
+		if e.ComplexityRoot.IntegrationSubmission.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntegrationSubmission.CreatedAt(childComplexity), true
+	case "IntegrationSubmission.id":
+		if e.ComplexityRoot.IntegrationSubmission.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntegrationSubmission.ID(childComplexity), true
+	case "IntegrationSubmission.name":
+		if e.ComplexityRoot.IntegrationSubmission.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntegrationSubmission.Name(childComplexity), true
+	case "IntegrationSubmission.submittedBy":
+		if e.ComplexityRoot.IntegrationSubmission.SubmittedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntegrationSubmission.SubmittedBy(childComplexity), true
+	case "IntegrationSubmission.summary":
+		if e.ComplexityRoot.IntegrationSubmission.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntegrationSubmission.Summary(childComplexity), true
+	case "IntegrationSubmission.updatedAt":
+		if e.ComplexityRoot.IntegrationSubmission.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntegrationSubmission.UpdatedAt(childComplexity), true
+	case "IntegrationSubmission.website":
+		if e.ComplexityRoot.IntegrationSubmission.Website == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntegrationSubmission.Website(childComplexity), true
+	case "IntegrationSubmission.workspaceId":
+		if e.ComplexityRoot.IntegrationSubmission.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntegrationSubmission.WorkspaceID(childComplexity), true
+
+	case "IntegrationSubmissionPayload.submission":
+		if e.ComplexityRoot.IntegrationSubmissionPayload.Submission == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IntegrationSubmissionPayload.Submission(childComplexity), true
 
 	case "Invite.acceptedAt":
 		if e.ComplexityRoot.Invite.AcceptedAt == nil {
@@ -6313,6 +6388,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.StartCycleToday(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.submitIntegration":
+		if e.ComplexityRoot.Mutation.SubmitIntegration == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_submitIntegration_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SubmitIntegration(childComplexity, args["input"].(SubmitIntegrationInput)), true
 	case "Mutation.suspendUser":
 		if e.ComplexityRoot.Mutation.SuspendUser == nil {
 			break
@@ -8460,6 +8546,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Initiatives(childComplexity), true
+	case "Query.integrationSubmissions":
+		if e.ComplexityRoot.Query.IntegrationSubmissions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.IntegrationSubmissions(childComplexity), true
 
 	case "Query.invites":
 		if e.ComplexityRoot.Query.Invites == nil {
@@ -10323,6 +10415,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputSearchInput,
 		ec.unmarshalInputSetIssueSlaInput,
 		ec.unmarshalInputSetViewSubscriptionInput,
+		ec.unmarshalInputSubmitIntegrationInput,
 		ec.unmarshalInputUpdateAskFormInput,
 		ec.unmarshalInputUpdateAttachmentInput,
 		ec.unmarshalInputUpdateCustomerInput,
@@ -12605,6 +12698,28 @@ type Invite {
   createdAt: Time!
 }
 
+"""
+A proposal to list a third-party integration in this workspace's directory.
+
+Deliberately not a ` + "`" + `MutationResult` + "`" + ` and not on the replica: the catalogue itself is
+derived from live connection rows, and a submission is an inbox item for the people
+who can connect new tools.
+"""
+type IntegrationSubmission {
+  id: UUID!
+  workspaceId: UUID!
+  submittedBy: UUID!
+  name: String!
+  website: String!
+  summary: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type IntegrationSubmissionPayload {
+  submission: IntegrationSubmission!
+}
+
 # ---------------------------------------------------------------- inputs
 
 input CreateIssueInput {
@@ -12996,6 +13111,12 @@ input InviteInput {
   teamIds: [UUID!]
 }
 
+input SubmitIntegrationInput {
+  name: String!
+  website: String!
+  summary: String!
+}
+
 input CreateApiKeyInput {
   name: String!
   """Empty means everything the owner can do. Narrowing only."""
@@ -13364,6 +13485,9 @@ type Query {
 
   """Pending invitations. Admins only."""
   invites: [Invite!]!
+
+  """Proposals to list a third-party integration. Members; not replicated."""
+  integrationSubmissions: [IntegrationSubmission!]!
 
   """
   Issues deleted within the restore window, so a mistaken delete is recoverable without a
@@ -13740,6 +13864,9 @@ type Mutation {
   ensureCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
   """Replace the personal ICS token. The previous feed URL stops working."""
   rotateCycleCalendarFeed(teamId: UUID!): CycleCalendarFeedPayload!
+
+  """Propose a third-party integration for this workspace's directory."""
+  submitIntegration(input: SubmitIntegrationInput!): IntegrationSubmissionPayload!
 
   # ---- drafts (personal, on-demand; not replicated)
 
@@ -14757,6 +14884,36 @@ func (ec *executionContext) childFields_InitiativeProjectPayload(ctx context.Con
 		return ec.fieldContext_InitiativeProjectPayload_initiativeProject(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type InitiativeProjectPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_IntegrationSubmission(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_IntegrationSubmission_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_IntegrationSubmission_workspaceId(ctx, field)
+	case "submittedBy":
+		return ec.fieldContext_IntegrationSubmission_submittedBy(ctx, field)
+	case "name":
+		return ec.fieldContext_IntegrationSubmission_name(ctx, field)
+	case "website":
+		return ec.fieldContext_IntegrationSubmission_website(ctx, field)
+	case "summary":
+		return ec.fieldContext_IntegrationSubmission_summary(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_IntegrationSubmission_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_IntegrationSubmission_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type IntegrationSubmission", field.Name)
+}
+
+func (ec *executionContext) childFields_IntegrationSubmissionPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "submission":
+		return ec.fieldContext_IntegrationSubmissionPayload_submission(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type IntegrationSubmissionPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_Invite(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -19794,6 +19951,20 @@ func (ec *executionContext) field_Mutation_startCycleToday_args(ctx context.Cont
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_submitIntegration_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (SubmitIntegrationInput, error) {
+			return ec.unmarshalNSubmitIntegrationInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSubmitIntegrationInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -29540,6 +29711,222 @@ func (ec *executionContext) fieldContext_InitiativeProjectPayload_initiativeProj
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_InitiativeProject(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSubmission_id(ctx context.Context, field graphql.CollectedField, obj *IntegrationSubmission) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntegrationSubmission_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntegrationSubmission_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntegrationSubmission", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _IntegrationSubmission_workspaceId(ctx context.Context, field graphql.CollectedField, obj *IntegrationSubmission) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntegrationSubmission_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntegrationSubmission_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntegrationSubmission", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _IntegrationSubmission_submittedBy(ctx context.Context, field graphql.CollectedField, obj *IntegrationSubmission) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntegrationSubmission_submittedBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SubmittedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntegrationSubmission_submittedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntegrationSubmission", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _IntegrationSubmission_name(ctx context.Context, field graphql.CollectedField, obj *IntegrationSubmission) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntegrationSubmission_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntegrationSubmission_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntegrationSubmission", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _IntegrationSubmission_website(ctx context.Context, field graphql.CollectedField, obj *IntegrationSubmission) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntegrationSubmission_website(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Website, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntegrationSubmission_website(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntegrationSubmission", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _IntegrationSubmission_summary(ctx context.Context, field graphql.CollectedField, obj *IntegrationSubmission) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntegrationSubmission_summary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntegrationSubmission_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntegrationSubmission", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _IntegrationSubmission_createdAt(ctx context.Context, field graphql.CollectedField, obj *IntegrationSubmission) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntegrationSubmission_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntegrationSubmission_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntegrationSubmission", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _IntegrationSubmission_updatedAt(ctx context.Context, field graphql.CollectedField, obj *IntegrationSubmission) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntegrationSubmission_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntegrationSubmission_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IntegrationSubmission", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _IntegrationSubmissionPayload_submission(ctx context.Context, field graphql.CollectedField, obj *IntegrationSubmissionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IntegrationSubmissionPayload_submission(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Submission, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *IntegrationSubmission) graphql.Marshaler {
+			return ec.marshalNIntegrationSubmission2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIntegrationSubmission(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IntegrationSubmissionPayload_submission(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSubmissionPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IntegrationSubmission(ctx, field)
 		},
 	}
 	return fc, nil
@@ -42094,6 +42481,50 @@ func (ec *executionContext) fieldContext_Mutation_rotateCycleCalendarFeed(ctx co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_submitIntegration(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_submitIntegration(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SubmitIntegration(ctx, fc.Args["input"].(SubmitIntegrationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *IntegrationSubmissionPayload) graphql.Marshaler {
+			return ec.marshalNIntegrationSubmissionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIntegrationSubmissionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_submitIntegration(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IntegrationSubmissionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_submitIntegration_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -49397,6 +49828,38 @@ func (ec *executionContext) fieldContext_Query_invites(_ context.Context, field 
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Invite(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_integrationSubmissions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_integrationSubmissions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().IntegrationSubmissions(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []IntegrationSubmission) graphql.Marshaler {
+			return ec.marshalNIntegrationSubmission2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIntegrationSubmissionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_integrationSubmissions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IntegrationSubmission(ctx, field)
 		},
 	}
 	return fc, nil
@@ -60063,6 +60526,50 @@ func (ec *executionContext) unmarshalInputSetViewSubscriptionInput(ctx context.C
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputSubmitIntegrationInput(ctx context.Context, obj any) (SubmitIntegrationInput, error) {
+	var it SubmitIntegrationInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "website", "summary"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "website":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("website"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Website = data
+		case "summary":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("summary"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Summary = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateAskFormInput(ctx context.Context, obj any) (UpdateAskFormInput, error) {
 	var it UpdateAskFormInput
 	if obj == nil {
@@ -67026,6 +67533,117 @@ func (ec *executionContext) _InitiativeProjectPayload(ctx context.Context, sel a
 	return out
 }
 
+var integrationSubmissionImplementors = []string{"IntegrationSubmission"}
+
+func (ec *executionContext) _IntegrationSubmission(ctx context.Context, sel ast.SelectionSet, obj *IntegrationSubmission) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationSubmissionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationSubmission")
+		case "id":
+			out.Values[i] = ec._IntegrationSubmission_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._IntegrationSubmission_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "submittedBy":
+			out.Values[i] = ec._IntegrationSubmission_submittedBy(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._IntegrationSubmission_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "website":
+			out.Values[i] = ec._IntegrationSubmission_website(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._IntegrationSubmission_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._IntegrationSubmission_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._IntegrationSubmission_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var integrationSubmissionPayloadImplementors = []string{"IntegrationSubmissionPayload"}
+
+func (ec *executionContext) _IntegrationSubmissionPayload(ctx context.Context, sel ast.SelectionSet, obj *IntegrationSubmissionPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationSubmissionPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationSubmissionPayload")
+		case "submission":
+			out.Values[i] = ec._IntegrationSubmissionPayload_submission(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var inviteImplementors = []string{"Invite"}
 
 func (ec *executionContext) _Invite(ctx context.Context, sel ast.SelectionSet, obj *Invite) graphql.Marshaler {
@@ -69523,6 +70141,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "rotateCycleCalendarFeed":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_rotateCycleCalendarFeed(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "submitIntegration":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_submitIntegration(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -72885,6 +73510,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_invites(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "integrationSubmissions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_integrationSubmissions(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -77390,6 +78037,50 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
+func (ec *executionContext) marshalNIntegrationSubmission2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIntegrationSubmission(ctx context.Context, sel ast.SelectionSet, v IntegrationSubmission) graphql.Marshaler {
+	return ec._IntegrationSubmission(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationSubmission2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIntegrationSubmissionᚄ(ctx context.Context, sel ast.SelectionSet, v []IntegrationSubmission) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNIntegrationSubmission2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIntegrationSubmission(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIntegrationSubmission2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIntegrationSubmission(ctx context.Context, sel ast.SelectionSet, v *IntegrationSubmission) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationSubmission(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIntegrationSubmissionPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIntegrationSubmissionPayload(ctx context.Context, sel ast.SelectionSet, v IntegrationSubmissionPayload) graphql.Marshaler {
+	return ec._IntegrationSubmissionPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationSubmissionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIntegrationSubmissionPayload(ctx context.Context, sel ast.SelectionSet, v *IntegrationSubmissionPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationSubmissionPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNInvite2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInvite(ctx context.Context, sel ast.SelectionSet, v Invite) graphql.Marshaler {
 	return ec._Invite(ctx, sel, &v)
 }
@@ -78689,6 +79380,11 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNSubmitIntegrationInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSubmitIntegrationInput(ctx context.Context, v any) (SubmitIntegrationInput, error) {
+	res, err := ec.unmarshalInputSubmitIntegrationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNSubscriptionPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSubscriptionPayload(ctx context.Context, sel ast.SelectionSet, v SubscriptionPayload) graphql.Marshaler {

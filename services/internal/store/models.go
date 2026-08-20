@@ -432,6 +432,17 @@ type InitiativeProject struct {
 	CreatedAt    time.Time
 }
 
+type IntegrationSubmission struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	SubmittedBy uuid.UUID
+	Name        string
+	Website     string
+	Summary     string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Invite struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

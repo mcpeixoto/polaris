@@ -830,6 +830,23 @@ type OauthClientInfo struct {
 	AllowedScopes []string `json:"allowedScopes"`
 }
 
+// IntegrationSubmission is a proposal to list a third-party tool in this workspace's
+// directory.
+//
+// Not on the sync stream: it is an inbox of requests, read on the integrations screen,
+// and not something the replica needs in order to render the catalogue that already
+// ships. Slack's 000063 is reserved on feat/slack-v1; this is 000064.
+type IntegrationSubmission struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	SubmittedBy uuid.UUID `json:"submittedBy"`
+	Name        string    `json:"name"`
+	Website     string    `json:"website"`
+	Summary     string    `json:"summary"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
 // Invite is an outstanding invitation to the workspace.
 //
 // Not on the sync stream, for the same reason APIKey is not: it is read on one settings
