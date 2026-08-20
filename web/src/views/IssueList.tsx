@@ -57,7 +57,8 @@ import {
   labelViewTitle,
   userViewPath,
 } from '~/features/labels/labelView';
-import { setViewSubscription } from '~/features/view/mutations';
+import { setViewSubscription, updateView } from '~/features/view/mutations';
+import { SaveViewModal } from '~/features/view/SaveViewModal';
 import { downloadCsv, exportCap, issuesToCsv, type ExportRole } from '~/features/export/csv';
 import { personName, subscribePrefs, getPrefs } from '~/features/prefs/prefs';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
@@ -271,6 +272,8 @@ interface ListCommands {
   copyGitBranch(): void;
   insightsOpen(): boolean;
   toggleInsights(): void;
+  saveView(): void;
+  copyViewLink(): void;
 }
 
 export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}) {
@@ -320,6 +323,17 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     },
     ['viewSubscription'],
     [viewId, viewerId],
+  );
+
+  const savedMeta = useLiveQuery(
+    (store) => {
+      if (viewId === null) return null;
+      const row = store.views.get(viewId);
+      if (row === undefined) return null;
+      return { ownerId: row.ownerId, teamId: row.teamId };
+    },
+    ['view'],
+    [viewId],
   );
 
   const liveCount = useLiveQuery(
@@ -415,6 +429,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const cycle = useMenuTrigger();
   const display = useMenuTrigger();
   const subscribe = useMenuTrigger();
+  const share = useMenuTrigger();
   const duplicate = useMenuTrigger();
   const snooze = useMenuTrigger();
   const [peekOpen, setPeekOpen] = useState(false);
@@ -422,6 +437,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const peekHoldAt = useRef<number | null>(null);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const insightsOpenRef = useRef(false);
+  const [saveOpen, setSaveOpen] = useState(false);
 
   const setInsights = (open: boolean) => {
     insightsOpenRef.current = open;
@@ -490,6 +506,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     copyGitBranch: () => {},
     insightsOpen: () => false,
     toggleInsights: () => {},
+    saveView: () => {},
+    copyViewLink: () => {},
   });
 
   const step = (delta: number): UUID | null => {
@@ -612,6 +630,10 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     },
     insightsOpen: () => insightsOpenRef.current,
     toggleInsights: () => setInsights(!insightsOpenRef.current),
+    saveView: () => setSaveOpen(true),
+    copyViewLink: () => {
+      void copyText(window.location.href);
+    },
   };
 
   useKeyContext('list');
@@ -822,6 +844,22 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         group: 'Views',
         run: () => commands.current.toggleInsights(),
       },
+      {
+        id: 'issueList.saveView',
+        title: 'Save as view',
+        keys: ['alt+v'],
+        when: 'list',
+        group: 'Views',
+        enabled: () => viewer !== null && viewer.role !== 'guest',
+        run: () => commands.current.saveView(),
+      },
+      {
+        id: 'issueList.copyViewLink',
+        title: 'Copy view URL',
+        when: 'list',
+        group: 'Views',
+        run: () => commands.current.copyViewLink(),
+      },
     ],
     [],
   );
@@ -943,6 +981,18 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             {watch !== null ? 'Subscribed' : 'Subscribe'}
           </Button>
         ) : null}
+        {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (
+          <Button {...share.props} variant="ghost">
+            Share
+          </Button>
+        ) : null}
+        {viewId === null && viewer !== null && viewer.role !== 'guest' && filtered ? (
+          <Tooltip label="Save as view" keys="alt+v">
+            <Button variant="ghost" onClick={() => setSaveOpen(true)}>
+              Save view
+            </Button>
+          </Tooltip>
+        ) : null}
         {/* Only a team has settings to link to. A person's list spans every team they can
             reach, so there is no single one this could point at — and guessing would send
             them to a team they happened to have an issue in. */}
@@ -1028,6 +1078,49 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
               },
             },
           ]}
+        />
+      ) : null}
+
+      {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (
+        <Menu
+          open={share.open}
+          onClose={share.hide}
+          trigger={share.ref}
+          label="Share view"
+          items={[
+            {
+              id: 'copy',
+              label: 'Copy link',
+              onSelect: () => {
+                void copyText(window.location.href);
+              },
+            },
+            {
+              id: 'privacy',
+              label:
+                savedMeta?.ownerId !== undefined
+                  ? savedMeta.teamId !== undefined
+                    ? 'Share with team'
+                    : 'Share with workspace'
+                  : 'Make private',
+              onSelect: () => {
+                const makePrivate = savedMeta?.ownerId === undefined;
+                updateView(engine, viewId, {
+                  private: makePrivate,
+                  ownerId: makePrivate ? viewer.id : undefined,
+                }).catch(report);
+              },
+            },
+          ]}
+        />
+      ) : null}
+
+      {saveOpen ? (
+        <SaveViewModal
+          filter={view.filter}
+          display={view.display}
+          teamId={scope.team?.id ?? savedMeta?.teamId}
+          onClose={() => setSaveOpen(false)}
         />
       ) : null}
 

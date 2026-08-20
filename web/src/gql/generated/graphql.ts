@@ -4235,6 +4235,15 @@ export type UpdateViewInput = {
   icon?: InputMaybe<Scalars['String']['input']>;
   id: Scalars['UUID']['input'];
   name?: InputMaybe<Scalars['String']['input']>;
+  /**
+   * True keeps the view to its owner. False shares it with everyone who can see its
+   * scope. Omit to leave sharing unchanged.
+   *
+   * Sharing is a visibility change: the old scope is told to forget the row, then the
+   * new scope is told to take it. That is why this is a dedicated flag rather than an
+   * owner id — a caller may only ever make a view private to themselves.
+   */
+  private?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type UpdateWebhookInput = {
