@@ -211,6 +211,8 @@ export interface Team {
   readonly autoCloseChildren: boolean;
   readonly defaultTemplateForMembersId?: UUID;
   readonly defaultTemplateForNonMembersId?: UUID;
+  readonly emailIntakeEnabled?: boolean;
+  readonly emailIntakeAddress?: string;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly retiredAt?: Timestamp;
@@ -601,6 +603,8 @@ export interface IssueTemplate {
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly archivedAt?: Timestamp;
+  readonly emailIntakeEnabled?: boolean;
+  readonly emailIntakeAddress?: string;
 }
 
 export type RecurringCadence = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';

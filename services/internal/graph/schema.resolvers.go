@@ -1444,6 +1444,45 @@ func (r *mutationResolver) UpdateTeamTriage(ctx context.Context, input generated
 	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
 }
 
+// UpdateTeamEmailIntake is the resolver for the updateTeamEmailIntake field.
+func (r *mutationResolver) UpdateTeamEmailIntake(ctx context.Context, input generated.UpdateTeamEmailIntakeInput) (*generated.TeamPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	team, version, err := r.Svc.UpdateTeamEmailIntake(ctx, p, domain.UpdateTeamEmailIntakeInput{
+		TeamID:  input.TeamID,
+		Enabled: input.Enabled,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateTeam(ctx, p, selectionFor(ctx, "TeamPayload").childOrNone("team", "Team"), team)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.TeamPayload{Version: int(version), Team: &out}, nil
+}
+
+// UpdateIssueTemplateEmailIntake is the resolver for the updateIssueTemplateEmailIntake field.
+func (r *mutationResolver) UpdateIssueTemplateEmailIntake(ctx context.Context, input generated.UpdateIssueTemplateEmailIntakeInput) (*generated.IssueTemplatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	template, version, err := r.Svc.UpdateIssueTemplateEmailIntake(ctx, p, domain.UpdateIssueTemplateEmailIntakeInput{
+		TemplateID: input.TemplateID,
+		Enabled:    input.Enabled,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toIssueTemplate(template)
+	return &generated.IssueTemplatePayload{Version: int(version), Template: &out}, nil
+}
+
 // UpdateTeamArchive is the resolver for the updateTeamArchive field.
 func (r *mutationResolver) UpdateTeamArchive(ctx context.Context, input generated.UpdateTeamArchiveInput) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)

@@ -46,6 +46,7 @@ import {
   type GitHubTeamAutomation,
 } from '~/features/github/mutations';
 import { updateTeamTriage } from '~/features/triage/mutations';
+import { updateTeamEmailIntake } from '~/features/email/mutations';
 import {
   archiveRecurringIssue,
   CADENCE_LABELS,
@@ -113,6 +114,8 @@ interface TeamView {
   readonly cycleAutoAddCompleted: boolean;
   readonly triageEnabled: boolean;
   readonly triageRequirePriority: boolean;
+  readonly emailIntakeEnabled: boolean;
+  readonly emailIntakeAddress?: string;
   readonly autoCloseDays: number;
   readonly autoArchiveDays: number;
   readonly autoCloseParent: boolean;
@@ -252,6 +255,11 @@ export function TeamSettings() {
           <TriageSettings
             team={team}
             onChange={(patch) => run(updateTeamTriage(engine, team.id, patch))}
+          />
+
+          <EmailIntakeSettings
+            team={team}
+            onChange={(enabled) => run(updateTeamEmailIntake(engine, team.id, enabled))}
           />
 
           <ArchiveSettings
@@ -602,6 +610,53 @@ function TriageSettings({
             checked={team.triageRequirePriority}
             onChange={(event) => onChange({ requirePriority: event.target.checked })}
           />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * Create issues by email. The address is minted on the server; this screen copies it.
+ */
+function EmailIntakeSettings({
+  team,
+  onChange,
+}: {
+  team: TeamView;
+  onChange: (enabled: boolean) => void;
+}) {
+  const copyAddress = () => {
+    if (team.emailIntakeAddress === undefined) return;
+    void navigator.clipboard?.writeText(team.emailIntakeAddress);
+  };
+  return (
+    <section className={styles.section} aria-labelledby="email-intake-heading">
+      <h2 className={styles.sectionTitle} id="email-intake-heading">
+        Create issues by email
+      </h2>
+      <p className={styles.sectionHint}>
+        Mail sent to this team&rsquo;s address becomes an issue. Replies do not create a second
+        one. In development, POST JSON to <code>/webhooks/email</code> — no mail server required.
+      </p>
+
+      <Checkbox
+        label="Create issues by email"
+        checked={team.emailIntakeEnabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+
+      {team.emailIntakeEnabled && team.emailIntakeAddress !== undefined ? (
+        <div className={styles.cadence}>
+          <Input
+            label="Intake address"
+            value={team.emailIntakeAddress}
+            readOnly
+            onFocus={(event) => event.currentTarget.select()}
+          />
+          <Button size="sm" onClick={copyAddress}>
+            Copy address
+          </Button>
         </div>
       ) : null}
     </section>
@@ -1430,6 +1485,8 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     cycleAutoAddCompleted: team.cycleAutoAddCompleted,
     triageEnabled: team.triageEnabled,
     triageRequirePriority: team.triageRequirePriority,
+    emailIntakeEnabled: team.emailIntakeEnabled === true,
+    emailIntakeAddress: team.emailIntakeAddress,
     autoCloseDays: team.autoCloseDays,
     autoArchiveDays: team.autoArchiveDays,
     autoCloseParent: team.autoCloseParent,

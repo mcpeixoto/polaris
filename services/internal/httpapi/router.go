@@ -145,6 +145,11 @@ func NewRouter(d Deps) http.Handler {
 	mux.Handle("GET /auth/github/start", RequireWorkspace(http.HandlerFunc(github.oauthStart)))
 	mux.Handle("GET /auth/github/callback", d.Limits.Anonymous(http.HandlerFunc(github.oauthCallback)))
 
+	email := &emailHandlers{svc: d.Service, cfg: d.Config}
+	// Inbound mail is unauthenticated: the shared secret is the credential. Anonymous
+	// budget, because a loop of unsigned posts would otherwise be free.
+	mux.Handle("POST /webhooks/email", d.Limits.Anonymous(http.HandlerFunc(email.inbound)))
+
 	var h http.Handler = mux
 	h = Authenticate(d.Tokens, d.Service)(h)
 	// Outside Authenticate, so a preflight is answered without a token: a browser sends no

@@ -270,6 +270,11 @@ type Team {
   """Applied to new issues filed by everyone else. Form templates (later) may only be this one."""
   defaultTemplateForNonMembersId: UUID
 
+  """Off by default. Turning it on mints a unique intake address for this team."""
+  emailIntakeEnabled: Boolean!
+  """The address that creates issues. Null until intake is enabled."""
+  emailIntakeAddress: String
+
   createdAt: Time!
   updatedAt: Time!
   retiredAt: Time
@@ -651,6 +656,10 @@ type IssueTemplate {
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
+  """Off by default. Team templates only — a workspace template has no team to file into."""
+  emailIntakeEnabled: Boolean!
+  """The address that creates issues from this template. Null until intake is enabled."""
+  emailIntakeAddress: String
 }
 
 enum FormTemplateFieldType {
@@ -2035,6 +2044,16 @@ input UpdateTeamTriageInput {
   requirePriority: Boolean
 }
 
+input UpdateTeamEmailIntakeInput {
+  teamId: UUID!
+  enabled: Boolean!
+}
+
+input UpdateIssueTemplateEmailIntakeInput {
+  templateId: UUID!
+  enabled: Boolean!
+}
+
 input UpdateTeamArchiveInput {
   teamId: UUID!
   autoCloseDays: Int
@@ -2558,6 +2577,8 @@ type Mutation {
   """Pull the next upcoming cycle forward to midnight today in the team's timezone. Irreversible."""
   startCycleToday(id: UUID!, clientId: UUID, opId: UUID): CyclePayload! @idempotent
   updateTeamTriage(input: UpdateTeamTriageInput!): TeamPayload!
+  updateTeamEmailIntake(input: UpdateTeamEmailIntakeInput!): TeamPayload!
+  updateIssueTemplateEmailIntake(input: UpdateIssueTemplateEmailIntakeInput!): IssueTemplatePayload!
   updateTeamArchive(input: UpdateTeamArchiveInput!): TeamPayload!
   updateTeamTemplates(input: UpdateTeamTemplatesInput!): TeamPayload!
 

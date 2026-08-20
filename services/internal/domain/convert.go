@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -89,12 +90,23 @@ func toTeam(t store.Team) model.Team {
 		DefaultTemplateForMembersID:    t.DefaultTemplateForMembersID,
 		DefaultTemplateForNonMembersID: t.DefaultTemplateForNonMembersID,
 
+		EmailIntakeEnabled: t.EmailIntakeEnabled,
+		EmailIntakeAddress: emailIntakeAddressFor(t.EmailIntakeEnabled, t.EmailIntakeAddress),
+
 		CreatedAt:  t.CreatedAt,
 		UpdatedAt:  t.UpdatedAt,
 		RetiredAt:  t.RetiredAt,
 		ArchivedAt: t.ArchivedAt,
 		DeletedAt:  t.DeletedAt,
 	}
+}
+
+func emailIntakeAddressFor(enabled bool, stored *string) *string {
+	if !enabled || stored == nil || strings.TrimSpace(*stored) == "" {
+		return nil
+	}
+	addr := strings.TrimSpace(*stored)
+	return &addr
 }
 
 func toMembership(m store.TeamMembership) model.TeamMembership {
