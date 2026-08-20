@@ -55,38 +55,45 @@ function storeWith(rows: readonly [EntityType, Entity][]): Store {
 }
 
 function engineFor(store: Store) {
-  const mutate = vi.fn(async (input: { mutation: string; variables: Record<string, unknown>; optimistic?: OptimisticPatch }) => {
-    if (input.optimistic !== undefined) store.applyOptimistic(input.optimistic);
-    if (input.mutation.includes('mutation CreateComment')) {
-      const payload = input.variables.input as Record<string, unknown>;
-      return {
-        createComment: {
-          comment: comment(MINTED, {
-            body: String(payload.body),
-            parentId: payload.parentId === undefined ? undefined : String(payload.parentId),
-            anchorStart: payload.anchorStart === undefined ? undefined : Number(payload.anchorStart),
-            anchorEnd: payload.anchorEnd === undefined ? undefined : Number(payload.anchorEnd),
-            quote: payload.quote === undefined ? undefined : String(payload.quote),
-          }),
-        },
-      };
-    }
-    if (input.mutation.includes('mutation ResolveComment')) {
-      const id = String(input.variables.id);
-      const existing = store.get('comment', id);
-      const resolved = Boolean(input.variables.resolved);
-      return {
-        resolveComment: {
-          comment: comment(id, {
-            ...(existing ?? {}),
-            resolvedAt: resolved ? AT : undefined,
-            resolvedBy: resolved ? ADA : undefined,
-          }),
-        },
-      };
-    }
-    return {};
-  });
+  const mutate = vi.fn(
+    async (input: {
+      mutation: string;
+      variables: Record<string, unknown>;
+      optimistic?: OptimisticPatch;
+    }) => {
+      if (input.optimistic !== undefined) store.applyOptimistic(input.optimistic);
+      if (input.mutation.includes('mutation CreateComment')) {
+        const payload = input.variables.input as Record<string, unknown>;
+        return {
+          createComment: {
+            comment: comment(MINTED, {
+              body: String(payload.body),
+              parentId: payload.parentId === undefined ? undefined : String(payload.parentId),
+              anchorStart:
+                payload.anchorStart === undefined ? undefined : Number(payload.anchorStart),
+              anchorEnd: payload.anchorEnd === undefined ? undefined : Number(payload.anchorEnd),
+              quote: payload.quote === undefined ? undefined : String(payload.quote),
+            }),
+          },
+        };
+      }
+      if (input.mutation.includes('mutation ResolveComment')) {
+        const id = String(input.variables.id);
+        const existing = store.get('comment', id);
+        const resolved = Boolean(input.variables.resolved);
+        return {
+          resolveComment: {
+            comment: comment(id, {
+              ...(existing ?? {}),
+              resolvedAt: resolved ? AT : undefined,
+              resolvedBy: resolved ? ADA : undefined,
+            }),
+          },
+        };
+      }
+      return {};
+    },
+  );
   return { mutate, engine: { store, mutate } as unknown as SyncEngine };
 }
 
