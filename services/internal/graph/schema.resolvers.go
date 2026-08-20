@@ -1917,6 +1917,20 @@ func (r *mutationResolver) ArchiveLabel(ctx context.Context, id uuid.UUID, archi
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// MergeLabels is the resolver for the mergeLabels field.
+func (r *mutationResolver) MergeLabels(ctx context.Context, sourceID uuid.UUID, intoID uuid.UUID) (*generated.LabelPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	label, version, err := r.Svc.MergeLabels(ctx, p, sourceID, intoID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toLabel(label)
+	return &generated.LabelPayload{Version: int(version), Label: &out}, nil
+}
+
 // AddIssueLabel is the resolver for the addIssueLabel field.
 func (r *mutationResolver) AddIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssueLabelPayload, error) {
 	p, err := principalFrom(ctx)
