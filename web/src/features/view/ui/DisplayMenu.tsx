@@ -78,6 +78,8 @@ export interface DisplayMenuProps {
    */
   readonly trigger: RefObject<HTMLElement | null>;
   readonly className?: string | undefined;
+  /** The triage inbox: snoozed rows have a display toggle Linear documents as view options. */
+  readonly triage?: boolean | undefined;
 }
 
 /**
@@ -223,6 +225,7 @@ function changedCount(display: Required<DisplayOptions>): number {
   if (display.direction !== DEFAULT_DISPLAY.direction) count++;
   if (display.showSubIssues !== DEFAULT_DISPLAY.showSubIssues) count++;
   if (display.showCompleted !== DEFAULT_DISPLAY.showCompleted) count++;
+  if (display.showSnoozed !== DEFAULT_DISPLAY.showSnoozed) count++;
   if (!sameProperties(display.properties, DEFAULT_DISPLAY.properties)) count++;
   return count;
 }
@@ -234,6 +237,7 @@ export function DisplayMenu({
   onClose,
   trigger,
   className,
+  triage = false,
 }: DisplayMenuProps) {
   const baseId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -506,6 +510,21 @@ export function DisplayMenu({
             affected either way — it is not finished work.
           </p>
         )}
+        {triage ? (
+          <>
+            <Checkbox
+              label="Show snoozed"
+              checked={display.showSnoozed}
+              onChange={(event) => onChange({ showSnoozed: event.target.checked })}
+            />
+            {display.showSnoozed === DEFAULT_DISPLAY.showSnoozed ? null : (
+              <p className={styles.changed}>
+                Default: hidden. Snoozed issues stay out of the queue until the time, or until
+                somebody edits or comments.
+              </p>
+            )}
+          </>
+        ) : null}
       </div>
 
       <div className={styles.section} role="group" aria-labelledby={propertiesLabelId}>

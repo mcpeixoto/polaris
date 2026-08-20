@@ -266,6 +266,11 @@ export interface DisplayOptions {
   /** False hides children whose parent is in the same view. */
   readonly showSubIssues?: boolean;
   readonly showCompleted?: boolean;
+  /**
+   * Triage only. Snoozed issues stay out of the inbox until the time (or the next
+   * edit) unless this is on — Linear's view-options toggle for the queue.
+   */
+  readonly showSnoozed?: boolean;
   /** Which properties each row shows. Unknown names are ignored, never fatal. */
   readonly properties?: readonly DisplayProperty[];
 }
@@ -304,5 +309,6 @@ export const DEFAULT_DISPLAY: Required<DisplayOptions> = {
   direction: 'asc',
   showSubIssues: true,
   showCompleted: true,
+  showSnoozed: false,
   properties: ['priority', 'assignee', 'labels', 'estimate', 'dueDate'],
 };

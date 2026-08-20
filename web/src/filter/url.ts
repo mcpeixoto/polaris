@@ -55,6 +55,7 @@ export const DISPLAY_PARAMS = {
   direction: 'dir',
   showSubIssues: 'subissues',
   showCompleted: 'completed',
+  showSnoozed: 'snoozed',
   properties: 'show',
 } as const;
 
@@ -130,6 +131,11 @@ export function toDisplayParams(display: DisplayOptions): Record<string, string>
     String(display.showCompleted ?? DEFAULT_DISPLAY.showCompleted),
     String(DEFAULT_DISPLAY.showCompleted),
   );
+  put(
+    'showSnoozed',
+    String(display.showSnoozed ?? DEFAULT_DISPLAY.showSnoozed),
+    String(DEFAULT_DISPLAY.showSnoozed),
+  );
   if (display.properties !== undefined) {
     const value = display.properties.join(',');
     if (value !== DEFAULT_DISPLAY.properties.join(',')) out[DISPLAY_PARAMS.properties] = value;
@@ -182,6 +188,7 @@ export function parseDisplayParams(params: URLSearchParams): DisplayOptions {
     direction?: DisplayDirection;
     showSubIssues?: boolean;
     showCompleted?: boolean;
+    showSnoozed?: boolean;
     properties?: DisplayProperty[];
   } = {};
 
@@ -202,6 +209,9 @@ export function parseDisplayParams(params: URLSearchParams): DisplayOptions {
 
   const completed = params.get(DISPLAY_PARAMS.showCompleted);
   if (completed === 'true' || completed === 'false') out.showCompleted = completed === 'true';
+
+  const snoozed = params.get(DISPLAY_PARAMS.showSnoozed);
+  if (snoozed === 'true' || snoozed === 'false') out.showSnoozed = snoozed === 'true';
 
   const properties = params.get(DISPLAY_PARAMS.properties);
   if (properties !== null) {
