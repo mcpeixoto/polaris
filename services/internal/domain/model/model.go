@@ -1035,6 +1035,22 @@ type DashboardTile struct {
 	UpdatedAt   time.Time       `json:"updatedAt"`
 }
 
+// AskForm is a shareable intake form. Submitting it creates an issue in the team's
+// triage (or default status, if triage is off). The token is the public URL secret.
+type AskForm struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	TeamID      uuid.UUID  `json:"teamId"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Token       string     `json:"token"`
+	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt   *time.Time `json:"deletedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
 // Document is long-form markdown attached to a team or a project. The body is plain markdown
 // until collaborative editing lands; it is not a CRDT snapshot yet.
 type Document struct {

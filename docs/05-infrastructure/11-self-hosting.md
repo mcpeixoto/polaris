@@ -419,6 +419,7 @@ correct.
 | `/auth/*` | `api` `:8088` | |
 | `/oauth/token`, `/oauth/revoke` | `api` `:8088` | Token exchange and revocation. Consent (`GET /oauth/authorize`) is the SPA. |
 | `/mcp`, `/mcp/readonly` | `api` `:8088` | Streamable HTTP MCP. Long-lived: raise the proxy read timeout. |
+| `/asks/*` | `api` `:8088` | Public Asks intake. Token in the path is the credential. |
 | `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server` | `api` `:8088` | MCP OAuth discovery. |
 | `/healthz`, `/readyz` | `api` `:8088` | Or wherever you want your uptime check to land |
 | everything else | web `:8080` | The SPA, which handles its own client-side routing |

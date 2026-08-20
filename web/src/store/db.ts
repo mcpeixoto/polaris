@@ -26,6 +26,7 @@ import {
   type IssueTemplate,
   type FormTemplate,
   type FormTemplateField,
+  type AskForm,
   type ProjectTemplate,
   type ProjectTemplateMilestone,
   type ProjectTemplateIssue,
@@ -123,8 +124,9 @@ import {
  * serving without the new comment columns.
  * v35 adds dashboard and dashboardTile.
  * v36 adds viewSubscription (personal watches on a saved view).
+ * v37 adds askForm (shareable intake URLs).
  */
-export const CLIENT_SCHEMA = 36;
+export const CLIENT_SCHEMA = 37;
 
 /**
  * One database per workspace per schema version.
@@ -209,6 +211,7 @@ interface PolarisSchema extends DBSchema {
   issueTemplate: { key: UUID; value: IssueTemplate };
   formTemplate: { key: UUID; value: FormTemplate };
   formTemplateField: { key: UUID; value: FormTemplateField };
+  askForm: { key: UUID; value: AskForm };
   projectTemplate: { key: UUID; value: ProjectTemplate };
   projectTemplateMilestone: { key: UUID; value: ProjectTemplateMilestone };
   projectTemplateIssue: { key: UUID; value: ProjectTemplateIssue };

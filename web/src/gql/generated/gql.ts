@@ -30,6 +30,11 @@ type Documents = {
     "\n  \n  query ArchivedProjects($teamId: UUID!) {\n    archivedProjects(teamId: $teamId) {\n      ...ProjectFields\n    }\n  }\n": typeof types.ArchivedProjectsDocument,
     "\n  mutation ArchiveCycle($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveCycle(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveCycleDocument,
     "\n  mutation ArchiveProject($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveProject(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveProjectDocument,
+    "\n  fragment AskFormFields on AskForm {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    token\n    creatorId\n    archivedAt\n    deletedAt\n    createdAt\n    updatedAt\n  }\n": typeof types.AskFormFieldsFragmentDoc,
+    "\n  \n  mutation CreateAskForm($input: CreateAskFormInput!, $clientId: UUID!, $opId: UUID!) {\n    createAskForm(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      askForm {\n        ...AskFormFields\n      }\n    }\n  }\n": typeof types.CreateAskFormDocument,
+    "\n  \n  mutation UpdateAskForm($input: UpdateAskFormInput!, $clientId: UUID!, $opId: UUID!) {\n    updateAskForm(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      askForm {\n        ...AskFormFields\n      }\n    }\n  }\n": typeof types.UpdateAskFormDocument,
+    "\n  mutation ArchiveAskForm($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveAskForm(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveAskFormDocument,
+    "\n  mutation DeleteAskForm($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteAskForm(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteAskFormDocument,
     "\n  fragment CustomerFields on Customer {\n    id\n    workspaceId\n    name\n    domains\n    revenue\n    size\n    tier\n    status\n    ownerId\n    logoUrl\n    creatorId\n    sortOrder\n    archivedAt\n    deletedAt\n    deletedBy\n    createdAt\n    updatedAt\n  }\n": typeof types.CustomerFieldsFragmentDoc,
     "\n  fragment CustomerRequestFields on CustomerRequest {\n    id\n    workspaceId\n    customerId\n    issueId\n    projectId\n    body\n    important\n    creatorId\n    createdAt\n    updatedAt\n  }\n": typeof types.CustomerRequestFieldsFragmentDoc,
     "\n  \n  mutation CreateCustomer($input: CreateCustomerInput!, $clientId: UUID!, $opId: UUID!) {\n    createCustomer(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      customer {\n        ...CustomerFields\n      }\n    }\n  }\n": typeof types.CreateCustomerDocument,
@@ -246,6 +251,11 @@ const documents: Documents = {
     "\n  \n  query ArchivedProjects($teamId: UUID!) {\n    archivedProjects(teamId: $teamId) {\n      ...ProjectFields\n    }\n  }\n": types.ArchivedProjectsDocument,
     "\n  mutation ArchiveCycle($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveCycle(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.ArchiveCycleDocument,
     "\n  mutation ArchiveProject($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveProject(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.ArchiveProjectDocument,
+    "\n  fragment AskFormFields on AskForm {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    token\n    creatorId\n    archivedAt\n    deletedAt\n    createdAt\n    updatedAt\n  }\n": types.AskFormFieldsFragmentDoc,
+    "\n  \n  mutation CreateAskForm($input: CreateAskFormInput!, $clientId: UUID!, $opId: UUID!) {\n    createAskForm(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      askForm {\n        ...AskFormFields\n      }\n    }\n  }\n": types.CreateAskFormDocument,
+    "\n  \n  mutation UpdateAskForm($input: UpdateAskFormInput!, $clientId: UUID!, $opId: UUID!) {\n    updateAskForm(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      askForm {\n        ...AskFormFields\n      }\n    }\n  }\n": types.UpdateAskFormDocument,
+    "\n  mutation ArchiveAskForm($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveAskForm(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.ArchiveAskFormDocument,
+    "\n  mutation DeleteAskForm($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteAskForm(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.DeleteAskFormDocument,
     "\n  fragment CustomerFields on Customer {\n    id\n    workspaceId\n    name\n    domains\n    revenue\n    size\n    tier\n    status\n    ownerId\n    logoUrl\n    creatorId\n    sortOrder\n    archivedAt\n    deletedAt\n    deletedBy\n    createdAt\n    updatedAt\n  }\n": types.CustomerFieldsFragmentDoc,
     "\n  fragment CustomerRequestFields on CustomerRequest {\n    id\n    workspaceId\n    customerId\n    issueId\n    projectId\n    body\n    important\n    creatorId\n    createdAt\n    updatedAt\n  }\n": types.CustomerRequestFieldsFragmentDoc,
     "\n  \n  mutation CreateCustomer($input: CreateCustomerInput!, $clientId: UUID!, $opId: UUID!) {\n    createCustomer(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      customer {\n        ...CustomerFields\n      }\n    }\n  }\n": types.CreateCustomerDocument,
@@ -524,6 +534,26 @@ export function graphql(source: "\n  mutation ArchiveCycle($id: UUID!, $archived
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation ArchiveProject($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveProject(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ArchiveProject($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveProject(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment AskFormFields on AskForm {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    token\n    creatorId\n    archivedAt\n    deletedAt\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment AskFormFields on AskForm {\n    id\n    workspaceId\n    teamId\n    name\n    description\n    token\n    creatorId\n    archivedAt\n    deletedAt\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateAskForm($input: CreateAskFormInput!, $clientId: UUID!, $opId: UUID!) {\n    createAskForm(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      askForm {\n        ...AskFormFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateAskForm($input: CreateAskFormInput!, $clientId: UUID!, $opId: UUID!) {\n    createAskForm(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      askForm {\n        ...AskFormFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateAskForm($input: UpdateAskFormInput!, $clientId: UUID!, $opId: UUID!) {\n    updateAskForm(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      askForm {\n        ...AskFormFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateAskForm($input: UpdateAskFormInput!, $clientId: UUID!, $opId: UUID!) {\n    updateAskForm(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      askForm {\n        ...AskFormFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation ArchiveAskForm($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveAskForm(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ArchiveAskForm($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {\n    archiveAskForm(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteAskForm($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteAskForm(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteAskForm($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteAskForm(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

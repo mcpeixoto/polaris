@@ -96,6 +96,7 @@ const ENUM_FIELDS: Readonly<Record<EntityType, readonly string[]>> = {
   issueTemplate: [],
   formTemplate: [],
   formTemplateField: ['fieldType'],
+  askForm: [],
   projectTemplate: [],
   projectTemplateMilestone: [],
   projectTemplateIssue: [],

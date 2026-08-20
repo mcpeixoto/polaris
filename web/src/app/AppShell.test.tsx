@@ -238,6 +238,7 @@ describe('the settings section', () => {
       'Templates',
       'API keys',
       'MCP',
+      'Asks',
       'OAuth apps',
       'Webhooks',
       'GitHub',

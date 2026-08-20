@@ -693,6 +693,21 @@ export interface FormTemplate {
   readonly archivedAt?: Timestamp;
 }
 
+/** A shareable intake form. Submitting it creates a triage issue on the team. */
+export interface AskForm {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly teamId: UUID;
+  readonly name: string;
+  readonly description: string;
+  readonly token: string;
+  readonly creatorId?: UUID;
+  readonly archivedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 export interface FormTemplateField {
   readonly id: UUID;
   readonly workspaceId: UUID;
@@ -1061,6 +1076,7 @@ export interface EntityByType {
   issueTemplate: IssueTemplate;
   formTemplate: FormTemplate;
   formTemplateField: FormTemplateField;
+  askForm: AskForm;
   projectTemplate: ProjectTemplate;
   projectTemplateMilestone: ProjectTemplateMilestone;
   projectTemplateIssue: ProjectTemplateIssue;
@@ -1119,6 +1135,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'issueTemplate',
   'formTemplate',
   'formTemplateField',
+  'askForm',
   'projectTemplate',
   'projectTemplateMilestone',
   'projectTemplateIssue',

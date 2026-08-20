@@ -16,6 +16,8 @@ import { ProjectLabelSettings } from '~/features/project-labels/ProjectLabelSett
 import { ProjectUpdateSettings } from '~/views/ProjectUpdateSettings';
 import { UndoToast } from '~/features/undo/UndoToast';
 import { AcceptInvite } from '~/views/AcceptInvite';
+import { AskFormPage } from '~/views/AskFormPage';
+import { AskSettings } from '~/views/AskSettings';
 import { ApiKeys } from '~/views/ApiKeys';
 import { Webhooks } from '~/views/Webhooks';
 import { OAuthApps } from '~/views/OAuthApps';
@@ -104,6 +106,7 @@ export function App() {
                   landing on a signed-out browser rather than bouncing to /signin and
                   losing the token. */}
               <Route path="/invite/:token" element={<AcceptInvite onAccepted={onSignedIn} />} />
+              <Route path="/ask/:token" element={<AskFormPage />} />
               {/* Unknown paths stay on sign-in so a deep link like /team/ENG is still
                   the URL after the session is restored. */}
               <Route path="*" element={<SignIn onSignedIn={onSignedIn} />} />
@@ -112,6 +115,7 @@ export function App() {
           renderNoWorkspace={({ onCreated }) => (
             <Routes>
               <Route path="/invite/:token" element={<AcceptInvite onAccepted={onCreated} />} />
+              <Route path="/ask/:token" element={<AskFormPage />} />
               <Route path="*" element={<CreateWorkspace onCreated={onCreated} />} />
             </Routes>
           )}
@@ -142,6 +146,7 @@ function SignedInShell() {
   const { pathname } = useLocation();
   if (pathname === '/welcome') return <Landing />;
   if (pathname === '/oauth/authorize') return <OAuthAuthorize />;
+  if (pathname.startsWith('/ask/')) return <AskFormPage />;
 
   return (
     <AppShell
@@ -198,6 +203,7 @@ function SignedInShell() {
         <Route path="/settings/templates" element={<Templates />} />
         <Route path="/settings/api-keys" element={<ApiKeys />} />
         <Route path="/settings/mcp" element={<McpSettings />} />
+        <Route path="/settings/asks" element={<AskSettings />} />
         <Route path="/settings/oauth-apps" element={<OAuthApps />} />
         <Route path="/settings/webhooks" element={<Webhooks />} />
         <Route path="/settings/github" element={<GitHubSettings />} />

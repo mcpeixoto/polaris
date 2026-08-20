@@ -193,6 +193,16 @@ function oneOfEach(): EntityRow[] {
     createdAt: NOW,
     updatedAt: NOW,
   };
+  const askForm = {
+    id: 'af1',
+    workspaceId: 'w',
+    teamId: 't1',
+    name: 'IT requests',
+    description: '',
+    token: 'deadbeef',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
   const projectTemplate = {
     id: 'ptpl1',
     workspaceId: 'w',
@@ -424,6 +434,7 @@ function oneOfEach(): EntityRow[] {
     { type: 'issueTemplate', entity: issueTemplate },
     { type: 'formTemplate', entity: formTemplate },
     { type: 'formTemplateField', entity: formTemplateField },
+    { type: 'askForm', entity: askForm },
     { type: 'projectTemplate', entity: projectTemplate },
     { type: 'projectTemplateMilestone', entity: projectTemplateMilestone },
     { type: 'projectTemplateIssue', entity: projectTemplateIssue },

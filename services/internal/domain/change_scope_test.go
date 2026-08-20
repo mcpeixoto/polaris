@@ -240,6 +240,12 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 		t.Fatalf("formTemplateField: %v", err)
 	}
 
+	if _, _, err := svc.CreateAskForm(ctx, p, domain.CreateAskFormInput{
+		TeamID: f.TeamID, Name: "IT requests",
+	}); err != nil {
+		t.Fatalf("askForm: %v", err)
+	}
+
 	projTpl, _, err := svc.CreateProjectTemplate(ctx, p, domain.CreateProjectTemplateInput{
 		TeamID: &f.TeamID, Name: "Launch kit", Summary: "Ship it",
 	})
