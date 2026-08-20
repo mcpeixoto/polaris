@@ -269,6 +269,116 @@ func (s *Service) ArchiveLabel(ctx context.Context, p *authz.Principal, id uuid.
 	return version, err
 }
 
+// MergeLabels folds source into survivor. Applications move; the source is archived.
+//
+// Same scope and same group (or both ungrouped). A group cannot be merged — its children
+// would be left pointing at a heading that no longer exists, which is the same state
+// ArchiveLabel refuses. Issues that already carry the survivor drop the source chip
+// rather than holding both, which the unique (issue, label) index would reject anyway.
+func (s *Service) MergeLabels(
+	ctx context.Context, p *authz.Principal, sourceID, intoID uuid.UUID,
+) (model.Label, int64, error) {
+	if sourceID == intoID {
+		return model.Label{}, 0, platform.Validation("intoId", "a label cannot merge into itself")
+	}
+
+	var out model.Label
+	var version int64
+	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		source, err := s.loadLabel(ctx, q, p, sourceID)
+		if err != nil {
+			return err
+		}
+		into, err := s.loadLabel(ctx, q, p, intoID)
+		if err != nil {
+			return err
+		}
+		if source.IsGroup || into.IsGroup {
+			return platform.Validation("intoId", "a group cannot be merged; merge its labels instead")
+		}
+		if !sameOptUUID(source.TeamID, into.TeamID) {
+			return platform.Validation("intoId", "labels can only merge inside the same scope")
+		}
+		if !sameOptUUID(source.ParentID, into.ParentID) {
+			return platform.Validation("intoId", "labels can only merge inside the same group")
+		}
+
+		scope, err := s.requireLabelScope(ctx, q, p, source.TeamID)
+		if err != nil {
+			return err
+		}
+
+		moved, err := q.RetargetIssueLabels(ctx, store.RetargetIssueLabelsParams{
+			SourceID: sourceID,
+			IntoID:   intoID,
+		})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		dropped, err := q.DeleteIssueLabelsForLabel(ctx, sourceID)
+		if err != nil {
+			return platform.Internal(err)
+		}
+
+		for _, row := range moved {
+			team, err := q.GetTeam(ctx, row.TeamID)
+			if err != nil {
+				return platform.Internal(err)
+			}
+			if _, err := s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+				EntityType: "issueLabel", EntityID: row.ID, Op: OpUpsert,
+				TeamID: &row.TeamID, Scope: authz.TeamScope(team.ID, team.Private),
+				Payload: toIssueLabel(row),
+			}); err != nil {
+				return err
+			}
+		}
+		for _, row := range dropped {
+			team, err := q.GetTeam(ctx, row.TeamID)
+			if err != nil {
+				return platform.Internal(err)
+			}
+			if _, err := s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+				EntityType: "issueLabel", EntityID: row.ID, Op: OpDelete,
+				TeamID: &row.TeamID, Scope: authz.TeamScope(team.ID, team.Private),
+			}); err != nil {
+				return err
+			}
+		}
+
+		if _, err := q.ArchiveLabel(ctx, sourceID); err != nil {
+			if store.IsNotFound(err) {
+				return platform.NotFound("label")
+			}
+			return platform.Internal(err)
+		}
+		if _, err := s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "label", EntityID: sourceID, Op: OpDelete,
+			TeamID: source.TeamID, Scope: scope,
+		}); err != nil {
+			return err
+		}
+
+		out = toLabel(into)
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "label", EntityID: into.ID, Op: OpUpsert,
+			TeamID: into.TeamID, Scope: scope, Payload: out,
+		})
+		return err
+	})
+	return out, version, err
+}
+
+func sameOptUUID(a, b *uuid.UUID) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
 // unarchiveLabel is the way back, and the one rule it adds is about the group.
 //
 // A label lives inside a group or at the root, and archiving a group is refused while it
