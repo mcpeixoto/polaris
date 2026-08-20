@@ -43,12 +43,15 @@ import type { SyncEngine } from '~/sync/engine';
 
 import {
   ADD_FAVORITE,
+  CREATE_FAVORITE_FOLDER,
   CREATE_VIEW,
   DELETE_VIEW,
   DELETE_VIEW_SUBSCRIPTION,
+  MOVE_FAVORITE,
   REMOVE_FAVORITE,
   SET_VIEW_PREFERENCE,
   SET_VIEW_SUBSCRIPTION,
+  UPDATE_FAVORITE_FOLDER,
   UPDATE_VIEW,
 } from './operations';
 
@@ -360,10 +363,106 @@ export async function removeFavorite(
   const before = favoriteOf(store, userId, kind, targetId);
   if (before === undefined) return;
 
+  const optimistic: EntityPatch[] = [{ type: 'favorite', id: before.id, before, after: null }];
+  if (kind === 'folder') {
+    const now = new Date().toISOString();
+    for (const row of store.favorites.values()) {
+      if (row.folderId !== before.id) continue;
+      optimistic.push({
+        type: 'favorite',
+        id: row.id,
+        before: row,
+        after: { ...row, folderId: undefined, updatedAt: now },
+      });
+    }
+  }
+
   await engine.mutate({
     mutation: REMOVE_FAVORITE,
     variables: { kind: toWire(kind), targetId },
-    optimistic: [{ type: 'favorite', id: before.id, before, after: null }],
+    optimistic,
+  });
+}
+
+export async function createFavoriteFolder(
+  engine: SyncEngine,
+  userId: UUID,
+  name: string,
+): Promise<void> {
+  const trimmed = name.trim();
+  if (trimmed === '') return;
+
+  const store = engine.store;
+  const now = new Date().toISOString();
+  const id = uuidv7();
+  const provisional: Favorite = {
+    id,
+    workspaceId: store.workspaceId,
+    userId,
+    kind: 'folder',
+    targetId: id,
+    name: trimmed,
+    position: lastFavoritePosition(store, userId),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  try {
+    const data = await engine.mutate<{ createFavoriteFolder: { favorite: Favorite } }>({
+      mutation: CREATE_FAVORITE_FOLDER,
+      variables: { name: trimmed, afterFavoriteId: null },
+      optimistic: [{ type: 'favorite', id, before: null, after: provisional }],
+    });
+    swapFavorite(store, id, data.createFavoriteFolder.favorite);
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
+}
+
+export async function renameFavoriteFolder(
+  engine: SyncEngine,
+  folderId: UUID,
+  name: string,
+): Promise<void> {
+  const trimmed = name.trim();
+  if (trimmed === '') return;
+  const before = engine.store.get('favorite', folderId);
+  if (before === undefined || before.kind !== 'folder' || before.name === trimmed) return;
+
+  const after: Favorite = { ...before, name: trimmed, updatedAt: new Date().toISOString() };
+  await engine.mutate({
+    mutation: UPDATE_FAVORITE_FOLDER,
+    variables: { id: folderId, name: trimmed },
+    optimistic: [{ type: 'favorite', id: folderId, before, after }],
+  });
+}
+
+export async function moveFavorite(
+  engine: SyncEngine,
+  favoriteId: UUID,
+  folderId: UUID | null,
+): Promise<void> {
+  const before = engine.store.get('favorite', favoriteId);
+  if (before === undefined) return;
+  if (before.kind === 'folder') return;
+  const current = before.folderId ?? null;
+  if (current === folderId) return;
+
+  const after: Favorite = {
+    ...before,
+    folderId: folderId ?? undefined,
+    updatedAt: new Date().toISOString(),
+  };
+  await engine.mutate({
+    mutation: MOVE_FAVORITE,
+    variables: {
+      input: {
+        id: favoriteId,
+        ...(folderId === null ? { clearFolder: true } : { folderId }),
+      },
+    },
+    optimistic: [{ type: 'favorite', id: favoriteId, before, after }],
   });
 }
 
