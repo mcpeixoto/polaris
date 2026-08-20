@@ -168,6 +168,7 @@ func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
 	// extension.FixedComplexityLimit used to sit here and is deliberately gone: it scored
 	// every field at 1, so the ceiling it enforced was one no real query could reach.
 	h.Use(complexityBudget{})
+	h.AroundFields(graph.EnforceOauthScopes)
 
 	if !cfg.IsDevelopment() {
 		return h

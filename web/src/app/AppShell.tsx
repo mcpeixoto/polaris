@@ -452,6 +452,10 @@ export function AppShell({
               <NavGlyph name="key" />
               <span className={styles.navLabel}>API keys</span>
             </NavLink>
+            <NavLink to="/settings/oauth-apps" className={navClass}>
+              <NavGlyph name="apps" />
+              <span className={styles.navLabel}>OAuth apps</span>
+            </NavLink>
             <NavLink to="/settings/webhooks" className={navClass}>
               <NavGlyph name="webhook" />
               <span className={styles.navLabel}>Webhooks</span>
@@ -571,6 +575,7 @@ type NavGlyphName =
   | 'bell'
   | 'template'
   | 'key'
+  | 'apps'
   | 'webhook'
   | 'github'
   | 'export'
@@ -711,6 +716,15 @@ function glyphPath(name: NavGlyphName) {
         <>
           <circle cx="6" cy="8" r="2.5" {...stroke} />
           <path d="M8.2 8H14v2.2M11.5 8v2.2" {...stroke} />
+        </>
+      );
+    case 'apps':
+      return (
+        <>
+          <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" {...stroke} />
+          <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" {...stroke} />
+          <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" {...stroke} />
+          <rect x="9" y="9" width="4.5" height="4.5" rx="1" {...stroke} />
         </>
       );
     case 'webhook':
