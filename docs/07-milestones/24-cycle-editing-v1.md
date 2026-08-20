@@ -16,8 +16,7 @@ Edit cycle names and dates, start the next cycle today, and show pause gaps on t
 
 ## Deferred
 
-- Cycle graph success / target line (4.5)
-- Capacity dial (4.6)
+- Cycle graph polish and capacity dial — see `25-cycle-graph-capacity.md`
 - ICS subscription (4.7)
 - Sub-team cycle inheritance (4.8)
 

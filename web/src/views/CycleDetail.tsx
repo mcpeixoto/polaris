@@ -9,7 +9,10 @@ import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { Button, EmptyState } from '~/components';
+import { CapacityDial } from '~/features/cycles/CapacityDial';
+import { cycleCapacity } from '~/features/cycles/computeCapacity';
 import { CycleGraph } from '~/features/cycles/CycleGraph';
+import { phaseOf } from '~/features/cycles/CycleEditModal';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { IssueList, type IssueListSource } from './IssueList';
 import styles from './CycleDetail.module.css';
@@ -18,6 +21,13 @@ export function CycleDetail() {
   const navigate = useNavigate();
   const { cycleId = '' } = useParams<{ cycleId: string }>();
   const cycle = useLiveQuery((store) => store.cycles.get(cycleId) ?? null, ['cycle'], [cycleId]);
+
+  const phase = cycle === null ? null : phaseOf(cycle, Date.now());
+  const capacity = useLiveQuery(
+    (store) => (cycle === null || phase !== 'Upcoming' ? null : cycleCapacity(store, cycle.id)),
+    ['cycle', 'issue', 'team', 'teamMembership', 'workflowState'],
+    [cycle?.id ?? '', phase],
+  );
 
   const source = useMemo<IssueListSource | null>(
     () => (cycle === null ? null : { kind: 'cycle', cycleId: cycle.id }),
@@ -36,6 +46,7 @@ export function CycleDetail() {
 
   return (
     <div className={styles.screen}>
+      {capacity !== null && <CapacityDial data={capacity} />}
       <CycleGraph cycleId={cycle.id} />
       <IssueList source={source} heading={cycle.name} />
     </div>

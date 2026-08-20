@@ -11,6 +11,9 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useEngine } from '~/app/context';
 import { Button, EmptyState, IconButton, Menu } from '~/components';
 import { CycleEditModal, isNextUpcoming, phaseOf } from '~/features/cycles/CycleEditModal';
+import { CycleGraph } from '~/features/cycles/CycleGraph';
+import { CapacityDial } from '~/features/cycles/CapacityDial';
+import { cycleCapacity, type CycleCapacity } from '~/features/cycles/computeCapacity';
 import { startCycleToday, updateCycle } from '~/features/cycles/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Cycle, Store, UUID } from '~/store';
@@ -27,6 +30,7 @@ type ListRow =
       readonly issueCount: number;
       readonly phase: 'Current' | 'Upcoming' | 'Previous';
       readonly canStartToday: boolean;
+      readonly capacity: CycleCapacity | null;
     }
   | {
       readonly kind: 'gap';
@@ -111,12 +115,15 @@ export function Cycles() {
   };
 
   const menuPhase = menuCycle === null ? 'Previous' : phaseOf(menuCycle, Date.now());
+  const currentId = rows.find((row) => row.kind === 'cycle' && row.phase === 'Current')?.id;
 
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.title}>{team.name} cycles</h1>
       </header>
+
+      {currentId !== undefined && <CycleGraph cycleId={currentId} />}
 
       {!team.cyclesEnabled || rows.length === 0 ? (
         <EmptyState
@@ -149,7 +156,13 @@ export function Cycles() {
                     <span className={styles.summary}>{row.window}</span>
                   </span>
                   <span className={styles.count}>
-                    {row.issueCount === 1 ? '1 issue' : `${row.issueCount} issues`}
+                    {row.capacity !== null ? (
+                      <CapacityDial data={row.capacity} compact />
+                    ) : row.issueCount === 1 ? (
+                      '1 issue'
+                    ) : (
+                      `${row.issueCount} issues`
+                    )}
                   </span>
                 </Link>
                 <IconButton
@@ -275,6 +288,7 @@ function listRows(store: Store, teamId: UUID, cooldownWeeks: number): ListRow[] 
       issueCount: store.index.byCycle(cycle.id).size,
       phase,
       canStartToday: phase === 'Upcoming' && isNextUpcoming(cycle, cycles, now),
+      capacity: phase === 'Upcoming' ? cycleCapacity(store, cycle.id, now) : null,
     });
   }
 

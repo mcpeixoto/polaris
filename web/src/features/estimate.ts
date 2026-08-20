@@ -51,6 +51,21 @@ export function estimatesEnabled(team: EstimateSettings): boolean {
   return team.estimateScale !== 'none';
 }
 
+/**
+ * What an issue contributes to a graph, a capacity dial, or an insight.
+ *
+ * Unestimated work still counts: hiding it would make a cycle look empty because nobody
+ * had sized it yet. The unestimated default is 1, matching Linear, so a team that has not
+ * turned estimates on and a team that has but left a row blank agree on the arithmetic.
+ */
+export function effortOf(
+  issue: { readonly estimate?: number },
+  team: EstimateSettings | undefined,
+): number {
+  if (team === undefined || team.estimateScale === 'none') return 1;
+  return issue.estimate ?? 1;
+}
+
 /** The values a picker should offer, in order. */
 export function estimateOptions(team: EstimateSettings): readonly number[] {
   if (team.estimateScale === 'none') return [];

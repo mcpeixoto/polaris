@@ -65,6 +65,7 @@ import {
 } from '~/features/triage/mutations';
 import { snoozeItems } from '~/features/triage/snooze';
 import { isSnoozed, useTriageClock } from '~/features/triage/wake';
+import { InsightsPanel } from '~/features/insights/InsightsPanel';
 import { Board } from '~/features/view/ui/Board';
 import { DisplayMenu } from '~/features/view/ui/DisplayMenu';
 import { FilterBar } from '~/features/view/ui/FilterBar';
@@ -237,6 +238,8 @@ interface ListCommands {
   pickSnooze(): void;
   inTriage(): boolean;
   copyGitBranch(): void;
+  insightsOpen(): boolean;
+  toggleInsights(): void;
 }
 
 export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}) {
@@ -301,6 +304,16 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     () => rows.filter((row): row is IssueRowRef => row.kind === 'issue').map((row) => row.id),
     [rows],
   );
+  const insightIds = useMemo(() => {
+    const unique: UUID[] = [];
+    const seen = new Set<UUID>();
+    for (const id of ids) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      unique.push(id);
+    }
+    return unique;
+  }, [ids]);
   const rowIndexOf = useMemo(() => {
     const index = new Map<UUID, number>();
     rows.forEach((row, at) => {
@@ -350,6 +363,13 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const [peekOpen, setPeekOpen] = useState(false);
   const peekOpenRef = useRef(false);
   const peekHoldAt = useRef<number | null>(null);
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  const insightsOpenRef = useRef(false);
+
+  const setInsights = (open: boolean) => {
+    insightsOpenRef.current = open;
+    setInsightsOpen(open);
+  };
 
   const setPeek = (open: boolean) => {
     peekOpenRef.current = open;
@@ -411,6 +431,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     pickSnooze: () => {},
     inTriage: () => false,
     copyGitBranch: () => {},
+    insightsOpen: () => false,
+    toggleInsights: () => {},
   });
 
   const step = (delta: number): UUID | null => {
@@ -531,6 +553,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       if (row === undefined) return;
       void copyText(gitBranchNameFor(engine.store, row, viewer?.displayName ?? ''));
     },
+    insightsOpen: () => insightsOpenRef.current,
+    toggleInsights: () => setInsights(!insightsOpenRef.current),
   };
 
   useKeyContext('list');
@@ -733,6 +757,14 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         group: 'Issues',
         run: () => commands.current.exportCsv(),
       },
+      {
+        id: 'issueList.toggleInsights',
+        title: 'Toggle insights',
+        keys: ['mod+shift+i'],
+        when: 'list',
+        group: 'Views',
+        run: () => commands.current.toggleInsights(),
+      },
     ],
     [],
   );
@@ -832,6 +864,15 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             issues than exist. */}
         <Badge>{view.count === 1 ? '1 issue' : `${view.count} issues`}</Badge>
         <div className={styles.spacer} />
+        <Tooltip label="Insights" keys="mod+shift+i">
+          <Button
+            variant="ghost"
+            aria-pressed={insightsOpen}
+            onClick={() => setInsights(!insightsOpen)}
+          >
+            Insights
+          </Button>
+        </Tooltip>
         <Button {...display.props} variant="ghost">
           Display
         </Button>
@@ -865,6 +906,15 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         error={view.error}
         timezone={scope.timezone}
       />
+
+      {insightsOpen ? (
+        <InsightsPanel
+          issueIds={insightIds}
+          filter={view.filter}
+          onFilter={view.setFilter}
+          onClose={() => setInsights(false)}
+        />
+      ) : null}
 
       <DisplayMenu
         display={view.display}

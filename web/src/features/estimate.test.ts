@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { EstimateScale } from '~/store/types';
 import {
+  effortOf,
   estimateLabel,
   estimateOptions,
   estimatesEnabled,
@@ -32,6 +33,14 @@ describe('estimate scales', () => {
     expect(estimatesEnabled(team('none'))).toBe(false);
     expect(estimateOptions(team('none'))).toEqual([]);
     expect(issueEstimateLabel(3, team('none'))).toBeNull();
+  });
+
+  it('counts unestimated issues as one so graphs and insights do not go blank', () => {
+    expect(effortOf({}, team('none'))).toBe(1);
+    expect(effortOf({ estimate: 5 }, team('none'))).toBe(1);
+    expect(effortOf({}, team('fibonacci'))).toBe(1);
+    expect(effortOf({ estimate: 5 }, team('fibonacci'))).toBe(5);
+    expect(effortOf({ estimate: 0 }, team('fibonacci'))).toBe(0);
   });
 
   // The whole reason the number is stored and the scale is not: a team can switch and no
