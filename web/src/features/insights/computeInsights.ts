@@ -29,9 +29,18 @@ export const INSIGHT_SLICES = [
   'team',
   'project',
   'label',
+  'cycle',
+  'template',
 ] as const;
 
 export type InsightSlice = (typeof INSIGHT_SLICES)[number];
+
+export type BurnPeriod = 'week' | 'month';
+
+export interface InsightOptions {
+  readonly includeArchived?: boolean;
+  readonly burnPeriod?: BurnPeriod;
+}
 
 export const MEASURE_LABELS: Readonly<Record<InsightMeasure, string>> = {
   count: 'Issue count',
@@ -49,6 +58,8 @@ export const SLICE_LABELS: Readonly<Record<InsightSlice, string>> = {
   team: 'Team',
   project: 'Project',
   label: 'Label',
+  cycle: 'Cycle',
+  template: 'Template',
 };
 
 export interface InsightBucket {
@@ -66,7 +77,7 @@ export interface InsightScatterPoint {
 }
 
 export interface InsightBurnPoint {
-  readonly month: string;
+  readonly period: string;
   readonly completed: number;
 }
 
@@ -78,6 +89,7 @@ export interface InsightData {
   readonly buckets: readonly InsightBucket[];
   readonly scatter: readonly InsightScatterPoint[];
   readonly burn: readonly InsightBurnPoint[];
+  readonly percentiles: readonly number[];
   readonly total: number;
 }
 
@@ -90,13 +102,18 @@ export function buildInsights(
   measure: InsightMeasure,
   slice: InsightSlice,
   now = Date.now(),
+  options: InsightOptions = {},
 ): InsightData {
+  const includeArchived = options.includeArchived === true;
   const issues = issueIds
     .map((id) => store.issues.get(id))
-    .filter((issue): issue is Issue => issue !== undefined && issue.archivedAt === undefined);
+    .filter(
+      (issue): issue is Issue =>
+        issue !== undefined && (includeArchived || issue.archivedAt === undefined),
+    );
 
   if (measure === 'burnUp') {
-    return burnUp(store, issues);
+    return burnUp(store, issues, options.burnPeriod ?? 'month');
   }
 
   const chart: InsightData['chart'] =
@@ -158,23 +175,24 @@ export function buildInsights(
     buckets,
     scatter,
     burn: [],
+    percentiles: scatterPercentiles(scatter.map((point) => point.days)),
     total,
   };
 }
 
-function burnUp(store: Store, issues: readonly Issue[]): InsightData {
-  const months = new Map<string, number>();
+function burnUp(store: Store, issues: readonly Issue[], period: BurnPeriod): InsightData {
+  const buckets = new Map<string, number>();
   for (const issue of issues) {
     if (issue.completedAt === undefined) continue;
-    const month = issue.completedAt.slice(0, 7);
-    months.set(month, (months.get(month) ?? 0) + effortOf(issue, store.teams.get(issue.teamId)));
+    const key = periodKey(issue.completedAt, period);
+    buckets.set(key, (buckets.get(key) ?? 0) + effortOf(issue, store.teams.get(issue.teamId)));
   }
-  const keys = [...months.keys()].sort();
+  const keys = [...buckets.keys()].sort();
   const burn: InsightBurnPoint[] = [];
   let cumulative = 0;
-  for (const month of keys) {
-    cumulative += months.get(month) ?? 0;
-    burn.push({ month, completed: cumulative });
+  for (const key of keys) {
+    cumulative += buckets.get(key) ?? 0;
+    burn.push({ period: key, completed: cumulative });
   }
   return {
     measure: 'burnUp',
@@ -184,8 +202,30 @@ function burnUp(store: Store, issues: readonly Issue[]): InsightData {
     buckets: [],
     scatter: [],
     burn,
+    percentiles: [],
     total: cumulative,
   };
+}
+
+function periodKey(iso: string, period: BurnPeriod): string {
+  if (period === 'month') return iso.slice(0, 7);
+  const ms = Date.parse(iso);
+  const day = new Date(ms).getUTCDay();
+  const mondayOffset = (day + 6) % 7;
+  return new Date(ms - mondayOffset * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+/** Nearest-rank percentiles at 25 / 50 / 75 / 95 over scatter y-values. */
+export function scatterPercentiles(days: readonly number[]): readonly number[] {
+  if (days.length === 0) return [];
+  const sorted = [...days].sort((a, b) => a - b);
+  return [0.25, 0.5, 0.75, 0.95].map((p) => {
+    const at = (sorted.length - 1) * p;
+    const lo = Math.floor(at);
+    const hi = Math.ceil(at);
+    const value = lo === hi ? sorted[lo]! : sorted[lo]! + (sorted[hi]! - sorted[lo]!) * (at - lo);
+    return Math.round(value * 10) / 10;
+  });
 }
 
 function eligible(store: Store, issues: readonly Issue[], measure: InsightMeasure): Issue[] {
@@ -316,6 +356,32 @@ function dimensions(store: Store, issue: Issue, slice: InsightSlice): readonly D
         key: issue.projectId,
         label: project?.name ?? 'Project',
         filter: null,
+      },
+    ];
+  }
+  if (slice === 'cycle') {
+    if (issue.cycleId === undefined) {
+      return [{ key: NONE, label: 'No cycle', filter: null }];
+    }
+    const cycle = store.cycles.get(issue.cycleId);
+    return [
+      {
+        key: issue.cycleId,
+        label: cycle?.name ?? 'Cycle',
+        filter: null,
+      },
+    ];
+  }
+  if (slice === 'template') {
+    if (issue.templateId === undefined) {
+      return [{ key: NONE, label: 'No template', filter: { field: 'template', op: 'isNull' } }];
+    }
+    const template = store.issueTemplates.get(issue.templateId);
+    return [
+      {
+        key: issue.templateId,
+        label: template?.name ?? 'Template',
+        filter: { field: 'template', op: 'eq', values: [issue.templateId] },
       },
     ];
   }
