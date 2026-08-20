@@ -188,6 +188,11 @@ type Querier interface {
 	// remain assigned to work they can no longer see.
 	//
 	ClearExternalAssigneesInTeam(ctx context.Context, teamID uuid.UUID) ([]ClearExternalAssigneesInTeamRow, error)
+	// Children of a folder that is about to disappear. The FK would SET NULL on its own,
+	// but that write never hits the change stream, so a replica that watched the delete
+	// would keep pointing at a folder that is gone. The caller upserts these first.
+	//
+	ClearFavoritesInFolder(ctx context.Context, folderID uuid.UUID) ([]Favorite, error)
 	CompleteCycle(ctx context.Context, arg CompleteCycleParams) (Cycle, error)
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
 	ConsumeOauthAuthorizationCode(ctx context.Context, id uuid.UUID) (ConsumeOauthAuthorizationCodeRow, error)
@@ -446,6 +451,7 @@ type Querier interface {
 	GetDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	GetDocumentForUpdate(ctx context.Context, id uuid.UUID) (Document, error)
 	GetDraft(ctx context.Context, arg GetDraftParams) (Draft, error)
+	GetFavorite(ctx context.Context, id uuid.UUID) (Favorite, error)
 	GetFavoritePositionAfter(ctx context.Context, arg GetFavoritePositionAfterParams) (string, error)
 	GetFormTemplate(ctx context.Context, id uuid.UUID) (GetFormTemplateRow, error)
 	GetFormTemplateField(ctx context.Context, id uuid.UUID) (FormTemplateField, error)
@@ -1439,6 +1445,7 @@ type Querier interface {
 	UpdateDashboardTile(ctx context.Context, arg UpdateDashboardTileParams) (DashboardTile, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateDraftPayload(ctx context.Context, arg UpdateDraftPayloadParams) (Draft, error)
+	UpdateFavorite(ctx context.Context, arg UpdateFavoriteParams) (Favorite, error)
 	UpdateFormTemplate(ctx context.Context, arg UpdateFormTemplateParams) (UpdateFormTemplateRow, error)
 	UpdateFormTemplateField(ctx context.Context, arg UpdateFormTemplateFieldParams) (FormTemplateField, error)
 	UpdateGitHubConnection(ctx context.Context, arg UpdateGitHubConnectionParams) (UpdateGitHubConnectionRow, error)

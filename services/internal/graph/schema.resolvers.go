@@ -2342,6 +2342,63 @@ func (r *mutationResolver) RemoveFavorite(ctx context.Context, kind generated.Fa
 	return &generated.DeletePayload{Version: int(version), ID: removed}, nil
 }
 
+// CreateFavoriteFolder is the resolver for the createFavoriteFolder field.
+func (r *mutationResolver) CreateFavoriteFolder(ctx context.Context, name string, afterFavoriteID *uuid.UUID) (*generated.FavoritePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	favorite, version, err := r.Svc.CreateFavoriteFolder(ctx, p, name, afterFavoriteID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toFavorite(favorite)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.FavoritePayload{Version: int(version), Favorite: &out}, nil
+}
+
+// UpdateFavoriteFolder is the resolver for the updateFavoriteFolder field.
+func (r *mutationResolver) UpdateFavoriteFolder(ctx context.Context, id uuid.UUID, name string) (*generated.FavoritePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	favorite, version, err := r.Svc.UpdateFavoriteFolder(ctx, p, id, name)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toFavorite(favorite)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.FavoritePayload{Version: int(version), Favorite: &out}, nil
+}
+
+// MoveFavorite is the resolver for the moveFavorite field.
+func (r *mutationResolver) MoveFavorite(ctx context.Context, input generated.MoveFavoriteInput) (*generated.FavoritePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	clear := input.ClearFolder != nil && *input.ClearFolder
+	favorite, version, err := r.Svc.MoveFavorite(ctx, p, domain.MoveFavoriteInput{
+		ID:              input.ID,
+		FolderID:        input.FolderID,
+		ClearFolder:     clear,
+		AfterFavoriteID: input.AfterFavoriteID,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toFavorite(favorite)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.FavoritePayload{Version: int(version), Favorite: &out}, nil
+}
+
 // CreateIssueTemplate is the resolver for the createIssueTemplate field.
 func (r *mutationResolver) CreateIssueTemplate(ctx context.Context, input generated.CreateIssueTemplateInput) (*generated.IssueTemplatePayload, error) {
 	p, err := principalFrom(ctx)

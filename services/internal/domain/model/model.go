@@ -546,22 +546,25 @@ type ViewPreference struct {
 
 // Favorite is one entry in the user's own sidebar, in their own order.
 type Favorite struct {
-	ID          uuid.UUID `json:"id"`
-	WorkspaceID uuid.UUID `json:"workspaceId"`
-	UserID      uuid.UUID `json:"userId"`
-	Kind        string    `json:"kind"`
-	TargetID    uuid.UUID `json:"targetId"`
-	Position    string    `json:"position"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	UserID      uuid.UUID  `json:"userId"`
+	Kind        string     `json:"kind"`
+	TargetID    uuid.UUID  `json:"targetId"`
+	FolderID    *uuid.UUID `json:"folderId,omitempty"`
+	Name        *string    `json:"name,omitempty"`
+	Position    string     `json:"position"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
 // Favorite kinds.
 const (
-	FavoriteView  = "view"
-	FavoriteTeam  = "team"
-	FavoriteIssue = "issue"
-	FavoriteLabel = "label"
+	FavoriteView   = "view"
+	FavoriteTeam   = "team"
+	FavoriteIssue  = "issue"
+	FavoriteLabel  = "label"
+	FavoriteFolder = "folder"
 )
 
 // IssueTemplate prefills an issue.

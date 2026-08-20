@@ -131,7 +131,7 @@ import {
  * v39 is reserved for Pulse.
  * v40 adds askForm (shareable intake URLs).
  */
-export const CLIENT_SCHEMA = 40;
+export const CLIENT_SCHEMA = 41;
 
 /**
  * One database per workspace per schema version.

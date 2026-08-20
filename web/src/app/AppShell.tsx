@@ -7,7 +7,14 @@
  * offers what is actually available rather than a fixed list that fails when chosen.
  */
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type DragEvent,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 
 import { toFilterParam } from '~/filter';
@@ -17,10 +24,16 @@ import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { Menu } from '~/components';
 import { CreateIssueProvider } from '~/features/issue/create-context';
 import { type IssueComposerSeed } from '~/features/issue/create-url';
+import {
+  createFavoriteFolder,
+  moveFavorite,
+  removeFavorite,
+  renameFavoriteFolder,
+} from '~/features/view/mutations';
 import type { Favorite, Store, Team, UUID, View } from '~/store';
 
 import { useWorkspaceSession } from './Boot';
-import { useQuery, useSyncStatus } from './context';
+import { useEngine, useQuery, useSyncStatus } from './context';
 import { useActions } from './keymap';
 import { CommandMenu } from './CommandMenu';
 import { HelpOverlay } from './HelpOverlay';
@@ -94,11 +107,6 @@ export function AppShell({
   const viewer = useViewer();
   const showCustomers = viewer !== null && viewer.role !== 'guest';
   const showDashboards = showCustomers;
-  const favorites = useLiveQuery(
-    (store) => (viewerId === null ? [] : favoriteLinks(store, viewerId)),
-    ['favorite', 'view', 'team', 'issue', 'label'],
-    [viewerId],
-  );
   const views = useLiveQuery(
     (store) => (viewerId === null ? [] : visibleViews(store, viewerId)),
     ['view', 'favorite'],
@@ -419,19 +427,7 @@ export function AppShell({
             </NavLink>
           </div>
 
-          {favorites.length > 0 && (
-            <div className={styles.section}>
-              <h2 className={styles.sectionTitle}>Favourites</h2>
-              {favorites.map((favorite) => (
-                <NavLink key={favorite.id} to={favorite.to} className={navClass}>
-                  {favorite.prefix !== null && (
-                    <span className={styles.teamKey}>{favorite.prefix}</span>
-                  )}
-                  <span className={styles.navLabel}>{favorite.label}</span>
-                </NavLink>
-              ))}
-            </div>
-          )}
+          {viewerId !== null && <FavoritesSection userId={viewerId} />}
 
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>Teams</h2>
@@ -617,6 +613,151 @@ function TeamNavItems({
 // out, not render the literal "undefined" into the DOM.
 function navClass({ isActive }: { isActive: boolean }): string {
   return [styles.navItem, isActive ? styles.navItemActive : null].filter(Boolean).join(' ');
+}
+
+const FAVORITE_DRAG = 'text/polaris-favorite';
+
+function FavoritesSection({ userId }: { userId: UUID }) {
+  const engine = useEngine();
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState('');
+  const nav = useLiveQuery(
+    (store) => favoriteNav(store, userId),
+    ['favorite', 'view', 'team', 'issue', 'label'],
+    [userId],
+  );
+
+  if (nav.folders.length === 0 && nav.unfiled.length === 0 && !creating) return null;
+
+  const submitFolder = (event: FormEvent) => {
+    event.preventDefault();
+    const name = draft.trim();
+    if (name === '') return;
+    void createFavoriteFolder(engine, userId, name);
+    setDraft('');
+    setCreating(false);
+  };
+
+  const onDropOn = (folderId: UUID | null) => (event: DragEvent) => {
+    event.preventDefault();
+    const id = event.dataTransfer.getData(FAVORITE_DRAG);
+    if (id === '') return;
+    void moveFavorite(engine, id, folderId);
+  };
+
+  return (
+    <div className={styles.section}>
+      <h2 className={styles.sectionTitle}>
+        Favourites
+        <button type="button" className={styles.folderAction} onClick={() => setCreating(true)}>
+          New folder
+        </button>
+      </h2>
+
+      {creating ? (
+        <form className={styles.folderCreate} onSubmit={submitFolder}>
+          <input
+            aria-label="Folder name"
+            value={draft}
+            placeholder="Folder name"
+            autoFocus
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => {
+              if (draft.trim() === '') setCreating(false);
+            }}
+          />
+        </form>
+      ) : null}
+
+      {nav.folders.map((folder) => (
+        <div
+          key={folder.id}
+          className={styles.folder}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={onDropOn(folder.id)}
+        >
+          <FolderHeader
+            folder={folder}
+            onRename={(name) => void renameFavoriteFolder(engine, folder.id, name)}
+            onDelete={() => void removeFavorite(engine, userId, 'folder', folder.id)}
+          />
+          {folder.items.map((item) => (
+            <FavoriteItem key={item.id} item={item} />
+          ))}
+        </div>
+      ))}
+
+      <div onDragOver={(event) => event.preventDefault()} onDrop={onDropOn(null)}>
+        {nav.unfiled.map((item) => (
+          <FavoriteItem key={item.id} item={item} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FolderHeader({
+  folder,
+  onRename,
+  onDelete,
+}: {
+  folder: FavoriteFolderNav;
+  onRename: (name: string) => void;
+  onDelete: () => void;
+}) {
+  const [name, setName] = useState(folder.name);
+  const commit = () => {
+    const trimmed = name.trim();
+    if (trimmed === '' || trimmed === folder.name) {
+      setName(folder.name);
+      return;
+    }
+    onRename(trimmed);
+  };
+
+  return (
+    <div className={styles.folderHeader}>
+      <form
+        className={styles.folderName}
+        onSubmit={(event) => {
+          event.preventDefault();
+          commit();
+        }}
+      >
+        <input
+          aria-label={`Folder ${folder.name}`}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onBlur={commit}
+        />
+      </form>
+      <button
+        type="button"
+        className={styles.folderAction}
+        onClick={onDelete}
+        aria-label={`Delete ${folder.name}`}
+      >
+        Delete
+      </button>
+    </div>
+  );
+}
+
+function FavoriteItem({ item }: { item: FavoriteLink }) {
+  return (
+    <NavLink
+      to={item.to}
+      className={navClass}
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData(FAVORITE_DRAG, item.id);
+        event.dataTransfer.effectAllowed = 'move';
+      }}
+    >
+      {item.prefix !== null && <span className={styles.teamKey}>{item.prefix}</span>}
+      <span className={styles.navLabel}>{item.label}</span>
+    </NavLink>
+  );
 }
 
 type NavGlyphName =
@@ -913,26 +1054,62 @@ interface FavoriteLink {
   readonly prefix: string | null;
 }
 
+interface FavoriteFolderNav {
+  readonly id: UUID;
+  readonly name: string;
+  readonly items: readonly FavoriteLink[];
+}
+
+interface FavoriteNav {
+  readonly folders: readonly FavoriteFolderNav[];
+  readonly unfiled: readonly FavoriteLink[];
+}
+
 /**
- * The viewer's favourites, resolved to links.
+ * The viewer's favourites, resolved to links and grouped into folders.
  *
  * A favourite whose target is not in the replica is dropped rather than rendered as a row
  * with a blank name: the entity may have been deleted, or may be in a team this person has
  * since left, and either way a sidebar entry that goes nowhere is worse than one fewer entry.
  * The server's own delta removes the row soon enough.
  */
-function favoriteLinks(store: Store, userId: UUID): readonly FavoriteLink[] {
-  const links: FavoriteLink[] = [];
-
+function favoriteNav(store: Store, userId: UUID): FavoriteNav {
   const ordered = [...store.favorites.values()]
     .filter((favorite) => favorite.userId === userId)
     .sort((a, b) => a.position.localeCompare(b.position));
 
+  const folderIds = new Set<UUID>();
   for (const favorite of ordered) {
-    const link = favoriteLink(store, favorite);
-    if (link !== null) links.push(link);
+    if (favorite.kind === 'folder') folderIds.add(favorite.id);
   }
-  return links;
+
+  const itemsByFolder = new Map<UUID, FavoriteLink[]>();
+  const unfiled: FavoriteLink[] = [];
+
+  for (const favorite of ordered) {
+    if (favorite.kind === 'folder') continue;
+    const link = favoriteLink(store, favorite);
+    if (link === null) continue;
+    if (favorite.folderId !== undefined && folderIds.has(favorite.folderId)) {
+      const bucket = itemsByFolder.get(favorite.folderId) ?? [];
+      bucket.push(link);
+      itemsByFolder.set(favorite.folderId, bucket);
+      continue;
+    }
+    unfiled.push(link);
+  }
+
+  const folders: FavoriteFolderNav[] = [];
+  for (const favorite of ordered) {
+    if (favorite.kind !== 'folder') continue;
+    folders.push({
+      id: favorite.id,
+      name: favorite.name ?? 'Folder',
+      items: itemsByFolder.get(favorite.id) ?? [],
+    });
+  }
+
+  return { folders, unfiled };
 }
 
 function favoriteLink(store: Store, favorite: Favorite): FavoriteLink | null {
@@ -976,6 +1153,8 @@ function favoriteLink(store: Store, favorite: Favorite): FavoriteLink | null {
         prefix: null,
       };
     }
+    case 'folder':
+      return null;
   }
 }
 
