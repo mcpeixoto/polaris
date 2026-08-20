@@ -3428,6 +3428,148 @@ func (r *mutationResolver) DeleteGitHubTeamAutomation(ctx context.Context, teamI
 	return githubTeamAutomationPayload(auto), nil
 }
 
+// CreateGitLabConnection is the resolver for the createGitLabConnection field.
+func (r *mutationResolver) CreateGitLabConnection(ctx context.Context, input generated.CreateGitLabConnectionInput) (*generated.GitLabConnectionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	conn, _, version, err := r.Svc.CreateGitLabConnection(ctx, p, domain.CreateGitLabConnectionInput{
+		InstanceURL:      input.InstanceURL,
+		AccessToken:      input.AccessToken,
+		BranchNameFormat: input.BranchNameFormat,
+		LinkCommits:      input.LinkCommits,
+		Linkbacks:        input.Linkbacks,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitLabConnection(conn)
+	return &generated.GitLabConnectionPayload{Version: int(version), GitlabConnection: &out}, nil
+}
+
+// UpdateGitLabConnection is the resolver for the updateGitLabConnection field.
+func (r *mutationResolver) UpdateGitLabConnection(ctx context.Context, input generated.UpdateGitLabConnectionInput) (*generated.GitLabConnectionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	conn, version, err := r.Svc.UpdateGitLabConnection(ctx, p, domain.UpdateGitLabConnectionInput{
+		InstanceURL:      input.InstanceURL,
+		AccessToken:      input.AccessToken,
+		BranchNameFormat: input.BranchNameFormat,
+		LinkCommits:      input.LinkCommits,
+		Linkbacks:        input.Linkbacks,
+		Enabled:          input.Enabled,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitLabConnection(conn)
+	return &generated.GitLabConnectionPayload{Version: int(version), GitlabConnection: &out}, nil
+}
+
+// DeleteGitLabConnection is the resolver for the deleteGitLabConnection field.
+func (r *mutationResolver) DeleteGitLabConnection(ctx context.Context) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	id, version, err := r.Svc.DeleteGitLabConnection(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// CreateGitLabUserLink is the resolver for the createGitLabUserLink field.
+func (r *mutationResolver) CreateGitLabUserLink(ctx context.Context, input generated.CreateGitLabUserLinkInput) (*generated.GitLabUserLinkPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	link, version, err := r.Svc.CreateGitLabUserLink(ctx, p, domain.CreateGitLabUserLinkInput{
+		GitLabUsername: input.GitlabUsername,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitLabUserLink(link)
+	return &generated.GitLabUserLinkPayload{Version: int(version), GitlabUserLink: &out}, nil
+}
+
+// DeleteGitLabUserLink is the resolver for the deleteGitLabUserLink field.
+func (r *mutationResolver) DeleteGitLabUserLink(ctx context.Context) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	id, version, err := r.Svc.DeleteGitLabUserLink(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// LinkGitLabMergeRequest is the resolver for the linkGitLabMergeRequest field.
+func (r *mutationResolver) LinkGitLabMergeRequest(ctx context.Context, input generated.LinkGitLabMergeRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.GitLabLinkPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.LinkGitLabMergeRequestInput{
+		URL:             input.URL,
+		Title:           deref(input.Title),
+		Body:            deref(input.Body),
+		BranchName:      deref(input.BranchName),
+		Draft:           deref(input.Draft),
+		Merged:          deref(input.Merged),
+		MergeableState:  deref(input.MergeableState),
+		ReviewRequested: deref(input.ReviewRequested),
+	}
+	atts, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) ([]model.Attachment, int64, error) {
+			return r.Svc.LinkGitLabMergeRequest(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.GitLabLinkPayload{Version: int(version), Attachments: toAttachments(atts)}, nil
+}
+
+// UpdateGitLabTeamAutomation is the resolver for the updateGitLabTeamAutomation field.
+func (r *mutationResolver) UpdateGitLabTeamAutomation(ctx context.Context, input generated.UpdateGitLabTeamAutomationInput) (*generated.GitLabTeamAutomationPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	auto, err := r.Svc.UpdateGitLabTeamAutomation(ctx, p, domain.UpdateGitLabTeamAutomationInput{
+		TeamID:                 input.TeamID,
+		DraftedStateID:         input.DraftedStateID,
+		OpenedStateID:          input.OpenedStateID,
+		ReviewRequestedStateID: input.ReviewRequestedStateID,
+		ReadyForMergeStateID:   input.ReadyForMergeStateID,
+		MergedStateID:          input.MergedStateID,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return gitlabTeamAutomationPayload(auto), nil
+}
+
+// DeleteGitLabTeamAutomation is the resolver for the deleteGitLabTeamAutomation field.
+func (r *mutationResolver) DeleteGitLabTeamAutomation(ctx context.Context, teamID uuid.UUID) (*generated.GitLabTeamAutomationPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	auto, err := r.Svc.DeleteGitLabTeamAutomation(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return gitlabTeamAutomationPayload(auto), nil
+}
+
 // CreateDraft is the resolver for the createDraft field.
 func (r *mutationResolver) CreateDraft(ctx context.Context, input generated.CreateDraftInput) (*generated.DraftPayload, error) {
 	p, err := principalFrom(ctx)
@@ -4734,6 +4876,73 @@ func (r *queryResolver) GithubTeamAutomation(ctx context.Context, teamID uuid.UU
 		return nil, PresentError(ctx, err)
 	}
 	out := toGitHubTeamAutomation(auto)
+	return &out, nil
+}
+
+// GitlabConnection is the resolver for the gitlabConnection field.
+func (r *queryResolver) GitlabConnection(ctx context.Context) (*generated.GitLabConnection, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	conn, err := r.Svc.GetGitLabConnection(ctx, p)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitLabConnection(conn)
+	return &out, nil
+}
+
+// GitlabUserLink is the resolver for the gitlabUserLink field.
+func (r *queryResolver) GitlabUserLink(ctx context.Context) (*generated.GitLabUserLink, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	link, err := r.Svc.GetGitLabUserLink(ctx, p)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitLabUserLink(link)
+	return &out, nil
+}
+
+// GitlabWebhook is the resolver for the gitlabWebhook field.
+func (r *queryResolver) GitlabWebhook(ctx context.Context) (*generated.GitLabWebhook, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	secret, err := r.Svc.GetGitLabWebhookSecret(ctx, p)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.GitLabWebhook{
+		URL:    gitlabWebhookURL(r.PublicURL, p.WorkspaceID.String()),
+		Secret: secret,
+	}, nil
+}
+
+// GitlabTeamAutomation is the resolver for the gitlabTeamAutomation field.
+func (r *queryResolver) GitlabTeamAutomation(ctx context.Context, teamID uuid.UUID) (*generated.GitLabTeamAutomation, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	auto, err := r.Svc.GetGitLabTeamAutomation(ctx, p, teamID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toGitLabTeamAutomation(auto)
 	return &out, nil
 }
 

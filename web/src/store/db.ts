@@ -19,6 +19,8 @@ import {
   type Favorite,
   type GitHubConnection,
   type GitHubUserLink,
+  type GitLabConnection,
+  type GitLabUserLink,
   type Issue,
   type IssueLabel,
   type IssueRelation,
@@ -124,9 +126,12 @@ import {
  * serving without the new comment columns.
  * v35 adds dashboard and dashboardTile.
  * v36 adds viewSubscription (personal watches on a saved view).
- * v37 adds askForm (shareable intake URLs).
+ * v37 is reserved for a concurrent slice.
+ * v38 adds gitlabConnection and gitlabUserLink (GitLab v1 linking, no secrets).
+ * v39 is reserved for Pulse.
+ * v40 adds askForm (shareable intake URLs).
  */
-export const CLIENT_SCHEMA = 37;
+export const CLIENT_SCHEMA = 40;
 
 /**
  * One database per workspace per schema version.
@@ -200,6 +205,8 @@ interface PolarisSchema extends DBSchema {
   user: { key: UUID; value: User };
   githubConnection: { key: UUID; value: GitHubConnection };
   githubUserLink: { key: UUID; value: GitHubUserLink };
+  gitlabConnection: { key: UUID; value: GitLabConnection };
+  gitlabUserLink: { key: UUID; value: GitLabUserLink };
   team: { key: UUID; value: Team };
   teamMembership: { key: UUID; value: TeamMembership };
   workflowState: { key: UUID; value: WorkflowState };

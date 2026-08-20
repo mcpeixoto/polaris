@@ -310,6 +310,39 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if includeWorkspaceScoped {
+			if err := streamPages(ctx, w, "gitlabConnection",
+				func(ctx context.Context, after uuid.UUID) ([]store.StreamGitLabConnectionsForBootstrapRow, error) {
+					return q.StreamGitLabConnectionsForBootstrap(ctx, store.StreamGitLabConnectionsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(c store.StreamGitLabConnectionsForBootstrapRow) (uuid.UUID, any) {
+					return c.ID, gitLabConnectionFromStream(c)
+				},
+			); err != nil {
+				return err
+			}
+		}
+
+		if err := streamPages(ctx, w, "gitlabUserLink",
+			func(ctx context.Context, after uuid.UUID) ([]store.GitlabUserLink, error) {
+				return q.StreamGitLabUserLinksForBootstrap(ctx, store.StreamGitLabUserLinksForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					UserID:      p.UserID,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(l store.GitlabUserLink) (uuid.UUID, any) {
+				return l.ID, gitLabUserLinkFromStore(l)
+			},
+		); err != nil {
+			return err
+		}
+
 		teams, err := q.ListTeamsInWorkspace(ctx, p.WorkspaceID)
 		if err != nil {
 			return platform.Internal(err)
@@ -1059,8 +1092,11 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // serving without the new comment columns.
 // v35 adds dashboard and dashboardTile (Insights tiles on a page).
 // v36 adds viewSubscription (personal watches on a saved view).
-// v37 adds askForm (shareable intake URLs; submit is HTTP, not GraphQL).
-const ClientSchemaVersion = 37
+// v37 is reserved for a concurrent slice.
+// v38 adds gitlabConnection and gitlabUserLink (GitLab v1 linking, no secrets).
+// v39 is reserved for Pulse.
+// v40 adds askForm (shareable intake URLs; submit is HTTP, not GraphQL).
+const ClientSchemaVersion = 40
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

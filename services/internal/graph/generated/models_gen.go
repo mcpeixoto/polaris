@@ -288,6 +288,18 @@ type CreateGitHubUserLinkInput struct {
 	GithubLogin string `json:"githubLogin"`
 }
 
+type CreateGitLabConnectionInput struct {
+	InstanceURL      *string `json:"instanceUrl,omitempty"`
+	AccessToken      *string `json:"accessToken,omitempty"`
+	BranchNameFormat *string `json:"branchNameFormat,omitempty"`
+	LinkCommits      *bool   `json:"linkCommits,omitempty"`
+	Linkbacks        *bool   `json:"linkbacks,omitempty"`
+}
+
+type CreateGitLabUserLinkInput struct {
+	GitlabUsername string `json:"gitlabUsername"`
+}
+
 type CreateInitiativeInput struct {
 	Name                  string                `json:"name"`
 	Description           *string               `json:"description,omitempty"`
@@ -870,6 +882,78 @@ type GitHubUserLinkPayload struct {
 
 func (GitHubUserLinkPayload) IsMutationResult() {}
 
+// Workspace GitLab instance. Credentials are not on this type: the replica carries the
+// settings a client needs to copy a git branch name, and nothing that could be a token.
+// One GitLab instance per workspace; self-hosted is an instance URL with no path.
+type GitLabConnection struct {
+	ID               uuid.UUID `json:"id"`
+	WorkspaceID      uuid.UUID `json:"workspaceId"`
+	CreatorID        uuid.UUID `json:"creatorId"`
+	Enabled          bool      `json:"enabled"`
+	InstanceURL      string    `json:"instanceUrl"`
+	BranchNameFormat string    `json:"branchNameFormat"`
+	LinkCommits      bool      `json:"linkCommits"`
+	// When false, skip posting a note back onto the GitLab MR or commit.
+	Linkbacks   bool       `json:"linkbacks"`
+	ConnectedAt *time.Time `json:"connectedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
+type GitLabConnectionPayload struct {
+	Version          int               `json:"version"`
+	GitlabConnection *GitLabConnection `json:"gitlabConnection"`
+}
+
+func (GitLabConnectionPayload) IsMutationResult() {}
+
+type GitLabLinkPayload struct {
+	Version     int          `json:"version"`
+	Attachments []Attachment `json:"attachments"`
+}
+
+func (GitLabLinkPayload) IsMutationResult() {}
+
+// GitLab merge-request status automations for one team.
+//
+// Not replicated: a mapping is a settings row, not a sync entity. When configured is
+// false, opened moves to the first Started status and a merged closing MR moves to the
+// first Completed status. A present row with a null field means no action for that event.
+type GitLabTeamAutomation struct {
+	TeamID                 uuid.UUID  `json:"teamId"`
+	Configured             bool       `json:"configured"`
+	DraftedStateID         *uuid.UUID `json:"draftedStateId,omitempty"`
+	OpenedStateID          *uuid.UUID `json:"openedStateId,omitempty"`
+	ReviewRequestedStateID *uuid.UUID `json:"reviewRequestedStateId,omitempty"`
+	ReadyForMergeStateID   *uuid.UUID `json:"readyForMergeStateId,omitempty"`
+	MergedStateID          *uuid.UUID `json:"mergedStateId,omitempty"`
+}
+
+type GitLabTeamAutomationPayload struct {
+	GitlabTeamAutomation *GitLabTeamAutomation `json:"gitlabTeamAutomation"`
+}
+
+type GitLabUserLink struct {
+	ID             uuid.UUID `json:"id"`
+	WorkspaceID    uuid.UUID `json:"workspaceId"`
+	UserID         uuid.UUID `json:"userId"`
+	GitlabUsername string    `json:"gitlabUsername"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+type GitLabUserLinkPayload struct {
+	Version        int             `json:"version"`
+	GitlabUserLink *GitLabUserLink `json:"gitlabUserLink"`
+}
+
+func (GitLabUserLinkPayload) IsMutationResult() {}
+
+type GitLabWebhook struct {
+	URL    string `json:"url"`
+	Secret string `json:"secret"`
+}
+
 // A workspace objective grouping a manually curated set of projects.
 type Initiative struct {
 	ID                    uuid.UUID             `json:"id"`
@@ -1179,6 +1263,18 @@ type LabelPayload struct {
 func (LabelPayload) IsMutationResult() {}
 
 type LinkGitHubPullRequestInput struct {
+	URL        string  `json:"url"`
+	Title      *string `json:"title,omitempty"`
+	Body       *string `json:"body,omitempty"`
+	BranchName *string `json:"branchName,omitempty"`
+	// Webhook-shaped flags so the public API can drive the same status automations.
+	Draft           *bool   `json:"draft,omitempty"`
+	Merged          *bool   `json:"merged,omitempty"`
+	MergeableState  *string `json:"mergeableState,omitempty"`
+	ReviewRequested *bool   `json:"reviewRequested,omitempty"`
+}
+
+type LinkGitLabMergeRequestInput struct {
 	URL        string  `json:"url"`
 	Title      *string `json:"title,omitempty"`
 	Body       *string `json:"body,omitempty"`
@@ -1888,6 +1984,24 @@ type UpdateGitHubConnectionInput struct {
 }
 
 type UpdateGitHubTeamAutomationInput struct {
+	TeamID                 uuid.UUID  `json:"teamId"`
+	DraftedStateID         *uuid.UUID `json:"draftedStateId,omitempty"`
+	OpenedStateID          *uuid.UUID `json:"openedStateId,omitempty"`
+	ReviewRequestedStateID *uuid.UUID `json:"reviewRequestedStateId,omitempty"`
+	ReadyForMergeStateID   *uuid.UUID `json:"readyForMergeStateId,omitempty"`
+	MergedStateID          *uuid.UUID `json:"mergedStateId,omitempty"`
+}
+
+type UpdateGitLabConnectionInput struct {
+	InstanceURL      *string `json:"instanceUrl,omitempty"`
+	AccessToken      *string `json:"accessToken,omitempty"`
+	BranchNameFormat *string `json:"branchNameFormat,omitempty"`
+	LinkCommits      *bool   `json:"linkCommits,omitempty"`
+	Linkbacks        *bool   `json:"linkbacks,omitempty"`
+	Enabled          *bool   `json:"enabled,omitempty"`
+}
+
+type UpdateGitLabTeamAutomationInput struct {
 	TeamID                 uuid.UUID  `json:"teamId"`
 	DraftedStateID         *uuid.UUID `json:"draftedStateId,omitempty"`
 	OpenedStateID          *uuid.UUID `json:"openedStateId,omitempty"`

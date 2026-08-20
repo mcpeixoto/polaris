@@ -345,6 +345,32 @@ function oneOfEach(): EntityRow[] {
         updatedAt: NOW,
       },
     },
+    {
+      type: 'gitlabConnection',
+      entity: {
+        id: 'glc1',
+        workspaceId: 'w',
+        creatorId: 'u1',
+        enabled: true,
+        instanceUrl: 'https://gitlab.com',
+        branchNameFormat: '{identifier}-{title}',
+        linkCommits: false,
+        linkbacks: true,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'gitlabUserLink',
+      entity: {
+        id: 'gll1',
+        workspaceId: 'w',
+        userId: 'u1',
+        gitlabUsername: 'ada',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
     { type: 'team', entity: team('t1', 'ENG') },
     {
       type: 'teamMembership',

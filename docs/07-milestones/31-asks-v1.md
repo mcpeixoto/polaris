@@ -1,8 +1,8 @@
 # Asks v1 (intake from a shareable form)
 
 **Status:** shipped on main  
-**Migration:** `000056_ask_forms`  
-**Client schema:** 37
+**Migration:** `000059_ask_forms`  
+**Client schema:** 40
 
 Slack-less intake: a token URL that anyone (no account) can submit. Each submission creates a triage issue on the form's team.
 
