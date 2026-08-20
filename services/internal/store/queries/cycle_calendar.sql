@@ -19,6 +19,15 @@ SELECT id, workspace_id, team_id, user_id, created_at, updated_at
 FROM cycle_calendar_feed
 WHERE token = $1;
 
+-- RotateCycleCalendarFeedToken replaces the secret. The previous URL 404s from this
+-- statement's commit; RETURNING omits token for the same reason Create does.
+--
+-- name: RotateCycleCalendarFeedToken :one
+UPDATE cycle_calendar_feed
+SET token = sqlc.arg(token)
+WHERE team_id = sqlc.arg(team_id) AND user_id = sqlc.arg(user_id)
+RETURNING id, workspace_id, team_id, user_id, created_at, updated_at;
+
 -- name: StreamCycleCalendarFeedsForBootstrap :many
 SELECT id, workspace_id, team_id, user_id, created_at, updated_at
 FROM cycle_calendar_feed

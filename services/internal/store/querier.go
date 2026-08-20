@@ -1134,6 +1134,10 @@ type Querier interface {
 	//
 	RevokePendingInvitesForEmail(ctx context.Context, arg RevokePendingInvitesForEmailParams) error
 	RevokeSession(ctx context.Context, id uuid.UUID) error
+	// RotateCycleCalendarFeedToken replaces the secret. The previous URL 404s from this
+	// statement's commit; RETURNING omits token for the same reason Create does.
+	//
+	RotateCycleCalendarFeedToken(ctx context.Context, arg RotateCycleCalendarFeedTokenParams) (RotateCycleCalendarFeedTokenRow, error)
 	RotateOauthApplicationSecret(ctx context.Context, arg RotateOauthApplicationSecretParams) (RotateOauthApplicationSecretRow, error)
 	SetAccountPassword(ctx context.Context, arg SetAccountPasswordParams) error
 	SetCommentResolution(ctx context.Context, arg SetCommentResolutionParams) (Comment, error)
