@@ -241,6 +241,7 @@ describe('the settings section', () => {
       'OAuth apps',
       'Webhooks',
       'GitHub',
+      'GitLab',
       'Export',
       'Trash',
       'Deleted teams',

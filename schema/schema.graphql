@@ -1902,6 +1902,118 @@ input UpdateGitHubTeamAutomationInput {
 }
 
 """
+Workspace GitLab instance. Credentials are not on this type: the replica carries the
+settings a client needs to copy a git branch name, and nothing that could be a token.
+One GitLab instance per workspace; self-hosted is an instance URL with no path.
+"""
+type GitLabConnection {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  enabled: Boolean!
+  instanceUrl: String!
+  branchNameFormat: String!
+  linkCommits: Boolean!
+  """When false, skip posting a note back onto the GitLab MR or commit."""
+  linkbacks: Boolean!
+  connectedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type GitLabUserLink {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  gitlabUsername: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type GitLabWebhook {
+  url: String!
+  secret: String!
+}
+
+"""
+GitLab merge-request status automations for one team.
+
+Not replicated: a mapping is a settings row, not a sync entity. When configured is
+false, opened moves to the first Started status and a merged closing MR moves to the
+first Completed status. A present row with a null field means no action for that event.
+"""
+type GitLabTeamAutomation {
+  teamId: UUID!
+  configured: Boolean!
+  draftedStateId: UUID
+  openedStateId: UUID
+  reviewRequestedStateId: UUID
+  readyForMergeStateId: UUID
+  mergedStateId: UUID
+}
+
+type GitLabTeamAutomationPayload {
+  gitlabTeamAutomation: GitLabTeamAutomation!
+}
+
+type GitLabConnectionPayload implements MutationResult {
+  version: Int!
+  gitlabConnection: GitLabConnection!
+}
+
+type GitLabUserLinkPayload implements MutationResult {
+  version: Int!
+  gitlabUserLink: GitLabUserLink!
+}
+
+type GitLabLinkPayload implements MutationResult {
+  version: Int!
+  attachments: [Attachment!]!
+}
+
+input CreateGitLabConnectionInput {
+  instanceUrl: String
+  accessToken: String
+  branchNameFormat: String
+  linkCommits: Boolean
+  linkbacks: Boolean
+}
+
+input UpdateGitLabConnectionInput {
+  instanceUrl: String
+  accessToken: String
+  branchNameFormat: String
+  linkCommits: Boolean
+  linkbacks: Boolean
+  enabled: Boolean
+}
+
+input CreateGitLabUserLinkInput {
+  gitlabUsername: String!
+}
+
+input LinkGitLabMergeRequestInput {
+  url: String!
+  title: String
+  body: String
+  branchName: String
+  """Webhook-shaped flags so the public API can drive the same status automations."""
+  draft: Boolean
+  merged: Boolean
+  mergeableState: String
+  reviewRequested: Boolean
+}
+
+input UpdateGitLabTeamAutomationInput {
+  teamId: UUID!
+  draftedStateId: UUID
+  openedStateId: UUID
+  reviewRequestedStateId: UUID
+  readyForMergeStateId: UUID
+  mergedStateId: UUID
+}
+
+"""
 A bulk update returns the issues it changed and the single version the whole batch landed
 at, because it emits one version block rather than one per issue.
 """
@@ -2725,6 +2837,14 @@ type Query {
   githubCommitWebhook: GitHubCommitWebhook
   """Per-team GitHub PR status automations. Unconfigured teams use the product defaults."""
   githubTeamAutomation(teamId: UUID!): GitHubTeamAutomation!
+  """The workspace GitLab instance, if any. Secrets are on gitlabWebhook, not here."""
+  gitlabConnection: GitLabConnection
+  """The caller's linked GitLab account, if they have connected one."""
+  gitlabUserLink: GitLabUserLink
+  """Admin-only. The URL and token to paste into GitLab as a Group or Project webhook."""
+  gitlabWebhook: GitLabWebhook
+  """Per-team GitLab MR status automations. Unconfigured teams use the product defaults."""
+  gitlabTeamAutomation(teamId: UUID!): GitLabTeamAutomation!
 }
 
 """
@@ -2999,6 +3119,15 @@ type Mutation {
   linkGitHubPullRequest(input: LinkGitHubPullRequestInput!, clientId: UUID, opId: UUID): GitHubLinkPayload! @idempotent
   updateGitHubTeamAutomation(input: UpdateGitHubTeamAutomationInput!): GitHubTeamAutomationPayload!
   deleteGitHubTeamAutomation(teamId: UUID!): GitHubTeamAutomationPayload!
+
+  createGitLabConnection(input: CreateGitLabConnectionInput!): GitLabConnectionPayload!
+  updateGitLabConnection(input: UpdateGitLabConnectionInput!): GitLabConnectionPayload!
+  deleteGitLabConnection: DeletePayload!
+  createGitLabUserLink(input: CreateGitLabUserLinkInput!): GitLabUserLinkPayload!
+  deleteGitLabUserLink: DeletePayload!
+  linkGitLabMergeRequest(input: LinkGitLabMergeRequestInput!, clientId: UUID, opId: UUID): GitLabLinkPayload! @idempotent
+  updateGitLabTeamAutomation(input: UpdateGitLabTeamAutomationInput!): GitLabTeamAutomationPayload!
+  deleteGitLabTeamAutomation(teamId: UUID!): GitLabTeamAutomationPayload!
 
   # ---- drafts (personal, on-demand; not replicated)
 

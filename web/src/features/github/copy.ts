@@ -11,8 +11,10 @@ import type { Issue, Store } from '~/store';
 import { DEFAULT_GIT_BRANCH_FORMAT, formatGitBranchName } from './branch';
 
 export function gitBranchNameFor(store: Store, issue: Issue, user: string): string {
-  const connection = [...store.githubConnections.values()][0];
-  return formatGitBranchName(connection?.branchNameFormat ?? DEFAULT_GIT_BRANCH_FORMAT, {
+  const github = [...store.githubConnections.values()][0];
+  const gitlab = [...store.gitlabConnections.values()][0];
+  const format = github?.branchNameFormat ?? gitlab?.branchNameFormat ?? DEFAULT_GIT_BRANCH_FORMAT;
+  return formatGitBranchName(format, {
     identifier: store.identifierOf(issue),
     title: issue.title,
     user,
