@@ -1,7 +1,7 @@
 # Slack v1 (channel notify, slash, unfurls)
 
 **Status:** shipped on main  
-**Migration:** `000063_slack`  
+**Migration:** `000065_slack`  
 **Client schema:** 44
 
 Workspace Slack install: an optional Slack incoming-webhook URL posts issue and comment events to a channel. Slash commands create or comment on issues. Link unfurls and magic-word linkbacks use a Slack app whose signing secret and bot token live in process env.

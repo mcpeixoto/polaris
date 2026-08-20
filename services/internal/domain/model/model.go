@@ -835,7 +835,7 @@ type OauthClientInfo struct {
 //
 // Not on the sync stream: it is an inbox of requests, read on the integrations screen,
 // and not something the replica needs in order to render the catalogue that already
-// ships. Slack's 000063 is reserved on feat/slack-v1; this is 000064.
+// ships. This is 000064; Slack is 000065.
 type IntegrationSubmission struct {
 	ID          uuid.UUID `json:"id"`
 	WorkspaceID uuid.UUID `json:"workspaceId"`
