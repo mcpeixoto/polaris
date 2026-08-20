@@ -636,8 +636,8 @@ function EmailIntakeSettings({
         Create issues by email
       </h2>
       <p className={styles.sectionHint}>
-        Mail sent to this team&rsquo;s address becomes an issue. Replies do not create a second
-        one. In development, POST JSON to <code>/webhooks/email</code> — no mail server required.
+        Mail sent to this team&rsquo;s address becomes an issue. Replies do not create a second one.
+        In development, POST JSON to <code>/webhooks/email</code> — no mail server required.
       </p>
 
       <Checkbox
