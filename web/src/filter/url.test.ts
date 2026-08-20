@@ -191,6 +191,7 @@ describe('display options in a URL', () => {
       direction: 'desc' as const,
       showSubIssues: false,
       showCompleted: false,
+      showSnoozed: true,
       properties: ['priority', 'labels'] as const,
     };
     const params = new URLSearchParams(toDisplayParams(display));

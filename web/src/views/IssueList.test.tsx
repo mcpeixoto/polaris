@@ -576,6 +576,45 @@ describe('triage', () => {
     expect(sent.mutation).toContain('acceptTriageIssue');
     expect(sent.variables.id).toBe('issue-9');
   });
+
+  it('hides snoozed issues until the display option is on', () => {
+    const store = triageStore();
+    store.applyChanges([
+      {
+        v: 15,
+        type: 'issue',
+        id: 'issue-10',
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: {
+          ...issue(10, 'Snoozed until later', 's-triage', 'Y'),
+          snoozedUntil: '2099-01-01T00:00:00Z',
+        },
+      },
+    ] as Change[]);
+    const mutate = vi.fn().mockResolvedValue({});
+    const engine = { store, mutate } as unknown as SyncEngine;
+
+    const tree = (path: string) => (
+      <MemoryRouter initialEntries={[path]}>
+        <KeymapProvider>
+          <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+            <Routes>
+              <Route path="/team/:teamKey/triage" element={<Triage />} />
+            </Routes>
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>
+    );
+
+    const { unmount } = render(tree('/team/ENG/triage'));
+    expect(screen.getByText('Incoming from Slack')).toBeTruthy();
+    expect(screen.queryByText('Snoozed until later')).toBeNull();
+    unmount();
+
+    render(tree('/team/ENG/triage?snoozed=true'));
+    expect(screen.getByText('Snoozed until later')).toBeTruthy();
+  });
 });
 
 describe('an ad-hoc identifier URL', () => {
