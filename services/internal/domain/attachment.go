@@ -111,7 +111,11 @@ func (s *Service) CreateAttachment(ctx context.Context, p *authz.Principal, in C
 		if err != nil {
 			return platform.Internal(err)
 		}
-		creator := p.UserID
+		var creatorID *uuid.UUID
+		if p.UserID != uuid.Nil {
+			id := p.UserID
+			creatorID = &id
+		}
 		row, err := q.CreateAttachment(ctx, store.CreateAttachmentParams{
 			ID:          id,
 			WorkspaceID: p.WorkspaceID,
@@ -122,13 +126,17 @@ func (s *Service) CreateAttachment(ctx context.Context, p *authz.Principal, in C
 			Subtitle:    subtitle,
 			IconUrl:     iconURL,
 			Metadata:    meta,
-			CreatorID:   &creator,
+			CreatorID:   creatorID,
 		})
 		if err != nil {
 			return platform.Internal(err)
 		}
 		out = toAttachment(row)
-		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+		actor := p.Actor()
+		if p.UserID == uuid.Nil {
+			actor = authz.SystemActor()
+		}
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, actor, Change{
 			EntityType: "attachment", EntityID: id, Op: OpUpsert, TeamID: &issue.TeamID,
 			Scope: authz.TeamScope(issue.TeamID, team.Private), Payload: out,
 		})

@@ -994,7 +994,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v25 adds customer and customerRequest.
 // v30 adds slaRule (workspace SLA policies). Number skipped 26–29 so concurrent
 // slices on other worktrees can take those without colliding on main.
-const ClientSchemaVersion = 30
+// v33 adds team and issue-template email intake addresses.
+const ClientSchemaVersion = 33
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

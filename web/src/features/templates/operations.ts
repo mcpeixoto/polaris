@@ -45,6 +45,8 @@ export const ISSUE_TEMPLATE_FIELDS = /* GraphQL */ `
     createdAt
     updatedAt
     archivedAt
+    emailIntakeEnabled
+    emailIntakeAddress
   }
 `;
 
@@ -87,6 +89,18 @@ export const ARCHIVE_ISSUE_TEMPLATE = /* GraphQL */ `
     archiveIssueTemplate(id: $id, archived: $archived) {
       version
       id
+    }
+  }
+`;
+
+export const UPDATE_ISSUE_TEMPLATE_EMAIL_INTAKE = /* GraphQL */ `
+  ${ISSUE_TEMPLATE_FIELDS}
+  mutation UpdateIssueTemplateEmailIntake($input: UpdateIssueTemplateEmailIntakeInput!) {
+    updateIssueTemplateEmailIntake(input: $input) {
+      version
+      template {
+        ...IssueTemplateFields
+      }
     }
   }
 `;
