@@ -77,6 +77,18 @@ type Documents = {
     "\n  \n  query GitHubTeamAutomation($teamId: UUID!) {\n    githubTeamAutomation(teamId: $teamId) {\n      ...GitHubTeamAutomationFields\n    }\n  }\n": typeof types.GitHubTeamAutomationDocument,
     "\n  \n  mutation UpdateGitHubTeamAutomation($input: UpdateGitHubTeamAutomationInput!) {\n    updateGitHubTeamAutomation(input: $input) {\n      githubTeamAutomation {\n        ...GitHubTeamAutomationFields\n      }\n    }\n  }\n": typeof types.UpdateGitHubTeamAutomationDocument,
     "\n  \n  mutation DeleteGitHubTeamAutomation($teamId: UUID!) {\n    deleteGitHubTeamAutomation(teamId: $teamId) {\n      githubTeamAutomation {\n        ...GitHubTeamAutomationFields\n      }\n    }\n  }\n": typeof types.DeleteGitHubTeamAutomationDocument,
+    "\n  fragment GitLabConnectionFields on GitLabConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    instanceUrl\n    branchNameFormat\n    linkCommits\n    linkbacks\n    connectedAt\n    createdAt\n    updatedAt\n  }\n": typeof types.GitLabConnectionFieldsFragmentDoc,
+    "\n  fragment GitLabUserLinkFields on GitLabUserLink {\n    id\n    workspaceId\n    userId\n    gitlabUsername\n    createdAt\n    updatedAt\n  }\n": typeof types.GitLabUserLinkFieldsFragmentDoc,
+    "\n  query GitLabSettings {\n    gitlabWebhook {\n      url\n      secret\n    }\n  }\n": typeof types.GitLabSettingsDocument,
+    "\n  \n  mutation CreateGitLabConnection($input: CreateGitLabConnectionInput!) {\n    createGitLabConnection(input: $input) {\n      version\n      gitlabConnection {\n        ...GitLabConnectionFields\n      }\n    }\n  }\n": typeof types.CreateGitLabConnectionDocument,
+    "\n  \n  mutation UpdateGitLabConnection($input: UpdateGitLabConnectionInput!) {\n    updateGitLabConnection(input: $input) {\n      version\n      gitlabConnection {\n        ...GitLabConnectionFields\n      }\n    }\n  }\n": typeof types.UpdateGitLabConnectionDocument,
+    "\n  mutation DeleteGitLabConnection {\n    deleteGitLabConnection {\n      version\n      id\n    }\n  }\n": typeof types.DeleteGitLabConnectionDocument,
+    "\n  \n  mutation CreateGitLabUserLink($input: CreateGitLabUserLinkInput!) {\n    createGitLabUserLink(input: $input) {\n      version\n      gitlabUserLink {\n        ...GitLabUserLinkFields\n      }\n    }\n  }\n": typeof types.CreateGitLabUserLinkDocument,
+    "\n  mutation DeleteGitLabUserLink {\n    deleteGitLabUserLink {\n      version\n      id\n    }\n  }\n": typeof types.DeleteGitLabUserLinkDocument,
+    "\n  fragment GitLabTeamAutomationFields on GitLabTeamAutomation {\n    teamId\n    configured\n    draftedStateId\n    openedStateId\n    reviewRequestedStateId\n    readyForMergeStateId\n    mergedStateId\n  }\n": typeof types.GitLabTeamAutomationFieldsFragmentDoc,
+    "\n  \n  query GitLabTeamAutomation($teamId: UUID!) {\n    gitlabTeamAutomation(teamId: $teamId) {\n      ...GitLabTeamAutomationFields\n    }\n  }\n": typeof types.GitLabTeamAutomationDocument,
+    "\n  \n  mutation UpdateGitLabTeamAutomation($input: UpdateGitLabTeamAutomationInput!) {\n    updateGitLabTeamAutomation(input: $input) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n": typeof types.UpdateGitLabTeamAutomationDocument,
+    "\n  \n  mutation DeleteGitLabTeamAutomation($teamId: UUID!) {\n    deleteGitLabTeamAutomation(teamId: $teamId) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n": typeof types.DeleteGitLabTeamAutomationDocument,
     "\n  fragment NotificationFields on Notification {\n    id\n    workspaceId\n    userId\n    type\n    issueId\n    commentId\n    actor {\n      type\n      id\n    }\n    changeVersion\n    groupKey\n    count\n    payload\n    readAt\n    snoozedUntil\n    createdAt\n    updatedAt\n  }\n": typeof types.NotificationFieldsFragmentDoc,
     "\n  \n  query Inbox($first: Int!) {\n    notifications(includeRead: true, includeSnoozed: true, first: $first) {\n      ...NotificationFields\n    }\n  }\n": typeof types.InboxDocument,
     "\n  query UnreadNotificationCount {\n    unreadNotificationCount\n  }\n": typeof types.UnreadNotificationCountDocument,
@@ -293,6 +305,18 @@ const documents: Documents = {
     "\n  \n  query GitHubTeamAutomation($teamId: UUID!) {\n    githubTeamAutomation(teamId: $teamId) {\n      ...GitHubTeamAutomationFields\n    }\n  }\n": types.GitHubTeamAutomationDocument,
     "\n  \n  mutation UpdateGitHubTeamAutomation($input: UpdateGitHubTeamAutomationInput!) {\n    updateGitHubTeamAutomation(input: $input) {\n      githubTeamAutomation {\n        ...GitHubTeamAutomationFields\n      }\n    }\n  }\n": types.UpdateGitHubTeamAutomationDocument,
     "\n  \n  mutation DeleteGitHubTeamAutomation($teamId: UUID!) {\n    deleteGitHubTeamAutomation(teamId: $teamId) {\n      githubTeamAutomation {\n        ...GitHubTeamAutomationFields\n      }\n    }\n  }\n": types.DeleteGitHubTeamAutomationDocument,
+    "\n  fragment GitLabConnectionFields on GitLabConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    instanceUrl\n    branchNameFormat\n    linkCommits\n    linkbacks\n    connectedAt\n    createdAt\n    updatedAt\n  }\n": types.GitLabConnectionFieldsFragmentDoc,
+    "\n  fragment GitLabUserLinkFields on GitLabUserLink {\n    id\n    workspaceId\n    userId\n    gitlabUsername\n    createdAt\n    updatedAt\n  }\n": types.GitLabUserLinkFieldsFragmentDoc,
+    "\n  query GitLabSettings {\n    gitlabWebhook {\n      url\n      secret\n    }\n  }\n": types.GitLabSettingsDocument,
+    "\n  \n  mutation CreateGitLabConnection($input: CreateGitLabConnectionInput!) {\n    createGitLabConnection(input: $input) {\n      version\n      gitlabConnection {\n        ...GitLabConnectionFields\n      }\n    }\n  }\n": types.CreateGitLabConnectionDocument,
+    "\n  \n  mutation UpdateGitLabConnection($input: UpdateGitLabConnectionInput!) {\n    updateGitLabConnection(input: $input) {\n      version\n      gitlabConnection {\n        ...GitLabConnectionFields\n      }\n    }\n  }\n": types.UpdateGitLabConnectionDocument,
+    "\n  mutation DeleteGitLabConnection {\n    deleteGitLabConnection {\n      version\n      id\n    }\n  }\n": types.DeleteGitLabConnectionDocument,
+    "\n  \n  mutation CreateGitLabUserLink($input: CreateGitLabUserLinkInput!) {\n    createGitLabUserLink(input: $input) {\n      version\n      gitlabUserLink {\n        ...GitLabUserLinkFields\n      }\n    }\n  }\n": types.CreateGitLabUserLinkDocument,
+    "\n  mutation DeleteGitLabUserLink {\n    deleteGitLabUserLink {\n      version\n      id\n    }\n  }\n": types.DeleteGitLabUserLinkDocument,
+    "\n  fragment GitLabTeamAutomationFields on GitLabTeamAutomation {\n    teamId\n    configured\n    draftedStateId\n    openedStateId\n    reviewRequestedStateId\n    readyForMergeStateId\n    mergedStateId\n  }\n": types.GitLabTeamAutomationFieldsFragmentDoc,
+    "\n  \n  query GitLabTeamAutomation($teamId: UUID!) {\n    gitlabTeamAutomation(teamId: $teamId) {\n      ...GitLabTeamAutomationFields\n    }\n  }\n": types.GitLabTeamAutomationDocument,
+    "\n  \n  mutation UpdateGitLabTeamAutomation($input: UpdateGitLabTeamAutomationInput!) {\n    updateGitLabTeamAutomation(input: $input) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n": types.UpdateGitLabTeamAutomationDocument,
+    "\n  \n  mutation DeleteGitLabTeamAutomation($teamId: UUID!) {\n    deleteGitLabTeamAutomation(teamId: $teamId) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n": types.DeleteGitLabTeamAutomationDocument,
     "\n  fragment NotificationFields on Notification {\n    id\n    workspaceId\n    userId\n    type\n    issueId\n    commentId\n    actor {\n      type\n      id\n    }\n    changeVersion\n    groupKey\n    count\n    payload\n    readAt\n    snoozedUntil\n    createdAt\n    updatedAt\n  }\n": types.NotificationFieldsFragmentDoc,
     "\n  \n  query Inbox($first: Int!) {\n    notifications(includeRead: true, includeSnoozed: true, first: $first) {\n      ...NotificationFields\n    }\n  }\n": types.InboxDocument,
     "\n  query UnreadNotificationCount {\n    unreadNotificationCount\n  }\n": types.UnreadNotificationCountDocument,
@@ -712,6 +736,54 @@ export function graphql(source: "\n  \n  mutation UpdateGitHubTeamAutomation($in
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  \n  mutation DeleteGitHubTeamAutomation($teamId: UUID!) {\n    deleteGitHubTeamAutomation(teamId: $teamId) {\n      githubTeamAutomation {\n        ...GitHubTeamAutomationFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation DeleteGitHubTeamAutomation($teamId: UUID!) {\n    deleteGitHubTeamAutomation(teamId: $teamId) {\n      githubTeamAutomation {\n        ...GitHubTeamAutomationFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment GitLabConnectionFields on GitLabConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    instanceUrl\n    branchNameFormat\n    linkCommits\n    linkbacks\n    connectedAt\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment GitLabConnectionFields on GitLabConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    instanceUrl\n    branchNameFormat\n    linkCommits\n    linkbacks\n    connectedAt\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment GitLabUserLinkFields on GitLabUserLink {\n    id\n    workspaceId\n    userId\n    gitlabUsername\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment GitLabUserLinkFields on GitLabUserLink {\n    id\n    workspaceId\n    userId\n    gitlabUsername\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query GitLabSettings {\n    gitlabWebhook {\n      url\n      secret\n    }\n  }\n"): (typeof documents)["\n  query GitLabSettings {\n    gitlabWebhook {\n      url\n      secret\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateGitLabConnection($input: CreateGitLabConnectionInput!) {\n    createGitLabConnection(input: $input) {\n      version\n      gitlabConnection {\n        ...GitLabConnectionFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateGitLabConnection($input: CreateGitLabConnectionInput!) {\n    createGitLabConnection(input: $input) {\n      version\n      gitlabConnection {\n        ...GitLabConnectionFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateGitLabConnection($input: UpdateGitLabConnectionInput!) {\n    updateGitLabConnection(input: $input) {\n      version\n      gitlabConnection {\n        ...GitLabConnectionFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateGitLabConnection($input: UpdateGitLabConnectionInput!) {\n    updateGitLabConnection(input: $input) {\n      version\n      gitlabConnection {\n        ...GitLabConnectionFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteGitLabConnection {\n    deleteGitLabConnection {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteGitLabConnection {\n    deleteGitLabConnection {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateGitLabUserLink($input: CreateGitLabUserLinkInput!) {\n    createGitLabUserLink(input: $input) {\n      version\n      gitlabUserLink {\n        ...GitLabUserLinkFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateGitLabUserLink($input: CreateGitLabUserLinkInput!) {\n    createGitLabUserLink(input: $input) {\n      version\n      gitlabUserLink {\n        ...GitLabUserLinkFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteGitLabUserLink {\n    deleteGitLabUserLink {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteGitLabUserLink {\n    deleteGitLabUserLink {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment GitLabTeamAutomationFields on GitLabTeamAutomation {\n    teamId\n    configured\n    draftedStateId\n    openedStateId\n    reviewRequestedStateId\n    readyForMergeStateId\n    mergedStateId\n  }\n"): (typeof documents)["\n  fragment GitLabTeamAutomationFields on GitLabTeamAutomation {\n    teamId\n    configured\n    draftedStateId\n    openedStateId\n    reviewRequestedStateId\n    readyForMergeStateId\n    mergedStateId\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  query GitLabTeamAutomation($teamId: UUID!) {\n    gitlabTeamAutomation(teamId: $teamId) {\n      ...GitLabTeamAutomationFields\n    }\n  }\n"): (typeof documents)["\n  \n  query GitLabTeamAutomation($teamId: UUID!) {\n    gitlabTeamAutomation(teamId: $teamId) {\n      ...GitLabTeamAutomationFields\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateGitLabTeamAutomation($input: UpdateGitLabTeamAutomationInput!) {\n    updateGitLabTeamAutomation(input: $input) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateGitLabTeamAutomation($input: UpdateGitLabTeamAutomationInput!) {\n    updateGitLabTeamAutomation(input: $input) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation DeleteGitLabTeamAutomation($teamId: UUID!) {\n    deleteGitLabTeamAutomation(teamId: $teamId) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation DeleteGitLabTeamAutomation($teamId: UUID!) {\n    deleteGitLabTeamAutomation(teamId: $teamId) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

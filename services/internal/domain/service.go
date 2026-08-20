@@ -29,6 +29,7 @@ type Service struct {
 	PublicURL string
 
 	githubComments GitHubCommentPoster
+	gitlabComments GitLabCommentPoster
 
 	// now is the clock the filter grammar's relative tokens resolve against.
 	//
@@ -48,6 +49,11 @@ func NewService(db *store.DB) *Service {
 // SetGitHubCommentPoster is how the API process posts linkbacks. Tests inject a recorder.
 func (s *Service) SetGitHubCommentPoster(p GitHubCommentPoster) {
 	s.githubComments = p
+}
+
+// SetGitLabCommentPoster is how the API process posts GitLab linkbacks. Tests inject a recorder.
+func (s *Service) SetGitLabCommentPoster(p GitLabCommentPoster) {
+	s.gitlabComments = p
 }
 
 // DB exposes the pool for the read-only paths that legitimately need it — the bootstrap

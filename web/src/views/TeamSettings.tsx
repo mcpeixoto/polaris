@@ -43,8 +43,12 @@ import {
   deleteGitHubTeamAutomation,
   loadGitHubTeamAutomation,
   updateGitHubTeamAutomation,
-  type GitHubTeamAutomation,
 } from '~/features/github/mutations';
+import {
+  deleteGitLabTeamAutomation,
+  loadGitLabTeamAutomation,
+  updateGitLabTeamAutomation,
+} from '~/features/gitlab/mutations';
 import { updateTeamTriage } from '~/features/triage/mutations';
 import { updateTeamEmailIntake } from '~/features/email/mutations';
 import {
@@ -268,6 +272,7 @@ export function TeamSettings() {
           />
 
           <GitHubTeamAutomations teamId={team.id} statuses={team.statuses} onError={setError} />
+          <GitLabTeamAutomations teamId={team.id} statuses={team.statuses} onError={setError} />
 
           <DefaultTemplates
             team={team}
@@ -740,7 +745,14 @@ function firstOf(statuses: readonly StatusView[], category: StateCategory): stri
 }
 
 function mappingValuesFrom(
-  auto: GitHubTeamAutomation,
+  auto: {
+    configured: boolean;
+    draftedStateId: string | null;
+    openedStateId: string | null;
+    reviewRequestedStateId: string | null;
+    readyForMergeStateId: string | null;
+    mergedStateId: string | null;
+  },
   statuses: readonly StatusView[],
 ): MappingValues {
   if (!auto.configured) {
@@ -884,6 +896,141 @@ function GitHubTeamAutomations({
         />
         <GitHubMappingSelect
           label="PR merged"
+          value={values.mergedStateId}
+          statuses={live}
+          disabled={busy}
+          onChange={(value) => patch('mergedStateId', value)}
+        />
+      </div>
+
+      {configured ? (
+        <div className={styles.formActions}>
+          <Button variant="secondary" disabled={busy} onClick={restore}>
+            Restore defaults
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function GitLabTeamAutomations({
+  teamId,
+  statuses,
+  onError,
+}: {
+  teamId: UUID;
+  statuses: readonly StatusView[];
+  onError: (message: string | null) => void;
+}) {
+  const [values, setValues] = useState<MappingValues | null>(null);
+  const [configured, setConfigured] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    loadGitLabTeamAutomation(teamId)
+      .then((auto) => {
+        if (!live) return;
+        setConfigured(auto.configured);
+        setValues(mappingValuesFrom(auto, statuses));
+      })
+      .catch((failure: unknown) => {
+        if (!live) return;
+        onError(
+          failure instanceof ApiError ? failure.message : 'GitLab automations could not be loaded.',
+        );
+      });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId]);
+
+  const save = (next: MappingValues) => {
+    setValues(next);
+    setBusy(true);
+    onError(null);
+    updateGitLabTeamAutomation(teamId, {
+      draftedStateId: asMappingId(next.draftedStateId),
+      openedStateId: asMappingId(next.openedStateId),
+      reviewRequestedStateId: asMappingId(next.reviewRequestedStateId),
+      readyForMergeStateId: asMappingId(next.readyForMergeStateId),
+      mergedStateId: asMappingId(next.mergedStateId),
+    })
+      .then((auto) => {
+        setConfigured(auto.configured);
+        setValues(mappingValuesFrom(auto, statuses));
+      })
+      .catch((failure: unknown) => {
+        onError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+      })
+      .finally(() => setBusy(false));
+  };
+
+  const restore = () => {
+    setBusy(true);
+    onError(null);
+    deleteGitLabTeamAutomation(teamId)
+      .then((auto) => {
+        setConfigured(auto.configured);
+        setValues(mappingValuesFrom(auto, statuses));
+      })
+      .catch((failure: unknown) => {
+        onError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+      })
+      .finally(() => setBusy(false));
+  };
+
+  if (values === null) {
+    return null;
+  }
+
+  const live = statuses.filter((status) => status.category !== 'duplicate');
+  const patch = (key: keyof MappingValues, value: string) => save({ ...values, [key]: value });
+
+  return (
+    <section className={styles.section} aria-labelledby="gitlab-automations-heading">
+      <h2 className={styles.sectionTitle} id="gitlab-automations-heading">
+        GitLab status automations
+      </h2>
+      <p className={styles.sectionHint}>
+        When a linked merge request changes, move the issue to a status. Unconfigured teams start an
+        issue when an MR opens and complete it when every closing MR has merged. Choosing No action
+        for an event leaves the issue where it is.
+      </p>
+
+      <div className={styles.cadence}>
+        <GitHubMappingSelect
+          label="MR drafted"
+          value={values.draftedStateId}
+          statuses={live}
+          disabled={busy}
+          onChange={(value) => patch('draftedStateId', value)}
+        />
+        <GitHubMappingSelect
+          label="MR opened"
+          value={values.openedStateId}
+          statuses={live}
+          disabled={busy}
+          onChange={(value) => patch('openedStateId', value)}
+        />
+        <GitHubMappingSelect
+          label="Review requested"
+          value={values.reviewRequestedStateId}
+          statuses={live}
+          disabled={busy}
+          onChange={(value) => patch('reviewRequestedStateId', value)}
+        />
+        <GitHubMappingSelect
+          label="Ready to merge"
+          value={values.readyForMergeStateId}
+          statuses={live}
+          disabled={busy}
+          onChange={(value) => patch('readyForMergeStateId', value)}
+        />
+        <GitHubMappingSelect
+          label="MR merged"
           value={values.mergedStateId}
           statuses={live}
           disabled={busy}

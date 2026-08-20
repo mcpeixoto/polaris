@@ -279,6 +279,18 @@ export type CreateGitHubUserLinkInput = {
   githubLogin: Scalars['String']['input'];
 };
 
+export type CreateGitLabConnectionInput = {
+  accessToken?: InputMaybe<Scalars['String']['input']>;
+  branchNameFormat?: InputMaybe<Scalars['String']['input']>;
+  instanceUrl?: InputMaybe<Scalars['String']['input']>;
+  linkCommits?: InputMaybe<Scalars['Boolean']['input']>;
+  linkbacks?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+export type CreateGitLabUserLinkInput = {
+  gitlabUsername: Scalars['String']['input'];
+};
+
 export type CreateInitiativeInput = {
   description?: InputMaybe<Scalars['String']['input']>;
   leadTeamId?: InputMaybe<Scalars['UUID']['input']>;
@@ -919,6 +931,76 @@ export type GitHubUserLinkPayload = MutationResult & {
   version: Scalars['Int']['output'];
 };
 
+/**
+ * Workspace GitLab instance. Credentials are not on this type: the replica carries the
+ * settings a client needs to copy a git branch name, and nothing that could be a token.
+ * One GitLab instance per workspace; self-hosted is an instance URL with no path.
+ */
+export type GitLabConnection = {
+  branchNameFormat: Scalars['String']['output'];
+  connectedAt?: Maybe<Scalars['Time']['output']>;
+  createdAt: Scalars['Time']['output'];
+  creatorId: Scalars['UUID']['output'];
+  enabled: Scalars['Boolean']['output'];
+  id: Scalars['UUID']['output'];
+  instanceUrl: Scalars['String']['output'];
+  linkCommits: Scalars['Boolean']['output'];
+  /** When false, skip posting a note back onto the GitLab MR or commit. */
+  linkbacks: Scalars['Boolean']['output'];
+  updatedAt: Scalars['Time']['output'];
+  workspaceId: Scalars['UUID']['output'];
+};
+
+export type GitLabConnectionPayload = MutationResult & {
+  gitlabConnection: GitLabConnection;
+  version: Scalars['Int']['output'];
+};
+
+export type GitLabLinkPayload = MutationResult & {
+  attachments: Array<Attachment>;
+  version: Scalars['Int']['output'];
+};
+
+/**
+ * GitLab merge-request status automations for one team.
+ *
+ * Not replicated: a mapping is a settings row, not a sync entity. When configured is
+ * false, opened moves to the first Started status and a merged closing MR moves to the
+ * first Completed status. A present row with a null field means no action for that event.
+ */
+export type GitLabTeamAutomation = {
+  configured: Scalars['Boolean']['output'];
+  draftedStateId?: Maybe<Scalars['UUID']['output']>;
+  mergedStateId?: Maybe<Scalars['UUID']['output']>;
+  openedStateId?: Maybe<Scalars['UUID']['output']>;
+  readyForMergeStateId?: Maybe<Scalars['UUID']['output']>;
+  reviewRequestedStateId?: Maybe<Scalars['UUID']['output']>;
+  teamId: Scalars['UUID']['output'];
+};
+
+export type GitLabTeamAutomationPayload = {
+  gitlabTeamAutomation: GitLabTeamAutomation;
+};
+
+export type GitLabUserLink = {
+  createdAt: Scalars['Time']['output'];
+  gitlabUsername: Scalars['String']['output'];
+  id: Scalars['UUID']['output'];
+  updatedAt: Scalars['Time']['output'];
+  userId: Scalars['UUID']['output'];
+  workspaceId: Scalars['UUID']['output'];
+};
+
+export type GitLabUserLinkPayload = MutationResult & {
+  gitlabUserLink: GitLabUserLink;
+  version: Scalars['Int']['output'];
+};
+
+export type GitLabWebhook = {
+  secret: Scalars['String']['output'];
+  url: Scalars['String']['output'];
+};
+
 /** A workspace objective grouping a manually curated set of projects. */
 export type Initiative = {
   archivedAt?: Maybe<Scalars['Time']['output']>;
@@ -1252,6 +1334,18 @@ export type LinkGitHubPullRequestInput = {
   url: Scalars['String']['input'];
 };
 
+export type LinkGitLabMergeRequestInput = {
+  body?: InputMaybe<Scalars['String']['input']>;
+  branchName?: InputMaybe<Scalars['String']['input']>;
+  /** Webhook-shaped flags so the public API can drive the same status automations. */
+  draft?: InputMaybe<Scalars['Boolean']['input']>;
+  mergeableState?: InputMaybe<Scalars['String']['input']>;
+  merged?: InputMaybe<Scalars['Boolean']['input']>;
+  reviewRequested?: InputMaybe<Scalars['Boolean']['input']>;
+  title?: InputMaybe<Scalars['String']['input']>;
+  url: Scalars['String']['input'];
+};
+
 export type Mutation = {
   acceptTriageIssue: IssuePayload;
   addFavorite: FavoritePayload;
@@ -1311,6 +1405,8 @@ export type Mutation = {
   createFormTemplateField: FormTemplateFieldPayload;
   createGitHubConnection: GitHubConnectionPayload;
   createGitHubUserLink: GitHubUserLinkPayload;
+  createGitLabConnection: GitLabConnectionPayload;
+  createGitLabUserLink: GitLabUserLinkPayload;
   createInitiative: InitiativePayload;
   createIssue: IssuePayload;
   createIssueRelation: IssueRelationPayload;
@@ -1348,6 +1444,9 @@ export type Mutation = {
   deleteGitHubConnection: DeletePayload;
   deleteGitHubTeamAutomation: GitHubTeamAutomationPayload;
   deleteGitHubUserLink: DeletePayload;
+  deleteGitLabConnection: DeletePayload;
+  deleteGitLabTeamAutomation: GitLabTeamAutomationPayload;
+  deleteGitLabUserLink: DeletePayload;
   deleteInitiative: DeletePayload;
   deleteIssue: DeletePayload;
   deleteIssueRelation: DeletePayload;
@@ -1366,6 +1465,7 @@ export type Mutation = {
   deleteWebhook: DeletePayload;
   inviteToWorkspace: InvitePayload;
   linkGitHubPullRequest: GitHubLinkPayload;
+  linkGitLabMergeRequest: GitLabLinkPayload;
   markAllNotificationsRead: NotificationsPayload;
   /** The issue being viewed is the duplicate; canonicalId is the one it duplicates. */
   markIssueDuplicate: IssuePayload;
@@ -1435,6 +1535,8 @@ export type Mutation = {
   updateFormTemplateField: FormTemplateFieldPayload;
   updateGitHubConnection: GitHubConnectionPayload;
   updateGitHubTeamAutomation: GitHubTeamAutomationPayload;
+  updateGitLabConnection: GitLabConnectionPayload;
+  updateGitLabTeamAutomation: GitLabTeamAutomationPayload;
   updateInitiative: InitiativePayload;
   updateIssue: IssuePayload;
   updateIssueTemplate: IssueTemplatePayload;
@@ -1731,6 +1833,16 @@ export type MutationCreateGitHubUserLinkArgs = {
 };
 
 
+export type MutationCreateGitLabConnectionArgs = {
+  input: CreateGitLabConnectionInput;
+};
+
+
+export type MutationCreateGitLabUserLinkArgs = {
+  input: CreateGitLabUserLinkInput;
+};
+
+
 export type MutationCreateInitiativeArgs = {
   clientId?: InputMaybe<Scalars['UUID']['input']>;
   input: CreateInitiativeInput;
@@ -1925,6 +2037,11 @@ export type MutationDeleteGitHubTeamAutomationArgs = {
 };
 
 
+export type MutationDeleteGitLabTeamAutomationArgs = {
+  teamId: Scalars['UUID']['input'];
+};
+
+
 export type MutationDeleteInitiativeArgs = {
   clientId?: InputMaybe<Scalars['UUID']['input']>;
   id: Scalars['UUID']['input'];
@@ -2024,6 +2141,13 @@ export type MutationInviteToWorkspaceArgs = {
 export type MutationLinkGitHubPullRequestArgs = {
   clientId?: InputMaybe<Scalars['UUID']['input']>;
   input: LinkGitHubPullRequestInput;
+  opId?: InputMaybe<Scalars['UUID']['input']>;
+};
+
+
+export type MutationLinkGitLabMergeRequestArgs = {
+  clientId?: InputMaybe<Scalars['UUID']['input']>;
+  input: LinkGitLabMergeRequestInput;
   opId?: InputMaybe<Scalars['UUID']['input']>;
 };
 
@@ -2311,6 +2435,16 @@ export type MutationUpdateGitHubConnectionArgs = {
 
 export type MutationUpdateGitHubTeamAutomationArgs = {
   input: UpdateGitHubTeamAutomationInput;
+};
+
+
+export type MutationUpdateGitLabConnectionArgs = {
+  input: UpdateGitLabConnectionInput;
+};
+
+
+export type MutationUpdateGitLabTeamAutomationArgs = {
+  input: UpdateGitLabTeamAutomationInput;
 };
 
 
@@ -2922,6 +3056,14 @@ export type Query = {
   githubTeamAutomation: GitHubTeamAutomation;
   /** The caller's linked GitHub account, if they have connected one. */
   githubUserLink?: Maybe<GitHubUserLink>;
+  /** The workspace GitLab instance, if any. Secrets are on gitlabWebhook, not here. */
+  gitlabConnection?: Maybe<GitLabConnection>;
+  /** Per-team GitLab MR status automations. Unconfigured teams use the product defaults. */
+  gitlabTeamAutomation: GitLabTeamAutomation;
+  /** The caller's linked GitLab account, if they have connected one. */
+  gitlabUserLink?: Maybe<GitLabUserLink>;
+  /** Admin-only. The URL and token to paste into GitLab as a Group or Project webhook. */
+  gitlabWebhook?: Maybe<GitLabWebhook>;
   initiative?: Maybe<Initiative>;
   initiatives: Array<Initiative>;
   /** Pending invitations. Admins only. */
@@ -3049,6 +3191,11 @@ export type QueryFormTemplatesArgs = {
 
 
 export type QueryGithubTeamAutomationArgs = {
+  teamId: Scalars['UUID']['input'];
+};
+
+
+export type QueryGitlabTeamAutomationArgs = {
   teamId: Scalars['UUID']['input'];
 };
 
@@ -3565,6 +3712,24 @@ export type UpdateGitHubConnectionInput = {
 };
 
 export type UpdateGitHubTeamAutomationInput = {
+  draftedStateId?: InputMaybe<Scalars['UUID']['input']>;
+  mergedStateId?: InputMaybe<Scalars['UUID']['input']>;
+  openedStateId?: InputMaybe<Scalars['UUID']['input']>;
+  readyForMergeStateId?: InputMaybe<Scalars['UUID']['input']>;
+  reviewRequestedStateId?: InputMaybe<Scalars['UUID']['input']>;
+  teamId: Scalars['UUID']['input'];
+};
+
+export type UpdateGitLabConnectionInput = {
+  accessToken?: InputMaybe<Scalars['String']['input']>;
+  branchNameFormat?: InputMaybe<Scalars['String']['input']>;
+  enabled?: InputMaybe<Scalars['Boolean']['input']>;
+  instanceUrl?: InputMaybe<Scalars['String']['input']>;
+  linkCommits?: InputMaybe<Scalars['Boolean']['input']>;
+  linkbacks?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+export type UpdateGitLabTeamAutomationInput = {
   draftedStateId?: InputMaybe<Scalars['UUID']['input']>;
   mergedStateId?: InputMaybe<Scalars['UUID']['input']>;
   openedStateId?: InputMaybe<Scalars['UUID']['input']>;
@@ -4508,6 +4673,69 @@ export type DeleteGitHubTeamAutomationMutationVariables = Exact<{
 
 
 export type DeleteGitHubTeamAutomationMutation = { deleteGitHubTeamAutomation: { githubTeamAutomation: { teamId: string, configured: boolean, draftedStateId?: string | null, openedStateId?: string | null, reviewRequestedStateId?: string | null, readyForMergeStateId?: string | null, mergedStateId?: string | null } } };
+
+export type GitLabConnectionFieldsFragment = { id: string, workspaceId: string, creatorId: string, enabled: boolean, instanceUrl: string, branchNameFormat: string, linkCommits: boolean, linkbacks: boolean, connectedAt?: string | null, createdAt: string, updatedAt: string };
+
+export type GitLabUserLinkFieldsFragment = { id: string, workspaceId: string, userId: string, gitlabUsername: string, createdAt: string, updatedAt: string };
+
+export type GitLabSettingsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GitLabSettingsQuery = { gitlabWebhook?: { url: string, secret: string } | null };
+
+export type CreateGitLabConnectionMutationVariables = Exact<{
+  input: CreateGitLabConnectionInput;
+}>;
+
+
+export type CreateGitLabConnectionMutation = { createGitLabConnection: { version: number, gitlabConnection: { id: string, workspaceId: string, creatorId: string, enabled: boolean, instanceUrl: string, branchNameFormat: string, linkCommits: boolean, linkbacks: boolean, connectedAt?: string | null, createdAt: string, updatedAt: string } } };
+
+export type UpdateGitLabConnectionMutationVariables = Exact<{
+  input: UpdateGitLabConnectionInput;
+}>;
+
+
+export type UpdateGitLabConnectionMutation = { updateGitLabConnection: { version: number, gitlabConnection: { id: string, workspaceId: string, creatorId: string, enabled: boolean, instanceUrl: string, branchNameFormat: string, linkCommits: boolean, linkbacks: boolean, connectedAt?: string | null, createdAt: string, updatedAt: string } } };
+
+export type DeleteGitLabConnectionMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type DeleteGitLabConnectionMutation = { deleteGitLabConnection: { version: number, id: string } };
+
+export type CreateGitLabUserLinkMutationVariables = Exact<{
+  input: CreateGitLabUserLinkInput;
+}>;
+
+
+export type CreateGitLabUserLinkMutation = { createGitLabUserLink: { version: number, gitlabUserLink: { id: string, workspaceId: string, userId: string, gitlabUsername: string, createdAt: string, updatedAt: string } } };
+
+export type DeleteGitLabUserLinkMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type DeleteGitLabUserLinkMutation = { deleteGitLabUserLink: { version: number, id: string } };
+
+export type GitLabTeamAutomationFieldsFragment = { teamId: string, configured: boolean, draftedStateId?: string | null, openedStateId?: string | null, reviewRequestedStateId?: string | null, readyForMergeStateId?: string | null, mergedStateId?: string | null };
+
+export type GitLabTeamAutomationQueryVariables = Exact<{
+  teamId: Scalars['UUID']['input'];
+}>;
+
+
+export type GitLabTeamAutomationQuery = { gitlabTeamAutomation: { teamId: string, configured: boolean, draftedStateId?: string | null, openedStateId?: string | null, reviewRequestedStateId?: string | null, readyForMergeStateId?: string | null, mergedStateId?: string | null } };
+
+export type UpdateGitLabTeamAutomationMutationVariables = Exact<{
+  input: UpdateGitLabTeamAutomationInput;
+}>;
+
+
+export type UpdateGitLabTeamAutomationMutation = { updateGitLabTeamAutomation: { gitlabTeamAutomation: { teamId: string, configured: boolean, draftedStateId?: string | null, openedStateId?: string | null, reviewRequestedStateId?: string | null, readyForMergeStateId?: string | null, mergedStateId?: string | null } } };
+
+export type DeleteGitLabTeamAutomationMutationVariables = Exact<{
+  teamId: Scalars['UUID']['input'];
+}>;
+
+
+export type DeleteGitLabTeamAutomationMutation = { deleteGitLabTeamAutomation: { gitlabTeamAutomation: { teamId: string, configured: boolean, draftedStateId?: string | null, openedStateId?: string | null, reviewRequestedStateId?: string | null, readyForMergeStateId?: string | null, mergedStateId?: string | null } } };
 
 export type NotificationFieldsFragment = { id: string, workspaceId: string, userId: string, type: NotificationType, issueId?: string | null, commentId?: string | null, changeVersion: number, groupKey: string, count: number, payload?: unknown | null, readAt?: string | null, snoozedUntil?: string | null, createdAt: string, updatedAt: string, actor: { type: ActorType, id?: string | null } };
 
@@ -5505,6 +5733,9 @@ export const FormTemplateFieldFieldsFragmentDoc = {"kind":"Document","definition
 export const GitHubConnectionFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitHubConnectionFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitHubConnection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"creatorId"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"orgLogin"}},{"kind":"Field","name":{"kind":"Name","value":"branchNameFormat"}},{"kind":"Field","name":{"kind":"Name","value":"linkCommits"}},{"kind":"Field","name":{"kind":"Name","value":"linkbacks"}},{"kind":"Field","name":{"kind":"Name","value":"connectedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<GitHubConnectionFieldsFragment, unknown>;
 export const GitHubUserLinkFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitHubUserLinkFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitHubUserLink"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"userId"}},{"kind":"Field","name":{"kind":"Name","value":"githubLogin"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<GitHubUserLinkFieldsFragment, unknown>;
 export const GitHubTeamAutomationFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitHubTeamAutomationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitHubTeamAutomation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"configured"}},{"kind":"Field","name":{"kind":"Name","value":"draftedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"openedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"reviewRequestedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"readyForMergeStateId"}},{"kind":"Field","name":{"kind":"Name","value":"mergedStateId"}}]}}]} as unknown as DocumentNode<GitHubTeamAutomationFieldsFragment, unknown>;
+export const GitLabConnectionFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitLabConnectionFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitLabConnection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"creatorId"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"instanceUrl"}},{"kind":"Field","name":{"kind":"Name","value":"branchNameFormat"}},{"kind":"Field","name":{"kind":"Name","value":"linkCommits"}},{"kind":"Field","name":{"kind":"Name","value":"linkbacks"}},{"kind":"Field","name":{"kind":"Name","value":"connectedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<GitLabConnectionFieldsFragment, unknown>;
+export const GitLabUserLinkFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitLabUserLinkFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitLabUserLink"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"userId"}},{"kind":"Field","name":{"kind":"Name","value":"gitlabUsername"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<GitLabUserLinkFieldsFragment, unknown>;
+export const GitLabTeamAutomationFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitLabTeamAutomationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitLabTeamAutomation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"configured"}},{"kind":"Field","name":{"kind":"Name","value":"draftedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"openedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"reviewRequestedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"readyForMergeStateId"}},{"kind":"Field","name":{"kind":"Name","value":"mergedStateId"}}]}}]} as unknown as DocumentNode<GitLabTeamAutomationFieldsFragment, unknown>;
 export const NotificationFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"NotificationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Notification"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"userId"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"issueId"}},{"kind":"Field","name":{"kind":"Name","value":"commentId"}},{"kind":"Field","name":{"kind":"Name","value":"actor"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"id"}}]}},{"kind":"Field","name":{"kind":"Name","value":"changeVersion"}},{"kind":"Field","name":{"kind":"Name","value":"groupKey"}},{"kind":"Field","name":{"kind":"Name","value":"count"}},{"kind":"Field","name":{"kind":"Name","value":"payload"}},{"kind":"Field","name":{"kind":"Name","value":"readAt"}},{"kind":"Field","name":{"kind":"Name","value":"snoozedUntil"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<NotificationFieldsFragment, unknown>;
 export const InitiativeFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"InitiativeFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Initiative"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}},{"kind":"Field","name":{"kind":"Name","value":"ownerId"}},{"kind":"Field","name":{"kind":"Name","value":"leadTeamId"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"targetDate"}},{"kind":"Field","name":{"kind":"Name","value":"targetDateGranularity"}},{"kind":"Field","name":{"kind":"Name","value":"creatorId"}},{"kind":"Field","name":{"kind":"Name","value":"archivedAt"}},{"kind":"Field","name":{"kind":"Name","value":"deletedAt"}},{"kind":"Field","name":{"kind":"Name","value":"deletedBy"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<InitiativeFieldsFragment, unknown>;
 export const InitiativeProjectFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"InitiativeProjectFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"InitiativeProject"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"initiativeId"}},{"kind":"Field","name":{"kind":"Name","value":"projectId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}}]}}]} as unknown as DocumentNode<InitiativeProjectFieldsFragment, unknown>;
@@ -5593,6 +5824,15 @@ export const DeleteGitHubUserLinkDocument = {"kind":"Document","definitions":[{"
 export const GitHubTeamAutomationDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GitHubTeamAutomation"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"teamId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"githubTeamAutomation"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"teamId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"teamId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"GitHubTeamAutomationFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitHubTeamAutomationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitHubTeamAutomation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"configured"}},{"kind":"Field","name":{"kind":"Name","value":"draftedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"openedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"reviewRequestedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"readyForMergeStateId"}},{"kind":"Field","name":{"kind":"Name","value":"mergedStateId"}}]}}]} as unknown as DocumentNode<GitHubTeamAutomationQuery, GitHubTeamAutomationQueryVariables>;
 export const UpdateGitHubTeamAutomationDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateGitHubTeamAutomation"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateGitHubTeamAutomationInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateGitHubTeamAutomation"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"githubTeamAutomation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"GitHubTeamAutomationFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitHubTeamAutomationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitHubTeamAutomation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"configured"}},{"kind":"Field","name":{"kind":"Name","value":"draftedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"openedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"reviewRequestedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"readyForMergeStateId"}},{"kind":"Field","name":{"kind":"Name","value":"mergedStateId"}}]}}]} as unknown as DocumentNode<UpdateGitHubTeamAutomationMutation, UpdateGitHubTeamAutomationMutationVariables>;
 export const DeleteGitHubTeamAutomationDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteGitHubTeamAutomation"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"teamId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteGitHubTeamAutomation"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"teamId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"teamId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"githubTeamAutomation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"GitHubTeamAutomationFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitHubTeamAutomationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitHubTeamAutomation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"configured"}},{"kind":"Field","name":{"kind":"Name","value":"draftedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"openedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"reviewRequestedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"readyForMergeStateId"}},{"kind":"Field","name":{"kind":"Name","value":"mergedStateId"}}]}}]} as unknown as DocumentNode<DeleteGitHubTeamAutomationMutation, DeleteGitHubTeamAutomationMutationVariables>;
+export const GitLabSettingsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GitLabSettings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"gitlabWebhook"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"secret"}}]}}]}}]} as unknown as DocumentNode<GitLabSettingsQuery, GitLabSettingsQueryVariables>;
+export const CreateGitLabConnectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateGitLabConnection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateGitLabConnectionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createGitLabConnection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"gitlabConnection"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"GitLabConnectionFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitLabConnectionFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitLabConnection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"creatorId"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"instanceUrl"}},{"kind":"Field","name":{"kind":"Name","value":"branchNameFormat"}},{"kind":"Field","name":{"kind":"Name","value":"linkCommits"}},{"kind":"Field","name":{"kind":"Name","value":"linkbacks"}},{"kind":"Field","name":{"kind":"Name","value":"connectedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<CreateGitLabConnectionMutation, CreateGitLabConnectionMutationVariables>;
+export const UpdateGitLabConnectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateGitLabConnection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateGitLabConnectionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateGitLabConnection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"gitlabConnection"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"GitLabConnectionFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitLabConnectionFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitLabConnection"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"creatorId"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"instanceUrl"}},{"kind":"Field","name":{"kind":"Name","value":"branchNameFormat"}},{"kind":"Field","name":{"kind":"Name","value":"linkCommits"}},{"kind":"Field","name":{"kind":"Name","value":"linkbacks"}},{"kind":"Field","name":{"kind":"Name","value":"connectedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<UpdateGitLabConnectionMutation, UpdateGitLabConnectionMutationVariables>;
+export const DeleteGitLabConnectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteGitLabConnection"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteGitLabConnection"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<DeleteGitLabConnectionMutation, DeleteGitLabConnectionMutationVariables>;
+export const CreateGitLabUserLinkDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateGitLabUserLink"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateGitLabUserLinkInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createGitLabUserLink"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"gitlabUserLink"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"GitLabUserLinkFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitLabUserLinkFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitLabUserLink"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"userId"}},{"kind":"Field","name":{"kind":"Name","value":"gitlabUsername"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<CreateGitLabUserLinkMutation, CreateGitLabUserLinkMutationVariables>;
+export const DeleteGitLabUserLinkDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteGitLabUserLink"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteGitLabUserLink"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<DeleteGitLabUserLinkMutation, DeleteGitLabUserLinkMutationVariables>;
+export const GitLabTeamAutomationDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GitLabTeamAutomation"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"teamId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"gitlabTeamAutomation"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"teamId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"teamId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"GitLabTeamAutomationFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitLabTeamAutomationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitLabTeamAutomation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"configured"}},{"kind":"Field","name":{"kind":"Name","value":"draftedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"openedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"reviewRequestedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"readyForMergeStateId"}},{"kind":"Field","name":{"kind":"Name","value":"mergedStateId"}}]}}]} as unknown as DocumentNode<GitLabTeamAutomationQuery, GitLabTeamAutomationQueryVariables>;
+export const UpdateGitLabTeamAutomationDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateGitLabTeamAutomation"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateGitLabTeamAutomationInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateGitLabTeamAutomation"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"gitlabTeamAutomation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"GitLabTeamAutomationFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitLabTeamAutomationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitLabTeamAutomation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"configured"}},{"kind":"Field","name":{"kind":"Name","value":"draftedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"openedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"reviewRequestedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"readyForMergeStateId"}},{"kind":"Field","name":{"kind":"Name","value":"mergedStateId"}}]}}]} as unknown as DocumentNode<UpdateGitLabTeamAutomationMutation, UpdateGitLabTeamAutomationMutationVariables>;
+export const DeleteGitLabTeamAutomationDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteGitLabTeamAutomation"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"teamId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteGitLabTeamAutomation"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"teamId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"teamId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"gitlabTeamAutomation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"GitLabTeamAutomationFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"GitLabTeamAutomationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"GitLabTeamAutomation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"teamId"}},{"kind":"Field","name":{"kind":"Name","value":"configured"}},{"kind":"Field","name":{"kind":"Name","value":"draftedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"openedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"reviewRequestedStateId"}},{"kind":"Field","name":{"kind":"Name","value":"readyForMergeStateId"}},{"kind":"Field","name":{"kind":"Name","value":"mergedStateId"}}]}}]} as unknown as DocumentNode<DeleteGitLabTeamAutomationMutation, DeleteGitLabTeamAutomationMutationVariables>;
 export const InboxDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Inbox"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"first"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"notifications"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"includeRead"},"value":{"kind":"BooleanValue","value":true}},{"kind":"Argument","name":{"kind":"Name","value":"includeSnoozed"},"value":{"kind":"BooleanValue","value":true}},{"kind":"Argument","name":{"kind":"Name","value":"first"},"value":{"kind":"Variable","name":{"kind":"Name","value":"first"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"NotificationFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"NotificationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Notification"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"userId"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"issueId"}},{"kind":"Field","name":{"kind":"Name","value":"commentId"}},{"kind":"Field","name":{"kind":"Name","value":"actor"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"id"}}]}},{"kind":"Field","name":{"kind":"Name","value":"changeVersion"}},{"kind":"Field","name":{"kind":"Name","value":"groupKey"}},{"kind":"Field","name":{"kind":"Name","value":"count"}},{"kind":"Field","name":{"kind":"Name","value":"payload"}},{"kind":"Field","name":{"kind":"Name","value":"readAt"}},{"kind":"Field","name":{"kind":"Name","value":"snoozedUntil"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<InboxQuery, InboxQueryVariables>;
 export const UnreadNotificationCountDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"UnreadNotificationCount"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"unreadNotificationCount"}}]}}]} as unknown as DocumentNode<UnreadNotificationCountQuery, UnreadNotificationCountQueryVariables>;
 export const MarkNotificationReadDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"MarkNotificationRead"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UUID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"read"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Boolean"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"markNotificationRead"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"read"},"value":{"kind":"Variable","name":{"kind":"Name","value":"read"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"notification"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"NotificationFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"NotificationFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Notification"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workspaceId"}},{"kind":"Field","name":{"kind":"Name","value":"userId"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"issueId"}},{"kind":"Field","name":{"kind":"Name","value":"commentId"}},{"kind":"Field","name":{"kind":"Name","value":"actor"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"id"}}]}},{"kind":"Field","name":{"kind":"Name","value":"changeVersion"}},{"kind":"Field","name":{"kind":"Name","value":"groupKey"}},{"kind":"Field","name":{"kind":"Name","value":"count"}},{"kind":"Field","name":{"kind":"Name","value":"payload"}},{"kind":"Field","name":{"kind":"Name","value":"readAt"}},{"kind":"Field","name":{"kind":"Name","value":"snoozedUntil"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<MarkNotificationReadMutation, MarkNotificationReadMutationVariables>;

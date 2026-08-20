@@ -65,6 +65,7 @@ var notInTheAPI = map[string]string{
 	"ResolvePrincipal": "a read; the verb prefix is a false positive",
 
 	"SetGitHubCommentPoster": "composition root: wires the GitHub HTTP client, not a caller mutation",
+	"SetGitLabCommentPoster": "composition root: wires the GitLab HTTP client, not a caller mutation",
 
 	// M1 scope. Listed so the omission is a decision rather than an oversight.
 	"InviteToWorkspace": "M1: the invite UI ships with member management",

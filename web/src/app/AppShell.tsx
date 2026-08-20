@@ -507,6 +507,10 @@ export function AppShell({
               <NavGlyph name="github" />
               <span className={styles.navLabel}>GitHub</span>
             </NavLink>
+            <NavLink to="/settings/gitlab" className={navClass}>
+              <NavGlyph name="gitlab" />
+              <span className={styles.navLabel}>GitLab</span>
+            </NavLink>
             <NavLink to="/settings/export" className={navClass}>
               <NavGlyph name="export" />
               <span className={styles.navLabel}>Export</span>
@@ -624,6 +628,7 @@ type NavGlyphName =
   | 'apps'
   | 'webhook'
   | 'github'
+  | 'gitlab'
   | 'export'
   | 'prefs'
   | 'trash';
@@ -796,6 +801,12 @@ function glyphPath(name: NavGlyphName) {
           <path d="M8 2.5v7" {...stroke} />
           <path d="M5 6.5 8 9.5l3-3" {...stroke} />
           <path d="M4.5 12.5h7" {...stroke} />
+        </>
+      );
+    case 'gitlab':
+      return (
+        <>
+          <path d="M2.5 10.5 5 4.5 8 10.5 11 4.5 13.5 10.5 8 13.5Z" {...stroke} />
         </>
       );
     case 'export':

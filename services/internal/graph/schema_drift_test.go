@@ -48,6 +48,8 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"Cycle", model.Cycle{}, generated.Cycle{}},
 		{"GitHubConnection", model.GitHubConnection{}, generated.GitHubConnection{}},
 		{"GitHubUserLink", model.GitHubUserLink{}, generated.GitHubUserLink{}},
+		{"GitLabConnection", model.GitLabConnection{}, generated.GitLabConnection{}},
+		{"GitLabUserLink", model.GitLabUserLink{}, generated.GitLabUserLink{}},
 		{"IssueTemplate", model.IssueTemplate{}, generated.IssueTemplate{}},
 		{"RecurringIssue", model.RecurringIssue{}, generated.RecurringIssue{}},
 		{"Customer", model.Customer{}, generated.Customer{}},
