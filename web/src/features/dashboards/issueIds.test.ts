@@ -113,10 +113,11 @@ describe('issueIdsForTile', () => {
       upsert(3, 'issue', issue('i1', 'open')),
       upsert(4, 'issue', issue('i2', 'secret')),
     ]);
-    expect(issueIdsForTile(store, dash({ ownerId: 'u1' }), tileRow()).slice().sort()).toEqual([
-      'i1',
-      'i2',
-    ]);
+    expect(
+      issueIdsForTile(store, dash({ ownerId: 'u1' }), tileRow())
+        .slice()
+        .sort(),
+    ).toEqual(['i1', 'i2']);
   });
 
   it('scopes a team dashboard to that team', () => {

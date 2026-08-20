@@ -72,7 +72,11 @@ export function DescriptionEditor({
   const placed = useMemo(() => {
     const anchors: CommentAnchor[] = [];
     for (const comment of visibleRoots) {
-      if (comment.anchorStart === undefined || comment.anchorEnd === undefined || comment.quote === undefined) {
+      if (
+        comment.anchorStart === undefined ||
+        comment.anchorEnd === undefined ||
+        comment.quote === undefined
+      ) {
         continue;
       }
       anchors.push({
@@ -104,8 +108,7 @@ export function DescriptionEditor({
     element.style.height = 'auto';
     const styling = window.getComputedStyle(element);
     const lineHeight = Number.parseFloat(styling.lineHeight);
-    const insets =
-      Number.parseFloat(styling.paddingTop) + Number.parseFloat(styling.paddingBottom);
+    const insets = Number.parseFloat(styling.paddingTop) + Number.parseFloat(styling.paddingBottom);
     let height = element.scrollHeight;
     if (Number.isFinite(lineHeight) && Number.isFinite(insets)) {
       height = Math.max(height, lineHeight * 3 + insets);
@@ -312,8 +315,14 @@ export function DescriptionEditor({
             {[open, ...replies].map((comment) => (
               <li key={comment.id}>
                 <div className={styles.postHead}>
-                  <span className={styles.author}>{names[comment.actor.id ?? ''] ?? 'Somebody'}</span>
-                  <time className={styles.when} dateTime={comment.createdAt} title={exact(comment.createdAt)}>
+                  <span className={styles.author}>
+                    {names[comment.actor.id ?? ''] ?? 'Somebody'}
+                  </span>
+                  <time
+                    className={styles.when}
+                    dateTime={comment.createdAt}
+                    title={exact(comment.createdAt)}
+                  >
                     {when(comment.createdAt)}
                   </time>
                 </div>
@@ -336,9 +345,12 @@ export function DescriptionEditor({
           <div className={styles.actions}>
             <Button
               onClick={() =>
-                resolveComment(engine, open.id, open.resolvedAt === undefined, viewerId ?? undefined).catch(
-                  report,
-                )
+                resolveComment(
+                  engine,
+                  open.id,
+                  open.resolvedAt === undefined,
+                  viewerId ?? undefined,
+                ).catch(report)
               }
             >
               {open.resolvedAt === undefined ? 'Resolve' : 'Reopen'}
