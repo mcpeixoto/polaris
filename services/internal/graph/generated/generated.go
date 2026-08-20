@@ -102,6 +102,8 @@ type ComplexityRoot struct {
 
 	Comment struct {
 		Actor       func(childComplexity int) int
+		AnchorEnd   func(childComplexity int) int
+		AnchorStart func(childComplexity int) int
 		Body        func(childComplexity int) int
 		CreatedAt   func(childComplexity int) int
 		EditedAt    func(childComplexity int) int
@@ -109,6 +111,7 @@ type ComplexityRoot struct {
 		Issue       func(childComplexity int) int
 		IssueID     func(childComplexity int) int
 		ParentID    func(childComplexity int) int
+		Quote       func(childComplexity int) int
 		ResolvedAt  func(childComplexity int) int
 		ResolvedBy  func(childComplexity int) int
 		UpdatedAt   func(childComplexity int) int
@@ -1789,6 +1792,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Comment.Actor(childComplexity), true
+	case "Comment.anchorEnd":
+		if e.ComplexityRoot.Comment.AnchorEnd == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Comment.AnchorEnd(childComplexity), true
+	case "Comment.anchorStart":
+		if e.ComplexityRoot.Comment.AnchorStart == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Comment.AnchorStart(childComplexity), true
 	case "Comment.body":
 		if e.ComplexityRoot.Comment.Body == nil {
 			break
@@ -1831,6 +1846,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Comment.ParentID(childComplexity), true
+	case "Comment.quote":
+		if e.ComplexityRoot.Comment.Quote == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Comment.Quote(childComplexity), true
 	case "Comment.resolvedAt":
 		if e.ComplexityRoot.Comment.ResolvedAt == nil {
 			break
@@ -9288,6 +9309,15 @@ type Comment {
   editedAt: Time
   resolvedAt: Time
   resolvedBy: UUID
+  """
+  Start of the highlighted span in the issue description, in UTF-16 code units.
+  Set together with ` + "`" + `anchorEnd` + "`" + ` and ` + "`" + `quote` + "`" + ` on an inline comment; omitted otherwise.
+  """
+  anchorStart: Int
+  """End of the highlighted span (exclusive)."""
+  anchorEnd: Int
+  """The selected text at the moment the comment was left, used to re-find the span after edits."""
+  quote: String
   createdAt: Time!
   updatedAt: Time!
   """
@@ -10592,6 +10622,10 @@ input CreateCommentInput {
   issueId: UUID!
   body: String!
   parentId: UUID
+  """Set together with ` + "`" + `anchorEnd` + "`" + ` and ` + "`" + `quote` + "`" + ` to pin the comment to a span of the issue description."""
+  anchorStart: Int
+  anchorEnd: Int
+  quote: String
 }
 
 input CreateAttachmentInput {
@@ -11251,6 +11285,12 @@ func (ec *executionContext) childFields_Comment(ctx context.Context, field graph
 		return ec.fieldContext_Comment_resolvedAt(ctx, field)
 	case "resolvedBy":
 		return ec.fieldContext_Comment_resolvedBy(ctx, field)
+	case "anchorStart":
+		return ec.fieldContext_Comment_anchorStart(ctx, field)
+	case "anchorEnd":
+		return ec.fieldContext_Comment_anchorEnd(ctx, field)
+	case "quote":
+		return ec.fieldContext_Comment_quote(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Comment_createdAt(ctx, field)
 	case "updatedAt":
@@ -18512,6 +18552,75 @@ func (ec *executionContext) _Comment_resolvedBy(ctx context.Context, field graph
 }
 func (ec *executionContext) fieldContext_Comment_resolvedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Comment", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Comment_anchorStart(ctx context.Context, field graphql.CollectedField, obj *Comment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Comment_anchorStart(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AnchorStart, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Comment_anchorStart(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Comment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Comment_anchorEnd(ctx context.Context, field graphql.CollectedField, obj *Comment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Comment_anchorEnd(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AnchorEnd, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Comment_anchorEnd(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Comment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Comment_quote(ctx context.Context, field graphql.CollectedField, obj *Comment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Comment_quote(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Quote, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Comment_quote(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Comment", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Comment_createdAt(ctx context.Context, field graphql.CollectedField, obj *Comment) (ret graphql.Marshaler) {
@@ -46692,7 +46801,7 @@ func (ec *executionContext) unmarshalInputCreateCommentInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"issueId", "body", "parentId"}
+	fieldsInOrder := [...]string{"issueId", "body", "parentId", "anchorStart", "anchorEnd", "quote"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -46720,6 +46829,27 @@ func (ec *executionContext) unmarshalInputCreateCommentInput(ctx context.Context
 				return it, err
 			}
 			it.ParentID = data
+		case "anchorStart":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("anchorStart"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AnchorStart = data
+		case "anchorEnd":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("anchorEnd"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AnchorEnd = data
+		case "quote":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quote"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Quote = data
 		}
 	}
 	return it, nil
@@ -51855,6 +51985,21 @@ func (ec *executionContext) _Comment(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "resolvedBy":
 			out.Values[i] = ec._Comment_resolvedBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "anchorStart":
+			out.Values[i] = ec._Comment_anchorStart(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "anchorEnd":
+			out.Values[i] = ec._Comment_anchorEnd(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "quote":
+			out.Values[i] = ec._Comment_quote(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

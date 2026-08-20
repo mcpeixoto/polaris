@@ -977,7 +977,9 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
 // v24 adds recurringIssue, team default template ids, and issue.recurringIssueId.
 // v25 adds customer and customerRequest.
-const ClientSchemaVersion = 25
+// v32 adds comment.anchorStart / anchorEnd / quote (inline comments on descriptions).
+// Numbers 26–31 are reserved for concurrent slices on other worktrees.
+const ClientSchemaVersion = 32
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

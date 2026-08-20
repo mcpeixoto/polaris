@@ -1,18 +1,24 @@
 -- name: CreateComment :one
-INSERT INTO comment (id, workspace_id, issue_id, parent_id, body, actor_type, actor_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO comment (
+  id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
+  anchor_start, anchor_end, quote
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
-          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at;
+          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at,
+          anchor_start, anchor_end, quote;
 
 -- name: GetComment :one
 SELECT id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
-       edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at
+       edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at,
+       anchor_start, anchor_end, quote
 FROM comment
 WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: ListCommentsForIssue :many
 SELECT id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
-       edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at
+       edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at,
+       anchor_start, anchor_end, quote
 FROM comment
 WHERE issue_id = $1 AND deleted_at IS NULL
 ORDER BY created_at;
@@ -21,14 +27,16 @@ ORDER BY created_at;
 UPDATE comment SET body = sqlc.arg(body), edited_at = now()
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
-          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at;
+          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at,
+          anchor_start, anchor_end, quote;
 
 -- name: SetCommentResolution :one
 UPDATE comment
 SET resolved_at = sqlc.narg(resolved_at), resolved_by = sqlc.narg(resolved_by)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
-          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at;
+          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at,
+          anchor_start, anchor_end, quote;
 
 -- name: SoftDeleteComment :exec
 UPDATE comment SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL;
@@ -51,7 +59,7 @@ UPDATE comment SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL;
 -- name: StreamCommentsForBootstrap :many
 SELECT c.id, c.workspace_id, c.issue_id, c.parent_id, c.body, c.actor_type, c.actor_id,
        c.edited_at, c.resolved_at, c.resolved_by, c.archived_at, c.deleted_at,
-       c.created_at, c.updated_at
+       c.created_at, c.updated_at, c.anchor_start, c.anchor_end, c.quote
 FROM comment c
 JOIN issue i ON i.id = c.issue_id
 WHERE c.workspace_id = sqlc.arg(workspace_id)

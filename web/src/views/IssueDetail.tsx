@@ -8,10 +8,9 @@
  * bootstrap snapshot carries. Those load behind content that is already rendered, which is
  * why the screen has no spinner across it.
  *
- * The description is a plain markdown textarea, deliberately. The rich editor is M2, and the
- * decision recorded in the milestone is that an issue's body is markdown text rather than a
- * collaborative document — so a textarea is not a placeholder for the real thing here, it is
- * an honest editor for what the field currently holds.
+ * The description is still markdown, with comment marks painted over the textarea rather
+ * than stored in the text. Inline threads pin to a span; the conversation at the bottom of
+ * the page is the issue thread, and the two stay separate.
  *
  * Comments thread exactly one level deep. A reply to a reply is a conversation that has
  * outgrown an issue, and unbounded nesting costs a tree walk, an indentation budget and a
@@ -21,6 +20,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
+import { DescriptionEditor } from '~/editor/DescriptionEditor';
+import { isInlineRoot } from '~/editor/marks';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
 import {
@@ -477,9 +478,12 @@ export function IssueDetail() {
             onSave={(title) => updateIssue(engine, issue.id, { title }).catch(report)}
           />
 
-          <DescriptionField
+          <DescriptionEditor
             issueId={issue.id}
             description={issue.description}
+            names={names}
+            viewerId={viewerId}
+            enterSubmits={commentSubmit === 'enter'}
             onSave={(description) => updateIssue(engine, issue.id, { description }).catch(report)}
           />
 
@@ -801,39 +805,6 @@ function TitleField({
   );
 }
 
-/** The description. Same draft-while-focused bargain as the title; see there. */
-function DescriptionField({
-  issueId,
-  description,
-  onSave,
-}: {
-  issueId: UUID;
-  description: string;
-  onSave: (description: string) => void;
-}) {
-  const [draft, setDraft] = useState<string | null>(null);
-
-  return (
-    <Textarea
-      key={issueId}
-      label="Description"
-      hideLabel
-      placeholder="Add a description…"
-      minRows={3}
-      maxRows={30}
-      value={draft ?? description}
-      className={styles.description}
-      onFocus={() => setDraft(description)}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={() => {
-        const next = draft;
-        setDraft(null);
-        if (next !== null && next !== description) onSave(next);
-      }}
-    />
-  );
-}
-
 /**
  * The activity feed.
  *
@@ -1119,7 +1090,14 @@ function thread(stored: readonly Comment[], fetched: readonly Comment[]): Thread
 
   const roots: Comment[] = [];
   const replies = new Map<UUID, Comment[]>();
+  const inlineIds = new Set<UUID>();
   for (const comment of byId.values()) {
+    if (isInlineRoot(comment)) inlineIds.add(comment.id);
+  }
+  for (const comment of byId.values()) {
+    if (inlineIds.has(comment.id) || (comment.parentId !== undefined && inlineIds.has(comment.parentId))) {
+      continue;
+    }
     if (comment.parentId === undefined) {
       roots.push(comment);
       continue;
