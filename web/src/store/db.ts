@@ -22,6 +22,7 @@ import {
   type GitLabConnection,
   type GitLabUserLink,
   type SentryConnection,
+  type SlackConnection,
   type CycleCalendarFeed,
   type Issue,
   type IssueLabel,
@@ -135,8 +136,9 @@ import {
  * v41 adds favorite.folderId / favorite.name and kind folder (sidebar folders).
  * v42 adds sentryConnection (Sentry webhook create/link, no secrets).
  * v43 adds cycleCalendarFeed (personal ICS token per team, no secrets).
+ * v44 adds slackConnection (Slack webhook notify / slash / unfurls, no secrets).
  */
-export const CLIENT_SCHEMA = 43;
+export const CLIENT_SCHEMA = 44;
 
 /**
  * One database per workspace per schema version.
@@ -213,6 +215,7 @@ interface PolarisSchema extends DBSchema {
   gitlabConnection: { key: UUID; value: GitLabConnection };
   gitlabUserLink: { key: UUID; value: GitLabUserLink };
   sentryConnection: { key: UUID; value: SentryConnection };
+  slackConnection: { key: UUID; value: SlackConnection };
   cycleCalendarFeed: { key: UUID; value: CycleCalendarFeed };
   team: { key: UUID; value: Team };
   teamMembership: { key: UUID; value: TeamMembership };

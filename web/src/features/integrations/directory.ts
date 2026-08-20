@@ -82,7 +82,8 @@ export const DIRECTORY: readonly DirectoryEntry[] = [
     id: 'slack',
     name: 'Slack',
     category: 'Chat',
-    summary: '@Linear agent, issue creation, unfurls, and project channels.',
+    summary: 'Notify a channel, slash-create issues, unfurl links, and post magic-word linkbacks.',
+    href: '/settings/slack',
   },
   {
     id: 'teams',
@@ -139,6 +140,7 @@ export function directoryStatus(store: Store, entry: DirectoryEntry): Integratio
   if (entry.id === 'github') return store.githubConnections.size > 0 ? 'connected' : 'available';
   if (entry.id === 'gitlab') return store.gitlabConnections.size > 0 ? 'connected' : 'available';
   if (entry.id === 'sentry') return store.sentryConnections.size > 0 ? 'connected' : 'available';
+  if (entry.id === 'slack') return store.slackConnections.size > 0 ? 'connected' : 'available';
   if (entry.id === 'asks') return store.askForms.size > 0 ? 'connected' : 'available';
   return 'available';
 }

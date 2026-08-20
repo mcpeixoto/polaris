@@ -85,6 +85,13 @@ var serverSideOnly = map[string]string{
 	"VerifyGitLabWebhook":        "inbound GitLab webhook auth: token check, not a caller mutation",
 	"IngestSentryIssue":          "inbound Sentry webhook: signed HTTP, not GraphQL",
 	"VerifySentryWebhook":        "inbound Sentry webhook auth: HMAC or token check, not a caller mutation",
+	"FanOutSlackAll":             "worker cron: POSTs issue/comment events to a Slack incoming webhook",
+	"FanOutSlack":                "internal: one workspace's pass, called by FanOutSlackAll",
+	"HandleSlackSlash":           "inbound Slack slash command: signed HTTP, not GraphQL",
+	"HandleSlackMessage":         "inbound Slack Events API message: signed HTTP, not GraphQL",
+	"SlackUnfurls":               "inbound Slack link_shared: signed HTTP, not GraphQL",
+	"VerifySlackRequest":         "inbound Slack webhook auth: HMAC check, not a caller mutation",
+	"SlackWebhookConfigured":     "GraphQL slackInbound: admin flag for a credential that is not replicated",
 	"IngestInboundEmail":         "inbound email webhook: signed HTTP, not GraphQL",
 	"SubmitAsk":                  "POST /asks/{token}: public, token is the credential",
 	"SetGitHubCommentPoster":     "composition root: wires the GitHub HTTP client, not a caller mutation",
@@ -169,7 +176,8 @@ func TestAPIParity_TheVerbListDoesNotSilentlySkipWrites(t *testing.T) {
 	// Writes that reach the public API only because somebody also wrote the schema field
 	// by hand. Every one of these is exposed today; none is checked by the parity test.
 	known := map[string]bool{
-		"BulkUpdateIssues": true,
+		"BulkUpdateIssues":  true,
+		"SubmitIntegration": true,
 	}
 
 	svcType := reflect.TypeOf(&domain.Service{})

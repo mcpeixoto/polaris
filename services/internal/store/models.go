@@ -876,6 +876,22 @@ type SlaRule struct {
 	UpdatedAt       time.Time
 }
 
+type SlackConnection struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	CreatorID      uuid.UUID
+	Enabled        bool
+	DefaultTeamID  uuid.UUID
+	ChannelName    *string
+	NotifyIssues   bool
+	NotifyComments bool
+	WebhookUrl     *string
+	NotifyCursor   int64
+	ConnectedAt    *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type Team struct {
 	ID                             uuid.UUID
 	WorkspaceID                    uuid.UUID

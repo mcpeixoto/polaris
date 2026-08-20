@@ -25,6 +25,7 @@ import { OAuthAuthorize } from '~/views/OAuthAuthorize';
 import { GitHubSettings } from '~/views/GitHubSettings';
 import { GitLabSettings } from '~/views/GitLabSettings';
 import { SentrySettings } from '~/views/SentrySettings';
+import { SlackSettings } from '~/views/SlackSettings';
 import { ConnectServer } from '~/views/ConnectServer';
 import { CreateIssueFromUrl } from '~/views/CreateIssueFromUrl';
 import { CreateWorkspace } from '~/views/CreateWorkspace';
@@ -221,6 +222,7 @@ function SignedInShell() {
         <Route path="/settings/github" element={<GitHubSettings />} />
         <Route path="/settings/gitlab" element={<GitLabSettings />} />
         <Route path="/settings/sentry" element={<SentrySettings />} />
+        <Route path="/settings/slack" element={<SlackSettings />} />
         <Route path="/settings/export" element={<ExportSettings />} />
         <Route path="/settings/trash" element={<Trash />} />
         <Route path="/settings/deleted-teams" element={<DeletedTeams />} />
