@@ -38,6 +38,8 @@ import {
   type Favorite,
   type GitHubConnection,
   type GitHubUserLink,
+  type GitLabConnection,
+  type GitLabUserLink,
   type Issue,
   type IssueLabel,
   type IssueRelation,
@@ -164,6 +166,8 @@ export class Store {
     user: new Map(),
     githubConnection: new Map(),
     githubUserLink: new Map(),
+    gitlabConnection: new Map(),
+    gitlabUserLink: new Map(),
     team: new Map(),
     teamMembership: new Map(),
     workflowState: new Map(),
@@ -329,6 +333,14 @@ export class Store {
 
   get githubUserLinks(): ReadonlyMap<UUID, GitHubUserLink> {
     return this.tables.githubUserLink as ReadonlyMap<UUID, GitHubUserLink>;
+  }
+
+  get gitlabConnections(): ReadonlyMap<UUID, GitLabConnection> {
+    return this.tables.gitlabConnection as ReadonlyMap<UUID, GitLabConnection>;
+  }
+
+  get gitlabUserLinks(): ReadonlyMap<UUID, GitLabUserLink> {
+    return this.tables.gitlabUserLink as ReadonlyMap<UUID, GitLabUserLink>;
   }
 
   get teams(): ReadonlyMap<UUID, Team> {

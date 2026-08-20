@@ -147,6 +147,9 @@ func NewRouter(d Deps) http.Handler {
 	mux.Handle("GET /auth/github/start", RequireWorkspace(http.HandlerFunc(github.oauthStart)))
 	mux.Handle("GET /auth/github/callback", d.Limits.Anonymous(http.HandlerFunc(github.oauthCallback)))
 
+	gitlab := &gitlabHandlers{svc: d.Service}
+	mux.Handle("POST /webhooks/gitlab/{workspaceId}", d.Limits.Anonymous(http.HandlerFunc(gitlab.events)))
+
 	email := &emailHandlers{svc: d.Service, cfg: d.Config}
 	// Inbound mail is unauthenticated: the shared secret is the credential. Anonymous
 	// budget, because a loop of unsigned posts would otherwise be free.

@@ -78,6 +78,8 @@ export type {
   AskForm,
   GitHubConnection,
   GitHubUserLink,
+  GitLabConnection,
+  GitLabUserLink,
   ProjectTemplate,
   ProjectTemplateMilestone,
   ProjectTemplateIssue,

@@ -370,6 +370,14 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	}); err != nil {
 		t.Fatalf("link bob's GitHub account: %v", err)
 	}
+	if _, _, _, err := svc.CreateGitLabConnection(ctx, s.alice, domain.CreateGitLabConnectionInput{}); err != nil {
+		t.Fatalf("connect GitLab: %v", err)
+	}
+	if _, _, err := svc.CreateGitLabUserLink(ctx, s.bob, domain.CreateGitLabUserLinkInput{
+		GitLabUsername: "bob",
+	}); err != nil {
+		t.Fatalf("link bob's GitLab account: %v", err)
+	}
 
 	// Favourites: alice pins something out of the private team and something workspace-wide,
 	// bob pins the team they share. A favourite carries only its owner's scope, which is what

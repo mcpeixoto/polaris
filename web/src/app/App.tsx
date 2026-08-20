@@ -23,6 +23,7 @@ import { Webhooks } from '~/views/Webhooks';
 import { OAuthApps } from '~/views/OAuthApps';
 import { OAuthAuthorize } from '~/views/OAuthAuthorize';
 import { GitHubSettings } from '~/views/GitHubSettings';
+import { GitLabSettings } from '~/views/GitLabSettings';
 import { ConnectServer } from '~/views/ConnectServer';
 import { CreateIssueFromUrl } from '~/views/CreateIssueFromUrl';
 import { CreateWorkspace } from '~/views/CreateWorkspace';
@@ -207,6 +208,7 @@ function SignedInShell() {
         <Route path="/settings/oauth-apps" element={<OAuthApps />} />
         <Route path="/settings/webhooks" element={<Webhooks />} />
         <Route path="/settings/github" element={<GitHubSettings />} />
+        <Route path="/settings/gitlab" element={<GitLabSettings />} />
         <Route path="/settings/export" element={<ExportSettings />} />
         <Route path="/settings/trash" element={<Trash />} />
         <Route path="/settings/deleted-teams" element={<DeletedTeams />} />

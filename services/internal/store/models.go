@@ -335,6 +335,44 @@ type GithubUserLink struct {
 	UpdatedAt    time.Time
 }
 
+type GitlabConnection struct {
+	ID               uuid.UUID
+	WorkspaceID      uuid.UUID
+	CreatorID        uuid.UUID
+	Enabled          bool
+	InstanceUrl      string
+	BranchNameFormat string
+	LinkCommits      bool
+	Linkbacks        bool
+	WebhookSecret    string
+	AccessToken      *string
+	ConnectedAt      *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type GitlabTeamAutomation struct {
+	TeamID                 uuid.UUID
+	WorkspaceID            uuid.UUID
+	DraftedStateID         *uuid.UUID
+	OpenedStateID          *uuid.UUID
+	ReviewRequestedStateID *uuid.UUID
+	ReadyForMergeStateID   *uuid.UUID
+	MergedStateID          *uuid.UUID
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+type GitlabUserLink struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	UserID         uuid.UUID
+	GitlabUsername string
+	GitlabUserID   *int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type IdempotencyKey struct {
 	ClientID    uuid.UUID
 	OpID        uuid.UUID

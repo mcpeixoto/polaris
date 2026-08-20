@@ -146,6 +146,37 @@ export interface GitHubUserLink {
 }
 
 /**
+ * Workspace GitLab instance, minus credentials. On the replica so Copy git branch
+ * name works offline and the settings screen can render without a round trip.
+ */
+export interface GitLabConnection {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly creatorId: UUID;
+  readonly enabled: boolean;
+  readonly instanceUrl: string;
+  readonly branchNameFormat: string;
+  readonly linkCommits: boolean;
+  readonly linkbacks: boolean;
+  readonly connectedAt?: Timestamp;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/**
+ * The caller's linked GitLab username. Tokens are absent for the same reason API keys
+ * never replicate theirs.
+ */
+export interface GitLabUserLink {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly userId: UUID;
+  readonly gitlabUsername: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/**
  * Delivery preferences. Every key is optional and absence means the default, so a client
  * built before a notification type existed does not have to know about it.
  */
@@ -1065,6 +1096,8 @@ export interface EntityByType {
   user: User;
   githubConnection: GitHubConnection;
   githubUserLink: GitHubUserLink;
+  gitlabConnection: GitLabConnection;
+  gitlabUserLink: GitLabUserLink;
   team: Team;
   teamMembership: TeamMembership;
   workflowState: WorkflowState;
@@ -1123,6 +1156,8 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'user',
   'githubConnection',
   'githubUserLink',
+  'gitlabConnection',
+  'gitlabUserLink',
   'team',
   'teamMembership',
   'workflowState',

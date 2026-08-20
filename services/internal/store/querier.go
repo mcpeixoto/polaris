@@ -285,6 +285,9 @@ type Querier interface {
 	// Replicated columns only. access_token and commit_webhook_secret are never selected here.
 	CreateGitHubConnection(ctx context.Context, arg CreateGitHubConnectionParams) (CreateGitHubConnectionRow, error)
 	CreateGitHubUserLink(ctx context.Context, arg CreateGitHubUserLinkParams) (CreateGitHubUserLinkRow, error)
+	// Replicated columns only. access_token and webhook_secret are never selected here.
+	CreateGitLabConnection(ctx context.Context, arg CreateGitLabConnectionParams) (CreateGitLabConnectionRow, error)
+	CreateGitLabUserLink(ctx context.Context, arg CreateGitLabUserLinkParams) (GitlabUserLink, error)
 	CreateInitiative(ctx context.Context, arg CreateInitiativeParams) (Initiative, error)
 	CreateInitiativeProject(ctx context.Context, arg CreateInitiativeProjectParams) (InitiativeProject, error)
 	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
@@ -363,6 +366,9 @@ type Querier interface {
 	DeleteGitHubConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteGitHubTeamAutomation(ctx context.Context, arg DeleteGitHubTeamAutomationParams) error
 	DeleteGitHubUserLink(ctx context.Context, arg DeleteGitHubUserLinkParams) error
+	DeleteGitLabConnection(ctx context.Context, workspaceID uuid.UUID) error
+	DeleteGitLabTeamAutomation(ctx context.Context, arg DeleteGitLabTeamAutomationParams) error
+	DeleteGitLabUserLink(ctx context.Context, arg DeleteGitLabUserLinkParams) error
 	DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
 	DeleteIssueRelation(ctx context.Context, id uuid.UUID) (IssueRelation, error)
 	// Soft, not a DELETE: the unique index on (user_id, group_key) is what makes the fan-out
@@ -450,6 +456,11 @@ type Querier interface {
 	GetGitHubTeamAutomation(ctx context.Context, arg GetGitHubTeamAutomationParams) (GithubTeamAutomation, error)
 	GetGitHubUserLink(ctx context.Context, arg GetGitHubUserLinkParams) (GetGitHubUserLinkRow, error)
 	GetGitHubUserLinkByLogin(ctx context.Context, arg GetGitHubUserLinkByLoginParams) (GetGitHubUserLinkByLoginRow, error)
+	GetGitLabConnection(ctx context.Context, workspaceID uuid.UUID) (GetGitLabConnectionRow, error)
+	GetGitLabConnectionAccessToken(ctx context.Context, workspaceID uuid.UUID) (string, error)
+	GetGitLabConnectionSecret(ctx context.Context, workspaceID uuid.UUID) (string, error)
+	GetGitLabTeamAutomation(ctx context.Context, arg GetGitLabTeamAutomationParams) (GitlabTeamAutomation, error)
+	GetGitLabUserLink(ctx context.Context, arg GetGitLabUserLinkParams) (GitlabUserLink, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
 	GetInboundEmailByMessageID(ctx context.Context, arg GetInboundEmailByMessageIDParams) (InboundEmail, error)
 	GetInitiative(ctx context.Context, id uuid.UUID) (Initiative, error)
@@ -1097,6 +1108,7 @@ type Querier interface {
 	SetCommentResolution(ctx context.Context, arg SetCommentResolutionParams) (Comment, error)
 	SetDefaultWorkflowState(ctx context.Context, id uuid.UUID) error
 	SetGitHubConnectionAccessToken(ctx context.Context, arg SetGitHubConnectionAccessTokenParams) error
+	SetGitLabConnectionAccessToken(ctx context.Context, arg SetGitLabConnectionAccessTokenParams) error
 	SetIssueCycle(ctx context.Context, arg SetIssueCycleParams) error
 	// SetIssueRecurringIssueID links an existing issue to a schedule (convert) or records
 	// the schedule that just minted it. A dedicated write rather than stretching UpdateIssue:
@@ -1196,6 +1208,8 @@ type Querier interface {
 	StreamFormTemplatesForBootstrap(ctx context.Context, arg StreamFormTemplatesForBootstrapParams) ([]StreamFormTemplatesForBootstrapRow, error)
 	StreamGitHubConnectionsForBootstrap(ctx context.Context, arg StreamGitHubConnectionsForBootstrapParams) ([]StreamGitHubConnectionsForBootstrapRow, error)
 	StreamGitHubUserLinksForBootstrap(ctx context.Context, arg StreamGitHubUserLinksForBootstrapParams) ([]StreamGitHubUserLinksForBootstrapRow, error)
+	StreamGitLabConnectionsForBootstrap(ctx context.Context, arg StreamGitLabConnectionsForBootstrapParams) ([]StreamGitLabConnectionsForBootstrapRow, error)
+	StreamGitLabUserLinksForBootstrap(ctx context.Context, arg StreamGitLabUserLinksForBootstrapParams) ([]GitlabUserLink, error)
 	// StreamInitiativeProjectsForBootstrap: both the initiative and the project must be visible.
 	//
 	StreamInitiativeProjectsForBootstrap(ctx context.Context, arg StreamInitiativeProjectsForBootstrapParams) ([]InitiativeProject, error)
@@ -1429,6 +1443,8 @@ type Querier interface {
 	UpdateFormTemplateField(ctx context.Context, arg UpdateFormTemplateFieldParams) (FormTemplateField, error)
 	UpdateGitHubConnection(ctx context.Context, arg UpdateGitHubConnectionParams) (UpdateGitHubConnectionRow, error)
 	UpdateGitHubUserLink(ctx context.Context, arg UpdateGitHubUserLinkParams) (UpdateGitHubUserLinkRow, error)
+	UpdateGitLabConnection(ctx context.Context, arg UpdateGitLabConnectionParams) (UpdateGitLabConnectionRow, error)
+	UpdateGitLabUserLink(ctx context.Context, arg UpdateGitLabUserLinkParams) (GitlabUserLink, error)
 	UpdateInitiative(ctx context.Context, arg UpdateInitiativeParams) (Initiative, error)
 	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (UpdateIssueRow, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error
@@ -1503,6 +1519,7 @@ type Querier interface {
 	UpdateWorkflowState(ctx context.Context, arg UpdateWorkflowStateParams) (WorkflowState, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
 	UpsertGitHubTeamAutomation(ctx context.Context, arg UpsertGitHubTeamAutomationParams) (GithubTeamAutomation, error)
+	UpsertGitLabTeamAutomation(ctx context.Context, arg UpsertGitLabTeamAutomationParams) (GitlabTeamAutomation, error)
 	// The inbox, and the subscriptions that decide who gets one.
 	//
 	// Every query that touches a notification is scoped by user_id as well as by id. The id
