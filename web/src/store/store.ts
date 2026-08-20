@@ -69,6 +69,7 @@ import {
   type UUID,
   type View,
   type ViewPreference,
+  type ViewSubscription,
   type WorkflowState,
   type Workspace,
 } from './types';
@@ -199,6 +200,7 @@ export class Store {
     issueSubscription: new Map(),
     notification: new Map(),
     view: new Map(),
+    viewSubscription: new Map(),
     viewPreference: new Map(),
     favorite: new Map(),
   };
@@ -234,6 +236,9 @@ export class Store {
   private readonly projectTemplateIssueOf = new SetIndex<UUID>();
   private readonly viewTeam = new SetIndex<UUID>();
   private readonly viewProject = new SetIndex<UUID>();
+  private readonly viewSubscriptionOf = new SetIndex<UUID>();
+  /** Keyed by user and view together; see `viewSubKey`. */
+  private readonly viewSubscriptionByUserView = new Map<string, UUID>();
   private readonly subscriptionIssue = new SetIndex<UUID>();
   private readonly subscriptionUser = new SetIndex<UUID>();
   /**
@@ -473,6 +478,14 @@ export class Store {
 
   get views(): ReadonlyMap<UUID, View> {
     return this.tables.view as ReadonlyMap<UUID, View>;
+  }
+
+  get viewSubscriptions(): ReadonlyMap<UUID, ViewSubscription> {
+    return this.tables.viewSubscription as ReadonlyMap<UUID, ViewSubscription>;
+  }
+
+  viewSubscriptionIdFor(userId: UUID, viewId: UUID): UUID | undefined {
+    return this.viewSubscriptionByUserView.get(viewSubKey(userId, viewId));
   }
 
   get viewPreferences(): ReadonlyMap<UUID, ViewPreference> {
@@ -923,6 +936,8 @@ export class Store {
     this.projectTemplateIssueOf.clear();
     this.viewTeam.clear();
     this.viewProject.clear();
+    this.viewSubscriptionOf.clear();
+    this.viewSubscriptionByUserView.clear();
     this.subscriptionIssue.clear();
     this.subscriptionUser.clear();
     this.subscriberUsers.clear();
@@ -1069,6 +1084,11 @@ export class Store {
       case 'dashboard':
         for (const rowId of [...this.dashboardTileOf.get(id)]) {
           this.forget('dashboardTile', rowId, deletes, touched);
+        }
+        break;
+      case 'view':
+        for (const rowId of [...this.viewSubscriptionOf.get(id)]) {
+          this.forget('viewSubscription', rowId, deletes, touched);
         }
         break;
       case 'label':
@@ -1381,6 +1401,17 @@ export class Store {
         this.dashboardTileOf.add(row.dashboardId, row.id);
         break;
       }
+      case 'viewSubscription': {
+        const row = next as ViewSubscription;
+        const before = previous as ViewSubscription | undefined;
+        if (before !== undefined) {
+          this.viewSubscriptionOf.remove(before.viewId, before.id);
+          this.viewSubscriptionByUserView.delete(viewSubKey(before.userId, before.viewId));
+        }
+        this.viewSubscriptionOf.add(row.viewId, row.id);
+        this.viewSubscriptionByUserView.set(viewSubKey(row.userId, row.viewId), row.id);
+        break;
+      }
       default:
         break;
     }
@@ -1530,6 +1561,12 @@ export class Store {
         this.dashboardTileOf.remove(row.dashboardId, row.id);
         break;
       }
+      case 'viewSubscription': {
+        const row = entity as ViewSubscription;
+        this.viewSubscriptionOf.remove(row.viewId, row.id);
+        this.viewSubscriptionByUserView.delete(viewSubKey(row.userId, row.viewId));
+        break;
+      }
       default:
         break;
     }
@@ -1645,6 +1682,10 @@ interface ProjectScoped {
  */
 function preferenceKey(userId: UUID, viewKey: string): string {
   return `${userId}\u0000${viewKey}`;
+}
+
+function viewSubKey(userId: UUID, viewId: UUID): string {
+  return `${userId}\u0000${viewId}`;
 }
 
 function intersects(deps: ReadonlySet<EntityType>, touched: ReadonlySet<EntityType>): boolean {

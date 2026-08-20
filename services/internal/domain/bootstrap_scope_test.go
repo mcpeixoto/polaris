@@ -62,6 +62,7 @@ type scene struct {
 	openSlaRule                                   uuid.UUID
 	openDashboard                                 uuid.UUID
 	openDashboardTile                             uuid.UUID
+	bobsViewSubscription                          uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
 	bobsFavorite                                  uuid.UUID
 
@@ -437,6 +438,16 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	if _, _, err := svc.DeleteView(ctx, s.alice, s.deletedView); err != nil {
 		t.Fatalf("delete the view: %v", err)
 	}
+
+	// After every create and the mention fan-out, so watching the view does not mint extra
+	// inbox rows that the scene's notification counts do not expect.
+	watch, _, err := svc.SetViewSubscription(ctx, s.bob, domain.SetViewSubscriptionInput{
+		ViewID: s.workspaceView, Added: true,
+	})
+	if err != nil {
+		t.Fatalf("subscribe bob to the workspace view: %v", err)
+	}
+	s.bobsViewSubscription = watch.ID
 	return s
 }
 
@@ -523,6 +534,8 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 			"a private view belongs to its owner, whatever team it is anchored to"},
 		{bobName, "viewPreference", s.alicesPreference,
 			"how somebody arranges their own screen is theirs"},
+		{aliceName, "viewSubscription", s.bobsViewSubscription,
+			"a watch on a saved view is one person's"},
 		{bobName, "favorite", s.alicesPrivateFavorite, "a sidebar is one person's"},
 		{bobName, "favorite", s.alicesLabelFavorite,
 			"a sidebar is one person's, even when what it points at is workspace-wide"},
@@ -603,6 +616,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "slaRule", s.openSlaRule},
 		{bobName, "dashboard", s.openDashboard},
 		{bobName, "dashboardTile", s.openDashboardTile},
+		{bobName, "viewSubscription", s.bobsViewSubscription},
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},
 		{gretaName, "issue", s.openIssue},

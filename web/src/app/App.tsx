@@ -30,6 +30,7 @@ import { Inbox } from '~/views/Inbox';
 import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
 import { MemberSettings } from '~/views/MemberSettings';
+import { McpSettings } from '~/views/McpSettings';
 import { MyIssues } from '~/views/MyIssues';
 import { NotificationSettings } from '~/views/NotificationSettings';
 import { Preferences } from '~/views/Preferences';
@@ -196,6 +197,7 @@ function SignedInShell() {
         <Route path="/settings/preferences" element={<Preferences />} />
         <Route path="/settings/templates" element={<Templates />} />
         <Route path="/settings/api-keys" element={<ApiKeys />} />
+        <Route path="/settings/mcp" element={<McpSettings />} />
         <Route path="/settings/oauth-apps" element={<OAuthApps />} />
         <Route path="/settings/webhooks" element={<Webhooks />} />
         <Route path="/settings/github" element={<GitHubSettings />} />

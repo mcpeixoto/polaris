@@ -296,6 +296,10 @@ func (s *Service) DeleteView(ctx context.Context, p *authz.Principal, id uuid.UU
 			return platform.Internal(err)
 		}
 
+		if err := emitViewSubscriptionDeletes(ctx, s.em, q, p.WorkspaceID, id); err != nil {
+			return err
+		}
+
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "view", EntityID: id, Op: OpDelete,
 			TeamID: scopeTeamID(scope, row.TeamID), Scope: scope,

@@ -422,6 +422,11 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 		json.RawMessage(`{"groupBy":"state"}`)); err != nil {
 		t.Fatalf("viewPreference: %v", err)
 	}
+	if _, _, err := svc.SetViewSubscription(ctx, p, domain.SetViewSubscriptionInput{
+		ViewID: view.ID, Added: true, Completed: true,
+	}); err != nil {
+		t.Fatalf("viewSubscription: %v", err)
+	}
 	if _, _, err := svc.AddFavorite(ctx, p, "view", view.ID, nil); err != nil {
 		t.Fatalf("favorite: %v", err)
 	}

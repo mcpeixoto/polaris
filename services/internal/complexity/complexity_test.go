@@ -241,6 +241,8 @@ func TestNoPaginationArgumentGoesUnrecognised(t *testing.T) {
 		"revenue":                           "customer revenue, not a row count",
 		"size":                              "customer employee count, not a row count",
 		"durationMinutes":                   "SLA duration in minutes, not a row count",
+		"anchorStart":                       "inline comment offset in the description, not a row count",
+		"anchorEnd":                         "inline comment offset in the description, not a row count",
 	}
 
 	schema := generated.NewExecutableSchema(generated.Config{}).Schema()

@@ -341,6 +341,8 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Saved views, the display preferences of the views that have no row, and favourites.
 	CreateView(ctx context.Context, arg CreateViewParams) (CreateViewRow, error)
+	// Personal subscriptions to a saved view.
+	CreateViewSubscription(ctx context.Context, arg CreateViewSubscriptionParams) (ViewSubscription, error)
 	// Webhooks are not replicated. Queries that list or return a webhook to an API caller
 	// never select `secret`. The delivery path is the one place that needs it, and it is a
 	// separate query so a future listing that grows a field cannot accidentally start
@@ -374,6 +376,7 @@ type Querier interface {
 	DeleteSlaRule(ctx context.Context, id uuid.UUID) error
 	// Upcoming cycles that have not started: dropped when the team turns cycles off.
 	DeleteUpcomingCycles(ctx context.Context, arg DeleteUpcomingCyclesParams) ([]uuid.UUID, error)
+	DeleteViewSubscription(ctx context.Context, id uuid.UUID) error
 	DeleteWebhook(ctx context.Context, arg DeleteWebhookParams) (uuid.UUID, error)
 	DisableWebhook(ctx context.Context, id uuid.UUID) error
 	EnsureChangeLogPartition(ctx context.Context, month pgtype.Date) error
@@ -560,6 +563,8 @@ type Querier interface {
 	// Positions on a project's tabs are compared only within that project.
 	//
 	GetViewPositionAfterForProject(ctx context.Context, arg GetViewPositionAfterForProjectParams) (string, error)
+	GetViewSubscription(ctx context.Context, id uuid.UUID) (ViewSubscription, error)
+	GetViewSubscriptionForUser(ctx context.Context, arg GetViewSubscriptionForUserParams) (ViewSubscription, error)
 	GetWebhook(ctx context.Context, arg GetWebhookParams) (GetWebhookRow, error)
 	GetWebhookCursor(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	GetWorkflowState(ctx context.Context, id uuid.UUID) (WorkflowState, error)
@@ -889,6 +894,14 @@ type Querier interface {
 	ListTeamsWithCyclesEnabled(ctx context.Context) ([]Team, error)
 	ListUsersInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]User, error)
 	ListViewPreferences(ctx context.Context, arg ListViewPreferencesParams) ([]ViewPreference, error)
+	// The fan-out's read: every subscription in the workspace, with the view's filter so a
+	// pass can compile once per view rather than once per (view, subscriber) pair.
+	//
+	// Archived views are omitted: DeleteView archives rather than removes, and a subscription
+	// pointing at a view nobody can open must not produce inbox rows.
+	//
+	ListViewSubscriptionsForFanOut(ctx context.Context, workspaceID uuid.UUID) ([]ListViewSubscriptionsForFanOutRow, error)
+	ListViewSubscriptionsForView(ctx context.Context, viewID uuid.UUID) ([]ViewSubscription, error)
 	// ListViewsForUser is the sidebar visibility rule, stated once: workspace views, team views,
 	// and the caller's private views. Project-attached views are omitted — they live as tabs on
 	// a project, not in the sidebar.
@@ -1318,6 +1331,11 @@ type Querier interface {
 	// snapshot pages by id and a key order would need an offset to resume.
 	//
 	StreamViewPreferencesForBootstrap(ctx context.Context, arg StreamViewPreferencesForBootstrapParams) ([]ViewPreference, error)
+	// StreamViewSubscriptionsForBootstrap is one person's subscriptions. A view subscription
+	// is personal the way an inbox row is: it travels under a user scope and never appears in
+	// anybody else's replica.
+	//
+	StreamViewSubscriptionsForBootstrap(ctx context.Context, arg StreamViewSubscriptionsForBootstrapParams) ([]ViewSubscription, error)
 	// StreamViewsForBootstrap is ListViewsForUser as the snapshot needs it: keyset-paginated,
 	// and with the guest arm the listing above leaves to Go stated here instead.
 	//
@@ -1467,6 +1485,7 @@ type Querier interface {
 	UpdateUserNotificationPrefs(ctx context.Context, arg UpdateUserNotificationPrefsParams) (User, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpdateView(ctx context.Context, arg UpdateViewParams) (UpdateViewRow, error)
+	UpdateViewSubscription(ctx context.Context, arg UpdateViewSubscriptionParams) (ViewSubscription, error)
 	UpdateWebhookEnabled(ctx context.Context, arg UpdateWebhookEnabledParams) (UpdateWebhookEnabledRow, error)
 	UpdateWorkflowState(ctx context.Context, arg UpdateWorkflowStateParams) (WorkflowState, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)

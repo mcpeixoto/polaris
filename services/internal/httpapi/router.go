@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/entitlement"
+	"github.com/peixotolabs/polaris/services/internal/mcp"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 )
 
@@ -154,6 +156,18 @@ func NewRouter(d Deps) http.Handler {
 	mux.Handle("POST /oauth/token", d.Limits.Anonymous(http.HandlerFunc(oauth.token)))
 	mux.Handle("POST /oauth/revoke", d.Limits.Anonymous(http.HandlerFunc(oauth.revoke)))
 
+	mcpRW := &mcp.Server{Svc: d.Service, PublicURL: d.Config.PublicURL, ReadOnly: false}
+	mcpRO := &mcp.Server{Svc: d.Service, PublicURL: d.Config.PublicURL, ReadOnly: true}
+	mux.Handle("POST /mcp", requireMCP(d.Config.PublicURL, d.Limits.GraphQL(mcpRW)))
+	mux.Handle("GET /mcp", requireMCP(d.Config.PublicURL, d.Limits.GraphQL(mcpRW)))
+	mux.Handle("DELETE /mcp", requireMCP(d.Config.PublicURL, mcpRW))
+	mux.Handle("POST /mcp/readonly", requireMCP(d.Config.PublicURL, d.Limits.GraphQL(mcpRO)))
+	mux.Handle("GET /mcp/readonly", requireMCP(d.Config.PublicURL, d.Limits.GraphQL(mcpRO)))
+	mux.Handle("GET /.well-known/oauth-protected-resource",
+		d.Limits.Anonymous(mcp.WellKnownProtectedResource(d.Config.PublicURL)))
+	mux.Handle("GET /.well-known/oauth-authorization-server",
+		d.Limits.Anonymous(mcp.WellKnownAuthorizationServer(d.Config.PublicURL)))
+
 	var h http.Handler = mux
 	h = Authenticate(d.Tokens, d.Service)(h)
 	// Outside Authenticate, so a preflight is answered without a token: a browser sends no
@@ -195,6 +209,19 @@ type statusRecorder struct {
 func (s *statusRecorder) WriteHeader(code int) {
 	s.status = code
 	s.ResponseWriter.WriteHeader(code)
+}
+
+// requireMCP is RequireWorkspace with the MCP OAuth challenge. A 401 without
+// WWW-Authenticate is a dead end for clients that can do interactive login; the
+// header points them at the protected-resource metadata instead.
+func requireMCP(publicURL string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := authz.PrincipalFrom(r.Context()); !ok {
+			mcp.Unauthorized(w, publicURL)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Flush forwards to the underlying writer. Without it the wrapper silently disables

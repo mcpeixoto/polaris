@@ -134,6 +134,7 @@ export type {
   UUID,
   View,
   ViewPreference,
+  ViewSubscription,
   Workspace,
   WorkflowState,
 } from './types';

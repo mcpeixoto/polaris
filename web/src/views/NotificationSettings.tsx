@@ -17,8 +17,9 @@
  */
 
 import { useEngine } from '~/app/context';
-import { Checkbox, EmptyState, Select } from '~/components';
+import { Button, Checkbox, EmptyState, Select } from '~/components';
 import { report, updateNotificationPrefs } from '~/features/inbox/mutations';
+import { setViewSubscription } from '~/features/view/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import type { NotificationPrefs, NotificationType } from '~/store';
@@ -83,6 +84,16 @@ const TYPES: readonly {
     label: 'Sub-issues completed',
     hint: 'A child of an issue you follow was finished.',
   },
+  {
+    value: 'view_issue_added',
+    label: 'Issues added to a view I follow',
+    hint: 'A newly created issue matches a saved view you subscribed to.',
+  },
+  {
+    value: 'view_issue_completed',
+    label: 'Issues completed in a view I follow',
+    hint: 'An issue that matches a saved view you subscribed to was finished or canceled.',
+  },
 ];
 
 export function NotificationSettings() {
@@ -92,6 +103,33 @@ export function NotificationSettings() {
   const prefs = useLiveQuery(
     (store) => (viewerId === null ? null : (store.users.get(viewerId)?.notificationPrefs ?? {})),
     ['user'],
+    [viewerId],
+  );
+
+  const watches = useLiveQuery(
+    (store) => {
+      if (viewerId === null) return [];
+      const rows: {
+        readonly id: string;
+        readonly viewId: string;
+        readonly name: string;
+        readonly added: boolean;
+        readonly completed: boolean;
+      }[] = [];
+      for (const sub of store.viewSubscriptions.values()) {
+        if (sub.userId !== viewerId) continue;
+        rows.push({
+          id: sub.id,
+          viewId: sub.viewId,
+          name: store.get('view', sub.viewId)?.name ?? 'Deleted view',
+          added: sub.added,
+          completed: sub.completed,
+        });
+      }
+      rows.sort((a, b) => a.name.localeCompare(b.name));
+      return rows;
+    },
+    ['viewSubscription', 'view'],
     [viewerId],
   );
 
@@ -187,6 +225,51 @@ export function NotificationSettings() {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className={styles.section} aria-labelledby="views-heading">
+          <h2 className={styles.sectionTitle} id="views-heading">
+            Saved views you follow
+          </h2>
+          <p className={styles.sectionNote}>
+            Subscribe from a saved view’s header. Turning both kinds of event off here is the
+            same as unsubscribing.
+          </p>
+          {watches.length === 0 ? (
+            <p className={styles.warning}>You are not watching any saved views.</p>
+          ) : (
+            <ul className={styles.types}>
+              {watches.map((watch) => (
+                <li key={watch.id} className={styles.watch}>
+                  <div className={styles.watchMeta}>
+                    <span>{watch.name}</span>
+                    <span className={styles.typeHint}>
+                      {[
+                        watch.added ? 'issues added' : null,
+                        watch.completed ? 'issues completed' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setViewSubscription(engine, {
+                        viewId: watch.viewId,
+                        userId: viewerId,
+                        added: false,
+                        completed: false,
+                      }).catch(report);
+                    }}
+                  >
+                    Unsubscribe
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
     </div>

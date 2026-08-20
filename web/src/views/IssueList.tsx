@@ -48,6 +48,7 @@ import {
 } from '~/components';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
+import { setViewSubscription } from '~/features/view/mutations';
 import { downloadCsv, exportCap, issuesToCsv, type ExportRole } from '~/features/export/csv';
 import { personName, subscribePrefs, getPrefs } from '~/features/prefs/prefs';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
@@ -267,6 +268,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
               : `view:${source.viewId}`;
   const includeCompleted = source.kind === 'assignee' && source.includeCompleted === true;
   const inTriage = source.kind === 'triage';
+  const viewId = source.kind === 'view' ? source.viewId : null;
 
   const scope = useLiveQuery(
     (store) => scopeOf(store, source, teamKey, heading),
@@ -274,6 +276,16 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     // is scoped to — renaming the view has to move this heading.
     ['team', 'view', 'cycle'],
     [sourceKey, heading],
+  );
+
+  const watch = useLiveQuery(
+    (store) => {
+      if (viewId === null || viewerId === null) return null;
+      const id = store.viewSubscriptionIdFor(viewerId, viewId);
+      return id === undefined ? null : (store.get('viewSubscription', id) ?? null);
+    },
+    ['viewSubscription'],
+    [viewId, viewerId],
   );
 
   const now = useTriageClock(scope.team?.id, inTriage);
@@ -358,6 +370,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const project = useMenuTrigger();
   const cycle = useMenuTrigger();
   const display = useMenuTrigger();
+  const subscribe = useMenuTrigger();
   const duplicate = useMenuTrigger();
   const snooze = useMenuTrigger();
   const [peekOpen, setPeekOpen] = useState(false);
@@ -876,6 +889,15 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         <Button {...display.props} variant="ghost">
           Display
         </Button>
+        {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (
+          <Button
+            {...subscribe.props}
+            variant="ghost"
+            aria-pressed={watch !== null}
+          >
+            {watch !== null ? 'Subscribed' : 'Subscribe'}
+          </Button>
+        ) : null}
         {/* Only a team has settings to link to. A person's list spans every team they can
             reach, so there is no single one this could point at — and guessing would send
             them to a team they happened to have an issue in. */}
@@ -923,6 +945,44 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         onClose={display.hide}
         trigger={display.ref}
       />
+
+      {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (
+        <Menu
+          open={subscribe.open}
+          onClose={subscribe.hide}
+          trigger={subscribe.ref}
+          label="View notifications"
+          items={[
+            { kind: 'heading', label: 'Notify me when' },
+            {
+              id: 'added',
+              label: 'An issue is added',
+              selected: watch?.added === true,
+              onSelect: () => {
+                setViewSubscription(engine, {
+                  viewId,
+                  userId: viewer.id,
+                  added: watch?.added !== true,
+                  completed: watch?.completed === true,
+                }).catch(report);
+              },
+            },
+            {
+              id: 'completed',
+              label: 'An issue is completed',
+              selected: watch?.completed === true,
+              onSelect: () => {
+                setViewSubscription(engine, {
+                  viewId,
+                  userId: viewer.id,
+                  added: watch?.added === true,
+                  completed: watch?.completed !== true,
+                }).catch(report);
+              },
+            },
+          ]}
+        />
+      ) : null}
 
       {/* A group and not `role="toolbar"`. A toolbar promises arrow-key navigation between
           its controls, which would mean a roving tabindex and a local key handler — and the
