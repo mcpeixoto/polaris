@@ -17,9 +17,10 @@ import {
   StateIcon,
 } from '~/components';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
+import { DueDateValue } from '~/features/issue/properties';
 import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { StateCategory, Store, UUID } from '~/store';
+import type { DateOnly, DueDateSource, StateCategory, Store, UUID } from '~/store';
 import styles from './Peek.module.css';
 
 export function Peek({ issueId }: { issueId: UUID | null }) {
@@ -83,7 +84,22 @@ export function Peek({ issueId }: { issueId: UUID | null }) {
         </Fact>
         {issue.cycleName === null ? null : <Fact label="Cycle">{issue.cycleName}</Fact>}
         {issue.projectName === null ? null : <Fact label="Project">{issue.projectName}</Fact>}
+        {issue.parent === null ? null : (
+          <Fact label="Parent">
+            <span className={styles.parentId}>{issue.parent.identifier}</span>
+            {issue.parent.title}
+          </Fact>
+        )}
         {issue.estimateLabel === null ? null : <Fact label="Estimate">{issue.estimateLabel}</Fact>}
+        {issue.dueDate === null ? null : (
+          <Fact label="Due">
+            <DueDateValue
+              value={issue.dueDate}
+              timezone={issue.timezone}
+              source={issue.dueDateSource}
+            />
+          </Fact>
+        )}
       </dl>
 
       {issue.labels.length > 0 && (
@@ -132,7 +148,11 @@ interface PeekIssue {
   readonly assigneeAvatar: string | null;
   readonly cycleName: string | null;
   readonly projectName: string | null;
+  readonly parent: { identifier: string; title: string } | null;
   readonly estimateLabel: string | null;
+  readonly dueDate: DateOnly | null;
+  readonly dueDateSource: DueDateSource;
+  readonly timezone: string;
   readonly labels: readonly { id: UUID; name: string; color: string }[];
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -144,6 +164,7 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
   const state = store.workflowStates.get(found.stateId);
   const assignee = found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
   const team = store.teams.get(found.teamId);
+  const parent = found.parentId === undefined ? undefined : store.issues.get(found.parentId);
   const labels: { id: UUID; name: string; color: string }[] = [];
   for (const labelId of store.labelIdsFor(found.id)) {
     const label = store.labels.get(labelId);
@@ -155,7 +176,7 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
   return {
     identifier: store.identifierOf(found),
     title: found.title,
-    description: found.description,
+    description: glanceDescription(found.description),
     stateName: state?.name ?? 'No status',
     stateCategory: state?.category ?? 'backlog',
     stateColor: state?.color,
@@ -165,12 +186,26 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
     cycleName: found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
     projectName:
       found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
+    parent:
+      parent === undefined ? null : { identifier: store.identifierOf(parent), title: parent.title },
     estimateLabel:
       team !== undefined && estimatesEnabled(team)
         ? issueEstimateLabel(found.estimate, team)
         : null,
+    dueDate: found.dueDate ?? null,
+    dueDateSource: found.dueDateSource,
+    timezone: team?.timezone ?? 'UTC',
     labels,
     createdAt: found.createdAt,
     updatedAt: found.updatedAt,
   };
+}
+
+/** Peek is a glance: a novel in the description stays on the issue page. */
+export function glanceDescription(raw: string, limit = 480): string {
+  const collapsed = raw.trim().replace(/\n{3,}/g, '\n\n');
+  if (collapsed.length <= limit) return collapsed;
+  const cut = collapsed.slice(0, limit);
+  const at = cut.lastIndexOf(' ');
+  return `${(at > 80 ? cut.slice(0, at) : cut).trimEnd()}…`;
 }

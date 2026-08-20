@@ -40,6 +40,15 @@
   line-height: var(--line-height-normal);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  max-height: 12rem;
+  overflow: hidden;
+}
+
+.parentId {
+  flex: none;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
 }
 
 .facts {
