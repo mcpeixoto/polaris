@@ -170,5 +170,11 @@ function isGlobalChord(event: KeyboardEvent): boolean {
   }
   const mod = event.metaKey || event.ctrlKey;
   if (!mod) return false;
-  return event.key === 'k' || event.key === 'K' || event.key === 'Enter';
+  if (event.key === 'k' || event.key === 'K' || event.key === 'Enter') return true;
+  // Inline comment: ⌘⌥M / Ctrl+Alt+M. Option on Apple layouts turns M into µ, so the
+  // physical key is the one that still says what was struck.
+  return (
+    event.altKey &&
+    (event.code === 'KeyM' || event.key === 'm' || event.key === 'M' || event.key === 'µ')
+  );
 }

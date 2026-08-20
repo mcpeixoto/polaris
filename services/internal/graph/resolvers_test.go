@@ -366,6 +366,41 @@ func TestComments_ReadBackOnTheIssueTheyWereWrittenOn(t *testing.T) {
 	}
 }
 
+func TestComments_InlineSpanRoundTrips(t *testing.T) {
+	h := newHarness(t)
+	start, end := 4, 13
+	quote := "auth path"
+	created := h.createIssue(t, generated.CreateIssueInput{TeamID: h.f.TeamID, Title: "Spec"})
+
+	posted, err := h.Mutation().CreateComment(h.ctx, generated.CreateCommentInput{
+		IssueID:     created.Issue.ID,
+		Body:        "It is the session cookie.",
+		AnchorStart: &start,
+		AnchorEnd:   &end,
+		Quote:       &quote,
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("pin a comment: %v", err)
+	}
+	if posted.Comment.Quote == nil || *posted.Comment.Quote != quote {
+		t.Fatalf("quote came back %v", posted.Comment.Quote)
+	}
+	if posted.Comment.AnchorStart == nil || *posted.Comment.AnchorStart != start {
+		t.Fatalf("anchorStart came back %v", posted.Comment.AnchorStart)
+	}
+
+	resolved, err := h.Mutation().ResolveComment(h.ctx, posted.Comment.ID, true, nil, nil)
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if resolved.Comment.ResolvedAt == nil {
+		t.Fatal("resolved thread has no timestamp")
+	}
+	if resolved.Comment.Quote == nil || *resolved.Comment.Quote != quote {
+		t.Fatal("resolving stripped the span")
+	}
+}
+
 func TestUpdateWorkflowState_RefusesADefaultTheProductForbids(t *testing.T) {
 	h := newHarness(t)
 

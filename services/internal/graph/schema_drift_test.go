@@ -119,6 +119,7 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 		{"RecurringIssue", model.RecurringIssue{}, func(v any) (any, error) { return toRecurringIssue(v.(model.RecurringIssue)) }},
 		{"Customer", model.Customer{}, func(v any) (any, error) { return toCustomer(v.(model.Customer)) }},
 		{"CustomerRequest", model.CustomerRequest{}, func(v any) (any, error) { return toCustomerRequest(v.(model.CustomerRequest)), nil }},
+		{"Comment", model.Comment{}, func(v any) (any, error) { return toComment(v.(model.Comment)) }},
 	}
 
 	for _, c := range cases {
@@ -170,6 +171,7 @@ var enumValues = map[string]string{
 	"targetDateGranularity": model.GranularityQuarter,
 	"updateSchedule":        model.ProjectUpdateScheduleDefault,
 	"cadence":               model.CadenceWeekly,
+	"type":                  string(authz.ActorUser),
 }
 
 // fillNonZero writes a distinguishable value into every field of v, recursively.

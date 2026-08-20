@@ -26,6 +26,7 @@ import {
   CREATE_COMMENT,
   CREATE_ISSUE,
   DELETE_ISSUE,
+  RESOLVE_COMMENT,
   UPDATE_COMMENT,
   UPDATE_ISSUE,
 } from '~/gql/operations';
@@ -344,6 +345,9 @@ export interface NewComment {
   readonly parentId?: UUID | undefined;
   /** The viewer. Absent only while the viewer query is still in flight. */
   readonly authorId?: UUID | undefined;
+  readonly anchorStart?: number | undefined;
+  readonly anchorEnd?: number | undefined;
+  readonly quote?: string | undefined;
 }
 
 /** Posts a comment, appearing under the issue before the request leaves. See `createIssue`. */
@@ -357,6 +361,9 @@ export async function postComment(engine: SyncEngine, input: NewComment): Promis
     parentId: input.parentId,
     body: input.body,
     actor: input.authorId === undefined ? { type: 'user' } : { type: 'user', id: input.authorId },
+    anchorStart: input.anchorStart,
+    anchorEnd: input.anchorEnd,
+    quote: input.quote,
     createdAt: now,
     updatedAt: now,
   };
@@ -369,6 +376,13 @@ export async function postComment(engine: SyncEngine, input: NewComment): Promis
           issueId: input.issueId,
           body: input.body,
           ...(input.parentId === undefined ? null : { parentId: input.parentId }),
+          ...(input.quote === undefined
+            ? null
+            : {
+                anchorStart: input.anchorStart,
+                anchorEnd: input.anchorEnd,
+                quote: input.quote,
+              }),
         },
       },
       optimistic: [{ type: 'comment', id: provisional.id, before: null, after: provisional }],
@@ -391,6 +405,27 @@ export async function editComment(engine: SyncEngine, id: UUID, body: string): P
     variables: { id, body },
     optimistic: [{ type: 'comment', id, before, after }],
   });
+}
+
+export async function resolveComment(
+  engine: SyncEngine,
+  id: UUID,
+  resolved: boolean,
+  actorId?: UUID | undefined,
+): Promise<void> {
+  const before = engine.store.get('comment', id);
+  if (before === undefined) return;
+  const now = new Date().toISOString();
+  const after: Comment = resolved
+    ? { ...before, resolvedAt: now, resolvedBy: actorId, updatedAt: now }
+    : { ...before, resolvedAt: undefined, resolvedBy: undefined, updatedAt: now };
+
+  const data = await engine.mutate<{ resolveComment: { comment: Comment } }>({
+    mutation: RESOLVE_COMMENT,
+    variables: { id, resolved },
+    optimistic: [{ type: 'comment', id, before, after }],
+  });
+  swap(engine.store, 'comment', after, data.resolveComment.comment);
 }
 
 export interface NewSubIssue {

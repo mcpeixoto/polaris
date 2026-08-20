@@ -86,7 +86,7 @@ const issueColumns = `i.id, i.workspace_id, i.team_id, i.number, i.title, i.desc
 
 const commentColumns = `c.id, c.workspace_id, c.issue_id, c.parent_id, c.body, c.actor_type, c.actor_id,
        c.edited_at, c.resolved_at, c.resolved_by, c.archived_at, c.deleted_at,
-       c.created_at, c.updated_at`
+       c.created_at, c.updated_at, c.anchor_start, c.anchor_end, c.quote`
 
 // issueMatch is the shared predicate.
 //
@@ -209,7 +209,7 @@ LIMIT %s`, commentColumns, commentIssueMatch, f.and(), limit)
 		if err := rows.Scan(
 			&c.ID, &c.WorkspaceID, &c.IssueID, &c.ParentID, &c.Body, &c.ActorType, &c.ActorID,
 			&c.EditedAt, &c.ResolvedAt, &c.ResolvedBy, &c.ArchivedAt, &c.DeletedAt,
-			&c.CreatedAt, &c.UpdatedAt,
+			&c.CreatedAt, &c.UpdatedAt, &c.AnchorStart, &c.AnchorEnd, &c.Quote,
 		); err != nil {
 			return nil, err
 		}

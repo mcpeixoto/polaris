@@ -110,8 +110,10 @@ import {
  * v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
  * v24 adds recurringIssue, team default template ids, and issue.recurringIssueId.
  * v25 adds customer and customerRequest.
+ * v32 adds comment.anchorStart / anchorEnd / quote (inline comments on descriptions).
+ * Numbers 26–31 are reserved for concurrent slices on other worktrees.
  */
-export const CLIENT_SCHEMA = 25;
+export const CLIENT_SCHEMA = 32;
 
 /**
  * One database per workspace per schema version.

@@ -796,8 +796,13 @@ type Comment struct {
 	EditedAt    *time.Time `json:"editedAt,omitempty"`
 	ResolvedAt  *time.Time `json:"resolvedAt,omitempty"`
 	ResolvedBy  *uuid.UUID `json:"resolvedBy,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
+	// AnchorStart/AnchorEnd/Quote pin a comment to a span of the issue description.
+	// All three are set together on an inline comment and omitted on a thread comment.
+	AnchorStart *int      `json:"anchorStart,omitempty"`
+	AnchorEnd   *int      `json:"anchorEnd,omitempty"`
+	Quote       *string   `json:"quote,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // Attachment is a link card on an issue. The URL is unique per issue: posting the same

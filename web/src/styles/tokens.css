@@ -279,6 +279,10 @@
   --accent-text: var(--color-accent-600);
   --accent-contrast: var(--color-white);
 
+  --comment-mark: color-mix(in srgb, var(--color-amber-400) 42%, transparent);
+  --comment-mark-resolved: color-mix(in srgb, var(--color-neutral-400) 28%, transparent);
+  --comment-mark-active: color-mix(in srgb, var(--color-amber-400) 62%, transparent);
+
   /* Priority escalates by warmth, from a grey that says nothing through to red. Every
    * value clears 3:1 against the page, because the priority icon is frequently the only
    * mark distinguishing two otherwise identical rows.
@@ -346,6 +350,10 @@
   --accent-text: var(--color-accent-400);
   --accent-contrast: var(--color-white);
 
+  --comment-mark: color-mix(in srgb, var(--color-amber-400) 38%, transparent);
+  --comment-mark-resolved: color-mix(in srgb, var(--color-neutral-500) 28%, transparent);
+  --comment-mark-active: color-mix(in srgb, var(--color-amber-400) 55%, transparent);
+
   --priority-none: var(--color-neutral-500);
   --priority-low: var(--color-blue-400);
   --priority-medium: var(--color-amber-400);
@@ -404,6 +412,10 @@
     --accent-subtle: color-mix(in srgb, var(--color-accent-500) 18%, transparent);
     --accent-text: var(--color-accent-400);
     --accent-contrast: var(--color-white);
+
+    --comment-mark: color-mix(in srgb, var(--color-amber-400) 38%, transparent);
+    --comment-mark-resolved: color-mix(in srgb, var(--color-neutral-500) 28%, transparent);
+    --comment-mark-active: color-mix(in srgb, var(--color-amber-400) 55%, transparent);
 
     --priority-none: var(--color-neutral-500);
     --priority-low: var(--color-blue-400);
