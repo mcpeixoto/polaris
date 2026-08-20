@@ -341,6 +341,20 @@ func (q *Queries) CountIssuesToPurge(ctx context.Context, arg CountIssuesToPurge
 	return count, err
 }
 
+const countNonArchivedIssuesForTeam = `-- name: CountNonArchivedIssuesForTeam :one
+SELECT count(*) FROM issue
+WHERE team_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
+`
+
+// CountNonArchivedIssuesForTeam is the 60,000-issue cap. Archived rows do not count;
+// completed ones still do until they are archived.
+func (q *Queries) CountNonArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countNonArchivedIssuesForTeam, teamID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createIssue = `-- name: CreateIssue :one
 
 INSERT INTO issue (id, workspace_id, team_id, number, title, description,

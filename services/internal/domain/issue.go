@@ -30,6 +30,10 @@ const (
 	dateLayout = "2006-01-02"
 )
 
+// TeamIssueLimit is 60,000 live (non-archived, non-deleted) issues per team. Archived
+// issues do not count; completed ones still do. Tests lower this.
+var TeamIssueLimit int64 = 60_000
+
 type CreateIssueInput struct {
 	TeamID      uuid.UUID
 	Title       string
@@ -184,6 +188,16 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		team, err := s.requireTeamAccess(ctx, q, p, in.TeamID, authz.ActionIssueCreate)
 		if err != nil {
 			return err
+		}
+
+		live, err := q.CountNonArchivedIssuesForTeam(ctx, in.TeamID)
+		if err != nil {
+			return platform.Internal(err)
+		}
+		if live >= TeamIssueLimit {
+			return platform.Conflict(fmt.Sprintf(
+				"this team has reached the %d issue limit; archive or move issues before creating more",
+				TeamIssueLimit))
 		}
 
 		member, err := q.IsTeamMember(ctx, store.IsTeamMemberParams{TeamID: in.TeamID, UserID: p.UserID})
