@@ -63,6 +63,7 @@ import {
   propertiesOfIssue,
 } from '~/features/recurring/mutations';
 import { restoreIssue } from '~/features/trash/mutations';
+import { clearIssueSla, setIssueSla } from '~/features/slas/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { exact, when } from '~/features/time';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
@@ -726,6 +727,8 @@ export function IssueDetail() {
         onSelect={(value) =>
           updateIssueProperties(engine, issue.id, { dueDate: value }).catch(report)
         }
+        onClearSla={() => clearIssueSla(engine, issue.id).catch(report)}
+        onSetSla={(minutes) => setIssueSla(engine, issue.id, minutes).catch(report)}
       />
     </div>
   );

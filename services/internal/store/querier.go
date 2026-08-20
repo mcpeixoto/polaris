@@ -320,6 +320,7 @@ type Querier interface {
 	// Recurring issue schedules. Column lists follow the table order, same rule as issues.sql.
 	CreateRecurringIssue(ctx context.Context, arg CreateRecurringIssueParams) (CreateRecurringIssueRow, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (AccountSession, error)
+	CreateSlaRule(ctx context.Context, arg CreateSlaRuleParams) (SlaRule, error)
 	CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Saved views, the display preferences of the views that have no row, and favourites.
@@ -353,6 +354,7 @@ type Querier interface {
 	DeleteProjectTemplateIssuesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
 	DeleteProjectTemplateMilestone(ctx context.Context, id uuid.UUID) error
 	DeleteProjectTemplateMilestonesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
+	DeleteSlaRule(ctx context.Context, id uuid.UUID) error
 	// Upcoming cycles that have not started: dropped when the team turns cycles off.
 	DeleteUpcomingCycles(ctx context.Context, arg DeleteUpcomingCyclesParams) ([]uuid.UUID, error)
 	DeleteWebhook(ctx context.Context, arg DeleteWebhookParams) (uuid.UUID, error)
@@ -503,6 +505,8 @@ type Querier interface {
 	//
 	GetRecurringIssueForUpdate(ctx context.Context, id uuid.UUID) (GetRecurringIssueForUpdateRow, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (AccountSession, error)
+	GetSlaRule(ctx context.Context, id uuid.UUID) (SlaRule, error)
+	GetSlaRuleForUpdate(ctx context.Context, id uuid.UUID) (SlaRule, error)
 	GetSortOrderAfter(ctx context.Context, arg GetSortOrderAfterParams) (string, error)
 	// Neighbour lookups for fractional-index insertion: find the sort_order either side of
 	// the target position so a new key can be minted between them.
@@ -548,6 +552,7 @@ type Querier interface {
 	LastProjectSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastProjectSortOrderForPriority(ctx context.Context, arg LastProjectSortOrderForPriorityParams) (string, error)
 	LastProjectStatusPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
+	LastSlaRulePosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	ListAPIKeysForUser(ctx context.Context, userID uuid.UUID) ([]ListAPIKeysForUserRow, error)
 	ListActiveRecurringIssues(ctx context.Context) ([]ListActiveRecurringIssuesRow, error)
 	ListArchivedCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
@@ -800,6 +805,7 @@ type Querier interface {
 	ListReverseIssueRelations(ctx context.Context, relatedIssueID uuid.UUID) ([]IssueRelation, error)
 	ListReverseIssueRelationsForIssues(ctx context.Context, arg ListReverseIssueRelationsForIssuesParams) ([]IssueRelation, error)
 	ListSessionsForAccount(ctx context.Context, accountID uuid.UUID) ([]AccountSession, error)
+	ListSlaRulesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]SlaRule, error)
 	// Stale closed work for auto-archive. The domain layer still refuses a row whose
 	// parent, children or project would leave the graph inconsistent.
 	//
@@ -1247,6 +1253,7 @@ type Querier interface {
 	// schedule rows.
 	//
 	StreamRecurringIssuesForBootstrap(ctx context.Context, arg StreamRecurringIssuesForBootstrapParams) ([]StreamRecurringIssuesForBootstrapRow, error)
+	StreamSlaRulesForBootstrap(ctx context.Context, arg StreamSlaRulesForBootstrapParams) ([]SlaRule, error)
 	// StreamViewPreferencesForBootstrap feeds the initial snapshot. A preference travels under
 	// its owner's user scope and under nothing else, so the whole visibility rule is "yours".
 	//
@@ -1344,6 +1351,7 @@ type Querier interface {
 	UpdateProjectTemplateMilestone(ctx context.Context, arg UpdateProjectTemplateMilestoneParams) (ProjectTemplateMilestone, error)
 	UpdateProjectUpdate(ctx context.Context, arg UpdateProjectUpdateParams) (ProjectUpdate, error)
 	UpdateRecurringIssue(ctx context.Context, arg UpdateRecurringIssueParams) (UpdateRecurringIssueRow, error)
+	UpdateSlaRule(ctx context.Context, arg UpdateSlaRuleParams) (SlaRule, error)
 	UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error)
 	// UpdateTeamArchive is the close/archive periods and the parent/child automations.
 	// Kept apart from UpdateTeam so a settings form that only touches intake cannot

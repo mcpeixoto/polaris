@@ -189,6 +189,8 @@ type Entitlements {
   apiKeys: Boolean!
   sso: Boolean!
   auditLog: Boolean!
+  """Business+: SLA rules that own an issue's due date."""
+  slas: Boolean!
   """Set while a paid plan is lapsed: reads work, gated writes do not."""
   lapsed: Boolean!
 }
@@ -1087,6 +1089,31 @@ type CustomerPayload implements MutationResult {
 type CustomerRequestPayload implements MutationResult {
   version: Int!
   customerRequest: CustomerRequest!
+}
+
+enum SlaAction {
+  APPLY
+  REMOVE
+}
+
+"""
+A workspace policy for issue due dates. Rules are ordered by position; first match wins.
+Applying one sets dueDate and dueDateSource=sla. Removing one clears an SLA-owned date.
+"""
+type SlaRule {
+  id: UUID!
+  workspaceId: UUID!
+  position: String!
+  filter: JSON!
+  action: SlaAction!
+  durationMinutes: Int
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type SlaRulePayload implements MutationResult {
+  version: Int!
+  slaRule: SlaRule!
 }
 
 type TeamPayload implements MutationResult {
@@ -2249,6 +2276,25 @@ input UpdateCustomerRequestInput {
   projectId: UUID
 }
 
+input CreateSlaRuleInput {
+  filter: JSON
+  action: SlaAction!
+  durationMinutes: Int
+}
+
+input UpdateSlaRuleInput {
+  id: UUID!
+  filter: JSON
+  action: SlaAction
+  durationMinutes: Int
+  afterId: UUID
+}
+
+input SetIssueSlaInput {
+  issueId: UUID!
+  durationMinutes: Int!
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -2383,6 +2429,9 @@ type Query {
   customer(id: UUID!): Customer
   customerRequest(id: UUID!): CustomerRequest
 
+  slaRules: [SlaRule!]!
+  slaRule(id: UUID!): SlaRule
+
   """The workspace GitHub install, if any. Secrets are on githubCommitWebhook, not here."""
   githubConnection: GitHubConnection
   """The caller's linked GitHub account, if they have connected one."""
@@ -2443,6 +2492,12 @@ type Mutation {
   createCustomerRequest(input: CreateCustomerRequestInput!, clientId: UUID, opId: UUID): CustomerRequestPayload! @idempotent
   updateCustomerRequest(input: UpdateCustomerRequestInput!, clientId: UUID, opId: UUID): CustomerRequestPayload! @idempotent
   deleteCustomerRequest(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createSlaRule(input: CreateSlaRuleInput!, clientId: UUID, opId: UUID): SlaRulePayload! @idempotent
+  updateSlaRule(input: UpdateSlaRuleInput!, clientId: UUID, opId: UUID): SlaRulePayload! @idempotent
+  deleteSlaRule(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  setIssueSla(input: SetIssueSlaInput!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  clearIssueSla(issueId: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!

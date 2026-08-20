@@ -663,6 +663,17 @@ type RecurringIssue struct {
 	ArchivedAt    *time.Time
 }
 
+type SlaRule struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	Position        string
+	Filter          json.RawMessage
+	Action          string
+	DurationMinutes *int32
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type Team struct {
 	ID                             uuid.UUID
 	WorkspaceID                    uuid.UUID
