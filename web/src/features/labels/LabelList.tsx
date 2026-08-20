@@ -21,8 +21,10 @@
  */
 
 import { useLayoutEffect, useRef, useState } from 'react';
+import { Link } from 'react-router';
 
 import { LabelChip } from '~/components';
+import { labelViewPath } from '~/features/labels/labelView';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store, UUID } from '~/store';
 
@@ -107,9 +109,15 @@ export function LabelList({ issueId, className }: LabelListProps) {
           key={label.id}
           className={[styles.item, at < visible ? null : styles.measured].filter(Boolean).join(' ')}
         >
-          {/* Compact, which is also why no chip here offers removal: on a row the whole row
-              is the click target, and the type makes the combination impossible. */}
-          <LabelChip compact name={label.name} color={label.color} groupName={label.groupName} />
+          {/* Compact, and a link rather than a span: clicking a label is how you open its
+              view, and the row's own click is stopped so this does not also open the issue. */}
+          <Link
+            to={labelViewPath(label.id)}
+            onClick={(event) => event.stopPropagation()}
+            className={styles.link}
+          >
+            <LabelChip compact name={label.name} color={label.color} groupName={label.groupName} />
+          </Link>
         </li>
       ))}
       {hidden.length === 0 ? null : (

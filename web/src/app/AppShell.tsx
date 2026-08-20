@@ -17,11 +17,12 @@ import {
 } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 
-import { toFilterParam } from '~/filter';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { Menu } from '~/components';
+import { gotoLabelItems, labelViewPath, userViewPath } from '~/features/labels/labelView';
+import { personName } from '~/features/prefs/prefs';
 import { CreateIssueProvider } from '~/features/issue/create-context';
 import { type IssueComposerSeed } from '~/features/issue/create-url';
 import {
@@ -84,6 +85,8 @@ export function AppShell({
   const [createDashboardOpen, setCreateDashboardOpen] = useState(false);
   const session = useWorkspaceSession();
   const workspaceMenu = useMenuTrigger();
+  const labelMenu = useMenuTrigger();
+  const userMenu = useMenuTrigger();
   const onProjects =
     pathname === '/projects' ||
     pathname.startsWith('/project/') ||
@@ -113,6 +116,15 @@ export function AppShell({
     (store) => (viewerId === null ? [] : visibleViews(store, viewerId)),
     ['view', 'favorite'],
     [viewerId],
+  );
+  const gotoLabels = useLiveQuery((store) => gotoLabelItems(store), ['label'], []);
+  const gotoUsers = useLiveQuery(
+    (store) =>
+      [...store.users.values()]
+        .filter((user) => user.archivedAt === undefined && user.kind === 'human')
+        .sort((a, b) => personName(a).localeCompare(personName(b))),
+    ['user'],
+    [],
   );
 
   const closeAll = useCallback(() => {
@@ -257,6 +269,20 @@ export function AppShell({
         run: () => workspaceMenu.show(),
       },
       {
+        id: 'nav.openLabel',
+        title: 'Open label',
+        keys: ['o l'],
+        group: 'Navigation',
+        run: () => labelMenu.show(),
+      },
+      {
+        id: 'nav.openUser',
+        title: 'Open user',
+        keys: ['o u'],
+        group: 'Navigation',
+        run: () => userMenu.show(),
+      },
+      {
         id: 'nav.settings',
         title: 'Go to workspace settings',
         keys: ['g s'],
@@ -356,6 +382,8 @@ export function AppShell({
       archivesPath,
       openCreate,
       workspaceMenu.show,
+      labelMenu.show,
+      userMenu.show,
       showCustomers,
       showDashboards,
       showPulse,
@@ -395,6 +423,40 @@ export function AppShell({
               trigger={workspaceMenu.ref}
               label="Workspaces"
               items={workspaceItems}
+            />
+            <button type="button" className={styles.gotoTrigger} {...labelMenu.props}>
+              Open label
+            </button>
+            <Menu
+              open={labelMenu.open}
+              onClose={labelMenu.hide}
+              trigger={labelMenu.ref}
+              label="Labels"
+              filterable={gotoLabels.length > 8}
+              filterPlaceholder="Filter labels"
+              emptyLabel="No labels yet"
+              items={gotoLabels.map((item) => ({
+                id: item.id,
+                label: item.groupName === undefined ? item.name : `${item.groupName}: ${item.name}`,
+                onSelect: () => navigate(labelViewPath(item.id)),
+              }))}
+            />
+            <button type="button" className={styles.gotoTrigger} {...userMenu.props}>
+              Open user
+            </button>
+            <Menu
+              open={userMenu.open}
+              onClose={userMenu.hide}
+              trigger={userMenu.ref}
+              label="People"
+              filterable={gotoUsers.length > 8}
+              filterPlaceholder="Filter people"
+              emptyLabel="No people in this workspace"
+              items={gotoUsers.map((user) => ({
+                id: user.id,
+                label: personName(user),
+                onSelect: () => navigate(userViewPath(user.id)),
+              }))}
             />
           </div>
 
@@ -1179,15 +1241,9 @@ function favoriteLink(store: Store, favorite: Favorite): FavoriteLink | null {
     case 'label': {
       const label = store.get('label', favorite.targetId);
       if (label === undefined) return null;
-      // A favourited label is a filter, not a screen, so it links to the one place that can
-      // render "every issue carrying this label" across teams.
-      const filter = toFilterParam({
-        conj: 'and',
-        nodes: [{ field: 'label', op: 'in', values: [label.id] }],
-      });
       return {
         id: favorite.id,
-        to: `/search?filter=${encodeURIComponent(filter)}`,
+        to: labelViewPath(label.id),
         label: label.name,
         prefix: null,
       };

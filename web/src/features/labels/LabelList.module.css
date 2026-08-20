@@ -29,6 +29,12 @@
   min-width: 0;
 }
 
+.link {
+  display: inline-flex;
+  color: inherit;
+  text-decoration: none;
+}
+
 /*
  * A chip that did not fit.
  *
