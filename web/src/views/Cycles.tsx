@@ -2,7 +2,8 @@
  * A team's cycles: current, upcoming, previous, and pause gaps between them.
  *
  * Cycles are minted by cadence, not filed by hand. The ⋯ menu is where dates move,
- * names change, and the next window can be pulled forward to today.
+ * names change, the next window can be pulled forward to today, and the team calendar
+ * can be subscribed as ICS.
  */
 
 import { useRef, useState } from 'react';
@@ -11,6 +12,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useEngine } from '~/app/context';
 import { Button, EmptyState, IconButton, Menu } from '~/components';
 import { CycleEditModal, isNextUpcoming, phaseOf } from '~/features/cycles/CycleEditModal';
+import { CycleCalendarModal } from '~/features/cycles/CycleCalendarModal';
 import { CycleGraph } from '~/features/cycles/CycleGraph';
 import { CapacityDial } from '~/features/cycles/CapacityDial';
 import { cycleCapacity, type CycleCapacity } from '~/features/cycles/computeCapacity';
@@ -75,6 +77,7 @@ export function Cycles() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [editCycle, setEditCycle] = useState<Cycle | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const run = async (work: Promise<void>) => {
     try {
@@ -200,6 +203,14 @@ export function Cycles() {
               if (menuCycle !== null) openEdit(menuCycle);
             },
           },
+          {
+            id: 'subscribe',
+            label: 'Subscribe to cycle calendar',
+            onSelect: () => {
+              closeMenu();
+              setCalendarOpen(true);
+            },
+          },
           ...(menuCycle !== null &&
           menuPhase === 'Upcoming' &&
           isNextUpcoming(menuCycle, allCycles, Date.now())
@@ -240,6 +251,12 @@ export function Cycles() {
           setEditOpen(false);
           setEditCycle(null);
         }}
+      />
+      <CycleCalendarModal
+        open={calendarOpen}
+        teamId={team.id}
+        teamName={team.name}
+        onClose={() => setCalendarOpen(false)}
       />
     </div>
   );

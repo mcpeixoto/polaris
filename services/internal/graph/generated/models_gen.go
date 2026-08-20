@@ -618,6 +618,30 @@ type Cycle struct {
 	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
+// The viewer's ICS subscription for one team. The feed token is not on this type:
+// the replica only needs to know a feed exists. The URL that contains the token
+// is on CycleCalendarFeedURL.
+type CycleCalendarFeed struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	TeamID      uuid.UUID `json:"teamId"`
+	UserID      uuid.UUID `json:"userId"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type CycleCalendarFeedPayload struct {
+	Version           int                `json:"version"`
+	CycleCalendarFeed *CycleCalendarFeed `json:"cycleCalendarFeed"`
+	URL               string             `json:"url"`
+}
+
+func (CycleCalendarFeedPayload) IsMutationResult() {}
+
+type CycleCalendarFeedURL struct {
+	URL string `json:"url"`
+}
+
 type CyclePayload struct {
 	Version int    `json:"version"`
 	Cycle   *Cycle `json:"cycle"`

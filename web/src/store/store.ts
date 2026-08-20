@@ -41,6 +41,7 @@ import {
   type GitLabConnection,
   type GitLabUserLink,
   type SentryConnection,
+  type CycleCalendarFeed,
   type Issue,
   type IssueLabel,
   type IssueRelation,
@@ -170,6 +171,7 @@ export class Store {
     gitlabConnection: new Map(),
     gitlabUserLink: new Map(),
     sentryConnection: new Map(),
+    cycleCalendarFeed: new Map(),
     team: new Map(),
     teamMembership: new Map(),
     workflowState: new Map(),
@@ -347,6 +349,10 @@ export class Store {
 
   get sentryConnections(): ReadonlyMap<UUID, SentryConnection> {
     return this.tables.sentryConnection as ReadonlyMap<UUID, SentryConnection>;
+  }
+
+  get cycleCalendarFeeds(): ReadonlyMap<UUID, CycleCalendarFeed> {
+    return this.tables.cycleCalendarFeed as ReadonlyMap<UUID, CycleCalendarFeed>;
   }
 
   get teams(): ReadonlyMap<UUID, Team> {
