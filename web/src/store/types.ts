@@ -228,6 +228,11 @@ export interface NotificationPrefs {
    * reads this interface and fails when the two shapes part company again.
    */
   readonly muted?: readonly NotificationType[];
+  /**
+   * Browser (and Electron) system notifications. Absent means off: the permission prompt
+   * has to wait for a click on the settings screen, not for the first page load.
+   */
+  readonly desktop?: boolean;
 }
 
 export type UserRole = 'owner' | 'admin' | 'member' | 'guest';

@@ -39,6 +39,9 @@ type NotificationPrefs struct {
 	// EmailPerNotification asks for an email per notification instead of the digest. A
 	// preference, never a default — see the M1 scope table.
 	EmailPerNotification *bool `json:"emailPerNotification"`
+	// Desktop is browser (and Electron) system notifications. Absent means off — asking
+	// on first load is both annoying and usually denied.
+	Desktop *bool `json:"desktop"`
 }
 
 // The digest cadences. Off is a real choice and not the absence of one, which is why it is a

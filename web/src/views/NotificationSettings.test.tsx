@@ -12,7 +12,7 @@
  * muting did nothing at all. See services/internal/domain/notification_prefs.go.
  */
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
@@ -31,6 +31,10 @@ const AT = '2026-01-01T00:00:00.000Z';
 vi.mock('~/hooks/useViewer', () => ({
   useViewerId: () => VIEWER,
   useViewer: () => null,
+}));
+
+vi.mock('~/platform/runtime', () => ({
+  requestNotificationPermission: () => Promise.resolve(true),
 }));
 
 function seeded(prefs: unknown): Store {
@@ -133,5 +137,14 @@ describe('the notification preferences screen', () => {
       .getAllByRole('option')
       .map((option) => (option as HTMLOptionElement).value);
     expect(options).toEqual(['off', 'hourly', 'daily', 'weekly']);
+  });
+
+  it('turns desktop notifications on only after permission is granted', async () => {
+    harness = renderScreen({});
+    await harness.user.click(screen.getByRole('checkbox', { name: /browser notifications/i }));
+
+    await waitFor(() => expect(harness.mutate).toHaveBeenCalled());
+    const prefs = harness.mutate.mock.calls[0]?.[0].variables.prefs as Record<string, unknown>;
+    expect(prefs['desktop']).toBe(true);
   });
 });
