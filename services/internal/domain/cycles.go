@@ -56,6 +56,9 @@ func (s *Service) UpdateTeamCycles(
 		if err != nil {
 			return err
 		}
+		if err := refuseInheritedCycleCadence(ctx, q, before); err != nil {
+			return err
+		}
 
 		row, err := q.UpdateTeamCycles(ctx, store.UpdateTeamCyclesParams{
 			ID:                    in.TeamID,
@@ -88,6 +91,11 @@ func (s *Service) UpdateTeamCycles(
 			EntityType: "team", EntityID: out.ID, Op: OpUpsert, TeamID: &out.ID,
 			Scope: authz.TeamScope(out.ID, out.Private), Payload: out,
 		}}, extra...)
+		propagated, err := s.propagateCycleSchedule(ctx, q, row, now)
+		if err != nil {
+			return err
+		}
+		changes = append(changes, propagated...)
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...)
 		return err
 	})
@@ -149,6 +157,16 @@ func (s *Service) AdvanceCycles(ctx context.Context, now time.Time) (int, error)
 	}
 	advanced := 0
 	for _, team := range teams {
+		// Sub-teams that inherit a parent schedule are aligned from the parent after
+		// that parent advances. Closing them independently would mint a second set of
+		// windows from the child's timezone.
+		_, inherited, err := cycleScheduleParent(ctx, s.db.Queries(), team)
+		if err != nil {
+			return advanced, err
+		}
+		if inherited {
+			continue
+		}
 		if err := s.advanceTeamCycles(ctx, team, now); err != nil {
 			return advanced, err
 		}
@@ -210,6 +228,16 @@ func (s *Service) advanceTeamCycles(ctx context.Context, team store.Team, now ti
 			return err
 		}
 		changes = append(changes, added...)
+
+		fresh, err := q.GetTeam(ctx, team.ID)
+		if err != nil {
+			return platform.Internal(err)
+		}
+		propagated, err := s.propagateCycleSchedule(ctx, q, fresh, now)
+		if err != nil {
+			return err
+		}
+		changes = append(changes, propagated...)
 
 		if len(changes) == 0 {
 			return nil

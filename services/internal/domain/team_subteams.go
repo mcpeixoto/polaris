@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -115,6 +116,17 @@ func (s *Service) applyTeamParent(
 			return store.Team{}, nil, err
 		}
 		changes = append(changes, ownerChanges...)
+		if parentRow.CyclesEnabled {
+			inherited, extra, err := applyInheritedCycleSchedule(ctx, q, *parentRow, row, time.Now())
+			if err != nil {
+				return store.Team{}, nil, err
+			}
+			row = inherited
+			if len(extra) > 1 {
+				changes = append(changes, extra[1:]...)
+			}
+			changes[0].Payload = toTeam(row)
+		}
 	}
 
 	if !child.Private && row.Private {

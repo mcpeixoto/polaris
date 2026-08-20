@@ -38,6 +38,7 @@ import {
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
 import { updateTeamArchive } from '~/features/archive/mutations';
+import { inheritsCycleSchedule } from '~/features/cycles/inherit';
 import { updateTeamCycles } from '~/features/cycles/mutations';
 import {
   deleteGitHubTeamAutomation,
@@ -496,84 +497,103 @@ function CycleCadence({
   team: TeamView;
   onChange: (cadence: Parameters<typeof updateTeamCycles>[2]) => void;
 }) {
+  const parent = useLiveQuery(
+    (store) => (team.parentTeamId === undefined ? null : store.get('team', team.parentTeamId)),
+    ['team'],
+    [team.parentTeamId],
+  );
+  const inherited = inheritsCycleSchedule(team, parent);
+  const inheritedFrom = inherited && parent !== null ? parent : null;
+
   return (
     <section className={styles.section} aria-labelledby="cycles-heading">
       <h2 className={styles.sectionTitle} id="cycles-heading">
         Cycles
       </h2>
-      <p className={styles.sectionHint}>
-        Dated windows that repeat. A cooldown is a gap, not a cycle — nothing can be filed into it.
-        Unfinished work rolls into the next window on its own.
-      </p>
+      {inheritedFrom !== null ? (
+        <p className={styles.sectionHint}>
+          This sub-team inherits {inheritedFrom.name}&rsquo;s cycle schedule and cannot set its own.{' '}
+          <Link className={styles.link} to={`/team/${inheritedFrom.key}/settings`}>
+            Open {inheritedFrom.key} settings
+          </Link>
+        </p>
+      ) : (
+        <p className={styles.sectionHint}>
+          Dated windows that repeat. A cooldown is a gap, not a cycle — nothing can be filed into
+          it. Unfinished work rolls into the next window on its own.
+        </p>
+      )}
 
-      <Checkbox
-        label="Run cycles"
-        checked={team.cyclesEnabled}
-        onChange={(event) => onChange({ enabled: event.target.checked })}
-      />
+      <fieldset className={styles.fieldset} disabled={inherited}>
+        <Checkbox
+          label="Run cycles"
+          checked={team.cyclesEnabled}
+          onChange={(event) => onChange({ enabled: event.target.checked })}
+        />
 
-      {team.cyclesEnabled ? (
-        <>
-          <div className={styles.cadence}>
-            <Select
-              label="Duration"
-              value={String(team.cycleDurationWeeks)}
-              onChange={(event) => onChange({ durationWeeks: Number(event.target.value) })}
-            >
-              {weeks(1, 8).map((n) => (
-                <option key={n} value={n}>
-                  {n === 1 ? '1 week' : `${n} weeks`}
-                </option>
-              ))}
-            </Select>
-            <Select
-              label="Cooldown"
-              value={String(team.cycleCooldownWeeks)}
-              onChange={(event) => onChange({ cooldownWeeks: Number(event.target.value) })}
-            >
-              {weeks(0, 8).map((n) => (
-                <option key={n} value={n}>
-                  {n === 0 ? 'None' : n === 1 ? '1 week' : `${n} weeks`}
-                </option>
-              ))}
-            </Select>
-            <Select
-              label="Starts on"
-              value={team.cycleStartDay}
-              onChange={(event) => onChange({ startDay: event.target.value })}
-            >
-              {START_DAYS.map((day) => (
-                <option key={day} value={day}>
-                  {day.slice(0, 1).toUpperCase() + day.slice(1)}
-                </option>
-              ))}
-            </Select>
-            <Select
-              label="Upcoming"
-              value={String(team.cycleUpcomingCount)}
-              onChange={(event) => onChange({ upcomingCount: Number(event.target.value) })}
-            >
-              {weeks(1, 15).map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className={styles.autoAdd}>
-            <Checkbox
-              label="Add started issues to the current cycle"
-              checked={team.cycleAutoAddStarted}
-              onChange={(event) => onChange({ autoAddStarted: event.target.checked })}
-            />
-            <Checkbox
-              label="Add completed issues to the current cycle"
-              checked={team.cycleAutoAddCompleted}
-              onChange={(event) => onChange({ autoAddCompleted: event.target.checked })}
-            />
-          </div>
-        </>
-      ) : null}
+        {team.cyclesEnabled ? (
+          <>
+            <div className={styles.cadence}>
+              <Select
+                label="Duration"
+                value={String(team.cycleDurationWeeks)}
+                onChange={(event) => onChange({ durationWeeks: Number(event.target.value) })}
+              >
+                {weeks(1, 8).map((n) => (
+                  <option key={n} value={n}>
+                    {n === 1 ? '1 week' : `${n} weeks`}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                label="Cooldown"
+                value={String(team.cycleCooldownWeeks)}
+                onChange={(event) => onChange({ cooldownWeeks: Number(event.target.value) })}
+              >
+                {weeks(0, 8).map((n) => (
+                  <option key={n} value={n}>
+                    {n === 0 ? 'None' : n === 1 ? '1 week' : `${n} weeks`}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                label="Starts on"
+                value={team.cycleStartDay}
+                onChange={(event) => onChange({ startDay: event.target.value })}
+              >
+                {START_DAYS.map((day) => (
+                  <option key={day} value={day}>
+                    {day.slice(0, 1).toUpperCase() + day.slice(1)}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                label="Upcoming"
+                value={String(team.cycleUpcomingCount)}
+                onChange={(event) => onChange({ upcomingCount: Number(event.target.value) })}
+              >
+                {weeks(1, 15).map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className={styles.autoAdd}>
+              <Checkbox
+                label="Add started issues to the current cycle"
+                checked={team.cycleAutoAddStarted}
+                onChange={(event) => onChange({ autoAddStarted: event.target.checked })}
+              />
+              <Checkbox
+                label="Add completed issues to the current cycle"
+                checked={team.cycleAutoAddCompleted}
+                onChange={(event) => onChange({ autoAddCompleted: event.target.checked })}
+              />
+            </div>
+          </>
+        ) : null}
+      </fieldset>
     </section>
   );
 }
