@@ -422,6 +422,7 @@ type Querier interface {
 	GetGitHubUserLink(ctx context.Context, arg GetGitHubUserLinkParams) (GetGitHubUserLinkRow, error)
 	GetGitHubUserLinkByLogin(ctx context.Context, arg GetGitHubUserLinkByLoginParams) (GetGitHubUserLinkByLoginRow, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
+	GetInboundEmailByMessageID(ctx context.Context, arg GetInboundEmailByMessageIDParams) (InboundEmail, error)
 	GetInitiative(ctx context.Context, id uuid.UUID) (Initiative, error)
 	GetInitiativeForUpdate(ctx context.Context, id uuid.UUID) (Initiative, error)
 	GetInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
@@ -449,6 +450,7 @@ type Querier interface {
 	GetIssueRelation(ctx context.Context, id uuid.UUID) (IssueRelation, error)
 	GetIssueSubscription(ctx context.Context, arg GetIssueSubscriptionParams) (IssueSubscription, error)
 	GetIssueTemplate(ctx context.Context, id uuid.UUID) (GetIssueTemplateRow, error)
+	GetIssueTemplateByEmailIntakeToken(ctx context.Context, token *string) (GetIssueTemplateByEmailIntakeTokenRow, error)
 	GetIssueTemplatePositionAfter(ctx context.Context, arg GetIssueTemplatePositionAfterParams) (string, error)
 	GetLabel(ctx context.Context, id uuid.UUID) (GetLabelRow, error)
 	GetLabelPositionAfter(ctx context.Context, arg GetLabelPositionAfterParams) (string, error)
@@ -517,6 +519,7 @@ type Querier interface {
 	//
 	GetSubIssueSortOrderAfter(ctx context.Context, arg GetSubIssueSortOrderAfterParams) (*string, error)
 	GetTeam(ctx context.Context, id uuid.UUID) (Team, error)
+	GetTeamByEmailIntakeToken(ctx context.Context, token *string) (Team, error)
 	GetTeamByKey(ctx context.Context, arg GetTeamByKeyParams) (Team, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByAccountAndWorkspace(ctx context.Context, arg GetUserByAccountAndWorkspaceParams) (User, error)
@@ -540,6 +543,9 @@ type Querier interface {
 	GetWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	InitWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) error
 	InsertCustomerDomain(ctx context.Context, arg InsertCustomerDomainParams) error
+	// Inbound email idempotency: a retried webhook with the same Message-ID must not mint
+	// a second issue. Replies are refused before they reach this table.
+	InsertInboundEmail(ctx context.Context, arg InsertInboundEmailParams) (InboundEmail, error)
 	InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDeliveryParams) (WebhookDelivery, error)
 	IsTeamMember(ctx context.Context, arg IsTeamMemberParams) (bool, error)
 	LastCustomerSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -1341,6 +1347,10 @@ type Querier interface {
 	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (UpdateIssueRow, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error
 	UpdateIssueTemplate(ctx context.Context, arg UpdateIssueTemplateParams) (UpdateIssueTemplateRow, error)
+	// UpdateIssueTemplateEmailIntake is the per-template intake address. Team templates
+	// only: a workspace template has no team to file into.
+	//
+	UpdateIssueTemplateEmailIntake(ctx context.Context, arg UpdateIssueTemplateEmailIntakeParams) (UpdateIssueTemplateEmailIntakeRow, error)
 	UpdateLabel(ctx context.Context, arg UpdateLabelParams) (UpdateLabelRow, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateProjectLabel(ctx context.Context, arg UpdateProjectLabelParams) (UpdateProjectLabelRow, error)
@@ -1363,6 +1373,11 @@ type Querier interface {
 	// decision, and a partial write that turns cycles on without a duration would leave a
 	// team in a state the CHECKs allow and the product does not.
 	UpdateTeamCycles(ctx context.Context, arg UpdateTeamCyclesParams) (Team, error)
+	// UpdateTeamEmailIntake is the create-issues-by-email switch. Kept apart from UpdateTeam
+	// so a rename cannot mint or clear an intake address, and so enabling is the only write
+	// that generates a token.
+	//
+	UpdateTeamEmailIntake(ctx context.Context, arg UpdateTeamEmailIntakeParams) (Team, error)
 	// UpdateTeamEstimates is separate from UpdateTeam because the three settings are one
 	// decision: allow_zero and extended only mean anything relative to a scale, and letting a
 	// partial update change the scale without them would leave a team offering "16" on a

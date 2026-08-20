@@ -1001,6 +1001,10 @@ type IssueTemplate struct {
 	CreatedAt  time.Time       `json:"createdAt"`
 	UpdatedAt  time.Time       `json:"updatedAt"`
 	ArchivedAt *time.Time      `json:"archivedAt,omitempty"`
+	// Off by default. Team templates only — a workspace template has no team to file into.
+	EmailIntakeEnabled bool `json:"emailIntakeEnabled"`
+	// The address that creates issues from this template. Null until intake is enabled.
+	EmailIntakeAddress *string `json:"emailIntakeAddress,omitempty"`
 }
 
 type IssueTemplatePayload struct {
@@ -1523,10 +1527,14 @@ type Team struct {
 	DefaultTemplateForMembersID *uuid.UUID `json:"defaultTemplateForMembersId,omitempty"`
 	// Applied to new issues filed by everyone else. Form templates (later) may only be this one.
 	DefaultTemplateForNonMembersID *uuid.UUID `json:"defaultTemplateForNonMembersId,omitempty"`
-	CreatedAt                      time.Time  `json:"createdAt"`
-	UpdatedAt                      time.Time  `json:"updatedAt"`
-	RetiredAt                      *time.Time `json:"retiredAt,omitempty"`
-	ArchivedAt                     *time.Time `json:"archivedAt,omitempty"`
+	// Off by default. Turning it on mints a unique intake address for this team.
+	EmailIntakeEnabled bool `json:"emailIntakeEnabled"`
+	// The address that creates issues. Null until intake is enabled.
+	EmailIntakeAddress *string    `json:"emailIntakeAddress,omitempty"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	UpdatedAt          time.Time  `json:"updatedAt"`
+	RetiredAt          *time.Time `json:"retiredAt,omitempty"`
+	ArchivedAt         *time.Time `json:"archivedAt,omitempty"`
 	// When the team was deleted. Only ever set on a row `deletedTeams` returned: the sync stream
 	// carries a delete rather than the row, so a client holding a team with this set is holding
 	// something it should already have dropped.
@@ -1700,6 +1708,11 @@ type UpdateIssueInput struct {
 	ClearCycle         *bool      `json:"clearCycle,omitempty"`
 }
 
+type UpdateIssueTemplateEmailIntakeInput struct {
+	TemplateID uuid.UUID `json:"templateId"`
+	Enabled    bool      `json:"enabled"`
+}
+
 type UpdateIssueTemplateInput struct {
 	ID          uuid.UUID       `json:"id"`
 	Name        *string         `json:"name,omitempty"`
@@ -1846,6 +1859,11 @@ type UpdateTeamCyclesInput struct {
 	UpcomingCount    *int      `json:"upcomingCount,omitempty"`
 	AutoAddStarted   *bool     `json:"autoAddStarted,omitempty"`
 	AutoAddCompleted *bool     `json:"autoAddCompleted,omitempty"`
+}
+
+type UpdateTeamEmailIntakeInput struct {
+	TeamID  uuid.UUID `json:"teamId"`
+	Enabled bool      `json:"enabled"`
 }
 
 type UpdateTeamEstimatesInput struct {

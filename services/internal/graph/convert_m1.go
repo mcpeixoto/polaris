@@ -428,19 +428,21 @@ func fromFavoriteKind(k generated.FavoriteKind) (string, error) {
 
 func toIssueTemplate(t model.IssueTemplate) generated.IssueTemplate {
 	return generated.IssueTemplate{
-		ID:          t.ID,
-		WorkspaceID: t.WorkspaceID,
-		TeamID:      t.TeamID,
-		Name:        t.Name,
-		Description: t.Description,
-		Title:       t.Title,
-		Body:        t.Body,
-		Properties:  jsonOrEmptyObject(t.Properties),
-		Position:    t.Position,
-		CreatedBy:   t.CreatedBy,
-		CreatedAt:   t.CreatedAt,
-		UpdatedAt:   t.UpdatedAt,
-		ArchivedAt:  t.ArchivedAt,
+		ID:                 t.ID,
+		WorkspaceID:        t.WorkspaceID,
+		TeamID:             t.TeamID,
+		Name:               t.Name,
+		Description:        t.Description,
+		Title:              t.Title,
+		Body:               t.Body,
+		Properties:         jsonOrEmptyObject(t.Properties),
+		Position:           t.Position,
+		CreatedBy:          t.CreatedBy,
+		CreatedAt:          t.CreatedAt,
+		UpdatedAt:          t.UpdatedAt,
+		ArchivedAt:         t.ArchivedAt,
+		EmailIntakeEnabled: t.EmailIntakeEnabled,
+		EmailIntakeAddress: t.EmailIntakeAddress,
 	}
 }
 

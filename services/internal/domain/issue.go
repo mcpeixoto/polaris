@@ -169,6 +169,15 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 
 	var labelIDs []uuid.UUID
 
+	actor := p.Actor()
+	var creatorID *uuid.UUID
+	if p.UserID != uuid.Nil {
+		id := p.UserID
+		creatorID = &id
+	} else {
+		actor = authz.SystemActor()
+	}
+
 	var out model.Issue
 	var version int64
 	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
@@ -245,7 +254,7 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			Description:        in.Description,
 			StateID:            state.ID,
 			AssigneeID:         in.AssigneeID,
-			CreatorID:          &p.UserID,
+			CreatorID:          creatorID,
 			Priority:           int16(in.Priority),
 			SortOrder:          sortOrder,
 			StartedAt:          startedAtFor(state.Category, nil),
@@ -272,7 +281,7 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 
 		// No ChangedFields: an empty list is what marks a create, where every field is new
 		// and the question "did this one move" has no meaning yet.
-		if version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+		if version, err = s.em.Emit(ctx, q, p.WorkspaceID, actor, Change{
 			EntityType: "issue", EntityID: id, Op: OpUpsert, TeamID: &in.TeamID,
 			Scope: authz.TeamScope(in.TeamID, team.Private), Payload: out,
 		}); err != nil {
@@ -290,8 +299,11 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		}
 
 		// You watch what you filed, what you were handed, and what names you.
-		if err := s.SubscribeOnAction(ctx, q, p, id, p.UserID, model.SubscribedCreated); err != nil {
-			return err
+		// Email intake has no user: the sender is not notified, and there is nobody to subscribe.
+		if p.UserID != uuid.Nil {
+			if err := s.SubscribeOnAction(ctx, q, p, id, p.UserID, model.SubscribedCreated); err != nil {
+				return err
+			}
 		}
 		if in.AssigneeID != nil {
 			if err := s.SubscribeOnAction(ctx, q, p, id, *in.AssigneeID, model.SubscribedAssigned); err != nil {
@@ -308,7 +320,7 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			if err := s.attachRecurringOnCreate(ctx, q, p, team, &out, in); err != nil {
 				return err
 			}
-			version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			version, err = s.em.Emit(ctx, q, p.WorkspaceID, actor, Change{
 				EntityType: "issue", EntityID: id, Op: OpUpsert, TeamID: &in.TeamID,
 				Scope: authz.TeamScope(in.TeamID, team.Private), Payload: out,
 			})
@@ -326,7 +338,7 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		}
 		out = toIssue(store.AsIssueRow(refreshed), team.Key)
 
-		return s.em.History(ctx, q, p.WorkspaceID, p.Actor(), row.CreatedAt,
+		return s.em.History(ctx, q, p.WorkspaceID, actor, row.CreatedAt,
 			HistoryEntry{IssueID: id, Kind: "created"})
 	})
 	if err != nil {

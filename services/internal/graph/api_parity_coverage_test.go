@@ -78,6 +78,7 @@ var serverSideOnly = map[string]string{
 	"IngestGitHubPullRequest":    "inbound GitHub webhook: signed HTTP, not GraphQL",
 	"IngestGitHubPush":           "inbound GitHub commit webhook: signed HTTP, not GraphQL",
 	"VerifyGitHubCommitWebhook":  "inbound GitHub webhook auth: HMAC check, not a caller mutation",
+	"IngestInboundEmail":         "inbound email webhook: signed HTTP, not GraphQL",
 	"SetGitHubCommentPoster":     "composition root: wires the GitHub HTTP client, not a caller mutation",
 }
 
