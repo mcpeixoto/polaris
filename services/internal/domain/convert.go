@@ -27,6 +27,8 @@ func toWorkspace(w store.Workspace) model.Workspace {
 		ProjectUpdateReminderIntervalDays: int(w.ProjectUpdateReminderIntervalDays),
 		ProjectUpdateReminderWeekday:      int(w.ProjectUpdateReminderWeekday),
 		ProjectUpdateReminderHour:         int(w.ProjectUpdateReminderHour),
+		PulseEnabled:                      w.PulseEnabled,
+		PulseDigestCadence:                w.PulseDigestCadence,
 		CreatedAt:                         w.CreatedAt,
 		UpdatedAt:                         w.UpdatedAt,
 		ArchivedAt:                        w.ArchivedAt,

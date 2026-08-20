@@ -5,14 +5,14 @@ RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
           plan_expires_at, seat_limit, plan_lapsed_at,
           project_update_reminder_interval_days, project_update_reminder_weekday,
-          project_update_reminder_hour;
+          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence;
 
 -- name: GetWorkspace :one
 SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
        plan_expires_at, seat_limit, plan_lapsed_at,
        project_update_reminder_interval_days, project_update_reminder_weekday,
-       project_update_reminder_hour
+       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
 FROM workspace
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -21,7 +21,7 @@ SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
        plan_expires_at, seat_limit, plan_lapsed_at,
        project_update_reminder_interval_days, project_update_reminder_weekday,
-       project_update_reminder_hour
+       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
 FROM workspace
 WHERE url_key = $1 AND deleted_at IS NULL;
 
@@ -36,13 +36,15 @@ SET name     = COALESCE(sqlc.narg(name), name),
     project_update_reminder_weekday = COALESCE(
         sqlc.narg(project_update_reminder_weekday), project_update_reminder_weekday),
     project_update_reminder_hour = COALESCE(
-        sqlc.narg(project_update_reminder_hour), project_update_reminder_hour)
+        sqlc.narg(project_update_reminder_hour), project_update_reminder_hour),
+    pulse_enabled = COALESCE(sqlc.narg(pulse_enabled), pulse_enabled),
+    pulse_digest_cadence = COALESCE(sqlc.narg(pulse_digest_cadence), pulse_digest_cadence)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
           plan_expires_at, seat_limit, plan_lapsed_at,
           project_update_reminder_interval_days, project_update_reminder_weekday,
-          project_update_reminder_hour;
+          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence;
 
 -- CountWorkspaceSeats is the number the seat limit is checked against.
 --

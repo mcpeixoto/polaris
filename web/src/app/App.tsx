@@ -33,6 +33,7 @@ import { Drafts } from '~/views/Drafts';
 import { ExportSettings } from '~/views/ExportSettings';
 import { Inbox } from '~/views/Inbox';
 import { Pulse } from '~/views/Pulse';
+import { PulseSettings } from '~/views/PulseSettings';
 import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
 import { AdHocIssues } from '~/views/AdHocIssues';
@@ -209,6 +210,7 @@ function SignedInShell() {
         <Route path="/settings/labels" element={<LabelSettings />} />
         <Route path="/settings/project-labels" element={<ProjectLabelSettings />} />
         <Route path="/settings/project-updates" element={<ProjectUpdateSettings />} />
+        <Route path="/settings/pulse" element={<PulseSettings />} />
         <Route path="/settings/slas" element={<SlaSettings />} />
         <Route path="/settings/notifications" element={<NotificationSettings />} />
         <Route path="/settings/preferences" element={<Preferences />} />

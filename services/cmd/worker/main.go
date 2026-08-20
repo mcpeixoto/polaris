@@ -297,6 +297,23 @@ func run() error {
 				return err
 			},
 		},
+		{
+			// Hourly: the cadence's resolution, not the cadence. Each workspace's own
+			// setting decides daily vs weekly, and 06:00 is in the recipient's timezone,
+			// so this period only bounds how late a morning summary can be. atBoot is
+			// off for the same reason the mail digest's is: a deploy at 16:00 must not
+			// become everybody's Pulse.
+			name:  "deliver pulse digests",
+			every: time.Hour,
+			run: func(ctx context.Context) error {
+				n, err := svc.DeliverPulseDigests(ctx, time.Now())
+				if err == nil && n > 0 {
+					log.Info("wrote pulse digests", "rows", n)
+				}
+				return err
+			},
+			critical: false,
+		},
 	}
 
 	if cfg.MailEnabled() {

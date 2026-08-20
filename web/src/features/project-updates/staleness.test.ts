@@ -20,6 +20,8 @@ function storeWith(
     projectUpdateReminderIntervalDays: 7,
     projectUpdateReminderWeekday: 3,
     projectUpdateReminderHour: 9,
+    pulseEnabled: true,
+    pulseDigestCadence: 'daily',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     ...workspace,

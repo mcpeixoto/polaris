@@ -118,6 +118,14 @@ enum NotificationType {
   SUB_ISSUE_COMPLETED
   VIEW_ISSUE_ADDED
   VIEW_ISSUE_COMPLETED
+  PULSE_DIGEST
+}
+
+"""How often Pulse writes a morning inbox summary of project updates."""
+enum PulseDigestCadence {
+  OFF
+  DAILY
+  WEEKLY
 }
 
 enum FavoriteKind {
@@ -156,6 +164,10 @@ type Workspace {
   projectUpdateReminderWeekday: Int!
   """Hour of day in the lead's timezone when reminders would send (0–23)."""
   projectUpdateReminderHour: Int!
+  """When false, Pulse is hidden and the morning digest does not send."""
+  pulseEnabled: Boolean!
+  """Default inbox digest cadence. Summaries land around 06:00 in each member's timezone."""
+  pulseDigestCadence: PulseDigestCadence!
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
@@ -2908,6 +2920,8 @@ input UpdateWorkspaceInput {
   projectUpdateReminderIntervalDays: Int
   projectUpdateReminderWeekday: Int
   projectUpdateReminderHour: Int
+  pulseEnabled: Boolean
+  pulseDigestCadence: PulseDigestCadence
 }
 
 # ---------------------------------------------------------------- root

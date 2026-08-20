@@ -95,6 +95,11 @@ const TYPES: readonly {
     label: 'Issues completed in a view I follow',
     hint: 'An issue that matches a saved view you subscribed to was finished or canceled.',
   },
+  {
+    value: 'pulse_digest',
+    label: 'Pulse digest',
+    hint: 'A morning summary of project updates on work you lead, created, or belong to.',
+  },
 ];
 
 export function NotificationSettings() {
