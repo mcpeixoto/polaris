@@ -384,6 +384,17 @@ function oneOfEach(): EntityRow[] {
         updatedAt: NOW,
       },
     },
+    {
+      type: 'cycleCalendarFeed',
+      entity: {
+        id: 'ccf1',
+        workspaceId: 'w',
+        teamId: 't1',
+        userId: 'u1',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
     { type: 'team', entity: team('t1', 'ENG') },
     {
       type: 'teamMembership',

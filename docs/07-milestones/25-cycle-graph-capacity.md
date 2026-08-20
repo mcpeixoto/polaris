@@ -18,5 +18,4 @@ The cycle burn-up now matches Linear's lines, and upcoming cycles show a capacit
 ## Deferred
 
 - Historical snapshots for completed cycles
-- ICS subscription (4.7)
 - Sub-team cycle inheritance (4.8)
