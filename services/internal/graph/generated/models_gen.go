@@ -492,6 +492,11 @@ type CreateRecurringIssueInput struct {
 	SourceIssueID *uuid.UUID `json:"sourceIssueId,omitempty"`
 }
 
+type CreateSentryConnectionInput struct {
+	DefaultTeamID    uuid.UUID `json:"defaultTeamId"`
+	OrganizationSlug *string   `json:"organizationSlug,omitempty"`
+}
+
 type CreateSLARuleInput struct {
 	Filter          json.RawMessage `json:"filter,omitempty"`
 	Action          SLAAction       `json:"action"`
@@ -1290,6 +1295,12 @@ type LinkGitLabMergeRequestInput struct {
 	ReviewRequested *bool   `json:"reviewRequested,omitempty"`
 }
 
+type LinkSentryIssueInput struct {
+	IssueID uuid.UUID `json:"issueId"`
+	URL     string    `json:"url"`
+	Title   *string   `json:"title,omitempty"`
+}
+
 type MoveFavoriteInput struct {
 	ID uuid.UUID `json:"id"`
 	// The folder to sit in. Ignored when clearFolder is set.
@@ -1761,6 +1772,41 @@ type SearchResults struct {
 	IssueCount int `json:"issueCount"`
 }
 
+// Workspace Sentry install. The webhook secret is not on this type: the replica
+// carries the default team a client needs to render settings, and nothing that
+// could be a credential. One Sentry organization per workspace; cloud only.
+type SentryConnection struct {
+	ID               uuid.UUID  `json:"id"`
+	WorkspaceID      uuid.UUID  `json:"workspaceId"`
+	CreatorID        uuid.UUID  `json:"creatorId"`
+	Enabled          bool       `json:"enabled"`
+	DefaultTeamID    uuid.UUID  `json:"defaultTeamId"`
+	OrganizationSlug *string    `json:"organizationSlug,omitempty"`
+	ConnectedAt      *time.Time `json:"connectedAt,omitempty"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	UpdatedAt        time.Time  `json:"updatedAt"`
+}
+
+type SentryConnectionPayload struct {
+	Version          int               `json:"version"`
+	SentryConnection *SentryConnection `json:"sentryConnection"`
+}
+
+func (SentryConnectionPayload) IsMutationResult() {}
+
+type SentryLinkPayload struct {
+	Version    int         `json:"version"`
+	Issue      *Issue      `json:"issue"`
+	Attachment *Attachment `json:"attachment"`
+}
+
+func (SentryLinkPayload) IsMutationResult() {}
+
+type SentryWebhook struct {
+	URL    string `json:"url"`
+	Secret string `json:"secret"`
+}
+
 type SetIssueSLAInput struct {
 	IssueID         uuid.UUID `json:"issueId"`
 	DurationMinutes int       `json:"durationMinutes"`
@@ -2205,6 +2251,14 @@ type UpdateRecurringIssueInput struct {
 	Cadence    *RecurringCadence `json:"cadence,omitempty"`
 	// Calendar day, `2006-01-02`. The due date of the current occurrence.
 	NextDueDate *string `json:"nextDueDate,omitempty"`
+}
+
+type UpdateSentryConnectionInput struct {
+	DefaultTeamID    *uuid.UUID `json:"defaultTeamId,omitempty"`
+	OrganizationSlug *string    `json:"organizationSlug,omitempty"`
+	Enabled          *bool      `json:"enabled,omitempty"`
+	// Replace the generated webhook secret with Sentry's client secret (HMAC).
+	WebhookSecret *string `json:"webhookSecret,omitempty"`
 }
 
 type UpdateSLARuleInput struct {

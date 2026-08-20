@@ -89,6 +89,11 @@ const (
 	// that would otherwise sit in a member's clipboard.
 	ActionGitLabManage Action = "gitlab.manage"
 
+	// Connecting Sentry for the workspace: inbound webhooks that create issues.
+	// Admin because the install covers every team and the webhook secret is a credential
+	// that would otherwise sit in a member's clipboard.
+	ActionSentryManage Action = "sentry.manage"
+
 	// Third-party OAuth applications owned by this workspace. Admin because a client
 	// secret is a workspace-wide credential, and every admin of the owning workspace is
 	// meant to be able to manage the app.
@@ -112,7 +117,7 @@ var AllActions = []Action{
 	ActionWorkspaceViewManage, ActionTeamViewManage,
 	ActionWorkspaceTemplateManage, ActionTeamTemplateManage,
 	ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete, ActionProjectStatusManage,
-	ActionAPIKeyManage, ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionOauthClientManage,
+	ActionAPIKeyManage, ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionSentryManage, ActionOauthClientManage,
 }
 
 // Deliberately absent: notifications, subscriptions, favourites and view preferences.
@@ -163,7 +168,7 @@ func Can(p *Principal, a Action) bool {
 		// team-scoped equivalents are not.
 		ActionWorkspaceLabelManage, ActionWorkspaceViewManage, ActionWorkspaceTemplateManage,
 		ActionProjectStatusManage,
-		ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionOauthClientManage:
+		ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionSentryManage, ActionOauthClientManage:
 		return p.Role.IsAdmin()
 
 	case ActionTeamJoin, ActionAPIKeyManage, ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete:

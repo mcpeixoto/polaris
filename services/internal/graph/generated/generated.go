@@ -771,6 +771,7 @@ type ComplexityRoot struct {
 		CreateProjectUpdate            func(childComplexity int, input CreateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateRecurringIssue           func(childComplexity int, input CreateRecurringIssueInput) int
 		CreateSLARule                  func(childComplexity int, input CreateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateSentryConnection         func(childComplexity int, input CreateSentryConnectionInput) int
 		CreateTeam                     func(childComplexity int, input CreateTeamInput) int
 		CreateView                     func(childComplexity int, input CreateViewInput) int
 		CreateWebhook                  func(childComplexity int, input CreateWebhookInput) int
@@ -803,6 +804,7 @@ type ComplexityRoot struct {
 		DeleteProjectTemplateMilestone func(childComplexity int, id uuid.UUID) int
 		DeleteProjectUpdate            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteSLARule                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteSentryConnection         func(childComplexity int) int
 		DeleteTeam                     func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteView                     func(childComplexity int, id uuid.UUID) int
 		DeleteViewSubscription         func(childComplexity int, viewID uuid.UUID) int
@@ -810,6 +812,7 @@ type ComplexityRoot struct {
 		InviteToWorkspace              func(childComplexity int, input InviteInput) int
 		LinkGitHubPullRequest          func(childComplexity int, input LinkGitHubPullRequestInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		LinkGitLabMergeRequest         func(childComplexity int, input LinkGitLabMergeRequestInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		LinkSentryIssue                func(childComplexity int, input LinkSentryIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		MarkAllNotificationsRead       func(childComplexity int) int
 		MarkIssueDuplicate             func(childComplexity int, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		MarkNotificationRead           func(childComplexity int, id uuid.UUID, read bool) int
@@ -879,6 +882,7 @@ type ComplexityRoot struct {
 		UpdateProjectUpdate            func(childComplexity int, input UpdateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateRecurringIssue           func(childComplexity int, input UpdateRecurringIssueInput) int
 		UpdateSLARule                  func(childComplexity int, input UpdateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateSentryConnection         func(childComplexity int, input UpdateSentryConnectionInput) int
 		UpdateTeam                     func(childComplexity int, input UpdateTeamInput) int
 		UpdateTeamArchive              func(childComplexity int, input UpdateTeamArchiveInput) int
 		UpdateTeamCycles               func(childComplexity int, input UpdateTeamCyclesInput) int
@@ -1275,6 +1279,8 @@ type ComplexityRoot struct {
 		SLARule                      func(childComplexity int, id uuid.UUID) int
 		SLARules                     func(childComplexity int) int
 		Search                       func(childComplexity int, input SearchInput) int
+		SentryConnection             func(childComplexity int) int
+		SentryWebhook                func(childComplexity int) int
 		Team                         func(childComplexity int, id uuid.UUID) int
 		TeamByKey                    func(childComplexity int, key string) int
 		Teams                        func(childComplexity int) int
@@ -1317,6 +1323,34 @@ type ComplexityRoot struct {
 		Comments   func(childComplexity int) int
 		IssueCount func(childComplexity int) int
 		Issues     func(childComplexity int) int
+	}
+
+	SentryConnection struct {
+		ConnectedAt      func(childComplexity int) int
+		CreatedAt        func(childComplexity int) int
+		CreatorID        func(childComplexity int) int
+		DefaultTeamID    func(childComplexity int) int
+		Enabled          func(childComplexity int) int
+		ID               func(childComplexity int) int
+		OrganizationSlug func(childComplexity int) int
+		UpdatedAt        func(childComplexity int) int
+		WorkspaceID      func(childComplexity int) int
+	}
+
+	SentryConnectionPayload struct {
+		SentryConnection func(childComplexity int) int
+		Version          func(childComplexity int) int
+	}
+
+	SentryLinkPayload struct {
+		Attachment func(childComplexity int) int
+		Issue      func(childComplexity int) int
+		Version    func(childComplexity int) int
+	}
+
+	SentryWebhook struct {
+		Secret func(childComplexity int) int
+		URL    func(childComplexity int) int
 	}
 
 	SlaRule struct {
@@ -1764,6 +1798,10 @@ type MutationResolver interface {
 	LinkGitLabMergeRequest(ctx context.Context, input LinkGitLabMergeRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*GitLabLinkPayload, error)
 	UpdateGitLabTeamAutomation(ctx context.Context, input UpdateGitLabTeamAutomationInput) (*GitLabTeamAutomationPayload, error)
 	DeleteGitLabTeamAutomation(ctx context.Context, teamID uuid.UUID) (*GitLabTeamAutomationPayload, error)
+	CreateSentryConnection(ctx context.Context, input CreateSentryConnectionInput) (*SentryConnectionPayload, error)
+	UpdateSentryConnection(ctx context.Context, input UpdateSentryConnectionInput) (*SentryConnectionPayload, error)
+	DeleteSentryConnection(ctx context.Context) (*DeletePayload, error)
+	LinkSentryIssue(ctx context.Context, input LinkSentryIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*SentryLinkPayload, error)
 	CreateDraft(ctx context.Context, input CreateDraftInput) (*DraftPayload, error)
 	UpdateDraft(ctx context.Context, input UpdateDraftInput) (*DraftPayload, error)
 	DeleteDraft(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
@@ -1845,6 +1883,8 @@ type QueryResolver interface {
 	GitlabUserLink(ctx context.Context) (*GitLabUserLink, error)
 	GitlabWebhook(ctx context.Context) (*GitLabWebhook, error)
 	GitlabTeamAutomation(ctx context.Context, teamID uuid.UUID) (*GitLabTeamAutomation, error)
+	SentryConnection(ctx context.Context) (*SentryConnection, error)
+	SentryWebhook(ctx context.Context) (*SentryWebhook, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -5377,6 +5417,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateSLARule(childComplexity, args["input"].(CreateSLARuleInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createSentryConnection":
+		if e.ComplexityRoot.Mutation.CreateSentryConnection == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createSentryConnection_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateSentryConnection(childComplexity, args["input"].(CreateSentryConnectionInput)), true
 	case "Mutation.createTeam":
 		if e.ComplexityRoot.Mutation.CreateTeam == nil {
 			break
@@ -5709,6 +5760,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteSLARule(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteSentryConnection":
+		if e.ComplexityRoot.Mutation.DeleteSentryConnection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteSentryConnection(childComplexity), true
 	case "Mutation.deleteTeam":
 		if e.ComplexityRoot.Mutation.DeleteTeam == nil {
 			break
@@ -5786,6 +5843,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.LinkGitLabMergeRequest(childComplexity, args["input"].(LinkGitLabMergeRequestInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.linkSentryIssue":
+		if e.ComplexityRoot.Mutation.LinkSentryIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_linkSentryIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.LinkSentryIssue(childComplexity, args["input"].(LinkSentryIssueInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.markAllNotificationsRead":
 		if e.ComplexityRoot.Mutation.MarkAllNotificationsRead == nil {
 			break
@@ -6540,6 +6608,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateSLARule(childComplexity, args["input"].(UpdateSLARuleInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.updateSentryConnection":
+		if e.ComplexityRoot.Mutation.UpdateSentryConnection == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateSentryConnection_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateSentryConnection(childComplexity, args["input"].(UpdateSentryConnectionInput)), true
 	case "Mutation.updateTeam":
 		if e.ComplexityRoot.Mutation.UpdateTeam == nil {
 			break
@@ -8565,6 +8644,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Search(childComplexity, args["input"].(SearchInput)), true
+	case "Query.sentryConnection":
+		if e.ComplexityRoot.Query.SentryConnection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SentryConnection(childComplexity), true
+	case "Query.sentryWebhook":
+		if e.ComplexityRoot.Query.SentryWebhook == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SentryWebhook(childComplexity), true
 	case "Query.team":
 		if e.ComplexityRoot.Query.Team == nil {
 			break
@@ -8796,6 +8887,106 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SearchResults.Issues(childComplexity), true
+
+	case "SentryConnection.connectedAt":
+		if e.ComplexityRoot.SentryConnection.ConnectedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnection.ConnectedAt(childComplexity), true
+	case "SentryConnection.createdAt":
+		if e.ComplexityRoot.SentryConnection.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnection.CreatedAt(childComplexity), true
+	case "SentryConnection.creatorId":
+		if e.ComplexityRoot.SentryConnection.CreatorID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnection.CreatorID(childComplexity), true
+	case "SentryConnection.defaultTeamId":
+		if e.ComplexityRoot.SentryConnection.DefaultTeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnection.DefaultTeamID(childComplexity), true
+	case "SentryConnection.enabled":
+		if e.ComplexityRoot.SentryConnection.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnection.Enabled(childComplexity), true
+	case "SentryConnection.id":
+		if e.ComplexityRoot.SentryConnection.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnection.ID(childComplexity), true
+	case "SentryConnection.organizationSlug":
+		if e.ComplexityRoot.SentryConnection.OrganizationSlug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnection.OrganizationSlug(childComplexity), true
+	case "SentryConnection.updatedAt":
+		if e.ComplexityRoot.SentryConnection.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnection.UpdatedAt(childComplexity), true
+	case "SentryConnection.workspaceId":
+		if e.ComplexityRoot.SentryConnection.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnection.WorkspaceID(childComplexity), true
+
+	case "SentryConnectionPayload.sentryConnection":
+		if e.ComplexityRoot.SentryConnectionPayload.SentryConnection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnectionPayload.SentryConnection(childComplexity), true
+	case "SentryConnectionPayload.version":
+		if e.ComplexityRoot.SentryConnectionPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryConnectionPayload.Version(childComplexity), true
+
+	case "SentryLinkPayload.attachment":
+		if e.ComplexityRoot.SentryLinkPayload.Attachment == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryLinkPayload.Attachment(childComplexity), true
+	case "SentryLinkPayload.issue":
+		if e.ComplexityRoot.SentryLinkPayload.Issue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryLinkPayload.Issue(childComplexity), true
+	case "SentryLinkPayload.version":
+		if e.ComplexityRoot.SentryLinkPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryLinkPayload.Version(childComplexity), true
+
+	case "SentryWebhook.secret":
+		if e.ComplexityRoot.SentryWebhook.Secret == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryWebhook.Secret(childComplexity), true
+	case "SentryWebhook.url":
+		if e.ComplexityRoot.SentryWebhook.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SentryWebhook.URL(childComplexity), true
 
 	case "SlaRule.action":
 		if e.ComplexityRoot.SlaRule.Action == nil {
@@ -9984,6 +10175,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateProjectTemplateMilestoneInput,
 		ec.unmarshalInputCreateProjectUpdateInput,
 		ec.unmarshalInputCreateRecurringIssueInput,
+		ec.unmarshalInputCreateSentryConnectionInput,
 		ec.unmarshalInputCreateSlaRuleInput,
 		ec.unmarshalInputCreateTeamInput,
 		ec.unmarshalInputCreateViewInput,
@@ -9992,6 +10184,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputInviteInput,
 		ec.unmarshalInputLinkGitHubPullRequestInput,
 		ec.unmarshalInputLinkGitLabMergeRequestInput,
+		ec.unmarshalInputLinkSentryIssueInput,
 		ec.unmarshalInputMoveFavoriteInput,
 		ec.unmarshalInputSearchInput,
 		ec.unmarshalInputSetIssueSlaInput,
@@ -10027,6 +10220,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateProjectTemplateMilestoneInput,
 		ec.unmarshalInputUpdateProjectUpdateInput,
 		ec.unmarshalInputUpdateRecurringIssueInput,
+		ec.unmarshalInputUpdateSentryConnectionInput,
 		ec.unmarshalInputUpdateSlaRuleInput,
 		ec.unmarshalInputUpdateTeamArchiveInput,
 		ec.unmarshalInputUpdateTeamCyclesInput,
@@ -12156,6 +12350,58 @@ input UpdateGitLabTeamAutomationInput {
 }
 
 """
+Workspace Sentry install. The webhook secret is not on this type: the replica
+carries the default team a client needs to render settings, and nothing that
+could be a credential. One Sentry organization per workspace; cloud only.
+"""
+type SentryConnection {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  enabled: Boolean!
+  defaultTeamId: UUID!
+  organizationSlug: String
+  connectedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type SentryWebhook {
+  url: String!
+  secret: String!
+}
+
+type SentryConnectionPayload implements MutationResult {
+  version: Int!
+  sentryConnection: SentryConnection!
+}
+
+type SentryLinkPayload implements MutationResult {
+  version: Int!
+  issue: Issue!
+  attachment: Attachment!
+}
+
+input CreateSentryConnectionInput {
+  defaultTeamId: UUID!
+  organizationSlug: String
+}
+
+input UpdateSentryConnectionInput {
+  defaultTeamId: UUID
+  organizationSlug: String
+  enabled: Boolean
+  """Replace the generated webhook secret with Sentry's client secret (HMAC)."""
+  webhookSecret: String
+}
+
+input LinkSentryIssueInput {
+  issueId: UUID!
+  url: String!
+  title: String
+}
+
+"""
 A bulk update returns the issues it changed and the single version the whole batch landed
 at, because it emits one version block rather than one per issue.
 """
@@ -13008,6 +13254,10 @@ type Query {
   gitlabWebhook: GitLabWebhook
   """Per-team GitLab MR status automations. Unconfigured teams use the product defaults."""
   gitlabTeamAutomation(teamId: UUID!): GitLabTeamAutomation!
+  """The workspace Sentry install, if any. Secrets are on sentryWebhook, not here."""
+  sentryConnection: SentryConnection
+  """Admin-only. The URL and secret to paste into a Sentry alert webhook or internal integration."""
+  sentryWebhook: SentryWebhook
 }
 
 """
@@ -13309,6 +13559,11 @@ type Mutation {
   linkGitLabMergeRequest(input: LinkGitLabMergeRequestInput!, clientId: UUID, opId: UUID): GitLabLinkPayload! @idempotent
   updateGitLabTeamAutomation(input: UpdateGitLabTeamAutomationInput!): GitLabTeamAutomationPayload!
   deleteGitLabTeamAutomation(teamId: UUID!): GitLabTeamAutomationPayload!
+
+  createSentryConnection(input: CreateSentryConnectionInput!): SentryConnectionPayload!
+  updateSentryConnection(input: UpdateSentryConnectionInput!): SentryConnectionPayload!
+  deleteSentryConnection: DeletePayload!
+  linkSentryIssue(input: LinkSentryIssueInput!, clientId: UUID, opId: UUID): SentryLinkPayload! @idempotent
 
   # ---- drafts (personal, on-demand; not replicated)
 
@@ -15356,6 +15611,62 @@ func (ec *executionContext) childFields_SearchResults(ctx context.Context, field
 		return ec.fieldContext_SearchResults_issueCount(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SearchResults", field.Name)
+}
+
+func (ec *executionContext) childFields_SentryConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_SentryConnection_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_SentryConnection_workspaceId(ctx, field)
+	case "creatorId":
+		return ec.fieldContext_SentryConnection_creatorId(ctx, field)
+	case "enabled":
+		return ec.fieldContext_SentryConnection_enabled(ctx, field)
+	case "defaultTeamId":
+		return ec.fieldContext_SentryConnection_defaultTeamId(ctx, field)
+	case "organizationSlug":
+		return ec.fieldContext_SentryConnection_organizationSlug(ctx, field)
+	case "connectedAt":
+		return ec.fieldContext_SentryConnection_connectedAt(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_SentryConnection_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_SentryConnection_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SentryConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_SentryConnectionPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_SentryConnectionPayload_version(ctx, field)
+	case "sentryConnection":
+		return ec.fieldContext_SentryConnectionPayload_sentryConnection(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SentryConnectionPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_SentryLinkPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_SentryLinkPayload_version(ctx, field)
+	case "issue":
+		return ec.fieldContext_SentryLinkPayload_issue(ctx, field)
+	case "attachment":
+		return ec.fieldContext_SentryLinkPayload_attachment(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SentryLinkPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_SentryWebhook(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "url":
+		return ec.fieldContext_SentryWebhook_url(ctx, field)
+	case "secret":
+		return ec.fieldContext_SentryWebhook_secret(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SentryWebhook", field.Name)
 }
 
 func (ec *executionContext) childFields_SlaRule(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -17566,6 +17877,20 @@ func (ec *executionContext) field_Mutation_createRecurringIssue_args(ctx context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createSentryConnection_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateSentryConnectionInput, error) {
+			return ec.unmarshalNCreateSentryConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateSentryConnectionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createSlaRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -18366,6 +18691,36 @@ func (ec *executionContext) field_Mutation_linkGitLabMergeRequest_args(ctx conte
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (LinkGitLabMergeRequestInput, error) {
 			return ec.unmarshalNLinkGitLabMergeRequestInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐLinkGitLabMergeRequestInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_linkSentryIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (LinkSentryIssueInput, error) {
+			return ec.unmarshalNLinkSentryIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐLinkSentryIssueInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -19976,6 +20331,20 @@ func (ec *executionContext) field_Mutation_updateRecurringIssue_args(ctx context
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (UpdateRecurringIssueInput, error) {
 			return ec.unmarshalNUpdateRecurringIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateRecurringIssueInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateSentryConnection_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateSentryConnectionInput, error) {
+			return ec.unmarshalNUpdateSentryConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateSentryConnectionInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -40951,6 +41320,183 @@ func (ec *executionContext) fieldContext_Mutation_deleteGitLabTeamAutomation(ctx
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createSentryConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createSentryConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateSentryConnection(ctx, fc.Args["input"].(CreateSentryConnectionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SentryConnectionPayload) graphql.Marshaler {
+			return ec.marshalNSentryConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryConnectionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createSentryConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SentryConnectionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createSentryConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateSentryConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateSentryConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateSentryConnection(ctx, fc.Args["input"].(UpdateSentryConnectionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SentryConnectionPayload) graphql.Marshaler {
+			return ec.marshalNSentryConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryConnectionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateSentryConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SentryConnectionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateSentryConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteSentryConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteSentryConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().DeleteSentryConnection(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteSentryConnection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_linkSentryIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_linkSentryIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().LinkSentryIssue(ctx, fc.Args["input"].(LinkSentryIssueInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *SentryLinkPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *SentryLinkPayload) graphql.Marshaler {
+			return ec.marshalNSentryLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryLinkPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_linkSentryIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SentryLinkPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_linkSentryIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -49294,6 +49840,70 @@ func (ec *executionContext) fieldContext_Query_gitlabTeamAutomation(ctx context.
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_sentryConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_sentryConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SentryConnection(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SentryConnection) graphql.Marshaler {
+			return ec.marshalOSentryConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryConnection(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_sentryConnection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SentryConnection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_sentryWebhook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_sentryWebhook(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SentryWebhook(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SentryWebhook) graphql.Marshaler {
+			return ec.marshalOSentryWebhook2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryWebhook(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_sentryWebhook(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SentryWebhook(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -49832,6 +50442,401 @@ func (ec *executionContext) _SearchResults_issueCount(ctx context.Context, field
 }
 func (ec *executionContext) fieldContext_SearchResults_issueCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SearchResults", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnection_id(ctx context.Context, field graphql.CollectedField, obj *SentryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnection_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnection_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnection_workspaceId(ctx context.Context, field graphql.CollectedField, obj *SentryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnection_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnection_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnection_creatorId(ctx context.Context, field graphql.CollectedField, obj *SentryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnection_creatorId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatorID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnection_creatorId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnection_enabled(ctx context.Context, field graphql.CollectedField, obj *SentryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnection_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnection_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryConnection", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnection_defaultTeamId(ctx context.Context, field graphql.CollectedField, obj *SentryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnection_defaultTeamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultTeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnection_defaultTeamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryConnection", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnection_organizationSlug(ctx context.Context, field graphql.CollectedField, obj *SentryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnection_organizationSlug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OrganizationSlug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnection_organizationSlug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryConnection", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnection_connectedAt(ctx context.Context, field graphql.CollectedField, obj *SentryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnection_connectedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConnectedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnection_connectedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryConnection", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnection_createdAt(ctx context.Context, field graphql.CollectedField, obj *SentryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnection_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnection_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryConnection", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnection_updatedAt(ctx context.Context, field graphql.CollectedField, obj *SentryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnection_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnection_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryConnection", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnectionPayload_version(ctx context.Context, field graphql.CollectedField, obj *SentryConnectionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnectionPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnectionPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryConnectionPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SentryConnectionPayload_sentryConnection(ctx context.Context, field graphql.CollectedField, obj *SentryConnectionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryConnectionPayload_sentryConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SentryConnection, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *SentryConnection) graphql.Marshaler {
+			return ec.marshalNSentryConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryConnection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryConnectionPayload_sentryConnection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SentryConnectionPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SentryConnection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SentryLinkPayload_version(ctx context.Context, field graphql.CollectedField, obj *SentryLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryLinkPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryLinkPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryLinkPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SentryLinkPayload_issue(ctx context.Context, field graphql.CollectedField, obj *SentryLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryLinkPayload_issue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Issue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Issue) graphql.Marshaler {
+			return ec.marshalNIssue2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssue(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryLinkPayload_issue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SentryLinkPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Issue(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SentryLinkPayload_attachment(ctx context.Context, field graphql.CollectedField, obj *SentryLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryLinkPayload_attachment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Attachment, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Attachment) graphql.Marshaler {
+			return ec.marshalNAttachment2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAttachment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryLinkPayload_attachment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SentryLinkPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Attachment(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SentryWebhook_url(ctx context.Context, field graphql.CollectedField, obj *SentryWebhook) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryWebhook_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryWebhook_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryWebhook", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SentryWebhook_secret(ctx context.Context, field graphql.CollectedField, obj *SentryWebhook) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SentryWebhook_secret(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Secret, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SentryWebhook_secret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SentryWebhook", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _SlaRule_id(ctx context.Context, field graphql.CollectedField, obj *SLARule) (ret graphql.Marshaler) {
@@ -57568,6 +58573,43 @@ func (ec *executionContext) unmarshalInputCreateRecurringIssueInput(ctx context.
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateSentryConnectionInput(ctx context.Context, obj any) (CreateSentryConnectionInput, error) {
+	var it CreateSentryConnectionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"defaultTeamId", "organizationSlug"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "defaultTeamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultTeamId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefaultTeamID = data
+		case "organizationSlug":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("organizationSlug"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OrganizationSlug = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateSlaRuleInput(ctx context.Context, obj any) (CreateSLARuleInput, error) {
 	var it CreateSLARuleInput
 	if obj == nil {
@@ -58097,6 +59139,50 @@ func (ec *executionContext) unmarshalInputLinkGitLabMergeRequestInput(ctx contex
 				return it, err
 			}
 			it.ReviewRequested = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputLinkSentryIssueInput(ctx context.Context, obj any) (LinkSentryIssueInput, error) {
+	var it LinkSentryIssueInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"issueId", "url", "title"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "issueId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("issueId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IssueID = data
+		case "url":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("url"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.URL = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
 		}
 	}
 	return it, nil
@@ -60496,6 +61582,57 @@ func (ec *executionContext) unmarshalInputUpdateRecurringIssueInput(ctx context.
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateSentryConnectionInput(ctx context.Context, obj any) (UpdateSentryConnectionInput, error) {
+	var it UpdateSentryConnectionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"defaultTeamId", "organizationSlug", "enabled", "webhookSecret"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "defaultTeamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultTeamId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefaultTeamID = data
+		case "organizationSlug":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("organizationSlug"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OrganizationSlug = data
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		case "webhookSecret":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("webhookSecret"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WebhookSecret = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateSlaRuleInput(ctx context.Context, obj any) (UpdateSLARuleInput, error) {
 	var it UpdateSLARuleInput
 	if obj == nil {
@@ -61291,6 +62428,20 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._SlaRulePayload(ctx, sel, obj)
+	case SentryLinkPayload:
+		return ec._SentryLinkPayload(ctx, sel, &obj)
+	case *SentryLinkPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._SentryLinkPayload(ctx, sel, obj)
+	case SentryConnectionPayload:
+		return ec._SentryConnectionPayload(ctx, sel, &obj)
+	case *SentryConnectionPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._SentryConnectionPayload(ctx, sel, obj)
 	case RecurringIssuePayload:
 		return ec._RecurringIssuePayload(ctx, sel, &obj)
 	case *RecurringIssuePayload:
@@ -67486,6 +68637,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createSentryConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createSentryConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateSentryConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateSentryConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteSentryConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteSentryConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "linkSentryIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_linkSentryIssue(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createDraft":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createDraft(ctx, field)
@@ -71450,6 +72629,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "sentryConnection":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_sentryConnection(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "sentryWebhook":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_sentryWebhook(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -71655,6 +72878,218 @@ func (ec *executionContext) _SearchResults(ctx context.Context, sel ast.Selectio
 			}
 		case "issueCount":
 			out.Values[i] = ec._SearchResults_issueCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var sentryConnectionImplementors = []string{"SentryConnection"}
+
+func (ec *executionContext) _SentryConnection(ctx context.Context, sel ast.SelectionSet, obj *SentryConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sentryConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SentryConnection")
+		case "id":
+			out.Values[i] = ec._SentryConnection_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._SentryConnection_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "creatorId":
+			out.Values[i] = ec._SentryConnection_creatorId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabled":
+			out.Values[i] = ec._SentryConnection_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "defaultTeamId":
+			out.Values[i] = ec._SentryConnection_defaultTeamId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "organizationSlug":
+			out.Values[i] = ec._SentryConnection_organizationSlug(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "connectedAt":
+			out.Values[i] = ec._SentryConnection_connectedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._SentryConnection_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._SentryConnection_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var sentryConnectionPayloadImplementors = []string{"SentryConnectionPayload", "MutationResult"}
+
+func (ec *executionContext) _SentryConnectionPayload(ctx context.Context, sel ast.SelectionSet, obj *SentryConnectionPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sentryConnectionPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SentryConnectionPayload")
+		case "version":
+			out.Values[i] = ec._SentryConnectionPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sentryConnection":
+			out.Values[i] = ec._SentryConnectionPayload_sentryConnection(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var sentryLinkPayloadImplementors = []string{"SentryLinkPayload", "MutationResult"}
+
+func (ec *executionContext) _SentryLinkPayload(ctx context.Context, sel ast.SelectionSet, obj *SentryLinkPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sentryLinkPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SentryLinkPayload")
+		case "version":
+			out.Values[i] = ec._SentryLinkPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "issue":
+			out.Values[i] = ec._SentryLinkPayload_issue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attachment":
+			out.Values[i] = ec._SentryLinkPayload_attachment(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var sentryWebhookImplementors = []string{"SentryWebhook"}
+
+func (ec *executionContext) _SentryWebhook(ctx context.Context, sel ast.SelectionSet, obj *SentryWebhook) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sentryWebhookImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SentryWebhook")
+		case "url":
+			out.Values[i] = ec._SentryWebhook_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "secret":
+			out.Values[i] = ec._SentryWebhook_secret(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -74227,6 +75662,11 @@ func (ec *executionContext) unmarshalNCreateRecurringIssueInput2githubᚗcomᚋp
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateSentryConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateSentryConnectionInput(ctx context.Context, v any) (CreateSentryConnectionInput, error) {
+	res, err := ec.unmarshalInputCreateSentryConnectionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateSlaRuleInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateSLARuleInput(ctx context.Context, v any) (CreateSLARuleInput, error) {
 	res, err := ec.unmarshalInputCreateSlaRuleInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -75341,6 +76781,11 @@ func (ec *executionContext) unmarshalNLinkGitLabMergeRequestInput2githubᚗcom�
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNLinkSentryIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐLinkSentryIssueInput(ctx context.Context, v any) (LinkSentryIssueInput, error) {
+	res, err := ec.unmarshalInputLinkSentryIssueInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNMoveFavoriteInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐMoveFavoriteInput(ctx context.Context, v any) (MoveFavoriteInput, error) {
 	res, err := ec.unmarshalInputMoveFavoriteInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -76159,6 +77604,44 @@ func (ec *executionContext) marshalNSearchResults2ᚖgithubᚗcomᚋpeixotolabs�
 	return ec._SearchResults(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNSentryConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryConnection(ctx context.Context, sel ast.SelectionSet, v *SentryConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SentryConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSentryConnectionPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryConnectionPayload(ctx context.Context, sel ast.SelectionSet, v SentryConnectionPayload) graphql.Marshaler {
+	return ec._SentryConnectionPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSentryConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryConnectionPayload(ctx context.Context, sel ast.SelectionSet, v *SentryConnectionPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SentryConnectionPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSentryLinkPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryLinkPayload(ctx context.Context, sel ast.SelectionSet, v SentryLinkPayload) graphql.Marshaler {
+	return ec._SentryLinkPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSentryLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryLinkPayload(ctx context.Context, sel ast.SelectionSet, v *SentryLinkPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SentryLinkPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNSetIssueSlaInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSetIssueSLAInput(ctx context.Context, v any) (SetIssueSLAInput, error) {
 	res, err := ec.unmarshalInputSetIssueSlaInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -76613,6 +78096,11 @@ func (ec *executionContext) unmarshalNUpdateProjectUpdateInput2githubᚗcomᚋpe
 
 func (ec *executionContext) unmarshalNUpdateRecurringIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateRecurringIssueInput(ctx context.Context, v any) (UpdateRecurringIssueInput, error) {
 	res, err := ec.unmarshalInputUpdateRecurringIssueInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateSentryConnectionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateSentryConnectionInput(ctx context.Context, v any) (UpdateSentryConnectionInput, error) {
+	res, err := ec.unmarshalInputUpdateSentryConnectionInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -77577,6 +79065,20 @@ func (ec *executionContext) marshalORecurringIssue2ᚖgithubᚗcomᚋpeixotolabs
 		return graphql.Null
 	}
 	return ec._RecurringIssue(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSentryConnection2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryConnection(ctx context.Context, sel ast.SelectionSet, v *SentryConnection) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SentryConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSentryWebhook2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryWebhook(ctx context.Context, sel ast.SelectionSet, v *SentryWebhook) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SentryWebhook(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOSlaAction2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSLAAction(ctx context.Context, v any) (*SLAAction, error) {

@@ -3641,6 +3641,92 @@ func (r *mutationResolver) DeleteGitLabTeamAutomation(ctx context.Context, teamI
 	return gitlabTeamAutomationPayload(auto), nil
 }
 
+// CreateSentryConnection is the resolver for the createSentryConnection field.
+func (r *mutationResolver) CreateSentryConnection(ctx context.Context, input generated.CreateSentryConnectionInput) (*generated.SentryConnectionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	conn, _, version, err := r.Svc.CreateSentryConnection(ctx, p, domain.CreateSentryConnectionInput{
+		DefaultTeamID:    input.DefaultTeamID,
+		OrganizationSlug: input.OrganizationSlug,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toSentryConnection(conn)
+	return &generated.SentryConnectionPayload{Version: int(version), SentryConnection: &out}, nil
+}
+
+// UpdateSentryConnection is the resolver for the updateSentryConnection field.
+func (r *mutationResolver) UpdateSentryConnection(ctx context.Context, input generated.UpdateSentryConnectionInput) (*generated.SentryConnectionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.UpdateSentryConnectionInput{
+		DefaultTeamID: input.DefaultTeamID,
+		Enabled:       input.Enabled,
+		WebhookSecret: input.WebhookSecret,
+	}
+	if input.OrganizationSlug != nil {
+		if strings.TrimSpace(*input.OrganizationSlug) == "" {
+			in.ClearOrgSlug = true
+		} else {
+			in.OrganizationSlug = input.OrganizationSlug
+		}
+	}
+	conn, version, err := r.Svc.UpdateSentryConnection(ctx, p, in)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toSentryConnection(conn)
+	return &generated.SentryConnectionPayload{Version: int(version), SentryConnection: &out}, nil
+}
+
+// DeleteSentryConnection is the resolver for the deleteSentryConnection field.
+func (r *mutationResolver) DeleteSentryConnection(ctx context.Context) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	id, version, err := r.Svc.DeleteSentryConnection(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// LinkSentryIssue is the resolver for the linkSentryIssue field.
+func (r *mutationResolver) LinkSentryIssue(ctx context.Context, input generated.LinkSentryIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.SentryLinkPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.LinkSentryIssueInput{
+		IssueID: input.IssueID,
+		URL:     input.URL,
+		Title:   deref(input.Title),
+	}
+	linked, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (sentryLinked, int64, error) {
+			issue, att, v, err := r.Svc.LinkSentryIssue(ctx, p, in)
+			if err != nil {
+				return sentryLinked{}, 0, err
+			}
+			return sentryLinked{Issue: issue, Attachment: att}, v, nil
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateIssue(ctx, p, selectionFor(ctx, "SentryLinkPayload").childOrNone("issue", "Issue"), linked.Issue)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	att := toAttachment(linked.Attachment)
+	return &generated.SentryLinkPayload{Version: int(version), Issue: &out, Attachment: &att}, nil
+}
+
 // CreateDraft is the resolver for the createDraft field.
 func (r *mutationResolver) CreateDraft(ctx context.Context, input generated.CreateDraftInput) (*generated.DraftPayload, error) {
 	p, err := principalFrom(ctx)
@@ -5015,6 +5101,42 @@ func (r *queryResolver) GitlabTeamAutomation(ctx context.Context, teamID uuid.UU
 	}
 	out := toGitLabTeamAutomation(auto)
 	return &out, nil
+}
+
+// SentryConnection is the resolver for the sentryConnection field.
+func (r *queryResolver) SentryConnection(ctx context.Context) (*generated.SentryConnection, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	conn, err := r.Svc.GetSentryConnection(ctx, p)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	out := toSentryConnection(conn)
+	return &out, nil
+}
+
+// SentryWebhook is the resolver for the sentryWebhook field.
+func (r *queryResolver) SentryWebhook(ctx context.Context) (*generated.SentryWebhook, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	secret, err := r.Svc.GetSentryWebhookSecret(ctx, p)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.SentryWebhook{
+		URL:    sentryWebhookURL(r.PublicURL, p.WorkspaceID.String()),
+		Secret: secret,
+	}, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

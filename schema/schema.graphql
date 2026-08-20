@@ -2040,6 +2040,58 @@ input UpdateGitLabTeamAutomationInput {
 }
 
 """
+Workspace Sentry install. The webhook secret is not on this type: the replica
+carries the default team a client needs to render settings, and nothing that
+could be a credential. One Sentry organization per workspace; cloud only.
+"""
+type SentryConnection {
+  id: UUID!
+  workspaceId: UUID!
+  creatorId: UUID!
+  enabled: Boolean!
+  defaultTeamId: UUID!
+  organizationSlug: String
+  connectedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type SentryWebhook {
+  url: String!
+  secret: String!
+}
+
+type SentryConnectionPayload implements MutationResult {
+  version: Int!
+  sentryConnection: SentryConnection!
+}
+
+type SentryLinkPayload implements MutationResult {
+  version: Int!
+  issue: Issue!
+  attachment: Attachment!
+}
+
+input CreateSentryConnectionInput {
+  defaultTeamId: UUID!
+  organizationSlug: String
+}
+
+input UpdateSentryConnectionInput {
+  defaultTeamId: UUID
+  organizationSlug: String
+  enabled: Boolean
+  """Replace the generated webhook secret with Sentry's client secret (HMAC)."""
+  webhookSecret: String
+}
+
+input LinkSentryIssueInput {
+  issueId: UUID!
+  url: String!
+  title: String
+}
+
+"""
 A bulk update returns the issues it changed and the single version the whole batch landed
 at, because it emits one version block rather than one per issue.
 """
@@ -2892,6 +2944,10 @@ type Query {
   gitlabWebhook: GitLabWebhook
   """Per-team GitLab MR status automations. Unconfigured teams use the product defaults."""
   gitlabTeamAutomation(teamId: UUID!): GitLabTeamAutomation!
+  """The workspace Sentry install, if any. Secrets are on sentryWebhook, not here."""
+  sentryConnection: SentryConnection
+  """Admin-only. The URL and secret to paste into a Sentry alert webhook or internal integration."""
+  sentryWebhook: SentryWebhook
 }
 
 """
@@ -3193,6 +3249,11 @@ type Mutation {
   linkGitLabMergeRequest(input: LinkGitLabMergeRequestInput!, clientId: UUID, opId: UUID): GitLabLinkPayload! @idempotent
   updateGitLabTeamAutomation(input: UpdateGitLabTeamAutomationInput!): GitLabTeamAutomationPayload!
   deleteGitLabTeamAutomation(teamId: UUID!): GitLabTeamAutomationPayload!
+
+  createSentryConnection(input: CreateSentryConnectionInput!): SentryConnectionPayload!
+  updateSentryConnection(input: UpdateSentryConnectionInput!): SentryConnectionPayload!
+  deleteSentryConnection: DeletePayload!
+  linkSentryIssue(input: LinkSentryIssueInput!, clientId: UUID, opId: UUID): SentryLinkPayload! @idempotent
 
   # ---- drafts (personal, on-demand; not replicated)
 

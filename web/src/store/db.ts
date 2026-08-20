@@ -21,6 +21,7 @@ import {
   type GitHubUserLink,
   type GitLabConnection,
   type GitLabUserLink,
+  type SentryConnection,
   type Issue,
   type IssueLabel,
   type IssueRelation,
@@ -130,8 +131,10 @@ import {
  * v38 adds gitlabConnection and gitlabUserLink (GitLab v1 linking, no secrets).
  * v39 is reserved for Pulse.
  * v40 adds askForm (shareable intake URLs).
+ * v41 adds favorite.folderId / favorite.name and kind folder (sidebar folders).
+ * v42 adds sentryConnection (Sentry webhook create/link, no secrets).
  */
-export const CLIENT_SCHEMA = 41;
+export const CLIENT_SCHEMA = 42;
 
 /**
  * One database per workspace per schema version.
@@ -207,6 +210,7 @@ interface PolarisSchema extends DBSchema {
   githubUserLink: { key: UUID; value: GitHubUserLink };
   gitlabConnection: { key: UUID; value: GitLabConnection };
   gitlabUserLink: { key: UUID; value: GitLabUserLink };
+  sentryConnection: { key: UUID; value: SentryConnection };
   team: { key: UUID; value: Team };
   teamMembership: { key: UUID; value: TeamMembership };
   workflowState: { key: UUID; value: WorkflowState };
