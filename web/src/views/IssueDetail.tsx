@@ -1098,7 +1098,10 @@ function thread(stored: readonly Comment[], fetched: readonly Comment[]): Thread
     if (isInlineRoot(comment)) inlineIds.add(comment.id);
   }
   for (const comment of byId.values()) {
-    if (inlineIds.has(comment.id) || (comment.parentId !== undefined && inlineIds.has(comment.parentId))) {
+    if (
+      inlineIds.has(comment.id) ||
+      (comment.parentId !== undefined && inlineIds.has(comment.parentId))
+    ) {
       continue;
     }
     if (comment.parentId === undefined) {
