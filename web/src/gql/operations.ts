@@ -137,6 +137,9 @@ export const COMMENT_FIELDS = /* GraphQL */ `
     editedAt
     resolvedAt
     resolvedBy
+    anchorStart
+    anchorEnd
+    quote
     createdAt
     updatedAt
   }
@@ -286,6 +289,18 @@ export const DELETE_COMMENT = /* GraphQL */ `
     deleteComment(id: $id, clientId: $clientId, opId: $opId) {
       version
       id
+    }
+  }
+`;
+
+export const RESOLVE_COMMENT = /* GraphQL */ `
+  ${COMMENT_FIELDS}
+  mutation ResolveComment($id: UUID!, $resolved: Boolean!, $clientId: UUID!, $opId: UUID!) {
+    resolveComment(id: $id, resolved: $resolved, clientId: $clientId, opId: $opId) {
+      version
+      comment {
+        ...CommentFields
+      }
     }
   }
 `;

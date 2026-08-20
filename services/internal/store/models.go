@@ -126,6 +126,9 @@ type Comment struct {
 	DeletedAt   *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	AnchorStart *int32
+	AnchorEnd   *int32
+	Quote       *string
 }
 
 type Customer struct {

@@ -840,6 +840,15 @@ type Comment {
   editedAt: Time
   resolvedAt: Time
   resolvedBy: UUID
+  """
+  Start of the highlighted span in the issue description, in UTF-16 code units.
+  Set together with `anchorEnd` and `quote` on an inline comment; omitted otherwise.
+  """
+  anchorStart: Int
+  """End of the highlighted span (exclusive)."""
+  anchorEnd: Int
+  """The selected text at the moment the comment was left, used to re-find the span after edits."""
+  quote: String
   createdAt: Time!
   updatedAt: Time!
   """
@@ -2179,6 +2188,10 @@ input CreateCommentInput {
   issueId: UUID!
   body: String!
   parentId: UUID
+  """Set together with `anchorEnd` and `quote` to pin the comment to a span of the issue description."""
+  anchorStart: Int
+  anchorEnd: Int
+  quote: String
 }
 
 input CreateAttachmentInput {

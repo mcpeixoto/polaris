@@ -251,6 +251,9 @@ func toComment(c model.Comment) (generated.Comment, error) {
 		EditedAt:    c.EditedAt,
 		ResolvedAt:  c.ResolvedAt,
 		ResolvedBy:  c.ResolvedBy,
+		AnchorStart: c.AnchorStart,
+		AnchorEnd:   c.AnchorEnd,
+		Quote:       c.Quote,
 		CreatedAt:   c.CreatedAt,
 		UpdatedAt:   c.UpdatedAt,
 	}, nil

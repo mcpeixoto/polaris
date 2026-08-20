@@ -120,6 +120,7 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 		{"RecurringIssue", model.RecurringIssue{}, func(v any) (any, error) { return toRecurringIssue(v.(model.RecurringIssue)) }},
 		{"Customer", model.Customer{}, func(v any) (any, error) { return toCustomer(v.(model.Customer)) }},
 		{"CustomerRequest", model.CustomerRequest{}, func(v any) (any, error) { return toCustomerRequest(v.(model.CustomerRequest)), nil }},
+		{"Comment", model.Comment{}, func(v any) (any, error) { return toComment(v.(model.Comment)) }},
 		{"SlaRule", model.SlaRule{}, func(v any) (any, error) { return toSlaRule(v.(model.SlaRule)) }},
 	}
 
@@ -172,6 +173,7 @@ var enumValues = map[string]string{
 	"targetDateGranularity": model.GranularityQuarter,
 	"updateSchedule":        model.ProjectUpdateScheduleDefault,
 	"cadence":               model.CadenceWeekly,
+	"type":                  string(authz.ActorUser),
 	"action":                model.SlaActionApply,
 }
 

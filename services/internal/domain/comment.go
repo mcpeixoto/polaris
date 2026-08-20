@@ -16,10 +16,15 @@ import (
 
 const maxCommentLength = 1 << 18 // 256 KiB
 
+const maxQuoteLength = 16384
+
 type CreateCommentInput struct {
-	IssueID  uuid.UUID
-	Body     string
-	ParentID *uuid.UUID
+	IssueID     uuid.UUID
+	Body        string
+	ParentID    *uuid.UUID
+	AnchorStart *int
+	AnchorEnd   *int
+	Quote       *string
 }
 
 func (s *Service) CreateComment(ctx context.Context, p *authz.Principal, in CreateCommentInput) (model.Comment, int64, error) {
@@ -65,6 +70,14 @@ func (s *Service) CreateComment(ctx context.Context, p *authz.Principal, in Crea
 			}
 		}
 
+		quote, start, end, err := validateAnchor(in)
+		if err != nil {
+			return err
+		}
+		if in.ParentID != nil && quote != nil {
+			return platform.Validation("anchorStart", "a reply cannot pin itself to the description")
+		}
+
 		id, err := uuid.NewV7()
 		if err != nil {
 			return platform.Internal(err)
@@ -77,6 +90,9 @@ func (s *Service) CreateComment(ctx context.Context, p *authz.Principal, in Crea
 			Body:        in.Body,
 			ActorType:   string(p.Actor().Type),
 			ActorID:     p.Actor().ID,
+			AnchorStart: int32FromInt(start),
+			AnchorEnd:   int32FromInt(end),
+			Quote:       quote,
 		})
 		if err != nil {
 			return platform.Internal(err)
@@ -250,6 +266,34 @@ func (s *Service) ResolveComment(ctx context.Context, p *authz.Principal, id uui
 		return err
 	})
 	return out, version, err
+}
+
+func validateAnchor(in CreateCommentInput) (*string, *int, *int, error) {
+	hasStart := in.AnchorStart != nil
+	hasEnd := in.AnchorEnd != nil
+	quote := strings.TrimSpace(ptrString(in.Quote))
+	hasQuote := quote != ""
+	if !hasStart && !hasEnd && !hasQuote {
+		return nil, nil, nil, nil
+	}
+	if !hasStart || !hasEnd || !hasQuote {
+		return nil, nil, nil, platform.Validation("quote", "an inline comment needs a span and the selected text")
+	}
+	start, end := *in.AnchorStart, *in.AnchorEnd
+	if start < 0 || end <= start {
+		return nil, nil, nil, platform.Validation("anchorStart", "the span has to run forwards from a non-negative offset")
+	}
+	if len(quote) > maxQuoteLength {
+		return nil, nil, nil, platform.Validation("quote", "the selected text is too long to pin")
+	}
+	return &quote, &start, &end, nil
+}
+
+func ptrString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func (s *Service) ListComments(ctx context.Context, p *authz.Principal, issueID uuid.UUID) ([]model.Comment, error) {

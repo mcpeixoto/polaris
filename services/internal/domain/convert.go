@@ -157,13 +157,13 @@ func toIssue(i store.GetIssueRow, teamKey string) model.Issue {
 		Priority:    int(i.Priority),
 		SortOrder:   i.SortOrder,
 
-		DueDateSource:     i.DueDateSource,
-		ParentID:          i.ParentID,
-		SubIssueSortOrder: i.SubIssueSortOrder,
-		TemplateID:        i.TemplateID,
-		FormTemplateID:    i.FormTemplateID,
-		RecurringIssueID:  i.RecurringIssueID,
-		ProjectID:         i.ProjectID,
+		DueDateSource:      i.DueDateSource,
+		ParentID:           i.ParentID,
+		SubIssueSortOrder:  i.SubIssueSortOrder,
+		TemplateID:         i.TemplateID,
+		FormTemplateID:     i.FormTemplateID,
+		RecurringIssueID:   i.RecurringIssueID,
+		ProjectID:          i.ProjectID,
 		ProjectMilestoneID: i.ProjectMilestoneID,
 		CycleID:            i.CycleID,
 		SnoozedUntil:       i.SnoozedUntil,
@@ -277,9 +277,28 @@ func toComment(c store.Comment) model.Comment {
 		EditedAt:    c.EditedAt,
 		ResolvedAt:  c.ResolvedAt,
 		ResolvedBy:  c.ResolvedBy,
+		AnchorStart: intFromInt32(c.AnchorStart),
+		AnchorEnd:   intFromInt32(c.AnchorEnd),
+		Quote:       c.Quote,
 		CreatedAt:   c.CreatedAt,
 		UpdatedAt:   c.UpdatedAt,
 	}
+}
+
+func intFromInt32(n *int32) *int {
+	if n == nil {
+		return nil
+	}
+	v := int(*n)
+	return &v
+}
+
+func int32FromInt(n *int) *int32 {
+	if n == nil {
+		return nil
+	}
+	v := int32(*n)
+	return &v
 }
 
 func toAttachment(a store.Attachment) model.Attachment {

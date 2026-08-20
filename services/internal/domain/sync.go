@@ -994,8 +994,12 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v25 adds customer and customerRequest.
 // v30 adds slaRule (workspace SLA policies). Number skipped 26–29 so concurrent
 // slices on other worktrees can take those without colliding on main.
+// v32 adds comment.anchorStart / anchorEnd / quote (inline comments on descriptions).
+// Number 31 is reserved for a concurrent slice.
 // v33 adds team and issue-template email intake addresses.
-const ClientSchemaVersion = 33
+// v34 lands inline comments after v33 shipped: a 33 replica would otherwise keep
+// serving without the new comment columns.
+const ClientSchemaVersion = 34
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

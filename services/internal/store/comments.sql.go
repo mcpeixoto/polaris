@@ -13,10 +13,14 @@ import (
 )
 
 const createComment = `-- name: CreateComment :one
-INSERT INTO comment (id, workspace_id, issue_id, parent_id, body, actor_type, actor_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO comment (
+  id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
+  anchor_start, anchor_end, quote
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
-          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at
+          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at,
+          anchor_start, anchor_end, quote
 `
 
 type CreateCommentParams struct {
@@ -27,6 +31,9 @@ type CreateCommentParams struct {
 	Body        string
 	ActorType   string
 	ActorID     *uuid.UUID
+	AnchorStart *int32
+	AnchorEnd   *int32
+	Quote       *string
 }
 
 func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error) {
@@ -38,6 +45,9 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 		arg.Body,
 		arg.ActorType,
 		arg.ActorID,
+		arg.AnchorStart,
+		arg.AnchorEnd,
+		arg.Quote,
 	)
 	var i Comment
 	err := row.Scan(
@@ -55,13 +65,17 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AnchorStart,
+		&i.AnchorEnd,
+		&i.Quote,
 	)
 	return i, err
 }
 
 const getComment = `-- name: GetComment :one
 SELECT id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
-       edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at
+       edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at,
+       anchor_start, anchor_end, quote
 FROM comment
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -84,13 +98,17 @@ func (q *Queries) GetComment(ctx context.Context, id uuid.UUID) (Comment, error)
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AnchorStart,
+		&i.AnchorEnd,
+		&i.Quote,
 	)
 	return i, err
 }
 
 const listCommentsForIssue = `-- name: ListCommentsForIssue :many
 SELECT id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
-       edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at
+       edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at,
+       anchor_start, anchor_end, quote
 FROM comment
 WHERE issue_id = $1 AND deleted_at IS NULL
 ORDER BY created_at
@@ -120,6 +138,9 @@ func (q *Queries) ListCommentsForIssue(ctx context.Context, issueID uuid.UUID) (
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AnchorStart,
+			&i.AnchorEnd,
+			&i.Quote,
 		); err != nil {
 			return nil, err
 		}
@@ -136,7 +157,8 @@ UPDATE comment
 SET resolved_at = $1, resolved_by = $2
 WHERE id = $3 AND deleted_at IS NULL
 RETURNING id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
-          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at
+          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at,
+          anchor_start, anchor_end, quote
 `
 
 type SetCommentResolutionParams struct {
@@ -163,6 +185,9 @@ func (q *Queries) SetCommentResolution(ctx context.Context, arg SetCommentResolu
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AnchorStart,
+		&i.AnchorEnd,
+		&i.Quote,
 	)
 	return i, err
 }
@@ -179,7 +204,7 @@ func (q *Queries) SoftDeleteComment(ctx context.Context, id uuid.UUID) error {
 const streamCommentsForBootstrap = `-- name: StreamCommentsForBootstrap :many
 SELECT c.id, c.workspace_id, c.issue_id, c.parent_id, c.body, c.actor_type, c.actor_id,
        c.edited_at, c.resolved_at, c.resolved_by, c.archived_at, c.deleted_at,
-       c.created_at, c.updated_at
+       c.created_at, c.updated_at, c.anchor_start, c.anchor_end, c.quote
 FROM comment c
 JOIN issue i ON i.id = c.issue_id
 WHERE c.workspace_id = $1
@@ -241,6 +266,9 @@ func (q *Queries) StreamCommentsForBootstrap(ctx context.Context, arg StreamComm
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AnchorStart,
+			&i.AnchorEnd,
+			&i.Quote,
 		); err != nil {
 			return nil, err
 		}
@@ -256,7 +284,8 @@ const updateCommentBody = `-- name: UpdateCommentBody :one
 UPDATE comment SET body = $1, edited_at = now()
 WHERE id = $2 AND deleted_at IS NULL
 RETURNING id, workspace_id, issue_id, parent_id, body, actor_type, actor_id,
-          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at
+          edited_at, resolved_at, resolved_by, archived_at, deleted_at, created_at, updated_at,
+          anchor_start, anchor_end, quote
 `
 
 type UpdateCommentBodyParams struct {
@@ -282,6 +311,9 @@ func (q *Queries) UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyPa
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AnchorStart,
+		&i.AnchorEnd,
+		&i.Quote,
 	)
 	return i, err
 }

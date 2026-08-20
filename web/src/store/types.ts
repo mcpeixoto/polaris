@@ -363,6 +363,12 @@ export interface Comment {
   readonly editedAt?: Timestamp;
   readonly resolvedAt?: Timestamp;
   readonly resolvedBy?: UUID;
+  /** Start of the highlighted span in the issue description (UTF-16 offsets). */
+  readonly anchorStart?: number;
+  /** Exclusive end of the highlighted span. */
+  readonly anchorEnd?: number;
+  /** The selected text when the comment was left, used to re-find the span after edits. */
+  readonly quote?: string;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
 }

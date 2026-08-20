@@ -111,12 +111,15 @@ import {
  * v23 adds githubConnection.linkbacks (opt-out of comments posted back to GitHub).
  * v24 adds recurringIssue, team default template ids, and issue.recurringIssueId.
  * v25 adds customer and customerRequest.
- *
  * v30 adds slaRule (workspace SLA policies). Numbers 26–29 are reserved for concurrent
  * slices landing on other worktrees, so this bump cannot collide with theirs on main.
+ * v32 adds comment.anchorStart / anchorEnd / quote (inline comments on descriptions).
+ * Number 31 is reserved for a concurrent slice.
  * v33 adds team and issue-template email intake addresses.
+ * v34 lands inline comments after v33 shipped: a 33 replica would otherwise keep
+ * serving without the new comment columns.
  */
-export const CLIENT_SCHEMA = 33;
+export const CLIENT_SCHEMA = 34;
 
 /**
  * One database per workspace per schema version.
