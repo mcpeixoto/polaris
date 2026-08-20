@@ -83,6 +83,8 @@ var serverSideOnly = map[string]string{
 	"IngestGitLabMergeRequest":   "inbound GitLab webhook: token HTTP, not GraphQL",
 	"IngestGitLabPush":           "inbound GitLab push webhook: token HTTP, not GraphQL",
 	"VerifyGitLabWebhook":        "inbound GitLab webhook auth: token check, not a caller mutation",
+	"IngestSentryIssue":          "inbound Sentry webhook: signed HTTP, not GraphQL",
+	"VerifySentryWebhook":        "inbound Sentry webhook auth: HMAC or token check, not a caller mutation",
 	"IngestInboundEmail":         "inbound email webhook: signed HTTP, not GraphQL",
 	"SubmitAsk":                  "POST /asks/{token}: public, token is the credential",
 	"SetGitHubCommentPoster":     "composition root: wires the GitHub HTTP client, not a caller mutation",

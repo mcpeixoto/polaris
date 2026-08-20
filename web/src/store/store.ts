@@ -40,6 +40,7 @@ import {
   type GitHubUserLink,
   type GitLabConnection,
   type GitLabUserLink,
+  type SentryConnection,
   type Issue,
   type IssueLabel,
   type IssueRelation,
@@ -168,6 +169,7 @@ export class Store {
     githubUserLink: new Map(),
     gitlabConnection: new Map(),
     gitlabUserLink: new Map(),
+    sentryConnection: new Map(),
     team: new Map(),
     teamMembership: new Map(),
     workflowState: new Map(),
@@ -341,6 +343,10 @@ export class Store {
 
   get gitlabUserLinks(): ReadonlyMap<UUID, GitLabUserLink> {
     return this.tables.gitlabUserLink as ReadonlyMap<UUID, GitLabUserLink>;
+  }
+
+  get sentryConnections(): ReadonlyMap<UUID, SentryConnection> {
+    return this.tables.sentryConnection as ReadonlyMap<UUID, SentryConnection>;
   }
 
   get teams(): ReadonlyMap<UUID, Team> {

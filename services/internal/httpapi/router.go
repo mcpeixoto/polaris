@@ -150,6 +150,9 @@ func NewRouter(d Deps) http.Handler {
 	gitlab := &gitlabHandlers{svc: d.Service}
 	mux.Handle("POST /webhooks/gitlab/{workspaceId}", d.Limits.Anonymous(http.HandlerFunc(gitlab.events)))
 
+	sentry := &sentryHandlers{svc: d.Service}
+	mux.Handle("POST /webhooks/sentry/{workspaceId}", d.Limits.Anonymous(http.HandlerFunc(sentry.events)))
+
 	email := &emailHandlers{svc: d.Service, cfg: d.Config}
 	// Inbound mail is unauthenticated: the shared secret is the credential. Anonymous
 	// budget, because a loop of unsigned posts would otherwise be free.

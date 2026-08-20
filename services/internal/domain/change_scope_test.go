@@ -207,6 +207,9 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	if _, _, err := svc.CreateGitLabUserLink(ctx, p, domain.CreateGitLabUserLinkInput{GitLabUsername: "dev"}); err != nil {
 		t.Fatalf("gitlabUserLink: %v", err)
 	}
+	if _, _, _, err := svc.CreateSentryConnection(ctx, p, domain.CreateSentryConnectionInput{DefaultTeamID: f.TeamID}); err != nil {
+		t.Fatalf("sentryConnection: %v", err)
+	}
 
 	team, _, err := svc.CreateTeam(ctx, p, domain.CreateTeamInput{Key: "OPS", Name: "Operations"})
 	if err != nil {

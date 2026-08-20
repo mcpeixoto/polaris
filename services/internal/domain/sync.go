@@ -371,6 +371,23 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			}
 		}
 
+		if includeWorkspaceScoped {
+			if err := streamPages(ctx, w, "sentryConnection",
+				func(ctx context.Context, after uuid.UUID) ([]store.StreamSentryConnectionsForBootstrapRow, error) {
+					return q.StreamSentryConnectionsForBootstrap(ctx, store.StreamSentryConnectionsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(c store.StreamSentryConnectionsForBootstrapRow) (uuid.UUID, any) {
+					return c.ID, sentryConnectionFromStream(c)
+				},
+			); err != nil {
+				return err
+			}
+		}
+
 		states, err := q.ListWorkflowStatesInWorkspace(ctx, p.WorkspaceID)
 		if err != nil {
 			return platform.Internal(err)
@@ -1096,7 +1113,9 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v38 adds gitlabConnection and gitlabUserLink (GitLab v1 linking, no secrets).
 // v39 is reserved for Pulse.
 // v40 adds askForm (shareable intake URLs; submit is HTTP, not GraphQL).
-const ClientSchemaVersion = 40
+// v41 is reserved for a concurrent slice.
+// v42 adds sentryConnection (Sentry webhook create/link, no secrets).
+const ClientSchemaVersion = 42
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //
