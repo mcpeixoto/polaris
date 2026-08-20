@@ -30,7 +30,7 @@
  */
 
 import { memo, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useEngine } from '~/app/context';
@@ -85,7 +85,7 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useSelection } from '~/hooks/useSelection';
 import { browserTimezone } from '~/features/locale';
-import { EMPTY_FILTER, isFilterGroup, type FilterNode } from '~/filter';
+import { EMPTY_FILTER, isFilterGroup, parseDisplayParams, type FilterNode } from '~/filter';
 import type { Issue, StateCategory, Store, UUID } from '~/store';
 import styles from './IssueList.module.css';
 
@@ -305,6 +305,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
                   : `view:${source.viewId}`;
   const includeCompleted = source.kind === 'assignee' && source.includeCompleted === true;
   const inTriage = source.kind === 'triage';
+  const [searchParams] = useSearchParams();
+  const showSnoozed = inTriage && parseDisplayParams(searchParams).showSnoozed === true;
   const viewId = source.kind === 'view' ? source.viewId : null;
 
   const scope = useLiveQuery(
@@ -357,8 +359,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
    * that is `useView`, and is the same code the board and the saved views run.
    */
   const view = useView({
-    issues: (store) => corpusOf(store, source, scope.team?.id, includeCompleted, now),
-    inputs: [sourceKey, scope.team?.id ?? '', includeCompleted, now],
+    issues: (store) => corpusOf(store, source, scope.team?.id, includeCompleted, now, showSnoozed),
+    inputs: [sourceKey, scope.team?.id ?? '', includeCompleted, now, showSnoozed],
     timezone: scope.timezone,
     now: inTriage ? now : undefined,
     sourceFilter: inTriage ? TRIAGE_SOURCE_FILTER : undefined,
@@ -788,7 +790,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       {
         id: 'issueList.triageDuplicate',
         title: 'Mark as duplicate',
-        keys: ['2'],
+        keys: ['2', 'm m'],
         when: 'list',
         group: 'Triage',
         enabled: () => commands.current.inTriage() && commands.current.hasRows(),
@@ -1041,6 +1043,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         open={display.open}
         onClose={display.hide}
         trigger={display.ref}
+        triage={inTriage}
       />
 
       {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (
@@ -1300,7 +1303,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
                   : source.kind === 'cycle'
                     ? 'Press C to file the first one. It will land in this cycle the moment you save.'
                     : source.kind === 'triage'
-                      ? 'Unreviewed work from outside the team lands here. Press C to file into triage, or 1 / 2 / 3 / H to accept, merge, decline or snooze.'
+                      ? 'Unreviewed work from outside the team lands here. Press C to file into triage, or 1 / 2 / 3 / H to accept, merge, decline or snooze. MM also marks a duplicate.'
                       : source.kind === 'label' || source.kind === 'assignee'
                         ? 'Issues that pick up this assignment will appear here.'
                         : source.kind === 'adhoc'
@@ -1662,6 +1665,7 @@ function* corpusOf(
   teamId: UUID | undefined,
   includeCompleted: boolean,
   now: number,
+  showSnoozed: boolean,
 ): Generator<Issue> {
   const ids = corpusIdsOf(store, source, teamId);
   if (ids === null) return;
@@ -1673,7 +1677,7 @@ function* corpusOf(
       const category = store.workflowStates.get(issue.stateId)?.category;
       if (category === 'completed' || category === 'canceled') continue;
     }
-    if (source.kind === 'triage' && isSnoozed(issue.snoozedUntil, now)) continue;
+    if (source.kind === 'triage' && !showSnoozed && isSnoozed(issue.snoozedUntil, now)) continue;
     yield issue;
   }
 }

@@ -19,7 +19,7 @@ import { DisplayMenu } from './DisplayMenu';
  * and it is why every assertion below is on the argument rather than on the rendering.
  */
 
-function renderMenu(display: Partial<DisplayOptions> = {}) {
+function renderMenu(display: Partial<DisplayOptions> = {}, triage = false) {
   const onChange = vi.fn();
   const onClose = vi.fn();
 
@@ -37,6 +37,7 @@ function renderMenu(display: Partial<DisplayOptions> = {}) {
           open
           onClose={onClose}
           trigger={trigger}
+          triage={triage}
         />
       </>
     );
@@ -87,6 +88,17 @@ describe('DisplayMenu', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Show completed' }));
 
     expect(onChange).toHaveBeenCalledWith({ showCompleted: false });
+  });
+
+  it('hides show-snoozed on ordinary views', () => {
+    renderMenu();
+    expect(screen.queryByRole('checkbox', { name: 'Show snoozed' })).toBeNull();
+  });
+
+  it('writes show-snoozed from the triage inbox', async () => {
+    const { user, onChange } = renderMenu({}, true);
+    await user.click(screen.getByRole('checkbox', { name: 'Show snoozed' }));
+    expect(onChange).toHaveBeenCalledWith({ showSnoozed: true });
   });
 
   /**
