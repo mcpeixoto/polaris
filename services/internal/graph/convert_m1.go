@@ -652,6 +652,50 @@ func toWebhookDeliveries(rows []model.WebhookDelivery) []generated.WebhookDelive
 	return out
 }
 
+// --------------------------------------------------------------------------------- oauth
+
+func toOauthClient(c model.OauthClient) generated.OauthClient {
+	return generated.OauthClient{
+		ID:                       c.ID,
+		WorkspaceID:              c.WorkspaceID,
+		CreatorID:                c.CreatorID,
+		ClientID:                 c.ClientID,
+		Name:                     c.Name,
+		Description:              c.Description,
+		Developer:                c.Developer,
+		DeveloperURL:             c.DeveloperURL,
+		ImageURL:                 c.ImageURL,
+		RedirectUris:             c.RedirectURIs,
+		AllowedScopes:            c.AllowedScopes,
+		PublicEnabled:            c.PublicEnabled,
+		ClientCredentialsEnabled: c.ClientCredentialsEnabled,
+		WebhookURL:               c.WebhookURL,
+		CreatedAt:                c.CreatedAt,
+		UpdatedAt:                c.UpdatedAt,
+		ArchivedAt:               c.ArchivedAt,
+	}
+}
+
+func toOauthClients(rows []model.OauthClient) []generated.OauthClient {
+	out := make([]generated.OauthClient, 0, len(rows))
+	for _, c := range rows {
+		out = append(out, toOauthClient(c))
+	}
+	return out
+}
+
+func toOauthClientInfo(c model.OauthClientInfo) generated.OauthClientInfo {
+	return generated.OauthClientInfo{
+		ClientID:      c.ClientID,
+		Name:          c.Name,
+		Description:   c.Description,
+		Developer:     c.Developer,
+		DeveloperURL:  c.DeveloperURL,
+		ImageURL:      c.ImageURL,
+		AllowedScopes: c.AllowedScopes,
+	}
+}
+
 // --------------------------------------------------------------------------------- invites
 
 func toInvite(i model.Invite) (generated.Invite, error) {

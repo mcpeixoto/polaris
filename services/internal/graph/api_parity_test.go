@@ -52,6 +52,8 @@ var notInTheAPI = map[string]string{
 	"PruneDrafts":               "worker cron",
 	"EnsureChangeLogPartitions": "worker cron",
 	"RevokeAllSessions":         "reached through account settings, which is M1",
+	"ExchangeOauthToken":        "POST /oauth/token",
+	"RevokeOauthToken":          "POST /oauth/revoke",
 	// The retention sweep. Deliberately not reachable by a caller: its cutoff is
 	// IssueRestoreWindow and nothing else, and a mutation that let somebody choose it would
 	// be a way to defeat the recovery window the trash exists to be. What a caller can do —
@@ -73,7 +75,7 @@ var notInTheAPI = map[string]string{
 var mutatingPrefixes = []string{
 	"Create", "Update", "Delete", "Archive", "Set", "Add", "Remove", "Clear",
 	"Suspend", "Resolve", "Accept", "Decline", "Snooze", "Mark", "Revoke", "Invite", "Register", "Login",
-	"Prune", "Ensure", "Refresh", "Purge", "Restore", "Retire", "Unretire", "Move", "Start", "Link",
+	"Rotate", "Prune", "Ensure", "Refresh", "Purge", "Restore", "Retire", "Unretire", "Move", "Start", "Link",
 }
 
 func TestAPIParity_EveryDomainMutationIsReachableOverGraphQL(t *testing.T) {

@@ -2938,6 +2938,123 @@ func (r *mutationResolver) DeleteWebhook(ctx context.Context, id uuid.UUID) (*ge
 	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
 }
 
+// CreateOauthClient is the resolver for the createOauthClient field.
+func (r *mutationResolver) CreateOauthClient(ctx context.Context, input generated.CreateOauthClientInput) (*generated.OauthClientCreatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	client, secret, version, err := r.Svc.CreateOauthClient(ctx, p, domain.CreateOauthClientInput{
+		Name:                     input.Name,
+		Developer:                input.Developer,
+		DeveloperURL:             input.DeveloperURL,
+		Description:              input.Description,
+		ImageURL:                 input.ImageURL,
+		RedirectURIs:             input.RedirectUris,
+		AllowedScopes:            input.AllowedScopes,
+		PublicEnabled:            input.PublicEnabled,
+		ClientCredentialsEnabled: input.ClientCredentialsEnabled,
+		WebhookURL:               input.WebhookURL,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toOauthClient(client)
+	return &generated.OauthClientCreatePayload{
+		Version: int(version),
+		Created: &generated.OauthClientCreated{OauthClient: &out, ClientSecret: secret},
+	}, nil
+}
+
+// UpdateOauthClient is the resolver for the updateOauthClient field.
+func (r *mutationResolver) UpdateOauthClient(ctx context.Context, input generated.UpdateOauthClientInput) (*generated.OauthClientPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	client, version, err := r.Svc.UpdateOauthClient(ctx, p, domain.UpdateOauthClientInput{
+		ID:                       input.ID,
+		Name:                     input.Name,
+		Developer:                input.Developer,
+		DeveloperURL:             input.DeveloperURL,
+		Description:              input.Description,
+		ImageURL:                 input.ImageURL,
+		RedirectURIs:             input.RedirectUris,
+		AllowedScopes:            input.AllowedScopes,
+		PublicEnabled:            input.PublicEnabled,
+		ClientCredentialsEnabled: input.ClientCredentialsEnabled,
+		WebhookURL:               input.WebhookURL,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toOauthClient(client)
+	return &generated.OauthClientPayload{Version: int(version), OauthClient: &out}, nil
+}
+
+// RotateOauthClientSecret is the resolver for the rotateOauthClientSecret field.
+func (r *mutationResolver) RotateOauthClientSecret(ctx context.Context, id uuid.UUID) (*generated.OauthClientSecretPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	client, secret, version, err := r.Svc.RotateOauthClientSecret(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toOauthClient(client)
+	return &generated.OauthClientSecretPayload{
+		Version:      int(version),
+		OauthClient:  &out,
+		ClientSecret: secret,
+	}, nil
+}
+
+// DeleteOauthClient is the resolver for the deleteOauthClient field.
+func (r *mutationResolver) DeleteOauthClient(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	deleted, version, err := r.Svc.DeleteOauthClient(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
+}
+
+// CreateOauthAuthorization is the resolver for the createOauthAuthorization field.
+func (r *mutationResolver) CreateOauthAuthorization(ctx context.Context, input generated.CreateOauthAuthorizationInput) (*generated.OauthAuthorizationPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.CreateOauthAuthorizationInput{
+		ClientID:     input.ClientID,
+		RedirectURI:  input.RedirectURI,
+		ResponseType: input.ResponseType,
+		Scope:        input.Scope,
+		TeamIDs:      input.TeamIds,
+	}
+	if input.State != nil {
+		in.State = *input.State
+	}
+	if input.Actor != nil {
+		in.Actor = *input.Actor
+	}
+	if input.CodeChallenge != nil {
+		in.CodeChallenge = *input.CodeChallenge
+	}
+	if input.CodeChallengeMethod != nil {
+		in.CodeChallengeMethod = *input.CodeChallengeMethod
+	}
+	auth, err := r.Svc.CreateOauthAuthorization(ctx, p, in)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.OauthAuthorizationPayload{RedirectURI: auth.RedirectURI}, nil
+}
+
 // CreateGitHubConnection is the resolver for the createGitHubConnection field.
 func (r *mutationResolver) CreateGitHubConnection(ctx context.Context, input generated.CreateGitHubConnectionInput) (*generated.GitHubConnectionPayload, error) {
 	p, err := principalFrom(ctx)
@@ -3937,6 +4054,47 @@ func (r *queryResolver) WebhookDeliveries(ctx context.Context, webhookID uuid.UU
 		return nil, PresentError(ctx, err)
 	}
 	return toWebhookDeliveries(rows), nil
+}
+
+// OauthClients is the resolver for the oauthClients field.
+func (r *queryResolver) OauthClients(ctx context.Context) ([]generated.OauthClient, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListOauthClients(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toOauthClients(rows), nil
+}
+
+// OauthClient is the resolver for the oauthClient field.
+func (r *queryResolver) OauthClient(ctx context.Context, id uuid.UUID) (*generated.OauthClient, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, err := r.Svc.GetOauthClient(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toOauthClient(row)
+	return &out, nil
+}
+
+// OauthClientInfo is the resolver for the oauthClientInfo field.
+func (r *queryResolver) OauthClientInfo(ctx context.Context, clientID string) (*generated.OauthClientInfo, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	info, err := r.Svc.GetOauthClientInfo(ctx, p, clientID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toOauthClientInfo(info)
+	return &out, nil
 }
 
 // Drafts is the resolver for the drafts field.

@@ -1,0 +1,36 @@
+.pending,
+.description,
+.legend,
+.hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.legend {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.scopes {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+
+.scopes code,
+.hint code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}

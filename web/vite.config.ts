@@ -20,6 +20,8 @@ export default defineConfig({
     proxy: {
       '/graphql': 'http://localhost:8088',
       '/auth': 'http://localhost:8088',
+      '/oauth/token': 'http://localhost:8088',
+      '/oauth/revoke': 'http://localhost:8088',
       '/sync/bootstrap': 'http://localhost:8088',
       '/sync': { target: 'ws://localhost:8089', ws: true },
     },

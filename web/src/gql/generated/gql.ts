@@ -97,6 +97,14 @@ type Documents = {
     "\n  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {\n    archiveLabel(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveLabelDocument,
     "\n  \n  mutation AddIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    addIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      issueLabel {\n        ...IssueLabelFields\n      }\n    }\n  }\n": typeof types.AddIssueLabelDocument,
     "\n  mutation RemoveIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    removeIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveIssueLabelDocument,
+    "\n  fragment OauthClientFields on OauthClient {\n    id\n    workspaceId\n    creatorId\n    clientId\n    name\n    description\n    developer\n    developerUrl\n    imageUrl\n    redirectUris\n    allowedScopes\n    publicEnabled\n    clientCredentialsEnabled\n    webhookUrl\n    createdAt\n    updatedAt\n  }\n": typeof types.OauthClientFieldsFragmentDoc,
+    "\n  \n  query OauthClients {\n    oauthClients {\n      ...OauthClientFields\n    }\n  }\n": typeof types.OauthClientsDocument,
+    "\n  query OauthClientInfo($clientId: String!) {\n    oauthClientInfo(clientId: $clientId) {\n      clientId\n      name\n      description\n      developer\n      developerUrl\n      imageUrl\n      allowedScopes\n    }\n  }\n": typeof types.OauthClientInfoDocument,
+    "\n  \n  mutation CreateOauthClient($input: CreateOauthClientInput!) {\n    createOauthClient(input: $input) {\n      version\n      created {\n        clientSecret\n        oauthClient {\n          ...OauthClientFields\n        }\n      }\n    }\n  }\n": typeof types.CreateOauthClientDocument,
+    "\n  \n  mutation UpdateOauthClient($input: UpdateOauthClientInput!) {\n    updateOauthClient(input: $input) {\n      version\n      oauthClient {\n        ...OauthClientFields\n      }\n    }\n  }\n": typeof types.UpdateOauthClientDocument,
+    "\n  \n  mutation RotateOauthClientSecret($id: UUID!) {\n    rotateOauthClientSecret(id: $id) {\n      version\n      clientSecret\n      oauthClient {\n        ...OauthClientFields\n      }\n    }\n  }\n": typeof types.RotateOauthClientSecretDocument,
+    "\n  mutation DeleteOauthClient($id: UUID!) {\n    deleteOauthClient(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteOauthClientDocument,
+    "\n  mutation CreateOauthAuthorization($input: CreateOauthAuthorizationInput!) {\n    createOauthAuthorization(input: $input) {\n      redirectUri\n    }\n  }\n": typeof types.CreateOauthAuthorizationDocument,
     "\n  fragment ProjectLabelFields on ProjectLabel {\n    id\n    workspaceId\n    parentId\n    isGroup\n    name\n    description\n    color\n    position\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.ProjectLabelFieldsFragmentDoc,
     "\n  fragment ProjectLabelLinkFields on ProjectLabelLink {\n    id\n    workspaceId\n    projectId\n    labelId\n    groupId\n    createdBy\n    createdAt\n  }\n": typeof types.ProjectLabelLinkFieldsFragmentDoc,
     "\n  \n  mutation CreateProjectLabel($input: CreateProjectLabelInput!) {\n    createProjectLabel(input: $input) {\n      version\n      projectLabel {\n        ...ProjectLabelFields\n      }\n    }\n  }\n": typeof types.CreateProjectLabelDocument,
@@ -293,6 +301,14 @@ const documents: Documents = {
     "\n  mutation ArchiveLabel($id: UUID!, $archived: Boolean!) {\n    archiveLabel(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": types.ArchiveLabelDocument,
     "\n  \n  mutation AddIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    addIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      issueLabel {\n        ...IssueLabelFields\n      }\n    }\n  }\n": types.AddIssueLabelDocument,
     "\n  mutation RemoveIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    removeIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.RemoveIssueLabelDocument,
+    "\n  fragment OauthClientFields on OauthClient {\n    id\n    workspaceId\n    creatorId\n    clientId\n    name\n    description\n    developer\n    developerUrl\n    imageUrl\n    redirectUris\n    allowedScopes\n    publicEnabled\n    clientCredentialsEnabled\n    webhookUrl\n    createdAt\n    updatedAt\n  }\n": types.OauthClientFieldsFragmentDoc,
+    "\n  \n  query OauthClients {\n    oauthClients {\n      ...OauthClientFields\n    }\n  }\n": types.OauthClientsDocument,
+    "\n  query OauthClientInfo($clientId: String!) {\n    oauthClientInfo(clientId: $clientId) {\n      clientId\n      name\n      description\n      developer\n      developerUrl\n      imageUrl\n      allowedScopes\n    }\n  }\n": types.OauthClientInfoDocument,
+    "\n  \n  mutation CreateOauthClient($input: CreateOauthClientInput!) {\n    createOauthClient(input: $input) {\n      version\n      created {\n        clientSecret\n        oauthClient {\n          ...OauthClientFields\n        }\n      }\n    }\n  }\n": types.CreateOauthClientDocument,
+    "\n  \n  mutation UpdateOauthClient($input: UpdateOauthClientInput!) {\n    updateOauthClient(input: $input) {\n      version\n      oauthClient {\n        ...OauthClientFields\n      }\n    }\n  }\n": types.UpdateOauthClientDocument,
+    "\n  \n  mutation RotateOauthClientSecret($id: UUID!) {\n    rotateOauthClientSecret(id: $id) {\n      version\n      clientSecret\n      oauthClient {\n        ...OauthClientFields\n      }\n    }\n  }\n": types.RotateOauthClientSecretDocument,
+    "\n  mutation DeleteOauthClient($id: UUID!) {\n    deleteOauthClient(id: $id) {\n      version\n      id\n    }\n  }\n": types.DeleteOauthClientDocument,
+    "\n  mutation CreateOauthAuthorization($input: CreateOauthAuthorizationInput!) {\n    createOauthAuthorization(input: $input) {\n      redirectUri\n    }\n  }\n": types.CreateOauthAuthorizationDocument,
     "\n  fragment ProjectLabelFields on ProjectLabel {\n    id\n    workspaceId\n    parentId\n    isGroup\n    name\n    description\n    color\n    position\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.ProjectLabelFieldsFragmentDoc,
     "\n  fragment ProjectLabelLinkFields on ProjectLabelLink {\n    id\n    workspaceId\n    projectId\n    labelId\n    groupId\n    createdBy\n    createdAt\n  }\n": types.ProjectLabelLinkFieldsFragmentDoc,
     "\n  \n  mutation CreateProjectLabel($input: CreateProjectLabelInput!) {\n    createProjectLabel(input: $input) {\n      version\n      projectLabel {\n        ...ProjectLabelFields\n      }\n    }\n  }\n": types.CreateProjectLabelDocument,
@@ -752,6 +768,38 @@ export function graphql(source: "\n  \n  mutation AddIssueLabel($issueId: UUID!,
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RemoveIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    removeIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RemoveIssueLabel($issueId: UUID!, $labelId: UUID!, $clientId: UUID, $opId: UUID) {\n    removeIssueLabel(issueId: $issueId, labelId: $labelId, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment OauthClientFields on OauthClient {\n    id\n    workspaceId\n    creatorId\n    clientId\n    name\n    description\n    developer\n    developerUrl\n    imageUrl\n    redirectUris\n    allowedScopes\n    publicEnabled\n    clientCredentialsEnabled\n    webhookUrl\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment OauthClientFields on OauthClient {\n    id\n    workspaceId\n    creatorId\n    clientId\n    name\n    description\n    developer\n    developerUrl\n    imageUrl\n    redirectUris\n    allowedScopes\n    publicEnabled\n    clientCredentialsEnabled\n    webhookUrl\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  query OauthClients {\n    oauthClients {\n      ...OauthClientFields\n    }\n  }\n"): (typeof documents)["\n  \n  query OauthClients {\n    oauthClients {\n      ...OauthClientFields\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query OauthClientInfo($clientId: String!) {\n    oauthClientInfo(clientId: $clientId) {\n      clientId\n      name\n      description\n      developer\n      developerUrl\n      imageUrl\n      allowedScopes\n    }\n  }\n"): (typeof documents)["\n  query OauthClientInfo($clientId: String!) {\n    oauthClientInfo(clientId: $clientId) {\n      clientId\n      name\n      description\n      developer\n      developerUrl\n      imageUrl\n      allowedScopes\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateOauthClient($input: CreateOauthClientInput!) {\n    createOauthClient(input: $input) {\n      version\n      created {\n        clientSecret\n        oauthClient {\n          ...OauthClientFields\n        }\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateOauthClient($input: CreateOauthClientInput!) {\n    createOauthClient(input: $input) {\n      version\n      created {\n        clientSecret\n        oauthClient {\n          ...OauthClientFields\n        }\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateOauthClient($input: UpdateOauthClientInput!) {\n    updateOauthClient(input: $input) {\n      version\n      oauthClient {\n        ...OauthClientFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateOauthClient($input: UpdateOauthClientInput!) {\n    updateOauthClient(input: $input) {\n      version\n      oauthClient {\n        ...OauthClientFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation RotateOauthClientSecret($id: UUID!) {\n    rotateOauthClientSecret(id: $id) {\n      version\n      clientSecret\n      oauthClient {\n        ...OauthClientFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation RotateOauthClientSecret($id: UUID!) {\n    rotateOauthClientSecret(id: $id) {\n      version\n      clientSecret\n      oauthClient {\n        ...OauthClientFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteOauthClient($id: UUID!) {\n    deleteOauthClient(id: $id) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteOauthClient($id: UUID!) {\n    deleteOauthClient(id: $id) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation CreateOauthAuthorization($input: CreateOauthAuthorizationInput!) {\n    createOauthAuthorization(input: $input) {\n      redirectUri\n    }\n  }\n"): (typeof documents)["\n  mutation CreateOauthAuthorization($input: CreateOauthAuthorizationInput!) {\n    createOauthAuthorization(input: $input) {\n      redirectUri\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
