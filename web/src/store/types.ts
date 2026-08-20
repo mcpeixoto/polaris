@@ -923,20 +923,10 @@ export interface SlaRule {
 }
 
 export type DashboardMeasure =
-  | 'count'
-  | 'effort'
-  | 'cycle_time'
-  | 'lead_time'
-  | 'issue_age'
-  | 'burn_up';
+  'count' | 'effort' | 'cycle_time' | 'lead_time' | 'issue_age' | 'burn_up';
 
 export type DashboardSlice =
-  | 'assignee'
-  | 'priority'
-  | 'state_category'
-  | 'team'
-  | 'project'
-  | 'label';
+  'assignee' | 'priority' | 'state_category' | 'team' | 'project' | 'label';
 
 export type DashboardTileDisplay = 'chart' | 'table' | 'metric';
 
