@@ -295,6 +295,10 @@ func toNotificationType(v string) (generated.NotificationType, error) {
 		return generated.NotificationTypeMention, nil
 	case model.NotifySubIssueCompleted:
 		return generated.NotificationTypeSubIssueCompleted, nil
+	case model.NotifyViewIssueAdded:
+		return generated.NotificationTypeViewIssueAdded, nil
+	case model.NotifyViewIssueCompleted:
+		return generated.NotificationTypeViewIssueCompleted, nil
 	}
 	return "", platform.Internal(fmt.Errorf("unknown notification type %q", v))
 }
@@ -328,6 +332,19 @@ func toViews(rows []model.View) []generated.View {
 		out = append(out, toView(v))
 	}
 	return out
+}
+
+func toViewSubscription(v model.ViewSubscription) generated.ViewSubscription {
+	return generated.ViewSubscription{
+		ID:          v.ID,
+		WorkspaceID: v.WorkspaceID,
+		ViewID:      v.ViewID,
+		UserID:      v.UserID,
+		Added:       v.Added,
+		Completed:   v.Completed,
+		CreatedAt:   v.CreatedAt,
+		UpdatedAt:   v.UpdatedAt,
+	}
 }
 
 func toViewPreference(p model.ViewPreference) generated.ViewPreference {

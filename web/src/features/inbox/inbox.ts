@@ -214,6 +214,10 @@ export function describeEvent(type: NotificationType, identifier: string): strin
       return `mentioned you in ${identifier}`;
     case 'sub_issue_completed':
       return `completed a sub-issue of ${identifier}`;
+    case 'view_issue_added':
+      return `${identifier} was added to a view you follow`;
+    case 'view_issue_completed':
+      return `completed ${identifier} in a view you follow`;
     default:
       return `updated ${identifier}`;
   }

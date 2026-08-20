@@ -55,6 +55,14 @@
 		reverse_proxy api:8088
 	}
 
+	handle /mcp* {
+		reverse_proxy api:8088
+	}
+
+	handle /.well-known/* {
+		reverse_proxy api:8088
+	}
+
 	handle /webhooks/* {
 		reverse_proxy api:8088
 	}
