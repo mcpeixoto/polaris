@@ -120,10 +120,18 @@ export function resolveCreateURL(
     ...(params.estimate === undefined ? null : { estimate: parseEstimate(params.estimate) }),
   };
 
-  const stateId = team === undefined ? undefined : resolveState(store, team.id, params.status);
+  // Status and cycle are the two fields that only mean anything inside a team, so they have
+  // to be looked up in one. A URL that names a status without naming a team is not a URL
+  // missing a field, though: `/new?status=Todo` opens a composer that has already chosen a
+  // team — the workspace's first, by key — and resolving against nothing instead drops a
+  // documented parameter without saying so. `defaultTeam` is that same choice, made here so
+  // the name is looked up in the team the issue is actually going to be filed in.
+  const scope = team ?? defaultTeam(store);
+
+  const stateId = scope === undefined ? undefined : resolveState(store, scope.id, params.status);
   const assigneeId = resolveAssignee(store, params.assignee, viewerId);
   const projectId = resolveProject(store, params.project, team?.id);
-  const cycleId = team === undefined ? undefined : resolveCycle(store, team.id, params.cycle);
+  const cycleId = scope === undefined ? undefined : resolveCycle(store, scope.id, params.cycle);
   const templateId = resolveTemplate(store, params.template, team?.id);
   const labelIds = resolveLabels(store, params.labels, team?.id);
   const projectMilestoneId =
@@ -187,6 +195,25 @@ function resolveTeam(store: Store, raw: string | undefined): { id: UUID; key: st
     if (team.id === raw || team.key.toLowerCase() === folded) return { id: team.id, key: team.key };
   }
   return undefined;
+}
+
+/**
+ * The team a composer with nothing to go on will land in.
+ *
+ * Deliberately the same rule as `CreateIssueModal`'s own fallback — live teams, ordered by
+ * key, first one wins — because the point of it here is to answer "which team is this URL
+ * going to file into", and an answer that disagreed with the dialog would resolve a status
+ * the dialog then refuses to show.
+ */
+function defaultTeam(store: Store): { id: UUID; key: string } | undefined {
+  let best: { id: UUID; key: string } | undefined;
+  for (const team of store.teams.values()) {
+    if (team.archivedAt !== undefined || team.retiredAt !== undefined) continue;
+    if (best === undefined || team.key.localeCompare(best.key) < 0) {
+      best = { id: team.id, key: team.key };
+    }
+  }
+  return best;
 }
 
 function resolveState(store: Store, teamId: UUID, raw: string | undefined): UUID | undefined {

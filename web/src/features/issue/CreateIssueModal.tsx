@@ -182,7 +182,11 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const [leaving, setLeaving] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [draftBusy, setDraftBusy] = useState(false);
+  /** How many issues this sitting of the dialog has filed. Only "Create more" moves it. */
+  const [filed, setFiled] = useState(0);
   const submitted = useRef(false);
+  /** A resumed saved draft is deleted by the first create, not by every one after it. */
+  const draftCleared = useRef(false);
 
   // The team the user is looking at, read from the path rather than passed in. This modal is
   // mounted by the shell, above the route that knows which team is on screen, so `useParams`
@@ -499,7 +503,15 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     void navigator.clipboard?.writeText(`${window.location.origin}${url}`);
   };
 
-  const save = async () => {
+  /**
+   * Files the issue.
+   *
+   * `another` is "Create more": the issue goes, the dialog stays, and every property except
+   * the words keeps its value. That is the whole point of it — somebody filing eight bugs
+   * against the same team, project and cycle should set those once — so the reset below is
+   * deliberately narrow: title, description and any form answers, and nothing else.
+   */
+  const save = async ({ another = false }: { another?: boolean } = {}) => {
     if (saving) return;
     const trimmed = title.trim();
     const resolvedTitle =
@@ -571,7 +583,22 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
         creatorId: viewerId ?? undefined,
       });
       writeIssueComposerDraft(null);
-      if (seed?.draftId !== undefined) void deleteDraft(seed.draftId);
+      if (seed?.draftId !== undefined && !draftCleared.current) {
+        draftCleared.current = true;
+        void deleteDraft(seed.draftId);
+      }
+      if (another) {
+        setSaving(false);
+        // Back to the template's own prompt rather than to blank, when there is one. A
+        // template is one of the properties being kept, and keeping it while throwing away
+        // the words it prefills would leave the second issue less templated than the first.
+        setTitle(template?.title ?? '');
+        setDescription(template?.description ?? '');
+        setFormAnswers({});
+        setFiled((count) => count + 1);
+        titleRef.current?.focus();
+        return;
+      }
       submitted.current = true;
       // Closed without waiting for anything else: the issue is already in the list, and the
       // outbox owns the rest of the story.
@@ -589,6 +616,8 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   // form as it stood when the dialog opened.
   const submitRef = useRef<() => void>(() => {});
   submitRef.current = () => void save();
+  const submitAnotherRef = useRef<() => void>(() => {});
+  submitAnotherRef.current = () => void save({ another: true });
   const copyRef = useRef<() => void>(() => {});
   copyRef.current = copyCreateUrl;
 
@@ -608,6 +637,17 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
         // dialog already offers the same command as a button.
         hidden: true,
         run: () => submitRef.current(),
+      },
+      {
+        id: 'issue.submitNewAndAnother',
+        title: 'Save new issue and start another',
+        keys: ['mod+shift+Enter'],
+        when: 'modal',
+        group: 'Issues',
+        // Hidden for the same reason as the one above: outside this dialog it is not a
+        // command, it is a sentence about one.
+        hidden: true,
+        run: () => submitAnotherRef.current(),
       },
       {
         id: 'issue.copyComposerUrl',
@@ -636,6 +676,9 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
         footer={
           <>
             <Button onClick={requestClose}>Cancel</Button>
+            <Button onClick={() => void save({ another: true })} loading={saving}>
+              Create more
+            </Button>
             <Button form={formId} type="submit" variant="primary" loading={saving}>
               Create issue
             </Button>
@@ -852,6 +895,16 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
           {saveError === null ? null : (
             <p className={styles.error} role="alert">
               {saveError}
+            </p>
+          )}
+          {/*
+          "Create more" leaves the dialog covering the list, so the only evidence that the
+          last one went anywhere is this line. Announced, because the person who just pressed
+          the chord is looking at a title field that emptied itself.
+        */}
+          {filed === 0 ? null : (
+            <p className={styles.dropped} role="status">
+              {filed === 1 ? 'Filed 1 issue. Keep going.' : `Filed ${filed} issues. Keep going.`}
             </p>
           )}
           {/*
