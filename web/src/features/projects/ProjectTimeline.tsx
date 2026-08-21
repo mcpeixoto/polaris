@@ -9,16 +9,23 @@ import type { UUID } from '~/store';
 
 import { buildProjectTimeline } from './computeProjectTimeline';
 import type { ProjectDependencyFilter } from './dependencyHelpers';
+import type { ProjectCustomerFilter } from './customerFilter';
 import type { RequiredProjectDisplay } from './ProjectDisplayMenu';
 import styles from './ProjectTimeline.module.css';
 
 export interface ProjectTimelineProps {
   readonly teamId: UUID | undefined;
   readonly depFilter: ProjectDependencyFilter;
+  readonly customerFilter?: ProjectCustomerFilter;
   readonly display: RequiredProjectDisplay;
 }
 
-export function ProjectTimeline({ teamId, depFilter, display }: ProjectTimelineProps) {
+export function ProjectTimeline({
+  teamId,
+  depFilter,
+  customerFilter = 'all',
+  display,
+}: ProjectTimelineProps) {
   const data = useLiveQuery(
     (store) =>
       buildProjectTimeline(
@@ -28,9 +35,19 @@ export function ProjectTimeline({ teamId, depFilter, display }: ProjectTimelineP
         display.zoom,
         display.showMilestones,
         display.showDependencies,
+        customerFilter,
       ),
-    ['project', 'projectStatus', 'projectTeam', 'projectDependency', 'projectMilestone', 'issue'],
-    [teamId ?? '', depFilter, display.zoom, display.showMilestones, display.showDependencies],
+    [
+      'project',
+      'projectStatus',
+      'projectTeam',
+      'projectDependency',
+      'projectMilestone',
+      'issue',
+      'customer',
+      'customerRequest',
+    ],
+    [teamId ?? '', depFilter, customerFilter, display.zoom, display.showMilestones, display.showDependencies],
   );
 
   if (data.bars.length === 0 && data.unscheduled.length === 0) {

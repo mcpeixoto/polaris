@@ -231,6 +231,76 @@ describe('buildInsights', () => {
     ]);
   });
 
+  it('slices an issue into every customer it is attributed to', () => {
+    const store = new Store('w');
+    seed(store);
+    store.applyChanges([
+      upsert(40, 'customer', {
+        id: 'acme',
+        workspaceId: 'w',
+        name: 'Acme',
+        domains: ['acme.com'],
+        status: 'active',
+        tier: 'Enterprise',
+        revenue: 120000,
+        logoUrl: '',
+        sortOrder: 'a',
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+      upsert(41, 'customer', {
+        id: 'beta',
+        workspaceId: 'w',
+        name: 'Beta Co',
+        domains: ['beta.example'],
+        status: 'prospect',
+        tier: 'Startup',
+        revenue: 8000,
+        logoUrl: '',
+        sortOrder: 'b',
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+      upsert(42, 'customerRequest', {
+        id: 'cr1',
+        workspaceId: 'w',
+        customerId: 'acme',
+        issueId: 'i1',
+        body: 'Need SSO',
+        important: true,
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+      upsert(43, 'customerRequest', {
+        id: 'cr2',
+        workspaceId: 'w',
+        customerId: 'beta',
+        issueId: 'i1',
+        body: 'Also us',
+        important: false,
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+    ]);
+    const byCustomer = buildInsights(store, ['i1', 'i2'], 'count', 'customer');
+    expect(byCustomer.buckets.map((bucket) => [bucket.label, bucket.value, bucket.filter])).toEqual([
+      ['Acme', 1, { field: 'customer', op: 'eq', values: ['acme'] }],
+      ['Beta Co', 1, { field: 'customer', op: 'eq', values: ['beta'] }],
+      ['No customer', 1, { field: 'customerCount', op: 'eq', values: ['0'] }],
+    ]);
+    const byTier = buildInsights(store, ['i1', 'i2'], 'count', 'customerTier');
+    expect(byTier.buckets.map((bucket) => bucket.label).sort()).toEqual([
+      'Enterprise',
+      'No tier',
+      'Startup',
+    ]);
+    const byRevenue = buildInsights(store, ['i1'], 'count', 'customerRevenue');
+    expect(byRevenue.buckets.map((bucket) => [bucket.label, bucket.filter?.values])).toEqual([
+      ['120,000', ['120000']],
+      ['8,000', ['8000']],
+    ]);
+  });
+
   it('can include archived issues and burn up by week', () => {
     const store = new Store('w');
     seed(store);

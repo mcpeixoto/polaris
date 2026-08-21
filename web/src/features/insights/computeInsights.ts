@@ -9,7 +9,7 @@
 import { STATE_LABELS, priorityLabel } from '~/components';
 import { effortOf } from '~/features/estimate';
 import { isFilterGroup, type FilterClause, type FilterNode } from '~/filter';
-import type { Issue, StateCategory, Store, UUID } from '~/store';
+import type { Customer, Issue, StateCategory, Store, UUID } from '~/store';
 
 export const INSIGHT_MEASURES = [
   'count',
@@ -31,7 +31,17 @@ export const INSIGHT_SLICES = [
   'label',
   'cycle',
   'template',
+  'customer',
+  'customerTier',
+  'customerRevenue',
 ] as const;
+
+/** Slices that read customer-request data. Guests never see these. */
+export const CUSTOMER_INSIGHT_SLICES: readonly InsightSlice[] = [
+  'customer',
+  'customerTier',
+  'customerRevenue',
+];
 
 export type InsightSlice = (typeof INSIGHT_SLICES)[number];
 
@@ -60,6 +70,9 @@ export const SLICE_LABELS: Readonly<Record<InsightSlice, string>> = {
   label: 'Label',
   cycle: 'Cycle',
   template: 'Template',
+  customer: 'Customer',
+  customerTier: 'Customer tier',
+  customerRevenue: 'Customer revenue',
 };
 
 export interface InsightBucket {
@@ -385,6 +398,55 @@ function dimensions(store: Store, issue: Issue, slice: InsightSlice): readonly D
       },
     ];
   }
+  if (slice === 'customer') {
+    const customers = attributedCustomers(store, issue.id);
+    if (customers.length === 0) {
+      return [
+        {
+          key: NONE,
+          label: 'No customer',
+          filter: { field: 'customerCount', op: 'eq', values: ['0'] },
+        },
+      ];
+    }
+    return customers.map((customer) => ({
+      key: customer.id,
+      label: customer.name,
+      filter: { field: 'customer', op: 'eq', values: [customer.id] } satisfies FilterClause,
+    }));
+  }
+  if (slice === 'customerTier') {
+    const tiers = uniqueStrings(
+      attributedCustomers(store, issue.id)
+        .map((customer) => customer.tier)
+        .filter((tier): tier is string => tier !== undefined && tier !== ''),
+    );
+    if (tiers.length === 0) {
+      return [{ key: NONE, label: 'No tier', filter: { field: 'customerTier', op: 'isNull' } }];
+    }
+    return tiers.map((tier) => ({
+      key: tier,
+      label: tier,
+      filter: { field: 'customerTier', op: 'eq', values: [tier] } satisfies FilterClause,
+    }));
+  }
+  if (slice === 'customerRevenue') {
+    const revenues = uniqueNumbers(
+      attributedCustomers(store, issue.id)
+        .map((customer) => customer.revenue)
+        .filter((revenue): revenue is number => revenue !== undefined),
+    );
+    if (revenues.length === 0) {
+      return [
+        { key: NONE, label: 'No revenue', filter: { field: 'customerRevenue', op: 'isNull' } },
+      ];
+    }
+    return revenues.map((revenue) => ({
+      key: String(revenue),
+      label: revenue.toLocaleString('en-US'),
+      filter: { field: 'customerRevenue', op: 'eq', values: [String(revenue)] } satisfies FilterClause,
+    }));
+  }
   const labelIds = [...store.labelIdsFor(issue.id)];
   if (labelIds.length === 0) {
     return [{ key: NONE, label: 'No label', filter: null }];
@@ -397,6 +459,29 @@ function dimensions(store: Store, issue: Issue, slice: InsightSlice): readonly D
       filter: { field: 'label', op: 'eq', values: [labelId] } satisfies FilterClause,
     };
   });
+}
+
+function attributedCustomers(store: Store, issueId: UUID): readonly Customer[] {
+  const seen = new Set<UUID>();
+  const out: Customer[] = [];
+  for (const requestId of store.customerRequestIdsForIssue(issueId)) {
+    const request = store.customerRequests.get(requestId);
+    const customerId = request?.customerId;
+    if (customerId === undefined || seen.has(customerId)) continue;
+    const customer = store.customers.get(customerId);
+    if (customer === undefined || customer.deletedAt !== undefined) continue;
+    seen.add(customerId);
+    out.push(customer);
+  }
+  return out;
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+}
+
+function uniqueNumbers(values: readonly number[]): number[] {
+  return [...new Set(values)].sort((a, b) => a - b);
 }
 
 export function andFilterClause(current: FilterNode, clause: FilterClause): FilterNode {
