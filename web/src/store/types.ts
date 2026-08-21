@@ -1002,6 +1002,48 @@ export interface InitiativeUpdate {
   readonly updatedAt: Timestamp;
 }
 
+/**
+ * Workspace taxonomy for labelling initiatives — separate from issue and project labels.
+ *
+ * Both a label and a group of labels: a group is a label with `isGroup` set. Nesting is
+ * one level deep, matching project labels.
+ */
+export interface InitiativeLabel {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly parentId?: UUID;
+  readonly isGroup: boolean;
+  readonly name: string;
+  readonly description?: string;
+  readonly color: string;
+  readonly position: string;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+  readonly archivedAt?: Timestamp;
+}
+
+/** One initiative label applied to one initiative, as its own replicated row. */
+export interface InitiativeLabelLink {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly initiativeId: UUID;
+  readonly labelId: UUID;
+  readonly groupId?: UUID;
+  readonly createdBy?: UUID;
+  readonly createdAt: Timestamp;
+}
+
+/** A parent → child nest. An initiative may have multiple parents. */
+export interface InitiativeRelation {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly parentInitiativeId: UUID;
+  readonly childInitiativeId: UUID;
+  readonly sortOrder: string;
+  readonly createdBy?: UUID;
+  readonly createdAt: Timestamp;
+}
+
 export type CustomerStatus = 'active' | 'prospect' | 'churned';
 
 /** An external organisation whose feedback is attributed onto issues and projects. */
@@ -1223,6 +1265,9 @@ export interface EntityByType {
   initiative: Initiative;
   initiativeProject: InitiativeProject;
   initiativeUpdate: InitiativeUpdate;
+  initiativeLabel: InitiativeLabel;
+  initiativeLabelLink: InitiativeLabelLink;
+  initiativeRelation: InitiativeRelation;
   projectUpdate: ProjectUpdate;
   pulseFeed: PulseFeed;
   projectDependency: ProjectDependency;
@@ -1290,6 +1335,9 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'initiative',
   'initiativeProject',
   'initiativeUpdate',
+  'initiativeLabel',
+  'initiativeLabelLink',
+  'initiativeRelation',
   'projectUpdate',
   'pulseFeed',
   'projectDependency',

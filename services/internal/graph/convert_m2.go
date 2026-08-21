@@ -582,6 +582,7 @@ func fromCreateInitiativeInput(in generated.CreateInitiativeInput) (domain.Creat
 		LeadTeamID:            in.LeadTeamID,
 		TargetDate:            target,
 		TargetDateGranularity: targetG,
+		ParentInitiativeID:    in.ParentInitiativeID,
 	}, nil
 }
 

@@ -604,6 +604,40 @@ function oneOfEach(): EntityRow[] {
       },
     },
     {
+      type: 'initiativeLabel',
+      entity: {
+        id: 'il1',
+        workspaceId: 'w',
+        name: 'Region',
+        color: '#6b7280',
+        isGroup: false,
+        position: 'a0',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      type: 'initiativeLabelLink',
+      entity: {
+        id: 'ill1',
+        workspaceId: 'w',
+        initiativeId: 'in1',
+        labelId: 'il1',
+        createdAt: NOW,
+      },
+    },
+    {
+      type: 'initiativeRelation',
+      entity: {
+        id: 'ir1',
+        workspaceId: 'w',
+        parentInitiativeId: 'in1',
+        childInitiativeId: 'in1',
+        sortOrder: 'a0',
+        createdAt: NOW,
+      },
+    },
+    {
       type: 'projectUpdate',
       entity: {
         id: 'pu1',

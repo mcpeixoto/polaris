@@ -762,6 +762,56 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if len(teamIDs) > 0 || includeWorkspaceScoped {
+			if err := streamPages(ctx, w, "initiativeLabel",
+				func(ctx context.Context, after uuid.UUID) ([]store.StreamInitiativeLabelsForBootstrapRow, error) {
+					return q.StreamInitiativeLabelsForBootstrap(ctx, store.StreamInitiativeLabelsForBootstrapParams{
+						WorkspaceID:            p.WorkspaceID,
+						IncludeWorkspaceScoped: true,
+						AfterID:                after,
+						PageSize:               bootstrapPageSize,
+					})
+				},
+				func(l store.StreamInitiativeLabelsForBootstrapRow) (uuid.UUID, any) {
+					return l.ID, toInitiativeLabel(store.GetInitiativeLabelRow(l))
+				},
+			); err != nil {
+				return err
+			}
+		}
+
+		if err := streamPages(ctx, w, "initiativeLabelLink",
+			func(ctx context.Context, after uuid.UUID) ([]store.InitiativeLabelLink, error) {
+				return q.StreamInitiativeLabelLinksForBootstrap(ctx, store.StreamInitiativeLabelLinksForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(link store.InitiativeLabelLink) (uuid.UUID, any) {
+				return link.ID, toInitiativeLabelLink(link)
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "initiativeRelation",
+			func(ctx context.Context, after uuid.UUID) ([]store.InitiativeRelation, error) {
+				return q.StreamInitiativeRelationsForBootstrap(ctx, store.StreamInitiativeRelationsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(rel store.InitiativeRelation) (uuid.UUID, any) {
+				return rel.ID, toInitiativeRelation(rel)
+			},
+		); err != nil {
+			return err
+		}
+
 		if err := streamPages(ctx, w, "projectUpdate",
 			func(ctx context.Context, after uuid.UUID) ([]store.ProjectUpdate, error) {
 				return q.StreamProjectUpdatesForBootstrap(ctx, store.StreamProjectUpdatesForBootstrapParams{
@@ -1183,7 +1233,12 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v48 adds initiativeUpdate (health plus narrative status posts on initiatives).
 // v49 adds workspace.customerRequestsEnabled / customerDefaultTeamId /
 // customerRevenueUnit / customerTiers.
-const ClientSchemaVersion = 51
+// v50 is reserved (unused) so a concurrent initiative-labels slice would not collide
+// with v51.
+// v51 adds issueTemplate.subIssues (children filed with the issue).
+// v52 adds initiativeLabel, initiativeLabelLink and initiativeRelation
+// (initiative labels with groups, and sub-initiative nests).
+const ClientSchemaVersion = 52
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

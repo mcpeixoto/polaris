@@ -5,9 +5,11 @@ import type { SyncEngine } from '~/sync/engine';
 
 import {
   ADD_INITIATIVE_PROJECT,
+  ADD_INITIATIVE_RELATION,
   ARCHIVE_INITIATIVE,
   CREATE_INITIATIVE,
   REMOVE_INITIATIVE_PROJECT,
+  REMOVE_INITIATIVE_RELATION,
   UPDATE_INITIATIVE,
 } from './operations';
 
@@ -18,6 +20,7 @@ export interface NewInitiative {
   readonly name: string;
   readonly description?: string | undefined;
   readonly ownerId?: UUID | undefined;
+  readonly parentInitiativeId?: UUID | undefined;
 }
 
 export async function createInitiative(engine: SyncEngine, input: NewInitiative): Promise<UUID> {
@@ -45,6 +48,9 @@ export async function createInitiative(engine: SyncEngine, input: NewInitiative)
           name: input.name,
           description: input.description ?? '',
           ownerId: input.ownerId,
+          ...(input.parentInitiativeId === undefined
+            ? null
+            : { parentInitiativeId: input.parentInitiativeId }),
         },
       },
       optimistic: [{ type: 'initiative', id, before: null, after: provisional }],
@@ -227,6 +233,73 @@ export async function removeInitiativeProject(
       mutation: REMOVE_INITIATIVE_PROJECT,
       variables: { initiativeId, projectId },
       optimistic: [{ type: 'initiativeProject', id: link.id, before: link, after: null }],
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
+}
+
+export async function addInitiativeRelation(
+  engine: SyncEngine,
+  parentInitiativeId: UUID,
+  childInitiativeId: UUID,
+): Promise<void> {
+  const store = engine.store;
+  if (store.initiativeChildIdsFor(parentInitiativeId).has(childInitiativeId)) return;
+
+  const id = uuidv7();
+  const provisional: EntityOf<'initiativeRelation'> = {
+    id,
+    workspaceId: store.workspaceId,
+    parentInitiativeId,
+    childInitiativeId,
+    sortOrder: 'z',
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    const data = await engine.mutate<{
+      addInitiativeRelation: { initiativeRelation: EntityOf<'initiativeRelation'> };
+    }>({
+      mutation: ADD_INITIATIVE_RELATION,
+      variables: { parentInitiativeId, childInitiativeId },
+      optimistic: [{ type: 'initiativeRelation', id, before: null, after: provisional }],
+    });
+    const real = fromWire(
+      'initiativeRelation',
+      data.addInitiativeRelation.initiativeRelation as EntityOf<'initiativeRelation'>,
+    );
+    const patch: EntityPatch[] = [
+      { type: 'initiativeRelation', id: real.id, before: provisional, after: real },
+    ];
+    if (real.id !== id) {
+      patch.unshift({ type: 'initiativeRelation', id, before: null, after: null });
+    }
+    store.applyOptimistic(patch);
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
+}
+
+export async function removeInitiativeRelation(
+  engine: SyncEngine,
+  parentInitiativeId: UUID,
+  childInitiativeId: UUID,
+): Promise<void> {
+  const store = engine.store;
+  const link = [...store.initiativeRelations.values()].find(
+    (row) =>
+      row.parentInitiativeId === parentInitiativeId && row.childInitiativeId === childInitiativeId,
+  );
+  if (link === undefined) return;
+
+  try {
+    await engine.mutate({
+      mutation: REMOVE_INITIATIVE_RELATION,
+      variables: { parentInitiativeId, childInitiativeId },
+      optimistic: [{ type: 'initiativeRelation', id: link.id, before: link, after: null }],
     });
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;

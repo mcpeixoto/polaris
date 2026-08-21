@@ -107,3 +107,56 @@ export const ARCHIVE_INITIATIVE = /* GraphQL */ `
     }
   }
 `;
+
+export const INITIATIVE_RELATION_FIELDS = /* GraphQL */ `
+  fragment InitiativeRelationFields on InitiativeRelation {
+    id
+    workspaceId
+    parentInitiativeId
+    childInitiativeId
+    sortOrder
+    createdBy
+    createdAt
+  }
+`;
+
+export const ADD_INITIATIVE_RELATION = /* GraphQL */ `
+  ${INITIATIVE_RELATION_FIELDS}
+  mutation AddInitiativeRelation(
+    $parentInitiativeId: UUID!
+    $childInitiativeId: UUID!
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    addInitiativeRelation(
+      parentInitiativeId: $parentInitiativeId
+      childInitiativeId: $childInitiativeId
+      clientId: $clientId
+      opId: $opId
+    ) {
+      version
+      initiativeRelation {
+        ...InitiativeRelationFields
+      }
+    }
+  }
+`;
+
+export const REMOVE_INITIATIVE_RELATION = /* GraphQL */ `
+  mutation RemoveInitiativeRelation(
+    $parentInitiativeId: UUID!
+    $childInitiativeId: UUID!
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    removeInitiativeRelation(
+      parentInitiativeId: $parentInitiativeId
+      childInitiativeId: $childInitiativeId
+      clientId: $clientId
+      opId: $opId
+    ) {
+      version
+      id
+    }
+  }
+`;
