@@ -57,6 +57,7 @@ type scene struct {
 	openProjectLabelLink                          uuid.UUID
 	openInitiative                                uuid.UUID
 	openInitiativeProject                         uuid.UUID
+	openInitiativeUpdate                          uuid.UUID
 	openCustomer                                  uuid.UUID
 	openCustomerRequest                           uuid.UUID
 	openSlaRule                                   uuid.UUID
@@ -295,6 +296,15 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		t.Fatalf("link the project: %v", err)
 	}
 	s.openInitiativeProject = link.ID
+	initUpdate, _, err := svc.CreateInitiativeUpdate(ctx, s.alice, domain.CreateInitiativeUpdateInput{
+		InitiativeID: init.ID,
+		Health:       model.ProjectUpdateHealthOnTrack,
+		Body:         "On schedule",
+	})
+	if err != nil {
+		t.Fatalf("create the initiative update: %v", err)
+	}
+	s.openInitiativeUpdate = initUpdate.ID
 
 	cust, _, err := svc.CreateCustomer(ctx, s.alice, domain.CreateCustomerInput{Name: "Acme"})
 	if err != nil {
@@ -664,6 +674,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "projectLabelLink", s.openProjectLabelLink},
 		{bobName, "initiative", s.openInitiative},
 		{bobName, "initiativeProject", s.openInitiativeProject},
+		{bobName, "initiativeUpdate", s.openInitiativeUpdate},
 		{bobName, "customer", s.openCustomer},
 		{bobName, "customerRequest", s.openCustomerRequest},
 		{bobName, "slaRule", s.openSlaRule},
@@ -682,6 +693,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{gretaName, "projectLabelLink", s.openProjectLabelLink},
 		{gretaName, "initiative", s.openInitiative},
 		{gretaName, "initiativeProject", s.openInitiativeProject},
+		{gretaName, "initiativeUpdate", s.openInitiativeUpdate},
 		{samName, "label", s.workspaceLabel},
 		{samName, "issueTemplate", s.workspaceTemplate},
 		{samName, "view", s.workspaceView},

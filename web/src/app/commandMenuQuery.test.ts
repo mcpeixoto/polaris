@@ -58,7 +58,7 @@ describe('matchIssues', () => {
         autoArchiveDays: 0,
         createdAt: AT,
         updatedAt: AT,
-      } as Entity),
+      } as unknown as Entity),
       upsert(2, 'issue', {
         id: 'i1',
         workspaceId: 'w1',
@@ -73,7 +73,7 @@ describe('matchIssues', () => {
         dueDateSource: 'manual',
         createdAt: AT,
         updatedAt: AT,
-      } as Entity),
+      } as unknown as Entity),
       upsert(3, 'issue', {
         id: 'i2',
         workspaceId: 'w1',
@@ -89,7 +89,7 @@ describe('matchIssues', () => {
         archivedAt: AT,
         createdAt: AT,
         updatedAt: AT,
-      } as Entity),
+      } as unknown as Entity),
     ]);
 
     const byId = matchIssues(store, 'ENG-1');
@@ -117,7 +117,7 @@ describe('matchUsers', () => {
         kind: 'human',
         createdAt: AT,
         updatedAt: AT,
-      } as Entity),
+      } as unknown as Entity),
       upsert(2, 'user', {
         id: 'bot',
         workspaceId: 'w1',
@@ -129,7 +129,7 @@ describe('matchUsers', () => {
         kind: 'app',
         createdAt: AT,
         updatedAt: AT,
-      } as Entity),
+      } as unknown as Entity),
     ]);
     expect(matchUsers(store, 'ada').map((hit) => hit.id)).toEqual(['u1']);
     expect(matchUsers(store, 'agent').map((hit) => hit.id)).toEqual([]);

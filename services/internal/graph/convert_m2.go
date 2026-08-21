@@ -717,3 +717,50 @@ func fromUpdateProjectUpdateInput(in generated.UpdateProjectUpdateInput) (domain
 	out.Body = in.Body
 	return out, nil
 }
+
+func toInitiativeUpdate(iu model.InitiativeUpdate) (generated.InitiativeUpdate, error) {
+	health, err := toProjectUpdateHealth(iu.Health)
+	if err != nil {
+		return generated.InitiativeUpdate{}, err
+	}
+	return generated.InitiativeUpdate{
+		ID:           iu.ID,
+		WorkspaceID:  iu.WorkspaceID,
+		InitiativeID: iu.InitiativeID,
+		Health:       health,
+		Body:         iu.Body,
+		AuthorID:     iu.AuthorID,
+		EditedAt:     iu.EditedAt,
+		DeletedAt:    iu.DeletedAt,
+		CreatedAt:    iu.CreatedAt,
+		UpdatedAt:    iu.UpdatedAt,
+	}, nil
+}
+
+func fromCreateInitiativeUpdateInput(in generated.CreateInitiativeUpdateInput) (domain.CreateInitiativeUpdateInput, error) {
+	health, err := fromProjectUpdateHealth(in.Health)
+	if err != nil {
+		return domain.CreateInitiativeUpdateInput{}, err
+	}
+	out := domain.CreateInitiativeUpdateInput{
+		InitiativeID: in.InitiativeID,
+		Health:       health,
+	}
+	if in.Body != nil {
+		out.Body = *in.Body
+	}
+	return out, nil
+}
+
+func fromUpdateInitiativeUpdateInput(in generated.UpdateInitiativeUpdateInput) (domain.UpdateInitiativeUpdateInput, error) {
+	out := domain.UpdateInitiativeUpdateInput{ID: in.ID}
+	if in.Health != nil {
+		health, err := fromProjectUpdateHealth(*in.Health)
+		if err != nil {
+			return domain.UpdateInitiativeUpdateInput{}, err
+		}
+		out.Health = &health
+	}
+	out.Body = in.Body
+	return out, nil
+}

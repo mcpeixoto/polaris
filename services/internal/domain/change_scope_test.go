@@ -353,10 +353,18 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	}); err != nil {
 		t.Fatalf("document: %v", err)
 	}
-	if _, _, err := svc.CreateInitiative(ctx, p, domain.CreateInitiativeInput{
+	init, _, err := svc.CreateInitiative(ctx, p, domain.CreateInitiativeInput{
 		Name: "Reliability",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("initiative: %v", err)
+	}
+	if _, _, err := svc.CreateInitiativeUpdate(ctx, p, domain.CreateInitiativeUpdateInput{
+		InitiativeID: init.ID,
+		Health:       model.ProjectUpdateHealthOnTrack,
+		Body:         "On schedule",
+	}); err != nil {
+		t.Fatalf("initiativeUpdate: %v", err)
 	}
 	cust, _, err := svc.CreateCustomer(ctx, p, domain.CreateCustomerInput{Name: "Acme"})
 	if err != nil {

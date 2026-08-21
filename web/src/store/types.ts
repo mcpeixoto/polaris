@@ -974,6 +974,20 @@ export interface InitiativeProject {
   readonly createdAt: Timestamp;
 }
 
+/** A status post on an initiative — health plus narrative markdown. */
+export interface InitiativeUpdate {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly initiativeId: UUID;
+  readonly health: ProjectUpdateHealth;
+  readonly body: string;
+  readonly authorId: UUID;
+  readonly editedAt?: Timestamp;
+  readonly deletedAt?: Timestamp;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 export type CustomerStatus = 'active' | 'prospect' | 'churned';
 
 /** An external organisation whose feedback is attributed onto issues and projects. */
@@ -1194,6 +1208,7 @@ export interface EntityByType {
   projectMilestone: ProjectMilestone;
   initiative: Initiative;
   initiativeProject: InitiativeProject;
+  initiativeUpdate: InitiativeUpdate;
   projectUpdate: ProjectUpdate;
   pulseFeed: PulseFeed;
   projectDependency: ProjectDependency;
@@ -1260,6 +1275,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'projectMilestone',
   'initiative',
   'initiativeProject',
+  'initiativeUpdate',
   'projectUpdate',
   'pulseFeed',
   'projectDependency',

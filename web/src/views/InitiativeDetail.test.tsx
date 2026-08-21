@@ -1,5 +1,5 @@
 /**
- * Initiative overview leftovers: properties and archive were on the API and missing here.
+ * Initiative overview: properties, archive, and posting a status update.
  */
 
 import { render, screen } from '@testing-library/react';
@@ -12,13 +12,31 @@ import { KeymapProvider } from '~/app/keymap';
 import { Store, type Change, type Entity } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
+import { InitiativeActivity } from './InitiativeActivity';
 import { InitiativeDetail } from './InitiativeDetail';
+import { InitiativeShell } from './InitiativeShell';
 
 const WORKSPACE = 'w1';
 const VIEWER = 'u1';
 const TEAM = 't1';
 const INITIATIVE = 'i1';
 const AT = '2026-01-01T00:00:00.000Z';
+
+vi.mock('~/hooks/useViewer', () => ({
+  useViewerId: () => VIEWER,
+  useViewer: () => ({
+    id: VIEWER,
+    workspaceId: WORKSPACE,
+    name: 'ada',
+    displayName: 'Ada Lovelace',
+    timezone: 'UTC',
+    role: 'admin',
+    status: 'active',
+    kind: 'human',
+    createdAt: AT,
+    updatedAt: AT,
+  }),
+}));
 
 function upsert(v: number, type: Change['type'], entity: Entity): Change {
   return {
@@ -90,14 +108,38 @@ function seeded(): Store {
 
 function renderDetail() {
   const store = seeded();
-  const mutate = vi.fn().mockResolvedValue({});
+  const mutate = vi
+    .fn()
+    .mockImplementation(async (request: { variables: Record<string, unknown> }) => {
+      const input = request.variables.input as { health?: string; body?: string } | undefined;
+      if (input?.health !== undefined) {
+        return {
+          createInitiativeUpdate: {
+            initiativeUpdate: {
+              id: 'iu1',
+              workspaceId: WORKSPACE,
+              initiativeId: INITIATIVE,
+              health: input.health,
+              body: input.body ?? '',
+              authorId: VIEWER,
+              createdAt: AT,
+              updatedAt: AT,
+            },
+          },
+        };
+      }
+      return {};
+    });
   const engine = { store, mutate } as unknown as SyncEngine;
   render(
     <MemoryRouter initialEntries={[`/initiative/${INITIATIVE}`]}>
       <KeymapProvider>
         <EngineProvider engine={engine} status={{ phase: 'idle' }}>
           <Routes>
-            <Route path="/initiative/:initiativeId" element={<InitiativeDetail />} />
+            <Route path="/initiative/:initiativeId" element={<InitiativeShell />}>
+              <Route index element={<InitiativeDetail />} />
+              <Route path="activity" element={<InitiativeActivity />} />
+            </Route>
             <Route path="/initiatives" element={<h1>Initiatives</h1>} />
           </Routes>
         </EngineProvider>
@@ -131,5 +173,18 @@ describe('Initiative overview leftovers', () => {
     const call = mutate.mock.calls[0]![0] as { variables: { archived?: boolean } };
     expect(call.variables.archived).toBe(true);
     expect(await screen.findByRole('heading', { name: 'Initiatives' })).toBeTruthy();
+  });
+
+  it('posts an update from Overview', async () => {
+    const { mutate, user } = renderDetail();
+    await user.selectOptions(screen.getByLabelText('Health'), 'at_risk');
+    await user.type(screen.getByPlaceholderText('What changed since the last update?'), 'Slip');
+    await user.click(screen.getByRole('button', { name: 'Post update' }));
+    expect(mutate).toHaveBeenCalled();
+    const input = mutate.mock.calls[0]![0] as {
+      variables: { input: { health?: string; body?: string } };
+    };
+    expect(input.variables.input.health).toBe('AT_RISK');
+    expect(input.variables.input.body).toBe('Slip');
   });
 });
