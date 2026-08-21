@@ -34,6 +34,7 @@ type UpdateSlackConnectionInput struct {
 	ClearWebhookURL  bool
 	NotifyIssues     *bool
 	NotifyComments   *bool
+	AsksEnabled      *bool
 	Enabled          *bool
 }
 
@@ -162,6 +163,7 @@ func (s *Service) UpdateSlackConnection(
 			ChannelName:    channel,
 			NotifyIssues:   in.NotifyIssues,
 			NotifyComments: in.NotifyComments,
+			AsksEnabled:    in.AsksEnabled,
 			Enabled:        in.Enabled,
 			WorkspaceID:    p.WorkspaceID,
 		}); err != nil {
@@ -304,9 +306,14 @@ func (s *Service) HandleSlackSlash(
 
 	parsed := slackin.ParseText(slash.Text)
 	from := slackFrom(slash.UserName, slash.ChannelName)
+	if slackin.IsAsksCommand(slash.Command) {
+		return s.handleAsksSlash(ctx, workspaceID, conn, strings.TrimSpace(slash.Text), from, publicURL)
+	}
 	switch parsed.Kind {
 	case slackin.KindHelp:
 		return SlackSlashResult{Text: slackHelpText()}, nil
+	case slackin.KindAsk:
+		return s.handleAsksSlash(ctx, workspaceID, conn, parsed.Title, from, publicURL)
 	case slackin.KindCreate:
 		// Bare "fixes ENG-123" is a linkback, not a new issue titled after the magic phrase.
 		if parsed.Title == strings.TrimSpace(slash.Text) {
@@ -365,6 +372,12 @@ func (s *Service) HandleSlackMessage(
 		return nil
 	}
 	from := slackFrom(event.User, event.Channel)
+	if conn.AsksEnabled {
+		if title, body, ok := slackin.TicketAsk(event.Text); ok {
+			_, err := s.createAskFromSlack(ctx, workspaceID, conn.DefaultTeamID, title, from, body)
+			return err
+		}
+	}
 	return s.linkbackMagic(ctx, p, event.Text, from)
 }
 
@@ -425,6 +438,63 @@ func (s *Service) linkbackMagic(ctx context.Context, p *authz.Principal, text, f
 		}
 	}
 	return nil
+}
+
+func (s *Service) handleAsksSlash(
+	ctx context.Context, workspaceID uuid.UUID, conn model.SlackConnection, title, from, publicURL string,
+) (SlackSlashResult, error) {
+	if !conn.AsksEnabled {
+		return SlackSlashResult{Text: "Asks Slack is off. An admin can turn it on in Settings → Asks."}, nil
+	}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return SlackSlashResult{Text: "Usage: `/asks Title` — files a triage issue. A message starting with 🎫 does the same."}, nil
+	}
+	issue, err := s.createAskFromSlack(ctx, workspaceID, conn.DefaultTeamID, title, from, "")
+	if err != nil {
+		return SlackSlashResult{}, err
+	}
+	return SlackSlashResult{Text: slackIssueLine(issue, publicURL) + " filed as an Ask."}, nil
+}
+
+func (s *Service) createAskFromSlack(
+	ctx context.Context, workspaceID, teamID uuid.UUID, title, from, body string,
+) (*model.Issue, error) {
+	title = clipSlackAskTitle(title)
+	var b strings.Builder
+	if from != "" {
+		fmt.Fprintf(&b, "Submitted by %s via Slack Asks.\n", from)
+	} else {
+		b.WriteString("Submitted via Slack Asks.\n")
+	}
+	extra := strings.TrimSpace(body)
+	if extra != "" {
+		b.WriteString("\n")
+		b.WriteString(extra)
+	}
+	p := askIntakePrincipal(workspaceID, teamID)
+	issue, _, err := s.CreateIssue(ctx, p, CreateIssueInput{
+		TeamID:              teamID,
+		Title:               title,
+		Description:         b.String(),
+		SkipDefaultTemplate: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &issue, nil
+}
+
+func clipSlackAskTitle(title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return "Ask from Slack"
+	}
+	runes := []rune(title)
+	if len(runes) > maxTitleLength {
+		return string(runes[:maxTitleLength])
+	}
+	return title
 }
 
 func (s *Service) createIssueFromSlack(
@@ -565,7 +635,7 @@ func slackLinkbackBody(from, text string) string {
 }
 
 func slackHelpText() string {
-	return "Polaris: `/polaris create Title`, `/polaris ENG-123`, `/polaris comment ENG-123 text`, or paste an issue id. Magic words (`fixes ENG-123`) post a linkback."
+	return "Polaris: `/polaris create Title`, `/polaris ask Title`, `/polaris ENG-123`, `/polaris comment ENG-123 text`, or paste an issue id. `/asks Title` files a triage Ask. Magic words (`fixes ENG-123`) post a linkback."
 }
 
 func slackIssueLine(issue *model.Issue, publicURL string) string {
@@ -611,7 +681,7 @@ func slackConnectionFromCreate(r store.CreateSlackConnectionRow) model.SlackConn
 	return model.SlackConnection{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, CreatorID: r.CreatorID, Enabled: r.Enabled,
 		DefaultTeamID: r.DefaultTeamID, ChannelName: r.ChannelName,
-		NotifyIssues: r.NotifyIssues, NotifyComments: r.NotifyComments,
+		NotifyIssues: r.NotifyIssues, NotifyComments: r.NotifyComments, AsksEnabled: r.AsksEnabled,
 		ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
@@ -620,7 +690,7 @@ func slackConnectionFromGet(r store.GetSlackConnectionRow) model.SlackConnection
 	return model.SlackConnection{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, CreatorID: r.CreatorID, Enabled: r.Enabled,
 		DefaultTeamID: r.DefaultTeamID, ChannelName: r.ChannelName,
-		NotifyIssues: r.NotifyIssues, NotifyComments: r.NotifyComments,
+		NotifyIssues: r.NotifyIssues, NotifyComments: r.NotifyComments, AsksEnabled: r.AsksEnabled,
 		ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
@@ -629,7 +699,7 @@ func slackConnectionFromStream(r store.StreamSlackConnectionsForBootstrapRow) mo
 	return model.SlackConnection{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, CreatorID: r.CreatorID, Enabled: r.Enabled,
 		DefaultTeamID: r.DefaultTeamID, ChannelName: r.ChannelName,
-		NotifyIssues: r.NotifyIssues, NotifyComments: r.NotifyComments,
+		NotifyIssues: r.NotifyIssues, NotifyComments: r.NotifyComments, AsksEnabled: r.AsksEnabled,
 		ConnectedAt: r.ConnectedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }

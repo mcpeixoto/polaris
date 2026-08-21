@@ -8,11 +8,13 @@ INSERT INTO slack_connection (
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 )
 RETURNING id, workspace_id, creator_id, enabled, default_team_id,
-          channel_name, notify_issues, notify_comments, connected_at, created_at, updated_at;
+          channel_name, notify_issues, notify_comments, asks_enabled,
+          connected_at, created_at, updated_at;
 
 -- name: GetSlackConnection :one
 SELECT id, workspace_id, creator_id, enabled, default_team_id,
-       channel_name, notify_issues, notify_comments, connected_at, created_at, updated_at
+       channel_name, notify_issues, notify_comments, asks_enabled,
+       connected_at, created_at, updated_at
 FROM slack_connection
 WHERE workspace_id = $1;
 
@@ -32,11 +34,13 @@ SET default_team_id = COALESCE(sqlc.narg(default_team_id), default_team_id),
     channel_name = COALESCE(sqlc.narg(channel_name), channel_name),
     notify_issues = COALESCE(sqlc.narg(notify_issues), notify_issues),
     notify_comments = COALESCE(sqlc.narg(notify_comments), notify_comments),
+    asks_enabled = COALESCE(sqlc.narg(asks_enabled), asks_enabled),
     enabled = COALESCE(sqlc.narg(enabled), enabled),
     connected_at = COALESCE(sqlc.narg(connected_at), connected_at)
 WHERE workspace_id = sqlc.arg(workspace_id)
 RETURNING id, workspace_id, creator_id, enabled, default_team_id,
-          channel_name, notify_issues, notify_comments, connected_at, created_at, updated_at;
+          channel_name, notify_issues, notify_comments, asks_enabled,
+          connected_at, created_at, updated_at;
 
 -- name: ClearSlackConnectionChannelName :exec
 UPDATE slack_connection
@@ -58,7 +62,8 @@ DELETE FROM slack_connection WHERE workspace_id = $1;
 
 -- name: StreamSlackConnectionsForBootstrap :many
 SELECT id, workspace_id, creator_id, enabled, default_team_id,
-       channel_name, notify_issues, notify_comments, connected_at, created_at, updated_at
+       channel_name, notify_issues, notify_comments, asks_enabled,
+       connected_at, created_at, updated_at
 FROM slack_connection
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND id > sqlc.arg(after_id)

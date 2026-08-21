@@ -1165,7 +1165,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v44 adds slackConnection (Slack webhook notify / slash / unfurls, no secrets).
 // v45 adds workspace.pulseEnabled and workspace.pulseDigestCadence.
 // v46 adds pulseFeed (personal named subsets of the Pulse stream).
-const ClientSchemaVersion = 46
+// v47 adds slackConnection.asksEnabled (Slack Asks intake from /asks and 🎫).
+const ClientSchemaVersion = 47
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //
