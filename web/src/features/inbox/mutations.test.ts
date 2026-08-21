@@ -24,7 +24,7 @@ import { Store, type Notification } from '~/store';
 import { gql } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
-import { hydrateInbox } from './mutations';
+import { dismissReadNotifications, hydrateInbox } from './mutations';
 
 vi.mock('~/sync/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('~/sync/api')>();
@@ -107,5 +107,50 @@ describe('hydrateInbox', () => {
 
     // Flipping this back to unread is the one thing an inbox may never do.
     expect(store.notifications.get(ROW)?.readAt).toBe(AT);
+  });
+});
+
+describe('dismissReadNotifications', () => {
+  it('deletes every read row and leaves unread ones', async () => {
+    const unread: Notification = {
+      id: ROW,
+      workspaceId: WORKSPACE,
+      userId: VIEWER,
+      type: 'issue_assigned',
+      issueId: ISSUE,
+      actor: { type: 'user', id: VIEWER },
+      changeVersion: 1,
+      groupKey: 'unread',
+      count: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    };
+    const readId = '01900000-0000-7000-8000-000000000005';
+    const read: Notification = { ...unread, id: readId, groupKey: 'read', readAt: AT };
+    const store = new Store(WORKSPACE);
+    store.applyChanges([
+      {
+        v: 1,
+        type: 'notification',
+        id: unread.id,
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: unread,
+      },
+      {
+        v: 2,
+        type: 'notification',
+        id: read.id,
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: read,
+      },
+    ]);
+    const mutate = vi.fn().mockResolvedValue({});
+
+    await dismissReadNotifications({ store, mutate } as unknown as SyncEngine);
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate.mock.calls[0]?.[0].variables).toEqual({ id: readId });
   });
 });

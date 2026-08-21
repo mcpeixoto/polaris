@@ -141,10 +141,11 @@ const MAX_TIMEOUT_MS = 2_147_483_647;
 export function useWakingQuery<T extends Waking>(
   select: (store: Store, now: number) => T,
   deps: readonly EntityType[],
+  inputs: readonly unknown[] = [],
 ): T {
   const [armed, setArmed] = useState<number | null>(null);
   const now = useWakeClock(armed);
-  const result = useLiveQuery((store) => select(store, now), deps, [now]);
+  const result = useLiveQuery((store) => select(store, now), deps, [now, ...inputs]);
 
   useEffect(() => setArmed(result.wakeAt), [result.wakeAt]);
 
@@ -254,12 +255,51 @@ export function coalescedTail(count: number): string | null {
 
 /** Rows the inbox can act on, newest first. Snoozed rows are absent until they wake. */
 export function awakeNotificationIds(store: Store, now: number): UUID[] {
+  return visibleNotificationIds(store, now, { showRead: true, showSnoozed: false });
+}
+
+export interface InboxDisplay {
+  /** When false, read rows are hidden. Default true: the inbox is also a history. */
+  readonly showRead: boolean;
+  /** When true, still-snoozed rows stay in the list. Default false: they reappear when they wake. */
+  readonly showSnoozed: boolean;
+}
+
+export const DEFAULT_INBOX_DISPLAY: InboxDisplay = { showRead: true, showSnoozed: false };
+
+/**
+ * The rows the inbox shows under the current display options, newest first.
+ *
+ * `showSnoozed` is the only way a still-sleeping row appears: the default list is the
+ * awake set, which is what the badge counts. `showRead` hides dealt-with rows so the
+ * inbox can be worked as a queue rather than a log.
+ */
+export function visibleNotificationIds(
+  store: Store,
+  now: number,
+  display: InboxDisplay,
+): UUID[] {
   const rows: Notification[] = [];
   for (const row of store.notifications.values()) {
-    if (isAwake(row, now)) rows.push(row);
+    if (row.readAt !== undefined && !display.showRead) continue;
+    if (!isAwake(row, now) && !display.showSnoozed) continue;
+    rows.push(row);
   }
   rows.sort(byNewest);
   return rows.map((row) => row.id);
+}
+
+/**
+ * Whether a haystack matches the inbox's Cmd+F filter.
+ *
+ * Substring, case-insensitive, after trim. An empty query matches everything: clearing
+ * the box is how you leave find, and a filter that hid the inbox because you typed a
+ * space would feel like a bug.
+ */
+export function matchesInboxQuery(haystack: string, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return true;
+  return haystack.toLowerCase().includes(needle);
 }
 
 /**
