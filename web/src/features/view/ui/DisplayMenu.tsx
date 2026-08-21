@@ -114,6 +114,7 @@ const ORDER_LABELS: Readonly<Record<DisplayOrderBy, string>> = {
   createdAt: 'Created',
   updatedAt: 'Updated',
   title: 'Title',
+  customerCount: 'Customer count',
 };
 
 const DIRECTION_LABELS: Readonly<Record<DisplayDirection, string>> = {
@@ -156,6 +157,7 @@ const ORDER_ORDER: readonly DisplayOrderBy[] = [
   'createdAt',
   'updatedAt',
   'title',
+  'customerCount',
 ];
 const DIRECTION_ORDER: readonly DisplayDirection[] = ['asc', 'desc'];
 const PROPERTY_ORDER: readonly DisplayProperty[] = [

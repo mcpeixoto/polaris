@@ -261,10 +261,11 @@ func (s *Service) compileSearchFilter(
 	compiled, err := filter.Compile(node, filter.Options{
 		// The statements name the issue table `i`, and a fragment compiled for the default
 		// `issue` alias would produce SQL referring to a table that is not in the query.
-		Alias:     "i",
-		Now:       s.now(),
-		Location:  loc,
-		ArgOffset: store.FixedSearchArgs,
+		Alias:         "i",
+		Now:           s.now(),
+		Location:      loc,
+		ArgOffset:     store.FixedSearchArgs,
+		HideCustomers: p.IsGuest(),
 	})
 	if err != nil {
 		return store.SearchFilter{}, platform.Validation("filter", err.Error())

@@ -389,3 +389,57 @@ describe('filter performance', () => {
     ).toBeLessThan(BUDGET_MS);
   });
 });
+
+describe('customer fields', () => {
+  const issues = [issue('e1'), issue('e2'), issue('e3')];
+
+  it('counts requests per issue, including unattributed ones', () => {
+    expect(
+      matching({ field: 'customerCount', op: 'gte', values: ['2'] }, issues, {
+        customerCount: new Map([
+          [id('e1'), 3],
+          [id('e2'), 1],
+        ]),
+      }),
+    ).toEqual([id('e1')]);
+    expect(
+      matching({ field: 'customerCount', op: 'eq', values: ['0'] }, issues, {
+        customerCount: new Map([[id('e1'), 3]]),
+      }),
+    ).toEqual([id('e2'), id('e3')]);
+  });
+
+  it('matches any related customer on status, revenue, and importance', () => {
+    expect(
+      matching({ field: 'customerStatus', op: 'eq', values: ['churned'] }, issues, {
+        customerStatus: new Map([
+          [id('e1'), new Set(['active'])],
+          [id('e2'), new Set(['churned'])],
+          [id('e3'), new Set(['active', 'churned'])],
+        ]),
+      }),
+    ).toEqual([id('e2'), id('e3')]);
+    expect(
+      matching({ field: 'customerRevenue', op: 'gte', values: ['100000'] }, issues, {
+        customerRevenue: new Map([
+          [id('e1'), [500000]],
+          [id('e2'), [12000]],
+        ]),
+      }),
+    ).toEqual([id('e1')]);
+    expect(
+      matching({ field: 'customerImportant', op: 'eq', values: ['true'] }, issues, {
+        customerImportant: new Set([id('e1')]),
+      }),
+    ).toEqual([id('e1')]);
+  });
+
+  it('hides every customer clause from a guest, including customerCount eq 0', () => {
+    expect(
+      matching({ field: 'customerCount', op: 'eq', values: ['0'] }, issues, {
+        hideCustomers: true,
+        customerCount: new Map(),
+      }),
+    ).toEqual([]);
+  });
+});

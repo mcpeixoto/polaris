@@ -39,28 +39,35 @@ type Field string
 // field that was skipped would turn a four-clause filter into a three-clause one and
 // return issues the user never asked for.
 const (
-	FieldState         Field = "state"
-	FieldStateCategory Field = "stateCategory"
-	FieldAssignee      Field = "assignee"
-	FieldCreator       Field = "creator"
-	FieldSubscriber    Field = "subscriber"
-	FieldPriority      Field = "priority"
-	FieldLabel         Field = "label"
-	FieldTeam          Field = "team"
-	FieldEstimate      Field = "estimate"
-	FieldDueDate       Field = "dueDate"
-	FieldCreatedAt     Field = "createdAt"
-	FieldUpdatedAt     Field = "updatedAt"
-	FieldCompletedAt   Field = "completedAt"
-	FieldTitle         Field = "title"
-	FieldDescription   Field = "description"
-	FieldParent        Field = "parent"
-	FieldBlockedBy     Field = "blockedBy"
-	FieldBlocking      Field = "blocking"
-	FieldArchived      Field = "archived"
-	FieldDeleted       Field = "deleted"
-	FieldTemplate      Field = "template"
-	FieldRecurring     Field = "recurring"
+	FieldState             Field = "state"
+	FieldStateCategory     Field = "stateCategory"
+	FieldAssignee          Field = "assignee"
+	FieldCreator           Field = "creator"
+	FieldSubscriber        Field = "subscriber"
+	FieldPriority          Field = "priority"
+	FieldLabel             Field = "label"
+	FieldTeam              Field = "team"
+	FieldEstimate          Field = "estimate"
+	FieldDueDate           Field = "dueDate"
+	FieldCreatedAt         Field = "createdAt"
+	FieldUpdatedAt         Field = "updatedAt"
+	FieldCompletedAt       Field = "completedAt"
+	FieldTitle             Field = "title"
+	FieldDescription       Field = "description"
+	FieldParent            Field = "parent"
+	FieldBlockedBy         Field = "blockedBy"
+	FieldBlocking          Field = "blocking"
+	FieldArchived          Field = "archived"
+	FieldDeleted           Field = "deleted"
+	FieldTemplate          Field = "template"
+	FieldRecurring         Field = "recurring"
+	FieldCustomer          Field = "customer"
+	FieldCustomerCount     Field = "customerCount"
+	FieldCustomerStatus    Field = "customerStatus"
+	FieldCustomerTier      Field = "customerTier"
+	FieldCustomerRevenue   Field = "customerRevenue"
+	FieldCustomerSize      Field = "customerSize"
+	FieldCustomerImportant Field = "customerImportant"
 )
 
 // Op is the comparison a clause performs.
@@ -101,6 +108,12 @@ var stateCategories = map[string]bool{
 	"completed": true,
 	"canceled":  true,
 	"duplicate": true,
+}
+
+var customerStatuses = map[string]bool{
+	"active":   true,
+	"prospect": true,
+	"churned":  true,
 }
 
 // Node is one node of the filter AST: either a clause or a group.
@@ -341,6 +354,22 @@ type fieldSpec struct {
 	// column: archived/deleted as timestamps, recurring as the schedule id. Presence is
 	// true; NULL is false.
 	flag bool
+
+	// presence is EXISTS SQL for a boolean that is not a column of issue, taking the
+	// issue alias. Used by customerImportant. True when the EXISTS holds.
+	presence string
+
+	// expr is a SQL expression taking the issue alias, used instead of column when the
+	// value is computed (customer request count).
+	expr string
+
+	// relatedFrom is the FROM/WHERE skeleton for attributes that live on related
+	// customers, taking the issue alias. relatedColumn is compared against the clause.
+	relatedFrom   string
+	relatedColumn string
+
+	// enums is the closed set for kindCategory fields that are not state categories.
+	enums map[string]bool
 }
 
 // fields is the grammar. Adding one here is the only place it needs adding on this side;
@@ -379,7 +408,45 @@ var fields = map[Field]fieldSpec{
 	FieldDeleted:   {kind: kindBool, column: "deleted_at", flag: true},
 	FieldTemplate:  {kind: kindUUID, column: "template_id", nullable: true},
 	FieldRecurring: {kind: kindBool, column: "recurring_issue_id", flag: true},
+
+	FieldCustomer:      {kind: kindUUID, relatedFrom: customerRelatedFrom, relatedColumn: "cr.customer_id"},
+	FieldCustomerCount: {kind: kindInt, expr: `(SELECT COUNT(*)::int FROM customer_request cr WHERE cr.issue_id = %s.id)`},
+	FieldCustomerStatus: {
+		kind:          kindCategory,
+		enums:         customerStatuses,
+		relatedFrom:   customerRelatedFrom,
+		relatedColumn: "c.status",
+	},
+	FieldCustomerTier: {
+		kind:          kindText,
+		nullable:      true,
+		relatedFrom:   customerRelatedFrom,
+		relatedColumn: "c.tier",
+	},
+	FieldCustomerRevenue: {
+		kind:          kindInt,
+		nullable:      true,
+		relatedFrom:   customerRelatedFrom,
+		relatedColumn: "c.revenue",
+	},
+	FieldCustomerSize: {
+		kind:          kindInt,
+		nullable:      true,
+		relatedFrom:   customerRelatedFrom,
+		relatedColumn: "c.size",
+	},
+	FieldCustomerImportant: {
+		kind:     kindBool,
+		flag:     true,
+		presence: `EXISTS (SELECT 1 FROM customer_request cr WHERE cr.issue_id = %s.id AND cr.important)`,
+	},
 }
+
+// customerRelatedFrom joins live customers attributed onto the issue. Deleted customers
+// are dropped so a merge that removed the row does not keep matching filters.
+const customerRelatedFrom = `FROM customer_request cr` +
+	` JOIN customer c ON c.id = cr.customer_id AND c.deleted_at IS NULL` +
+	` WHERE cr.issue_id = %s.id`
 
 // knownOps exists so that an operator nobody has heard of reports itself as unknown
 // rather than as "does not apply to this field", which sends the reader looking for a
@@ -454,7 +521,7 @@ func (n Node) bind() (bound, error) {
 
 	b := bound{field: n.Field, op: n.Op, spec: spec}
 	for _, raw := range n.Values {
-		v, err := parseValue(n.Field, spec.kind, raw)
+		v, err := parseValue(n.Field, spec, raw)
 		if err != nil {
 			return bound{}, err
 		}
@@ -468,8 +535,8 @@ func (n Node) bind() (bound, error) {
 // Every failure here is a rejection rather than a skip. "priority eq high" is a filter
 // somebody wrote wrongly; returning every issue in the workspace instead of saying so is
 // not a kindness.
-func parseValue(field Field, kind valueKind, raw string) (any, error) {
-	switch kind {
+func parseValue(field Field, spec fieldSpec, raw string) (any, error) {
+	switch spec.kind {
 	case kindUUID:
 		id, err := uuid.Parse(raw)
 		if err != nil {
@@ -478,7 +545,14 @@ func parseValue(field Field, kind valueKind, raw string) (any, error) {
 		return id, nil
 
 	case kindCategory:
-		if !stateCategories[raw] {
+		allowed := spec.enums
+		if allowed == nil {
+			allowed = stateCategories
+		}
+		if !allowed[raw] {
+			if spec.enums != nil {
+				return nil, fmt.Errorf("filter: unknown customer status %q on field %q", raw, field)
+			}
 			return nil, fmt.Errorf("filter: unknown state category %q on field %q", raw, field)
 		}
 		return raw, nil
