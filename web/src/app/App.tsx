@@ -44,6 +44,8 @@ import { McpSettings } from '~/views/McpSettings';
 import { MyIssues } from '~/views/MyIssues';
 import { NotificationSettings } from '~/views/NotificationSettings';
 import { Preferences } from '~/views/Preferences';
+import { ProfileSettings } from '~/views/ProfileSettings';
+import { WorkspaceSettings } from '~/views/WorkspaceSettings';
 import { ProjectShell } from '~/views/ProjectShell';
 import { ProjectOverview } from '~/views/ProjectOverview';
 import { ProjectIssues } from '~/views/ProjectIssues';
@@ -206,6 +208,9 @@ function SignedInShell() {
         <Route path="/project/:projectId/documents" element={<Documents />} />
         <Route path="/document/:documentId" element={<DocumentDetail />} />
         <Route path="/cycle/:cycleId" element={<CycleDetail />} />
+        <Route path="/settings" element={<WorkspaceSettings />} />
+        <Route path="/settings/workspace" element={<WorkspaceSettings />} />
+        <Route path="/settings/profile" element={<ProfileSettings />} />
         <Route path="/settings/members" element={<MemberSettings />} />
         <Route path="/settings/labels" element={<LabelSettings />} />
         <Route path="/settings/project-labels" element={<ProjectLabelSettings />} />

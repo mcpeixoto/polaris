@@ -15,6 +15,11 @@ export interface WorkspacePulseFields {
   readonly pulseDigestCadence?: Workspace['pulseDigestCadence'] | undefined;
 }
 
+export interface WorkspaceGeneralFields {
+  readonly name?: string | undefined;
+  readonly logoUrl?: string | null | undefined;
+}
+
 export async function updateWorkspaceReminderCadence(
   engine: SyncEngine,
   fields: WorkspaceReminderFields,
@@ -29,15 +34,29 @@ export async function updateWorkspacePulse(
   return updateWorkspace(engine, fields);
 }
 
+export async function updateWorkspaceGeneral(
+  engine: SyncEngine,
+  fields: WorkspaceGeneralFields,
+): Promise<void> {
+  return updateWorkspace(engine, fields);
+}
+
 async function updateWorkspace(
   engine: SyncEngine,
-  fields: WorkspaceReminderFields & WorkspacePulseFields,
+  fields: WorkspaceReminderFields & WorkspacePulseFields & WorkspaceGeneralFields,
 ): Promise<void> {
   const before = engine.store.workspaces.get(engine.store.workspaceId);
   if (before === undefined) return;
 
+  const name = fields.name?.trim();
   const after: Workspace = {
     ...before,
+    ...(name === undefined || name === '' ? null : { name }),
+    ...(fields.logoUrl === undefined
+      ? null
+      : fields.logoUrl === null || fields.logoUrl.trim() === ''
+        ? { logoUrl: undefined }
+        : { logoUrl: fields.logoUrl.trim() }),
     ...(fields.projectUpdateReminderIntervalDays === undefined
       ? null
       : { projectUpdateReminderIntervalDays: fields.projectUpdateReminderIntervalDays }),
@@ -60,6 +79,8 @@ async function updateWorkspace(
     mutation: UPDATE_WORKSPACE,
     variables: {
       input: {
+        ...(after.name === before.name ? null : { name: after.name }),
+        ...(after.logoUrl === before.logoUrl ? null : { logoUrl: after.logoUrl ?? '' }),
         ...(fields.projectUpdateReminderIntervalDays === undefined
           ? null
           : { projectUpdateReminderIntervalDays: fields.projectUpdateReminderIntervalDays }),

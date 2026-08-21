@@ -35,6 +35,7 @@ describe('preferences', () => {
     const prefs = getPrefs();
     expect(prefs.homeView).toBe('team');
     expect(prefs.fullNames).toBe(true);
+    expect(prefs.convertEmoticons).toBe(false);
     expect(prefs.commentSubmit).toBe('mod-enter');
     expect(prefs.autoAssignOnCreate).toBe(false);
   });

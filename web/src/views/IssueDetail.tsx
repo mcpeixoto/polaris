@@ -38,6 +38,7 @@ import {
 // exports the primitives a screen composes with, and this is an assembled dialogue.
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
+import { maybeExpandEmoticons } from '~/features/prefs/emoticons';
 import { personName, getPrefs, subscribePrefs } from '~/features/prefs/prefs';
 import {
   archiveIssues,
@@ -918,7 +919,7 @@ function Comments({
   const [replyingTo, setReplyingTo] = useState<UUID | null>(null);
 
   const submit = (key: string) => {
-    const body = (drafts[key] ?? '').trim();
+    const body = maybeExpandEmoticons((drafts[key] ?? '').trim());
     if (body === '') return;
     setDrafts((current) => ({ ...current, [key]: '' }));
     clearCommentDraft(issueId, key === ROOT ? undefined : key);
