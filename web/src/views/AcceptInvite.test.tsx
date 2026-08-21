@@ -21,9 +21,12 @@ vi.mock('~/sync/api', async (importOriginal) => {
     ...actual,
     isSignedIn: vi.fn(() => false),
     auth: {
-      register: vi.fn(async () => ({})),
-      login: vi.fn(async () => ({})),
-      acceptInvite: vi.fn(async () => ({})),
+      // The shapes matter: the screen reads the workspace out of both answers and hands it
+      // to `onAccepted`, so a mock returning a bare object would be testing a different
+      // function from the one that ships.
+      register: vi.fn(async () => ({ workspaces: [{ id: 'workspace-from-register' }] })),
+      login: vi.fn(async () => ({ workspaces: [] })),
+      acceptInvite: vi.fn(async () => ({ workspaceId: 'workspace-from-accept' })),
     },
   };
 });
@@ -66,6 +69,9 @@ describe('AcceptInvite', () => {
     await user.click(screen.getByRole('button', { name: /create account and join/i }));
 
     await waitFor(() => expect(onAccepted).toHaveBeenCalled());
+    // With the workspace the registration joined, so the boot sequence opens that one rather
+    // than whichever this browser last had open.
+    expect(onAccepted).toHaveBeenCalledWith('workspace-from-register');
     expect(auth.register).toHaveBeenCalledWith('ada@example.com', 'a-long-enough-password', {
       inviteToken: TOKEN,
       displayName: 'Ada Lovelace',
@@ -120,7 +126,7 @@ describe('AcceptInvite', () => {
     await user.type(screen.getByLabelText(/your name/i), 'Ada');
     await user.click(screen.getByRole('button', { name: /join workspace/i }));
 
-    await waitFor(() => expect(onAccepted).toHaveBeenCalled());
+    await waitFor(() => expect(onAccepted).toHaveBeenCalledWith('workspace-from-accept'));
     expect(auth.acceptInvite).toHaveBeenCalledWith(TOKEN, 'Ada');
     expect(auth.register).not.toHaveBeenCalled();
     expect(auth.login).not.toHaveBeenCalled();

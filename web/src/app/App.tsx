@@ -93,7 +93,7 @@ import { CreateDashboardModal } from '~/features/dashboards/CreateDashboardModal
 import { getPrefs } from '~/features/prefs/prefs';
 import { useQuery } from './context';
 import { AppShell } from './AppShell';
-import { Boot } from './Boot';
+import { Boot, rememberWorkspace } from './Boot';
 import { KeymapProvider } from './keymap';
 import { NotYet } from './NotYet';
 
@@ -123,7 +123,10 @@ export function App() {
               {/* The invitation link is followed from an email, so it has to survive
                   landing on a signed-out browser rather than bouncing to /signin and
                   losing the token. */}
-              <Route path="/invite/:token" element={<AcceptInvite onAccepted={onSignedIn} />} />
+              <Route
+                path="/invite/:token"
+                element={<AcceptInviteAndEnter onJoined={onSignedIn} />}
+              />
               <Route path="/ask/:token" element={<AskFormPage />} />
               {/* Unknown paths stay on sign-in so a deep link like /team/ENG is still
                   the URL after the session is restored. */}
@@ -132,7 +135,10 @@ export function App() {
           )}
           renderNoWorkspace={({ onCreated }) => (
             <Routes>
-              <Route path="/invite/:token" element={<AcceptInvite onAccepted={onCreated} />} />
+              <Route
+                path="/invite/:token"
+                element={<AcceptInviteAndEnter onJoined={onCreated} />}
+              />
               <Route path="/ask/:token" element={<AskFormPage />} />
               <Route path="*" element={<CreateWorkspace onCreated={onCreated} />} />
             </Routes>
@@ -165,6 +171,11 @@ function SignedInShell() {
   if (pathname === '/welcome') return <Landing />;
   if (pathname === '/oauth/authorize') return <OAuthAuthorize />;
   if (pathname.startsWith('/ask/')) return <AskFormPage />;
+  // An invitation link is followed from an email, on whatever browser the email was opened
+  // in — and that browser is very often already signed in to the workspace the person
+  // already works in. Without this the link falls through to the catch-all below and lands
+  // them silently back on their own issue list, invitation unspent and nothing said.
+  if (pathname.startsWith('/invite/')) return <AcceptInviteHere />;
 
   return (
     <AppShell
@@ -253,6 +264,58 @@ function SignedInShell() {
         <Route path="*" element={<HomeRedirect />} />
       </Routes>
     </AppShell>
+  );
+}
+
+/**
+ * An invitation followed by somebody who is not in a workspace yet — no account at all, or
+ * an account with nothing in it.
+ *
+ * The boot sequence carries on in place from here; there is no replica to tear down. What
+ * this adds is leaving the URL behind, which is not optional: the shell that is about to
+ * mount has its own `/invite/:token` route, and a token still sitting in the address bar
+ * would render the join screen a second time, on top of a workspace that had just been
+ * joined and an invitation that had just been spent.
+ */
+function AcceptInviteAndEnter({ onJoined }: { onJoined: (workspaceId?: string) => void }) {
+  const navigate = useNavigate();
+  return (
+    <AcceptInvite
+      onAccepted={(workspaceId) => {
+        void navigate('/', { replace: true });
+        onJoined(workspaceId);
+      }}
+    />
+  );
+}
+
+/**
+ * An invitation followed by somebody who is already inside a workspace.
+ *
+ * Outside `AppShell`, because joining is not something done from within a workspace — the
+ * sidebar behind it would be the *other* one's.
+ *
+ * Accepting reloads rather than swapping the workspace in place. Everything on this screen
+ * belongs to the workspace being left — the replica, the engine, the keymap, the remembered
+ * route — and reopening from boot is the only way to be sure none of it is carried across.
+ * Remembering the new workspace first is what makes that load land in the one just joined
+ * instead of dropping the person back where they started.
+ */
+function AcceptInviteHere() {
+  return (
+    <Routes>
+      <Route
+        path="/invite/:token"
+        element={
+          <AcceptInvite
+            onAccepted={(workspaceId) => {
+              if (workspaceId !== undefined) rememberWorkspace(workspaceId);
+              location.assign('/');
+            }}
+          />
+        }
+      />
+    </Routes>
   );
 }
 
