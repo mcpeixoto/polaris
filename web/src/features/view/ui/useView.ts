@@ -36,6 +36,7 @@ import {
 } from '~/filter';
 import { filterContextFor, groupIssues, type IssueGroup, type ViewClock } from '~/features/view';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewer } from '~/hooks/useViewer';
 import type { Issue, Store, UUID } from '~/store';
 
 /**
@@ -108,6 +109,8 @@ const VIEW_DEPS = [
   'user',
   'team',
   'label',
+  'customer',
+  'customerRequest',
 ] as const;
 
 const NO_INPUTS: readonly unknown[] = [];
@@ -121,6 +124,8 @@ export function useView({
 }: UseViewOptions): ViewState {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const viewer = useViewer();
+  const hideCustomers = viewer === null || viewer.role === 'guest';
 
   const raw = params.get(FILTER_PARAM);
   const { filter, error } = useMemo(() => readFilter(raw), [raw]);
@@ -142,6 +147,7 @@ export function useView({
           timezone,
         },
         sourceFilter,
+        hideCustomers,
       ),
     VIEW_DEPS,
     [
@@ -155,6 +161,7 @@ export function useView({
       now ?? 0,
       timezone,
       sourceFilter,
+      hideCustomers,
       ...inputs,
     ],
   );
@@ -227,10 +234,15 @@ function computeView(
   display: Required<DisplayOptions>,
   clock: ViewClock,
   sourceFilter: FilterNode | undefined,
+  hideCustomers: boolean,
 ): ViewResult {
   const combined =
     sourceFilter === undefined ? filter : { conj: 'and' as const, nodes: [sourceFilter, filter] };
-  const matched = filterIssues(source, combined, filterContextFor(store, clock));
+  const matched = filterIssues(
+    source,
+    combined,
+    filterContextFor(store, clock, { hideCustomers }),
+  );
 
   let issues: Issue[] = [];
   for (const id of matched) {

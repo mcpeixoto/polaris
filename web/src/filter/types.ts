@@ -69,7 +69,18 @@ export type FilterField =
   | 'archived'
   | 'deleted'
   | 'template'
-  | 'recurring';
+  | 'recurring'
+  | 'customer'
+  | 'customerCount'
+  | 'customerStatus'
+  | 'customerTier'
+  | 'customerRevenue'
+  | 'customerSize'
+  | 'customerImportant';
+
+/** Closed set for `customerStatus`. Wire values match `Customer.status`. */
+export const CUSTOMER_STATUSES = ['active', 'prospect', 'churned'] as const;
+export type CustomerFilterStatus = (typeof CUSTOMER_STATUSES)[number];
 
 export type FilterOp =
   | 'eq'
@@ -125,6 +136,11 @@ export interface FilterFieldSpec {
    * on "any of", and its `notIn` means "has none of these" rather than "has some other".
    */
   readonly multi: boolean;
+  /**
+   * Closed vocabulary when `type` is `enum`. `stateCategory` uses the workflow categories;
+   * `customerStatus` uses the customer ones. An unknown value is a hard error.
+   */
+  readonly enums?: readonly string[];
 }
 
 /**
@@ -137,7 +153,12 @@ export interface FilterFieldSpec {
 export const FILTER_FIELDS: Readonly<Record<FilterField, FilterFieldSpec>> = {
   state: { type: 'uuid', nullable: false, multi: false },
   // Filtering by category rather than by status id survives a team renaming its statuses.
-  stateCategory: { type: 'enum', nullable: false, multi: false },
+  stateCategory: {
+    type: 'enum',
+    nullable: false,
+    multi: false,
+    enums: Object.keys(CATEGORY_ORDER),
+  },
   assignee: { type: 'uuid', nullable: true, multi: false },
   creator: { type: 'uuid', nullable: true, multi: false },
   // A set per issue: whether that user is subscribed and has not unsubscribed.
@@ -163,6 +184,21 @@ export const FILTER_FIELDS: Readonly<Record<FilterField, FilterFieldSpec>> = {
   deleted: { type: 'boolean', nullable: false, multi: false },
   template: { type: 'uuid', nullable: true, multi: false },
   recurring: { type: 'boolean', nullable: false, multi: false },
+  // Requests attributed onto the issue. Multi because one issue can carry several customers.
+  customer: { type: 'uuid', nullable: false, multi: true },
+  // How many requests the issue has, unattributed ones included. Zero, not null, when none.
+  customerCount: { type: 'number', nullable: false, multi: false },
+  customerStatus: {
+    type: 'enum',
+    nullable: false,
+    multi: true,
+    enums: CUSTOMER_STATUSES,
+  },
+  // Workspace-defined plan names. Any related customer matching is enough.
+  customerTier: { type: 'text', nullable: true, multi: true },
+  customerRevenue: { type: 'number', nullable: true, multi: false },
+  customerSize: { type: 'number', nullable: true, multi: false },
+  customerImportant: { type: 'boolean', nullable: false, multi: false },
 };
 
 /**
@@ -182,6 +218,13 @@ export function isFilterOp(value: string): value is FilterOp {
 /** Whether a string names one of the seven state categories. */
 export function isStateCategory(value: string): boolean {
   return Object.prototype.hasOwnProperty.call(CATEGORY_ORDER, value);
+}
+
+const CUSTOMER_STATUS_SET: ReadonlySet<string> = new Set<string>(CUSTOMER_STATUSES);
+
+/** Whether a string names a customer status the grammar accepts. */
+export function isCustomerStatus(value: string): boolean {
+  return CUSTOMER_STATUS_SET.has(value);
 }
 
 /** The types an ordering comparison means anything for. */
@@ -289,7 +332,14 @@ export type DisplayGroupBy =
   | 'parent';
 
 export type DisplayOrderBy =
-  'manual' | 'priority' | 'dueDate' | 'estimate' | 'createdAt' | 'updatedAt' | 'title';
+  | 'manual'
+  | 'priority'
+  | 'dueDate'
+  | 'estimate'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'title'
+  | 'customerCount';
 
 export type DisplayDirection = 'asc' | 'desc';
 

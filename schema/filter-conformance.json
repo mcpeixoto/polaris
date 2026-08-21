@@ -218,6 +218,37 @@
     }
   ],
 
+  "customers": [
+    {
+      "id": "01900000-0000-7000-8000-000000000ca1",
+      "name": "Acme",
+      "status": "active",
+      "tier": "Enterprise",
+      "revenue": 500000,
+      "size": 200,
+      "sortOrder": "a0"
+    },
+    {
+      "id": "01900000-0000-7000-8000-000000000ca2",
+      "name": "Globex",
+      "status": "churned",
+      "tier": "Startup",
+      "revenue": 12000,
+      "size": 8,
+      "sortOrder": "a1"
+    }
+  ],
+
+  "customerRequests": [
+    { "id": "01900000-0000-7000-8000-000000000cb1", "issueId": "01900000-0000-7000-8000-0000000000e1", "customerId": "01900000-0000-7000-8000-000000000ca1", "important": true },
+    { "id": "01900000-0000-7000-8000-000000000cb2", "issueId": "01900000-0000-7000-8000-0000000000e1", "customerId": "01900000-0000-7000-8000-000000000ca1", "important": false },
+    { "id": "01900000-0000-7000-8000-000000000cb3", "issueId": "01900000-0000-7000-8000-0000000000e1", "customerId": "01900000-0000-7000-8000-000000000ca1", "important": false },
+    { "id": "01900000-0000-7000-8000-000000000cb4", "issueId": "01900000-0000-7000-8000-0000000000e2", "customerId": "01900000-0000-7000-8000-000000000ca2", "important": false },
+    { "id": "01900000-0000-7000-8000-000000000cb5", "issueId": "01900000-0000-7000-8000-0000000000e5", "customerId": "01900000-0000-7000-8000-000000000ca1", "important": false },
+    { "id": "01900000-0000-7000-8000-000000000cb6", "issueId": "01900000-0000-7000-8000-0000000000e5", "customerId": "01900000-0000-7000-8000-000000000ca2", "important": false },
+    { "id": "01900000-0000-7000-8000-000000000cb7", "issueId": "01900000-0000-7000-8000-0000000000e3", "important": false }
+  ],
+
   "subscriptions": [
     {
       "id": "01900000-0000-7000-8000-000000000a11",
@@ -552,6 +583,51 @@
       "name": "completedAt is null for everything still open",
       "filter": { "field": "completedAt", "op": "isNotNull" },
       "expect": ["e4"]
+    },
+    {
+      "name": "customer eq matches any attributed customer",
+      "filter": { "field": "customer", "op": "eq", "values": ["ca1"] },
+      "expect": ["e1", "e5"]
+    },
+    {
+      "name": "customerCount gte 2 is the demand view",
+      "filter": { "field": "customerCount", "op": "gte", "values": ["2"] },
+      "expect": ["e1", "e5"]
+    },
+    {
+      "name": "customerCount eq 0 is issues with no requests",
+      "filter": { "field": "customerCount", "op": "eq", "values": ["0"] },
+      "expect": ["e4"]
+    },
+    {
+      "name": "customerStatus eq churned, any related customer",
+      "filter": { "field": "customerStatus", "op": "eq", "values": ["churned"] },
+      "expect": ["e2", "e5"]
+    },
+    {
+      "name": "customerTier eq Enterprise",
+      "filter": { "field": "customerTier", "op": "eq", "values": ["Enterprise"] },
+      "expect": ["e1", "e5"]
+    },
+    {
+      "name": "customerRevenue gte 100000 is any related customer",
+      "filter": { "field": "customerRevenue", "op": "gte", "values": ["100000"] },
+      "expect": ["e1", "e5"]
+    },
+    {
+      "name": "customerSize lt 10",
+      "filter": { "field": "customerSize", "op": "lt", "values": ["10"] },
+      "expect": ["e2", "e5"]
+    },
+    {
+      "name": "customerImportant eq true",
+      "filter": { "field": "customerImportant", "op": "eq", "values": ["true"] },
+      "expect": ["e1"]
+    },
+    {
+      "name": "an empty customer in-list matches nothing",
+      "filter": { "field": "customer", "op": "in", "values": [] },
+      "expect": []
     }
   ],
 
@@ -562,9 +638,9 @@
   ],
   "errors": [
     {
-      "name": "an unknown field",
-      "filter": { "field": "sprint", "op": "eq", "values": ["x"] },
-      "message": "unknown field"
+      "name": "an unknown customer status",
+      "filter": { "field": "customerStatus", "op": "eq", "values": ["frozen"] },
+      "message": "customer status"
     },
     {
       "name": "an operator the field's type does not support",

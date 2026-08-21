@@ -53,6 +53,22 @@ export interface FilterContext {
    * `deleted` field the client silently ignored would be a second grammar.
    */
   readonly deleted?: ReadonlySet<UUID> | undefined;
+  /**
+   * Guests never see customer request data, including views that use customer filters.
+   * When set, every customer-field clause matches nothing — `customerCount eq 0` included,
+   * because that would otherwise match the whole workspace from an empty replica.
+   */
+  readonly hideCustomers?: boolean | undefined;
+  /** Customer ids attributed onto each issue via a request. Deleted customers omitted. */
+  readonly customers?: ReadonlyMap<UUID, ReadonlySet<UUID>> | undefined;
+  /** Request count per issue, including unattributed requests. Missing means zero. */
+  readonly customerCount?: ReadonlyMap<UUID, number> | undefined;
+  readonly customerStatus?: ReadonlyMap<UUID, ReadonlySet<string>> | undefined;
+  readonly customerTier?: ReadonlyMap<UUID, ReadonlySet<string>> | undefined;
+  readonly customerRevenue?: ReadonlyMap<UUID, readonly number[]> | undefined;
+  readonly customerSize?: ReadonlyMap<UUID, readonly number[]> | undefined;
+  /** Issues that have at least one request marked important. */
+  readonly customerImportant?: ReadonlySet<UUID> | undefined;
 }
 
 const ALWAYS: IssuePredicate = () => true;
@@ -225,6 +241,41 @@ function compileClause(clause: FilterClause, context: FilterContext): IssuePredi
       return compileEquality(clause, (issue) => issue.templateId, asText);
     case 'recurring':
       return compileEquality(clause, (issue) => issue.recurringIssueId !== undefined, asBoolean);
+
+    case 'customer':
+    case 'customerCount':
+    case 'customerStatus':
+    case 'customerTier':
+    case 'customerRevenue':
+    case 'customerSize':
+    case 'customerImportant':
+      if (context.hideCustomers === true) return NEVER;
+      return compileCustomerClause(clause, context);
+  }
+}
+
+function compileCustomerClause(clause: FilterClause, context: FilterContext): IssuePredicate {
+  switch (clause.field) {
+    case 'customer':
+      return compileMembership(clause, (issue) => context.customers?.get(issue.id));
+    case 'customerCount':
+      return compileOrdered(clause, (issue) => context.customerCount?.get(issue.id) ?? 0, asNumber);
+    case 'customerStatus':
+      return compileMembership(clause, (issue) => context.customerStatus?.get(issue.id));
+    case 'customerTier':
+      return compileRelatedText(clause, (issue) => context.customerTier?.get(issue.id));
+    case 'customerRevenue':
+      return compileRelatedNumbers(clause, (issue) => context.customerRevenue?.get(issue.id));
+    case 'customerSize':
+      return compileRelatedNumbers(clause, (issue) => context.customerSize?.get(issue.id));
+    case 'customerImportant':
+      return compileEquality(
+        clause,
+        (issue) => context.customerImportant?.has(issue.id) === true,
+        asBoolean,
+      );
+    default:
+      throw new FilterError('', `operator "${clause.op}" does not apply to ${clause.field}`);
   }
 }
 
@@ -379,7 +430,7 @@ function compileTextClause(clause: FilterClause, read: Read<string>): IssuePredi
  */
 function compileMembership(
   clause: FilterClause,
-  read: (issue: Issue) => ReadonlySet<UUID> | undefined,
+  read: (issue: Issue) => ReadonlySet<string> | undefined,
 ): IssuePredicate {
   switch (clause.op) {
     case 'eq': {
@@ -406,10 +457,102 @@ function compileMembership(
 }
 
 /**
+ * Related customer tiers: membership plus folded `contains`, matching the SQL EXISTS form.
+ *
+ * `notContains` means no related tier contains the needle, the same reading `label notIn`
+ * uses — "has some other tier" would match nearly every attributed issue.
+ */
+function compileRelatedText(
+  clause: FilterClause,
+  read: (issue: Issue) => ReadonlySet<string> | undefined,
+): IssuePredicate {
+  if (clause.op === 'contains' || clause.op === 'notContains') {
+    const needle = foldExact(single(clause));
+    const negated = clause.op === 'notContains';
+    return (issue) => {
+      const held = read(issue);
+      if (held === undefined || held.size === 0) return negated;
+      for (const value of held) {
+        if (foldExact(value).includes(needle)) return !negated;
+      }
+      return negated;
+    };
+  }
+  if (clause.op === 'isNull') {
+    return (issue) => {
+      const held = read(issue);
+      return held === undefined || held.size === 0;
+    };
+  }
+  if (clause.op === 'isNotNull') {
+    return (issue) => {
+      const held = read(issue);
+      return held !== undefined && held.size > 0;
+    };
+  }
+  return compileMembership(clause, read);
+}
+
+/**
+ * Related customer revenue/size: any related value matching is enough.
+ *
+ * `isNull` means no related customer has the attribute set — an issue with no customers,
+ * or with customers that left revenue blank.
+ */
+function compileRelatedNumbers(
+  clause: FilterClause,
+  read: (issue: Issue) => readonly number[] | undefined,
+): IssuePredicate {
+  const held = (issue: Issue): readonly number[] => read(issue) ?? [];
+  switch (clause.op) {
+    case 'isNull':
+      return (issue) => held(issue).length === 0;
+    case 'isNotNull':
+      return (issue) => held(issue).length > 0;
+    case 'eq': {
+      const wanted = asNumber(single(clause));
+      return (issue) => held(issue).includes(wanted);
+    }
+    case 'neq': {
+      const wanted = asNumber(single(clause));
+      return (issue) => !held(issue).includes(wanted);
+    }
+    case 'in': {
+      const wanted = parseSet(clause, asNumber);
+      if (wanted.size === 0) return NEVER;
+      return (issue) => held(issue).some((value) => wanted.has(value));
+    }
+    case 'notIn': {
+      const wanted = parseSet(clause, asNumber);
+      if (wanted.size === 0) return ALWAYS;
+      return (issue) => !held(issue).some((value) => wanted.has(value));
+    }
+    case 'gt': {
+      const bound = asNumber(single(clause));
+      return (issue) => held(issue).some((value) => value > bound);
+    }
+    case 'gte': {
+      const bound = asNumber(single(clause));
+      return (issue) => held(issue).some((value) => value >= bound);
+    }
+    case 'lt': {
+      const bound = asNumber(single(clause));
+      return (issue) => held(issue).some((value) => value < bound);
+    }
+    case 'lte': {
+      const bound = asNumber(single(clause));
+      return (issue) => held(issue).some((value) => value <= bound);
+    }
+    default:
+      throw new FilterError('', `operator "${clause.op}" does not apply to ${clause.field}`);
+  }
+}
+
+/**
  * Walks the wanted values rather than the issue's set: a clause names one or two labels
  * while an issue can carry a dozen, and `Set.has` is the cheap side of the pair.
  */
-function holdsAny(held: ReadonlySet<UUID> | undefined, wanted: readonly UUID[]): boolean {
+function holdsAny(held: ReadonlySet<string> | undefined, wanted: readonly string[]): boolean {
   if (held === undefined || held.size === 0) return false;
   for (const value of wanted) {
     if (held.has(value)) return true;

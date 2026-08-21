@@ -62,6 +62,8 @@ func TestValidate(t *testing.T) {
 		{name: "a relative keyword", json: `{"field":"updatedAt","op":"gte","values":["startOfWeek"]}`},
 		{name: "a due date takes a relative token too", json: `{"field":"dueDate","op":"lte","values":["+3d"]}`},
 		{name: "contains on text", json: `{"field":"description","op":"contains","values":["acao"]}`},
+		{name: "customer status", json: `{"field":"customerStatus","op":"eq","values":["churned"]}`},
+		{name: "customer count", json: `{"field":"customerCount","op":"gte","values":["2"]}`},
 
 		// Rejected. Each of these would otherwise widen the result set silently.
 		{name: "an unknown field", json: `{"field":"sprint","op":"eq","values":["x"]}`, wantErr: "unknown field"},
@@ -539,5 +541,28 @@ func TestRelativeDatesResolveAtEvaluationTime(t *testing.T) {
 	// at save time would give the same answer for the rest of its life.
 	if monday.Args[0].(time.Time).Equal(thursday.Args[0].(time.Time)) {
 		t.Fatalf("today resolved to the same instant three days apart: %v", monday.Args[0])
+	}
+}
+
+func TestHideCustomersMatchesNothing(t *testing.T) {
+	t.Parallel()
+
+	node, err := filter.Parse([]byte(`{"field":"customerCount","op":"eq","values":["0"]}`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	got, err := filter.Compile(node, filter.Options{HideCustomers: true})
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	if !strings.Contains(got.SQL, "false") {
+		t.Fatalf("a guest customer filter must compile to false, got %s", got.SQL)
+	}
+	shown, err := filter.Compile(node, filter.Options{})
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	if !strings.Contains(shown.SQL, "COUNT") {
+		t.Fatalf("a member customerCount filter must count requests, got %s", shown.SQL)
 	}
 }

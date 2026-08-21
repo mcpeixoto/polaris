@@ -65,6 +65,12 @@ identically, and there is a conformance case for it.
 | `archived`, `deleted` | bool | Default: both excluded unless a clause says otherwise |
 | `template` | uuid or null | Which template filed the issue |
 | `recurring` | bool | Whether the issue belongs to a recurring schedule |
+| `customer` | uuid | Customers attributed via a request. Multi: any of them matches |
+| `customerCount` | int | How many requests the issue has, unattributed ones included. Zero when none |
+| `customerStatus` | enum | `active` / `prospect` / `churned`. Any related customer |
+| `customerTier` | text | Workspace-defined plan name. Any related customer; `contains` folds |
+| `customerRevenue`, `customerSize` | int or null | Any related customer. Null means no related customer has the attribute |
+| `customerImportant` | bool | Whether any request on the issue is marked important |
 
 An unknown field is a **hard error**, not an ignored clause. Ignoring it would silently
 widen the result set, and a filter that silently matches more than it says is exactly the

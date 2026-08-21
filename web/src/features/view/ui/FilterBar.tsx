@@ -65,9 +65,11 @@ import {
   Tooltip,
   type MenuNode,
 } from '~/components';
+import { formatCustomerStatus } from '~/features/customers/mutations';
 import { browserTimezone } from '~/features/locale';
 import { whenDay } from '~/features/time';
 import {
+  CUSTOMER_STATUSES,
   EMPTY_FILTER,
   FILTER_FIELDS,
   FILTER_OPS,
@@ -89,6 +91,7 @@ import {
 } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
+import { useViewer } from '~/hooks/useViewer';
 import {
   CATEGORY_ORDER,
   type EntityType,
@@ -134,7 +137,16 @@ export interface FilterBarProps {
 type Path = readonly number[];
 
 /** The entity types a chip's wording or a picker's options can depend on. */
-const OPTION_DEPS: readonly EntityType[] = ['workflowState', 'user', 'label', 'team', 'issue'];
+const OPTION_DEPS: readonly EntityType[] = [
+  'workflowState',
+  'user',
+  'label',
+  'team',
+  'issue',
+  'customer',
+  'customerRequest',
+  'workspace',
+];
 
 /**
  * How many issues an issue picker offers at once.
@@ -154,6 +166,8 @@ export function FilterBar({
   className,
 }: FilterBarProps) {
   const zone = timezone ?? browserTimezone();
+  const viewer = useViewer();
+  const hideCustomers = viewer === null || viewer.role === 'guest';
   const root = useMemo(() => asGroup(filter), [filter]);
   const nodes = root.nodes ?? [];
 
@@ -220,7 +234,7 @@ export function FilterBar({
   };
 
   const addItems: MenuNode[] = [];
-  for (const group of fieldGroups()) {
+  for (const group of fieldGroups(hideCustomers)) {
     addItems.push({ kind: 'heading', label: group.heading });
     for (const field of group.fields) {
       addItems.push({
@@ -957,7 +971,7 @@ function newClause(field: FilterField): FilterClause {
 function scalarDefault(field: FilterField): string {
   switch (FILTER_FIELDS[field].type) {
     case 'enum':
-      return 'started';
+      return FILTER_FIELDS[field].enums?.[0] ?? 'started';
     case 'number':
       // Urgent for a priority, one point for an estimate. The two scales agree on the digit
       // by coincidence, and both are a plausible first thing to ask about.
@@ -1170,6 +1184,13 @@ const FIELD_LABELS: Readonly<Record<FilterField, string>> = {
   deleted: 'Deleted',
   template: 'Template',
   recurring: 'Recurring',
+  customer: 'Customer',
+  customerCount: 'Customer count',
+  customerStatus: 'Customer status',
+  customerTier: 'Customer tier',
+  customerRevenue: 'Customer revenue',
+  customerSize: 'Customer size',
+  customerImportant: 'Important request',
 };
 
 /** Said in the add menu where the label alone would leave a real question open. */
@@ -1179,6 +1200,8 @@ const FIELD_HINTS: Partial<Record<FilterField, string>> = {
   archived: 'Hidden by default',
   deleted: 'Hidden by default',
   recurring: 'Minted on a schedule',
+  customerCount: 'Requests on the issue',
+  customerImportant: 'At least one request marked important',
 };
 
 /** What a uuid reads as when the store has never seen it. */
@@ -1193,6 +1216,7 @@ const UNKNOWN_ENTITY: Partial<Record<FilterField, string>> = {
   blockedBy: 'an unknown issue',
   blocking: 'an unknown issue',
   template: 'an unknown template',
+  customer: 'an unknown customer',
 };
 
 interface FieldGroup {
@@ -1210,7 +1234,29 @@ const GROUPED_FIELDS: readonly FieldGroup[] = [
   { heading: 'Text', fields: ['title', 'description'] },
   { heading: 'Relationships', fields: ['parent', 'blockedBy', 'blocking'] },
   { heading: 'Lifecycle', fields: ['archived', 'deleted', 'recurring'] },
+  {
+    heading: 'Customers',
+    fields: [
+      'customer',
+      'customerCount',
+      'customerStatus',
+      'customerTier',
+      'customerRevenue',
+      'customerSize',
+      'customerImportant',
+    ],
+  },
 ];
+
+const CUSTOMER_FIELDS = new Set<FilterField>([
+  'customer',
+  'customerCount',
+  'customerStatus',
+  'customerTier',
+  'customerRevenue',
+  'customerSize',
+  'customerImportant',
+]);
 
 /**
  * The groups, plus anything the grammar has grown that this file has not been told about.
@@ -1219,18 +1265,29 @@ const GROUPED_FIELDS: readonly FieldGroup[] = [
  * which is the kind of gap nobody finds for a year. Landing under "Other" is not a good
  * home; it is a visible one.
  */
-function fieldGroups(): readonly FieldGroup[] {
-  const placed = new Set(GROUPED_FIELDS.flatMap((group) => group.fields));
-  const rest = (Object.keys(FILTER_FIELDS) as FilterField[]).filter((field) => !placed.has(field));
-  return rest.length === 0
-    ? GROUPED_FIELDS
-    : [...GROUPED_FIELDS, { heading: 'Other', fields: rest }];
+function fieldGroups(hideCustomers: boolean): readonly FieldGroup[] {
+  const groups = hideCustomers
+    ? GROUPED_FIELDS.filter((group) => group.heading !== 'Customers')
+    : GROUPED_FIELDS;
+  const placed = new Set(groups.flatMap((group) => group.fields));
+  const rest = (Object.keys(FILTER_FIELDS) as FilterField[]).filter((field) => {
+    if (placed.has(field)) return false;
+    if (hideCustomers && CUSTOMER_FIELDS.has(field)) return false;
+    return true;
+  });
+  return rest.length === 0 ? groups : [...groups, { heading: 'Other', fields: rest }];
 }
 
 /** Whether the field's values come from a list rather than from the keyboard. */
 function isEnumerable(field: FilterField): boolean {
   const type = FILTER_FIELDS[field].type;
-  return type === 'uuid' || type === 'enum' || type === 'boolean' || field === 'priority';
+  return (
+    type === 'uuid' ||
+    type === 'enum' ||
+    type === 'boolean' ||
+    field === 'priority' ||
+    field === 'customerTier'
+  );
 }
 
 function inputTypeOf(type: FilterValueType): string {
@@ -1326,6 +1383,8 @@ function entityName(store: Store, field: FilterField, id: UUID): string | null {
       return store.get('team', id)?.name ?? null;
     case 'template':
       return store.get('issueTemplate', id)?.name ?? null;
+    case 'customer':
+      return store.get('customer', id)?.name ?? null;
     case 'parent':
     case 'blockedBy':
     case 'blocking': {
@@ -1359,12 +1418,18 @@ function useValueOptions(
     [field, teamId ?? '', search, chosen],
   );
   const fixed = useMemo(() => staticOptions(field), [field]);
-  return FILTER_FIELDS[field].type === 'uuid' ? stored : fixed;
+  return FILTER_FIELDS[field].type === 'uuid' || field === 'customerTier' ? stored : fixed;
 }
 
 function staticOptions(field: FilterField): readonly ValueOption[] {
   switch (FILTER_FIELDS[field].type) {
     case 'enum':
+      if (field === 'customerStatus') {
+        return CUSTOMER_STATUSES.map((status) => ({
+          id: status,
+          label: formatCustomerStatus(status),
+        }));
+      }
       return (Object.keys(CATEGORY_ORDER) as StateCategory[]).map((category) => ({
         id: category,
         label: STATE_LABELS[category],
@@ -1392,7 +1457,7 @@ function storeOptions(
   search: string,
   values: readonly string[],
 ): ValueOption[] {
-  if (FILTER_FIELDS[field].type !== 'uuid') return [];
+  if (FILTER_FIELDS[field].type !== 'uuid' && field !== 'customerTier') return [];
 
   const chosen: ValueOption[] = [];
   for (const id of values) {
@@ -1494,6 +1559,24 @@ function candidates(
           label: template.name,
           hint: template.teamId === undefined ? undefined : teamName(store, template.teamId),
         }));
+    }
+    case 'customer':
+      return [...store.customers.values()]
+        .filter((customer) => customer.archivedAt === undefined && customer.deletedAt === undefined)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((customer) => ({
+          id: customer.id,
+          label: customer.name,
+          hint: customer.tier,
+        }));
+    case 'customerTier': {
+      const named = new Set<string>([...store.workspaces.values()][0]?.customerTiers ?? []);
+      for (const customer of store.customers.values()) {
+        if (customer.tier !== undefined && customer.tier !== '') named.add(customer.tier);
+      }
+      return [...named]
+        .sort((a, b) => a.localeCompare(b))
+        .map((tier) => ({ id: tier, label: tier }));
     }
     case 'parent':
     case 'blockedBy':
