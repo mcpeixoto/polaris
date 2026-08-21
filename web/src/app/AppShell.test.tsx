@@ -251,6 +251,7 @@ describe('the settings section', () => {
       'Templates',
       'API keys',
       'Sessions',
+      'Authorised apps',
       'MCP',
       'Asks',
       'Customer requests',

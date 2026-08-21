@@ -988,6 +988,28 @@ type AccountSession {
   expiresAt: Time!
 }
 
+"""
+A third-party application this person has authorised in this workspace.
+
+Grouped by application: several live tokens for the same app are one row. Tokens
+and secrets are never on this type. Authorisations are not replicated — they belong
+to a person, and putting them in every device's IndexedDB would copy a credential
+inventory onto every laptop.
+"""
+type AuthorisedOauthApp {
+  """The OAuth application's id, not a token id."""
+  id: UUID!
+  name: String!
+  clientId: String!
+  imageUrl: String
+  developer: String
+  """The union of scopes still granted by live tokens."""
+  scopes: [String!]!
+  lastUsedAt: Time
+  """When this person first authorised the application."""
+  createdAt: Time!
+}
+
 type SearchResults {
   issues: [Issue!]!
   comments: [Comment!]!
@@ -3288,6 +3310,12 @@ type Query {
   """The caller's own live sessions. Never anybody else's, and never the tokens."""
   accountSessions: [AccountSession!]!
 
+  """
+  Third-party applications this person has authorised in this workspace. Never anybody
+  else's, and never the tokens.
+  """
+  authorisedOauthApps: [AuthorisedOauthApp!]!
+
   """Workspace webhooks. Admins only; the signing secret is never returned."""
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
@@ -3491,6 +3519,11 @@ type Mutation {
   setUserRole(userId: UUID!, role: UserRole!): UserPayload!
   suspendUser(userId: UUID!, suspended: Boolean!): UserPayload!
   removeUser(userId: UUID!): DeletePayload!
+  """
+  Leave this workspace. The last owner cannot: somebody has to remain who can invite,
+  change a role, or manage billing. Work stays attributed. Returns the caller's user id.
+  """
+  leaveWorkspace: DeletePayload!
   updateNotificationPrefs(prefs: JSON!): UserPayload!
 
   updateWorkspace(input: UpdateWorkspaceInput!): WorkspacePayload!
@@ -3686,6 +3719,11 @@ type Mutation {
   revokeAccountSession(id: UUID!): DeletePayload!
   """Revoke every other live session, keeping the one making this request. Returns that session's id."""
   revokeOtherSessions: DeletePayload!
+  """
+  Revoke every live token this person granted to one application in this workspace.
+  A foreign or already-revoked id is not-found. Returns the application id.
+  """
+  revokeAuthorisedOauthApp(id: UUID!): DeletePayload!
 
   """Returns the signing secret exactly once."""
   createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!

@@ -1571,6 +1571,19 @@ func (r *mutationResolver) RemoveUser(ctx context.Context, userID uuid.UUID) (*g
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// LeaveWorkspace is the resolver for the leaveWorkspace field.
+func (r *mutationResolver) LeaveWorkspace(ctx context.Context) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	id, version, err := r.Svc.LeaveWorkspace(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // UpdateNotificationPrefs is the resolver for the updateNotificationPrefs field.
 func (r *mutationResolver) UpdateNotificationPrefs(ctx context.Context, prefs json.RawMessage) (*generated.UserPayload, error) {
 	p, err := principalFrom(ctx)
@@ -3594,6 +3607,19 @@ func (r *mutationResolver) RevokeOtherSessions(ctx context.Context) (*generated.
 	return &generated.DeletePayload{Version: int(version), ID: kept}, nil
 }
 
+// RevokeAuthorisedOauthApp is the resolver for the revokeAuthorisedOauthApp field.
+func (r *mutationResolver) RevokeAuthorisedOauthApp(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	appID, version, err := r.Svc.RevokeAuthorisedOauthApp(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: appID}, nil
+}
+
 // CreateWebhook is the resolver for the createWebhook field.
 func (r *mutationResolver) CreateWebhook(ctx context.Context, input generated.CreateWebhookInput) (*generated.WebhookCreatePayload, error) {
 	p, err := principalFrom(ctx)
@@ -5122,6 +5148,19 @@ func (r *queryResolver) AccountSessions(ctx context.Context) ([]generated.Accoun
 		return nil, PresentError(ctx, err)
 	}
 	return toAccountSessions(rows), nil
+}
+
+// AuthorisedOauthApps is the resolver for the authorisedOauthApps field.
+func (r *queryResolver) AuthorisedOauthApps(ctx context.Context) ([]generated.AuthorisedOauthApp, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListAuthorisedOauthApps(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toAuthorisedOauthApps(rows), nil
 }
 
 // Webhooks is the resolver for the webhooks field.

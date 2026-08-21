@@ -203,6 +203,47 @@ UPDATE oauth_token SET last_used_at = now()
 WHERE id = $1
   AND (last_used_at IS NULL OR last_used_at < now() - interval '1 minute');
 
+-- Live tokens this person granted in this workspace, excluding client-credentials
+-- (those authenticate as the app, not as a member who authorised it). Hashes stay
+-- off the SELECT list the same way they stay off every other listing: a settings
+-- screen that could show a token would be a settings screen that could steal one.
+--
+-- name: ListLiveOauthTokensForUser :many
+SELECT
+  a.id AS application_id,
+  a.name,
+  a.client_id,
+  a.image_url,
+  a.developer,
+  t.scopes,
+  t.last_used_at,
+  t.created_at
+FROM oauth_token t
+INNER JOIN oauth_application a ON a.id = t.application_id
+WHERE t.workspace_id = sqlc.arg(workspace_id)
+  AND t.revoked_at IS NULL
+  AND t.grant_type <> 'client_credentials'
+  AND (
+    t.authorizing_user_id = sqlc.arg(user_id)
+    OR (t.authorizing_user_id IS NULL AND t.user_id = sqlc.arg(user_id))
+  )
+  AND (
+    t.access_expires_at > now()
+    OR (t.refresh_expires_at IS NOT NULL AND t.refresh_expires_at > now())
+  )
+ORDER BY a.name, t.created_at DESC;
+
+-- name: RevokeOauthTokensForUserApplication :execrows
+UPDATE oauth_token SET revoked_at = now()
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND application_id = sqlc.arg(application_id)
+  AND revoked_at IS NULL
+  AND grant_type <> 'client_credentials'
+  AND (
+    authorizing_user_id = sqlc.arg(user_id)
+    OR (authorizing_user_id IS NULL AND user_id = sqlc.arg(user_id))
+  );
+
 -- name: GetOauthAppUser :one
 SELECT application_id, workspace_id, user_id, created_at
 FROM oauth_app_user

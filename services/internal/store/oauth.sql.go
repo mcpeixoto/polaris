@@ -791,6 +791,81 @@ func (q *Queries) ListLiveClientCredentialsTokens(ctx context.Context, applicati
 	return items, nil
 }
 
+const listLiveOauthTokensForUser = `-- name: ListLiveOauthTokensForUser :many
+SELECT
+  a.id AS application_id,
+  a.name,
+  a.client_id,
+  a.image_url,
+  a.developer,
+  t.scopes,
+  t.last_used_at,
+  t.created_at
+FROM oauth_token t
+INNER JOIN oauth_application a ON a.id = t.application_id
+WHERE t.workspace_id = $1
+  AND t.revoked_at IS NULL
+  AND t.grant_type <> 'client_credentials'
+  AND (
+    t.authorizing_user_id = $2
+    OR (t.authorizing_user_id IS NULL AND t.user_id = $2)
+  )
+  AND (
+    t.access_expires_at > now()
+    OR (t.refresh_expires_at IS NOT NULL AND t.refresh_expires_at > now())
+  )
+ORDER BY a.name, t.created_at DESC
+`
+
+type ListLiveOauthTokensForUserParams struct {
+	WorkspaceID uuid.UUID
+	UserID      *uuid.UUID
+}
+
+type ListLiveOauthTokensForUserRow struct {
+	ApplicationID uuid.UUID
+	Name          string
+	ClientID      string
+	ImageUrl      *string
+	Developer     *string
+	Scopes        []string
+	LastUsedAt    *time.Time
+	CreatedAt     time.Time
+}
+
+// Live tokens this person granted in this workspace, excluding client-credentials
+// (those authenticate as the app, not as a member who authorised it). Hashes stay
+// off the SELECT list the same way they stay off every other listing: a settings
+// screen that could show a token would be a settings screen that could steal one.
+func (q *Queries) ListLiveOauthTokensForUser(ctx context.Context, arg ListLiveOauthTokensForUserParams) ([]ListLiveOauthTokensForUserRow, error) {
+	rows, err := q.db.Query(ctx, listLiveOauthTokensForUser, arg.WorkspaceID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLiveOauthTokensForUserRow{}
+	for rows.Next() {
+		var i ListLiveOauthTokensForUserRow
+		if err := rows.Scan(
+			&i.ApplicationID,
+			&i.Name,
+			&i.ClientID,
+			&i.ImageUrl,
+			&i.Developer,
+			&i.Scopes,
+			&i.LastUsedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOauthApplicationsForWorkspace = `-- name: ListOauthApplicationsForWorkspace :many
 SELECT id, workspace_id, creator_id, name, description, developer, developer_url, image_url,
        client_id, client_secret_prefix, redirect_uris, allowed_scopes,
@@ -951,6 +1026,32 @@ WHERE application_id = $1 AND revoked_at IS NULL
 
 func (q *Queries) RevokeOauthTokensForApplication(ctx context.Context, applicationID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeOauthTokensForApplication, applicationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeOauthTokensForUserApplication = `-- name: RevokeOauthTokensForUserApplication :execrows
+UPDATE oauth_token SET revoked_at = now()
+WHERE workspace_id = $1
+  AND application_id = $2
+  AND revoked_at IS NULL
+  AND grant_type <> 'client_credentials'
+  AND (
+    authorizing_user_id = $3
+    OR (authorizing_user_id IS NULL AND user_id = $3)
+  )
+`
+
+type RevokeOauthTokensForUserApplicationParams struct {
+	WorkspaceID   uuid.UUID
+	ApplicationID uuid.UUID
+	UserID        *uuid.UUID
+}
+
+func (q *Queries) RevokeOauthTokensForUserApplication(ctx context.Context, arg RevokeOauthTokensForUserApplicationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeOauthTokensForUserApplication, arg.WorkspaceID, arg.ApplicationID, arg.UserID)
 	if err != nil {
 		return 0, err
 	}
