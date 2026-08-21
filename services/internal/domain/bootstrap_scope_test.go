@@ -58,6 +58,9 @@ type scene struct {
 	openInitiative                                uuid.UUID
 	openInitiativeProject                         uuid.UUID
 	openInitiativeUpdate                          uuid.UUID
+	openInitiativeLabel                           uuid.UUID
+	openInitiativeLabelLink                       uuid.UUID
+	openInitiativeRelation                        uuid.UUID
 	openCustomer                                  uuid.UUID
 	openCustomerRequest                           uuid.UUID
 	openSlaRule                                   uuid.UUID
@@ -305,6 +308,30 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		t.Fatalf("create the initiative update: %v", err)
 	}
 	s.openInitiativeUpdate = initUpdate.ID
+
+	il, _, err := svc.CreateInitiativeLabel(ctx, s.alice, domain.CreateInitiativeLabelInput{
+		Name: "Region",
+	})
+	if err != nil {
+		t.Fatalf("create the initiative label: %v", err)
+	}
+	s.openInitiativeLabel = il.ID
+	ill, _, err := svc.AddInitiativeLabel(ctx, s.alice, init.ID, il.ID)
+	if err != nil {
+		t.Fatalf("apply the initiative label: %v", err)
+	}
+	s.openInitiativeLabelLink = ill.ID
+	child, _, err := svc.CreateInitiative(ctx, s.alice, domain.CreateInitiativeInput{
+		Name: "Reliability nested",
+	})
+	if err != nil {
+		t.Fatalf("create the nested initiative: %v", err)
+	}
+	rel, _, err := svc.AddInitiativeRelation(ctx, s.alice, init.ID, child.ID)
+	if err != nil {
+		t.Fatalf("nest the initiative: %v", err)
+	}
+	s.openInitiativeRelation = rel.ID
 
 	cust, _, err := svc.CreateCustomer(ctx, s.alice, domain.CreateCustomerInput{Name: "Acme"})
 	if err != nil {
@@ -675,6 +702,9 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "initiative", s.openInitiative},
 		{bobName, "initiativeProject", s.openInitiativeProject},
 		{bobName, "initiativeUpdate", s.openInitiativeUpdate},
+		{bobName, "initiativeLabel", s.openInitiativeLabel},
+		{bobName, "initiativeLabelLink", s.openInitiativeLabelLink},
+		{bobName, "initiativeRelation", s.openInitiativeRelation},
 		{bobName, "customer", s.openCustomer},
 		{bobName, "customerRequest", s.openCustomerRequest},
 		{bobName, "slaRule", s.openSlaRule},
@@ -694,6 +724,9 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{gretaName, "initiative", s.openInitiative},
 		{gretaName, "initiativeProject", s.openInitiativeProject},
 		{gretaName, "initiativeUpdate", s.openInitiativeUpdate},
+		{gretaName, "initiativeLabel", s.openInitiativeLabel},
+		{gretaName, "initiativeLabelLink", s.openInitiativeLabelLink},
+		{gretaName, "initiativeRelation", s.openInitiativeRelation},
 		{samName, "label", s.workspaceLabel},
 		{samName, "issueTemplate", s.workspaceTemplate},
 		{samName, "view", s.workspaceView},
@@ -787,6 +820,12 @@ func TestStreamBootstrap_CarriesEveryReplicatedTypeInTheClientsOrder(t *testing.
 	}
 	if position(order.types, "projectLabelLink") < position(order.types, "projectLabel") {
 		t.Error("project label applications are emitted before the project labels they name")
+	}
+	if position(order.types, "initiativeLabelLink") < position(order.types, "initiativeLabel") {
+		t.Error("initiative label applications are emitted before the initiative labels they name")
+	}
+	if position(order.types, "initiativeRelation") < position(order.types, "initiative") {
+		t.Error("initiative relations are emitted before the initiatives they name")
 	}
 }
 

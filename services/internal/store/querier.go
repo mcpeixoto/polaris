@@ -21,6 +21,7 @@ type Querier interface {
 	// there would read as the drag not having worked.
 	//
 	AddFavorite(ctx context.Context, arg AddFavoriteParams) (Favorite, error)
+	AddInitiativeLabelLink(ctx context.Context, arg AddInitiativeLabelLinkParams) (InitiativeLabelLink, error)
 	// team_id and group_id are never supplied by a caller: issue_label_denormalise fills them
 	// from the issue and the label, and rejects a label the issue's team cannot use. They are
 	// still in every RETURNING list because the sync hub judges visibility from them and the
@@ -81,6 +82,7 @@ type Querier interface {
 	ArchiveDocument(ctx context.Context, id uuid.UUID) error
 	ArchiveFormTemplate(ctx context.Context, id uuid.UUID) (ArchiveFormTemplateRow, error)
 	ArchiveInitiative(ctx context.Context, id uuid.UUID) error
+	ArchiveInitiativeLabel(ctx context.Context, id uuid.UUID) (ArchiveInitiativeLabelRow, error)
 	ArchiveIssue(ctx context.Context, id uuid.UUID) error
 	// Archived rather than deleted: issue.template_id references this row, and the question
 	// that column exists to answer — "is this template still worth having" — needs the
@@ -210,6 +212,7 @@ type Querier interface {
 	//
 	CountBlockingIssues(ctx context.Context, relatedIssueID uuid.UUID) (int64, error)
 	CountChildTeams(ctx context.Context, teamID *uuid.UUID) (int64, error)
+	CountInitiativesWithInitiativeLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
 	CountIssuesFromFormTemplate(ctx context.Context, formTemplateID *uuid.UUID) (int64, error)
 	// CountIssuesFromTemplate is the only reason issue.template_id exists.
 	//
@@ -308,7 +311,11 @@ type Querier interface {
 	CreateGitLabConnection(ctx context.Context, arg CreateGitLabConnectionParams) (CreateGitLabConnectionRow, error)
 	CreateGitLabUserLink(ctx context.Context, arg CreateGitLabUserLinkParams) (GitlabUserLink, error)
 	CreateInitiative(ctx context.Context, arg CreateInitiativeParams) (Initiative, error)
+	// Initiative labels and their applications to initiatives.
+	CreateInitiativeLabel(ctx context.Context, arg CreateInitiativeLabelParams) (CreateInitiativeLabelRow, error)
 	CreateInitiativeProject(ctx context.Context, arg CreateInitiativeProjectParams) (InitiativeProject, error)
+	// Sub-initiative parent/child links.
+	CreateInitiativeRelation(ctx context.Context, arg CreateInitiativeRelationParams) (InitiativeRelation, error)
 	CreateInitiativeUpdate(ctx context.Context, arg CreateInitiativeUpdateParams) (InitiativeUpdate, error)
 	CreateIntegrationSubmission(ctx context.Context, arg CreateIntegrationSubmissionParams) (IntegrationSubmission, error)
 	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
@@ -400,6 +407,7 @@ type Querier interface {
 	DeleteGitLabTeamAutomation(ctx context.Context, arg DeleteGitLabTeamAutomationParams) error
 	DeleteGitLabUserLink(ctx context.Context, arg DeleteGitLabUserLinkParams) error
 	DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
+	DeleteInitiativeRelation(ctx context.Context, id uuid.UUID) (InitiativeRelation, error)
 	// The remainder after RetargetIssueLabels: issues that already carried the survivor, so
 	// the source application is dropped rather than doubled.
 	//
@@ -455,6 +463,7 @@ type Querier interface {
 	GetAPIKeyByTokenHash(ctx context.Context, tokenHash []byte) (GetAPIKeyByTokenHashRow, error)
 	GetAccount(ctx context.Context, id uuid.UUID) (Account, error)
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
+	GetArchivedInitiativeLabel(ctx context.Context, id uuid.UUID) (GetArchivedInitiativeLabelRow, error)
 	// GetArchivedLabel reads a label the ordinary path treats as gone.
 	//
 	// Only the unarchive uses it. loadLabel refuses an archived row on purpose — it is absent
@@ -505,8 +514,12 @@ type Querier interface {
 	GetInboundEmailByMessageID(ctx context.Context, arg GetInboundEmailByMessageIDParams) (InboundEmail, error)
 	GetInitiative(ctx context.Context, id uuid.UUID) (Initiative, error)
 	GetInitiativeForUpdate(ctx context.Context, id uuid.UUID) (Initiative, error)
+	GetInitiativeLabel(ctx context.Context, id uuid.UUID) (GetInitiativeLabelRow, error)
+	GetInitiativeLabelPositionAfter(ctx context.Context, arg GetInitiativeLabelPositionAfterParams) (string, error)
 	GetInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
 	GetInitiativeProjectByPair(ctx context.Context, arg GetInitiativeProjectByPairParams) (InitiativeProject, error)
+	GetInitiativeRelation(ctx context.Context, id uuid.UUID) (InitiativeRelation, error)
+	GetInitiativeRelationByPair(ctx context.Context, arg GetInitiativeRelationByPairParams) (InitiativeRelation, error)
 	GetInitiativeUpdate(ctx context.Context, id uuid.UUID) (InitiativeUpdate, error)
 	GetInitiativeUpdateForUpdate(ctx context.Context, id uuid.UUID) (InitiativeUpdate, error)
 	GetInviteByTokenHash(ctx context.Context, tokenHash []byte) (Invite, error)
@@ -544,6 +557,7 @@ type Querier interface {
 	GetLabelPositionBefore(ctx context.Context, arg GetLabelPositionBeforeParams) (string, error)
 	GetLastFavoritePosition(ctx context.Context, userID uuid.UUID) (string, error)
 	GetLastFormTemplatePosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
+	GetLastInitiativeLabelPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetLastIssueTemplatePosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	GetLastLabelPosition(ctx context.Context, arg GetLastLabelPositionParams) (string, error)
 	GetLastProjectLabelPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -655,6 +669,7 @@ type Querier interface {
 	LastDocumentSortOrderForProject(ctx context.Context, projectID *uuid.UUID) (string, error)
 	LastDocumentSortOrderForTeam(ctx context.Context, teamID uuid.UUID) (string, error)
 	LastFormTemplateFieldSortOrder(ctx context.Context, formTemplateID uuid.UUID) (string, error)
+	LastInitiativeRelationSort(ctx context.Context, parentInitiativeID uuid.UUID) (string, error)
 	LastInitiativeSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastProjectMilestoneSortOrder(ctx context.Context, projectID uuid.UUID) (string, error)
 	LastProjectSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -770,8 +785,12 @@ type Querier interface {
 	ListFormTemplateFields(ctx context.Context, formTemplateID uuid.UUID) ([]FormTemplateField, error)
 	ListFormTemplatesForTeam(ctx context.Context, arg ListFormTemplatesForTeamParams) ([]ListFormTemplatesForTeamRow, error)
 	ListFormTemplatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListFormTemplatesInWorkspaceRow, error)
+	ListInitiativeLabelLinks(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeLabelLink, error)
+	ListInitiativeLabelsInGroup(ctx context.Context, parentID *uuid.UUID) ([]ListInitiativeLabelsInGroupRow, error)
+	ListInitiativeLabelsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListInitiativeLabelsInWorkspaceRow, error)
 	ListInitiativeProjectIDs(ctx context.Context, initiativeID uuid.UUID) ([]uuid.UUID, error)
 	ListInitiativeProjects(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeProject, error)
+	ListInitiativeRelationsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]InitiativeRelation, error)
 	ListInitiativeUpdatesForInitiative(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeUpdate, error)
 	ListInitiativesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Initiative, error)
 	ListIntegrationSubmissions(ctx context.Context, workspaceID uuid.UUID) ([]IntegrationSubmission, error)
@@ -1092,6 +1111,7 @@ type Querier interface {
 	// stream needs.
 	//
 	RemoveFavorite(ctx context.Context, arg RemoveFavoriteParams) (Favorite, error)
+	RemoveInitiativeLabelLink(ctx context.Context, arg RemoveInitiativeLabelLinkParams) (InitiativeLabelLink, error)
 	// Returns the row it removed rather than a count, because the change stream needs the id
 	// of the entity that disappeared and the caller only knows the issue and the label.
 	//
@@ -1282,9 +1302,17 @@ type Querier interface {
 	StreamGitHubUserLinksForBootstrap(ctx context.Context, arg StreamGitHubUserLinksForBootstrapParams) ([]StreamGitHubUserLinksForBootstrapRow, error)
 	StreamGitLabConnectionsForBootstrap(ctx context.Context, arg StreamGitLabConnectionsForBootstrapParams) ([]StreamGitLabConnectionsForBootstrapRow, error)
 	StreamGitLabUserLinksForBootstrap(ctx context.Context, arg StreamGitLabUserLinksForBootstrapParams) ([]GitlabUserLink, error)
+	// StreamInitiativeLabelLinksForBootstrap: only applications on initiatives the principal can see.
+	//
+	StreamInitiativeLabelLinksForBootstrap(ctx context.Context, arg StreamInitiativeLabelLinksForBootstrapParams) ([]InitiativeLabelLink, error)
+	StreamInitiativeLabelsForBootstrap(ctx context.Context, arg StreamInitiativeLabelsForBootstrapParams) ([]StreamInitiativeLabelsForBootstrapRow, error)
 	// StreamInitiativeProjectsForBootstrap: both the initiative and the project must be visible.
 	//
 	StreamInitiativeProjectsForBootstrap(ctx context.Context, arg StreamInitiativeProjectsForBootstrapParams) ([]InitiativeProject, error)
+	// StreamInitiativeRelationsForBootstrap: both ends must be visible, or the row names an
+	// initiative the replica does not hold.
+	//
+	StreamInitiativeRelationsForBootstrap(ctx context.Context, arg StreamInitiativeRelationsForBootstrapParams) ([]InitiativeRelation, error)
 	// StreamInitiativeUpdatesForBootstrap: visible when the initiative is visible.
 	//
 	StreamInitiativeUpdatesForBootstrap(ctx context.Context, arg StreamInitiativeUpdatesForBootstrapParams) ([]InitiativeUpdate, error)
@@ -1478,6 +1506,7 @@ type Querier interface {
 	UnarchiveDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	UnarchiveFormTemplate(ctx context.Context, id uuid.UUID) (UnarchiveFormTemplateRow, error)
 	UnarchiveInitiative(ctx context.Context, id uuid.UUID) (Initiative, error)
+	UnarchiveInitiativeLabel(ctx context.Context, id uuid.UUID) (UnarchiveInitiativeLabelRow, error)
 	UnarchiveIssue(ctx context.Context, id uuid.UUID) error
 	// UnarchiveIssueTemplate returns the row for the reason UnarchiveLabel does: the archive
 	// reached every client as a delete, so only a payload can put it back.
@@ -1529,6 +1558,7 @@ type Querier interface {
 	UpdateGitLabConnection(ctx context.Context, arg UpdateGitLabConnectionParams) (UpdateGitLabConnectionRow, error)
 	UpdateGitLabUserLink(ctx context.Context, arg UpdateGitLabUserLinkParams) (GitlabUserLink, error)
 	UpdateInitiative(ctx context.Context, arg UpdateInitiativeParams) (Initiative, error)
+	UpdateInitiativeLabel(ctx context.Context, arg UpdateInitiativeLabelParams) (UpdateInitiativeLabelRow, error)
 	UpdateInitiativeUpdate(ctx context.Context, arg UpdateInitiativeUpdateParams) (InitiativeUpdate, error)
 	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (UpdateIssueRow, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error

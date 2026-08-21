@@ -38,6 +38,9 @@ import {
   type Initiative,
   type InitiativeProject,
   type InitiativeUpdate,
+  type InitiativeLabel,
+  type InitiativeLabelLink,
+  type InitiativeRelation,
   type ProjectUpdate,
   type PulseFeed,
   type ProjectDependency,
@@ -145,10 +148,12 @@ import {
  * v48 adds initiativeUpdate (health plus narrative status posts on initiatives).
  * v49 adds workspace.customerRequestsEnabled / customerDefaultTeamId /
  * customerRevenueUnit / customerTiers.
- * v50 is reserved for a concurrent slice (initiative labels).
+ * v50 is reserved for a concurrent slice (initiative labels) and was left unused.
  * v51 adds issueTemplate.subIssues (children filed with the issue).
+ * v52 adds initiativeLabel, initiativeLabelLink and initiativeRelation
+ * (initiative labels with groups, and sub-initiative nests).
  */
-export const CLIENT_SCHEMA = 51;
+export const CLIENT_SCHEMA = 52;
 
 /**
  * One database per workspace per schema version.
@@ -250,6 +255,9 @@ interface PolarisSchema extends DBSchema {
   initiative: { key: UUID; value: Initiative };
   initiativeProject: { key: UUID; value: InitiativeProject };
   initiativeUpdate: { key: UUID; value: InitiativeUpdate };
+  initiativeLabel: { key: UUID; value: InitiativeLabel };
+  initiativeLabelLink: { key: UUID; value: InitiativeLabelLink };
+  initiativeRelation: { key: UUID; value: InitiativeRelation };
   projectUpdate: { key: UUID; value: ProjectUpdate };
   pulseFeed: { key: UUID; value: PulseFeed };
   projectDependency: { key: UUID; value: ProjectDependency };

@@ -13,6 +13,8 @@ import {
   LabelIndex,
   NotificationIndex,
   ProjectLabelIndex,
+  InitiativeLabelIndex,
+  InitiativeRelationIndex,
   RelationIndex,
   SetIndex,
 } from './indexes';
@@ -57,6 +59,9 @@ import {
   type Initiative,
   type InitiativeProject,
   type InitiativeUpdate,
+  type InitiativeLabel,
+  type InitiativeLabelLink,
+  type InitiativeRelation,
   type ProjectUpdate,
   type PulseFeed,
   type ProjectDependency,
@@ -199,6 +204,9 @@ export class Store {
     initiative: new Map(),
     initiativeProject: new Map(),
     initiativeUpdate: new Map(),
+    initiativeLabel: new Map(),
+    initiativeLabelLink: new Map(),
+    initiativeRelation: new Map(),
     projectUpdate: new Map(),
     pulseFeed: new Map(),
     projectDependency: new Map(),
@@ -227,6 +235,8 @@ export class Store {
   /** Public for the same reason: a filtered list resolves every row's labels per frame. */
   readonly labelIndex = new LabelIndex();
   readonly projectLabelIndex = new ProjectLabelIndex();
+  readonly initiativeLabelIndex = new InitiativeLabelIndex();
+  readonly initiativeRelationIndex = new InitiativeRelationIndex();
   readonly relationIndex = new RelationIndex();
   readonly notificationIndex = new NotificationIndex();
 
@@ -458,6 +468,18 @@ export class Store {
     return this.tables.initiativeUpdate as ReadonlyMap<UUID, InitiativeUpdate>;
   }
 
+  get initiativeLabels(): ReadonlyMap<UUID, InitiativeLabel> {
+    return this.tables.initiativeLabel as ReadonlyMap<UUID, InitiativeLabel>;
+  }
+
+  get initiativeLabelLinks(): ReadonlyMap<UUID, InitiativeLabelLink> {
+    return this.tables.initiativeLabelLink as ReadonlyMap<UUID, InitiativeLabelLink>;
+  }
+
+  get initiativeRelations(): ReadonlyMap<UUID, InitiativeRelation> {
+    return this.tables.initiativeRelation as ReadonlyMap<UUID, InitiativeRelation>;
+  }
+
   get projectUpdates(): ReadonlyMap<UUID, ProjectUpdate> {
     return this.tables.projectUpdate as ReadonlyMap<UUID, ProjectUpdate>;
   }
@@ -625,6 +647,26 @@ export class Store {
 
   initiativeUpdateIdsFor(initiativeId: UUID): ReadonlySet<UUID> {
     return this.initiativeUpdateOf.get(initiativeId);
+  }
+
+  initiativeLabelIdsFor(initiativeId: UUID): ReadonlySet<UUID> {
+    return this.initiativeLabelIndex.labelIdsFor(initiativeId);
+  }
+
+  initiativeIdsWithInitiativeLabel(labelId: UUID): ReadonlySet<UUID> {
+    return this.initiativeLabelIndex.initiativeIdsWith(labelId);
+  }
+
+  initiativeLabelLinkIdsFor(initiativeId: UUID): ReadonlySet<UUID> {
+    return this.initiativeLabelIndex.rowIdsForInitiative(initiativeId);
+  }
+
+  initiativeChildIdsFor(parentId: UUID): ReadonlySet<UUID> {
+    return this.initiativeRelationIndex.childIdsFor(parentId);
+  }
+
+  initiativeParentIdsFor(childId: UUID): ReadonlySet<UUID> {
+    return this.initiativeRelationIndex.parentIdsFor(childId);
   }
 
   projectUpdateIdsFor(projectId: UUID): ReadonlySet<UUID> {
@@ -976,6 +1018,8 @@ export class Store {
     this.index.clear();
     this.labelIndex.clear();
     this.projectLabelIndex.clear();
+    this.initiativeLabelIndex.clear();
+    this.initiativeRelationIndex.clear();
     this.relationIndex.clear();
     this.notificationIndex.clear();
     this.commentIssue.clear();
@@ -1162,6 +1206,28 @@ export class Store {
       case 'projectLabel':
         for (const rowId of [...this.projectLabelIndex.rowIdsForLabel(id)]) {
           this.forget('projectLabelLink', rowId, deletes, touched);
+        }
+        break;
+      case 'initiativeLabel':
+        for (const rowId of [...this.initiativeLabelIndex.rowIdsForLabel(id)]) {
+          this.forget('initiativeLabelLink', rowId, deletes, touched);
+        }
+        break;
+      case 'initiative':
+        for (const rowId of [...this.initiativeProjectOf.get(id)]) {
+          this.forget('initiativeProject', rowId, deletes, touched);
+        }
+        for (const rowId of [...this.initiativeUpdateOf.get(id)]) {
+          this.forget('initiativeUpdate', rowId, deletes, touched);
+        }
+        for (const rowId of [...this.initiativeLabelIndex.rowIdsForInitiative(id)]) {
+          this.forget('initiativeLabelLink', rowId, deletes, touched);
+        }
+        for (const rowId of [...this.initiativeRelationIndex.rowIdsForParent(id)]) {
+          this.forget('initiativeRelation', rowId, deletes, touched);
+        }
+        for (const rowId of [...this.initiativeRelationIndex.rowIdsForChild(id)]) {
+          this.forget('initiativeRelation', rowId, deletes, touched);
         }
         break;
       case 'projectTemplate':
@@ -1419,6 +1485,20 @@ export class Store {
         this.initiativeUpdateOf.add(update.initiativeId, update.id);
         break;
       }
+      case 'initiativeLabelLink': {
+        const row = next as InitiativeLabelLink;
+        const before = previous as InitiativeLabelLink | undefined;
+        if (before === undefined) this.initiativeLabelIndex.add(row);
+        else this.initiativeLabelIndex.update(before, row);
+        break;
+      }
+      case 'initiativeRelation': {
+        const row = next as InitiativeRelation;
+        const before = previous as InitiativeRelation | undefined;
+        if (before === undefined) this.initiativeRelationIndex.add(row);
+        else this.initiativeRelationIndex.update(before, row);
+        break;
+      }
       case 'projectUpdate':
         this.fileByProject(
           this.projectUpdateOf,
@@ -1607,6 +1687,12 @@ export class Store {
         this.initiativeUpdateOf.remove(update.initiativeId, update.id);
         break;
       }
+      case 'initiativeLabelLink':
+        this.initiativeLabelIndex.remove(entity as InitiativeLabelLink);
+        break;
+      case 'initiativeRelation':
+        this.initiativeRelationIndex.remove(entity as InitiativeRelation);
+        break;
       case 'projectUpdate':
         this.unfileByProject(this.projectUpdateOf, entity as ProjectUpdate);
         break;

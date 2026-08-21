@@ -613,6 +613,48 @@ func (r *mutationResolver) RemoveInitiativeProject(ctx context.Context, initiati
 	return &generated.DeletePayload{Version: int(version), ID: projectID}, nil
 }
 
+// AddInitiativeRelation is the resolver for the addInitiativeRelation field.
+func (r *mutationResolver) AddInitiativeRelation(ctx context.Context, parentInitiativeID uuid.UUID, childInitiativeID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.InitiativeRelationPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	type key struct {
+		Parent uuid.UUID `json:"parent"`
+		Child  uuid.UUID `json:"child"`
+	}
+	rel, version, err := idempotent(ctx, r.Svc, p, clientID, opID, key{parentInitiativeID, childInitiativeID},
+		func(ctx context.Context) (model.InitiativeRelation, int64, error) {
+			return r.Svc.AddInitiativeRelation(ctx, p, parentInitiativeID, childInitiativeID)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toInitiativeRelation(rel)
+	return &generated.InitiativeRelationPayload{Version: int(version), InitiativeRelation: &out}, nil
+}
+
+// RemoveInitiativeRelation is the resolver for the removeInitiativeRelation field.
+func (r *mutationResolver) RemoveInitiativeRelation(ctx context.Context, parentInitiativeID uuid.UUID, childInitiativeID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	type key struct {
+		Parent uuid.UUID `json:"parent"`
+		Child  uuid.UUID `json:"child"`
+	}
+	removed, version, err := idempotent(ctx, r.Svc, p, clientID, opID, key{parentInitiativeID, childInitiativeID},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			id, version, err := r.Svc.RemoveInitiativeRelation(ctx, p, parentInitiativeID, childInitiativeID)
+			return deletedEntity{ID: id}, version, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: removed.ID}, nil
+}
+
 // CreateInitiativeUpdate is the resolver for the createInitiativeUpdate field.
 func (r *mutationResolver) CreateInitiativeUpdate(ctx context.Context, input generated.CreateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.InitiativeUpdatePayload, error) {
 	p, err := principalFrom(ctx)
@@ -2207,6 +2249,96 @@ func (r *mutationResolver) RemoveProjectLabel(ctx context.Context, projectID uui
 	}
 
 	removed, version, err := r.Svc.RemoveProjectLabel(ctx, p, projectID, labelID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: removed}, nil
+}
+
+// CreateInitiativeLabel is the resolver for the createInitiativeLabel field.
+func (r *mutationResolver) CreateInitiativeLabel(ctx context.Context, input generated.CreateInitiativeLabelInput) (*generated.InitiativeLabelPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	in := domain.CreateInitiativeLabelInput{
+		ParentID:     input.ParentID,
+		IsGroup:      deref(input.IsGroup),
+		Name:         input.Name,
+		Description:  input.Description,
+		Color:        input.Color,
+		AfterLabelID: input.AfterLabelID,
+	}
+	label, version, err := r.Svc.CreateInitiativeLabel(ctx, p, in)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toInitiativeLabel(label)
+	return &generated.InitiativeLabelPayload{Version: int(version), InitiativeLabel: &out}, nil
+}
+
+// UpdateInitiativeLabel is the resolver for the updateInitiativeLabel field.
+func (r *mutationResolver) UpdateInitiativeLabel(ctx context.Context, input generated.UpdateInitiativeLabelInput) (*generated.InitiativeLabelPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	in := domain.UpdateInitiativeLabelInput{
+		ID:           input.ID,
+		Name:         input.Name,
+		Description:  input.Description,
+		Color:        input.Color,
+		ParentID:     input.ParentID,
+		ClearParent:  deref(input.ClearParent),
+		AfterLabelID: input.AfterLabelID,
+	}
+	label, version, err := r.Svc.UpdateInitiativeLabel(ctx, p, in)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toInitiativeLabel(label)
+	return &generated.InitiativeLabelPayload{Version: int(version), InitiativeLabel: &out}, nil
+}
+
+// ArchiveInitiativeLabel is the resolver for the archiveInitiativeLabel field.
+func (r *mutationResolver) ArchiveInitiativeLabel(ctx context.Context, id uuid.UUID, archived bool) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	version, err := r.Svc.ArchiveInitiativeLabel(ctx, p, id, archived)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// AddInitiativeLabel is the resolver for the addInitiativeLabel field.
+func (r *mutationResolver) AddInitiativeLabel(ctx context.Context, initiativeID uuid.UUID, labelID uuid.UUID) (*generated.InitiativeLabelLinkPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	applied, version, err := r.Svc.AddInitiativeLabel(ctx, p, initiativeID, labelID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toInitiativeLabelLink(applied)
+	return &generated.InitiativeLabelLinkPayload{Version: int(version), InitiativeLabelLink: &out}, nil
+}
+
+// RemoveInitiativeLabel is the resolver for the removeInitiativeLabel field.
+func (r *mutationResolver) RemoveInitiativeLabel(ctx context.Context, initiativeID uuid.UUID, labelID uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	removed, version, err := r.Svc.RemoveInitiativeLabel(ctx, p, initiativeID, labelID)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -4443,6 +4575,35 @@ func (r *queryResolver) ProjectLabel(ctx context.Context, id uuid.UUID) (*genera
 		return nil, PresentError(ctx, err)
 	}
 	out := toProjectLabel(label)
+	return &out, nil
+}
+
+// InitiativeLabels is the resolver for the initiativeLabels field.
+func (r *queryResolver) InitiativeLabels(ctx context.Context) ([]generated.InitiativeLabel, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	labels, err := r.Svc.ListInitiativeLabels(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toInitiativeLabels(labels), nil
+}
+
+// InitiativeLabel is the resolver for the initiativeLabel field.
+func (r *queryResolver) InitiativeLabel(ctx context.Context, id uuid.UUID) (*generated.InitiativeLabel, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	label, err := r.Svc.GetInitiativeLabel(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toInitiativeLabel(label)
 	return &out, nil
 }
 

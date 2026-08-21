@@ -6,25 +6,40 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, Input, PRIORITY_LEVELS, priorityLabel, Select } from '~/components';
+import { useActions, useKeyContext } from '~/app/keymap';
+import { Button, Input, LabelChip, PRIORITY_LEVELS, priorityLabel, Select } from '~/components';
 import {
   addInitiativeProject,
+  addInitiativeRelation,
+  createInitiative,
   formatInitiativeStatus,
   removeInitiativeProject,
+  removeInitiativeRelation,
   updateInitiative,
 } from '~/features/initiatives/mutations';
+import {
+  applyInitiativeLabel,
+  removeInitiativeLabel,
+} from '~/features/initiative-labels/mutations';
+import { InitiativeLabelPicker } from '~/features/initiative-labels/InitiativeLabelPicker';
 import { createInitiativeUpdate } from '~/features/initiative-updates/mutations';
 import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { report } from '~/features/issue/mutations';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { InitiativeStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
+import type { InitiativeLabel, InitiativeStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
 import styles from './InitiativeDetail.module.css';
 
 interface ProjectLinkRow {
   readonly linkId: UUID;
   readonly projectId: UUID;
+  readonly name: string;
+}
+
+interface ChildRow {
+  readonly id: UUID;
   readonly name: string;
 }
 
@@ -50,9 +65,27 @@ export function InitiativeDetail() {
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [chosenProject, setChosenProject] = useState('');
+  const [chosenChild, setChosenChild] = useState('');
+  const [nestedName, setNestedName] = useState('');
   const [health, setHealth] = useState<ProjectUpdateHealth>('on_track');
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
+  const labelsMenu = useMenuTrigger();
+
+  useKeyContext('detail');
+  useActions(
+    [
+      {
+        id: 'initiativeDetail.labels',
+        title: 'Set labels',
+        keys: ['l'],
+        when: 'detail',
+        group: 'Initiatives',
+        run: () => labelsMenu.show(),
+      },
+    ],
+    [initiativeId],
+  );
 
   const initiative = useLiveQuery(
     (store) => store.initiatives.get(initiativeId) ?? null,
@@ -114,6 +147,49 @@ export function InitiativeDetail() {
     [initiativeId, [...linkedProjectIds].join(',')],
   );
 
+  const labelIds = useLiveQuery(
+    (store) => [...store.initiativeLabelIdsFor(initiativeId)],
+    ['initiativeLabel', 'initiativeLabelLink'],
+    [initiativeId],
+  );
+
+  const appliedLabels = useLiveQuery(
+    (store) =>
+      [...store.initiativeLabelIdsFor(initiativeId)]
+        .map((id) => store.initiativeLabels.get(id))
+        .filter(
+          (label): label is InitiativeLabel =>
+            label !== undefined && label.archivedAt === undefined,
+        )
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    ['initiativeLabel', 'initiativeLabelLink'],
+    [initiativeId],
+  );
+
+  const children = useLiveQuery(
+    (store) => (initiative === null ? [] : listChildren(store, initiative.id)),
+    ['initiative', 'initiativeRelation'],
+    [initiativeId],
+  );
+
+  const childIds = useMemo(() => new Set(children.map((row) => row.id)), [children]);
+
+  const nestable = useLiveQuery(
+    (store) =>
+      [...store.initiatives.values()]
+        .filter(
+          (row) =>
+            row.id !== initiativeId &&
+            row.archivedAt === undefined &&
+            row.deletedAt === undefined &&
+            !childIds.has(row.id),
+        )
+        .map((row) => ({ id: row.id, name: row.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    ['initiative', 'initiativeRelation'],
+    [initiativeId, [...childIds].join(',')],
+  );
+
   if (initiative === null) return null;
 
   const save = (fields: Parameters<typeof updateInitiative>[2]) => {
@@ -147,6 +223,27 @@ export function InitiativeDetail() {
 
   const onRemoveProject = async (projectId: UUID) => {
     await removeInitiativeProject(engine, initiative.id, projectId);
+  };
+
+  const onNestExisting = async () => {
+    if (chosenChild === '') return;
+    await addInitiativeRelation(engine, initiative.id, chosenChild);
+    setChosenChild('');
+  };
+
+  const onCreateNested = async () => {
+    const name = nestedName.trim();
+    if (name === '') return;
+    await createInitiative(engine, {
+      name,
+      ownerId: viewerId ?? undefined,
+      parentInitiativeId: initiative.id,
+    });
+    setNestedName('');
+  };
+
+  const onUnnest = async (childId: UUID) => {
+    await removeInitiativeRelation(engine, initiative.id, childId);
   };
 
   const onSubmitUpdate = async (event: FormEvent) => {
@@ -294,7 +391,38 @@ export function InitiativeDetail() {
               save({ targetDate: value === '' ? null : value });
             }}
           />
+          <div className={styles.labelField}>
+            <span className={styles.fieldLabel}>Labels</span>
+            <button
+              type="button"
+              className={styles.propertyButton}
+              {...labelsMenu.props}
+              aria-label="Set labels"
+            >
+              {appliedLabels.length === 0 ? (
+                'Add labels'
+              ) : (
+                <span className={styles.labelRun}>
+                  {appliedLabels.map((label) => (
+                    <LabelChip key={label.id} name={label.name} color={label.color} compact />
+                  ))}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
+        <InitiativeLabelPicker
+          open={labelsMenu.open}
+          onClose={labelsMenu.hide}
+          trigger={labelsMenu.ref}
+          value={labelIds}
+          onApply={(labelId, displaced) =>
+            applyInitiativeLabel(engine, initiative.id, labelId, displaced).catch(report)
+          }
+          onRemove={(labelId) =>
+            removeInitiativeLabel(engine, initiative.id, labelId).catch(report)
+          }
+        />
       </section>
 
       <section className={styles.section}>
@@ -325,6 +453,59 @@ export function InitiativeDetail() {
             <Button onClick={startEdit}>Edit description</Button>
           </>
         )}
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Sub-initiatives</h2>
+        {children.length === 0 ? (
+          <p className={styles.muted}>
+            No nested initiatives yet. Create one here or nest an existing initiative.
+          </p>
+        ) : (
+          <ul className={styles.projectList}>
+            {children.map((row) => (
+              <li key={row.id} className={styles.projectRow}>
+                <Link to={`/initiative/${row.id}`} className={styles.projectLink}>
+                  {row.name}
+                </Link>
+                <Button variant="ghost" onClick={() => void onUnnest(row.id)}>
+                  Un-nest
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className={styles.addRow}>
+          <Input
+            label="New sub-initiative"
+            hideLabel
+            value={nestedName}
+            onChange={(event) => setNestedName(event.target.value)}
+            placeholder="Name a nested initiative…"
+          />
+          <Button disabled={nestedName.trim() === ''} onClick={() => void onCreateNested()}>
+            Create nested
+          </Button>
+        </div>
+        <div className={styles.addRow}>
+          <Select
+            label="Initiative to nest"
+            hideLabel
+            value={chosenChild}
+            onChange={(event) => setChosenChild(event.target.value)}
+            disabled={nestable.length === 0}
+          >
+            <option value="">Nest an existing initiative…</option>
+            {nestable.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name}
+              </option>
+            ))}
+          </Select>
+          <Button disabled={chosenChild === ''} onClick={() => void onNestExisting()}>
+            Nest
+          </Button>
+        </div>
       </section>
 
       <section className={styles.section}>
@@ -389,6 +570,18 @@ function listProjects(store: Store, initiativeId: UUID): readonly ProjectLinkRow
     const project = store.projects.get(link.projectId);
     if (project === undefined || project.archivedAt !== undefined) continue;
     rows.push({ linkId, projectId: project.id, name: project.name });
+  }
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function listChildren(store: Store, initiativeId: UUID): readonly ChildRow[] {
+  const rows: ChildRow[] = [];
+  for (const childId of store.initiativeChildIdsFor(initiativeId)) {
+    const child = store.initiatives.get(childId);
+    if (child === undefined || child.archivedAt !== undefined || child.deletedAt !== undefined) {
+      continue;
+    }
+    rows.push({ id: child.id, name: child.name });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }

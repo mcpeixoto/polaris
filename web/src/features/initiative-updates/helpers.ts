@@ -42,25 +42,35 @@ export interface LinkedProjectHealth {
   readonly health: ProjectUpdateHealth | null;
 }
 
-/** Latest project-update health for each live project linked to the initiative. */
+/** Latest project-update health for each live project linked to the initiative or its descendants. */
 export function linkedProjectHealths(store: Store, initiativeId: UUID): LinkedProjectHealth[] {
+  const seen = new Set<UUID>();
   const rows: LinkedProjectHealth[] = [];
-  for (const linkId of store.initiativeProjectIdsFor(initiativeId)) {
-    const link = store.initiativeProjects.get(linkId);
-    if (link === undefined) continue;
-    const project = store.projects.get(link.projectId);
-    if (
-      project === undefined ||
-      project.archivedAt !== undefined ||
-      project.deletedAt !== undefined
-    ) {
-      continue;
+  const walk = (id: UUID) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    for (const linkId of store.initiativeProjectIdsFor(id)) {
+      const link = store.initiativeProjects.get(linkId);
+      if (link === undefined) continue;
+      const project = store.projects.get(link.projectId);
+      if (
+        project === undefined ||
+        project.archivedAt !== undefined ||
+        project.deletedAt !== undefined
+      ) {
+        continue;
+      }
+      if (rows.some((row) => row.projectId === project.id)) continue;
+      rows.push({
+        projectId: project.id,
+        name: project.name,
+        health: latestProjectUpdate(store, project.id)?.health ?? null,
+      });
     }
-    rows.push({
-      projectId: project.id,
-      name: project.name,
-      health: latestProjectUpdate(store, project.id)?.health ?? null,
-    });
-  }
+    for (const childId of store.initiativeChildIdsFor(id)) {
+      walk(childId);
+    }
+  };
+  walk(initiativeId);
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }

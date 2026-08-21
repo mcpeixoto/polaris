@@ -102,6 +102,27 @@ function seeded(): Store {
       createdAt: AT,
       updatedAt: AT,
     }),
+    upsert(4, 'initiative', {
+      id: 'i2',
+      workspaceId: WORKSPACE,
+      name: 'Mobile launch',
+      description: '',
+      status: 'planned',
+      priority: 0,
+      sortOrder: 'b',
+      createdAt: AT,
+      updatedAt: AT,
+    }),
+    upsert(5, 'initiativeLabel', {
+      id: 'il1',
+      workspaceId: WORKSPACE,
+      name: 'Platform',
+      color: '#5e6ad2',
+      isGroup: false,
+      position: 'a0',
+      createdAt: AT,
+      updatedAt: AT,
+    }),
   ]);
   return store;
 }
@@ -124,6 +145,22 @@ function renderDetail() {
               authorId: VIEWER,
               createdAt: AT,
               updatedAt: AT,
+            },
+          },
+        };
+      }
+      const parentInitiativeId = request.variables.parentInitiativeId as string | undefined;
+      const childInitiativeId = request.variables.childInitiativeId as string | undefined;
+      if (parentInitiativeId !== undefined && childInitiativeId !== undefined) {
+        return {
+          addInitiativeRelation: {
+            initiativeRelation: {
+              id: 'ir1',
+              workspaceId: WORKSPACE,
+              parentInitiativeId,
+              childInitiativeId,
+              sortOrder: 'z',
+              createdAt: AT,
             },
           },
         };
@@ -186,5 +223,24 @@ describe('Initiative overview leftovers', () => {
     };
     expect(input.variables.input.health).toBe('AT_RISK');
     expect(input.variables.input.body).toBe('Slip');
+  });
+
+  it('opens the initiative label picker with l', async () => {
+    const { user } = renderDetail();
+    await user.keyboard('l');
+    expect(screen.getByRole('menu', { name: 'Initiative labels' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Platform' })).toBeTruthy();
+  });
+
+  it('nests an existing initiative from Overview', async () => {
+    const { mutate, user } = renderDetail();
+    await user.selectOptions(screen.getByLabelText('Initiative to nest'), 'i2');
+    await user.click(screen.getByRole('button', { name: 'Nest' }));
+    expect(mutate).toHaveBeenCalled();
+    const call = mutate.mock.calls[0]![0] as {
+      variables: { parentInitiativeId?: string; childInitiativeId?: string };
+    };
+    expect(call.variables.parentInitiativeId).toBe(INITIATIVE);
+    expect(call.variables.childInitiativeId).toBe('i2');
   });
 });

@@ -70,6 +70,12 @@
   white-space: nowrap;
 }
 
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
 .summary {
   overflow: hidden;
   color: var(--text-tertiary);
