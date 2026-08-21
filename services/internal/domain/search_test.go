@@ -381,3 +381,57 @@ func TestSearch_FindsAnIssueByShorthandIdentifier(t *testing.T) {
 		t.Errorf("an unknown identifier returned %d hits", len(got.Issues))
 	}
 }
+
+// A word that is shaped like an identifier is still a word.
+//
+// ParseIssueIdentifier accepts letters followed by digits, which is the shape of half the
+// vocabulary a software team searches for: oauth2, utf8, ipv6, h264, sprint3, postgres16.
+// Search used to hand every one of them to the identifier lookup, find no team called
+// OAUTH or UTF, and return an empty result set — so the words were unfindable in the one
+// box that exists to find them, and adding any second word made them findable again.
+func TestSearch_FallsBackToTextWhenAnIdentifierResolvesToNothing(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	for _, title := range []string{
+		"oauth2 login flow drops the redirect",
+		"utf8 encoding is mangled by the importer",
+		"upgrade to postgres16",
+	} {
+		if _, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
+			TeamID: f.TeamID, Title: title,
+		}); err != nil {
+			t.Fatalf("create %q: %v", title, err)
+		}
+	}
+
+	for _, q := range []string{"oauth2", "utf8", "postgres16", "OAuth2"} {
+		got, err := svc.Search(ctx, p, domain.SearchInput{Query: q})
+		if err != nil {
+			t.Fatalf("search %q: %v", q, err)
+		}
+		if len(got.Issues) != 1 {
+			t.Errorf("search %q returned %d hits, want the issue whose title says it", q, len(got.Issues))
+			continue
+		}
+		if !strings.Contains(strings.ToLower(got.Issues[0].Title), strings.ToLower(q)) {
+			t.Errorf("search %q returned %q", q, got.Issues[0].Title)
+		}
+		if got.IssueCount != 1 {
+			t.Errorf("search %q counted %d, want 1", q, got.IssueCount)
+		}
+	}
+
+	// A real identifier still short-circuits to exactly its issue rather than to every
+	// issue whose text happens to mention the words.
+	pinned, err := svc.Search(ctx, p, domain.SearchInput{Query: "ENG-1"})
+	if err != nil {
+		t.Fatalf("pinned: %v", err)
+	}
+	if len(pinned.Issues) != 1 || !strings.HasPrefix(pinned.Issues[0].Title, "oauth2") {
+		t.Errorf("ENG-1 returned %d hits: %v", len(pinned.Issues), pinned.Issues)
+	}
+}
