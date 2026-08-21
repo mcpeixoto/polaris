@@ -2,14 +2,16 @@
  * Insights panel for an issue view: measure × slice over the replica.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button, Checkbox, Select } from '~/components';
 import type { FilterNode } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewer } from '~/hooks/useViewer';
 import type { UUID } from '~/store';
 
 import {
+  CUSTOMER_INSIGHT_SLICES,
   INSIGHT_MEASURES,
   INSIGHT_SLICES,
   MEASURE_LABELS,
@@ -31,15 +33,27 @@ interface InsightsPanelProps {
 }
 
 export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsPanelProps) {
+  const viewer = useViewer();
+  const hideCustomers = viewer === null || viewer.role === 'guest';
+  const slices = hideCustomers
+    ? INSIGHT_SLICES.filter((value) => !CUSTOMER_INSIGHT_SLICES.includes(value))
+    : INSIGHT_SLICES;
   const [measure, setMeasure] = useState<InsightMeasure>('count');
   const [slice, setSlice] = useState<InsightSlice>('assignee');
   const [includeArchived, setIncludeArchived] = useState(false);
   const [burnPeriod, setBurnPeriod] = useState<BurnPeriod>('month');
   const idsKey = issueIds.join(',');
 
+  useEffect(() => {
+    if (!slices.includes(slice)) setSlice('assignee');
+  }, [slices, slice]);
+
   const data = useLiveQuery(
     (store) =>
-      buildInsights(store, issueIds, measure, slice, Date.now(), { includeArchived, burnPeriod }),
+      buildInsights(store, issueIds, measure, slices.includes(slice) ? slice : 'assignee', Date.now(), {
+        includeArchived,
+        burnPeriod,
+      }),
     [
       'issue',
       'team',
@@ -50,8 +64,10 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
       'project',
       'cycle',
       'issueTemplate',
+      'customer',
+      'customerRequest',
     ],
-    [idsKey, measure, slice, includeArchived, burnPeriod],
+    [idsKey, measure, slice, includeArchived, burnPeriod, hideCustomers],
   );
 
   const applyBucket = (clause: NonNullable<(typeof data.buckets)[number]['filter']>) => {
@@ -91,7 +107,7 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
             value={slice}
             onChange={(event) => setSlice(event.target.value as InsightSlice)}
           >
-            {INSIGHT_SLICES.map((value) => (
+            {slices.map((value) => (
               <option key={value} value={value}>
                 {SLICE_LABELS[value]}
               </option>

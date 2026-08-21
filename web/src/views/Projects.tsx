@@ -13,9 +13,14 @@ import { Link, useParams, useSearchParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeymap } from '~/app/keymap';
-import { Avatar, Button, EmptyState, LabelChip, PriorityIcon, priorityLabel } from '~/components';
+import { Avatar, Button, EmptyState, LabelChip, PriorityIcon, priorityLabel, Select } from '~/components';
 import { downloadCsv, exportCap, projectsToCsv, type ExportRole } from '~/features/export/csv';
 import { report } from '~/features/issue/mutations';
+import {
+  matchesProjectCustomerFilter,
+  projectCustomerFilterOptions,
+  type ProjectCustomerFilter,
+} from '~/features/projects/customerFilter';
 import {
   matchesDependencyFilter,
   ProjectDependencyFilterSelect,
@@ -68,6 +73,7 @@ export function Projects() {
   const create = () => registry.invoke('project.create', { source: 'menu', context });
   const displayTrigger = useMenuTrigger();
   const [depFilter, setDepFilter] = useState<ProjectDependencyFilter>('all');
+  const [customerFilter, setCustomerFilter] = useState<ProjectCustomerFilter>('all');
   const [draggingId, setDraggingId] = useState<UUID | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
@@ -106,7 +112,7 @@ export function Projects() {
   );
 
   const groups = useLiveQuery(
-    (store) => listProjectGroups(store, team?.id, depFilter),
+    (store) => listProjectGroups(store, team?.id, depFilter, customerFilter),
     [
       'project',
       'projectStatus',
@@ -119,9 +125,17 @@ export function Projects() {
       'workspace',
       'issue',
       'user',
+      'customer',
+      'customerRequest',
     ],
-    [team?.id ?? '', depFilter],
+    [team?.id ?? '', depFilter, customerFilter],
   );
+
+  const customerOptions = useLiveQuery(
+    (store) => projectCustomerFilterOptions(store),
+    ['customer'],
+  );
+  const hideCustomers = viewer === null || viewer.role === 'guest';
 
   const heading = team === null ? 'Projects' : `${team.name} projects`;
   const rowCount = groups.reduce((sum, group) => sum + group.rows.length, 0);
@@ -191,6 +205,35 @@ export function Projects() {
         <h1 className={styles.title}>{heading}</h1>
         <div className={styles.headerActions}>
           <ProjectDependencyFilterSelect value={depFilter} onChange={setDepFilter} />
+          {hideCustomers ? null : (
+            <Select
+              label="Customers"
+              value={customerFilter}
+              onChange={(event) => setCustomerFilter(event.target.value as ProjectCustomerFilter)}
+            >
+              <option value="all">All customers</option>
+              <option value="any">Has customer requests</option>
+              <option value="none">No customer requests</option>
+              {customerOptions.customers.length > 0 ? (
+                <optgroup label="Customer">
+                  {customerOptions.customers.map((customer) => (
+                    <option key={customer.id} value={`customer:${customer.id}`}>
+                      {customer.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {customerOptions.tiers.length > 0 ? (
+                <optgroup label="Tier">
+                  {customerOptions.tiers.map((tier) => (
+                    <option key={tier} value={`tier:${tier}`}>
+                      {tier}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+            </Select>
+          )}
           <Button {...displayTrigger.props} variant="ghost">
             Display{displayChanges > 0 ? ` · ${displayChanges}` : ''}
           </Button>
@@ -209,7 +252,12 @@ export function Projects() {
       />
 
       {display.layout === 'timeline' ? (
-        <ProjectTimeline teamId={team?.id} depFilter={depFilter} display={display} />
+        <ProjectTimeline
+          teamId={team?.id}
+          depFilter={depFilter}
+          customerFilter={hideCustomers ? 'all' : customerFilter}
+          display={display}
+        />
       ) : rowCount === 0 ? (
         <EmptyState
           title="No projects yet"
@@ -383,11 +431,13 @@ function listProjectGroups(
   store: Store,
   teamId: UUID | undefined,
   depFilter: ProjectDependencyFilter,
+  customerFilter: ProjectCustomerFilter,
 ): PriorityGroup[] {
   const projects: Project[] = [];
   for (const project of store.projects.values()) {
     if (project.archivedAt !== undefined || project.deletedAt !== undefined) continue;
     if (!matchesDependencyFilter(store, project.id, depFilter)) continue;
+    if (!matchesProjectCustomerFilter(store, project.id, customerFilter)) continue;
     if (teamId !== undefined) {
       const onTeam = [...store.projectTeamIdsFor(project.id)].some(
         (id) => store.projectTeams.get(id)?.teamId === teamId,
