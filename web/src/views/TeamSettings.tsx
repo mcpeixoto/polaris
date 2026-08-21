@@ -60,6 +60,7 @@ import {
 } from '~/features/recurring/mutations';
 import { RecurringFields } from '~/features/recurring/RecurringFields';
 import { today } from '~/features/time';
+import { listTimezones } from '~/features/locale';
 import {
   archiveStatus,
   createStatus,
@@ -372,19 +373,27 @@ function TeamForm({
   onSave,
 }: {
   team: TeamView;
-  onSave: (fields: { name: string; key: string }) => void;
+  onSave: (fields: { name: string; key: string; timezone: string }) => void;
 }) {
   const [name, setName] = useState(team.name);
   const [key, setKey] = useState(team.key);
+  const [timezone, setTimezone] = useState(team.timezone);
 
-  const dirty = name.trim() !== team.name || key.trim().toUpperCase() !== team.key;
+  const dirty =
+    name.trim() !== team.name ||
+    key.trim().toUpperCase() !== team.key ||
+    timezone !== team.timezone;
+
+  const zones = listTimezones().includes(team.timezone)
+    ? listTimezones()
+    : [team.timezone, ...listTimezones()];
 
   return (
     <form
       className={styles.section}
       onSubmit={(event: FormEvent) => {
         event.preventDefault();
-        onSave({ name: name.trim(), key: key.trim().toUpperCase() });
+        onSave({ name: name.trim(), key: key.trim().toUpperCase(), timezone });
       }}
     >
       <h2 className={styles.sectionTitle}>Team</h2>
@@ -398,6 +407,18 @@ function TeamForm({
           className={styles.keyField}
           onChange={(event) => setKey(event.target.value.toUpperCase())}
         />
+        <Select
+          label="Timezone"
+          hint="Due dates and cycle start are midnight in this zone."
+          value={timezone}
+          onChange={(event) => setTimezone(event.target.value)}
+        >
+          {zones.map((zone) => (
+            <option key={zone} value={zone}>
+              {zone}
+            </option>
+          ))}
+        </Select>
       </div>
       <div className={styles.formActions}>
         <Button type="submit" variant="primary" disabled={!dirty}>

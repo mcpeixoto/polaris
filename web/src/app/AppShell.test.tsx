@@ -233,6 +233,8 @@ describe('the settings section', () => {
   it('links to every workspace screen', () => {
     renderShell(seeded());
     for (const name of [
+      'Profile',
+      'Workspace',
       'Preferences',
       'Members',
       'Labels',

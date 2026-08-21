@@ -86,6 +86,16 @@ export function Preferences() {
             </Select>
           </div>
 
+          <Checkbox
+            checked={prefs.convertEmoticons}
+            onChange={(event) => write({ convertEmoticons: event.target.checked })}
+            label="Convert text emoticons into emoji"
+          />
+          <p className={styles.hint}>
+            Turns <code>:)</code> into 🙂 in comments. Off by default so a code review that wrote
+            those characters keeps them.
+          </p>
+
           <div className={styles.field}>
             <Select
               label="Comment submit key"
