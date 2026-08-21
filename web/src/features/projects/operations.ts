@@ -185,3 +185,36 @@ export const REMOVE_PROJECT_DEPENDENCY = /* GraphQL */ `
     }
   }
 `;
+
+export const CREATE_PROJECT_STATUS = /* GraphQL */ `
+  ${PROJECT_STATUS_FIELDS}
+  mutation CreateProjectStatus($input: CreateProjectStatusInput!) {
+    createProjectStatus(input: $input) {
+      version
+      status {
+        ...ProjectStatusFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_PROJECT_STATUS = /* GraphQL */ `
+  ${PROJECT_STATUS_FIELDS}
+  mutation UpdateProjectStatus($input: UpdateProjectStatusInput!) {
+    updateProjectStatus(input: $input) {
+      version
+      status {
+        ...ProjectStatusFields
+      }
+    }
+  }
+`;
+
+export const ARCHIVE_PROJECT_STATUS = /* GraphQL */ `
+  mutation ArchiveProjectStatus($id: UUID!, $archived: Boolean!) {
+    archiveProjectStatus(id: $id, archived: $archived) {
+      version
+      id
+    }
+  }
+`;

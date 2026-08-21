@@ -7,13 +7,15 @@
  * two people adding different teams a second apart must both survive.
  */
 
-import { fromWire } from '~/gql/enums';
+import { fromWire, toWire } from '~/gql/enums';
 import {
   uuidv7,
   type EntityOf,
   type EntityPatch,
   type Project,
   type ProjectMember,
+  type ProjectStatus,
+  type ProjectStatusCategory,
   type ProjectTeam,
   type ProjectUpdateSchedule,
   type Store,
@@ -26,9 +28,12 @@ import {
   ADD_PROJECT_DEPENDENCY,
   ADD_PROJECT_MEMBER,
   ADD_PROJECT_TEAM,
+  ARCHIVE_PROJECT_STATUS,
   CREATE_PROJECT,
+  CREATE_PROJECT_STATUS,
   REMOVE_PROJECT_DEPENDENCY,
   UPDATE_PROJECT,
+  UPDATE_PROJECT_STATUS,
 } from './operations';
 
 export interface NewProject {
@@ -238,9 +243,150 @@ export async function addProjectMember(
   });
 }
 
+export interface NewProjectStatus {
+  readonly name: string;
+  readonly category: ProjectStatusCategory;
+  readonly color: string;
+}
+
+/**
+ * Adds a project status at the end of its category.
+ *
+ * The local row is a stand-in with an id the server did not mint, swapped for the real one
+ * when the reply lands — same trade as creating a workflow status.
+ */
+export async function createProjectStatus(
+  engine: SyncEngine,
+  input: NewProjectStatus,
+): Promise<void> {
+  const store = engine.store;
+  const name = input.name.trim();
+  if (name === '') return;
+
+  const now = new Date().toISOString();
+  const provisional: ProjectStatus = {
+    id: uuidv7(),
+    workspaceId: store.workspaceId,
+    name,
+    color: input.color,
+    category: input.category,
+    position: lastPositionIn(store, input.category),
+    isDefault: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const data = await engine.mutate<{ createProjectStatus: { status: ProjectStatus } }>({
+    mutation: CREATE_PROJECT_STATUS,
+    variables: {
+      input: {
+        name,
+        category: toWire(input.category),
+        color: input.color,
+      },
+    },
+    optimistic: [{ type: 'projectStatus', id: provisional.id, before: null, after: provisional }],
+  });
+
+  const real = fromWire('projectStatus', data.createProjectStatus.status);
+  const patch: EntityPatch[] = [
+    {
+      type: 'projectStatus',
+      id: real.id,
+      before: store.get('projectStatus', real.id) ?? null,
+      after: real,
+    },
+  ];
+  if (real.id !== provisional.id) {
+    patch.unshift({ type: 'projectStatus', id: provisional.id, before: null, after: null });
+  }
+  store.applyOptimistic(patch);
+}
+
+export interface ProjectStatusFields {
+  readonly name?: string | undefined;
+  readonly color?: string | undefined;
+  readonly makeDefault?: boolean | undefined;
+}
+
+/**
+ * Renames, recolours, or promotes a project status to the workspace default.
+ *
+ * The default is exclusive, so promoting one demotes the other in the same patch. Sending
+ * only the promotion would leave two statuses drawn as the default until the server's delta
+ * arrived to settle the argument.
+ */
+export async function updateProjectStatus(
+  engine: SyncEngine,
+  statusId: UUID,
+  fields: ProjectStatusFields,
+): Promise<void> {
+  const store = engine.store;
+  const before = store.get('projectStatus', statusId);
+  if (before === undefined) return;
+
+  const name = fields.name?.trim();
+  const after: ProjectStatus = {
+    ...before,
+    ...(name === undefined || name === '' ? null : { name }),
+    ...(fields.color === undefined ? null : { color: fields.color }),
+    ...(fields.makeDefault === true ? { isDefault: true } : null),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const patch: EntityPatch[] = [{ type: 'projectStatus', id: statusId, before, after }];
+  if (fields.makeDefault === true) {
+    for (const other of store.projectStatuses.values()) {
+      if (other.id === statusId || !other.isDefault || other.archivedAt !== undefined) continue;
+      patch.push({
+        type: 'projectStatus',
+        id: other.id,
+        before: other,
+        after: { ...other, isDefault: false },
+      });
+    }
+  }
+
+  await engine.mutate({
+    mutation: UPDATE_PROJECT_STATUS,
+    variables: {
+      input: {
+        id: statusId,
+        ...(after.name === before.name ? null : { name: after.name }),
+        ...(after.color === before.color ? null : { color: after.color }),
+        ...(fields.makeDefault === true ? { isDefault: true } : null),
+      },
+    },
+    optimistic: patch,
+  });
+}
+
+/**
+ * Retires a project status, and waits to find out whether it was allowed to.
+ *
+ * Deliberately not optimistic. The server refuses the workspace default, and a status that
+ * vanished and came back would be a puzzle; a status that stays put with the refusal beside
+ * it is an instruction.
+ */
+export async function archiveProjectStatus(engine: SyncEngine, statusId: UUID): Promise<void> {
+  await engine.mutate({
+    mutation: ARCHIVE_PROJECT_STATUS,
+    variables: { id: statusId, archived: true },
+  });
+}
+
 function defaultProjectStatusId(store: Store): UUID | undefined {
   const statuses = [...store.projectStatuses.values()].filter((s) => s.archivedAt === undefined);
   return statuses.find((s) => s.isDefault)?.id ?? statuses[0]?.id;
+}
+
+function lastPositionIn(store: Store, category: ProjectStatusCategory): string {
+  let highest = '';
+  for (const status of store.projectStatuses.values()) {
+    if (status.archivedAt !== undefined || status.category !== category) continue;
+    if (status.position > highest) highest = status.position;
+  }
+  return `${highest}z`;
 }
 
 type ProjectDependency = EntityOf<'projectDependency'>;
