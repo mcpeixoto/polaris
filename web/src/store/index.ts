@@ -24,6 +24,8 @@ export {
   LabelIndex,
   NotificationIndex,
   ProjectLabelIndex,
+  InitiativeLabelIndex,
+  InitiativeRelationIndex,
   RelationIndex,
   SetIndex,
 } from './indexes';
@@ -104,6 +106,9 @@ export type {
   Initiative,
   InitiativeProject,
   InitiativeUpdate,
+  InitiativeLabel,
+  InitiativeLabelLink,
+  InitiativeRelation,
   Customer,
   CustomerRequest,
   SlaAction,

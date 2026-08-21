@@ -424,12 +424,46 @@ type Initiative struct {
 	UpdatedAt             time.Time
 }
 
+type InitiativeLabel struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ParentID    *uuid.UUID
+	IsGroup     bool
+	Name        string
+	Description *string
+	Color       string
+	Position    string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ArchivedAt  *time.Time
+}
+
+type InitiativeLabelLink struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	InitiativeID uuid.UUID
+	LabelID      uuid.UUID
+	GroupID      *uuid.UUID
+	CreatedBy    *uuid.UUID
+	CreatedAt    time.Time
+}
+
 type InitiativeProject struct {
 	ID           uuid.UUID
 	WorkspaceID  uuid.UUID
 	InitiativeID uuid.UUID
 	ProjectID    uuid.UUID
 	CreatedAt    time.Time
+}
+
+type InitiativeRelation struct {
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	ParentInitiativeID uuid.UUID
+	ChildInitiativeID  uuid.UUID
+	SortOrder          string
+	CreatedBy          *uuid.UUID
+	CreatedAt          time.Time
 }
 
 type InitiativeUpdate struct {

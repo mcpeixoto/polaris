@@ -1156,6 +1156,58 @@ type InitiativeUpdatePayload implements MutationResult {
   initiativeUpdate: InitiativeUpdate!
 }
 
+"""Workspace taxonomy for labelling initiatives — separate from issue and project labels."""
+type InitiativeLabel {
+  id: UUID!
+  workspaceId: UUID!
+  parentId: UUID
+  isGroup: Boolean!
+  name: String!
+  description: String
+  color: String!
+  position: String!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+"""One initiative label applied to one initiative."""
+type InitiativeLabelLink {
+  id: UUID!
+  workspaceId: UUID!
+  initiativeId: UUID!
+  labelId: UUID!
+  groupId: UUID
+  createdBy: UUID
+  createdAt: Time!
+}
+
+"""A parent → child nest between two initiatives. Multiple parents are allowed."""
+type InitiativeRelation {
+  id: UUID!
+  workspaceId: UUID!
+  parentInitiativeId: UUID!
+  childInitiativeId: UUID!
+  sortOrder: String!
+  createdBy: UUID
+  createdAt: Time!
+}
+
+type InitiativeLabelPayload implements MutationResult {
+  version: Int!
+  initiativeLabel: InitiativeLabel!
+}
+
+type InitiativeLabelLinkPayload implements MutationResult {
+  version: Int!
+  initiativeLabelLink: InitiativeLabelLink!
+}
+
+type InitiativeRelationPayload implements MutationResult {
+  version: Int!
+  initiativeRelation: InitiativeRelation!
+}
+
 enum CustomerStatus {
   ACTIVE
   PROSPECT
@@ -2859,6 +2911,27 @@ input CreateInitiativeInput {
   leadTeamId: UUID
   targetDate: String
   targetDateGranularity: TimeframeGranularity
+  """Nests the new initiative under this parent. Same rules as addInitiativeRelation."""
+  parentInitiativeId: UUID
+}
+
+input CreateInitiativeLabelInput {
+  parentId: UUID
+  isGroup: Boolean
+  name: String!
+  description: String
+  color: String
+  afterLabelId: UUID
+}
+
+input UpdateInitiativeLabelInput {
+  id: UUID!
+  name: String
+  description: String
+  color: String
+  parentId: UUID
+  clearParent: Boolean
+  afterLabelId: UUID
 }
 
 input UpdateInitiativeInput {
@@ -3049,6 +3122,9 @@ type Query {
   projectLabels: [ProjectLabel!]!
   projectLabel(id: UUID!): ProjectLabel
 
+  initiativeLabels: [InitiativeLabel!]!
+  initiativeLabel(id: UUID!): InitiativeLabel
+
   """Saved views the caller can see: shared ones in scope, plus their own private ones."""
   views: [View!]!
   view(id: UUID!): View
@@ -3225,6 +3301,8 @@ type Mutation {
   deleteInitiative(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   addInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): InitiativeProjectPayload! @idempotent
   removeInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  addInitiativeRelation(parentInitiativeId: UUID!, childInitiativeId: UUID!, clientId: UUID, opId: UUID): InitiativeRelationPayload! @idempotent
+  removeInitiativeRelation(parentInitiativeId: UUID!, childInitiativeId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createInitiativeUpdate(input: CreateInitiativeUpdateInput!, clientId: UUID, opId: UUID): InitiativeUpdatePayload! @idempotent
   updateInitiativeUpdate(input: UpdateInitiativeUpdateInput!, clientId: UUID, opId: UUID): InitiativeUpdatePayload! @idempotent
@@ -3369,6 +3447,14 @@ type Mutation {
   archiveProjectLabel(id: UUID!, archived: Boolean!): DeletePayload!
   addProjectLabel(projectId: UUID!, labelId: UUID!): ProjectLabelLinkPayload!
   removeProjectLabel(projectId: UUID!, labelId: UUID!): DeletePayload!
+
+  # ---- initiative labels
+
+  createInitiativeLabel(input: CreateInitiativeLabelInput!): InitiativeLabelPayload!
+  updateInitiativeLabel(input: UpdateInitiativeLabelInput!): InitiativeLabelPayload!
+  archiveInitiativeLabel(id: UUID!, archived: Boolean!): DeletePayload!
+  addInitiativeLabel(initiativeId: UUID!, labelId: UUID!): InitiativeLabelLinkPayload!
+  removeInitiativeLabel(initiativeId: UUID!, labelId: UUID!): DeletePayload!
 
   # ---- relations
 

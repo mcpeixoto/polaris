@@ -32,6 +32,7 @@ type CreateInitiativeInput struct {
 	LeadTeamID            *uuid.UUID
 	TargetDate            *model.Date
 	TargetDateGranularity *string
+	ParentInitiativeID    *uuid.UUID
 }
 
 type UpdateInitiativeInput struct {
@@ -135,7 +136,23 @@ func (s *Service) CreateInitiative(
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "initiative", EntityID: id, Op: OpUpsert, Scope: scope, Payload: out,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		if in.ParentInitiativeID != nil {
+			rel, err := s.insertInitiativeRelation(ctx, q, p, *in.ParentInitiativeID, id)
+			if err != nil {
+				return err
+			}
+			version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+				EntityType: "initiativeRelation", EntityID: rel.ID, Op: OpUpsert,
+				Scope: authz.WorkspaceScope(), Payload: rel,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	return out, version, err
 }

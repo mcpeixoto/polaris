@@ -844,6 +844,10 @@ export function AppShell({
               <NavGlyph name="labels" />
               <span className={styles.navLabel}>Project labels</span>
             </NavLink>
+            <NavLink to="/settings/initiative-labels" className={navClass}>
+              <NavGlyph name="labels" />
+              <span className={styles.navLabel}>Initiative labels</span>
+            </NavLink>
             <NavLink to="/settings/project-statuses" className={navClass}>
               <NavGlyph name="project" />
               <span className={styles.navLabel}>Project statuses</span>

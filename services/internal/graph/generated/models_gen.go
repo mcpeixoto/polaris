@@ -309,6 +309,17 @@ type CreateInitiativeInput struct {
 	LeadTeamID            *uuid.UUID            `json:"leadTeamId,omitempty"`
 	TargetDate            *string               `json:"targetDate,omitempty"`
 	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
+	// Nests the new initiative under this parent. Same rules as addInitiativeRelation.
+	ParentInitiativeID *uuid.UUID `json:"parentInitiativeId,omitempty"`
+}
+
+type CreateInitiativeLabelInput struct {
+	ParentID     *uuid.UUID `json:"parentId,omitempty"`
+	IsGroup      *bool      `json:"isGroup,omitempty"`
+	Name         string     `json:"name"`
+	Description  *string    `json:"description,omitempty"`
+	Color        *string    `json:"color,omitempty"`
+	AfterLabelID *uuid.UUID `json:"afterLabelId,omitempty"`
 }
 
 type CreateInitiativeUpdateInput struct {
@@ -1035,6 +1046,46 @@ type Initiative struct {
 	Projects              []InitiativeProject   `json:"projects"`
 }
 
+// Workspace taxonomy for labelling initiatives — separate from issue and project labels.
+type InitiativeLabel struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ParentID    *uuid.UUID `json:"parentId,omitempty"`
+	IsGroup     bool       `json:"isGroup"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	Color       string     `json:"color"`
+	Position    string     `json:"position"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+}
+
+// One initiative label applied to one initiative.
+type InitiativeLabelLink struct {
+	ID           uuid.UUID  `json:"id"`
+	WorkspaceID  uuid.UUID  `json:"workspaceId"`
+	InitiativeID uuid.UUID  `json:"initiativeId"`
+	LabelID      uuid.UUID  `json:"labelId"`
+	GroupID      *uuid.UUID `json:"groupId,omitempty"`
+	CreatedBy    *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+}
+
+type InitiativeLabelLinkPayload struct {
+	Version             int                  `json:"version"`
+	InitiativeLabelLink *InitiativeLabelLink `json:"initiativeLabelLink"`
+}
+
+func (InitiativeLabelLinkPayload) IsMutationResult() {}
+
+type InitiativeLabelPayload struct {
+	Version         int              `json:"version"`
+	InitiativeLabel *InitiativeLabel `json:"initiativeLabel"`
+}
+
+func (InitiativeLabelPayload) IsMutationResult() {}
+
 type InitiativePayload struct {
 	Version    int         `json:"version"`
 	Initiative *Initiative `json:"initiative"`
@@ -1057,6 +1108,24 @@ type InitiativeProjectPayload struct {
 }
 
 func (InitiativeProjectPayload) IsMutationResult() {}
+
+// A parent → child nest between two initiatives. Multiple parents are allowed.
+type InitiativeRelation struct {
+	ID                 uuid.UUID  `json:"id"`
+	WorkspaceID        uuid.UUID  `json:"workspaceId"`
+	ParentInitiativeID uuid.UUID  `json:"parentInitiativeId"`
+	ChildInitiativeID  uuid.UUID  `json:"childInitiativeId"`
+	SortOrder          string     `json:"sortOrder"`
+	CreatedBy          *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt          time.Time  `json:"createdAt"`
+}
+
+type InitiativeRelationPayload struct {
+	Version            int                 `json:"version"`
+	InitiativeRelation *InitiativeRelation `json:"initiativeRelation"`
+}
+
+func (InitiativeRelationPayload) IsMutationResult() {}
 
 // A status post on an initiative — health plus narrative markdown.
 type InitiativeUpdate struct {
@@ -2242,6 +2311,16 @@ type UpdateInitiativeInput struct {
 	TargetDate            *string               `json:"targetDate,omitempty"`
 	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
 	ClearTarget           *bool                 `json:"clearTarget,omitempty"`
+}
+
+type UpdateInitiativeLabelInput struct {
+	ID           uuid.UUID  `json:"id"`
+	Name         *string    `json:"name,omitempty"`
+	Description  *string    `json:"description,omitempty"`
+	Color        *string    `json:"color,omitempty"`
+	ParentID     *uuid.UUID `json:"parentId,omitempty"`
+	ClearParent  *bool      `json:"clearParent,omitempty"`
+	AfterLabelID *uuid.UUID `json:"afterLabelId,omitempty"`
 }
 
 type UpdateInitiativeUpdateInput struct {

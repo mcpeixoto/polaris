@@ -524,6 +524,40 @@ type ComplexityRoot struct {
 		WorkspaceID           func(childComplexity int) int
 	}
 
+	InitiativeLabel struct {
+		ArchivedAt  func(childComplexity int) int
+		Color       func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		IsGroup     func(childComplexity int) int
+		Name        func(childComplexity int) int
+		ParentID    func(childComplexity int) int
+		Position    func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	InitiativeLabelLink struct {
+		CreatedAt    func(childComplexity int) int
+		CreatedBy    func(childComplexity int) int
+		GroupID      func(childComplexity int) int
+		ID           func(childComplexity int) int
+		InitiativeID func(childComplexity int) int
+		LabelID      func(childComplexity int) int
+		WorkspaceID  func(childComplexity int) int
+	}
+
+	InitiativeLabelLinkPayload struct {
+		InitiativeLabelLink func(childComplexity int) int
+		Version             func(childComplexity int) int
+	}
+
+	InitiativeLabelPayload struct {
+		InitiativeLabel func(childComplexity int) int
+		Version         func(childComplexity int) int
+	}
+
 	InitiativePayload struct {
 		Initiative func(childComplexity int) int
 		Version    func(childComplexity int) int
@@ -541,6 +575,21 @@ type ComplexityRoot struct {
 	InitiativeProjectPayload struct {
 		InitiativeProject func(childComplexity int) int
 		Version           func(childComplexity int) int
+	}
+
+	InitiativeRelation struct {
+		ChildInitiativeID  func(childComplexity int) int
+		CreatedAt          func(childComplexity int) int
+		CreatedBy          func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		ParentInitiativeID func(childComplexity int) int
+		SortOrder          func(childComplexity int) int
+		WorkspaceID        func(childComplexity int) int
+	}
+
+	InitiativeRelationPayload struct {
+		InitiativeRelation func(childComplexity int) int
+		Version            func(childComplexity int) int
 	}
 
 	InitiativeUpdate struct {
@@ -768,7 +817,9 @@ type ComplexityRoot struct {
 	Mutation struct {
 		AcceptTriageIssue              func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddFavorite                    func(childComplexity int, kind FavoriteKind, targetID uuid.UUID, afterFavoriteID *uuid.UUID) int
+		AddInitiativeLabel             func(childComplexity int, initiativeID uuid.UUID, labelID uuid.UUID) int
 		AddInitiativeProject           func(childComplexity int, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		AddInitiativeRelation          func(childComplexity int, parentInitiativeID uuid.UUID, childInitiativeID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddIssueLabel                  func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddProjectDependency           func(childComplexity int, blockingProjectID uuid.UUID, blockedProjectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddProjectLabel                func(childComplexity int, projectID uuid.UUID, labelID uuid.UUID) int
@@ -782,6 +833,7 @@ type ComplexityRoot struct {
 		ArchiveDocument                func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveFormTemplate            func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveInitiative              func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
+		ArchiveInitiativeLabel         func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveIssue                   func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveIssueTemplate           func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveLabel                   func(childComplexity int, id uuid.UUID, archived bool) int
@@ -811,6 +863,7 @@ type ComplexityRoot struct {
 		CreateGitLabConnection         func(childComplexity int, input CreateGitLabConnectionInput) int
 		CreateGitLabUserLink           func(childComplexity int, input CreateGitLabUserLinkInput) int
 		CreateInitiative               func(childComplexity int, input CreateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateInitiativeLabel          func(childComplexity int, input CreateInitiativeLabelInput) int
 		CreateInitiativeUpdate         func(childComplexity int, input CreateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssue                    func(childComplexity int, input CreateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssueRelation            func(childComplexity int, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -885,7 +938,9 @@ type ComplexityRoot struct {
 		MoveTeam                       func(childComplexity int, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		PurgeDeletedIssues             func(childComplexity int, before *time.Time) int
 		RemoveFavorite                 func(childComplexity int, kind FavoriteKind, targetID uuid.UUID) int
+		RemoveInitiativeLabel          func(childComplexity int, initiativeID uuid.UUID, labelID uuid.UUID) int
 		RemoveInitiativeProject        func(childComplexity int, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RemoveInitiativeRelation       func(childComplexity int, parentInitiativeID uuid.UUID, childInitiativeID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveIssueLabel               func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveProjectDependency        func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveProjectLabel             func(childComplexity int, projectID uuid.UUID, labelID uuid.UUID) int
@@ -931,6 +986,7 @@ type ComplexityRoot struct {
 		UpdateGitLabConnection         func(childComplexity int, input UpdateGitLabConnectionInput) int
 		UpdateGitLabTeamAutomation     func(childComplexity int, input UpdateGitLabTeamAutomationInput) int
 		UpdateInitiative               func(childComplexity int, input UpdateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateInitiativeLabel          func(childComplexity int, input UpdateInitiativeLabelInput) int
 		UpdateInitiativeUpdate         func(childComplexity int, input UpdateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateIssue                    func(childComplexity int, input UpdateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateIssueTemplate            func(childComplexity int, input UpdateIssueTemplateInput) int
@@ -1332,6 +1388,8 @@ type ComplexityRoot struct {
 		GitlabUserLink               func(childComplexity int) int
 		GitlabWebhook                func(childComplexity int) int
 		Initiative                   func(childComplexity int, id uuid.UUID) int
+		InitiativeLabel              func(childComplexity int, id uuid.UUID) int
+		InitiativeLabels             func(childComplexity int) int
 		InitiativeUpdate             func(childComplexity int, id uuid.UUID) int
 		InitiativeUpdates            func(childComplexity int, initiativeID uuid.UUID) int
 		Initiatives                  func(childComplexity int) int
@@ -1776,6 +1834,8 @@ type MutationResolver interface {
 	DeleteInitiative(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	AddInitiativeProject(ctx context.Context, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*InitiativeProjectPayload, error)
 	RemoveInitiativeProject(ctx context.Context, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	AddInitiativeRelation(ctx context.Context, parentInitiativeID uuid.UUID, childInitiativeID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*InitiativeRelationPayload, error)
+	RemoveInitiativeRelation(ctx context.Context, parentInitiativeID uuid.UUID, childInitiativeID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateInitiativeUpdate(ctx context.Context, input CreateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) (*InitiativeUpdatePayload, error)
 	UpdateInitiativeUpdate(ctx context.Context, input UpdateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) (*InitiativeUpdatePayload, error)
 	DeleteInitiativeUpdate(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
@@ -1853,6 +1913,11 @@ type MutationResolver interface {
 	ArchiveProjectLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
 	AddProjectLabel(ctx context.Context, projectID uuid.UUID, labelID uuid.UUID) (*ProjectLabelLinkPayload, error)
 	RemoveProjectLabel(ctx context.Context, projectID uuid.UUID, labelID uuid.UUID) (*DeletePayload, error)
+	CreateInitiativeLabel(ctx context.Context, input CreateInitiativeLabelInput) (*InitiativeLabelPayload, error)
+	UpdateInitiativeLabel(ctx context.Context, input UpdateInitiativeLabelInput) (*InitiativeLabelPayload, error)
+	ArchiveInitiativeLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
+	AddInitiativeLabel(ctx context.Context, initiativeID uuid.UUID, labelID uuid.UUID) (*InitiativeLabelLinkPayload, error)
+	RemoveInitiativeLabel(ctx context.Context, initiativeID uuid.UUID, labelID uuid.UUID) (*DeletePayload, error)
 	CreateIssueRelation(ctx context.Context, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) (*IssueRelationPayload, error)
 	DeleteIssueRelation(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	SetIssueSubscription(ctx context.Context, issueID uuid.UUID, subscribed bool) (*SubscriptionPayload, error)
@@ -1966,6 +2031,8 @@ type QueryResolver interface {
 	Label(ctx context.Context, id uuid.UUID) (*Label, error)
 	ProjectLabels(ctx context.Context) ([]ProjectLabel, error)
 	ProjectLabel(ctx context.Context, id uuid.UUID) (*ProjectLabel, error)
+	InitiativeLabels(ctx context.Context) ([]InitiativeLabel, error)
+	InitiativeLabel(ctx context.Context, id uuid.UUID) (*InitiativeLabel, error)
 	Views(ctx context.Context) ([]View, error)
 	View(ctx context.Context, id uuid.UUID) (*View, error)
 	ViewPreferences(ctx context.Context) ([]ViewPreference, error)
@@ -4040,6 +4107,142 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Initiative.WorkspaceID(childComplexity), true
 
+	case "InitiativeLabel.archivedAt":
+		if e.ComplexityRoot.InitiativeLabel.ArchivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.ArchivedAt(childComplexity), true
+	case "InitiativeLabel.color":
+		if e.ComplexityRoot.InitiativeLabel.Color == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.Color(childComplexity), true
+	case "InitiativeLabel.createdAt":
+		if e.ComplexityRoot.InitiativeLabel.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.CreatedAt(childComplexity), true
+	case "InitiativeLabel.description":
+		if e.ComplexityRoot.InitiativeLabel.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.Description(childComplexity), true
+	case "InitiativeLabel.id":
+		if e.ComplexityRoot.InitiativeLabel.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.ID(childComplexity), true
+	case "InitiativeLabel.isGroup":
+		if e.ComplexityRoot.InitiativeLabel.IsGroup == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.IsGroup(childComplexity), true
+	case "InitiativeLabel.name":
+		if e.ComplexityRoot.InitiativeLabel.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.Name(childComplexity), true
+	case "InitiativeLabel.parentId":
+		if e.ComplexityRoot.InitiativeLabel.ParentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.ParentID(childComplexity), true
+	case "InitiativeLabel.position":
+		if e.ComplexityRoot.InitiativeLabel.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.Position(childComplexity), true
+	case "InitiativeLabel.updatedAt":
+		if e.ComplexityRoot.InitiativeLabel.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.UpdatedAt(childComplexity), true
+	case "InitiativeLabel.workspaceId":
+		if e.ComplexityRoot.InitiativeLabel.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabel.WorkspaceID(childComplexity), true
+
+	case "InitiativeLabelLink.createdAt":
+		if e.ComplexityRoot.InitiativeLabelLink.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelLink.CreatedAt(childComplexity), true
+	case "InitiativeLabelLink.createdBy":
+		if e.ComplexityRoot.InitiativeLabelLink.CreatedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelLink.CreatedBy(childComplexity), true
+	case "InitiativeLabelLink.groupId":
+		if e.ComplexityRoot.InitiativeLabelLink.GroupID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelLink.GroupID(childComplexity), true
+	case "InitiativeLabelLink.id":
+		if e.ComplexityRoot.InitiativeLabelLink.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelLink.ID(childComplexity), true
+	case "InitiativeLabelLink.initiativeId":
+		if e.ComplexityRoot.InitiativeLabelLink.InitiativeID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelLink.InitiativeID(childComplexity), true
+	case "InitiativeLabelLink.labelId":
+		if e.ComplexityRoot.InitiativeLabelLink.LabelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelLink.LabelID(childComplexity), true
+	case "InitiativeLabelLink.workspaceId":
+		if e.ComplexityRoot.InitiativeLabelLink.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelLink.WorkspaceID(childComplexity), true
+
+	case "InitiativeLabelLinkPayload.initiativeLabelLink":
+		if e.ComplexityRoot.InitiativeLabelLinkPayload.InitiativeLabelLink == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelLinkPayload.InitiativeLabelLink(childComplexity), true
+	case "InitiativeLabelLinkPayload.version":
+		if e.ComplexityRoot.InitiativeLabelLinkPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelLinkPayload.Version(childComplexity), true
+
+	case "InitiativeLabelPayload.initiativeLabel":
+		if e.ComplexityRoot.InitiativeLabelPayload.InitiativeLabel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelPayload.InitiativeLabel(childComplexity), true
+	case "InitiativeLabelPayload.version":
+		if e.ComplexityRoot.InitiativeLabelPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeLabelPayload.Version(childComplexity), true
+
 	case "InitiativePayload.initiative":
 		if e.ComplexityRoot.InitiativePayload.Initiative == nil {
 			break
@@ -4102,6 +4305,62 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.InitiativeProjectPayload.Version(childComplexity), true
+
+	case "InitiativeRelation.childInitiativeId":
+		if e.ComplexityRoot.InitiativeRelation.ChildInitiativeID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeRelation.ChildInitiativeID(childComplexity), true
+	case "InitiativeRelation.createdAt":
+		if e.ComplexityRoot.InitiativeRelation.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeRelation.CreatedAt(childComplexity), true
+	case "InitiativeRelation.createdBy":
+		if e.ComplexityRoot.InitiativeRelation.CreatedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeRelation.CreatedBy(childComplexity), true
+	case "InitiativeRelation.id":
+		if e.ComplexityRoot.InitiativeRelation.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeRelation.ID(childComplexity), true
+	case "InitiativeRelation.parentInitiativeId":
+		if e.ComplexityRoot.InitiativeRelation.ParentInitiativeID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeRelation.ParentInitiativeID(childComplexity), true
+	case "InitiativeRelation.sortOrder":
+		if e.ComplexityRoot.InitiativeRelation.SortOrder == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeRelation.SortOrder(childComplexity), true
+	case "InitiativeRelation.workspaceId":
+		if e.ComplexityRoot.InitiativeRelation.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeRelation.WorkspaceID(childComplexity), true
+
+	case "InitiativeRelationPayload.initiativeRelation":
+		if e.ComplexityRoot.InitiativeRelationPayload.InitiativeRelation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeRelationPayload.InitiativeRelation(childComplexity), true
+	case "InitiativeRelationPayload.version":
+		if e.ComplexityRoot.InitiativeRelationPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeRelationPayload.Version(childComplexity), true
 
 	case "InitiativeUpdate.author":
 		if e.ComplexityRoot.InitiativeUpdate.Author == nil {
@@ -5134,6 +5393,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AddFavorite(childComplexity, args["kind"].(FavoriteKind), args["targetId"].(uuid.UUID), args["afterFavoriteId"].(*uuid.UUID)), true
+	case "Mutation.addInitiativeLabel":
+		if e.ComplexityRoot.Mutation.AddInitiativeLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addInitiativeLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AddInitiativeLabel(childComplexity, args["initiativeId"].(uuid.UUID), args["labelId"].(uuid.UUID)), true
 	case "Mutation.addInitiativeProject":
 		if e.ComplexityRoot.Mutation.AddInitiativeProject == nil {
 			break
@@ -5145,6 +5415,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AddInitiativeProject(childComplexity, args["initiativeId"].(uuid.UUID), args["projectId"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.addInitiativeRelation":
+		if e.ComplexityRoot.Mutation.AddInitiativeRelation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addInitiativeRelation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AddInitiativeRelation(childComplexity, args["parentInitiativeId"].(uuid.UUID), args["childInitiativeId"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.addIssueLabel":
 		if e.ComplexityRoot.Mutation.AddIssueLabel == nil {
 			break
@@ -5288,6 +5569,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ArchiveInitiative(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.archiveInitiativeLabel":
+		if e.ComplexityRoot.Mutation.ArchiveInitiativeLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveInitiativeLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ArchiveInitiativeLabel(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
 	case "Mutation.archiveIssue":
 		if e.ComplexityRoot.Mutation.ArchiveIssue == nil {
 			break
@@ -5607,6 +5899,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateInitiative(childComplexity, args["input"].(CreateInitiativeInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createInitiativeLabel":
+		if e.ComplexityRoot.Mutation.CreateInitiativeLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createInitiativeLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateInitiativeLabel(childComplexity, args["input"].(CreateInitiativeLabelInput)), true
 	case "Mutation.createInitiativeUpdate":
 		if e.ComplexityRoot.Mutation.CreateInitiativeUpdate == nil {
 			break
@@ -6386,6 +6689,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RemoveFavorite(childComplexity, args["kind"].(FavoriteKind), args["targetId"].(uuid.UUID)), true
+	case "Mutation.removeInitiativeLabel":
+		if e.ComplexityRoot.Mutation.RemoveInitiativeLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeInitiativeLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RemoveInitiativeLabel(childComplexity, args["initiativeId"].(uuid.UUID), args["labelId"].(uuid.UUID)), true
 	case "Mutation.removeInitiativeProject":
 		if e.ComplexityRoot.Mutation.RemoveInitiativeProject == nil {
 			break
@@ -6397,6 +6711,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RemoveInitiativeProject(childComplexity, args["initiativeId"].(uuid.UUID), args["projectId"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.removeInitiativeRelation":
+		if e.ComplexityRoot.Mutation.RemoveInitiativeRelation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeInitiativeRelation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RemoveInitiativeRelation(childComplexity, args["parentInitiativeId"].(uuid.UUID), args["childInitiativeId"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.removeIssueLabel":
 		if e.ComplexityRoot.Mutation.RemoveIssueLabel == nil {
 			break
@@ -6892,6 +7217,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateInitiative(childComplexity, args["input"].(UpdateInitiativeInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.updateInitiativeLabel":
+		if e.ComplexityRoot.Mutation.UpdateInitiativeLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateInitiativeLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateInitiativeLabel(childComplexity, args["input"].(UpdateInitiativeLabelInput)), true
 	case "Mutation.updateInitiativeUpdate":
 		if e.ComplexityRoot.Mutation.UpdateInitiativeUpdate == nil {
 			break
@@ -8902,6 +9238,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Initiative(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.initiativeLabel":
+		if e.ComplexityRoot.Query.InitiativeLabel == nil {
+			break
+		}
+
+		args, err := ec.field_Query_initiativeLabel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.InitiativeLabel(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.initiativeLabels":
+		if e.ComplexityRoot.Query.InitiativeLabels == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.InitiativeLabels(childComplexity), true
 	case "Query.initiativeUpdate":
 		if e.ComplexityRoot.Query.InitiativeUpdate == nil {
 			break
@@ -10943,6 +11296,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateGitLabConnectionInput,
 		ec.unmarshalInputCreateGitLabUserLinkInput,
 		ec.unmarshalInputCreateInitiativeInput,
+		ec.unmarshalInputCreateInitiativeLabelInput,
 		ec.unmarshalInputCreateInitiativeUpdateInput,
 		ec.unmarshalInputCreateIssueInput,
 		ec.unmarshalInputCreateIssueTemplateInput,
@@ -10992,6 +11346,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateGitLabConnectionInput,
 		ec.unmarshalInputUpdateGitLabTeamAutomationInput,
 		ec.unmarshalInputUpdateInitiativeInput,
+		ec.unmarshalInputUpdateInitiativeLabelInput,
 		ec.unmarshalInputUpdateInitiativeUpdateInput,
 		ec.unmarshalInputUpdateIssueInput,
 		ec.unmarshalInputUpdateIssueTemplateEmailIntakeInput,
@@ -12254,6 +12609,58 @@ type InitiativeUpdate {
 type InitiativeUpdatePayload implements MutationResult {
   version: Int!
   initiativeUpdate: InitiativeUpdate!
+}
+
+"""Workspace taxonomy for labelling initiatives — separate from issue and project labels."""
+type InitiativeLabel {
+  id: UUID!
+  workspaceId: UUID!
+  parentId: UUID
+  isGroup: Boolean!
+  name: String!
+  description: String
+  color: String!
+  position: String!
+  createdAt: Time!
+  updatedAt: Time!
+  archivedAt: Time
+}
+
+"""One initiative label applied to one initiative."""
+type InitiativeLabelLink {
+  id: UUID!
+  workspaceId: UUID!
+  initiativeId: UUID!
+  labelId: UUID!
+  groupId: UUID
+  createdBy: UUID
+  createdAt: Time!
+}
+
+"""A parent → child nest between two initiatives. Multiple parents are allowed."""
+type InitiativeRelation {
+  id: UUID!
+  workspaceId: UUID!
+  parentInitiativeId: UUID!
+  childInitiativeId: UUID!
+  sortOrder: String!
+  createdBy: UUID
+  createdAt: Time!
+}
+
+type InitiativeLabelPayload implements MutationResult {
+  version: Int!
+  initiativeLabel: InitiativeLabel!
+}
+
+type InitiativeLabelLinkPayload implements MutationResult {
+  version: Int!
+  initiativeLabelLink: InitiativeLabelLink!
+}
+
+type InitiativeRelationPayload implements MutationResult {
+  version: Int!
+  initiativeRelation: InitiativeRelation!
 }
 
 enum CustomerStatus {
@@ -13959,6 +14366,27 @@ input CreateInitiativeInput {
   leadTeamId: UUID
   targetDate: String
   targetDateGranularity: TimeframeGranularity
+  """Nests the new initiative under this parent. Same rules as addInitiativeRelation."""
+  parentInitiativeId: UUID
+}
+
+input CreateInitiativeLabelInput {
+  parentId: UUID
+  isGroup: Boolean
+  name: String!
+  description: String
+  color: String
+  afterLabelId: UUID
+}
+
+input UpdateInitiativeLabelInput {
+  id: UUID!
+  name: String
+  description: String
+  color: String
+  parentId: UUID
+  clearParent: Boolean
+  afterLabelId: UUID
 }
 
 input UpdateInitiativeInput {
@@ -14149,6 +14577,9 @@ type Query {
   projectLabels: [ProjectLabel!]!
   projectLabel(id: UUID!): ProjectLabel
 
+  initiativeLabels: [InitiativeLabel!]!
+  initiativeLabel(id: UUID!): InitiativeLabel
+
   """Saved views the caller can see: shared ones in scope, plus their own private ones."""
   views: [View!]!
   view(id: UUID!): View
@@ -14325,6 +14756,8 @@ type Mutation {
   deleteInitiative(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   addInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): InitiativeProjectPayload! @idempotent
   removeInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  addInitiativeRelation(parentInitiativeId: UUID!, childInitiativeId: UUID!, clientId: UUID, opId: UUID): InitiativeRelationPayload! @idempotent
+  removeInitiativeRelation(parentInitiativeId: UUID!, childInitiativeId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createInitiativeUpdate(input: CreateInitiativeUpdateInput!, clientId: UUID, opId: UUID): InitiativeUpdatePayload! @idempotent
   updateInitiativeUpdate(input: UpdateInitiativeUpdateInput!, clientId: UUID, opId: UUID): InitiativeUpdatePayload! @idempotent
@@ -14469,6 +14902,14 @@ type Mutation {
   archiveProjectLabel(id: UUID!, archived: Boolean!): DeletePayload!
   addProjectLabel(projectId: UUID!, labelId: UUID!): ProjectLabelLinkPayload!
   removeProjectLabel(projectId: UUID!, labelId: UUID!): DeletePayload!
+
+  # ---- initiative labels
+
+  createInitiativeLabel(input: CreateInitiativeLabelInput!): InitiativeLabelPayload!
+  updateInitiativeLabel(input: UpdateInitiativeLabelInput!): InitiativeLabelPayload!
+  archiveInitiativeLabel(id: UUID!, archived: Boolean!): DeletePayload!
+  addInitiativeLabel(initiativeId: UUID!, labelId: UUID!): InitiativeLabelLinkPayload!
+  removeInitiativeLabel(initiativeId: UUID!, labelId: UUID!): DeletePayload!
 
   # ---- relations
 
@@ -15594,6 +16035,74 @@ func (ec *executionContext) childFields_Initiative(ctx context.Context, field gr
 	return nil, fmt.Errorf("no field named %q was found under type Initiative", field.Name)
 }
 
+func (ec *executionContext) childFields_InitiativeLabel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_InitiativeLabel_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_InitiativeLabel_workspaceId(ctx, field)
+	case "parentId":
+		return ec.fieldContext_InitiativeLabel_parentId(ctx, field)
+	case "isGroup":
+		return ec.fieldContext_InitiativeLabel_isGroup(ctx, field)
+	case "name":
+		return ec.fieldContext_InitiativeLabel_name(ctx, field)
+	case "description":
+		return ec.fieldContext_InitiativeLabel_description(ctx, field)
+	case "color":
+		return ec.fieldContext_InitiativeLabel_color(ctx, field)
+	case "position":
+		return ec.fieldContext_InitiativeLabel_position(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_InitiativeLabel_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_InitiativeLabel_updatedAt(ctx, field)
+	case "archivedAt":
+		return ec.fieldContext_InitiativeLabel_archivedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InitiativeLabel", field.Name)
+}
+
+func (ec *executionContext) childFields_InitiativeLabelLink(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_InitiativeLabelLink_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_InitiativeLabelLink_workspaceId(ctx, field)
+	case "initiativeId":
+		return ec.fieldContext_InitiativeLabelLink_initiativeId(ctx, field)
+	case "labelId":
+		return ec.fieldContext_InitiativeLabelLink_labelId(ctx, field)
+	case "groupId":
+		return ec.fieldContext_InitiativeLabelLink_groupId(ctx, field)
+	case "createdBy":
+		return ec.fieldContext_InitiativeLabelLink_createdBy(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_InitiativeLabelLink_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InitiativeLabelLink", field.Name)
+}
+
+func (ec *executionContext) childFields_InitiativeLabelLinkPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_InitiativeLabelLinkPayload_version(ctx, field)
+	case "initiativeLabelLink":
+		return ec.fieldContext_InitiativeLabelLinkPayload_initiativeLabelLink(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InitiativeLabelLinkPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_InitiativeLabelPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_InitiativeLabelPayload_version(ctx, field)
+	case "initiativeLabel":
+		return ec.fieldContext_InitiativeLabelPayload_initiativeLabel(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InitiativeLabelPayload", field.Name)
+}
+
 func (ec *executionContext) childFields_InitiativePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "version":
@@ -15630,6 +16139,36 @@ func (ec *executionContext) childFields_InitiativeProjectPayload(ctx context.Con
 		return ec.fieldContext_InitiativeProjectPayload_initiativeProject(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type InitiativeProjectPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_InitiativeRelation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_InitiativeRelation_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_InitiativeRelation_workspaceId(ctx, field)
+	case "parentInitiativeId":
+		return ec.fieldContext_InitiativeRelation_parentInitiativeId(ctx, field)
+	case "childInitiativeId":
+		return ec.fieldContext_InitiativeRelation_childInitiativeId(ctx, field)
+	case "sortOrder":
+		return ec.fieldContext_InitiativeRelation_sortOrder(ctx, field)
+	case "createdBy":
+		return ec.fieldContext_InitiativeRelation_createdBy(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_InitiativeRelation_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InitiativeRelation", field.Name)
+}
+
+func (ec *executionContext) childFields_InitiativeRelationPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_InitiativeRelationPayload_version(ctx, field)
+	case "initiativeRelation":
+		return ec.fieldContext_InitiativeRelationPayload_initiativeRelation(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InitiativeRelationPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_InitiativeUpdate(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -17634,6 +18173,28 @@ func (ec *executionContext) field_Mutation_addFavorite_args(ctx context.Context,
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_addInitiativeLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "initiativeId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["initiativeId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "labelId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["labelId"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_addInitiativeProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -17653,6 +18214,44 @@ func (ec *executionContext) field_Mutation_addInitiativeProject_args(ctx context
 		return nil, err
 	}
 	args["projectId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_addInitiativeRelation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "parentInitiativeId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["parentInitiativeId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "childInitiativeId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["childInitiativeId"] = arg1
 	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
 		func(ctx context.Context, v any) (*uuid.UUID, error) {
 			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
@@ -18067,6 +18666,28 @@ func (ec *executionContext) field_Mutation_archiveDocument_args(ctx context.Cont
 }
 
 func (ec *executionContext) field_Mutation_archiveFormTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archived",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archived"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_archiveInitiativeLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -18782,6 +19403,20 @@ func (ec *executionContext) field_Mutation_createGitLabUserLink_args(ctx context
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (CreateGitLabUserLinkInput, error) {
 			return ec.unmarshalNCreateGitLabUserLinkInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateGitLabUserLinkInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createInitiativeLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateInitiativeLabelInput, error) {
+			return ec.unmarshalNCreateInitiativeLabelInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateInitiativeLabelInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -20350,6 +20985,28 @@ func (ec *executionContext) field_Mutation_removeFavorite_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_removeInitiativeLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "initiativeId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["initiativeId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "labelId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["labelId"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_removeInitiativeProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -20369,6 +21026,44 @@ func (ec *executionContext) field_Mutation_removeInitiativeProject_args(ctx cont
 		return nil, err
 	}
 	args["projectId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_removeInitiativeRelation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "parentInitiativeId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["parentInitiativeId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "childInitiativeId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["childInitiativeId"] = arg1
 	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
 		func(ctx context.Context, v any) (*uuid.UUID, error) {
 			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
@@ -21468,6 +22163,20 @@ func (ec *executionContext) field_Mutation_updateGitLabTeamAutomation_args(ctx c
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateInitiativeLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateInitiativeLabelInput, error) {
+			return ec.unmarshalNUpdateInitiativeLabelInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateInitiativeLabelInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateInitiativeUpdate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -22323,6 +23032,20 @@ func (ec *executionContext) field_Query_gitlabTeamAutomation_args(ctx context.Co
 		return nil, err
 	}
 	args["teamId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_initiativeLabel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -30634,6 +31357,530 @@ func (ec *executionContext) fieldContext_Initiative_projects(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _InitiativeLabel_id(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabel_workspaceId(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabel_parentId(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_parentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ParentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_parentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabel_isGroup(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_isGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsGroup, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_isGroup(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabel_name(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabel_description(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabel_color(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_color(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Color, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_color(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabel_position(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabel_createdAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabel_updatedAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabel_archivedAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabel_archivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabel_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabel", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabelLink_id(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelLink_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelLink_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabelLink_workspaceId(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelLink_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelLink_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabelLink_initiativeId(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelLink_initiativeId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InitiativeID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelLink_initiativeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabelLink_labelId(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelLink_labelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LabelID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelLink_labelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabelLink_groupId(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelLink_groupId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GroupID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelLink_groupId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabelLink_createdBy(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelLink_createdBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelLink_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabelLink", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabelLink_createdAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelLink_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelLink_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabelLink", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabelLinkPayload_version(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelLinkPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelLinkPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabelLinkPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabelLinkPayload_initiativeLabelLink(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelLinkPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelLinkPayload_initiativeLabelLink(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InitiativeLabelLink, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeLabelLink) graphql.Marshaler {
+			return ec.marshalNInitiativeLabelLink2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelLink(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelLinkPayload_initiativeLabelLink(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InitiativeLabelLinkPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeLabelLink(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InitiativeLabelPayload_version(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeLabelPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeLabelPayload_initiativeLabel(ctx context.Context, field graphql.CollectedField, obj *InitiativeLabelPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeLabelPayload_initiativeLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InitiativeLabel, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeLabel) graphql.Marshaler {
+			return ec.marshalNInitiativeLabel2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabel(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeLabelPayload_initiativeLabel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InitiativeLabelPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeLabel(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _InitiativePayload_version(ctx context.Context, field graphql.CollectedField, obj *InitiativePayload) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -30886,6 +32133,222 @@ func (ec *executionContext) fieldContext_InitiativeProjectPayload_initiativeProj
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_InitiativeProject(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InitiativeRelation_id(ctx context.Context, field graphql.CollectedField, obj *InitiativeRelation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeRelation_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeRelation_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeRelation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeRelation_workspaceId(ctx context.Context, field graphql.CollectedField, obj *InitiativeRelation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeRelation_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeRelation_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeRelation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeRelation_parentInitiativeId(ctx context.Context, field graphql.CollectedField, obj *InitiativeRelation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeRelation_parentInitiativeId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ParentInitiativeID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeRelation_parentInitiativeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeRelation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeRelation_childInitiativeId(ctx context.Context, field graphql.CollectedField, obj *InitiativeRelation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeRelation_childInitiativeId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChildInitiativeID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeRelation_childInitiativeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeRelation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeRelation_sortOrder(ctx context.Context, field graphql.CollectedField, obj *InitiativeRelation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeRelation_sortOrder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SortOrder, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeRelation_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeRelation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeRelation_createdBy(ctx context.Context, field graphql.CollectedField, obj *InitiativeRelation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeRelation_createdBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeRelation_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeRelation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeRelation_createdAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeRelation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeRelation_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeRelation_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeRelation", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeRelationPayload_version(ctx context.Context, field graphql.CollectedField, obj *InitiativeRelationPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeRelationPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeRelationPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeRelationPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeRelationPayload_initiativeRelation(ctx context.Context, field graphql.CollectedField, obj *InitiativeRelationPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeRelationPayload_initiativeRelation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InitiativeRelation, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeRelation) graphql.Marshaler {
+			return ec.marshalNInitiativeRelation2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeRelation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeRelationPayload_initiativeRelation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InitiativeRelationPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeRelation(ctx, field)
 		},
 	}
 	return fc, nil
@@ -36447,6 +37910,120 @@ func (ec *executionContext) fieldContext_Mutation_removeInitiativeProject(ctx co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_addInitiativeRelation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_addInitiativeRelation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AddInitiativeRelation(ctx, fc.Args["parentInitiativeId"].(uuid.UUID), fc.Args["childInitiativeId"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *InitiativeRelationPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeRelationPayload) graphql.Marshaler {
+			return ec.marshalNInitiativeRelationPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeRelationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_addInitiativeRelation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeRelationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addInitiativeRelation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeInitiativeRelation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_removeInitiativeRelation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RemoveInitiativeRelation(ctx, fc.Args["parentInitiativeId"].(uuid.UUID), fc.Args["childInitiativeId"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_removeInitiativeRelation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeInitiativeRelation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createInitiativeUpdate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -40453,6 +42030,226 @@ func (ec *executionContext) fieldContext_Mutation_removeProjectLabel(ctx context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_removeProjectLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createInitiativeLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createInitiativeLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateInitiativeLabel(ctx, fc.Args["input"].(CreateInitiativeLabelInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeLabelPayload) graphql.Marshaler {
+			return ec.marshalNInitiativeLabelPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createInitiativeLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeLabelPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createInitiativeLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateInitiativeLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateInitiativeLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateInitiativeLabel(ctx, fc.Args["input"].(UpdateInitiativeLabelInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeLabelPayload) graphql.Marshaler {
+			return ec.marshalNInitiativeLabelPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateInitiativeLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeLabelPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateInitiativeLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveInitiativeLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_archiveInitiativeLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ArchiveInitiativeLabel(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_archiveInitiativeLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveInitiativeLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_addInitiativeLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_addInitiativeLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AddInitiativeLabel(ctx, fc.Args["initiativeId"].(uuid.UUID), fc.Args["labelId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeLabelLinkPayload) graphql.Marshaler {
+			return ec.marshalNInitiativeLabelLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelLinkPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_addInitiativeLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeLabelLinkPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addInitiativeLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeInitiativeLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_removeInitiativeLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RemoveInitiativeLabel(ctx, fc.Args["initiativeId"].(uuid.UUID), fc.Args["labelId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_removeInitiativeLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeInitiativeLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -50838,6 +52635,82 @@ func (ec *executionContext) fieldContext_Query_projectLabel(ctx context.Context,
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_projectLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_initiativeLabels(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_initiativeLabels(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().InitiativeLabels(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []InitiativeLabel) graphql.Marshaler {
+			return ec.marshalNInitiativeLabel2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_initiativeLabels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeLabel(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_initiativeLabel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_initiativeLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().InitiativeLabel(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeLabel) graphql.Marshaler {
+			return ec.marshalOInitiativeLabel2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabel(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_initiativeLabel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeLabel(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_initiativeLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -61605,7 +63478,7 @@ func (ec *executionContext) unmarshalInputCreateInitiativeInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "description", "status", "priority", "ownerId", "leadTeamId", "targetDate", "targetDateGranularity"}
+	fieldsInOrder := [...]string{"name", "description", "status", "priority", "ownerId", "leadTeamId", "targetDate", "targetDateGranularity", "parentInitiativeId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -61668,6 +63541,78 @@ func (ec *executionContext) unmarshalInputCreateInitiativeInput(ctx context.Cont
 				return it, err
 			}
 			it.TargetDateGranularity = data
+		case "parentInitiativeId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentInitiativeId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentInitiativeID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateInitiativeLabelInput(ctx context.Context, obj any) (CreateInitiativeLabelInput, error) {
+	var it CreateInitiativeLabelInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"parentId", "isGroup", "name", "description", "color", "afterLabelId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "parentId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentID = data
+		case "isGroup":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isGroup"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsGroup = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "color":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("color"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Color = data
+		case "afterLabelId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("afterLabelId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AfterLabelID = data
 		}
 	}
 	return it, nil
@@ -64816,6 +66761,78 @@ func (ec *executionContext) unmarshalInputUpdateInitiativeInput(ctx context.Cont
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateInitiativeLabelInput(ctx context.Context, obj any) (UpdateInitiativeLabelInput, error) {
+	var it UpdateInitiativeLabelInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name", "description", "color", "parentId", "clearParent", "afterLabelId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "color":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("color"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Color = data
+		case "parentId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentID = data
+		case "clearParent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearParent"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearParent = data
+		case "afterLabelId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("afterLabelId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AfterLabelID = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateInitiativeUpdateInput(ctx context.Context, obj any) (UpdateInitiativeUpdateInput, error) {
 	var it UpdateInitiativeUpdateInput
 	if obj == nil {
@@ -67259,6 +69276,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._InitiativeUpdatePayload(ctx, sel, obj)
+	case InitiativeRelationPayload:
+		return ec._InitiativeRelationPayload(ctx, sel, &obj)
+	case *InitiativeRelationPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._InitiativeRelationPayload(ctx, sel, obj)
 	case InitiativeProjectPayload:
 		return ec._InitiativeProjectPayload(ctx, sel, &obj)
 	case *InitiativeProjectPayload:
@@ -67273,6 +69297,20 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._InitiativePayload(ctx, sel, obj)
+	case InitiativeLabelPayload:
+		return ec._InitiativeLabelPayload(ctx, sel, &obj)
+	case *InitiativeLabelPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._InitiativeLabelPayload(ctx, sel, obj)
+	case InitiativeLabelLinkPayload:
+		return ec._InitiativeLabelLinkPayload(ctx, sel, &obj)
+	case *InitiativeLabelLinkPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._InitiativeLabelLinkPayload(ctx, sel, obj)
 	case GitLabUserLinkPayload:
 		return ec._GitLabUserLinkPayload(ctx, sel, &obj)
 	case *GitLabUserLinkPayload:
@@ -70839,6 +72877,248 @@ func (ec *executionContext) _Initiative(ctx context.Context, sel ast.SelectionSe
 	return out
 }
 
+var initiativeLabelImplementors = []string{"InitiativeLabel"}
+
+func (ec *executionContext) _InitiativeLabel(ctx context.Context, sel ast.SelectionSet, obj *InitiativeLabel) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiativeLabelImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiativeLabel")
+		case "id":
+			out.Values[i] = ec._InitiativeLabel_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._InitiativeLabel_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "parentId":
+			out.Values[i] = ec._InitiativeLabel_parentId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "isGroup":
+			out.Values[i] = ec._InitiativeLabel_isGroup(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._InitiativeLabel_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._InitiativeLabel_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "color":
+			out.Values[i] = ec._InitiativeLabel_color(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._InitiativeLabel_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._InitiativeLabel_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._InitiativeLabel_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archivedAt":
+			out.Values[i] = ec._InitiativeLabel_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var initiativeLabelLinkImplementors = []string{"InitiativeLabelLink"}
+
+func (ec *executionContext) _InitiativeLabelLink(ctx context.Context, sel ast.SelectionSet, obj *InitiativeLabelLink) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiativeLabelLinkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiativeLabelLink")
+		case "id":
+			out.Values[i] = ec._InitiativeLabelLink_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._InitiativeLabelLink_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "initiativeId":
+			out.Values[i] = ec._InitiativeLabelLink_initiativeId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "labelId":
+			out.Values[i] = ec._InitiativeLabelLink_labelId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "groupId":
+			out.Values[i] = ec._InitiativeLabelLink_groupId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdBy":
+			out.Values[i] = ec._InitiativeLabelLink_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._InitiativeLabelLink_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var initiativeLabelLinkPayloadImplementors = []string{"InitiativeLabelLinkPayload", "MutationResult"}
+
+func (ec *executionContext) _InitiativeLabelLinkPayload(ctx context.Context, sel ast.SelectionSet, obj *InitiativeLabelLinkPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiativeLabelLinkPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiativeLabelLinkPayload")
+		case "version":
+			out.Values[i] = ec._InitiativeLabelLinkPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "initiativeLabelLink":
+			out.Values[i] = ec._InitiativeLabelLinkPayload_initiativeLabelLink(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var initiativeLabelPayloadImplementors = []string{"InitiativeLabelPayload", "MutationResult"}
+
+func (ec *executionContext) _InitiativeLabelPayload(ctx context.Context, sel ast.SelectionSet, obj *InitiativeLabelPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiativeLabelPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiativeLabelPayload")
+		case "version":
+			out.Values[i] = ec._InitiativeLabelPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "initiativeLabel":
+			out.Values[i] = ec._InitiativeLabelPayload_initiativeLabel(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var initiativePayloadImplementors = []string{"InitiativePayload", "MutationResult"}
 
 func (ec *executionContext) _InitiativePayload(ctx context.Context, sel ast.SelectionSet, obj *InitiativePayload) graphql.Marshaler {
@@ -70964,6 +73244,117 @@ func (ec *executionContext) _InitiativeProjectPayload(ctx context.Context, sel a
 			}
 		case "initiativeProject":
 			out.Values[i] = ec._InitiativeProjectPayload_initiativeProject(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var initiativeRelationImplementors = []string{"InitiativeRelation"}
+
+func (ec *executionContext) _InitiativeRelation(ctx context.Context, sel ast.SelectionSet, obj *InitiativeRelation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiativeRelationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiativeRelation")
+		case "id":
+			out.Values[i] = ec._InitiativeRelation_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._InitiativeRelation_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "parentInitiativeId":
+			out.Values[i] = ec._InitiativeRelation_parentInitiativeId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "childInitiativeId":
+			out.Values[i] = ec._InitiativeRelation_childInitiativeId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sortOrder":
+			out.Values[i] = ec._InitiativeRelation_sortOrder(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdBy":
+			out.Values[i] = ec._InitiativeRelation_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._InitiativeRelation_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var initiativeRelationPayloadImplementors = []string{"InitiativeRelationPayload", "MutationResult"}
+
+func (ec *executionContext) _InitiativeRelationPayload(ctx context.Context, sel ast.SelectionSet, obj *InitiativeRelationPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiativeRelationPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiativeRelationPayload")
+		case "version":
+			out.Values[i] = ec._InitiativeRelationPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "initiativeRelation":
+			out.Values[i] = ec._InitiativeRelationPayload_initiativeRelation(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -72642,6 +75033,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "addInitiativeRelation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addInitiativeRelation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeInitiativeRelation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeInitiativeRelation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createInitiativeUpdate":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createInitiativeUpdate(ctx, field)
@@ -73177,6 +75582,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "removeProjectLabel":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_removeProjectLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createInitiativeLabel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createInitiativeLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateInitiativeLabel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateInitiativeLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveInitiativeLabel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveInitiativeLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addInitiativeLabel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addInitiativeLabel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeInitiativeLabel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeInitiativeLabel(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -76583,6 +79023,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_projectLabel(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "initiativeLabels":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_initiativeLabels(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "initiativeLabel":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_initiativeLabel(ctx, field)
 				if res == graphql.RequiredNull {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -81272,6 +83756,11 @@ func (ec *executionContext) unmarshalNCreateInitiativeInput2githubᚗcomᚋpeixo
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateInitiativeLabelInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateInitiativeLabelInput(ctx context.Context, v any) (CreateInitiativeLabelInput, error) {
+	res, err := ec.unmarshalInputCreateInitiativeLabelInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateInitiativeUpdateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateInitiativeUpdateInput(ctx context.Context, v any) (CreateInitiativeUpdateInput, error) {
 	res, err := ec.unmarshalInputCreateInitiativeUpdateInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -82095,6 +84584,74 @@ func (ec *executionContext) marshalNInitiative2ᚖgithubᚗcomᚋpeixotolabsᚋp
 	return ec._Initiative(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNInitiativeLabel2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabel(ctx context.Context, sel ast.SelectionSet, v InitiativeLabel) graphql.Marshaler {
+	return ec._InitiativeLabel(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNInitiativeLabel2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelᚄ(ctx context.Context, sel ast.SelectionSet, v []InitiativeLabel) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNInitiativeLabel2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabel(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNInitiativeLabel2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabel(ctx context.Context, sel ast.SelectionSet, v *InitiativeLabel) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiativeLabel(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNInitiativeLabelLink2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelLink(ctx context.Context, sel ast.SelectionSet, v *InitiativeLabelLink) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiativeLabelLink(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNInitiativeLabelLinkPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelLinkPayload(ctx context.Context, sel ast.SelectionSet, v InitiativeLabelLinkPayload) graphql.Marshaler {
+	return ec._InitiativeLabelLinkPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNInitiativeLabelLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelLinkPayload(ctx context.Context, sel ast.SelectionSet, v *InitiativeLabelLinkPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiativeLabelLinkPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNInitiativeLabelPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelPayload(ctx context.Context, sel ast.SelectionSet, v InitiativeLabelPayload) graphql.Marshaler {
+	return ec._InitiativeLabelPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNInitiativeLabelPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelPayload(ctx context.Context, sel ast.SelectionSet, v *InitiativeLabelPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiativeLabelPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNInitiativePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativePayload(ctx context.Context, sel ast.SelectionSet, v InitiativePayload) graphql.Marshaler {
 	return ec._InitiativePayload(ctx, sel, &v)
 }
@@ -82151,6 +84708,30 @@ func (ec *executionContext) marshalNInitiativeProjectPayload2ᚖgithubᚗcomᚋp
 		return graphql.Null
 	}
 	return ec._InitiativeProjectPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNInitiativeRelation2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeRelation(ctx context.Context, sel ast.SelectionSet, v *InitiativeRelation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiativeRelation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNInitiativeRelationPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeRelationPayload(ctx context.Context, sel ast.SelectionSet, v InitiativeRelationPayload) graphql.Marshaler {
+	return ec._InitiativeRelationPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNInitiativeRelationPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeRelationPayload(ctx context.Context, sel ast.SelectionSet, v *InitiativeRelationPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiativeRelationPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNInitiativeStatus2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeStatus(ctx context.Context, v any) (InitiativeStatus, error) {
@@ -83919,6 +86500,11 @@ func (ec *executionContext) unmarshalNUpdateInitiativeInput2githubᚗcomᚋpeixo
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateInitiativeLabelInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateInitiativeLabelInput(ctx context.Context, v any) (UpdateInitiativeLabelInput, error) {
+	res, err := ec.unmarshalInputUpdateInitiativeLabelInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateInitiativeUpdateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateInitiativeUpdateInput(ctx context.Context, v any) (UpdateInitiativeUpdateInput, error) {
 	res, err := ec.unmarshalInputUpdateInitiativeUpdateInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -84796,6 +87382,13 @@ func (ec *executionContext) marshalOInitiative2ᚖgithubᚗcomᚋpeixotolabsᚋp
 		return graphql.Null
 	}
 	return ec._Initiative(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOInitiativeLabel2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabel(ctx context.Context, sel ast.SelectionSet, v *InitiativeLabel) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._InitiativeLabel(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOInitiativeStatus2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeStatus(ctx context.Context, v any) (*InitiativeStatus, error) {

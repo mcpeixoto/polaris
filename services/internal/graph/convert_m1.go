@@ -90,6 +90,54 @@ func toProjectLabelLink(link model.ProjectLabelLink) generated.ProjectLabelLink 
 	}
 }
 
+func toInitiativeLabel(l model.InitiativeLabel) generated.InitiativeLabel {
+	return generated.InitiativeLabel{
+		ID:          l.ID,
+		WorkspaceID: l.WorkspaceID,
+		ParentID:    l.ParentID,
+		IsGroup:     l.IsGroup,
+		Name:        l.Name,
+		Description: l.Description,
+		Color:       l.Color,
+		Position:    l.Position,
+		CreatedAt:   l.CreatedAt,
+		UpdatedAt:   l.UpdatedAt,
+		ArchivedAt:  l.ArchivedAt,
+	}
+}
+
+func toInitiativeLabels(labels []model.InitiativeLabel) []generated.InitiativeLabel {
+	out := make([]generated.InitiativeLabel, 0, len(labels))
+	for _, l := range labels {
+		out = append(out, toInitiativeLabel(l))
+	}
+	return out
+}
+
+func toInitiativeLabelLink(link model.InitiativeLabelLink) generated.InitiativeLabelLink {
+	return generated.InitiativeLabelLink{
+		ID:           link.ID,
+		WorkspaceID:  link.WorkspaceID,
+		InitiativeID: link.InitiativeID,
+		LabelID:      link.LabelID,
+		GroupID:      link.GroupID,
+		CreatedBy:    link.CreatedBy,
+		CreatedAt:    link.CreatedAt,
+	}
+}
+
+func toInitiativeRelation(rel model.InitiativeRelation) generated.InitiativeRelation {
+	return generated.InitiativeRelation{
+		ID:                 rel.ID,
+		WorkspaceID:        rel.WorkspaceID,
+		ParentInitiativeID: rel.ParentInitiativeID,
+		ChildInitiativeID:  rel.ChildInitiativeID,
+		SortOrder:          rel.SortOrder,
+		CreatedBy:          rel.CreatedBy,
+		CreatedAt:          rel.CreatedAt,
+	}
+}
+
 // toIssueLabel leaves the nested Label nil for the field resolver to fill.
 //
 // Resolving it here would mean a read per application per issue — the N+1 that the
