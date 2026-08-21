@@ -166,6 +166,21 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 	return i, err
 }
 
+const deleteWorkspaceURLAlias = `-- name: DeleteWorkspaceURLAlias :exec
+DELETE FROM workspace_url_alias
+WHERE url_key = $1 AND workspace_id = $2
+`
+
+type DeleteWorkspaceURLAliasParams struct {
+	UrlKey      string
+	WorkspaceID uuid.UUID
+}
+
+func (q *Queries) DeleteWorkspaceURLAlias(ctx context.Context, arg DeleteWorkspaceURLAliasParams) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceURLAlias, arg.UrlKey, arg.WorkspaceID)
+	return err
+}
+
 const getWorkspace = `-- name: GetWorkspace :one
 SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
@@ -209,15 +224,22 @@ func (q *Queries) GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, er
 }
 
 const getWorkspaceByURLKey = `-- name: GetWorkspaceByURLKey :one
-SELECT id, name, url_key, logo_url, settings, plan,
-       archived_at, deleted_at, created_at, updated_at,
-       plan_expires_at, seat_limit, plan_lapsed_at,
-       project_update_reminder_interval_days, project_update_reminder_weekday,
-       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence,
-       customer_requests_enabled, customer_default_team_id, customer_revenue_unit,
-       customer_tiers
-FROM workspace
-WHERE url_key = $1 AND deleted_at IS NULL
+SELECT w.id, w.name, w.url_key, w.logo_url, w.settings, w.plan,
+       w.archived_at, w.deleted_at, w.created_at, w.updated_at,
+       w.plan_expires_at, w.seat_limit, w.plan_lapsed_at,
+       w.project_update_reminder_interval_days, w.project_update_reminder_weekday,
+       w.project_update_reminder_hour, w.pulse_enabled, w.pulse_digest_cadence,
+       w.customer_requests_enabled, w.customer_default_team_id, w.customer_revenue_unit,
+       w.customer_tiers
+FROM workspace w
+WHERE w.deleted_at IS NULL
+  AND (
+    w.url_key = $1
+    OR w.id = (
+      SELECT a.workspace_id FROM workspace_url_alias a
+      WHERE a.url_key = $1
+    )
+  )
 `
 
 func (q *Queries) GetWorkspaceByURLKey(ctx context.Context, urlKey string) (Workspace, error) {
@@ -268,6 +290,22 @@ ON CONFLICT (workspace_id) DO NOTHING
 
 func (q *Queries) InitWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, initWorkspaceVersion, workspaceID)
+	return err
+}
+
+const insertWorkspaceURLAlias = `-- name: InsertWorkspaceURLAlias :exec
+INSERT INTO workspace_url_alias (url_key, workspace_id)
+VALUES ($1, $2)
+ON CONFLICT (url_key) DO NOTHING
+`
+
+type InsertWorkspaceURLAliasParams struct {
+	UrlKey      string
+	WorkspaceID uuid.UUID
+}
+
+func (q *Queries) InsertWorkspaceURLAlias(ctx context.Context, arg InsertWorkspaceURLAliasParams) error {
+	_, err := q.db.Exec(ctx, insertWorkspaceURLAlias, arg.UrlKey, arg.WorkspaceID)
 	return err
 }
 
@@ -366,25 +404,26 @@ const updateWorkspace = `-- name: UpdateWorkspace :one
 UPDATE workspace
 SET name     = COALESCE($1, name),
     logo_url = COALESCE($2, logo_url),
-    settings = COALESCE($3, settings),
+    url_key  = COALESCE($3, url_key),
+    settings = COALESCE($4, settings),
     project_update_reminder_interval_days = COALESCE(
-        $4,
+        $5,
         project_update_reminder_interval_days),
     project_update_reminder_weekday = COALESCE(
-        $5, project_update_reminder_weekday),
+        $6, project_update_reminder_weekday),
     project_update_reminder_hour = COALESCE(
-        $6, project_update_reminder_hour),
-    pulse_enabled = COALESCE($7, pulse_enabled),
-    pulse_digest_cadence = COALESCE($8, pulse_digest_cadence),
+        $7, project_update_reminder_hour),
+    pulse_enabled = COALESCE($8, pulse_enabled),
+    pulse_digest_cadence = COALESCE($9, pulse_digest_cadence),
     customer_requests_enabled = COALESCE(
-        $9, customer_requests_enabled),
+        $10, customer_requests_enabled),
     customer_default_team_id = CASE
-        WHEN $10::boolean THEN NULL
-        ELSE COALESCE($11, customer_default_team_id) END,
-    customer_revenue_unit = COALESCE($12, customer_revenue_unit),
-    customer_tiers = CASE WHEN $13::boolean THEN $14
+        WHEN $11::boolean THEN NULL
+        ELSE COALESCE($12, customer_default_team_id) END,
+    customer_revenue_unit = COALESCE($13, customer_revenue_unit),
+    customer_tiers = CASE WHEN $14::boolean THEN $15
                           ELSE customer_tiers END
-WHERE id = $15 AND deleted_at IS NULL
+WHERE id = $16 AND deleted_at IS NULL
 RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
           plan_expires_at, seat_limit, plan_lapsed_at,
@@ -397,6 +436,7 @@ RETURNING id, name, url_key, logo_url, settings, plan,
 type UpdateWorkspaceParams struct {
 	Name                              *string
 	LogoUrl                           *string
+	UrlKey                            *string
 	Settings                          []byte
 	ProjectUpdateReminderIntervalDays *int16
 	ProjectUpdateReminderWeekday      *int16
@@ -416,6 +456,7 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 	row := q.db.QueryRow(ctx, updateWorkspace,
 		arg.Name,
 		arg.LogoUrl,
+		arg.UrlKey,
 		arg.Settings,
 		arg.ProjectUpdateReminderIntervalDays,
 		arg.ProjectUpdateReminderWeekday,

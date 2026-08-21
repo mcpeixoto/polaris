@@ -730,6 +730,33 @@ func TestAttachmentSchemaInvariants(t *testing.T) {
 	}})
 }
 
+func TestWorkspaceURLKeySchemaInvariants(t *testing.T) {
+	t.Parallel()
+	other := "'00000000-0000-7000-8000-00000000ff02'"
+	run(t, []schemaCase{{
+		name: "a workspace may retire its own key as an alias",
+		sql:  `INSERT INTO workspace_url_alias (url_key, workspace_id) VALUES ('old-check', ` + ws + `)`,
+	}, {
+		name:    "another workspace may not take a retired key",
+		sql:     `INSERT INTO workspace (id, name, url_key) VALUES (` + other + `, 'Other', 'old-check')`,
+		wantErr: "workspace_url_key_reserved",
+	}, {
+		name: "a second workspace can exist",
+		sql:  `INSERT INTO workspace (id, name, url_key) VALUES (` + other + `, 'Other', 'other')`,
+	}, {
+		name:    "an alias may not steal a live key",
+		sql:     `INSERT INTO workspace_url_alias (url_key, workspace_id) VALUES ('check', ` + other + `)`,
+		wantErr: "workspace_url_key_reserved",
+	}, {
+		name: "a workspace may alias its own current key (the rename write order)",
+		sql:  `INSERT INTO workspace_url_alias (url_key, workspace_id) VALUES ('check', ` + ws + `)`,
+	}, {
+		name:    "two live keys still collide",
+		sql:     `INSERT INTO workspace (id, name, url_key) VALUES ('00000000-0000-7000-8000-00000000ff03', 'Third', 'other')`,
+		wantErr: "workspace_url_key_key",
+	}})
+}
+
 func TestWebhookSchemaInvariants(t *testing.T) {
 	t.Parallel()
 	run(t, []schemaCase{{

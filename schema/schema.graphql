@@ -3080,6 +3080,8 @@ input UpdateProfileInput {
 input UpdateWorkspaceInput {
   name: String
   logoUrl: String
+  """The address segment. The previous value stays reserved so bookmarks still resolve."""
+  urlKey: String
   projectUpdateReminderIntervalDays: Int
   projectUpdateReminderWeekday: Int
   projectUpdateReminderHour: Int

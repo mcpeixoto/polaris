@@ -133,12 +133,31 @@ describe('Profile settings', () => {
 });
 
 describe('Workspace settings', () => {
-  it('has a heading and shows the URL key as read-only', () => {
+  it('has a heading and an editable URL key', () => {
     renderWorkspace();
     expect(screen.getByRole('heading', { name: 'Workspace' })).toBeTruthy();
     const slug = screen.getByLabelText('URL key');
-    expect(slug).toHaveProperty('readOnly', true);
+    expect(slug).toHaveProperty('readOnly', false);
     expect((slug as HTMLInputElement).value).toBe('acme');
+  });
+
+  it('saves a new URL key on blur', async () => {
+    const { mutate, user } = renderWorkspace();
+    const field = screen.getByLabelText('URL key');
+    expect(field).toHaveProperty('readOnly', false);
+    await user.clear(field);
+    await user.type(field, 'polaris');
+    await user.tab();
+    expect(mutate).toHaveBeenCalled();
+    const input = mutate.mock.calls[0]![0] as { variables: { input: { urlKey?: string } } };
+    expect(input.variables.input.urlKey).toBe('polaris');
+  });
+
+  it('does not save an unchanged URL key', async () => {
+    const { mutate, user } = renderWorkspace();
+    await user.click(screen.getByLabelText('URL key'));
+    await user.tab();
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   it('saves the workspace name on blur', async () => {

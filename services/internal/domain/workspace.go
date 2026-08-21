@@ -81,10 +81,11 @@ func (s *Service) CreateWorkspace(ctx context.Context, in CreateWorkspaceInput) 
 	if in.URLKey == "" {
 		in.URLKey = SuggestURLKey(in.Name)
 	}
-	if !urlKeyPattern.MatchString(in.URLKey) {
-		return CreateWorkspaceResult{}, platform.Validation("urlKey",
-			"the workspace URL must be 2-48 characters of lowercase letters, digits and hyphens, starting with a letter or digit")
+	key, err := normalizeURLKey(in.URLKey)
+	if err != nil {
+		return CreateWorkspaceResult{}, err
 	}
+	in.URLKey = key
 	if in.FirstTeamKey == "" {
 		in.FirstTeamKey = SuggestTeamKey(in.FirstTeamName, in.Name)
 	}
@@ -115,7 +116,7 @@ func (s *Service) CreateWorkspace(ctx context.Context, in CreateWorkspaceInput) 
 	}
 
 	var out CreateWorkspaceResult
-	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		// The ceiling, checked inside the transaction so it cannot be raced past by two
 		// requests that both read the count before either wrote a row.
 		//
@@ -148,7 +149,7 @@ func (s *Service) CreateWorkspace(ctx context.Context, in CreateWorkspaceInput) 
 			Settings: json.RawMessage(`{}`),
 		})
 		if err != nil {
-			if store.IsUniqueViolation(err, "workspace_url_key_key") {
+			if urlKeyTaken(err) {
 				return platform.Validation("urlKey", fmt.Sprintf("the address %s is already taken", in.URLKey))
 			}
 			return platform.Internal(err)
@@ -263,6 +264,7 @@ func (s *Service) GetWorkspace(ctx context.Context, p *authz.Principal) (model.W
 type UpdateWorkspaceInput struct {
 	Name    *string
 	LogoURL *string
+	URLKey  *string
 
 	ProjectUpdateReminderIntervalDays *int
 	ProjectUpdateReminderWeekday      *int
@@ -288,6 +290,13 @@ func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in Up
 			return model.Workspace{}, 0, platform.Validation("name", "workspace name is required")
 		}
 		in.Name = &trimmed
+	}
+	if in.URLKey != nil {
+		key, err := normalizeURLKey(*in.URLKey)
+		if err != nil {
+			return model.Workspace{}, 0, err
+		}
+		in.URLKey = &key
 	}
 	if err := validateProjectUpdateReminderFields(
 		in.ProjectUpdateReminderIntervalDays,
@@ -323,10 +332,39 @@ func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in Up
 				return err
 			}
 		}
+		if in.URLKey != nil {
+			current, err := q.GetWorkspace(ctx, p.WorkspaceID)
+			if err != nil {
+				if store.IsNotFound(err) {
+					return platform.NotFound("workspace")
+				}
+				return platform.Internal(err)
+			}
+			if current.UrlKey != *in.URLKey {
+				// Reclaim first so renaming back onto a previous slug is a write, not a
+				// unique-violation against our own alias.
+				if err := q.DeleteWorkspaceURLAlias(ctx, store.DeleteWorkspaceURLAliasParams{
+					UrlKey:      *in.URLKey,
+					WorkspaceID: p.WorkspaceID,
+				}); err != nil {
+					return platform.Internal(err)
+				}
+				if err := q.InsertWorkspaceURLAlias(ctx, store.InsertWorkspaceURLAliasParams{
+					UrlKey:      current.UrlKey,
+					WorkspaceID: p.WorkspaceID,
+				}); err != nil {
+					if urlKeyTaken(err) {
+						return platform.Validation("urlKey", fmt.Sprintf("the address %s is already taken", *in.URLKey))
+					}
+					return platform.Internal(err)
+				}
+			}
+		}
 		row, err := q.UpdateWorkspace(ctx, store.UpdateWorkspaceParams{
 			ID:                                p.WorkspaceID,
 			Name:                              in.Name,
 			LogoUrl:                           in.LogoURL,
+			UrlKey:                            in.URLKey,
 			ProjectUpdateReminderIntervalDays: int16PtrFromInt(in.ProjectUpdateReminderIntervalDays),
 			ProjectUpdateReminderWeekday:      int16PtrFromInt(in.ProjectUpdateReminderWeekday),
 			ProjectUpdateReminderHour:         int16PtrFromInt(in.ProjectUpdateReminderHour),
@@ -342,6 +380,13 @@ func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in Up
 		if err != nil {
 			if store.IsNotFound(err) {
 				return platform.NotFound("workspace")
+			}
+			if urlKeyTaken(err) {
+				taken := ""
+				if in.URLKey != nil {
+					taken = *in.URLKey
+				}
+				return platform.Validation("urlKey", fmt.Sprintf("the address %s is already taken", taken))
 			}
 			return platform.Internal(err)
 		}
@@ -392,6 +437,21 @@ func SuggestURLKey(name string) string {
 		return ""
 	}
 	return key
+}
+
+func normalizeURLKey(raw string) (string, error) {
+	key := strings.ToLower(strings.TrimSpace(raw))
+	if !urlKeyPattern.MatchString(key) {
+		return "", platform.Validation("urlKey",
+			"the workspace URL must be 2-48 characters of lowercase letters, digits and hyphens, starting with a letter or digit")
+	}
+	return key, nil
+}
+
+func urlKeyTaken(err error) bool {
+	return store.IsUniqueViolation(err, "workspace_url_key_key") ||
+		store.IsUniqueViolation(err, "workspace_url_alias_pkey") ||
+		store.IsUniqueViolation(err, "workspace_url_key_reserved")
 }
 
 const (

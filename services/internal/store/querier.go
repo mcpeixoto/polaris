@@ -431,6 +431,7 @@ type Querier interface {
 	DeleteUpcomingCycles(ctx context.Context, arg DeleteUpcomingCyclesParams) ([]uuid.UUID, error)
 	DeleteViewSubscription(ctx context.Context, id uuid.UUID) error
 	DeleteWebhook(ctx context.Context, arg DeleteWebhookParams) (uuid.UUID, error)
+	DeleteWorkspaceURLAlias(ctx context.Context, arg DeleteWorkspaceURLAliasParams) error
 	DisableWebhook(ctx context.Context, id uuid.UUID) error
 	EnsureChangeLogPartition(ctx context.Context, month pgtype.Date) error
 	// ---------------------------------------------------------------------------------------
@@ -661,6 +662,7 @@ type Querier interface {
 	// a second issue. Replies are refused before they reach this table.
 	InsertInboundEmail(ctx context.Context, arg InsertInboundEmailParams) (InboundEmail, error)
 	InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDeliveryParams) (WebhookDelivery, error)
+	InsertWorkspaceURLAlias(ctx context.Context, arg InsertWorkspaceURLAliasParams) error
 	IsTeamMember(ctx context.Context, arg IsTeamMemberParams) (bool, error)
 	LastCustomerSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastCycleNumber(ctx context.Context, teamID uuid.UUID) (int32, error)
