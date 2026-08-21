@@ -19,7 +19,7 @@ import {
   parseCommandQuery,
   rankActions,
   type EntityHit,
-} from './commandMenu';
+} from './commandMenuQuery';
 import { useKeymap } from './keymap';
 import styles from './CommandMenu.module.css';
 
@@ -194,7 +194,9 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
                     {row.kind === 'action' ? row.action.title : row.hit.title}
                   </span>
                   {row.kind === 'action' && row.action.keys?.[0] && (
-                    <kbd className={styles.keys}>{formatKeySpec(row.action.keys[0], platform())}</kbd>
+                    <kbd className={styles.keys}>
+                      {formatKeySpec(row.action.keys[0], platform())}
+                    </kbd>
                   )}
                 </li>
               );

@@ -12,6 +12,7 @@ import { useActions, useKeyContext } from '~/app/keymap';
 import { useEngine } from '~/app/context';
 import { Button, Checkbox, Textarea } from '~/components';
 import { postComment, report, resolveComment } from '~/features/issue/mutations';
+import { maybeExpandEmoticons } from '~/features/prefs/emoticons';
 import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Comment, UUID } from '~/store';
@@ -146,7 +147,7 @@ export function DescriptionEditor({
   };
 
   const submitComposer = () => {
-    const body = composer.trim();
+    const body = maybeExpandEmoticons(composer.trim());
     if (body === '') return;
     if (pending !== null) {
       postComment(engine, {

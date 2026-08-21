@@ -39,6 +39,8 @@ export interface TeamFields {
   /** The prefix in every identifier the team owns. Renaming it renames sixty thousand issues. */
   readonly key?: string | undefined;
   readonly private?: boolean | undefined;
+  /** IANA zone due dates and cycle midnights are reckoned in. */
+  readonly timezone?: string | undefined;
 }
 
 /**
@@ -65,9 +67,17 @@ export async function updateTeam(
     ...(name === undefined || name === '' ? null : { name }),
     ...(key === undefined || key === '' ? null : { key }),
     ...(fields.private === undefined ? null : { private: fields.private }),
+    ...(fields.timezone === undefined || fields.timezone === ''
+      ? null
+      : { timezone: fields.timezone }),
     updatedAt: new Date().toISOString(),
   };
-  if (after.name === before.name && after.key === before.key && after.private === before.private)
+  if (
+    after.name === before.name &&
+    after.key === before.key &&
+    after.private === before.private &&
+    after.timezone === before.timezone
+  )
     return;
 
   await engine.mutate({
@@ -78,6 +88,7 @@ export async function updateTeam(
         ...(after.name === before.name ? null : { name: after.name }),
         ...(after.key === before.key ? null : { key: after.key }),
         ...(after.private === before.private ? null : { private: after.private }),
+        ...(after.timezone === before.timezone ? null : { timezone: after.timezone }),
       },
     },
     optimistic: [{ type: 'team', id: teamId, before, after }],

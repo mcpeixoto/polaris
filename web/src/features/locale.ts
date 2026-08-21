@@ -64,3 +64,30 @@ export function browserTimezone(): string {
     return 'UTC';
   }
 }
+
+const FALLBACK_ZONES = [
+  'UTC',
+  'Europe/Lisbon',
+  'Europe/London',
+  'America/New_York',
+  'America/Los_Angeles',
+  'America/Sao_Paulo',
+  'Asia/Tokyo',
+] as const;
+
+/**
+ * IANA zones for a settings `<select>`.
+ *
+ * The browser's own list when it has one, so a person in `Atlantic/Madeira` can pick it
+ * rather than the nearest city we remembered. The handful below is only for environments
+ * that do not expose `Intl.supportedValuesOf`.
+ */
+export function listTimezones(): readonly string[] {
+  try {
+    const supported = Intl.supportedValuesOf?.('timeZone');
+    if (supported !== undefined && supported.length > 0) return supported;
+  } catch {
+    // Same bargain as browserTimezone: a clock that cannot list zones still has to render.
+  }
+  return FALLBACK_ZONES;
+}
