@@ -137,23 +137,87 @@ export function foldForSearch(text: string): string {
 /**
  * The words a query is searched by, folded, in the order they were typed.
  *
- * This is `buildTSQuery` restated: split on anything that is not a letter or a digit, keep
- * at most twelve. What is *not* restated is the trailing `:*` — the server makes the last
- * token a prefix match so that search finds the issue you half-remember the title of while
- * you are still typing it, and a prefix is not a separate thing to highlight. It is why the
- * ranges below anchor at the start of a word and take the term's own length: the last term
- * of "log redir" highlights "redir" inside "redirect", which is precisely what matched.
+ * This is `buildTSQuery` restated: split on anything that is not a letter or a digit,
+ * drop unquoted English glue ("the", "a", "of", …), keep quoted spans as their words, and
+ * keep at most twelve. What is *not* restated is the trailing `:*` or the `<->` phrase
+ * operator — those are matching instructions, not extra things to highlight.
  *
  * The cost of that symmetry, stated so nobody has to rediscover it: a non-final term is
  * highlighted the same way, so searching "login redirect" also marks the "login" inside
  * "logins" — a word the server did not match on. Over-drawing a highlight by a word the
  * reader can see for themselves is a much smaller error than under-drawing one, and the
  * alternative is reimplementing tsquery's word semantics in the browser.
+ *
+ * Stop words are restated from `searchStopWords` in services/internal/domain/search.go.
  */
+const SEARCH_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'the',
+  'of',
+  'to',
+  'in',
+  'for',
+  'and',
+  'or',
+  'on',
+  'is',
+  'at',
+  'by',
+  'as',
+  'it',
+  'be',
+  'this',
+  'that',
+]);
+
 export function searchTerms(query: string): readonly string[] {
-  const words = query.match(WORDS);
-  if (words === null) return [];
-  return words.slice(0, SEARCH_MAX_TOKENS).map(foldForSearch);
+  const parts: { words: string[]; phrase: boolean }[] = [];
+  let loose: string[] = [];
+  const flushLoose = () => {
+    for (const word of loose) parts.push({ words: [word], phrase: false });
+    loose = [];
+  };
+
+  let i = 0;
+  while (i < query.length) {
+    const char = query[i] ?? '';
+    if (char === '"') {
+      flushLoose();
+      i += 1;
+      let inner = '';
+      while (i < query.length && query[i] !== '"') {
+        inner += query[i];
+        i += 1;
+      }
+      if (query[i] === '"') i += 1;
+      const quoted = inner.match(WORDS);
+      if (quoted !== null) parts.push({ words: quoted.map(foldForSearch), phrase: true });
+      continue;
+    }
+    if (WORD.test(char)) {
+      let token = char;
+      i += 1;
+      while (i < query.length && WORD.test(query[i] ?? '')) {
+        token += query[i];
+        i += 1;
+      }
+      loose.push(foldForSearch(token));
+      continue;
+    }
+    i += 1;
+  }
+  flushLoose();
+
+  const hasContent = parts.some(
+    (part) => part.phrase || !SEARCH_STOP_WORDS.has(part.words[0] ?? ''),
+  );
+  const kept = hasContent
+    ? parts.filter((part) => part.phrase || !SEARCH_STOP_WORDS.has(part.words[0] ?? ''))
+    : parts;
+  const words: string[] = [];
+  for (const part of kept) words.push(...part.words);
+  return words.slice(0, SEARCH_MAX_TOKENS);
 }
 
 /** Half-open, in offsets into the original string — ready for `slice`. */

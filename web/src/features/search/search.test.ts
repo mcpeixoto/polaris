@@ -91,7 +91,7 @@ describe('folding, which is the database’s definition restated in TypeScript',
 
 describe('the terms a query is searched by', () => {
   it('splits on anything that is not a letter or a digit', () => {
-    expect(searchTerms('log-in redirect: 404!')).toEqual(['log', 'in', 'redirect', '404']);
+    expect(searchTerms('log-in redirect: 404!')).toEqual(['log', 'redirect', '404']);
   });
 
   it('folds each term, so typing without accents finds the accented row', () => {
@@ -103,6 +103,15 @@ describe('the terms a query is searched by', () => {
     const terms = searchTerms(many);
     expect(terms).toHaveLength(SEARCH_MAX_TOKENS);
     expect(terms[0]).toBe('w0');
+  });
+
+  it('drops unquoted English glue so "the login" highlights login', () => {
+    expect(searchTerms('the login')).toEqual(['login']);
+    expect(searchTerms('the')).toEqual(['the']);
+  });
+
+  it('keeps the words inside quotes, including glue', () => {
+    expect(searchTerms('"the login" redirect')).toEqual(['the', 'login', 'redirect']);
   });
 
   it('is empty for a query with no words in it at all', () => {

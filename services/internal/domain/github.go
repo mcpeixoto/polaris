@@ -689,17 +689,7 @@ func parseGitHubPullURL(raw string) (*url.URL, string, int, error) {
 }
 
 func parseIssueIdentifier(identifier string) (string, int64, error) {
-	s := strings.TrimSpace(identifier)
-	sep := strings.LastIndex(s, "-")
-	if sep <= 0 || sep == len(s)-1 {
-		return "", 0, fmt.Errorf("malformed")
-	}
-	key := strings.ToUpper(s[:sep])
-	n, err := strconv.ParseInt(s[sep+1:], 10, 64)
-	if err != nil || n <= 0 {
-		return "", 0, fmt.Errorf("malformed")
-	}
-	return key, n, nil
+	return ParseIssueIdentifier(identifier)
 }
 
 func normaliseBranchFormat(raw *string) (string, error) {
