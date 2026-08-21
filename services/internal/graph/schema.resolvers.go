@@ -2571,6 +2571,7 @@ func (r *mutationResolver) CreateIssueTemplate(ctx context.Context, input genera
 		Title:       input.Title,
 		Body:        input.Body,
 		Properties:  input.Properties,
+		SubIssues:   templateSubIssuesFromInput(input.SubIssues),
 	})
 	if err != nil {
 		return nil, PresentError(ctx, err)
@@ -2586,6 +2587,12 @@ func (r *mutationResolver) UpdateIssueTemplate(ctx context.Context, input genera
 		return nil, PresentError(ctx, err)
 	}
 
+	var subIssues *[]model.TemplateSubIssue
+	if input.SubIssues != nil {
+		parsed := templateSubIssuesFromInput(input.SubIssues)
+		subIssues = &parsed
+	}
+
 	template, version, err := r.Svc.UpdateIssueTemplate(ctx, p, domain.UpdateIssueTemplateInput{
 		ID:          input.ID,
 		Name:        input.Name,
@@ -2593,6 +2600,7 @@ func (r *mutationResolver) UpdateIssueTemplate(ctx context.Context, input genera
 		Title:       input.Title,
 		Body:        input.Body,
 		Properties:  input.Properties,
+		SubIssues:   subIssues,
 	})
 	if err != nil {
 		return nil, PresentError(ctx, err)

@@ -228,6 +228,47 @@
   gap: var(--space-2);
 }
 
+.bodyField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.aa {
+  align-self: flex-start;
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+}
+
+.subIssues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.subIssueList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subIssueRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.subIssueAdd {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
 .quiet {
   margin: 0;
   color: var(--text-tertiary);

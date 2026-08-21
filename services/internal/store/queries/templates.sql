@@ -1,25 +1,25 @@
 -- name: CreateIssueTemplate :one
 INSERT INTO issue_template (id, workspace_id, team_id, name, description, title, body,
-                            properties, position, created_by)
+                            properties, sub_issues, position, created_by)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.narg(team_id), sqlc.arg(name),
         sqlc.narg(description),
         -- title and body are NOT NULL with an empty default: a template that prefills
         -- nothing but a set of properties is a legitimate thing to want.
         COALESCE(sqlc.narg(title)::text, ''), COALESCE(sqlc.narg(body)::text, ''),
-        sqlc.arg(properties), sqlc.arg(position), sqlc.narg(created_by))
-RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+        sqlc.arg(properties), sqlc.arg(sub_issues), sqlc.arg(position), sqlc.narg(created_by))
+RETURNING id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
           position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address;
 
 -- name: GetIssueTemplate :one
-SELECT id, workspace_id, team_id, name, description, title, body, properties,
+SELECT id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
        position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
 WHERE id = $1;
 
 -- name: ListIssueTemplatesInWorkspace :many
-SELECT id, workspace_id, team_id, name, description, title, body, properties,
+SELECT id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
        position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
@@ -30,7 +30,7 @@ ORDER BY position;
 -- templates, which are offered everywhere, plus that team's own.
 --
 -- name: ListIssueTemplatesForTeam :many
-SELECT id, workspace_id, team_id, name, description, title, body, properties,
+SELECT id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
        position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
@@ -50,7 +50,7 @@ ORDER BY position;
 -- server side and is not something a replica renders.
 --
 -- name: StreamIssueTemplatesForBootstrap :many
-SELECT id, workspace_id, team_id, name, description, title, body, properties,
+SELECT id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
        position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
@@ -69,9 +69,10 @@ SET name        = COALESCE(sqlc.narg(name), name),
     title       = COALESCE(sqlc.narg(title), title),
     body        = COALESCE(sqlc.narg(body), body),
     properties  = COALESCE(sqlc.narg(properties), properties),
+    sub_issues  = COALESCE(sqlc.narg(sub_issues), sub_issues),
     position    = COALESCE(sqlc.narg(position), position)
 WHERE id = sqlc.arg(id) AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+RETURNING id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
           position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address;
 
@@ -82,7 +83,7 @@ RETURNING id, workspace_id, team_id, name, description, title, body, properties,
 -- name: ArchiveIssueTemplate :one
 UPDATE issue_template SET archived_at = now()
 WHERE id = $1 AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+RETURNING id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
           position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address;
 
@@ -92,7 +93,7 @@ RETURNING id, workspace_id, team_id, name, description, title, body, properties,
 -- name: UnarchiveIssueTemplate :one
 UPDATE issue_template SET archived_at = NULL
 WHERE id = $1 AND archived_at IS NOT NULL
-RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+RETURNING id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
           position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address;
 
@@ -125,12 +126,12 @@ SET email_intake_enabled = sqlc.arg(email_intake_enabled),
     email_intake_token   = COALESCE(sqlc.narg(email_intake_token), email_intake_token),
     email_intake_address = COALESCE(sqlc.narg(email_intake_address), email_intake_address)
 WHERE id = sqlc.arg(id) AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+RETURNING id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
           position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address;
 
 -- name: GetIssueTemplateByEmailIntakeToken :one
-SELECT id, workspace_id, team_id, name, description, title, body, properties,
+SELECT id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
        position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template

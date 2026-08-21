@@ -40,6 +40,9 @@ export const ISSUE_TEMPLATE_FIELDS = /* GraphQL */ `
     title
     body
     properties
+    subIssues {
+      title
+    }
     position
     createdBy
     createdAt

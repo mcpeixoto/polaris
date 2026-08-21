@@ -733,6 +733,7 @@ type ComplexityRoot struct {
 		Name               func(childComplexity int) int
 		Position           func(childComplexity int) int
 		Properties         func(childComplexity int) int
+		SubIssues          func(childComplexity int) int
 		TeamID             func(childComplexity int) int
 		Title              func(childComplexity int) int
 		UpdatedAt          func(childComplexity int) int
@@ -1556,6 +1557,10 @@ type ComplexityRoot struct {
 	TeamPayload struct {
 		Team    func(childComplexity int) int
 		Version func(childComplexity int) int
+	}
+
+	TemplateSubIssue struct {
+		Title func(childComplexity int) int
 	}
 
 	User struct {
@@ -4977,6 +4982,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.IssueTemplate.Properties(childComplexity), true
+	case "IssueTemplate.subIssues":
+		if e.ComplexityRoot.IssueTemplate.SubIssues == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IssueTemplate.SubIssues(childComplexity), true
 	case "IssueTemplate.teamId":
 		if e.ComplexityRoot.IssueTemplate.TeamID == nil {
 			break
@@ -10119,6 +10130,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TeamPayload.Version(childComplexity), true
 
+	case "TemplateSubIssue.title":
+		if e.ComplexityRoot.TemplateSubIssue.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateSubIssue.Title(childComplexity), true
+
 	case "User.archivedAt":
 		if e.ComplexityRoot.User.ArchivedAt == nil {
 			break
@@ -10957,6 +10975,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputSetIssueSlaInput,
 		ec.unmarshalInputSetViewSubscriptionInput,
 		ec.unmarshalInputSubmitIntegrationInput,
+		ec.unmarshalInputTemplateSubIssueInput,
 		ec.unmarshalInputUpdateAskFormInput,
 		ec.unmarshalInputUpdateAttachmentInput,
 		ec.unmarshalInputUpdateCustomerInput,
@@ -11805,6 +11824,8 @@ type IssueTemplate {
   body: String!
   """Keys are the same names createIssue takes."""
   properties: JSON!
+  """Children filed with the issue. Empty means the template makes a parent only."""
+  subIssues: [TemplateSubIssue!]!
   position: String!
   createdBy: UUID
   createdAt: Time!
@@ -11814,6 +11835,15 @@ type IssueTemplate {
   emailIntakeEnabled: Boolean!
   """The address that creates issues from this template. Null until intake is enabled."""
   emailIntakeAddress: String
+}
+
+"""A child the template files under the new issue. Titles only — nested templates stay later."""
+type TemplateSubIssue {
+  title: String!
+}
+
+input TemplateSubIssueInput {
+  title: String!
 }
 
 enum FormTemplateFieldType {
@@ -13585,6 +13615,8 @@ input CreateIssueTemplateInput {
   title: String
   body: String
   properties: JSON
+  """Omitted or empty means the template files a parent only."""
+  subIssues: [TemplateSubIssueInput!]
 }
 
 input UpdateIssueTemplateInput {
@@ -13594,6 +13626,8 @@ input UpdateIssueTemplateInput {
   title: String
   body: String
   properties: JSON
+  """Sent whole, like properties. Omitted leaves the stored list alone."""
+  subIssues: [TemplateSubIssueInput!]
 }
 
 input CreateFormTemplateInput {
@@ -15972,6 +16006,8 @@ func (ec *executionContext) childFields_IssueTemplate(ctx context.Context, field
 		return ec.fieldContext_IssueTemplate_body(ctx, field)
 	case "properties":
 		return ec.fieldContext_IssueTemplate_properties(ctx, field)
+	case "subIssues":
+		return ec.fieldContext_IssueTemplate_subIssues(ctx, field)
 	case "position":
 		return ec.fieldContext_IssueTemplate_position(ctx, field)
 	case "createdBy":
@@ -17050,6 +17086,14 @@ func (ec *executionContext) childFields_TeamPayload(ctx context.Context, field g
 		return ec.fieldContext_TeamPayload_team(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TeamPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_TemplateSubIssue(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "title":
+		return ec.fieldContext_TemplateSubIssue_title(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TemplateSubIssue", field.Name)
 }
 
 func (ec *executionContext) childFields_User(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -34340,6 +34384,38 @@ func (ec *executionContext) _IssueTemplate_properties(ctx context.Context, field
 }
 func (ec *executionContext) fieldContext_IssueTemplate_properties(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("IssueTemplate", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _IssueTemplate_subIssues(ctx context.Context, field graphql.CollectedField, obj *IssueTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IssueTemplate_subIssues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SubIssues, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []TemplateSubIssue) graphql.Marshaler {
+			return ec.marshalNTemplateSubIssue2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTemplateSubIssueᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IssueTemplate_subIssues(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IssueTemplate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TemplateSubIssue(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _IssueTemplate_position(ctx context.Context, field graphql.CollectedField, obj *IssueTemplate) (ret graphql.Marshaler) {
@@ -56413,6 +56489,29 @@ func (ec *executionContext) fieldContext_TeamPayload_team(_ context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _TemplateSubIssue_title(ctx context.Context, field graphql.CollectedField, obj *TemplateSubIssue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TemplateSubIssue_title(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TemplateSubIssue_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TemplateSubIssue", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *User) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -61799,7 +61898,7 @@ func (ec *executionContext) unmarshalInputCreateIssueTemplateInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"teamId", "name", "description", "title", "body", "properties"}
+	fieldsInOrder := [...]string{"teamId", "name", "description", "title", "body", "properties", "subIssues"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -61848,6 +61947,13 @@ func (ec *executionContext) unmarshalInputCreateIssueTemplateInput(ctx context.C
 				return it, err
 			}
 			it.Properties = data
+		case "subIssues":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("subIssues"))
+			data, err := ec.unmarshalOTemplateSubIssueInput2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTemplateSubIssueInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SubIssues = data
 		}
 	}
 	return it, nil
@@ -63647,6 +63753,36 @@ func (ec *executionContext) unmarshalInputSubmitIntegrationInput(ctx context.Con
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputTemplateSubIssueInput(ctx context.Context, obj any) (TemplateSubIssueInput, error) {
+	var it TemplateSubIssueInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"title"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateAskFormInput(ctx context.Context, obj any) (UpdateAskFormInput, error) {
 	var it UpdateAskFormInput
 	if obj == nil {
@@ -64949,7 +65085,7 @@ func (ec *executionContext) unmarshalInputUpdateIssueTemplateInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "name", "description", "title", "body", "properties"}
+	fieldsInOrder := [...]string{"id", "name", "description", "title", "body", "properties", "subIssues"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -64998,6 +65134,13 @@ func (ec *executionContext) unmarshalInputUpdateIssueTemplateInput(ctx context.C
 				return it, err
 			}
 			it.Properties = data
+		case "subIssues":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("subIssues"))
+			data, err := ec.unmarshalOTemplateSubIssueInput2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTemplateSubIssueInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SubIssues = data
 		}
 	}
 	return it, nil
@@ -72054,6 +72197,11 @@ func (ec *executionContext) _IssueTemplate(ctx context.Context, sel ast.Selectio
 			}
 		case "properties":
 			out.Values[i] = ec._IssueTemplate_properties(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "subIssues":
+			out.Values[i] = ec._IssueTemplate_subIssues(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -79139,6 +79287,44 @@ func (ec *executionContext) _TeamPayload(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
+var templateSubIssueImplementors = []string{"TemplateSubIssue"}
+
+func (ec *executionContext) _TemplateSubIssue(ctx context.Context, sel ast.SelectionSet, obj *TemplateSubIssue) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, templateSubIssueImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TemplateSubIssue")
+		case "title":
+			out.Values[i] = ec._TemplateSubIssue_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var userImplementors = []string{"User"}
 
 func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *User) graphql.Marshaler {
@@ -83567,6 +83753,31 @@ func (ec *executionContext) marshalNTeamRole2githubᚗcomᚋpeixotolabsᚋpolari
 	return v
 }
 
+func (ec *executionContext) marshalNTemplateSubIssue2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTemplateSubIssue(ctx context.Context, sel ast.SelectionSet, v TemplateSubIssue) graphql.Marshaler {
+	return ec._TemplateSubIssue(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTemplateSubIssue2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTemplateSubIssueᚄ(ctx context.Context, sel ast.SelectionSet, v []TemplateSubIssue) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTemplateSubIssue2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTemplateSubIssue(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNTemplateSubIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTemplateSubIssueInput(ctx context.Context, v any) (TemplateSubIssueInput, error) {
+	res, err := ec.unmarshalInputTemplateSubIssueInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v any) (time.Time, error) {
 	res, err := graphql.UnmarshalTime(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -84928,6 +85139,23 @@ func (ec *executionContext) marshalOTeamRole2ᚖgithubᚗcomᚋpeixotolabsᚋpol
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) unmarshalOTemplateSubIssueInput2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTemplateSubIssueInputᚄ(ctx context.Context, v any) ([]TemplateSubIssueInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]TemplateSubIssueInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNTemplateSubIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTemplateSubIssueInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {

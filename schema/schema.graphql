@@ -724,6 +724,8 @@ type IssueTemplate {
   body: String!
   """Keys are the same names createIssue takes."""
   properties: JSON!
+  """Children filed with the issue. Empty means the template makes a parent only."""
+  subIssues: [TemplateSubIssue!]!
   position: String!
   createdBy: UUID
   createdAt: Time!
@@ -733,6 +735,15 @@ type IssueTemplate {
   emailIntakeEnabled: Boolean!
   """The address that creates issues from this template. Null until intake is enabled."""
   emailIntakeAddress: String
+}
+
+"""A child the template files under the new issue. Titles only — nested templates stay later."""
+type TemplateSubIssue {
+  title: String!
+}
+
+input TemplateSubIssueInput {
+  title: String!
 }
 
 enum FormTemplateFieldType {
@@ -2504,6 +2515,8 @@ input CreateIssueTemplateInput {
   title: String
   body: String
   properties: JSON
+  """Omitted or empty means the template files a parent only."""
+  subIssues: [TemplateSubIssueInput!]
 }
 
 input UpdateIssueTemplateInput {
@@ -2513,6 +2526,8 @@ input UpdateIssueTemplateInput {
   title: String
   body: String
   properties: JSON
+  """Sent whole, like properties. Omitted leaves the stored list alone."""
+  subIssues: [TemplateSubIssueInput!]
 }
 
 input CreateFormTemplateInput {

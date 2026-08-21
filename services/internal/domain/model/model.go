@@ -617,6 +617,8 @@ type IssueTemplate struct {
 	Body  string `json:"body"`
 	// Properties keys are the same names the create mutation takes.
 	Properties json.RawMessage `json:"properties"`
+	// SubIssues are children filed with the issue. Empty means a parent only.
+	SubIssues []TemplateSubIssue `json:"subIssues"`
 
 	Position string `json:"position"`
 
@@ -627,6 +629,11 @@ type IssueTemplate struct {
 
 	EmailIntakeEnabled bool    `json:"emailIntakeEnabled"`
 	EmailIntakeAddress *string `json:"emailIntakeAddress,omitempty"`
+}
+
+// TemplateSubIssue is a child a standard template files under the new issue.
+type TemplateSubIssue struct {
+	Title string `json:"title"`
 }
 
 // FormTemplateFieldType names a field kind in a form template.

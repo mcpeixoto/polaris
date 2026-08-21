@@ -31,7 +31,7 @@
  * this screen says so instead of implying a bin that could be opened.
  */
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
 import {
@@ -55,11 +55,19 @@ import { estimateLabel, estimateOptions, estimatesEnabled } from '~/features/est
 import { buildCreateURL } from '~/features/issue/create-url';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { archiveTemplate, createTemplate, updateTemplate } from '~/features/templates/mutations';
+import { togglePlaceholder } from '~/features/templates/placeholder';
 import { updateIssueTemplateEmailIntake } from '~/features/email/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
-import type { IssueTemplate, StateCategory, Store, TemplateProperties, UUID } from '~/store';
+import type {
+  IssueTemplate,
+  StateCategory,
+  Store,
+  TemplateProperties,
+  TemplateSubIssue,
+  UUID,
+} from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './Templates.module.css';
 import { FormTemplatesPanel } from '~/features/form-templates/FormTemplatesPanel';
@@ -91,6 +99,7 @@ interface TemplateRow {
   readonly title: string;
   readonly body: string;
   readonly properties: TemplateProperties;
+  readonly subIssues: readonly TemplateSubIssue[];
   readonly position: string;
   readonly archived: boolean;
   /** Team key when the template is team-scoped, so a create URL can name the team. */
@@ -158,6 +167,7 @@ export function Templates() {
         title: draft.title,
         body: draft.body,
         properties: draft.properties,
+        subIssues: draft.subIssues,
         createdBy: viewerId ?? undefined,
       });
     } else {
@@ -495,6 +505,7 @@ interface TemplateDraft {
   readonly title: string;
   readonly body: string;
   readonly properties: TemplateProperties;
+  readonly subIssues: readonly TemplateSubIssue[];
 }
 
 interface TemplateEditorProps {
@@ -537,6 +548,11 @@ function TemplateEditor({ scope, template, onSave, onCancel }: TemplateEditorPro
   const [description, setDescription] = useState(template?.description ?? '');
   const [title, setTitle] = useState(template?.title ?? '');
   const [body, setBody] = useState(template?.body ?? '');
+  const [subIssueDraft, setSubIssueDraft] = useState('');
+  const [subIssues, setSubIssues] = useState<readonly string[]>(
+    (template?.subIssues ?? []).map((item) => item.title),
+  );
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [stateId, setStateId] = useState<UUID | null>(template?.properties.stateId ?? null);
   const [assigneeId, setAssigneeId] = useState<UUID | null>(
     template?.properties.assigneeId ?? null,
@@ -612,6 +628,7 @@ function TemplateEditor({ scope, template, onSave, onCancel }: TemplateEditorPro
       description: description.trim(),
       title,
       body,
+      subIssues: subIssues.map((title) => ({ title })),
       properties: {
         ...(stateId === null ? null : { stateId }),
         ...(assigneeId === null ? null : { assigneeId }),
@@ -668,14 +685,87 @@ function TemplateEditor({ scope, template, onSave, onCancel }: TemplateEditorPro
         onChange={(event) => setTitle(event.target.value)}
       />
 
-      <Textarea
-        label="Issue description"
-        value={body}
-        minRows={4}
-        maxRows={16}
-        hint="Markdown. The prompts and headings the filer fills in."
-        onChange={(event) => setBody(event.target.value)}
-      />
+      <div className={styles.bodyField}>
+        <Textarea
+          ref={bodyRef}
+          label="Issue description"
+          value={body}
+          minRows={4}
+          maxRows={16}
+          hint="Markdown. Select a prompt and press Aa — the filer types over those marks."
+          onChange={(event) => setBody(event.target.value)}
+        />
+        <Button
+          className={styles.aa}
+          aria-label="Mark selected text as placeholder"
+          title="Aa — mark selected text as a prompt the filer fills in"
+          onClick={() => {
+            const area = bodyRef.current;
+            if (area === null) return;
+            const next = togglePlaceholder(body, area.selectionStart, area.selectionEnd);
+            setBody(next.body);
+            requestAnimationFrame(() => {
+              area.focus();
+              area.setSelectionRange(next.start, next.end);
+            });
+          }}
+        >
+          Aa
+        </Button>
+      </div>
+
+      <div className={styles.subIssues}>
+        <p className={styles.propertyLabel}>Sub-issues</p>
+        <p className={styles.quiet}>
+          Filed as children of the new issue. Templates that name any are not offered when filing a
+          sub-issue.
+        </p>
+        {subIssues.length === 0 ? null : (
+          <ul className={styles.subIssueList}>
+            {subIssues.map((item, index) => (
+              <li key={`${item}-${index}`} className={styles.subIssueRow}>
+                <span>{item}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Remove sub-issue ${item}`}
+                  onClick={() => setSubIssues(subIssues.filter((_, i) => i !== index))}
+                >
+                  Remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className={styles.subIssueAdd}>
+          <Input
+            label="Add a sub-issue"
+            hideLabel
+            value={subIssueDraft}
+            placeholder="Write the repro steps"
+            autoComplete="off"
+            onChange={(event) => setSubIssueDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return;
+              event.preventDefault();
+              const trimmed = subIssueDraft.trim();
+              if (trimmed === '') return;
+              setSubIssues([...subIssues, trimmed]);
+              setSubIssueDraft('');
+            }}
+          />
+          <Button
+            onClick={() => {
+              const trimmed = subIssueDraft.trim();
+              if (trimmed === '') return;
+              setSubIssues([...subIssues, trimmed]);
+              setSubIssueDraft('');
+            }}
+          >
+            Add
+          </Button>
+        </div>
+      </div>
 
       <div className={styles.properties}>
         <div className={styles.property}>
@@ -1051,6 +1141,7 @@ function rowOf(store: Store, template: IssueTemplate): TemplateRow {
     title: template.title,
     body: template.body,
     properties: template.properties,
+    subIssues: template.subIssues ?? [],
     position: template.position,
     archived: template.archivedAt !== undefined,
     teamKey: template.teamId === undefined ? undefined : store.teams.get(template.teamId)?.key,
@@ -1072,6 +1163,10 @@ function prefillsOf(store: Store, template: IssueTemplate): string[] {
   const out: string[] = [];
   if (template.title !== '') out.push('Title');
   if (template.body !== '') out.push('Description');
+  if ((template.subIssues ?? []).length > 0) {
+    const n = template.subIssues.length;
+    out.push(`${n} ${n === 1 ? 'sub-issue' : 'sub-issues'}`);
+  }
 
   const properties = template.properties;
   if (properties.stateId !== undefined) {

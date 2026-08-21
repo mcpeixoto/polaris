@@ -461,6 +461,7 @@ func toIssueTemplate(t model.IssueTemplate) generated.IssueTemplate {
 		Title:              t.Title,
 		Body:               t.Body,
 		Properties:         jsonOrEmptyObject(t.Properties),
+		SubIssues:          toTemplateSubIssues(t.SubIssues),
 		Position:           t.Position,
 		CreatedBy:          t.CreatedBy,
 		CreatedAt:          t.CreatedAt,
@@ -475,6 +476,25 @@ func toIssueTemplates(rows []model.IssueTemplate) []generated.IssueTemplate {
 	out := make([]generated.IssueTemplate, 0, len(rows))
 	for _, t := range rows {
 		out = append(out, toIssueTemplate(t))
+	}
+	return out
+}
+
+func toTemplateSubIssues(items []model.TemplateSubIssue) []generated.TemplateSubIssue {
+	if items == nil {
+		return []generated.TemplateSubIssue{}
+	}
+	out := make([]generated.TemplateSubIssue, len(items))
+	for i, item := range items {
+		out[i] = generated.TemplateSubIssue{Title: item.Title}
+	}
+	return out
+}
+
+func templateSubIssuesFromInput(items []generated.TemplateSubIssueInput) []model.TemplateSubIssue {
+	out := make([]model.TemplateSubIssue, len(items))
+	for i, item := range items {
+		out[i] = model.TemplateSubIssue{Title: item.Title}
 	}
 	return out
 }

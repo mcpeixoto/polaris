@@ -92,6 +92,7 @@ export type {
   IssueRelation,
   IssueSubscription,
   IssueTemplate,
+  TemplateSubIssue,
   Label,
   Notification,
   NotificationPrefs,

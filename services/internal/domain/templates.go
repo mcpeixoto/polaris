@@ -32,6 +32,9 @@ type CreateIssueTemplateInput struct {
 
 	// Properties keys are the same names the create mutation takes.
 	Properties json.RawMessage
+
+	// SubIssues are children filed with the issue. Empty means a parent only.
+	SubIssues []model.TemplateSubIssue
 }
 
 // CreateIssueTemplate saves a prefilled issue.
@@ -50,6 +53,14 @@ func (s *Service) CreateIssueTemplate(
 		return model.IssueTemplate{}, 0, err
 	}
 	propertiesJSON, err := jsonObject("properties", in.Properties)
+	if err != nil {
+		return model.IssueTemplate{}, 0, err
+	}
+	subIssues, err := normalizeSubIssues(in.SubIssues)
+	if err != nil {
+		return model.IssueTemplate{}, 0, err
+	}
+	subIssuesJSON, err := encodeSubIssues(subIssues)
 	if err != nil {
 		return model.IssueTemplate{}, 0, err
 	}
@@ -80,6 +91,7 @@ func (s *Service) CreateIssueTemplate(
 			Title:       in.Title,
 			Body:        in.Body,
 			Properties:  propertiesJSON,
+			SubIssues:   subIssuesJSON,
 			Position:    pos,
 			CreatedBy:   &p.UserID,
 		})
@@ -107,6 +119,8 @@ type UpdateIssueTemplateInput struct {
 	Title       *string
 	Body        *string
 	Properties  json.RawMessage
+	// SubIssues replaces the stored list when non-nil, including an empty list.
+	SubIssues *[]model.TemplateSubIssue
 }
 
 func (s *Service) UpdateIssueTemplate(
@@ -131,6 +145,18 @@ func (s *Service) UpdateIssueTemplate(
 		}
 		propertiesJSON = props
 	}
+	var subIssuesJSON json.RawMessage
+	if in.SubIssues != nil {
+		items, err := normalizeSubIssues(*in.SubIssues)
+		if err != nil {
+			return model.IssueTemplate{}, 0, err
+		}
+		encoded, err := encodeSubIssues(items)
+		if err != nil {
+			return model.IssueTemplate{}, 0, err
+		}
+		subIssuesJSON = encoded
+	}
 
 	var out model.IssueTemplate
 	var version int64
@@ -151,6 +177,7 @@ func (s *Service) UpdateIssueTemplate(
 			Title:       in.Title,
 			Body:        in.Body,
 			Properties:  propertiesJSON,
+			SubIssues:   subIssuesJSON,
 		})
 		if err != nil {
 			if store.IsNotFound(err) {
@@ -457,19 +484,20 @@ func nextTemplatePosition(ctx context.Context, q *store.Queries, workspaceID uui
 // the note above toView.
 func toIssueTemplate(t store.GetIssueTemplateRow) model.IssueTemplate {
 	return model.IssueTemplate{
-		ID:          t.ID,
-		WorkspaceID: t.WorkspaceID,
-		TeamID:      t.TeamID,
-		Name:        t.Name,
-		Description: t.Description,
-		Title:       t.Title,
-		Body:        t.Body,
-		Properties:  t.Properties,
-		Position:    t.Position,
-		CreatedBy:   t.CreatedBy,
-		CreatedAt:   t.CreatedAt,
-		UpdatedAt:   t.UpdatedAt,
-		ArchivedAt:  t.ArchivedAt,
+		ID:                 t.ID,
+		WorkspaceID:        t.WorkspaceID,
+		TeamID:             t.TeamID,
+		Name:               t.Name,
+		Description:        t.Description,
+		Title:              t.Title,
+		Body:               t.Body,
+		Properties:         t.Properties,
+		SubIssues:          mustDecodeSubIssues(t.SubIssues),
+		Position:           t.Position,
+		CreatedBy:          t.CreatedBy,
+		CreatedAt:          t.CreatedAt,
+		UpdatedAt:          t.UpdatedAt,
+		ArchivedAt:         t.ArchivedAt,
 		EmailIntakeEnabled: t.EmailIntakeEnabled,
 		EmailIntakeAddress: emailIntakeAddressFor(t.EmailIntakeEnabled, t.EmailIntakeAddress),
 	}
@@ -478,8 +506,8 @@ func toIssueTemplate(t store.GetIssueTemplateRow) model.IssueTemplate {
 type UpdateTeamTemplatesInput struct {
 	TeamID uuid.UUID
 
-	DefaultTemplateForMembersID    *uuid.UUID
-	DefaultTemplateForNonMembersID *uuid.UUID
+	DefaultTemplateForMembersID       *uuid.UUID
+	DefaultTemplateForNonMembersID    *uuid.UUID
 	ClearDefaultTemplateForMembers    bool
 	ClearDefaultTemplateForNonMembers bool
 }
