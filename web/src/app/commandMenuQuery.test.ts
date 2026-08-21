@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Action } from '~/keys';
 import { Store, type Change, type Entity } from '~/store';
 
-import { matchIssues, matchUsers, parseCommandQuery, rankActions } from './commandMenu';
+import { matchIssues, matchUsers, parseCommandQuery, rankActions } from './commandMenuQuery';
 
 const AT = '2026-08-20T12:00:00.000Z';
 

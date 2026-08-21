@@ -338,7 +338,13 @@ export function AppShell({
         title: 'Go to workspace settings',
         keys: ['g s'],
         group: 'Navigation',
-        run: () => navigate('/settings/members'),
+        run: () => navigate('/settings/workspace'),
+      },
+      {
+        id: 'nav.profile',
+        title: 'Go to Profile',
+        group: 'Navigation',
+        run: () => navigate('/settings/profile'),
       },
       {
         id: 'nav.mcp',
@@ -558,10 +564,10 @@ export function AppShell({
               filterPlaceholder="Filter teams"
               emptyLabel="No teams yet"
               items={teams.map((team) => ({
-                  id: team.id,
-                  label: `${team.key} ${team.name}`,
-                  onSelect: () => navigate(`/team/${team.key}`),
-                }))}
+                id: team.id,
+                label: `${team.key} ${team.name}`,
+                onSelect: () => navigate(`/team/${team.key}`),
+              }))}
             />
           </div>
 
@@ -644,9 +650,17 @@ export function AppShell({
 
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>Workspace</h2>
+            <NavLink to="/settings/profile" className={navClass}>
+              <NavGlyph name="members" />
+              <span className={styles.navLabel}>Profile</span>
+            </NavLink>
             <NavLink to="/settings/preferences" className={navClass}>
               <NavGlyph name="prefs" />
               <span className={styles.navLabel}>Preferences</span>
+            </NavLink>
+            <NavLink to="/settings/workspace" className={navClass}>
+              <NavGlyph name="apps" />
+              <span className={styles.navLabel}>Workspace</span>
             </NavLink>
             <NavLink to="/settings/members" className={navClass}>
               <NavGlyph name="members" />
