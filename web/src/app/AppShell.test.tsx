@@ -238,6 +238,7 @@ describe('the settings section', () => {
       'Preferences',
       'Members',
       'Labels',
+      'Project statuses',
       'Notifications',
       'Templates',
       'API keys',
