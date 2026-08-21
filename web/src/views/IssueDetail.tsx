@@ -28,6 +28,7 @@ import {
   Avatar,
   Button,
   EmptyState,
+  LabelChip,
   PriorityIcon,
   priorityLabel,
   StateIcon,
@@ -45,9 +46,12 @@ import {
   deleteIssues,
   postComment,
   report,
+  setSubscribed,
   updateIssue,
   updateIssueProperties,
 } from '~/features/issue/mutations';
+import { applyLabel, removeLabel } from '~/features/labels/mutations';
+import { LabelPicker } from '~/features/labels/LabelPicker';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
@@ -169,10 +173,29 @@ export function IssueDetail() {
                   ? null
                   : { cadence: rec.cadence, nextDueDate: rec.nextDueDate };
               })(),
+        labelIds: [...store.labelIdsFor(found.id)],
+        labels: [...store.labelIdsFor(found.id)].flatMap((id) => {
+          const label = store.get('label', id);
+          return label === undefined
+            ? []
+            : [{ id: label.id, name: label.name, color: label.color }];
+        }),
+        subscribed: viewerId !== null && store.subscriberIdsFor(found.id).has(viewerId),
       };
     },
-    ['issue', 'team', 'user', 'workflowState', 'project', 'cycle', 'recurringIssue'],
-    [issueId],
+    [
+      'issue',
+      'team',
+      'user',
+      'workflowState',
+      'project',
+      'cycle',
+      'recurringIssue',
+      'issueLabel',
+      'label',
+      'issueSubscription',
+    ],
+    [issueId, viewerId],
   );
 
   // Loaded once for the screen and handed to both panels below. Two hooks asking the same
@@ -195,6 +218,7 @@ export function IssueDetail() {
   const due = useMenuTrigger();
   const project = useMenuTrigger();
   const cycle = useMenuTrigger();
+  const labels = useMenuTrigger();
 
   const commands = useRef<DetailCommands>({
     pickStatus: () => {},
@@ -202,6 +226,11 @@ export function IssueDetail() {
     pickPriority: () => {},
     pickProject: () => {},
     pickCycle: () => {},
+    pickEstimate: () => {},
+    pickDue: () => {},
+    pickLabels: () => {},
+    assignToMe: () => {},
+    toggleSubscribe: () => {},
     archive: () => {},
     askDelete: () => {},
     makeRecurring: () => {},
@@ -261,6 +290,49 @@ export function IssueDetail() {
         when: 'detail',
         group: 'Issues',
         run: () => commands.current.pickCycle(),
+      },
+      {
+        id: 'issueDetail.labels',
+        title: 'Add label',
+        keys: ['l'],
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.pickLabels(),
+      },
+      {
+        id: 'issueDetail.assignToMe',
+        title: 'Assign to me',
+        keys: ['i'],
+        when: 'detail',
+        group: 'Issues',
+        enabled: () => viewerId !== null,
+        run: () => commands.current.assignToMe(),
+      },
+      {
+        id: 'issueDetail.estimate',
+        title: 'Set estimate',
+        keys: ['shift+e'],
+        when: 'detail',
+        group: 'Issues',
+        enabled: () => issue?.estimatesEnabled === true,
+        run: () => commands.current.pickEstimate(),
+      },
+      {
+        id: 'issueDetail.dueDate',
+        title: 'Set due date',
+        keys: ['shift+d'],
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.pickDue(),
+      },
+      {
+        id: 'issueDetail.subscribe',
+        title: 'Subscribe',
+        keys: ['shift+s'],
+        when: 'detail',
+        group: 'Issues',
+        enabled: () => viewerId !== null,
+        run: () => commands.current.toggleSubscribe(),
       },
       {
         id: 'issueDetail.archive',
@@ -332,7 +404,7 @@ export function IssueDetail() {
           ]
         : []),
     ],
-    [commentSubmit, viewer],
+    [commentSubmit, viewer, viewerId, issue?.estimatesEnabled],
   );
 
   if (issue === null) {
@@ -352,6 +424,23 @@ export function IssueDetail() {
   commands.current.pickPriority = priority.show;
   commands.current.pickProject = project.show;
   commands.current.pickCycle = cycle.show;
+  commands.current.pickEstimate = () => {
+    if (issue.estimatesEnabled) estimate.show();
+  };
+  commands.current.pickDue = due.show;
+  commands.current.pickLabels = labels.show;
+  commands.current.assignToMe = () => {
+    if (viewerId === null) return;
+    updateIssue(engine, issue.id, { assigneeId: viewerId }).catch(report);
+  };
+  commands.current.toggleSubscribe = () => {
+    if (viewerId === null) return;
+    setSubscribed(engine, {
+      issueId: issue.id,
+      userId: viewerId,
+      subscribed: !issue.subscribed,
+    }).catch(report);
+  };
   commands.current.archive = () => {
     archiveIssues(engine, [issue.id]).catch(report);
     // Archiving drops the issue from the replica, so staying here would leave the user
@@ -661,6 +750,25 @@ export function IssueDetail() {
             </Button>
           </div>
 
+          <div className={styles.property}>
+            <span className={styles.propertyLabel} id={`${issue.id}-labels-label`}>
+              Labels
+            </span>
+            <Button
+              {...labels.props}
+              variant="ghost"
+              fullWidth
+              className={styles.propertyTrigger}
+              aria-describedby={`${issue.id}-labels-label`}
+            >
+              {issue.labels.length === 0
+                ? 'No labels'
+                : issue.labels.map((label) => (
+                    <LabelChip key={label.id} name={label.name} color={label.color} />
+                  ))}
+            </Button>
+          </div>
+
           {issue.recurring === null ? null : (
             <div className={styles.property}>
               <span className={styles.propertyLabel}>Repeats</span>
@@ -746,6 +854,18 @@ export function IssueDetail() {
         onClearSla={() => clearIssueSla(engine, issue.id).catch(report)}
         onSetSla={(minutes) => setIssueSla(engine, issue.id, minutes).catch(report)}
       />
+      <LabelPicker
+        open={labels.open}
+        onClose={labels.hide}
+        trigger={labels.ref}
+        teamId={issue.teamId}
+        value={issue.labelIds}
+        placement="bottom-end"
+        onApply={(labelId, displaced) =>
+          applyLabel(engine, issue.id, labelId, displaced).catch(report)
+        }
+        onRemove={(labelId) => removeLabel(engine, issue.id, labelId).catch(report)}
+      />
     </div>
   );
 }
@@ -756,6 +876,11 @@ interface DetailCommands {
   pickPriority(): void;
   pickProject(): void;
   pickCycle(): void;
+  pickEstimate(): void;
+  pickDue(): void;
+  pickLabels(): void;
+  assignToMe(): void;
+  toggleSubscribe(): void;
   archive(): void;
   askDelete(): void;
   makeRecurring(): void;

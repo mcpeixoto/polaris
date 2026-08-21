@@ -13,6 +13,11 @@ import { AdHocIssues } from './AdHocIssues';
 import { IssueList } from './IssueList';
 import { Triage } from './Triage';
 
+vi.mock('~/hooks/useViewer', () => ({
+  useViewerId: () => 'user-ada',
+  useViewer: () => ({ id: 'user-ada', role: 'admin' }),
+}));
+
 /**
  * The list, driven the way it is used: from the keyboard, against a real store.
  *
@@ -310,6 +315,26 @@ describe('IssueList', () => {
 
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate.mock.calls[0]?.[0].variables).toEqual({ id: 'issue-2', archived: true });
+  });
+
+  it('assigns the cursor row to the viewer with i', async () => {
+    const { user, mutate } = renderList();
+
+    await user.keyboard('i');
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate.mock.calls[0]?.[0].variables.input).toMatchObject({
+      id: 'issue-1',
+      assigneeId: 'user-ada',
+    });
+  });
+
+  it('opens the label picker with l', async () => {
+    const { user } = renderList();
+
+    await user.keyboard('l');
+
+    expect(screen.getByRole('menu', { name: 'Labels' })).toBeTruthy();
   });
 
   it('lets Escape fall through to the shell when there is nothing to clear', async () => {

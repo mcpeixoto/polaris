@@ -16,6 +16,7 @@
 
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
 import { Store, type Change, type Entity } from '~/store';
@@ -274,5 +275,22 @@ describe('the settings section', () => {
   it('offers a control to switch workspace', () => {
     renderShell(seeded());
     expect(screen.getByRole('button', { name: 'Switch workspace' })).toBeTruthy();
+  });
+});
+
+describe('the leftover jump pickers', () => {
+  it('exposes hidden triggers for views, documents, and favourites', () => {
+    renderShell(seeded());
+    expect(screen.getByRole('button', { name: 'Open view' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open document' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open favourite' })).toBeTruthy();
+  });
+
+  it('opens the views picker from O V', async () => {
+    const user = userEvent.setup();
+    renderShell(seeded([view('v-1', 'All bugs')]));
+    await user.keyboard('ov');
+    expect(screen.getByRole('menu', { name: 'Views' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'All bugs' })).toBeTruthy();
   });
 });
