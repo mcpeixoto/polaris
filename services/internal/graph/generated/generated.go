@@ -1434,6 +1434,7 @@ type ComplexityRoot struct {
 	}
 
 	SlackConnection struct {
+		AsksEnabled    func(childComplexity int) int
 		ChannelName    func(childComplexity int) int
 		ConnectedAt    func(childComplexity int) int
 		CreatedAt      func(childComplexity int) int
@@ -9472,6 +9473,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SlaRulePayload.Version(childComplexity), true
 
+	case "SlackConnection.asksEnabled":
+		if e.ComplexityRoot.SlackConnection.AsksEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SlackConnection.AsksEnabled(childComplexity), true
 	case "SlackConnection.channelName":
 		if e.ComplexityRoot.SlackConnection.ChannelName == nil {
 			break
@@ -13022,6 +13029,8 @@ type SlackConnection {
   channelName: String
   notifyIssues: Boolean!
   notifyComments: Boolean!
+  """When true, ` + "`" + `/asks` + "`" + ` and a leading 🎫 in Slack file a triage issue."""
+  asksEnabled: Boolean!
   connectedAt: Time
   createdAt: Time!
   updatedAt: Time!
@@ -13054,6 +13063,7 @@ input UpdateSlackConnectionInput {
   webhookUrl: String
   notifyIssues: Boolean
   notifyComments: Boolean
+  asksEnabled: Boolean
   enabled: Boolean
 }
 
@@ -16552,6 +16562,8 @@ func (ec *executionContext) childFields_SlackConnection(ctx context.Context, fie
 		return ec.fieldContext_SlackConnection_notifyIssues(ctx, field)
 	case "notifyComments":
 		return ec.fieldContext_SlackConnection_notifyComments(ctx, field)
+	case "asksEnabled":
+		return ec.fieldContext_SlackConnection_asksEnabled(ctx, field)
 	case "connectedAt":
 		return ec.fieldContext_SlackConnection_connectedAt(ctx, field)
 	case "createdAt":
@@ -53642,6 +53654,29 @@ func (ec *executionContext) fieldContext_SlackConnection_notifyComments(_ contex
 	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _SlackConnection_asksEnabled(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SlackConnection_asksEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AsksEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SlackConnection_asksEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SlackConnection", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _SlackConnection_connectedAt(ctx context.Context, field graphql.CollectedField, obj *SlackConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -64734,7 +64769,7 @@ func (ec *executionContext) unmarshalInputUpdateSlackConnectionInput(ctx context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"defaultTeamId", "channelName", "webhookUrl", "notifyIssues", "notifyComments", "enabled"}
+	fieldsInOrder := [...]string{"defaultTeamId", "channelName", "webhookUrl", "notifyIssues", "notifyComments", "asksEnabled", "enabled"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -64776,6 +64811,13 @@ func (ec *executionContext) unmarshalInputUpdateSlackConnectionInput(ctx context
 				return it, err
 			}
 			it.NotifyComments = data
+		case "asksEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("asksEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AsksEnabled = data
 		case "enabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -76967,6 +77009,11 @@ func (ec *executionContext) _SlackConnection(ctx context.Context, sel ast.Select
 			}
 		case "notifyComments":
 			out.Values[i] = ec._SlackConnection_notifyComments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "asksEnabled":
+			out.Values[i] = ec._SlackConnection_asksEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

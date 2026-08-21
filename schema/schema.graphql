@@ -2162,6 +2162,8 @@ type SlackConnection {
   channelName: String
   notifyIssues: Boolean!
   notifyComments: Boolean!
+  """When true, `/asks` and a leading 🎫 in Slack file a triage issue."""
+  asksEnabled: Boolean!
   connectedAt: Time
   createdAt: Time!
   updatedAt: Time!
@@ -2194,6 +2196,7 @@ input UpdateSlackConnectionInput {
   webhookUrl: String
   notifyIssues: Boolean
   notifyComments: Boolean
+  asksEnabled: Boolean
   enabled: Boolean
 }
 

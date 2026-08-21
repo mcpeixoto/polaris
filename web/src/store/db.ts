@@ -140,8 +140,9 @@ import {
  * v44 adds slackConnection (Slack webhook notify / slash / unfurls, no secrets).
  * v45 adds workspace.pulseEnabled and workspace.pulseDigestCadence.
  * v46 adds pulseFeed (personal named subsets of the Pulse stream).
+ * v47 adds slackConnection.asksEnabled (Slack Asks intake from /asks and 🎫).
  */
-export const CLIENT_SCHEMA = 46;
+export const CLIENT_SCHEMA = 47;
 
 /**
  * One database per workspace per schema version.

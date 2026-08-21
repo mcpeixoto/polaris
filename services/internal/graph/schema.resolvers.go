@@ -3815,6 +3815,7 @@ func (r *mutationResolver) UpdateSlackConnection(ctx context.Context, input gene
 		NotifyComments: input.NotifyComments,
 		Enabled:        input.Enabled,
 		WebhookURL:     input.WebhookURL,
+		AsksEnabled:    input.AsksEnabled,
 	}
 	if input.ChannelName != nil {
 		if strings.TrimSpace(*input.ChannelName) == "" {

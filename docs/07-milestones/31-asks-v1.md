@@ -17,7 +17,7 @@ Slack-less intake: a token URL that anyone (no account) can submit. Each submiss
 
 ## Deferred
 
-- Slack Asks
+- Slack Asks — shipped in `40-asks-slack.md`
 - SAML-gated web forms
 - Form-template-driven fields
 - `issue.ask_form_id`

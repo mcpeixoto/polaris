@@ -5,6 +5,8 @@
  */
 
 import { gql } from '~/sync/api';
+import type { EntityPatch, SlackConnection } from '~/store';
+import type { SyncEngine } from '~/sync/engine';
 
 export const SLACK_CONNECTION_FIELDS = /* GraphQL */ `
   fragment SlackConnectionFields on SlackConnection {
@@ -16,6 +18,7 @@ export const SLACK_CONNECTION_FIELDS = /* GraphQL */ `
     channelName
     notifyIssues
     notifyComments
+    asksEnabled
     connectedAt
     createdAt
     updatedAt
@@ -97,9 +100,22 @@ export async function updateSlackConnection(input: {
   webhookUrl?: string;
   notifyIssues?: boolean;
   notifyComments?: boolean;
+  asksEnabled?: boolean;
   enabled?: boolean;
 }): Promise<void> {
   await gql(UPDATE_SLACK_CONNECTION, { input });
+}
+
+export async function setSlackAsksEnabled(engine: SyncEngine, asksEnabled: boolean): Promise<void> {
+  const before = [...engine.store.slackConnections.values()][0];
+  if (before === undefined) return;
+  const after: SlackConnection = { ...before, asksEnabled, updatedAt: new Date().toISOString() };
+  const optimistic: EntityPatch = { type: 'slackConnection', id: before.id, before, after };
+  await engine.mutate<{ updateSlackConnection: { slackConnection: SlackConnection } }>({
+    mutation: UPDATE_SLACK_CONNECTION,
+    variables: { input: { asksEnabled } },
+    optimistic: [optimistic],
+  });
 }
 
 export async function disconnectSlack(): Promise<void> {

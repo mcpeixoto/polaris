@@ -15,6 +15,8 @@ func TestParseText(t *testing.T) {
 	}{
 		{"", KindHelp, "", ""},
 		{"help", KindHelp, "", ""},
+		{"ask The printer is on fire", KindAsk, "", "The printer is on fire"},
+		{"asks Need a laptop", KindAsk, "", "Need a laptop"},
 		{"create Fix login", KindCreate, "", "Fix login"},
 		{"new The title", KindCreate, "", "The title"},
 		{"comment ENG-12 shipped", KindComment, "ENG-12", "shipped"},
@@ -32,6 +34,10 @@ func TestParseText(t *testing.T) {
 		case KindCreate:
 			if got.Title != tc.rest {
 				t.Errorf("%q: title %q, want %q", tc.in, got.Title, tc.rest)
+			}
+		case KindAsk:
+			if got.Title != tc.rest {
+				t.Errorf("%q: ask title %q, want %q", tc.in, got.Title, tc.rest)
 			}
 		case KindComment:
 			if got.Identifier != tc.id || got.Body != tc.rest {
