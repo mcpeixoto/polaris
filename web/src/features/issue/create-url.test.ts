@@ -1,6 +1,90 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildCreateURL, parseCreateURL, parseEstimate, parsePriority } from './create-url';
+import { Store, type Change, type Entity } from '~/store';
+
+import {
+  buildCreateURL,
+  parseCreateURL,
+  parseEstimate,
+  parsePriority,
+  resolveCreateURL,
+} from './create-url';
+
+const WORKSPACE = '01900000-0000-7000-8000-000000000001';
+const ENG = '01900000-0000-7000-8000-000000000002';
+const DES = '01900000-0000-7000-8000-000000000003';
+const ENG_TODO = '01900000-0000-7000-8000-000000000004';
+const ENG_DOING = '01900000-0000-7000-8000-000000000005';
+const DES_DOING = '01900000-0000-7000-8000-000000000006';
+
+const AT = '2026-01-01T00:00:00.000Z';
+
+function team(id: string, key: string, name: string): Entity {
+  return {
+    id,
+    workspaceId: WORKSPACE,
+    key,
+    name,
+    timezone: 'Europe/Lisbon',
+    private: false,
+    estimateScale: 'none',
+    estimateAllowZero: false,
+    estimateExtended: false,
+    cyclesEnabled: false,
+    cycleDurationWeeks: 1,
+    cycleCooldownWeeks: 0,
+    cycleStartDay: 'monday',
+    cycleUpcomingCount: 2,
+    cycleAutoAddStarted: false,
+    cycleAutoAddCompleted: false,
+    triageEnabled: false,
+    triageRequirePriority: false,
+    autoCloseDays: 0,
+    autoArchiveDays: 0,
+    autoCloseParent: false,
+    autoCloseChildren: false,
+    createdAt: AT,
+    updatedAt: AT,
+  } as Entity;
+}
+
+function state(id: string, teamId: string, name: string, isDefault: boolean): Entity {
+  return {
+    id,
+    workspaceId: WORKSPACE,
+    teamId,
+    name,
+    category: isDefault ? 'unstarted' : 'started',
+    position: 'V',
+    isDefault,
+    isSystem: false,
+    createdAt: AT,
+    updatedAt: AT,
+  } as Entity;
+}
+
+/** Two teams, so "which team does a teamless URL mean" is a question with a wrong answer. */
+function seeded(): Store {
+  const store = new Store(WORKSPACE);
+  const rows: [string, Entity][] = [
+    ['team', team(ENG, 'ENG', 'Engineering')],
+    ['team', team(DES, 'DES', 'Design')],
+    ['workflowState', state(ENG_TODO, ENG, 'Todo', true)],
+    ['workflowState', state(ENG_DOING, ENG, 'In Progress', false)],
+    ['workflowState', state(DES_DOING, DES, 'In Progress', false)],
+  ];
+  store.applyChanges(
+    rows.map(([type, payload], index) => ({
+      v: index + 1,
+      type,
+      id: (payload as { id: string }).id,
+      op: 'upsert' as const,
+      actor: { type: 'system' as const },
+      payload,
+    })) as Change[],
+  );
+  return store;
+}
 
 describe('parseCreateURL', () => {
   it('reads the documented keys, including the singular label alias', () => {
@@ -70,5 +154,43 @@ describe('buildCreateURL', () => {
         priority: 1,
       }),
     ).toBe('/team/ENG/new?title=Fix+the+flake&priority=Urgent');
+  });
+});
+
+describe('resolveCreateURL', () => {
+  it('resolves a status against the team the URL names', () => {
+    const seed = resolveCreateURL(
+      seeded(),
+      parseCreateURL(new URLSearchParams('status=In+Progress'), 'ENG'),
+      null,
+    );
+    expect(seed.teamId).toBe(ENG);
+    expect(seed.stateId).toBe(ENG_DOING);
+  });
+
+  /**
+   * `/new?status=Todo` names no team, and the composer it opens does: it lands on the
+   * workspace's first team by key. Resolving the status against nothing instead dropped a
+   * documented parameter with no error and no empty field to notice — the issue was simply
+   * filed in the default status.
+   */
+  it('resolves a status with no team against the team the composer will choose', () => {
+    const seed = resolveCreateURL(
+      seeded(),
+      parseCreateURL(new URLSearchParams('status=In+Progress')),
+      null,
+    );
+    expect(seed.teamId).toBeUndefined();
+    // DES sorts before ENG, and the composer's own fallback picks the same one.
+    expect(seed.stateId).toBe(DES_DOING);
+  });
+
+  it('still drops a status no team has', () => {
+    const seed = resolveCreateURL(
+      seeded(),
+      parseCreateURL(new URLSearchParams('status=Nope')),
+      null,
+    );
+    expect(seed.stateId).toBeUndefined();
   });
 });

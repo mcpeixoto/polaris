@@ -61,24 +61,33 @@ export function ProjectDependencies({ projectId, compact = false }: ProjectDepen
     [projectId],
   );
 
+  // Registered by the compact panel only, and that is load-bearing rather than a preference.
+  // A project's overview mounts this component twice at once — once in the properties
+  // sidebar, once in the overview body — and the registry refuses a second action with the
+  // same id by throwing, which took the whole screen down with it. The sidebar copy is the
+  // one that is mounted on every tab of the project, so it is the one that can honestly
+  // offer the command; the overview copy has visible buttons and needs no shortcut of its
+  // own. Ids are global, so two components can never both claim these.
   useActions(
-    [
-      {
-        id: 'projectDetail.addBlockedBy',
-        title: 'Dependencies → Blocked by…',
-        when: 'detail',
-        group: 'Projects',
-        run: () => setPickerKind('blockedBy'),
-      },
-      {
-        id: 'projectDetail.addBlocking',
-        title: 'Dependencies → Blocking…',
-        when: 'detail',
-        group: 'Projects',
-        run: () => setPickerKind('blocking'),
-      },
-    ],
-    [projectId],
+    compact
+      ? [
+          {
+            id: 'projectDetail.addBlockedBy',
+            title: 'Dependencies → Blocked by…',
+            when: 'detail',
+            group: 'Projects',
+            run: () => setPickerKind('blockedBy'),
+          },
+          {
+            id: 'projectDetail.addBlocking',
+            title: 'Dependencies → Blocking…',
+            when: 'detail',
+            group: 'Projects',
+            run: () => setPickerKind('blocking'),
+          },
+        ]
+      : [],
+    [projectId, compact],
   );
 
   const onSelect = async (otherId: UUID | null) => {
