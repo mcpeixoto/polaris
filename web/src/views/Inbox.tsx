@@ -24,18 +24,23 @@ import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions } from '~/app/keymap';
-import { Avatar, Button, EmptyState, Menu, type MenuNode } from '~/components';
+import { Avatar, Button, Checkbox, EmptyState, Input, Menu, priorityLabel, type MenuNode } from '~/components';
 import { browserTimezone } from '~/features/locale';
 import { when } from '~/features/time';
 import {
-  awakeNotificationIds,
   coalescedTail,
   dayKeyOf,
+  DEFAULT_INBOX_DISPLAY,
   describeEvent,
+  isAwake,
+  matchesInboxQuery,
   useWakingQuery,
+  visibleNotificationIds,
+  type InboxDisplay,
 } from '~/features/inbox/inbox';
 import {
   dismissNotification,
+  dismissReadNotifications,
   hydrateInbox,
   markAllNotificationsRead,
   markNotificationRead,
@@ -56,6 +61,7 @@ interface Row {
   readonly issueIdentifier: string | undefined;
   readonly href: string | undefined;
   readonly avatarName: string;
+  readonly haystack: string;
 }
 
 interface InboxAnswer {
@@ -71,7 +77,10 @@ export function Inbox() {
 
   const [cursor, setCursor] = useState(0);
   const snoozeTrigger = useRef<HTMLButtonElement>(null);
+  const findRef = useRef<HTMLInputElement>(null);
   const [snoozeFor, setSnoozeFor] = useState<UUID | null>(null);
+  const [display, setDisplay] = useState<InboxDisplay>(DEFAULT_INBOX_DISPLAY);
+  const [query, setQuery] = useState('');
 
   // The backfill. Everything after this arrives as a delta, so this runs once and is not a
   // refresh the user can trigger — a button that refetches a stream that is already live
@@ -81,57 +90,86 @@ export function Inbox() {
   }, [engine]);
 
   const { rows, unread } = useWakingQuery<InboxAnswer>(
-    useCallback((store: Store, now: number) => {
-      const ids = awakeNotificationIds(store, now);
-      const built: Row[] = [];
-      let unreadCount = 0;
-      let wake: number | null = null;
+    useCallback(
+      (store: Store, now: number) => {
+        const ids = visibleNotificationIds(store, now, display);
+        const built: Row[] = [];
+        let unreadCount = 0;
+        let wake: number | null = null;
 
-      for (const row of store.notifications.values()) {
-        if (row.snoozedUntil === undefined) continue;
-        const until = Date.parse(row.snoozedUntil);
-        if (!Number.isNaN(until) && until > now && (wake === null || until < wake)) {
-          wake = until;
+        for (const row of store.notifications.values()) {
+          if (row.readAt === undefined && isAwake(row, now)) unreadCount++;
+          if (row.snoozedUntil === undefined) continue;
+          const until = Date.parse(row.snoozedUntil);
+          if (!Number.isNaN(until) && until > now && (wake === null || until < wake)) {
+            wake = until;
+          }
         }
-      }
 
-      for (const id of ids) {
-        const notification = store.notifications.get(id);
-        if (notification === undefined) continue;
+        for (const id of ids) {
+          const notification = store.notifications.get(id);
+          if (notification === undefined) continue;
 
-        const issue =
-          notification.issueId === undefined ? undefined : store.get('issue', notification.issueId);
-        const actor =
-          notification.actor.id === undefined
-            ? undefined
-            : store.get('user', notification.actor.id);
+          const issue =
+            notification.issueId === undefined
+              ? undefined
+              : store.get('issue', notification.issueId);
+          const actor =
+            notification.actor.id === undefined
+              ? undefined
+              : store.get('user', notification.actor.id);
+          const team = issue === undefined ? undefined : store.get('team', issue.teamId);
+          const project =
+            issue?.projectId === undefined ? undefined : store.get('project', issue.projectId);
+          const assignee =
+            issue?.assigneeId === undefined ? undefined : store.get('user', issue.assigneeId);
 
-        if (notification.readAt === undefined) unreadCount++;
-
-        built.push({
-          id,
+          const identifier = issue?.identifier;
+          const event = describeEvent(
+            notification.type,
+            identifier ?? 'an issue',
+            notification.payload,
+          );
           // "Somebody" rather than a blank: the actor may be a user this client has not
           // replicated, or the system, and a row with no subject reads as a bug.
-          actor:
-            actor?.displayName ?? (notification.type === 'pulse_digest' ? 'Polaris' : 'Somebody'),
-          avatarName: actor?.displayName ?? 'Polaris',
-          event: describeEvent(
-            notification.type,
-            issue?.identifier ?? 'an issue',
-            notification.payload,
-          ),
-          tail: coalescedTail(notification.count),
-          createdAt: notification.createdAt,
-          unread: notification.readAt === undefined,
-          snoozedUntil: notification.snoozedUntil,
-          issueIdentifier: issue?.identifier,
-          href: notification.type === 'pulse_digest' ? '/pulse' : undefined,
-        });
-      }
+          const actorName =
+            actor?.displayName ?? (notification.type === 'pulse_digest' ? 'Polaris' : 'Somebody');
+          const builtRow: Row = {
+            id,
+            actor: actorName,
+            avatarName: actor?.displayName ?? 'Polaris',
+            event,
+            tail: coalescedTail(notification.count),
+            createdAt: notification.createdAt,
+            unread: notification.readAt === undefined,
+            snoozedUntil: notification.snoozedUntil,
+            issueIdentifier: identifier,
+            href: notification.type === 'pulse_digest' ? '/pulse' : undefined,
+            haystack: [
+              actorName,
+              event,
+              identifier,
+              issue?.title,
+              notification.type.replaceAll('_', ' '),
+              team?.key,
+              team?.name,
+              project?.name,
+              assignee === undefined ? undefined : assignee.displayName,
+              issue === undefined ? undefined : priorityLabel(issue.priority),
+            ]
+              .filter((part): part is string => part !== undefined && part !== '')
+              .join(' '),
+          };
+          if (!matchesInboxQuery(builtRow.haystack, query)) continue;
+          built.push(builtRow);
+        }
 
-      return { rows: built, unread: unreadCount, wakeAt: wake };
-    }, []),
-    ['notification', 'issue', 'user'],
+        return { rows: built, unread: unreadCount, wakeAt: wake };
+      },
+      [display, query],
+    ),
+    ['notification', 'issue', 'user', 'team', 'project'],
+    [display.showRead, display.showSnoozed, query],
   );
 
   // Clamped rather than reset: marking the last row read shortens the list, and a cursor
@@ -178,7 +216,7 @@ export function Inbox() {
       {
         id: 'inbox.toggleRead',
         title: 'Mark read or unread',
-        keys: ['e'],
+        keys: ['u', 'e'],
         group: 'Inbox',
         run: () => {
           if (current === undefined) return;
@@ -204,14 +242,40 @@ export function Inbox() {
         },
       },
       {
+        id: 'inbox.dismissRead',
+        title: 'Dismiss all read',
+        keys: ['shift+Backspace'],
+        group: 'Inbox',
+        run: () => dismissReadNotifications(engine).catch(report),
+      },
+      {
         id: 'inbox.markAllRead',
         title: 'Mark everything read',
-        keys: ['shift+e'],
+        keys: ['alt+u', 'shift+e'],
         group: 'Inbox',
         run: () => markAllNotificationsRead(engine).catch(report),
       },
+      {
+        id: 'inbox.find',
+        title: 'Find in inbox',
+        keys: ['mod+f'],
+        group: 'Inbox',
+        run: () => findRef.current?.focus(),
+      },
+      {
+        id: 'inbox.find.clear',
+        title: 'Clear inbox find',
+        keys: ['Escape'],
+        group: 'Inbox',
+        hidden: true,
+        enabled: () => query.trim() !== '',
+        run: () => {
+          setQuery('');
+          findRef.current?.blur();
+        },
+      },
     ],
-    [rows.length, current, engine, open],
+    [rows.length, current, engine, open, query],
   );
 
   const days = groupByDay(rows, timezone);
@@ -225,6 +289,28 @@ export function Inbox() {
         <span className={styles.count} role="status" aria-live="polite">
           {unread === 0 ? 'All read' : `${unread} unread`}
         </span>
+        <div className={styles.find}>
+          <Input
+            ref={findRef}
+            label="Find in inbox"
+            hideLabel
+            placeholder="Find"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        <Checkbox
+          checked={display.showRead}
+          onChange={(event) => setDisplay((prev) => ({ ...prev, showRead: event.target.checked }))}
+          label="Show read"
+        />
+        <Checkbox
+          checked={display.showSnoozed}
+          onChange={(event) =>
+            setDisplay((prev) => ({ ...prev, showSnoozed: event.target.checked }))
+          }
+          label="Show snoozed"
+        />
         <div className={styles.spacer} />
         <Button
           size="sm"
@@ -238,8 +324,12 @@ export function Inbox() {
       {rows.length === 0 ? (
         <div className={styles.empty}>
           <EmptyState
-            title="Nothing here"
-            description="You are subscribed to the issues you create, are assigned, comment on or are mentioned in. Anything that happens to them lands here."
+            title={query.trim() === '' ? 'Nothing here' : 'No matches'}
+            description={
+              query.trim() === ''
+                ? 'You are subscribed to the issues you create, are assigned, comment on or are mentioned in. Anything that happens to them lands here.'
+                : 'Nothing in the inbox matches that find. Escape clears it.'
+            }
           />
         </div>
       ) : (
@@ -284,6 +374,9 @@ export function Inbox() {
                       <span className={styles.when} title={row.createdAt}>
                         {when(row.createdAt)}
                       </span>
+                      {row.snoozedUntil === undefined ? null : (
+                        <span className={styles.snoozed}>Snoozed</span>
+                      )}
                     </button>
                   </li>
                 ))}

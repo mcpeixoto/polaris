@@ -187,6 +187,22 @@ export async function dismissNotification(engine: SyncEngine, id: UUID): Promise
 }
 
 /**
+ * Removes every read row from the inbox.
+ *
+ * Linear's Shift+Backspace: the read ones, not the visible ones. A display option that
+ * hid read rows would otherwise make the chord a no-op, and "delete all read" would
+ * depend on whether you had ticked Show read.
+ */
+export async function dismissReadNotifications(engine: SyncEngine): Promise<void> {
+  const ids: UUID[] = [];
+  for (const row of engine.store.notifications.values()) {
+    if (row.readAt !== undefined) ids.push(row.id);
+  }
+  if (ids.length === 0) return;
+  await Promise.all(ids.map((id) => dismissNotification(engine, id)));
+}
+
+/**
  * The row with `readAt` removed rather than set to undefined.
  *
  * Deleting the key matters: the store persists entities into IndexedDB and compares results
