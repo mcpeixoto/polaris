@@ -233,6 +233,7 @@ type Querier interface {
 	CountProjectTeams(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountProjectsFromTemplate(ctx context.Context, projectTemplateID *uuid.UUID) (int64, error)
 	CountProjectsWithProjectLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
+	CountPulseFeedsForUser(ctx context.Context, arg CountPulseFeedsForUserParams) (int32, error)
 	// CountPulseForMeUpdatesSince is the Pulse "For me" predicate: lead, creator, or member.
 	//
 	CountPulseForMeUpdatesSince(ctx context.Context, arg CountPulseForMeUpdatesSinceParams) (int64, error)
@@ -357,6 +358,8 @@ type Querier interface {
 	CreateProjectTemplateIssue(ctx context.Context, arg CreateProjectTemplateIssueParams) (ProjectTemplateIssue, error)
 	CreateProjectTemplateMilestone(ctx context.Context, arg CreateProjectTemplateMilestoneParams) (ProjectTemplateMilestone, error)
 	CreateProjectUpdate(ctx context.Context, arg CreateProjectUpdateParams) (ProjectUpdate, error)
+	// Personal Pulse feeds. One person's named subset of project updates.
+	CreatePulseFeed(ctx context.Context, arg CreatePulseFeedParams) (PulseFeed, error)
 	// Recurring issue schedules. Column lists follow the table order, same rule as issues.sql.
 	CreateRecurringIssue(ctx context.Context, arg CreateRecurringIssueParams) (CreateRecurringIssueRow, error)
 	// Replicated columns only. webhook_secret is never selected here.
@@ -411,6 +414,7 @@ type Querier interface {
 	DeleteProjectTemplateIssuesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
 	DeleteProjectTemplateMilestone(ctx context.Context, id uuid.UUID) error
 	DeleteProjectTemplateMilestonesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
+	DeletePulseFeed(ctx context.Context, id uuid.UUID) error
 	DeleteSentryConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteSlaRule(ctx context.Context, id uuid.UUID) error
 	DeleteSlackConnection(ctx context.Context, workspaceID uuid.UUID) error
@@ -585,6 +589,8 @@ type Querier interface {
 	GetProjectUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
 	GetProjectUpdateForUpdate(ctx context.Context, id uuid.UUID) (ProjectUpdate, error)
 	GetPulseDigestCursor(ctx context.Context, arg GetPulseDigestCursorParams) (time.Time, error)
+	GetPulseFeed(ctx context.Context, id uuid.UUID) (PulseFeed, error)
+	GetPulseFeedForUpdate(ctx context.Context, id uuid.UUID) (PulseFeed, error)
 	GetRecurringIssue(ctx context.Context, id uuid.UUID) (GetRecurringIssueRow, error)
 	// GetRecurringIssueForUpdate locks the row for a mint pass. Two workers racing on the
 	// same due date would otherwise both decide it had passed and file two issues.
@@ -1397,6 +1403,11 @@ type Querier interface {
 	// teams — the same predicate authz.Visible uses for ScopeProject.
 	//
 	StreamProjectsForBootstrap(ctx context.Context, arg StreamProjectsForBootstrapParams) ([]Project, error)
+	// StreamPulseFeedsForBootstrap is one person's feeds. A Pulse feed is personal the way
+	// an inbox row is: it travels under a user scope and never appears in anybody else's
+	// replica.
+	//
+	StreamPulseFeedsForBootstrap(ctx context.Context, arg StreamPulseFeedsForBootstrapParams) ([]PulseFeed, error)
 	// StreamRecurringIssuesForBootstrap feeds the initial snapshot. The predicate is the
 	// team's: a recurring schedule is team-scoped the same way a cycle is, and the change
 	// rows are emitted under TeamScope, so the snapshot must not ship a private team's
@@ -1530,6 +1541,7 @@ type Querier interface {
 	UpdateProjectTemplateIssue(ctx context.Context, arg UpdateProjectTemplateIssueParams) (ProjectTemplateIssue, error)
 	UpdateProjectTemplateMilestone(ctx context.Context, arg UpdateProjectTemplateMilestoneParams) (ProjectTemplateMilestone, error)
 	UpdateProjectUpdate(ctx context.Context, arg UpdateProjectUpdateParams) (ProjectUpdate, error)
+	UpdatePulseFeed(ctx context.Context, arg UpdatePulseFeedParams) (PulseFeed, error)
 	UpdateRecurringIssue(ctx context.Context, arg UpdateRecurringIssueParams) (UpdateRecurringIssueRow, error)
 	UpdateSentryConnection(ctx context.Context, arg UpdateSentryConnectionParams) (UpdateSentryConnectionRow, error)
 	UpdateSlaRule(ctx context.Context, arg UpdateSlaRuleParams) (SlaRule, error)

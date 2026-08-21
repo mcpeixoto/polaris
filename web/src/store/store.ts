@@ -57,6 +57,7 @@ import {
   type Initiative,
   type InitiativeProject,
   type ProjectUpdate,
+  type PulseFeed,
   type ProjectDependency,
   type ProjectLabel,
   type ProjectLabelLink,
@@ -197,6 +198,7 @@ export class Store {
     initiative: new Map(),
     initiativeProject: new Map(),
     projectUpdate: new Map(),
+    pulseFeed: new Map(),
     projectDependency: new Map(),
     projectLabel: new Map(),
     projectLabelLink: new Map(),
@@ -451,6 +453,10 @@ export class Store {
 
   get projectUpdates(): ReadonlyMap<UUID, ProjectUpdate> {
     return this.tables.projectUpdate as ReadonlyMap<UUID, ProjectUpdate>;
+  }
+
+  get pulseFeeds(): ReadonlyMap<UUID, PulseFeed> {
+    return this.tables.pulseFeed as ReadonlyMap<UUID, PulseFeed>;
   }
 
   get projectDependencies(): ReadonlyMap<UUID, ProjectDependency> {

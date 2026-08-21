@@ -290,6 +290,11 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	if err != nil {
 		t.Fatalf("project: %v", err)
 	}
+	if _, _, err := svc.CreatePulseFeed(ctx, p, domain.CreatePulseFeedInput{
+		Name: "Launch", ProjectIDs: []uuid.UUID{project.ID},
+	}); err != nil {
+		t.Fatalf("pulseFeed: %v", err)
+	}
 	if _, _, err := svc.CreateProjectMilestone(ctx, p, domain.CreateProjectMilestoneInput{
 		ProjectID: project.ID, Name: "Beta",
 	}); err != nil {

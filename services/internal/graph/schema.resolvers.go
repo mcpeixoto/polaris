@@ -1047,6 +1047,59 @@ func (r *mutationResolver) DeleteAskForm(ctx context.Context, id uuid.UUID, clie
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// CreatePulseFeed is the resolver for the createPulseFeed field.
+func (r *mutationResolver) CreatePulseFeed(ctx context.Context, input generated.CreatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.PulseFeedPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromCreatePulseFeedInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.PulseFeed, int64, error) {
+			return r.Svc.CreatePulseFeed(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toPulseFeed(row)
+	return &generated.PulseFeedPayload{Version: int(version), PulseFeed: &out}, nil
+}
+
+// UpdatePulseFeed is the resolver for the updatePulseFeed field.
+func (r *mutationResolver) UpdatePulseFeed(ctx context.Context, input generated.UpdatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.PulseFeedPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := fromUpdatePulseFeedInput(input)
+	row, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.PulseFeed, int64, error) {
+			return r.Svc.UpdatePulseFeed(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toPulseFeed(row)
+	return &generated.PulseFeedPayload{Version: int(version), PulseFeed: &out}, nil
+}
+
+// DeletePulseFeed is the resolver for the deletePulseFeed field.
+func (r *mutationResolver) DeletePulseFeed(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeletePulseFeed(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // CreateTeam is the resolver for the createTeam field.
 func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.CreateTeamInput) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)

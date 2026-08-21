@@ -1292,6 +1292,25 @@ type AskFormPayload implements MutationResult {
   askForm: AskForm!
 }
 
+"""
+One person's named Pulse feed. A subset of project updates, scoped to the owner
+the way an inbox row is. Popular is replica-derived and is not a row here.
+"""
+type PulseFeed {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  name: String!
+  projectIds: [UUID!]!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type PulseFeedPayload implements MutationResult {
+  version: Int!
+  pulseFeed: PulseFeed!
+}
+
 type TeamPayload implements MutationResult {
   version: Int!
   team: Team!
@@ -2907,6 +2926,17 @@ input UpdateAskFormInput {
   description: String
 }
 
+input CreatePulseFeedInput {
+  name: String!
+  projectIds: [UUID!]!
+}
+
+input UpdatePulseFeedInput {
+  id: UUID!
+  name: String
+  projectIds: [UUID!]
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -3154,6 +3184,10 @@ type Mutation {
   updateAskForm(input: UpdateAskFormInput!, clientId: UUID, opId: UUID): AskFormPayload! @idempotent
   archiveAskForm(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   deleteAskForm(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createPulseFeed(input: CreatePulseFeedInput!, clientId: UUID, opId: UUID): PulseFeedPayload! @idempotent
+  updatePulseFeed(input: UpdatePulseFeedInput!, clientId: UUID, opId: UUID): PulseFeedPayload! @idempotent
+  deletePulseFeed(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!

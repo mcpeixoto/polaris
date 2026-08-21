@@ -804,6 +804,7 @@ type ComplexityRoot struct {
 		CreateProjectTemplateIssue     func(childComplexity int, input CreateProjectTemplateIssueInput) int
 		CreateProjectTemplateMilestone func(childComplexity int, input CreateProjectTemplateMilestoneInput) int
 		CreateProjectUpdate            func(childComplexity int, input CreateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreatePulseFeed                func(childComplexity int, input CreatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateRecurringIssue           func(childComplexity int, input CreateRecurringIssueInput) int
 		CreateSLARule                  func(childComplexity int, input CreateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateSentryConnection         func(childComplexity int, input CreateSentryConnectionInput) int
@@ -839,6 +840,7 @@ type ComplexityRoot struct {
 		DeleteProjectTemplateIssue     func(childComplexity int, id uuid.UUID) int
 		DeleteProjectTemplateMilestone func(childComplexity int, id uuid.UUID) int
 		DeleteProjectUpdate            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeletePulseFeed                func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteSLARule                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteSentryConnection         func(childComplexity int) int
 		DeleteSlackConnection          func(childComplexity int) int
@@ -920,6 +922,7 @@ type ComplexityRoot struct {
 		UpdateProjectTemplateIssue     func(childComplexity int, input UpdateProjectTemplateIssueInput) int
 		UpdateProjectTemplateMilestone func(childComplexity int, input UpdateProjectTemplateMilestoneInput) int
 		UpdateProjectUpdate            func(childComplexity int, input UpdateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdatePulseFeed                func(childComplexity int, input UpdatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateRecurringIssue           func(childComplexity int, input UpdateRecurringIssueInput) int
 		UpdateSLARule                  func(childComplexity int, input UpdateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateSentryConnection         func(childComplexity int, input UpdateSentryConnectionInput) int
@@ -1249,6 +1252,21 @@ type ComplexityRoot struct {
 	ProjectUpdatePayload struct {
 		ProjectUpdate func(childComplexity int) int
 		Version       func(childComplexity int) int
+	}
+
+	PulseFeed struct {
+		CreatedAt   func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+		ProjectIds  func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		UserID      func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	PulseFeedPayload struct {
+		PulseFeed func(childComplexity int) int
+		Version   func(childComplexity int) int
 	}
 
 	PurgePayload struct {
@@ -1745,6 +1763,9 @@ type MutationResolver interface {
 	UpdateAskForm(ctx context.Context, input UpdateAskFormInput, clientID *uuid.UUID, opID *uuid.UUID) (*AskFormPayload, error)
 	ArchiveAskForm(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	DeleteAskForm(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	CreatePulseFeed(ctx context.Context, input CreatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) (*PulseFeedPayload, error)
+	UpdatePulseFeed(ctx context.Context, input UpdatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) (*PulseFeedPayload, error)
+	DeletePulseFeed(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateTeam(ctx context.Context, input CreateTeamInput) (*TeamPayload, error)
 	UpdateTeam(ctx context.Context, input UpdateTeamInput) (*TeamPayload, error)
 	MoveTeam(ctx context.Context, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
@@ -5606,6 +5627,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateProjectUpdate(childComplexity, args["input"].(CreateProjectUpdateInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createPulseFeed":
+		if e.ComplexityRoot.Mutation.CreatePulseFeed == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createPulseFeed_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreatePulseFeed(childComplexity, args["input"].(CreatePulseFeedInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createRecurringIssue":
 		if e.ComplexityRoot.Mutation.CreateRecurringIssue == nil {
 			break
@@ -5971,6 +6003,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteProjectUpdate(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deletePulseFeed":
+		if e.ComplexityRoot.Mutation.DeletePulseFeed == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deletePulseFeed_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeletePulseFeed(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.deleteSlaRule":
 		if e.ComplexityRoot.Mutation.DeleteSLARule == nil {
 			break
@@ -6847,6 +6890,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateProjectUpdate(childComplexity, args["input"].(UpdateProjectUpdateInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.updatePulseFeed":
+		if e.ComplexityRoot.Mutation.UpdatePulseFeed == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updatePulseFeed_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdatePulseFeed(childComplexity, args["input"].(UpdatePulseFeedInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.updateRecurringIssue":
 		if e.ComplexityRoot.Mutation.UpdateRecurringIssue == nil {
 			break
@@ -8318,6 +8372,62 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProjectUpdatePayload.Version(childComplexity), true
+
+	case "PulseFeed.createdAt":
+		if e.ComplexityRoot.PulseFeed.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseFeed.CreatedAt(childComplexity), true
+	case "PulseFeed.id":
+		if e.ComplexityRoot.PulseFeed.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseFeed.ID(childComplexity), true
+	case "PulseFeed.name":
+		if e.ComplexityRoot.PulseFeed.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseFeed.Name(childComplexity), true
+	case "PulseFeed.projectIds":
+		if e.ComplexityRoot.PulseFeed.ProjectIds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseFeed.ProjectIds(childComplexity), true
+	case "PulseFeed.updatedAt":
+		if e.ComplexityRoot.PulseFeed.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseFeed.UpdatedAt(childComplexity), true
+	case "PulseFeed.userId":
+		if e.ComplexityRoot.PulseFeed.UserID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseFeed.UserID(childComplexity), true
+	case "PulseFeed.workspaceId":
+		if e.ComplexityRoot.PulseFeed.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseFeed.WorkspaceID(childComplexity), true
+
+	case "PulseFeedPayload.pulseFeed":
+		if e.ComplexityRoot.PulseFeedPayload.PulseFeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseFeedPayload.PulseFeed(childComplexity), true
+	case "PulseFeedPayload.version":
+		if e.ComplexityRoot.PulseFeedPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseFeedPayload.Version(childComplexity), true
 
 	case "PurgePayload.ids":
 		if e.ComplexityRoot.PurgePayload.Ids == nil {
@@ -10609,6 +10719,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateProjectTemplateIssueInput,
 		ec.unmarshalInputCreateProjectTemplateMilestoneInput,
 		ec.unmarshalInputCreateProjectUpdateInput,
+		ec.unmarshalInputCreatePulseFeedInput,
 		ec.unmarshalInputCreateRecurringIssueInput,
 		ec.unmarshalInputCreateSentryConnectionInput,
 		ec.unmarshalInputCreateSlaRuleInput,
@@ -10656,6 +10767,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateProjectTemplateIssueInput,
 		ec.unmarshalInputUpdateProjectTemplateMilestoneInput,
 		ec.unmarshalInputUpdateProjectUpdateInput,
+		ec.unmarshalInputUpdatePulseFeedInput,
 		ec.unmarshalInputUpdateRecurringIssueInput,
 		ec.unmarshalInputUpdateSentryConnectionInput,
 		ec.unmarshalInputUpdateSlaRuleInput,
@@ -12038,6 +12150,25 @@ type AskForm {
 type AskFormPayload implements MutationResult {
   version: Int!
   askForm: AskForm!
+}
+
+"""
+One person's named Pulse feed. A subset of project updates, scoped to the owner
+the way an inbox row is. Popular is replica-derived and is not a row here.
+"""
+type PulseFeed {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  name: String!
+  projectIds: [UUID!]!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type PulseFeedPayload implements MutationResult {
+  version: Int!
+  pulseFeed: PulseFeed!
 }
 
 type TeamPayload implements MutationResult {
@@ -13655,6 +13786,17 @@ input UpdateAskFormInput {
   description: String
 }
 
+input CreatePulseFeedInput {
+  name: String!
+  projectIds: [UUID!]!
+}
+
+input UpdatePulseFeedInput {
+  id: UUID!
+  name: String
+  projectIds: [UUID!]
+}
+
 input UpdateProfileInput {
   name: String
   displayName: String
@@ -13902,6 +14044,10 @@ type Mutation {
   updateAskForm(input: UpdateAskFormInput!, clientId: UUID, opId: UUID): AskFormPayload! @idempotent
   archiveAskForm(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   deleteAskForm(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createPulseFeed(input: CreatePulseFeedInput!, clientId: UUID, opId: UUID): PulseFeedPayload! @idempotent
+  updatePulseFeed(input: UpdatePulseFeedInput!, clientId: UUID, opId: UUID): PulseFeedPayload! @idempotent
+  deletePulseFeed(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createTeam(input: CreateTeamInput!): TeamPayload!
   updateTeam(input: UpdateTeamInput!): TeamPayload!
@@ -16200,6 +16346,36 @@ func (ec *executionContext) childFields_ProjectUpdatePayload(ctx context.Context
 		return ec.fieldContext_ProjectUpdatePayload_projectUpdate(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ProjectUpdatePayload", field.Name)
+}
+
+func (ec *executionContext) childFields_PulseFeed(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_PulseFeed_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_PulseFeed_workspaceId(ctx, field)
+	case "userId":
+		return ec.fieldContext_PulseFeed_userId(ctx, field)
+	case "name":
+		return ec.fieldContext_PulseFeed_name(ctx, field)
+	case "projectIds":
+		return ec.fieldContext_PulseFeed_projectIds(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_PulseFeed_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_PulseFeed_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PulseFeed", field.Name)
+}
+
+func (ec *executionContext) childFields_PulseFeedPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_PulseFeedPayload_version(ctx, field)
+	case "pulseFeed":
+		return ec.fieldContext_PulseFeedPayload_pulseFeed(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PulseFeedPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_PurgePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -18578,6 +18754,36 @@ func (ec *executionContext) field_Mutation_createProject_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createPulseFeed_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreatePulseFeedInput, error) {
+			return ec.unmarshalNCreatePulseFeedInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreatePulseFeedInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createRecurringIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -19239,6 +19445,36 @@ func (ec *executionContext) field_Mutation_deleteProjectUpdate_args(ctx context.
 }
 
 func (ec *executionContext) field_Mutation_deleteProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deletePulseFeed_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -21072,6 +21308,36 @@ func (ec *executionContext) field_Mutation_updateProject_args(ctx context.Contex
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (UpdateProjectInput, error) {
 			return ec.unmarshalNUpdateProjectInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updatePulseFeed_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdatePulseFeedInput, error) {
+			return ec.unmarshalNUpdatePulseFeedInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdatePulseFeedInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -36597,6 +36863,177 @@ func (ec *executionContext) fieldContext_Mutation_deleteAskForm(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createPulseFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createPulseFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreatePulseFeed(ctx, fc.Args["input"].(CreatePulseFeedInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *PulseFeedPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *PulseFeedPayload) graphql.Marshaler {
+			return ec.marshalNPulseFeedPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseFeedPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createPulseFeed(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PulseFeedPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createPulseFeed_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updatePulseFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updatePulseFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdatePulseFeed(ctx, fc.Args["input"].(UpdatePulseFeedInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *PulseFeedPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *PulseFeedPayload) graphql.Marshaler {
+			return ec.marshalNPulseFeedPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseFeedPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updatePulseFeed(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PulseFeedPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updatePulseFeed_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deletePulseFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deletePulseFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeletePulseFeed(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deletePulseFeed(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deletePulseFeed_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createTeam(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -48331,6 +48768,222 @@ func (ec *executionContext) fieldContext_ProjectUpdatePayload_projectUpdate(_ co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ProjectUpdate(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PulseFeed_id(ctx context.Context, field graphql.CollectedField, obj *PulseFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseFeed_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseFeed_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseFeed", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _PulseFeed_workspaceId(ctx context.Context, field graphql.CollectedField, obj *PulseFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseFeed_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseFeed_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseFeed", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _PulseFeed_userId(ctx context.Context, field graphql.CollectedField, obj *PulseFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseFeed_userId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseFeed_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseFeed", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _PulseFeed_name(ctx context.Context, field graphql.CollectedField, obj *PulseFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseFeed_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseFeed_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseFeed", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PulseFeed_projectIds(ctx context.Context, field graphql.CollectedField, obj *PulseFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseFeed_projectIds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectIds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2ᚕgithubᚗcomᚋgoogleᚋuuidᚐUUIDᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseFeed_projectIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseFeed", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _PulseFeed_createdAt(ctx context.Context, field graphql.CollectedField, obj *PulseFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseFeed_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseFeed_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseFeed", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _PulseFeed_updatedAt(ctx context.Context, field graphql.CollectedField, obj *PulseFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseFeed_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseFeed_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseFeed", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _PulseFeedPayload_version(ctx context.Context, field graphql.CollectedField, obj *PulseFeedPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseFeedPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseFeedPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseFeedPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PulseFeedPayload_pulseFeed(ctx context.Context, field graphql.CollectedField, obj *PulseFeedPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseFeedPayload_pulseFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PulseFeed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *PulseFeed) graphql.Marshaler {
+			return ec.marshalNPulseFeed2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseFeed(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseFeedPayload_pulseFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PulseFeedPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PulseFeed(ctx, field)
 		},
 	}
 	return fc, nil
@@ -60690,6 +61343,43 @@ func (ec *executionContext) unmarshalInputCreateProjectUpdateInput(ctx context.C
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreatePulseFeedInput(ctx context.Context, obj any) (CreatePulseFeedInput, error) {
+	var it CreatePulseFeedInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "projectIds"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "projectIds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectIds"))
+			data, err := ec.unmarshalNUUID2ᚕgithubᚗcomᚋgoogleᚋuuidᚐUUIDᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectIds = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateRecurringIssueInput(ctx context.Context, obj any) (CreateRecurringIssueInput, error) {
 	var it CreateRecurringIssueInput
 	if obj == nil {
@@ -63815,6 +64505,50 @@ func (ec *executionContext) unmarshalInputUpdateProjectUpdateInput(ctx context.C
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdatePulseFeedInput(ctx context.Context, obj any) (UpdatePulseFeedInput, error) {
+	var it UpdatePulseFeedInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name", "projectIds"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "projectIds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectIds"))
+			data, err := ec.unmarshalOUUID2ᚕgithubᚗcomᚋgoogleᚋuuidᚐUUIDᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectIds = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateRecurringIssueInput(ctx context.Context, obj any) (UpdateRecurringIssueInput, error) {
 	var it UpdateRecurringIssueInput
 	if obj == nil {
@@ -64847,6 +65581,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._PurgePayload(ctx, sel, obj)
+	case PulseFeedPayload:
+		return ec._PulseFeedPayload(ctx, sel, &obj)
+	case *PulseFeedPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._PulseFeedPayload(ctx, sel, obj)
 	case ProjectUpdatePayload:
 		return ec._ProjectUpdatePayload(ctx, sel, &obj)
 	case *ProjectUpdatePayload:
@@ -70404,6 +71145,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createPulseFeed":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createPulseFeed(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatePulseFeed":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updatePulseFeed(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deletePulseFeed":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deletePulseFeed(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createTeam":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createTeam(ctx, field)
@@ -73570,6 +74332,117 @@ func (ec *executionContext) _ProjectUpdatePayload(ctx context.Context, sel ast.S
 			}
 		case "projectUpdate":
 			out.Values[i] = ec._ProjectUpdatePayload_projectUpdate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var pulseFeedImplementors = []string{"PulseFeed"}
+
+func (ec *executionContext) _PulseFeed(ctx context.Context, sel ast.SelectionSet, obj *PulseFeed) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pulseFeedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PulseFeed")
+		case "id":
+			out.Values[i] = ec._PulseFeed_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._PulseFeed_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userId":
+			out.Values[i] = ec._PulseFeed_userId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._PulseFeed_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectIds":
+			out.Values[i] = ec._PulseFeed_projectIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._PulseFeed_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._PulseFeed_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var pulseFeedPayloadImplementors = []string{"PulseFeedPayload", "MutationResult"}
+
+func (ec *executionContext) _PulseFeedPayload(ctx context.Context, sel ast.SelectionSet, obj *PulseFeedPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pulseFeedPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PulseFeedPayload")
+		case "version":
+			out.Values[i] = ec._PulseFeedPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pulseFeed":
+			out.Values[i] = ec._PulseFeedPayload_pulseFeed(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -78671,6 +79544,11 @@ func (ec *executionContext) unmarshalNCreateProjectUpdateInput2githubᚗcomᚋpe
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreatePulseFeedInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreatePulseFeedInput(ctx context.Context, v any) (CreatePulseFeedInput, error) {
+	res, err := ec.unmarshalInputCreatePulseFeedInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateRecurringIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateRecurringIssueInput(ctx context.Context, v any) (CreateRecurringIssueInput, error) {
 	res, err := ec.unmarshalInputCreateRecurringIssueInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -80604,6 +81482,30 @@ func (ec *executionContext) marshalNPulseDigestCadence2githubᚗcomᚋpeixotolab
 	return v
 }
 
+func (ec *executionContext) marshalNPulseFeed2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseFeed(ctx context.Context, sel ast.SelectionSet, v *PulseFeed) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PulseFeed(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPulseFeedPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseFeedPayload(ctx context.Context, sel ast.SelectionSet, v PulseFeedPayload) graphql.Marshaler {
+	return ec._PulseFeedPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPulseFeedPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPulseFeedPayload(ctx context.Context, sel ast.SelectionSet, v *PulseFeedPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PulseFeedPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNPurgePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPurgePayload(ctx context.Context, sel ast.SelectionSet, v PurgePayload) graphql.Marshaler {
 	return ec._PurgePayload(ctx, sel, &v)
 }
@@ -81217,6 +82119,11 @@ func (ec *executionContext) unmarshalNUpdateProjectTemplateMilestoneInput2github
 
 func (ec *executionContext) unmarshalNUpdateProjectUpdateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateProjectUpdateInput(ctx context.Context, v any) (UpdateProjectUpdateInput, error) {
 	res, err := ec.unmarshalInputUpdateProjectUpdateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdatePulseFeedInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdatePulseFeedInput(ctx context.Context, v any) (UpdatePulseFeedInput, error) {
+	res, err := ec.unmarshalInputUpdatePulseFeedInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

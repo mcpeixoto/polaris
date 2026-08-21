@@ -57,6 +57,6 @@ Browser notifications use the Push API (Safari doesn't support it — hence the 
 
 A feed of **project status updates**, available on all plans (not to guests). Sidebar item, `G` then `U`. Navigate with `J`/`K`; Enter opens the project's Activity tab.
 
-**Shipped (v1):** replica-derived `/pulse` with **For me** (projects you lead, created, or belong to) and **Recent**. No extra query — posts already in the replica.
+**Shipped:** replica-derived `/pulse` with **For me**, **Popular** (comment engagement), **Recent**, and personal custom feeds. No extra query — posts already in the replica.
 
-**Not yet:** Popular (emoji/comment engagement), initiative updates, custom feeds, Pulse audio.
+**Not yet:** emoji reactions on Popular, initiative updates, Pulse audio.
