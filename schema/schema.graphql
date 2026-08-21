@@ -907,6 +907,26 @@ type ApiKeyCreated {
   token: String!
 }
 
+"""
+A signed-in browser or device. The refresh token is never on this type.
+
+Sessions are not replicated: they belong to an account, not a workspace, and putting
+them in every device's IndexedDB would copy a credential inventory onto every laptop.
+"""
+type AccountSession {
+  id: UUID!
+  """Chrome on macOS, or Unknown device when the user-agent cannot be read."""
+  label: String!
+  userAgent: String
+  ip: String
+  country: String
+  """True when this row is the refresh cookie on this request."""
+  current: Boolean!
+  lastSeenAt: Time!
+  createdAt: Time!
+  expiresAt: Time!
+}
+
 type SearchResults {
   issues: [Issue!]!
   comments: [Comment!]!
@@ -3168,6 +3188,9 @@ type Query {
   """The caller's own keys. Never anybody else's, and never the tokens."""
   apiKeys: [ApiKey!]!
 
+  """The caller's own live sessions. Never anybody else's, and never the tokens."""
+  accountSessions: [AccountSession!]!
+
   """Workspace webhooks. Admins only; the signing secret is never returned."""
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
@@ -3551,6 +3574,11 @@ type Mutation {
   """Returns the token exactly once. It is not recoverable afterwards."""
   createApiKey(input: CreateApiKeyInput!): ApiKeyPayload!
   revokeApiKey(id: UUID!): DeletePayload!
+
+  """Revoke one of the caller's own sessions. Revoking this device signs it out on the next refresh."""
+  revokeAccountSession(id: UUID!): DeletePayload!
+  """Revoke every other live session, keeping the one making this request. Returns that session's id."""
+  revokeOtherSessions: DeletePayload!
 
   """Returns the signing secret exactly once."""
   createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!

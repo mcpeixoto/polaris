@@ -43,6 +43,17 @@ UPDATE account_session SET revoked_at = now() WHERE id = $1 AND revoked_at IS NU
 UPDATE account_session SET revoked_at = now()
 WHERE account_id = $1 AND revoked_at IS NULL;
 
+-- Scoped to the owner so a foreign id answers like an invented one: not-found, never
+-- forbidden. Distinguishing those would let somebody confirm a colleague's session exists.
+--
+-- name: RevokeSessionForAccount :execrows
+UPDATE account_session SET revoked_at = now()
+WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL;
+
+-- name: RevokeOtherSessionsForAccount :execrows
+UPDATE account_session SET revoked_at = now()
+WHERE account_id = $1 AND id <> $2 AND revoked_at IS NULL;
+
 -- name: ListSessionsForAccount :many
 SELECT id, account_id, token_hash, user_agent, ip, country, expires_at, revoked_at, last_seen_at, created_at, updated_at
 FROM account_session

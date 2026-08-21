@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/peixotolabs/polaris/services/internal/auth"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
 	"github.com/peixotolabs/polaris/services/internal/graph/generated"
@@ -3471,6 +3472,32 @@ func (r *mutationResolver) RevokeAPIKey(ctx context.Context, id uuid.UUID) (*gen
 	return &generated.DeletePayload{Version: int(version), ID: revoked}, nil
 }
 
+// RevokeAccountSession is the resolver for the revokeAccountSession field.
+func (r *mutationResolver) RevokeAccountSession(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	revoked, version, err := r.Svc.RevokeAccountSession(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: revoked}, nil
+}
+
+// RevokeOtherSessions is the resolver for the revokeOtherSessions field.
+func (r *mutationResolver) RevokeOtherSessions(ctx context.Context) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	kept, version, err := r.Svc.RevokeOtherSessions(ctx, p, auth.RefreshTokenHashFrom(ctx))
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: kept}, nil
+}
+
 // CreateWebhook is the resolver for the createWebhook field.
 func (r *mutationResolver) CreateWebhook(ctx context.Context, input generated.CreateWebhookInput) (*generated.WebhookCreatePayload, error) {
 	p, err := principalFrom(ctx)
@@ -4986,6 +5013,19 @@ func (r *queryResolver) APIKeys(ctx context.Context) ([]generated.APIKey, error)
 		return nil, PresentError(ctx, err)
 	}
 	return toAPIKeys(keys), nil
+}
+
+// AccountSessions is the resolver for the accountSessions field.
+func (r *queryResolver) AccountSessions(ctx context.Context) ([]generated.AccountSession, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListAccountSessions(ctx, p, auth.RefreshTokenHashFrom(ctx))
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toAccountSessions(rows), nil
 }
 
 // Webhooks is the resolver for the webhooks field.

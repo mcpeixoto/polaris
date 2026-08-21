@@ -419,6 +419,12 @@ export function AppShell({
         run: () => navigate('/settings/project-statuses'),
       },
       {
+        id: 'nav.sessions',
+        title: 'Go to Sessions',
+        group: 'Navigation',
+        run: () => navigate('/settings/sessions'),
+      },
+      {
         id: 'nav.mcp',
         title: 'Go to MCP',
         group: 'Navigation',
@@ -879,6 +885,10 @@ export function AppShell({
             <NavLink to="/settings/api-keys" className={navClass}>
               <NavGlyph name="key" />
               <span className={styles.navLabel}>API keys</span>
+            </NavLink>
+            <NavLink to="/settings/sessions" className={navClass}>
+              <NavGlyph name="key" />
+              <span className={styles.navLabel}>Sessions</span>
             </NavLink>
             <NavLink to="/settings/mcp" className={navClass}>
               <NavGlyph name="key" />

@@ -18,5 +18,5 @@ was no workspace general page to land on.
 ## Deferred
 
 - Avatar / logo file upload (the columns already hold URLs)
-- Sessions list and passkeys
+- Passkeys (WebAuthn — `account_credential` exists; registration is a later slice)
 - Leave workspace

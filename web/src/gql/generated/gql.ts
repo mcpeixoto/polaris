@@ -205,6 +205,10 @@ type Documents = {
     "\n  \n  mutation CreateSentryConnection($input: CreateSentryConnectionInput!) {\n    createSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": typeof types.CreateSentryConnectionDocument,
     "\n  \n  mutation UpdateSentryConnection($input: UpdateSentryConnectionInput!) {\n    updateSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": typeof types.UpdateSentryConnectionDocument,
     "\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n": typeof types.DeleteSentryConnectionDocument,
+    "\n  fragment AccountSessionFields on AccountSession {\n    id\n    label\n    userAgent\n    ip\n    country\n    current\n    lastSeenAt\n    createdAt\n    expiresAt\n  }\n": typeof types.AccountSessionFieldsFragmentDoc,
+    "\n  \n  query AccountSessions {\n    accountSessions {\n      ...AccountSessionFields\n    }\n  }\n": typeof types.AccountSessionsDocument,
+    "\n  mutation RevokeAccountSession($id: UUID!) {\n    revokeAccountSession(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.RevokeAccountSessionDocument,
+    "\n  mutation RevokeOtherSessions {\n    revokeOtherSessions {\n      version\n      id\n    }\n  }\n": typeof types.RevokeOtherSessionsDocument,
     "\n  fragment SlackConnectionFields on SlackConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    defaultTeamId\n    channelName\n    notifyIssues\n    notifyComments\n    asksEnabled\n    connectedAt\n    createdAt\n    updatedAt\n  }\n": typeof types.SlackConnectionFieldsFragmentDoc,
     "\n  query SlackInbound {\n    slackInbound {\n      commandUrl\n      eventsUrl\n      webhookConfigured\n      signingSecretConfigured\n      botTokenConfigured\n    }\n  }\n": typeof types.SlackInboundDocument,
     "\n  \n  mutation CreateSlackConnection($input: CreateSlackConnectionInput!) {\n    createSlackConnection(input: $input) {\n      version\n      slackConnection {\n        ...SlackConnectionFields\n      }\n    }\n  }\n": typeof types.CreateSlackConnectionDocument,
@@ -480,6 +484,10 @@ const documents: Documents = {
     "\n  \n  mutation CreateSentryConnection($input: CreateSentryConnectionInput!) {\n    createSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": types.CreateSentryConnectionDocument,
     "\n  \n  mutation UpdateSentryConnection($input: UpdateSentryConnectionInput!) {\n    updateSentryConnection(input: $input) {\n      version\n      sentryConnection {\n        ...SentryConnectionFields\n      }\n    }\n  }\n": types.UpdateSentryConnectionDocument,
     "\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n": types.DeleteSentryConnectionDocument,
+    "\n  fragment AccountSessionFields on AccountSession {\n    id\n    label\n    userAgent\n    ip\n    country\n    current\n    lastSeenAt\n    createdAt\n    expiresAt\n  }\n": types.AccountSessionFieldsFragmentDoc,
+    "\n  \n  query AccountSessions {\n    accountSessions {\n      ...AccountSessionFields\n    }\n  }\n": types.AccountSessionsDocument,
+    "\n  mutation RevokeAccountSession($id: UUID!) {\n    revokeAccountSession(id: $id) {\n      version\n      id\n    }\n  }\n": types.RevokeAccountSessionDocument,
+    "\n  mutation RevokeOtherSessions {\n    revokeOtherSessions {\n      version\n      id\n    }\n  }\n": types.RevokeOtherSessionsDocument,
     "\n  fragment SlackConnectionFields on SlackConnection {\n    id\n    workspaceId\n    creatorId\n    enabled\n    defaultTeamId\n    channelName\n    notifyIssues\n    notifyComments\n    asksEnabled\n    connectedAt\n    createdAt\n    updatedAt\n  }\n": types.SlackConnectionFieldsFragmentDoc,
     "\n  query SlackInbound {\n    slackInbound {\n      commandUrl\n      eventsUrl\n      webhookConfigured\n      signingSecretConfigured\n      botTokenConfigured\n    }\n  }\n": types.SlackInboundDocument,
     "\n  \n  mutation CreateSlackConnection($input: CreateSlackConnectionInput!) {\n    createSlackConnection(input: $input) {\n      version\n      slackConnection {\n        ...SlackConnectionFields\n      }\n    }\n  }\n": types.CreateSlackConnectionDocument,
@@ -1342,6 +1350,22 @@ export function graphql(source: "\n  \n  mutation UpdateSentryConnection($input:
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteSentryConnection {\n    deleteSentryConnection {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment AccountSessionFields on AccountSession {\n    id\n    label\n    userAgent\n    ip\n    country\n    current\n    lastSeenAt\n    createdAt\n    expiresAt\n  }\n"): (typeof documents)["\n  fragment AccountSessionFields on AccountSession {\n    id\n    label\n    userAgent\n    ip\n    country\n    current\n    lastSeenAt\n    createdAt\n    expiresAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  query AccountSessions {\n    accountSessions {\n      ...AccountSessionFields\n    }\n  }\n"): (typeof documents)["\n  \n  query AccountSessions {\n    accountSessions {\n      ...AccountSessionFields\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation RevokeAccountSession($id: UUID!) {\n    revokeAccountSession(id: $id) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RevokeAccountSession($id: UUID!) {\n    revokeAccountSession(id: $id) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation RevokeOtherSessions {\n    revokeOtherSessions {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RevokeOtherSessions {\n    revokeOtherSessions {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

@@ -51,7 +51,7 @@ var notInTheAPI = map[string]string{
 	"PruneWebhookDeliveries":    "worker cron",
 	"PruneDrafts":               "worker cron",
 	"EnsureChangeLogPartitions": "worker cron",
-	"RevokeAllSessions":         "reached through account settings, which is M1",
+	"RevokeAllSessions":         "kills every device including this one; the settings screen uses RevokeOtherSessions",
 	"ExchangeOauthToken":        "POST /oauth/token",
 	"RevokeOauthToken":          "POST /oauth/revoke",
 	// The retention sweep. Deliberately not reachable by a caller: its cutoff is
