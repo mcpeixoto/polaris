@@ -1,9 +1,10 @@
-import { fromWire } from '~/gql/enums';
-import { uuidv7, type EntityOf, type EntityPatch, type UUID } from '~/store';
+import { fromWire, toWire } from '~/gql/enums';
+import { uuidv7, type CustomerStatus, type EntityOf, type EntityPatch, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
 import {
+  ARCHIVE_CUSTOMER,
   CREATE_CUSTOMER,
   CREATE_CUSTOMER_REQUEST,
   DELETE_CUSTOMER_REQUEST,
@@ -64,23 +65,94 @@ export async function createCustomer(engine: SyncEngine, input: NewCustomer): Pr
   }
 }
 
-export async function updateCustomerName(
+export interface CustomerFields {
+  readonly name?: string | undefined;
+  readonly domains?: readonly string[] | undefined;
+  readonly status?: CustomerStatus | undefined;
+  readonly ownerId?: UUID | null | undefined;
+  readonly tier?: string | null | undefined;
+  readonly revenue?: number | null | undefined;
+  readonly size?: number | null | undefined;
+  readonly logoUrl?: string | undefined;
+}
+
+export async function updateCustomer(
   engine: SyncEngine,
   id: UUID,
-  name: string,
+  fields: CustomerFields,
 ): Promise<void> {
   const store = engine.store;
   const before = store.get('customer', id);
   if (before === undefined) return;
-  const after: Customer = { ...before, name, updatedAt: new Date().toISOString() };
+  const after: Customer = {
+    ...before,
+    ...(fields.name === undefined ? null : { name: fields.name }),
+    ...(fields.domains === undefined ? null : { domains: fields.domains }),
+    ...(fields.status === undefined ? null : { status: fields.status }),
+    ...(fields.ownerId === undefined
+      ? null
+      : { ownerId: fields.ownerId === null ? undefined : fields.ownerId }),
+    ...(fields.tier === undefined
+      ? null
+      : { tier: fields.tier === null ? undefined : fields.tier }),
+    ...(fields.revenue === undefined
+      ? null
+      : { revenue: fields.revenue === null ? undefined : fields.revenue }),
+    ...(fields.size === undefined
+      ? null
+      : { size: fields.size === null ? undefined : fields.size }),
+    ...(fields.logoUrl === undefined ? null : { logoUrl: fields.logoUrl }),
+    updatedAt: new Date().toISOString(),
+  };
   try {
-    const data = await engine.mutate<{ updateCustomer: { customer: Customer } }>({
+    await engine.mutate({
       mutation: UPDATE_CUSTOMER,
-      variables: { input: { id, name } },
+      variables: {
+        input: {
+          id,
+          ...(fields.name === undefined ? null : { name: fields.name }),
+          ...(fields.domains === undefined ? null : { domains: [...fields.domains] }),
+          ...(fields.status === undefined ? null : { status: toWire(fields.status) }),
+          ...(fields.ownerId === undefined
+            ? null
+            : fields.ownerId === null
+              ? { clearOwner: true }
+              : { ownerId: fields.ownerId }),
+          ...(fields.tier === undefined
+            ? null
+            : fields.tier === null
+              ? { clearTier: true }
+              : { tier: fields.tier }),
+          ...(fields.revenue === undefined
+            ? null
+            : fields.revenue === null
+              ? { clearRevenue: true }
+              : { revenue: fields.revenue }),
+          ...(fields.size === undefined
+            ? null
+            : fields.size === null
+              ? { clearSize: true }
+              : { size: fields.size }),
+          ...(fields.logoUrl === undefined ? null : { logoUrl: fields.logoUrl }),
+        },
+      },
       optimistic: [{ type: 'customer', id, before, after }],
     });
-    const real = fromWire('customer', data.updateCustomer.customer as EntityOf<'customer'>);
-    store.applyOptimistic([{ type: 'customer', id: real.id, before: after, after: real }]);
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
+}
+
+export async function archiveCustomer(engine: SyncEngine, id: UUID): Promise<void> {
+  const before = engine.store.get('customer', id);
+  if (before === undefined) return;
+  try {
+    await engine.mutate({
+      mutation: ARCHIVE_CUSTOMER,
+      variables: { id, archived: true },
+      optimistic: [{ type: 'customer', id, before, after: null }],
+    });
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
