@@ -1,10 +1,11 @@
-import { fromWire } from '~/gql/enums';
-import { uuidv7, type EntityOf, type EntityPatch, type UUID } from '~/store';
+import { fromWire, toWire } from '~/gql/enums';
+import { uuidv7, type EntityOf, type EntityPatch, type InitiativeStatus, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
 import {
   ADD_INITIATIVE_PROJECT,
+  ARCHIVE_INITIATIVE,
   CREATE_INITIATIVE,
   REMOVE_INITIATIVE_PROJECT,
   UPDATE_INITIATIVE,
@@ -63,28 +64,109 @@ export async function createInitiative(engine: SyncEngine, input: NewInitiative)
   }
 }
 
-export async function updateInitiativeDescription(
+export interface InitiativeFields {
+  readonly name?: string | undefined;
+  readonly description?: string | undefined;
+  readonly status?: InitiativeStatus | undefined;
+  readonly priority?: number | undefined;
+  readonly ownerId?: UUID | null | undefined;
+  readonly leadTeamId?: UUID | null | undefined;
+  readonly targetDate?: string | null | undefined;
+}
+
+export async function updateInitiative(
   engine: SyncEngine,
   id: UUID,
-  description: string,
+  fields: InitiativeFields,
 ): Promise<void> {
   const store = engine.store;
   const before = store.get('initiative', id);
   if (before === undefined) return;
 
-  const after: Initiative = { ...before, description, updatedAt: new Date().toISOString() };
+  const after: Initiative = {
+    ...before,
+    ...(fields.name === undefined ? null : { name: fields.name }),
+    ...(fields.description === undefined ? null : { description: fields.description }),
+    ...(fields.status === undefined ? null : { status: fields.status }),
+    ...(fields.priority === undefined ? null : { priority: fields.priority }),
+    ...(fields.ownerId === undefined
+      ? null
+      : { ownerId: fields.ownerId === null ? undefined : fields.ownerId }),
+    ...(fields.leadTeamId === undefined
+      ? null
+      : { leadTeamId: fields.leadTeamId === null ? undefined : fields.leadTeamId }),
+    ...(fields.targetDate === undefined
+      ? null
+      : fields.targetDate === null
+        ? { targetDate: undefined, targetDateGranularity: undefined }
+        : { targetDate: fields.targetDate, targetDateGranularity: 'day' as const }),
+    updatedAt: new Date().toISOString(),
+  };
 
   try {
-    const data = await engine.mutate<{ updateInitiative: { initiative: Initiative } }>({
+    await engine.mutate({
       mutation: UPDATE_INITIATIVE,
-      variables: { input: { id, description } },
+      variables: {
+        input: {
+          id,
+          ...(fields.name === undefined ? null : { name: fields.name }),
+          ...(fields.description === undefined ? null : { description: fields.description }),
+          ...(fields.status === undefined ? null : { status: toWire(fields.status) }),
+          ...(fields.priority === undefined ? null : { priority: fields.priority }),
+          ...(fields.ownerId === undefined
+            ? null
+            : fields.ownerId === null
+              ? { clearOwner: true }
+              : { ownerId: fields.ownerId }),
+          ...(fields.leadTeamId === undefined
+            ? null
+            : fields.leadTeamId === null
+              ? { clearLeadTeam: true }
+              : { leadTeamId: fields.leadTeamId }),
+          ...(fields.targetDate === undefined
+            ? null
+            : fields.targetDate === null
+              ? { clearTarget: true }
+              : { targetDate: fields.targetDate, targetDateGranularity: toWire('day') }),
+        },
+      },
       optimistic: [{ type: 'initiative', id, before, after }],
     });
-    const real = fromWire('initiative', data.updateInitiative.initiative as EntityOf<'initiative'>);
-    store.applyOptimistic([{ type: 'initiative', id: real.id, before: after, after: real }]);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
+  }
+}
+
+export async function archiveInitiative(engine: SyncEngine, id: UUID): Promise<void> {
+  const before = engine.store.get('initiative', id);
+  if (before === undefined) return;
+  try {
+    await engine.mutate({
+      mutation: ARCHIVE_INITIATIVE,
+      variables: { id, archived: true },
+      optimistic: [{ type: 'initiative', id, before, after: null }],
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
+}
+
+export function formatInitiativeStatus(status: InitiativeStatus): string {
+  switch (status) {
+    case 'proposed':
+      return 'Proposed';
+    case 'planned':
+      return 'Planned';
+    case 'active':
+      return 'Active';
+    case 'completed':
+      return 'Completed';
+    case 'canceled':
+      return 'Canceled';
+    default:
+      return status;
   }
 }
 

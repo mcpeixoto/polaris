@@ -132,3 +132,15 @@
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
 }
+
+.properties {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+@media (max-width: 720px) {
+  .properties {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
