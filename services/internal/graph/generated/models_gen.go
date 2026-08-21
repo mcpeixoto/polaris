@@ -2621,8 +2621,10 @@ type UpdateWorkflowStateInput struct {
 }
 
 type UpdateWorkspaceInput struct {
-	Name                              *string             `json:"name,omitempty"`
-	LogoURL                           *string             `json:"logoUrl,omitempty"`
+	Name    *string `json:"name,omitempty"`
+	LogoURL *string `json:"logoUrl,omitempty"`
+	// The address segment. The previous value stays reserved so bookmarks still resolve.
+	URLKey                            *string             `json:"urlKey,omitempty"`
 	ProjectUpdateReminderIntervalDays *int                `json:"projectUpdateReminderIntervalDays,omitempty"`
 	ProjectUpdateReminderWeekday      *int                `json:"projectUpdateReminderWeekday,omitempty"`
 	ProjectUpdateReminderHour         *int                `json:"projectUpdateReminderHour,omitempty"`

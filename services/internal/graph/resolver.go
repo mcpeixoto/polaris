@@ -32,7 +32,7 @@ type Resolver struct {
 	// GitHubOAuthConfigured is true when the process has GitHub App credentials. The
 	// settings UI still works without them; Connect-with-GitHub stays disabled until they
 	// exist.
-	GitHubOAuthConfigured bool
+	GitHubOAuthConfigured  bool
 	SlackSigningConfigured bool
 	SlackBotConfigured     bool
 }

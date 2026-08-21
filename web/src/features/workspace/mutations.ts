@@ -25,6 +25,7 @@ export interface WorkspaceCustomerFields {
 export interface WorkspaceGeneralFields {
   readonly name?: string | undefined;
   readonly logoUrl?: string | null | undefined;
+  readonly urlKey?: string | undefined;
 }
 
 export async function updateWorkspaceReminderCadence(
@@ -66,9 +67,11 @@ async function updateWorkspace(
   if (before === undefined) return;
 
   const name = fields.name?.trim();
+  const urlKey = fields.urlKey?.trim().toLowerCase();
   const after: Workspace = {
     ...before,
     ...(name === undefined || name === '' ? null : { name }),
+    ...(urlKey === undefined || urlKey === '' ? null : { urlKey }),
     ...(fields.logoUrl === undefined
       ? null
       : fields.logoUrl === null || fields.logoUrl.trim() === ''
@@ -110,6 +113,7 @@ async function updateWorkspace(
     variables: {
       input: {
         ...(after.name === before.name ? null : { name: after.name }),
+        ...(after.urlKey === before.urlKey ? null : { urlKey: after.urlKey }),
         ...(after.logoUrl === before.logoUrl ? null : { logoUrl: after.logoUrl ?? '' }),
         ...(fields.projectUpdateReminderIntervalDays === undefined
           ? null

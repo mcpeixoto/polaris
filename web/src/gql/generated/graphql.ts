@@ -4672,6 +4672,8 @@ export type UpdateWorkspaceInput = {
   projectUpdateReminderWeekday?: InputMaybe<Scalars['Int']['input']>;
   pulseDigestCadence?: InputMaybe<PulseDigestCadence>;
   pulseEnabled?: InputMaybe<Scalars['Boolean']['input']>;
+  /** The address segment. The previous value stays reserved so bookmarks still resolve. */
+  urlKey?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type User = {

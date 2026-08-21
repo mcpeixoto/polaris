@@ -1598,6 +1598,7 @@ func (r *mutationResolver) UpdateWorkspace(ctx context.Context, input generated.
 	ws, version, err := r.Svc.UpdateWorkspace(ctx, p, domain.UpdateWorkspaceInput{
 		Name:                              input.Name,
 		LogoURL:                           input.LogoURL,
+		URLKey:                            input.URLKey,
 		ProjectUpdateReminderIntervalDays: input.ProjectUpdateReminderIntervalDays,
 		ProjectUpdateReminderWeekday:      input.ProjectUpdateReminderWeekday,
 		ProjectUpdateReminderHour:         input.ProjectUpdateReminderHour,
