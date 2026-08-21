@@ -1,8 +1,8 @@
 # Sessions list (Security & Access)
 
 **Status:** shipped on this branch
-**Migration:** none (`account_session` has existed since M0)
-**Client schema:** unchanged — sessions are not replicated
+**Migration:** none (`account_session` has existed since M0; do not take 000074 — goose at 75 skips it)
+**Client schema:** 52, unchanged — sessions are not replicated
 
 Settings → Sessions. Location, last seen, IP, sign-in date; revoke one device or every
 other device. The refresh token is never on the wire.

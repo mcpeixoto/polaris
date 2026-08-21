@@ -245,6 +245,7 @@ describe('the settings section', () => {
       'Preferences',
       'Members',
       'Labels',
+      'Initiative labels',
       'Project statuses',
       'Notifications',
       'Templates',
