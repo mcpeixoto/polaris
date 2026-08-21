@@ -2594,6 +2594,102 @@ func (r *mutationResolver) DeleteViewSubscription(ctx context.Context, viewID uu
 	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
 }
 
+// SetProjectSubscription is the resolver for the setProjectSubscription field.
+func (r *mutationResolver) SetProjectSubscription(ctx context.Context, input generated.SetProjectSubscriptionInput) (*generated.ProjectSubscriptionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, version, err := r.Svc.SetProjectSubscription(ctx, p, domain.SetProjectSubscriptionInput{
+		ProjectID:       input.ProjectID,
+		IssuesAdded:     input.IssuesAdded,
+		IssuesCompleted: input.IssuesCompleted,
+		Updates:         input.Updates,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toProjectSubscription(row)
+	return &generated.ProjectSubscriptionPayload{Version: int(version), ProjectSubscription: &out}, nil
+}
+
+// DeleteProjectSubscription is the resolver for the deleteProjectSubscription field.
+func (r *mutationResolver) DeleteProjectSubscription(ctx context.Context, projectID uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	deleted, version, err := r.Svc.DeleteProjectSubscription(ctx, p, projectID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
+}
+
+// SetInitiativeSubscription is the resolver for the setInitiativeSubscription field.
+func (r *mutationResolver) SetInitiativeSubscription(ctx context.Context, input generated.SetInitiativeSubscriptionInput) (*generated.InitiativeSubscriptionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, version, err := r.Svc.SetInitiativeSubscription(ctx, p, domain.SetInitiativeSubscriptionInput{
+		InitiativeID:    input.InitiativeID,
+		IssuesAdded:     input.IssuesAdded,
+		IssuesCompleted: input.IssuesCompleted,
+		Updates:         input.Updates,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toInitiativeSubscription(row)
+	return &generated.InitiativeSubscriptionPayload{Version: int(version), InitiativeSubscription: &out}, nil
+}
+
+// DeleteInitiativeSubscription is the resolver for the deleteInitiativeSubscription field.
+func (r *mutationResolver) DeleteInitiativeSubscription(ctx context.Context, initiativeID uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	deleted, version, err := r.Svc.DeleteInitiativeSubscription(ctx, p, initiativeID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
+}
+
+// SetCustomerSubscription is the resolver for the setCustomerSubscription field.
+func (r *mutationResolver) SetCustomerSubscription(ctx context.Context, input generated.SetCustomerSubscriptionInput) (*generated.CustomerSubscriptionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, version, err := r.Svc.SetCustomerSubscription(ctx, p, domain.SetCustomerSubscriptionInput{
+		CustomerID:       input.CustomerID,
+		RequestAdded:     input.RequestAdded,
+		RequestImportant: input.RequestImportant,
+		RequestCompleted: input.RequestCompleted,
+	})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toCustomerSubscription(row)
+	return &generated.CustomerSubscriptionPayload{Version: int(version), CustomerSubscription: &out}, nil
+}
+
+// DeleteCustomerSubscription is the resolver for the deleteCustomerSubscription field.
+func (r *mutationResolver) DeleteCustomerSubscription(ctx context.Context, customerID uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	deleted, version, err := r.Svc.DeleteCustomerSubscription(ctx, p, customerID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
+}
+
 // AddFavorite is the resolver for the addFavorite field.
 func (r *mutationResolver) AddFavorite(ctx context.Context, kind generated.FavoriteKind, targetID uuid.UUID, afterFavoriteID *uuid.UUID) (*generated.FavoritePayload, error) {
 	p, err := principalFrom(ctx)

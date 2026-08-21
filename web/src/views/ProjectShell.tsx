@@ -8,10 +8,13 @@ import { Button, EmptyState } from '~/components';
 import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
 import { ProjectProperties } from '~/features/projects/properties';
 import { ProjectViewTabs } from '~/features/projects/attachedViews';
+import { report, setProjectSubscription } from '~/features/subscriptions/mutations';
+import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
 import { copyText } from '~/features/github/copy';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewer } from '~/hooks/useViewer';
 import styles from './ProjectShell.module.css';
 
 function tabClass({ isActive }: { isActive: boolean }): string {
@@ -24,11 +27,22 @@ export function ProjectShell() {
   const engine = useEngine();
   const navigate = useNavigate();
   const { projectId = '' } = useParams<{ projectId: string }>();
+  const viewer = useViewer();
 
   const project = useLiveQuery(
     (store) => store.projects.get(projectId) ?? null,
     ['project', 'projectUpdate', 'projectStatus', 'workspace'],
     [projectId],
+  );
+
+  const watch = useLiveQuery(
+    (store) => {
+      if (viewer === null) return null;
+      const id = store.projectSubscriptionIdFor(viewer.id, projectId);
+      return id === undefined ? null : (store.get('projectSubscription', id) ?? null);
+    },
+    ['projectSubscription'],
+    [projectId, viewer?.id],
   );
 
   useKeyContext('detail');
@@ -67,6 +81,33 @@ export function ProjectShell() {
           <span className={styles.mark} style={{ background: project.color }} aria-hidden="true" />
           <h1 className={styles.title}>{project.name}</h1>
           <ProjectHealthCell store={engine.store} projectId={project.id} />
+          {viewer !== null && viewer.role !== 'guest' ? (
+            <SubscribeBell
+              menuLabel="Project notifications"
+              flags={[
+                { id: 'issuesAdded', label: 'An issue is added', on: watch?.issuesAdded === true },
+                {
+                  id: 'issuesCompleted',
+                  label: 'An issue is completed',
+                  on: watch?.issuesCompleted === true,
+                },
+                { id: 'updates', label: 'A new update is posted', on: watch?.updates === true },
+              ]}
+              onToggle={(id) => {
+                setProjectSubscription(engine, {
+                  projectId: project.id,
+                  userId: viewer.id,
+                  issuesAdded:
+                    id === 'issuesAdded' ? watch?.issuesAdded !== true : watch?.issuesAdded === true,
+                  issuesCompleted:
+                    id === 'issuesCompleted'
+                      ? watch?.issuesCompleted !== true
+                      : watch?.issuesCompleted === true,
+                  updates: id === 'updates' ? watch?.updates !== true : watch?.updates === true,
+                }).catch(report);
+              }}
+            />
+          ) : null}
         </div>
         <nav className={styles.tabs} aria-label="Project sections">
           <NavLink to={base} end className={tabClass}>

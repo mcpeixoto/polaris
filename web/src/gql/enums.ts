@@ -134,6 +134,9 @@ const ENUM_FIELDS: Readonly<Record<EntityType, readonly string[]>> = {
   notification: ['type', 'actor.type'],
   view: [],
   viewSubscription: [],
+  projectSubscription: [],
+  initiativeSubscription: [],
+  customerSubscription: [],
   viewPreference: [],
   favorite: ['kind'],
 };

@@ -184,6 +184,18 @@ type CustomerRequest struct {
 	UpdatedAt   time.Time
 }
 
+type CustomerSubscription struct {
+	ID                     uuid.UUID
+	WorkspaceID            uuid.UUID
+	CustomerID             uuid.UUID
+	UserID                 uuid.UUID
+	NotifyRequestAdded     bool
+	NotifyRequestImportant bool
+	NotifyRequestCompleted bool
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
 type Cycle struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
@@ -464,6 +476,18 @@ type InitiativeRelation struct {
 	SortOrder          string
 	CreatedBy          *uuid.UUID
 	CreatedAt          time.Time
+}
+
+type InitiativeSubscription struct {
+	ID                    uuid.UUID
+	WorkspaceID           uuid.UUID
+	InitiativeID          uuid.UUID
+	UserID                uuid.UUID
+	NotifyIssuesAdded     bool
+	NotifyIssuesCompleted bool
+	NotifyUpdates         bool
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type InitiativeUpdate struct {
@@ -819,6 +843,18 @@ type ProjectStatus struct {
 	ArchivedAt  *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type ProjectSubscription struct {
+	ID                    uuid.UUID
+	WorkspaceID           uuid.UUID
+	ProjectID             uuid.UUID
+	UserID                uuid.UUID
+	NotifyIssuesAdded     bool
+	NotifyIssuesCompleted bool
+	NotifyUpdates         bool
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type ProjectTeam struct {

@@ -486,17 +486,26 @@ type Notification struct {
 
 // Notification types.
 const (
-	NotifyIssueAssigned      = "issue_assigned"
-	NotifyIssueStatusChanged = "issue_status_changed"
-	NotifyIssuePriorityUp    = "issue_priority_raised"
-	NotifyIssueDue           = "issue_due"
-	NotifyIssueBlocked       = "issue_blocked"
-	NotifyComment            = "comment"
-	NotifyMention            = "mention"
-	NotifySubIssueCompleted  = "sub_issue_completed"
-	NotifyViewIssueAdded     = "view_issue_added"
-	NotifyViewIssueCompleted = "view_issue_completed"
-	NotifyPulseDigest        = "pulse_digest"
+	NotifyIssueAssigned            = "issue_assigned"
+	NotifyIssueStatusChanged       = "issue_status_changed"
+	NotifyIssuePriorityUp          = "issue_priority_raised"
+	NotifyIssueDue                 = "issue_due"
+	NotifyIssueBlocked             = "issue_blocked"
+	NotifyComment                  = "comment"
+	NotifyMention                  = "mention"
+	NotifySubIssueCompleted        = "sub_issue_completed"
+	NotifyViewIssueAdded           = "view_issue_added"
+	NotifyViewIssueCompleted       = "view_issue_completed"
+	NotifyPulseDigest              = "pulse_digest"
+	NotifyProjectIssueAdded        = "project_issue_added"
+	NotifyProjectIssueCompleted    = "project_issue_completed"
+	NotifyProjectUpdate            = "project_update"
+	NotifyInitiativeIssueAdded     = "initiative_issue_added"
+	NotifyInitiativeIssueCompleted = "initiative_issue_completed"
+	NotifyInitiativeUpdate         = "initiative_update"
+	NotifyCustomerRequestAdded     = "customer_request_added"
+	NotifyCustomerRequestImportant = "customer_request_important"
+	NotifyCustomerRequestCompleted = "customer_request_completed"
 )
 
 const (
@@ -550,6 +559,46 @@ type ViewSubscription struct {
 	Completed   bool      `json:"completed"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// ProjectSubscription is one person's watch on a project.
+type ProjectSubscription struct {
+	ID              uuid.UUID `json:"id"`
+	WorkspaceID     uuid.UUID `json:"workspaceId"`
+	ProjectID       uuid.UUID `json:"projectId"`
+	UserID          uuid.UUID `json:"userId"`
+	IssuesAdded     bool      `json:"issuesAdded"`
+	IssuesCompleted bool      `json:"issuesCompleted"`
+	Updates         bool      `json:"updates"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+}
+
+// InitiativeSubscription is one person's watch on an initiative. Issue events fire
+// for projects linked to it.
+type InitiativeSubscription struct {
+	ID              uuid.UUID `json:"id"`
+	WorkspaceID     uuid.UUID `json:"workspaceId"`
+	InitiativeID    uuid.UUID `json:"initiativeId"`
+	UserID          uuid.UUID `json:"userId"`
+	IssuesAdded     bool      `json:"issuesAdded"`
+	IssuesCompleted bool      `json:"issuesCompleted"`
+	Updates         bool      `json:"updates"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+}
+
+// CustomerSubscription is one person's watch on a customer.
+type CustomerSubscription struct {
+	ID               uuid.UUID `json:"id"`
+	WorkspaceID      uuid.UUID `json:"workspaceId"`
+	CustomerID       uuid.UUID `json:"customerId"`
+	UserID           uuid.UUID `json:"userId"`
+	RequestAdded     bool      `json:"requestAdded"`
+	RequestImportant bool      `json:"requestImportant"`
+	RequestCompleted bool      `json:"requestCompleted"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 // PulseFeed is one person's named subset of the Pulse stream.
@@ -1030,13 +1079,13 @@ type InitiativeLabelLink struct {
 
 // InitiativeRelation is a parent → child nest. An initiative may have multiple parents.
 type InitiativeRelation struct {
-	ID                  uuid.UUID  `json:"id"`
-	WorkspaceID         uuid.UUID  `json:"workspaceId"`
-	ParentInitiativeID  uuid.UUID  `json:"parentInitiativeId"`
-	ChildInitiativeID   uuid.UUID  `json:"childInitiativeId"`
-	SortOrder           string     `json:"sortOrder"`
-	CreatedBy           *uuid.UUID `json:"createdBy,omitempty"`
-	CreatedAt           time.Time  `json:"createdAt"`
+	ID                 uuid.UUID  `json:"id"`
+	WorkspaceID        uuid.UUID  `json:"workspaceId"`
+	ParentInitiativeID uuid.UUID  `json:"parentInitiativeId"`
+	ChildInitiativeID  uuid.UUID  `json:"childInitiativeId"`
+	SortOrder          string     `json:"sortOrder"`
+	CreatedBy          *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt          time.Time  `json:"createdAt"`
 }
 
 const (
