@@ -77,6 +77,7 @@ var mutatingPrefixes = []string{
 	"Create", "Update", "Delete", "Archive", "Set", "Add", "Remove", "Clear",
 	"Suspend", "Resolve", "Accept", "Decline", "Snooze", "Mark", "Revoke", "Invite", "Register", "Login",
 	"Rotate", "Prune", "Ensure", "Refresh", "Purge", "Restore", "Retire", "Unretire", "Move", "Start", "Link", "Merge",
+	"Leave",
 }
 
 func TestAPIParity_EveryDomainMutationIsReachableOverGraphQL(t *testing.T) {
