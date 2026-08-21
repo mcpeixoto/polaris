@@ -35,7 +35,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 12ch 16ch 8ch;
+  grid-template-columns: minmax(0, 1fr) 12ch 14ch 8ch 16ch;
   align-items: center;
   gap: var(--space-3);
   height: var(--row-height);
@@ -79,9 +79,9 @@
 }
 
 .status,
+.health,
 .owner,
-.ownerMuted,
-.count {
+.ownerMuted {
   overflow: hidden;
   color: var(--text-secondary);
   text-overflow: ellipsis;
@@ -98,11 +98,6 @@
   gap: var(--space-1);
 }
 
-.ownerMuted,
-.count {
+.ownerMuted {
   color: var(--text-tertiary);
-}
-
-.count {
-  text-align: right;
 }

@@ -748,6 +748,20 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "initiativeUpdate",
+			func(ctx context.Context, after uuid.UUID) ([]store.InitiativeUpdate, error) {
+				return q.StreamInitiativeUpdatesForBootstrap(ctx, store.StreamInitiativeUpdatesForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					TeamIds:     teamIDs,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(iu store.InitiativeUpdate) (uuid.UUID, any) { return iu.ID, toInitiativeUpdate(iu) },
+		); err != nil {
+			return err
+		}
+
 		if err := streamPages(ctx, w, "projectUpdate",
 			func(ctx context.Context, after uuid.UUID) ([]store.ProjectUpdate, error) {
 				return q.StreamProjectUpdatesForBootstrap(ctx, store.StreamProjectUpdatesForBootstrapParams{
@@ -1166,7 +1180,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v45 adds workspace.pulseEnabled and workspace.pulseDigestCadence.
 // v46 adds pulseFeed (personal named subsets of the Pulse stream).
 // v47 adds slackConnection.asksEnabled (Slack Asks intake from /asks and 🎫).
-const ClientSchemaVersion = 47
+// v48 adds initiativeUpdate (health plus narrative status posts on initiatives).
+const ClientSchemaVersion = 48
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

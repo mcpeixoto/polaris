@@ -311,6 +311,12 @@ type CreateInitiativeInput struct {
 	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
 }
 
+type CreateInitiativeUpdateInput struct {
+	InitiativeID uuid.UUID           `json:"initiativeId"`
+	Health       ProjectUpdateHealth `json:"health"`
+	Body         *string             `json:"body,omitempty"`
+}
+
 type CreateIssueInput struct {
 	// The issue's id, minted by the client.
 	//
@@ -1049,6 +1055,29 @@ type InitiativeProjectPayload struct {
 }
 
 func (InitiativeProjectPayload) IsMutationResult() {}
+
+// A status post on an initiative — health plus narrative markdown.
+type InitiativeUpdate struct {
+	ID           uuid.UUID           `json:"id"`
+	WorkspaceID  uuid.UUID           `json:"workspaceId"`
+	InitiativeID uuid.UUID           `json:"initiativeId"`
+	Health       ProjectUpdateHealth `json:"health"`
+	Body         string              `json:"body"`
+	AuthorID     uuid.UUID           `json:"authorId"`
+	EditedAt     *time.Time          `json:"editedAt,omitempty"`
+	DeletedAt    *time.Time          `json:"deletedAt,omitempty"`
+	CreatedAt    time.Time           `json:"createdAt"`
+	UpdatedAt    time.Time           `json:"updatedAt"`
+	Author       *User               `json:"author,omitempty"`
+	Initiative   *Initiative         `json:"initiative,omitempty"`
+}
+
+type InitiativeUpdatePayload struct {
+	Version          int               `json:"version"`
+	InitiativeUpdate *InitiativeUpdate `json:"initiativeUpdate"`
+}
+
+func (InitiativeUpdatePayload) IsMutationResult() {}
 
 // A proposal to list a third-party integration in this workspace's directory.
 //
@@ -2200,6 +2229,12 @@ type UpdateInitiativeInput struct {
 	TargetDate            *string               `json:"targetDate,omitempty"`
 	TargetDateGranularity *TimeframeGranularity `json:"targetDateGranularity,omitempty"`
 	ClearTarget           *bool                 `json:"clearTarget,omitempty"`
+}
+
+type UpdateInitiativeUpdateInput struct {
+	ID     uuid.UUID            `json:"id"`
+	Health *ProjectUpdateHealth `json:"health,omitempty"`
+	Body   *string              `json:"body,omitempty"`
 }
 
 type UpdateIssueInput struct {

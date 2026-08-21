@@ -72,7 +72,9 @@ import { SlaSettings } from '~/views/SlaSettings';
 import { DocumentDetail } from '~/views/DocumentDetail';
 import { Documents } from '~/views/Documents';
 import { Initiatives } from '~/views/Initiatives';
+import { InitiativeShell } from '~/views/InitiativeShell';
 import { InitiativeDetail } from '~/views/InitiativeDetail';
+import { InitiativeActivity } from '~/views/InitiativeActivity';
 import { Customers } from '~/views/Customers';
 import { CustomerDetail } from '~/views/CustomerDetail';
 import { Dashboards } from '~/views/Dashboards';
@@ -181,7 +183,10 @@ function SignedInShell() {
         <Route path="/new" element={<CreateIssueFromUrl />} />
         <Route path="/projects" element={<Projects />} />
         <Route path="/initiatives" element={<Initiatives />} />
-        <Route path="/initiative/:initiativeId" element={<InitiativeDetail />} />
+        <Route path="/initiative/:initiativeId" element={<InitiativeShell />}>
+          <Route index element={<InitiativeDetail />} />
+          <Route path="activity" element={<InitiativeActivity />} />
+        </Route>
         <Route path="/customers" element={<Customers />} />
         <Route path="/customer/:customerId" element={<CustomerDetail />} />
         <Route path="/dashboards" element={<Dashboards />} />

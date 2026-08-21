@@ -37,6 +37,7 @@ import {
   type ProjectTemplateIssue,
   type Initiative,
   type InitiativeProject,
+  type InitiativeUpdate,
   type ProjectUpdate,
   type PulseFeed,
   type ProjectDependency,
@@ -141,8 +142,9 @@ import {
  * v45 adds workspace.pulseEnabled and workspace.pulseDigestCadence.
  * v46 adds pulseFeed (personal named subsets of the Pulse stream).
  * v47 adds slackConnection.asksEnabled (Slack Asks intake from /asks and 🎫).
+ * v48 adds initiativeUpdate (health plus narrative status posts on initiatives).
  */
-export const CLIENT_SCHEMA = 47;
+export const CLIENT_SCHEMA = 48;
 
 /**
  * One database per workspace per schema version.
@@ -243,6 +245,7 @@ interface PolarisSchema extends DBSchema {
   projectMilestone: { key: UUID; value: ProjectMilestone };
   initiative: { key: UUID; value: Initiative };
   initiativeProject: { key: UUID; value: InitiativeProject };
+  initiativeUpdate: { key: UUID; value: InitiativeUpdate };
   projectUpdate: { key: UUID; value: ProjectUpdate };
   pulseFeed: { key: UUID; value: PulseFeed };
   projectDependency: { key: UUID; value: ProjectDependency };
