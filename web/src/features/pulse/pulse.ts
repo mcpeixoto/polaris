@@ -1,25 +1,30 @@
 /**
  * Pulse: the workspace feed of project updates, read from the replica.
  *
- * Linear Pulse is not a second history of every issue edit. It is the status posts
- * teams already write — health plus body — ranked by recency. Inbox digests, custom
- * feeds, Popular, and initiative updates stay later; this slice only ranks rows the
- * replica already holds.
+ * Linear Pulse is status posts teams already write — health plus body. For me and
+ * Recent rank by recency. Popular ranks by comments on that project's issues posted
+ * at or after the update. Custom feeds are personal named subsets of the same rows.
+ * Emoji reactions and initiative updates stay later.
  */
 
 import { dayKeyOf } from '~/features/inbox/inbox';
-import type { ProjectUpdateHealth, Store, UUID } from '~/store';
+import type { ProjectUpdateHealth, PulseFeed, Store, UUID } from '~/store';
 
 /** How many posts the page keeps. Project updates are rare; this is a busy quarter, not a busy hour. */
 export const PULSE_LIMIT = 100;
 
-export type PulseTab = 'for-me' | 'recent';
+export type PulseTab = 'for-me' | 'popular' | 'recent' | `feed:${string}`;
+
+export function feedIdOf(tab: PulseTab): UUID | null {
+  return tab.startsWith('feed:') ? tab.slice(5) : null;
+}
 
 export interface PulseEvent {
   readonly id: UUID;
   readonly at: string;
   readonly href: string;
   readonly actor: string;
+  readonly projectId: UUID;
   readonly projectName: string;
   readonly health: ProjectUpdateHealth;
   readonly body: string;
@@ -31,6 +36,20 @@ export interface PulseDay {
   readonly events: readonly PulseEvent[];
 }
 
+export function listPulseFeeds(store: Store, viewerId: UUID | null): readonly PulseFeed[] {
+  if (viewerId === null) return [];
+  const out: PulseFeed[] = [];
+  for (const feed of store.pulseFeeds.values()) {
+    if (feed.userId === viewerId) out.push(feed);
+  }
+  out.sort((a, b) => {
+    const byName = a.name.localeCompare(b.name);
+    if (byName !== 0) return byName;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+  return out;
+}
+
 export function listPulse(
   store: Store,
   viewerId: UUID | null,
@@ -39,8 +58,10 @@ export function listPulse(
 ): readonly PulseDay[] {
   const mine = membership(store, viewerId);
   const names = userNames(store);
-  const events: PulseEvent[] = [];
+  const feedId = feedIdOf(tab);
+  const allowed = feedId === null ? null : new Set(store.pulseFeeds.get(feedId)?.projectIds ?? []);
 
+  const events: PulseEvent[] = [];
   for (const update of store.projectUpdates.values()) {
     if (update.deletedAt !== undefined) continue;
     const project = store.projects.get(update.projectId);
@@ -51,11 +72,13 @@ export function listPulse(
     ) {
       continue;
     }
+    if (allowed !== null && !allowed.has(project.id)) continue;
     events.push({
       id: update.id,
       at: update.createdAt,
       href: `/project/${project.id}/activity`,
       actor: names.get(update.authorId) ?? 'Someone',
+      projectId: project.id,
       projectName: project.name,
       health: update.health,
       body: update.body,
@@ -63,13 +86,22 @@ export function listPulse(
     });
   }
 
-  events.sort(byRecency);
-  const sliced = events.slice(0, PULSE_LIMIT);
-  const visible = tab === 'for-me' ? sliced.filter((row) => row.forMe) : sliced;
+  const visible = tab === 'for-me' ? events.filter((row) => row.forMe) : events;
+  if (tab === 'popular') {
+    const scores = commentTimesByProject(store);
+    visible.sort((a, b) => {
+      const byScore = scoreOf(scores, b) - scoreOf(scores, a);
+      if (byScore !== 0) return byScore;
+      return byRecency(a, b);
+    });
+  } else {
+    visible.sort(byRecency);
+  }
 
+  const sliced = visible.slice(0, PULSE_LIMIT);
   const days: PulseDay[] = [];
   const byKey = new Map<string, PulseEvent[]>();
-  for (const event of visible) {
+  for (const event of sliced) {
     const key = dayKeyOf(event.at, timezone);
     const bucket = byKey.get(key);
     if (bucket !== undefined) {
@@ -101,6 +133,38 @@ function userNames(store: Store): Map<UUID, string> {
     names.set(user.id, user.displayName);
   }
   return names;
+}
+
+/** Comment timestamps on issues, grouped by the issue's project. */
+function commentTimesByProject(store: Store): Map<UUID, number[]> {
+  const issueProject = new Map<UUID, UUID>();
+  for (const issue of store.issues.values()) {
+    if (issue.projectId === undefined) continue;
+    issueProject.set(issue.id, issue.projectId);
+  }
+  const byProject = new Map<UUID, number[]>();
+  for (const comment of store.comments.values()) {
+    const projectId = issueProject.get(comment.issueId);
+    if (projectId === undefined) continue;
+    const at = Date.parse(comment.createdAt);
+    if (Number.isNaN(at)) continue;
+    const times = byProject.get(projectId);
+    if (times !== undefined) times.push(at);
+    else byProject.set(projectId, [at]);
+  }
+  return byProject;
+}
+
+function scoreOf(scores: Map<UUID, number[]>, event: PulseEvent): number {
+  const times = scores.get(event.projectId);
+  if (times === undefined) return 0;
+  const at = Date.parse(event.at);
+  if (Number.isNaN(at)) return 0;
+  let n = 0;
+  for (const commentAt of times) {
+    if (commentAt >= at) n += 1;
+  }
+  return n;
 }
 
 function byRecency(a: PulseEvent, b: PulseEvent): number {

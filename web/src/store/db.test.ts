@@ -602,6 +602,18 @@ function oneOfEach(): EntityRow[] {
       },
     },
     {
+      type: 'pulseFeed',
+      entity: {
+        id: 'pf1',
+        workspaceId: 'w',
+        userId: 'u1',
+        name: 'Shipping',
+        projectIds: ['p1'],
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
       type: 'projectDependency',
       entity: {
         id: 'pd1',
