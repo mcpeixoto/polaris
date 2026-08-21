@@ -140,7 +140,7 @@ func (s *Service) UpdateProjectUpdate(
 
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "projectUpdate", EntityID: in.ID, Op: OpUpsert,
-			Scope: scope, Payload: out,
+			Scope: scope, Payload: out, ChangedFields: []string{"health", "body"},
 		})
 		return err
 	})

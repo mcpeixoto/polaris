@@ -18,8 +18,14 @@ import type {
   IssueSubscription,
   IssueTemplate,
   AskForm,
+  Customer,
+  CustomerSubscription,
+  Initiative,
+  InitiativeSubscription,
   Label,
   Notification,
+  Project,
+  ProjectSubscription,
   RecurringIssue,
   Team,
   TeamMembership,
@@ -279,6 +285,104 @@ function viewSubscription(id: UUID, viewId: UUID, userId: UUID): ViewSubscriptio
     userId,
     added: true,
     completed: false,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function projectSubscription(
+  id: UUID,
+  projectId: UUID,
+  userId: UUID,
+): ProjectSubscription {
+  return {
+    id,
+    workspaceId: 'w1',
+    projectId,
+    userId,
+    issuesAdded: true,
+    issuesCompleted: false,
+    updates: false,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function initiativeSubscription(
+  id: UUID,
+  initiativeId: UUID,
+  userId: UUID,
+): InitiativeSubscription {
+  return {
+    id,
+    workspaceId: 'w1',
+    initiativeId,
+    userId,
+    issuesAdded: true,
+    issuesCompleted: false,
+    updates: true,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function customerSubscription(
+  id: UUID,
+  customerId: UUID,
+  userId: UUID,
+): CustomerSubscription {
+  return {
+    id,
+    workspaceId: 'w1',
+    customerId,
+    userId,
+    requestAdded: true,
+    requestImportant: false,
+    requestCompleted: false,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function projectRow(id: UUID): Project {
+  return {
+    id,
+    workspaceId: 'w1',
+    name: 'Ship',
+    description: '',
+    color: '#3366ff',
+    statusId: 'ps1',
+    priority: 0,
+    sortOrder: 'a0',
+    updateSchedule: 'never',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function initiativeRow(id: UUID): Initiative {
+  return {
+    id,
+    workspaceId: 'w1',
+    name: 'Q3',
+    description: '',
+    status: 'active',
+    priority: 0,
+    sortOrder: 'a0',
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function customerRow(id: UUID): Customer {
+  return {
+    id,
+    workspaceId: 'w1',
+    name: 'Acme',
+    domains: ['acme.test'],
+    status: 'active',
+    logoUrl: '',
+    sortOrder: 'a0',
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -1044,5 +1148,53 @@ describe('Store hydration of the M1 entities', () => {
 
     await reopened.close();
     await dropDatabase(id);
+  });
+});
+
+describe('Store entity subscriptions', () => {
+  it('finds a watch by user and target together', () => {
+    const store = new Store('w1');
+    store.applyChanges([
+      upsert(1, 'project', projectRow('p1')),
+      upsert(2, 'initiative', initiativeRow('in1')),
+      upsert(3, 'customer', customerRow('cu1')),
+      upsert(4, 'projectSubscription', projectSubscription('ps1', 'p1', 'u1')),
+      upsert(5, 'initiativeSubscription', initiativeSubscription('is1', 'in1', 'u1')),
+      upsert(6, 'customerSubscription', customerSubscription('cs1', 'cu1', 'u1')),
+    ]);
+    expect(store.projectSubscriptionIdFor('u1', 'p1')).toBe('ps1');
+    expect(store.initiativeSubscriptionIdFor('u1', 'in1')).toBe('is1');
+    expect(store.customerSubscriptionIdFor('u1', 'cu1')).toBe('cs1');
+    expect(store.projectSubscriptionIdFor('u2', 'p1')).toBeUndefined();
+  });
+
+  it('drops a watch when its target leaves the replica', () => {
+    const store = new Store('w1');
+    store.applyChanges([
+      upsert(1, 'project', projectRow('p1')),
+      upsert(2, 'initiative', initiativeRow('in1')),
+      upsert(3, 'customer', customerRow('cu1')),
+      upsert(4, 'projectSubscription', projectSubscription('ps1', 'p1', 'u1')),
+      upsert(5, 'initiativeSubscription', initiativeSubscription('is1', 'in1', 'u1')),
+      upsert(6, 'customerSubscription', customerSubscription('cs1', 'cu1', 'u1')),
+    ]);
+    store.applyChanges([remove(7, 'project', 'p1')]);
+    if (store.projectSubscriptions.has('ps1')) {
+      throw new Error(
+        'a watch on a project this replica no longer holds would keep notifying nobody who can open it',
+      );
+    }
+    store.applyChanges([remove(8, 'initiative', 'in1')]);
+    if (store.initiativeSubscriptions.has('is1')) {
+      throw new Error(
+        'a watch on an initiative this replica no longer holds would keep notifying nobody who can open it',
+      );
+    }
+    store.applyChanges([remove(9, 'customer', 'cu1')]);
+    if (store.customerSubscriptions.has('cs1')) {
+      throw new Error(
+        'a watch on a customer this replica no longer holds would keep notifying nobody who can open it',
+      );
+    }
   });
 });

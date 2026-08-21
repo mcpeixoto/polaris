@@ -227,9 +227,71 @@ export function describeEvent(
       const count = pulseDigestCount(payload);
       return count === 1 ? 'Pulse: 1 project update' : `Pulse: ${count} project updates`;
     }
+    case 'project_issue_added':
+      return `${identifier} was added to a project you follow`;
+    case 'project_issue_completed':
+      return `completed ${identifier} in a project you follow`;
+    case 'project_update':
+      return 'posted an update on a project you follow';
+    case 'initiative_issue_added':
+      return `${identifier} was added to an initiative you follow`;
+    case 'initiative_issue_completed':
+      return `completed ${identifier} in an initiative you follow`;
+    case 'initiative_update':
+      return 'posted an update on an initiative you follow';
+    case 'customer_request_added':
+      return identifier === 'an issue'
+        ? 'added a request for a customer you follow'
+        : `added a request on ${identifier}`;
+    case 'customer_request_important':
+      return identifier === 'an issue'
+        ? 'marked a request important for a customer you follow'
+        : `marked a request on ${identifier} important`;
+    case 'customer_request_completed':
+      return `completed a request on ${identifier}`;
     default:
       return `updated ${identifier}`;
   }
+}
+
+/**
+ * Where opening a row should go when it is not an issue, or when the issue is not the
+ * thing being talked about.
+ *
+ * Pulse is a digest of many projects, so it has nowhere else to land. A project or
+ * initiative update has no issue. A customer request may not have one yet either — the
+ * payload then carries the customer id, never a title.
+ */
+export function notificationHref(
+  type: NotificationType,
+  payload: unknown,
+  issueId: UUID | undefined,
+): string | undefined {
+  if (type === 'pulse_digest') return '/pulse';
+  if (type === 'project_update') {
+    const id = payloadId(payload, 'projectId');
+    return id === undefined ? undefined : `/project/${id}/activity`;
+  }
+  if (type === 'initiative_update') {
+    const id = payloadId(payload, 'initiativeId');
+    return id === undefined ? undefined : `/initiative/${id}/activity`;
+  }
+  if (
+    (type === 'customer_request_added' ||
+      type === 'customer_request_important' ||
+      type === 'customer_request_completed') &&
+    issueId === undefined
+  ) {
+    const id = payloadId(payload, 'customerId');
+    return id === undefined ? undefined : `/customer/${id}`;
+  }
+  return undefined;
+}
+
+export function payloadId(payload: unknown, key: string): string | undefined {
+  if (payload === null || typeof payload !== 'object' || !(key in payload)) return undefined;
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
 function pulseDigestCount(payload: unknown): number {

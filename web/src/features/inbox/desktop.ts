@@ -13,7 +13,7 @@ import { notify } from '~/platform/runtime';
 import type { Store, UUID } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
-import { describeEvent, isAwake } from './inbox';
+import { describeEvent, isAwake, notificationHref } from './inbox';
 import { hydrateInbox } from './mutations';
 
 export function idsToAnnounce(
@@ -94,11 +94,8 @@ function desktopSnapshot(store: Store, viewerId: UUID | null): DesktopSnapshot |
     bodies.set(row.id, {
       body: describeEvent(row.type, identifier, row.payload),
       route:
-        row.type === 'pulse_digest'
-          ? '/pulse'
-          : issue === undefined
-            ? '/inbox'
-            : `/issue/${issue.identifier}`,
+        notificationHref(row.type, row.payload, row.issueId) ??
+        (issue === undefined ? '/inbox' : `/issue/${issue.identifier}`),
     });
   }
   return { desktop, unread, bodies };

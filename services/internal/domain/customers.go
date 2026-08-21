@@ -266,6 +266,9 @@ func (s *Service) ArchiveCustomer(
 			if err := q.ArchiveCustomer(ctx, id); err != nil {
 				return platform.Internal(err)
 			}
+			if err := emitCustomerSubscriptionDeletes(ctx, s.em, q, p.WorkspaceID, id); err != nil {
+				return err
+			}
 			payload = toCustomer(existing)
 		} else {
 			row, err := q.UnarchiveCustomer(ctx, id)
@@ -626,8 +629,25 @@ func (s *Service) UpdateCustomerRequest(
 		if err != nil {
 			return err
 		}
+		var changed []string
+		if in.Body != nil {
+			changed = append(changed, "body")
+		}
+		if in.Important != nil {
+			changed = append(changed, "important")
+		}
+		if in.CustomerID != nil || in.ClearCustomer {
+			changed = append(changed, "customer_id")
+		}
+		if in.IssueID != nil {
+			changed = append(changed, "issue_id")
+		}
+		if in.ProjectID != nil {
+			changed = append(changed, "project_id")
+		}
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "customerRequest", EntityID: in.ID, Op: OpUpsert, Scope: scope, Payload: out,
+			ChangedFields: changed,
 		})
 		return err
 	})

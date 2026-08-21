@@ -203,6 +203,23 @@ type ComplexityRoot struct {
 		Version         func(childComplexity int) int
 	}
 
+	CustomerSubscription struct {
+		CreatedAt        func(childComplexity int) int
+		CustomerID       func(childComplexity int) int
+		ID               func(childComplexity int) int
+		RequestAdded     func(childComplexity int) int
+		RequestCompleted func(childComplexity int) int
+		RequestImportant func(childComplexity int) int
+		UpdatedAt        func(childComplexity int) int
+		UserID           func(childComplexity int) int
+		WorkspaceID      func(childComplexity int) int
+	}
+
+	CustomerSubscriptionPayload struct {
+		CustomerSubscription func(childComplexity int) int
+		Version              func(childComplexity int) int
+	}
+
 	Cycle struct {
 		ArchivedAt  func(childComplexity int) int
 		CompletedAt func(childComplexity int) int
@@ -604,6 +621,23 @@ type ComplexityRoot struct {
 		Version            func(childComplexity int) int
 	}
 
+	InitiativeSubscription struct {
+		CreatedAt       func(childComplexity int) int
+		ID              func(childComplexity int) int
+		InitiativeID    func(childComplexity int) int
+		IssuesAdded     func(childComplexity int) int
+		IssuesCompleted func(childComplexity int) int
+		UpdatedAt       func(childComplexity int) int
+		Updates         func(childComplexity int) int
+		UserID          func(childComplexity int) int
+		WorkspaceID     func(childComplexity int) int
+	}
+
+	InitiativeSubscriptionPayload struct {
+		InitiativeSubscription func(childComplexity int) int
+		Version                func(childComplexity int) int
+	}
+
 	InitiativeUpdate struct {
 		Author       func(childComplexity int) int
 		AuthorID     func(childComplexity int) int
@@ -906,6 +940,7 @@ type ComplexityRoot struct {
 		DeleteComment                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteCustomer                 func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteCustomerRequest          func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteCustomerSubscription     func(childComplexity int, customerID uuid.UUID) int
 		DeleteDashboard                func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteDashboardTile            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteDocument                 func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -918,6 +953,7 @@ type ComplexityRoot struct {
 		DeleteGitLabTeamAutomation     func(childComplexity int, teamID uuid.UUID) int
 		DeleteGitLabUserLink           func(childComplexity int) int
 		DeleteInitiative               func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteInitiativeSubscription   func(childComplexity int, initiativeID uuid.UUID) int
 		DeleteInitiativeUpdate         func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssue                    func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssueRelation            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -925,6 +961,7 @@ type ComplexityRoot struct {
 		DeleteOauthClient              func(childComplexity int, id uuid.UUID) int
 		DeleteProject                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteProjectMilestone         func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteProjectSubscription      func(childComplexity int, projectID uuid.UUID) int
 		DeleteProjectTemplateIssue     func(childComplexity int, id uuid.UUID) int
 		DeleteProjectTemplateMilestone func(childComplexity int, id uuid.UUID) int
 		DeleteProjectUpdate            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -971,8 +1008,11 @@ type ComplexityRoot struct {
 		RevokeOtherSessions            func(childComplexity int) int
 		RotateCycleCalendarFeed        func(childComplexity int, teamID uuid.UUID) int
 		RotateOauthClientSecret        func(childComplexity int, id uuid.UUID) int
+		SetCustomerSubscription        func(childComplexity int, input SetCustomerSubscriptionInput) int
+		SetInitiativeSubscription      func(childComplexity int, input SetInitiativeSubscriptionInput) int
 		SetIssueSLA                    func(childComplexity int, input SetIssueSLAInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		SetIssueSubscription           func(childComplexity int, issueID uuid.UUID, subscribed bool) int
+		SetProjectSubscription         func(childComplexity int, input SetProjectSubscriptionInput) int
 		SetUserRole                    func(childComplexity int, userID uuid.UUID, role UserRole) int
 		SetViewPreference              func(childComplexity int, viewKey string, display json.RawMessage) int
 		SetViewSubscription            func(childComplexity int, input SetViewSubscriptionInput) int
@@ -1257,6 +1297,23 @@ type ComplexityRoot struct {
 	ProjectStatusPayload struct {
 		Status  func(childComplexity int) int
 		Version func(childComplexity int) int
+	}
+
+	ProjectSubscription struct {
+		CreatedAt       func(childComplexity int) int
+		ID              func(childComplexity int) int
+		IssuesAdded     func(childComplexity int) int
+		IssuesCompleted func(childComplexity int) int
+		ProjectID       func(childComplexity int) int
+		UpdatedAt       func(childComplexity int) int
+		Updates         func(childComplexity int) int
+		UserID          func(childComplexity int) int
+		WorkspaceID     func(childComplexity int) int
+	}
+
+	ProjectSubscriptionPayload struct {
+		ProjectSubscription func(childComplexity int) int
+		Version             func(childComplexity int) int
 	}
 
 	ProjectTeam struct {
@@ -1946,6 +2003,12 @@ type MutationResolver interface {
 	SetViewPreference(ctx context.Context, viewKey string, display json.RawMessage) (*ViewPreferencePayload, error)
 	SetViewSubscription(ctx context.Context, input SetViewSubscriptionInput) (*ViewSubscriptionPayload, error)
 	DeleteViewSubscription(ctx context.Context, viewID uuid.UUID) (*DeletePayload, error)
+	SetProjectSubscription(ctx context.Context, input SetProjectSubscriptionInput) (*ProjectSubscriptionPayload, error)
+	DeleteProjectSubscription(ctx context.Context, projectID uuid.UUID) (*DeletePayload, error)
+	SetInitiativeSubscription(ctx context.Context, input SetInitiativeSubscriptionInput) (*InitiativeSubscriptionPayload, error)
+	DeleteInitiativeSubscription(ctx context.Context, initiativeID uuid.UUID) (*DeletePayload, error)
+	SetCustomerSubscription(ctx context.Context, input SetCustomerSubscriptionInput) (*CustomerSubscriptionPayload, error)
+	DeleteCustomerSubscription(ctx context.Context, customerID uuid.UUID) (*DeletePayload, error)
 	AddFavorite(ctx context.Context, kind FavoriteKind, targetID uuid.UUID, afterFavoriteID *uuid.UUID) (*FavoritePayload, error)
 	RemoveFavorite(ctx context.Context, kind FavoriteKind, targetID uuid.UUID) (*DeletePayload, error)
 	CreateFavoriteFolder(ctx context.Context, name string, afterFavoriteID *uuid.UUID) (*FavoritePayload, error)
@@ -2827,6 +2890,74 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CustomerRequestPayload.Version(childComplexity), true
+
+	case "CustomerSubscription.createdAt":
+		if e.ComplexityRoot.CustomerSubscription.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscription.CreatedAt(childComplexity), true
+	case "CustomerSubscription.customerId":
+		if e.ComplexityRoot.CustomerSubscription.CustomerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscription.CustomerID(childComplexity), true
+	case "CustomerSubscription.id":
+		if e.ComplexityRoot.CustomerSubscription.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscription.ID(childComplexity), true
+	case "CustomerSubscription.requestAdded":
+		if e.ComplexityRoot.CustomerSubscription.RequestAdded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscription.RequestAdded(childComplexity), true
+	case "CustomerSubscription.requestCompleted":
+		if e.ComplexityRoot.CustomerSubscription.RequestCompleted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscription.RequestCompleted(childComplexity), true
+	case "CustomerSubscription.requestImportant":
+		if e.ComplexityRoot.CustomerSubscription.RequestImportant == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscription.RequestImportant(childComplexity), true
+	case "CustomerSubscription.updatedAt":
+		if e.ComplexityRoot.CustomerSubscription.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscription.UpdatedAt(childComplexity), true
+	case "CustomerSubscription.userId":
+		if e.ComplexityRoot.CustomerSubscription.UserID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscription.UserID(childComplexity), true
+	case "CustomerSubscription.workspaceId":
+		if e.ComplexityRoot.CustomerSubscription.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscription.WorkspaceID(childComplexity), true
+
+	case "CustomerSubscriptionPayload.customerSubscription":
+		if e.ComplexityRoot.CustomerSubscriptionPayload.CustomerSubscription == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscriptionPayload.CustomerSubscription(childComplexity), true
+	case "CustomerSubscriptionPayload.version":
+		if e.ComplexityRoot.CustomerSubscriptionPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSubscriptionPayload.Version(childComplexity), true
 
 	case "Cycle.archivedAt":
 		if e.ComplexityRoot.Cycle.ArchivedAt == nil {
@@ -4434,6 +4565,74 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.InitiativeRelationPayload.Version(childComplexity), true
+
+	case "InitiativeSubscription.createdAt":
+		if e.ComplexityRoot.InitiativeSubscription.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscription.CreatedAt(childComplexity), true
+	case "InitiativeSubscription.id":
+		if e.ComplexityRoot.InitiativeSubscription.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscription.ID(childComplexity), true
+	case "InitiativeSubscription.initiativeId":
+		if e.ComplexityRoot.InitiativeSubscription.InitiativeID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscription.InitiativeID(childComplexity), true
+	case "InitiativeSubscription.issuesAdded":
+		if e.ComplexityRoot.InitiativeSubscription.IssuesAdded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscription.IssuesAdded(childComplexity), true
+	case "InitiativeSubscription.issuesCompleted":
+		if e.ComplexityRoot.InitiativeSubscription.IssuesCompleted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscription.IssuesCompleted(childComplexity), true
+	case "InitiativeSubscription.updatedAt":
+		if e.ComplexityRoot.InitiativeSubscription.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscription.UpdatedAt(childComplexity), true
+	case "InitiativeSubscription.updates":
+		if e.ComplexityRoot.InitiativeSubscription.Updates == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscription.Updates(childComplexity), true
+	case "InitiativeSubscription.userId":
+		if e.ComplexityRoot.InitiativeSubscription.UserID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscription.UserID(childComplexity), true
+	case "InitiativeSubscription.workspaceId":
+		if e.ComplexityRoot.InitiativeSubscription.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscription.WorkspaceID(childComplexity), true
+
+	case "InitiativeSubscriptionPayload.initiativeSubscription":
+		if e.ComplexityRoot.InitiativeSubscriptionPayload.InitiativeSubscription == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscriptionPayload.InitiativeSubscription(childComplexity), true
+	case "InitiativeSubscriptionPayload.version":
+		if e.ComplexityRoot.InitiativeSubscriptionPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeSubscriptionPayload.Version(childComplexity), true
 
 	case "InitiativeUpdate.author":
 		if e.ComplexityRoot.InitiativeUpdate.Author == nil {
@@ -6313,6 +6512,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteCustomerRequest(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteCustomerSubscription":
+		if e.ComplexityRoot.Mutation.DeleteCustomerSubscription == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteCustomerSubscription_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteCustomerSubscription(childComplexity, args["customerId"].(uuid.UUID)), true
 	case "Mutation.deleteDashboard":
 		if e.ComplexityRoot.Mutation.DeleteDashboard == nil {
 			break
@@ -6425,6 +6635,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteInitiative(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteInitiativeSubscription":
+		if e.ComplexityRoot.Mutation.DeleteInitiativeSubscription == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteInitiativeSubscription_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteInitiativeSubscription(childComplexity, args["initiativeId"].(uuid.UUID)), true
 	case "Mutation.deleteInitiativeUpdate":
 		if e.ComplexityRoot.Mutation.DeleteInitiativeUpdate == nil {
 			break
@@ -6502,6 +6723,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteProjectMilestone(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteProjectSubscription":
+		if e.ComplexityRoot.Mutation.DeleteProjectSubscription == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteProjectSubscription_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteProjectSubscription(childComplexity, args["projectId"].(uuid.UUID)), true
 	case "Mutation.deleteProjectTemplateIssue":
 		if e.ComplexityRoot.Mutation.DeleteProjectTemplateIssue == nil {
 			break
@@ -6988,6 +7220,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RotateOauthClientSecret(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.setCustomerSubscription":
+		if e.ComplexityRoot.Mutation.SetCustomerSubscription == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setCustomerSubscription_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetCustomerSubscription(childComplexity, args["input"].(SetCustomerSubscriptionInput)), true
+	case "Mutation.setInitiativeSubscription":
+		if e.ComplexityRoot.Mutation.SetInitiativeSubscription == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setInitiativeSubscription_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetInitiativeSubscription(childComplexity, args["input"].(SetInitiativeSubscriptionInput)), true
 	case "Mutation.setIssueSla":
 		if e.ComplexityRoot.Mutation.SetIssueSLA == nil {
 			break
@@ -7010,6 +7264,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetIssueSubscription(childComplexity, args["issueId"].(uuid.UUID), args["subscribed"].(bool)), true
+	case "Mutation.setProjectSubscription":
+		if e.ComplexityRoot.Mutation.SetProjectSubscription == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setProjectSubscription_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetProjectSubscription(childComplexity, args["input"].(SetProjectSubscriptionInput)), true
 	case "Mutation.setUserRole":
 		if e.ComplexityRoot.Mutation.SetUserRole == nil {
 			break
@@ -8606,6 +8871,74 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProjectStatusPayload.Version(childComplexity), true
+
+	case "ProjectSubscription.createdAt":
+		if e.ComplexityRoot.ProjectSubscription.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscription.CreatedAt(childComplexity), true
+	case "ProjectSubscription.id":
+		if e.ComplexityRoot.ProjectSubscription.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscription.ID(childComplexity), true
+	case "ProjectSubscription.issuesAdded":
+		if e.ComplexityRoot.ProjectSubscription.IssuesAdded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscription.IssuesAdded(childComplexity), true
+	case "ProjectSubscription.issuesCompleted":
+		if e.ComplexityRoot.ProjectSubscription.IssuesCompleted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscription.IssuesCompleted(childComplexity), true
+	case "ProjectSubscription.projectId":
+		if e.ComplexityRoot.ProjectSubscription.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscription.ProjectID(childComplexity), true
+	case "ProjectSubscription.updatedAt":
+		if e.ComplexityRoot.ProjectSubscription.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscription.UpdatedAt(childComplexity), true
+	case "ProjectSubscription.updates":
+		if e.ComplexityRoot.ProjectSubscription.Updates == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscription.Updates(childComplexity), true
+	case "ProjectSubscription.userId":
+		if e.ComplexityRoot.ProjectSubscription.UserID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscription.UserID(childComplexity), true
+	case "ProjectSubscription.workspaceId":
+		if e.ComplexityRoot.ProjectSubscription.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscription.WorkspaceID(childComplexity), true
+
+	case "ProjectSubscriptionPayload.projectSubscription":
+		if e.ComplexityRoot.ProjectSubscriptionPayload.ProjectSubscription == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscriptionPayload.ProjectSubscription(childComplexity), true
+	case "ProjectSubscriptionPayload.version":
+		if e.ComplexityRoot.ProjectSubscriptionPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSubscriptionPayload.Version(childComplexity), true
 
 	case "ProjectTeam.createdAt":
 		if e.ComplexityRoot.ProjectTeam.CreatedAt == nil {
@@ -11422,7 +11755,10 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputLinkSentryIssueInput,
 		ec.unmarshalInputMoveFavoriteInput,
 		ec.unmarshalInputSearchInput,
+		ec.unmarshalInputSetCustomerSubscriptionInput,
+		ec.unmarshalInputSetInitiativeSubscriptionInput,
 		ec.unmarshalInputSetIssueSlaInput,
+		ec.unmarshalInputSetProjectSubscriptionInput,
 		ec.unmarshalInputSetViewSubscriptionInput,
 		ec.unmarshalInputSubmitIntegrationInput,
 		ec.unmarshalInputTemplateSubIssueInput,
@@ -11670,6 +12006,15 @@ enum NotificationType {
   VIEW_ISSUE_ADDED
   VIEW_ISSUE_COMPLETED
   PULSE_DIGEST
+  PROJECT_ISSUE_ADDED
+  PROJECT_ISSUE_COMPLETED
+  PROJECT_UPDATE
+  INITIATIVE_ISSUE_ADDED
+  INITIATIVE_ISSUE_COMPLETED
+  INITIATIVE_UPDATE
+  CUSTOMER_REQUEST_ADDED
+  CUSTOMER_REQUEST_IMPORTANT
+  CUSTOMER_REQUEST_COMPLETED
 }
 
 """How often Pulse writes a morning inbox summary of project updates."""
@@ -12230,6 +12575,58 @@ type ViewSubscription {
   added: Boolean!
   """Notify when an issue that matches the view is completed or canceled."""
   completed: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
+Personal watch on a project. Slack-channel subscriptions are a different row of this
+type: they need a Slack install. Self-triggered changes do not notify — that rule is
+the fan-out's, not a column here.
+"""
+type ProjectSubscription {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  userId: UUID!
+  """Notify when a newly created issue is in the project."""
+  issuesAdded: Boolean!
+  """Notify when an issue in the project is completed or canceled."""
+  issuesCompleted: Boolean!
+  """Notify when a new project update is posted."""
+  updates: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""Personal watch on an initiative. Issues fire for projects linked to it."""
+type InitiativeSubscription {
+  id: UUID!
+  workspaceId: UUID!
+  initiativeId: UUID!
+  userId: UUID!
+  """Notify when a newly created issue is in a linked project."""
+  issuesAdded: Boolean!
+  """Notify when an issue in a linked project is completed or canceled."""
+  issuesCompleted: Boolean!
+  """Notify when a new initiative update is posted."""
+  updates: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""Personal watch on a customer. Slack-channel subscriptions stay out."""
+type CustomerSubscription {
+  id: UUID!
+  workspaceId: UUID!
+  customerId: UUID!
+  userId: UUID!
+  """Notify when a request is attributed to the customer."""
+  requestAdded: Boolean!
+  """Notify when a request is marked important."""
+  requestImportant: Boolean!
+  """Notify when a request's issue is completed or canceled."""
+  requestCompleted: Boolean!
   createdAt: Time!
   updatedAt: Time!
 }
@@ -13081,6 +13478,21 @@ type ViewPayload implements MutationResult {
 type ViewSubscriptionPayload implements MutationResult {
   version: Int!
   viewSubscription: ViewSubscription!
+}
+
+type ProjectSubscriptionPayload implements MutationResult {
+  version: Int!
+  projectSubscription: ProjectSubscription!
+}
+
+type InitiativeSubscriptionPayload implements MutationResult {
+  version: Int!
+  initiativeSubscription: InitiativeSubscription!
+}
+
+type CustomerSubscriptionPayload implements MutationResult {
+  version: Int!
+  customerSubscription: CustomerSubscription!
 }
 
 type ViewPreferencePayload implements MutationResult {
@@ -14122,6 +14534,27 @@ input SetViewSubscriptionInput {
   completed: Boolean!
 }
 
+input SetProjectSubscriptionInput {
+  projectId: UUID!
+  issuesAdded: Boolean!
+  issuesCompleted: Boolean!
+  updates: Boolean!
+}
+
+input SetInitiativeSubscriptionInput {
+  initiativeId: UUID!
+  issuesAdded: Boolean!
+  issuesCompleted: Boolean!
+  updates: Boolean!
+}
+
+input SetCustomerSubscriptionInput {
+  customerId: UUID!
+  requestAdded: Boolean!
+  requestImportant: Boolean!
+  requestCompleted: Boolean!
+}
+
 input MoveFavoriteInput {
   id: UUID!
   """The folder to sit in. Ignored when clearFolder is set."""
@@ -15057,6 +15490,16 @@ type Mutation {
   """
   setViewSubscription(input: SetViewSubscriptionInput!): ViewSubscriptionPayload!
   deleteViewSubscription(viewId: UUID!): DeletePayload!
+  """
+  Subscribe to a project, or change which events fire. Passing every flag false is an
+  unsubscribe. The row is personal: only the caller can write their own.
+  """
+  setProjectSubscription(input: SetProjectSubscriptionInput!): ProjectSubscriptionPayload!
+  deleteProjectSubscription(projectId: UUID!): DeletePayload!
+  setInitiativeSubscription(input: SetInitiativeSubscriptionInput!): InitiativeSubscriptionPayload!
+  deleteInitiativeSubscription(initiativeId: UUID!): DeletePayload!
+  setCustomerSubscription(input: SetCustomerSubscriptionInput!): CustomerSubscriptionPayload!
+  deleteCustomerSubscription(customerId: UUID!): DeletePayload!
 
   addFavorite(kind: FavoriteKind!, targetId: UUID!, afterFavoriteId: UUID): FavoritePayload!
   removeFavorite(kind: FavoriteKind!, targetId: UUID!): DeletePayload!
@@ -15517,6 +15960,40 @@ func (ec *executionContext) childFields_CustomerRequestPayload(ctx context.Conte
 		return ec.fieldContext_CustomerRequestPayload_customerRequest(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CustomerRequestPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_CustomerSubscription(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_CustomerSubscription_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_CustomerSubscription_workspaceId(ctx, field)
+	case "customerId":
+		return ec.fieldContext_CustomerSubscription_customerId(ctx, field)
+	case "userId":
+		return ec.fieldContext_CustomerSubscription_userId(ctx, field)
+	case "requestAdded":
+		return ec.fieldContext_CustomerSubscription_requestAdded(ctx, field)
+	case "requestImportant":
+		return ec.fieldContext_CustomerSubscription_requestImportant(ctx, field)
+	case "requestCompleted":
+		return ec.fieldContext_CustomerSubscription_requestCompleted(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_CustomerSubscription_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_CustomerSubscription_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CustomerSubscription", field.Name)
+}
+
+func (ec *executionContext) childFields_CustomerSubscriptionPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_CustomerSubscriptionPayload_version(ctx, field)
+	case "customerSubscription":
+		return ec.fieldContext_CustomerSubscriptionPayload_customerSubscription(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CustomerSubscriptionPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_Cycle(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -16319,6 +16796,40 @@ func (ec *executionContext) childFields_InitiativeRelationPayload(ctx context.Co
 		return ec.fieldContext_InitiativeRelationPayload_initiativeRelation(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type InitiativeRelationPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_InitiativeSubscription(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_InitiativeSubscription_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_InitiativeSubscription_workspaceId(ctx, field)
+	case "initiativeId":
+		return ec.fieldContext_InitiativeSubscription_initiativeId(ctx, field)
+	case "userId":
+		return ec.fieldContext_InitiativeSubscription_userId(ctx, field)
+	case "issuesAdded":
+		return ec.fieldContext_InitiativeSubscription_issuesAdded(ctx, field)
+	case "issuesCompleted":
+		return ec.fieldContext_InitiativeSubscription_issuesCompleted(ctx, field)
+	case "updates":
+		return ec.fieldContext_InitiativeSubscription_updates(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_InitiativeSubscription_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_InitiativeSubscription_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InitiativeSubscription", field.Name)
+}
+
+func (ec *executionContext) childFields_InitiativeSubscriptionPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_InitiativeSubscriptionPayload_version(ctx, field)
+	case "initiativeSubscription":
+		return ec.fieldContext_InitiativeSubscriptionPayload_initiativeSubscription(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InitiativeSubscriptionPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_InitiativeUpdate(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -17211,6 +17722,40 @@ func (ec *executionContext) childFields_ProjectStatusPayload(ctx context.Context
 		return ec.fieldContext_ProjectStatusPayload_status(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ProjectStatusPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectSubscription(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_ProjectSubscription_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_ProjectSubscription_workspaceId(ctx, field)
+	case "projectId":
+		return ec.fieldContext_ProjectSubscription_projectId(ctx, field)
+	case "userId":
+		return ec.fieldContext_ProjectSubscription_userId(ctx, field)
+	case "issuesAdded":
+		return ec.fieldContext_ProjectSubscription_issuesAdded(ctx, field)
+	case "issuesCompleted":
+		return ec.fieldContext_ProjectSubscription_issuesCompleted(ctx, field)
+	case "updates":
+		return ec.fieldContext_ProjectSubscription_updates(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_ProjectSubscription_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_ProjectSubscription_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectSubscription", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectSubscriptionPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_ProjectSubscriptionPayload_version(ctx, field)
+	case "projectSubscription":
+		return ec.fieldContext_ProjectSubscriptionPayload_projectSubscription(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectSubscriptionPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_ProjectTeam(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -20251,6 +20796,20 @@ func (ec *executionContext) field_Mutation_deleteCustomerRequest_args(ctx contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteCustomerSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "customerId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["customerId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteCustomer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -20424,6 +20983,20 @@ func (ec *executionContext) field_Mutation_deleteGitLabTeamAutomation_args(ctx c
 		return nil, err
 	}
 	args["teamId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteInitiativeSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "initiativeId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["initiativeId"] = arg0
 	return args, nil
 }
 
@@ -20602,6 +21175,20 @@ func (ec *executionContext) field_Mutation_deleteProjectMilestone_args(ctx conte
 		return nil, err
 	}
 	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteProjectSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["projectId"] = arg0
 	return args, nil
 }
 
@@ -21663,6 +22250,34 @@ func (ec *executionContext) field_Mutation_rotateOauthClientSecret_args(ctx cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setCustomerSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (SetCustomerSubscriptionInput, error) {
+			return ec.unmarshalNSetCustomerSubscriptionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSetCustomerSubscriptionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setInitiativeSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (SetInitiativeSubscriptionInput, error) {
+			return ec.unmarshalNSetInitiativeSubscriptionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSetInitiativeSubscriptionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setIssueSla_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -21712,6 +22327,20 @@ func (ec *executionContext) field_Mutation_setIssueSubscription_args(ctx context
 		return nil, err
 	}
 	args["subscribed"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setProjectSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (SetProjectSubscriptionInput, error) {
+			return ec.unmarshalNSetProjectSubscriptionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSetProjectSubscriptionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -26497,6 +27126,268 @@ func (ec *executionContext) fieldContext_CustomerRequestPayload_customerRequest(
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_CustomerRequest(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CustomerSubscription_id(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscription_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscription_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSubscription_workspaceId(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscription_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscription_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSubscription_customerId(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscription_customerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CustomerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscription_customerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSubscription_userId(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscription_userId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscription_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSubscription_requestAdded(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscription_requestAdded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RequestAdded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscription_requestAdded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSubscription", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSubscription_requestImportant(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscription_requestImportant(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RequestImportant, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscription_requestImportant(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSubscription", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSubscription_requestCompleted(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscription_requestCompleted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RequestCompleted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscription_requestCompleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSubscription", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSubscription_createdAt(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscription_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscription_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSubscription", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSubscription_updatedAt(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscription_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscription_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSubscription", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSubscriptionPayload_version(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscriptionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscriptionPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscriptionPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSubscriptionPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSubscriptionPayload_customerSubscription(ctx context.Context, field graphql.CollectedField, obj *CustomerSubscriptionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSubscriptionPayload_customerSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CustomerSubscription, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *CustomerSubscription) graphql.Marshaler {
+			return ec.marshalNCustomerSubscription2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCustomerSubscription(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSubscriptionPayload_customerSubscription(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CustomerSubscriptionPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSubscription(ctx, field)
 		},
 	}
 	return fc, nil
@@ -32720,6 +33611,268 @@ func (ec *executionContext) fieldContext_InitiativeRelationPayload_initiativeRel
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_InitiativeRelation(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InitiativeSubscription_id(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscription_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscription_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeSubscription_workspaceId(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscription_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscription_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeSubscription_initiativeId(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscription_initiativeId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InitiativeID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscription_initiativeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeSubscription_userId(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscription_userId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscription_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeSubscription_issuesAdded(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscription_issuesAdded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IssuesAdded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscription_issuesAdded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeSubscription", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeSubscription_issuesCompleted(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscription_issuesCompleted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IssuesCompleted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscription_issuesCompleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeSubscription", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeSubscription_updates(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscription_updates(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Updates, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscription_updates(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeSubscription", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeSubscription_createdAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscription_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscription_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeSubscription", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeSubscription_updatedAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscription_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscription_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeSubscription", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeSubscriptionPayload_version(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscriptionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscriptionPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscriptionPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeSubscriptionPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeSubscriptionPayload_initiativeSubscription(ctx context.Context, field graphql.CollectedField, obj *InitiativeSubscriptionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeSubscriptionPayload_initiativeSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InitiativeSubscription, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeSubscription) graphql.Marshaler {
+			return ec.marshalNInitiativeSubscription2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeSubscription(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeSubscriptionPayload_initiativeSubscription(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InitiativeSubscriptionPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeSubscription(ctx, field)
 		},
 	}
 	return fc, nil
@@ -43213,6 +44366,270 @@ func (ec *executionContext) fieldContext_Mutation_deleteViewSubscription(ctx con
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setProjectSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setProjectSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetProjectSubscription(ctx, fc.Args["input"].(SetProjectSubscriptionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectSubscriptionPayload) graphql.Marshaler {
+			return ec.marshalNProjectSubscriptionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectSubscriptionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setProjectSubscription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectSubscriptionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setProjectSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteProjectSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteProjectSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteProjectSubscription(ctx, fc.Args["projectId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteProjectSubscription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteProjectSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setInitiativeSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setInitiativeSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetInitiativeSubscription(ctx, fc.Args["input"].(SetInitiativeSubscriptionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeSubscriptionPayload) graphql.Marshaler {
+			return ec.marshalNInitiativeSubscriptionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeSubscriptionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setInitiativeSubscription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeSubscriptionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setInitiativeSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteInitiativeSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteInitiativeSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteInitiativeSubscription(ctx, fc.Args["initiativeId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteInitiativeSubscription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteInitiativeSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setCustomerSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setCustomerSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetCustomerSubscription(ctx, fc.Args["input"].(SetCustomerSubscriptionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *CustomerSubscriptionPayload) graphql.Marshaler {
+			return ec.marshalNCustomerSubscriptionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCustomerSubscriptionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setCustomerSubscription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSubscriptionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setCustomerSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteCustomerSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteCustomerSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteCustomerSubscription(ctx, fc.Args["customerId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteCustomerSubscription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteCustomerSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_addFavorite(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -50670,6 +52087,268 @@ func (ec *executionContext) fieldContext_ProjectStatusPayload_status(_ context.C
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ProjectStatus(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSubscription_id(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscription_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscription_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectSubscription_workspaceId(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscription_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscription_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectSubscription_projectId(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscription_projectId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscription_projectId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectSubscription_userId(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscription_userId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscription_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectSubscription", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectSubscription_issuesAdded(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscription_issuesAdded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IssuesAdded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscription_issuesAdded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectSubscription", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectSubscription_issuesCompleted(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscription_issuesCompleted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IssuesCompleted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscription_issuesCompleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectSubscription", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectSubscription_updates(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscription_updates(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Updates, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscription_updates(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectSubscription", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectSubscription_createdAt(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscription_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscription_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectSubscription", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectSubscription_updatedAt(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscription_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscription_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectSubscription", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectSubscriptionPayload_version(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscriptionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscriptionPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscriptionPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProjectSubscriptionPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ProjectSubscriptionPayload_projectSubscription(ctx context.Context, field graphql.CollectedField, obj *ProjectSubscriptionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectSubscriptionPayload_projectSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectSubscription, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ProjectSubscription) graphql.Marshaler {
+			return ec.marshalNProjectSubscription2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectSubscription(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectSubscriptionPayload_projectSubscription(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSubscriptionPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProjectSubscription(ctx, field)
 		},
 	}
 	return fc, nil
@@ -66052,6 +67731,108 @@ func (ec *executionContext) unmarshalInputSearchInput(ctx context.Context, obj a
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputSetCustomerSubscriptionInput(ctx context.Context, obj any) (SetCustomerSubscriptionInput, error) {
+	var it SetCustomerSubscriptionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"customerId", "requestAdded", "requestImportant", "requestCompleted"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "customerId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomerID = data
+		case "requestAdded":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("requestAdded"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RequestAdded = data
+		case "requestImportant":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("requestImportant"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RequestImportant = data
+		case "requestCompleted":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("requestCompleted"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RequestCompleted = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSetInitiativeSubscriptionInput(ctx context.Context, obj any) (SetInitiativeSubscriptionInput, error) {
+	var it SetInitiativeSubscriptionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"initiativeId", "issuesAdded", "issuesCompleted", "updates"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "initiativeId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("initiativeId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InitiativeID = data
+		case "issuesAdded":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("issuesAdded"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IssuesAdded = data
+		case "issuesCompleted":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("issuesCompleted"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IssuesCompleted = data
+		case "updates":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updates"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Updates = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSetIssueSlaInput(ctx context.Context, obj any) (SetIssueSLAInput, error) {
 	var it SetIssueSLAInput
 	if obj == nil {
@@ -66084,6 +67865,57 @@ func (ec *executionContext) unmarshalInputSetIssueSlaInput(ctx context.Context, 
 				return it, err
 			}
 			it.DurationMinutes = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSetProjectSubscriptionInput(ctx context.Context, obj any) (SetProjectSubscriptionInput, error) {
+	var it SetProjectSubscriptionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectId", "issuesAdded", "issuesCompleted", "updates"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "issuesAdded":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("issuesAdded"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IssuesAdded = data
+		case "issuesCompleted":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("issuesCompleted"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IssuesCompleted = data
+		case "updates":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updates"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Updates = data
 		}
 	}
 	return it, nil
@@ -69636,6 +71468,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._ProjectTeamPayload(ctx, sel, obj)
+	case ProjectSubscriptionPayload:
+		return ec._ProjectSubscriptionPayload(ctx, sel, &obj)
+	case *ProjectSubscriptionPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectSubscriptionPayload(ctx, sel, obj)
 	case ProjectStatusPayload:
 		return ec._ProjectStatusPayload(ctx, sel, &obj)
 	case *ProjectStatusPayload:
@@ -69762,6 +71601,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._InitiativeUpdatePayload(ctx, sel, obj)
+	case InitiativeSubscriptionPayload:
+		return ec._InitiativeSubscriptionPayload(ctx, sel, &obj)
+	case *InitiativeSubscriptionPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._InitiativeSubscriptionPayload(ctx, sel, obj)
 	case InitiativeRelationPayload:
 		return ec._InitiativeRelationPayload(ctx, sel, &obj)
 	case *InitiativeRelationPayload:
@@ -69909,6 +71755,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._CycleCalendarFeedPayload(ctx, sel, obj)
+	case CustomerSubscriptionPayload:
+		return ec._CustomerSubscriptionPayload(ctx, sel, &obj)
+	case *CustomerSubscriptionPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._CustomerSubscriptionPayload(ctx, sel, obj)
 	case CustomerRequestPayload:
 		return ec._CustomerRequestPayload(ctx, sel, &obj)
 	case *CustomerRequestPayload:
@@ -71068,6 +72921,127 @@ func (ec *executionContext) _CustomerRequestPayload(ctx context.Context, sel ast
 			}
 		case "customerRequest":
 			out.Values[i] = ec._CustomerRequestPayload_customerRequest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var customerSubscriptionImplementors = []string{"CustomerSubscription"}
+
+func (ec *executionContext) _CustomerSubscription(ctx context.Context, sel ast.SelectionSet, obj *CustomerSubscription) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, customerSubscriptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CustomerSubscription")
+		case "id":
+			out.Values[i] = ec._CustomerSubscription_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._CustomerSubscription_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customerId":
+			out.Values[i] = ec._CustomerSubscription_customerId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userId":
+			out.Values[i] = ec._CustomerSubscription_userId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requestAdded":
+			out.Values[i] = ec._CustomerSubscription_requestAdded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requestImportant":
+			out.Values[i] = ec._CustomerSubscription_requestImportant(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requestCompleted":
+			out.Values[i] = ec._CustomerSubscription_requestCompleted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._CustomerSubscription_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._CustomerSubscription_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var customerSubscriptionPayloadImplementors = []string{"CustomerSubscriptionPayload", "MutationResult"}
+
+func (ec *executionContext) _CustomerSubscriptionPayload(ctx context.Context, sel ast.SelectionSet, obj *CustomerSubscriptionPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, customerSubscriptionPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CustomerSubscriptionPayload")
+		case "version":
+			out.Values[i] = ec._CustomerSubscriptionPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customerSubscription":
+			out.Values[i] = ec._CustomerSubscriptionPayload_customerSubscription(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -73943,6 +75917,127 @@ func (ec *executionContext) _InitiativeRelationPayload(ctx context.Context, sel 
 	return out
 }
 
+var initiativeSubscriptionImplementors = []string{"InitiativeSubscription"}
+
+func (ec *executionContext) _InitiativeSubscription(ctx context.Context, sel ast.SelectionSet, obj *InitiativeSubscription) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiativeSubscriptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiativeSubscription")
+		case "id":
+			out.Values[i] = ec._InitiativeSubscription_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._InitiativeSubscription_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "initiativeId":
+			out.Values[i] = ec._InitiativeSubscription_initiativeId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userId":
+			out.Values[i] = ec._InitiativeSubscription_userId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "issuesAdded":
+			out.Values[i] = ec._InitiativeSubscription_issuesAdded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "issuesCompleted":
+			out.Values[i] = ec._InitiativeSubscription_issuesCompleted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updates":
+			out.Values[i] = ec._InitiativeSubscription_updates(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._InitiativeSubscription_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._InitiativeSubscription_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var initiativeSubscriptionPayloadImplementors = []string{"InitiativeSubscriptionPayload", "MutationResult"}
+
+func (ec *executionContext) _InitiativeSubscriptionPayload(ctx context.Context, sel ast.SelectionSet, obj *InitiativeSubscriptionPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiativeSubscriptionPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiativeSubscriptionPayload")
+		case "version":
+			out.Values[i] = ec._InitiativeSubscriptionPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "initiativeSubscription":
+			out.Values[i] = ec._InitiativeSubscriptionPayload_initiativeSubscription(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var initiativeUpdateImplementors = []string{"InitiativeUpdate"}
 
 func (ec *executionContext) _InitiativeUpdate(ctx context.Context, sel ast.SelectionSet, obj *InitiativeUpdate) graphql.Marshaler {
@@ -76276,6 +78371,48 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setProjectSubscription":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setProjectSubscription(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteProjectSubscription":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteProjectSubscription(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setInitiativeSubscription":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setInitiativeSubscription(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteInitiativeSubscription":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteInitiativeSubscription(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setCustomerSubscription":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setCustomerSubscription(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteCustomerSubscription":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteCustomerSubscription(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "addFavorite":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addFavorite(ctx, field)
@@ -78406,6 +80543,127 @@ func (ec *executionContext) _ProjectStatusPayload(ctx context.Context, sel ast.S
 			}
 		case "status":
 			out.Values[i] = ec._ProjectStatusPayload_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectSubscriptionImplementors = []string{"ProjectSubscription"}
+
+func (ec *executionContext) _ProjectSubscription(ctx context.Context, sel ast.SelectionSet, obj *ProjectSubscription) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectSubscriptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectSubscription")
+		case "id":
+			out.Values[i] = ec._ProjectSubscription_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._ProjectSubscription_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectId":
+			out.Values[i] = ec._ProjectSubscription_projectId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userId":
+			out.Values[i] = ec._ProjectSubscription_userId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "issuesAdded":
+			out.Values[i] = ec._ProjectSubscription_issuesAdded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "issuesCompleted":
+			out.Values[i] = ec._ProjectSubscription_issuesCompleted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updates":
+			out.Values[i] = ec._ProjectSubscription_updates(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ProjectSubscription_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._ProjectSubscription_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var projectSubscriptionPayloadImplementors = []string{"ProjectSubscriptionPayload", "MutationResult"}
+
+func (ec *executionContext) _ProjectSubscriptionPayload(ctx context.Context, sel ast.SelectionSet, obj *ProjectSubscriptionPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectSubscriptionPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectSubscriptionPayload")
+		case "version":
+			out.Values[i] = ec._ProjectSubscriptionPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectSubscription":
+			out.Values[i] = ec._ProjectSubscriptionPayload_projectSubscription(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -84574,6 +86832,30 @@ func (ec *executionContext) marshalNCustomerStatus2githubᚗcomᚋpeixotolabsᚋ
 	return v
 }
 
+func (ec *executionContext) marshalNCustomerSubscription2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCustomerSubscription(ctx context.Context, sel ast.SelectionSet, v *CustomerSubscription) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CustomerSubscription(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCustomerSubscriptionPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCustomerSubscriptionPayload(ctx context.Context, sel ast.SelectionSet, v CustomerSubscriptionPayload) graphql.Marshaler {
+	return ec._CustomerSubscriptionPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCustomerSubscriptionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCustomerSubscriptionPayload(ctx context.Context, sel ast.SelectionSet, v *CustomerSubscriptionPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CustomerSubscriptionPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNCycle2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCycle(ctx context.Context, sel ast.SelectionSet, v Cycle) graphql.Marshaler {
 	return ec._Cycle(ctx, sel, &v)
 }
@@ -85362,6 +87644,30 @@ func (ec *executionContext) unmarshalNInitiativeStatus2githubᚗcomᚋpeixotolab
 
 func (ec *executionContext) marshalNInitiativeStatus2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeStatus(ctx context.Context, sel ast.SelectionSet, v InitiativeStatus) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNInitiativeSubscription2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeSubscription(ctx context.Context, sel ast.SelectionSet, v *InitiativeSubscription) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiativeSubscription(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNInitiativeSubscriptionPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeSubscriptionPayload(ctx context.Context, sel ast.SelectionSet, v InitiativeSubscriptionPayload) graphql.Marshaler {
+	return ec._InitiativeSubscriptionPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNInitiativeSubscriptionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeSubscriptionPayload(ctx context.Context, sel ast.SelectionSet, v *InitiativeSubscriptionPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiativeSubscriptionPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNInitiativeUpdate2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdate(ctx context.Context, sel ast.SelectionSet, v InitiativeUpdate) graphql.Marshaler {
@@ -86275,6 +88581,30 @@ func (ec *executionContext) marshalNProjectStatusPayload2ᚖgithubᚗcomᚋpeixo
 	return ec._ProjectStatusPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNProjectSubscription2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectSubscription(ctx context.Context, sel ast.SelectionSet, v *ProjectSubscription) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectSubscription(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectSubscriptionPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectSubscriptionPayload(ctx context.Context, sel ast.SelectionSet, v ProjectSubscriptionPayload) graphql.Marshaler {
+	return ec._ProjectSubscriptionPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProjectSubscriptionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectSubscriptionPayload(ctx context.Context, sel ast.SelectionSet, v *ProjectSubscriptionPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectSubscriptionPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNProjectTeam2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTeam(ctx context.Context, sel ast.SelectionSet, v ProjectTeam) graphql.Marshaler {
 	return ec._ProjectTeam(ctx, sel, &v)
 }
@@ -86684,8 +89014,23 @@ func (ec *executionContext) marshalNSentryLinkPayload2ᚖgithubᚗcomᚋpeixotol
 	return ec._SentryLinkPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNSetCustomerSubscriptionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSetCustomerSubscriptionInput(ctx context.Context, v any) (SetCustomerSubscriptionInput, error) {
+	res, err := ec.unmarshalInputSetCustomerSubscriptionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNSetInitiativeSubscriptionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSetInitiativeSubscriptionInput(ctx context.Context, v any) (SetInitiativeSubscriptionInput, error) {
+	res, err := ec.unmarshalInputSetInitiativeSubscriptionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNSetIssueSlaInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSetIssueSLAInput(ctx context.Context, v any) (SetIssueSLAInput, error) {
 	res, err := ec.unmarshalInputSetIssueSlaInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNSetProjectSubscriptionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSetProjectSubscriptionInput(ctx context.Context, v any) (SetProjectSubscriptionInput, error) {
+	res, err := ec.unmarshalInputSetProjectSubscriptionInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

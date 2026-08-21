@@ -21,7 +21,10 @@ import {
   updateCustomer,
 } from '~/features/customers/mutations';
 import { report } from '~/features/issue/mutations';
+import { setCustomerSubscription } from '~/features/subscriptions/mutations';
+import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewer } from '~/hooks/useViewer';
 import type { CustomerStatus, Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './CustomerDetail.module.css';
@@ -40,6 +43,7 @@ export function CustomerDetail() {
   const navigate = useNavigate();
   const engine = useEngine();
   const { customerId = '' } = useParams<{ customerId: string }>();
+  const viewer = useViewer();
   const [requestOpen, setRequestOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [archiveBusy, setArchiveBusy] = useState(false);
@@ -53,6 +57,16 @@ export function CustomerDetail() {
     (store) => store.customers.get(customerId) ?? null,
     ['customer'],
     [customerId],
+  );
+
+  const watch = useLiveQuery(
+    (store) => {
+      if (viewer === null) return null;
+      const id = store.customerSubscriptionIdFor(viewer.id, customerId);
+      return id === undefined ? null : (store.get('customerSubscription', id) ?? null);
+    },
+    ['customerSubscription'],
+    [customerId, viewer?.id],
   );
 
   const people = useLiveQuery(
@@ -144,6 +158,42 @@ export function CustomerDetail() {
         <div className={styles.titleRow}>
           <h1 className={styles.title}>{customer.name}</h1>
           <span className={styles.status}>{formatCustomerStatus(customer.status)}</span>
+          {viewer !== null && viewer.role !== 'guest' ? (
+            <SubscribeBell
+              menuLabel="Customer notifications"
+              flags={[
+                { id: 'requestAdded', label: 'A request is added', on: watch?.requestAdded === true },
+                {
+                  id: 'requestImportant',
+                  label: 'A request is marked important',
+                  on: watch?.requestImportant === true,
+                },
+                {
+                  id: 'requestCompleted',
+                  label: 'A request is completed',
+                  on: watch?.requestCompleted === true,
+                },
+              ]}
+              onToggle={(id) => {
+                setCustomerSubscription(engine, {
+                  customerId: customer.id,
+                  userId: viewer.id,
+                  requestAdded:
+                    id === 'requestAdded'
+                      ? watch?.requestAdded !== true
+                      : watch?.requestAdded === true,
+                  requestImportant:
+                    id === 'requestImportant'
+                      ? watch?.requestImportant !== true
+                      : watch?.requestImportant === true,
+                  requestCompleted:
+                    id === 'requestCompleted'
+                      ? watch?.requestCompleted !== true
+                      : watch?.requestCompleted === true,
+                }).catch(report);
+              }}
+            />
+          ) : null}
           <Button variant="ghost" onClick={() => setArchiving(true)}>
             Archive
           </Button>
