@@ -230,6 +230,24 @@ func (q *Queries) RevokeAllSessionsForAccount(ctx context.Context, accountID uui
 	return err
 }
 
+const revokeOtherSessionsForAccount = `-- name: RevokeOtherSessionsForAccount :execrows
+UPDATE account_session SET revoked_at = now()
+WHERE account_id = $1 AND id <> $2 AND revoked_at IS NULL
+`
+
+type RevokeOtherSessionsForAccountParams struct {
+	AccountID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) RevokeOtherSessionsForAccount(ctx context.Context, arg RevokeOtherSessionsForAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeOtherSessionsForAccount, arg.AccountID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const revokeSession = `-- name: RevokeSession :exec
 UPDATE account_session SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL
 `
@@ -237,6 +255,26 @@ UPDATE account_session SET revoked_at = now() WHERE id = $1 AND revoked_at IS NU
 func (q *Queries) RevokeSession(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, revokeSession, id)
 	return err
+}
+
+const revokeSessionForAccount = `-- name: RevokeSessionForAccount :execrows
+UPDATE account_session SET revoked_at = now()
+WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL
+`
+
+type RevokeSessionForAccountParams struct {
+	ID        uuid.UUID
+	AccountID uuid.UUID
+}
+
+// Scoped to the owner so a foreign id answers like an invented one: not-found, never
+// forbidden. Distinguishing those would let somebody confirm a colleague's session exists.
+func (q *Queries) RevokeSessionForAccount(ctx context.Context, arg RevokeSessionForAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeSessionForAccount, arg.ID, arg.AccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setAccountPassword = `-- name: SetAccountPassword :exec

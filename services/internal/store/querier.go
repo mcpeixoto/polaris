@@ -1184,11 +1184,16 @@ type Querier interface {
 	RevokeOauthTokenByAccessHash(ctx context.Context, accessTokenHash []byte) (uuid.UUID, error)
 	RevokeOauthTokenByRefreshHash(ctx context.Context, refreshTokenHash []byte) (uuid.UUID, error)
 	RevokeOauthTokensForApplication(ctx context.Context, applicationID uuid.UUID) (int64, error)
+	RevokeOtherSessionsForAccount(ctx context.Context, arg RevokeOtherSessionsForAccountParams) (int64, error)
 	// Re-inviting an address replaces the outstanding invite rather than accumulating rows,
 	// which is also what invite_workspace_email_pending_key enforces.
 	//
 	RevokePendingInvitesForEmail(ctx context.Context, arg RevokePendingInvitesForEmailParams) error
 	RevokeSession(ctx context.Context, id uuid.UUID) error
+	// Scoped to the owner so a foreign id answers like an invented one: not-found, never
+	// forbidden. Distinguishing those would let somebody confirm a colleague's session exists.
+	//
+	RevokeSessionForAccount(ctx context.Context, arg RevokeSessionForAccountParams) (int64, error)
 	// RotateCycleCalendarFeedToken replaces the secret. The previous URL 404s from this
 	// statement's commit; RETURNING omits token for the same reason Create does.
 	//
