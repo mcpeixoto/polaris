@@ -56,6 +56,7 @@ import {
   type ProjectTemplateIssue,
   type Initiative,
   type InitiativeProject,
+  type InitiativeUpdate,
   type ProjectUpdate,
   type PulseFeed,
   type ProjectDependency,
@@ -197,6 +198,7 @@ export class Store {
     projectMilestone: new Map(),
     initiative: new Map(),
     initiativeProject: new Map(),
+    initiativeUpdate: new Map(),
     projectUpdate: new Map(),
     pulseFeed: new Map(),
     projectDependency: new Map(),
@@ -268,6 +270,7 @@ export class Store {
   private readonly projectMemberOf = new SetIndex<UUID>();
   private readonly projectMilestoneOf = new SetIndex<UUID>();
   private readonly initiativeProjectOf = new SetIndex<UUID>();
+  private readonly initiativeUpdateOf = new SetIndex<UUID>();
   private readonly projectUpdateOf = new SetIndex<UUID>();
   private readonly projectDependencyBlockingOf = new SetIndex<UUID>();
   private readonly projectDependencyBlockedByOf = new SetIndex<UUID>();
@@ -451,6 +454,10 @@ export class Store {
     return this.tables.initiativeProject as ReadonlyMap<UUID, InitiativeProject>;
   }
 
+  get initiativeUpdates(): ReadonlyMap<UUID, InitiativeUpdate> {
+    return this.tables.initiativeUpdate as ReadonlyMap<UUID, InitiativeUpdate>;
+  }
+
   get projectUpdates(): ReadonlyMap<UUID, ProjectUpdate> {
     return this.tables.projectUpdate as ReadonlyMap<UUID, ProjectUpdate>;
   }
@@ -614,6 +621,10 @@ export class Store {
 
   initiativeProjectIdsFor(initiativeId: UUID): ReadonlySet<UUID> {
     return this.initiativeProjectOf.get(initiativeId);
+  }
+
+  initiativeUpdateIdsFor(initiativeId: UUID): ReadonlySet<UUID> {
+    return this.initiativeUpdateOf.get(initiativeId);
   }
 
   projectUpdateIdsFor(projectId: UUID): ReadonlySet<UUID> {
@@ -994,6 +1005,7 @@ export class Store {
     this.projectMemberOf.clear();
     this.projectMilestoneOf.clear();
     this.initiativeProjectOf.clear();
+    this.initiativeUpdateOf.clear();
     this.projectUpdateOf.clear();
     this.projectDependencyBlockingOf.clear();
     this.projectDependencyBlockedByOf.clear();
@@ -1398,6 +1410,15 @@ export class Store {
         this.initiativeProjectOf.add(link.initiativeId, link.id);
         break;
       }
+      case 'initiativeUpdate': {
+        const update = next as InitiativeUpdate;
+        const before = previous as InitiativeUpdate | undefined;
+        if (before !== undefined && before.initiativeId !== update.initiativeId) {
+          this.initiativeUpdateOf.remove(before.initiativeId, before.id);
+        }
+        this.initiativeUpdateOf.add(update.initiativeId, update.id);
+        break;
+      }
       case 'projectUpdate':
         this.fileByProject(
           this.projectUpdateOf,
@@ -1579,6 +1600,11 @@ export class Store {
       case 'initiativeProject': {
         const link = entity as InitiativeProject;
         this.initiativeProjectOf.remove(link.initiativeId, link.id);
+        break;
+      }
+      case 'initiativeUpdate': {
+        const update = entity as InitiativeUpdate;
+        this.initiativeUpdateOf.remove(update.initiativeId, update.id);
         break;
       }
       case 'projectUpdate':

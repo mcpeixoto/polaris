@@ -969,6 +969,21 @@ type InitiativeProject struct {
 	CreatedAt    time.Time `json:"createdAt"`
 }
 
+// InitiativeUpdate is a status post on an initiative — health plus narrative markdown.
+// Health on the initiative row itself is not stored; it is derived from the latest live update.
+type InitiativeUpdate struct {
+	ID           uuid.UUID  `json:"id"`
+	WorkspaceID  uuid.UUID  `json:"workspaceId"`
+	InitiativeID uuid.UUID  `json:"initiativeId"`
+	Health       string     `json:"health"`
+	Body         string     `json:"body"`
+	AuthorID     uuid.UUID  `json:"authorId"`
+	EditedAt     *time.Time `json:"editedAt,omitempty"`
+	DeletedAt    *time.Time `json:"deletedAt,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
+}
+
 const (
 	CustomerStatusActive   = "active"
 	CustomerStatusProspect = "prospect"

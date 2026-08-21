@@ -102,6 +102,7 @@ export type {
   ProjectMilestone,
   Initiative,
   InitiativeProject,
+  InitiativeUpdate,
   Customer,
   CustomerRequest,
   SlaAction,

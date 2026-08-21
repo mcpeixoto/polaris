@@ -7,8 +7,15 @@ import { Link } from 'react-router';
 import { useKeymap } from '~/app/keymap';
 import { Avatar, Button, EmptyState } from '~/components';
 import { formatInitiativeStatus } from '~/features/initiatives/mutations';
+import { ActiveProjectsHealth } from '~/features/initiative-updates/ActiveProjectsHealth';
+import {
+  latestInitiativeUpdate,
+  linkedProjectHealths,
+  type LinkedProjectHealth,
+} from '~/features/initiative-updates/helpers';
+import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { InitiativeStatus, Store, UUID } from '~/store';
+import type { InitiativeStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
 import styles from './Initiatives.module.css';
 
 interface InitiativeRow {
@@ -16,9 +23,10 @@ interface InitiativeRow {
   readonly name: string;
   readonly description: string;
   readonly status: InitiativeStatus;
+  readonly health: ProjectUpdateHealth | null;
+  readonly projects: readonly LinkedProjectHealth[];
   readonly ownerName: string | null;
   readonly ownerId: UUID | undefined;
-  readonly projectCount: number;
 }
 
 export function Initiatives() {
@@ -27,7 +35,7 @@ export function Initiatives() {
 
   const rows = useLiveQuery(
     (store) => listInitiatives(store),
-    ['initiative', 'initiativeProject', 'user'],
+    ['initiative', 'initiativeProject', 'initiativeUpdate', 'project', 'projectUpdate', 'user'],
   );
 
   return (
@@ -61,6 +69,14 @@ export function Initiatives() {
                   )}
                 </span>
                 <span className={styles.status}>{formatInitiativeStatus(row.status)}</span>
+                <span className={styles.health}>
+                  {row.health === null ? (
+                    <span className={styles.ownerMuted}>No update</span>
+                  ) : (
+                    <ProjectHealthBadge health={row.health} compact />
+                  )}
+                </span>
+                <ActiveProjectsHealth projects={row.projects} />
                 {row.ownerName === null ? (
                   <span className={styles.ownerMuted}>No owner</span>
                 ) : (
@@ -69,9 +85,6 @@ export function Initiatives() {
                     {row.ownerName}
                   </span>
                 )}
-                <span className={styles.count}>
-                  {row.projectCount === 1 ? '1 project' : `${row.projectCount} projects`}
-                </span>
               </Link>
             </li>
           ))}
@@ -86,11 +99,6 @@ function listInitiatives(store: Store): InitiativeRow[] {
   for (const initiative of store.initiatives.values()) {
     if (initiative.archivedAt !== undefined || initiative.deletedAt !== undefined) continue;
 
-    let projectCount = 0;
-    for (const linkId of store.initiativeProjectIdsFor(initiative.id)) {
-      if (store.initiativeProjects.has(linkId)) projectCount += 1;
-    }
-
     const owner =
       initiative.ownerId === undefined ? null : (store.users.get(initiative.ownerId)?.name ?? null);
 
@@ -99,9 +107,10 @@ function listInitiatives(store: Store): InitiativeRow[] {
       name: initiative.name,
       description: initiative.description,
       status: initiative.status,
+      health: latestInitiativeUpdate(store, initiative.id)?.health ?? null,
+      projects: linkedProjectHealths(store, initiative.id),
       ownerName: owner,
       ownerId: initiative.ownerId,
-      projectCount,
     });
   }
   return rows.sort(

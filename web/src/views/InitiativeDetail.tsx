@@ -1,28 +1,25 @@
 /**
- * One initiative overview — properties, description, and curated projects.
- *
- * Create only asked for a name. The rest of Linear's fields already existed on the wire
- * (status, priority, owner, lead team, target date, archive) and this screen never offered
- * them, so an initiative could only be planned-with-no-owner for the rest of its life.
+ * One initiative overview — properties, latest update, description, and curated projects.
  */
 
 import { useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, EmptyState, Input, PRIORITY_LEVELS, priorityLabel, Select } from '~/components';
-import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { Button, Input, PRIORITY_LEVELS, priorityLabel, Select } from '~/components';
 import {
   addInitiativeProject,
-  archiveInitiative,
   formatInitiativeStatus,
   removeInitiativeProject,
   updateInitiative,
 } from '~/features/initiatives/mutations';
+import { createInitiativeUpdate } from '~/features/initiative-updates/mutations';
+import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
+import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { report } from '~/features/issue/mutations';
+import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { InitiativeStatus, Store, UUID } from '~/store';
-import { ApiError } from '~/sync/api';
+import type { InitiativeStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
 import styles from './InitiativeDetail.module.css';
 
 interface ProjectLinkRow {
@@ -39,22 +36,41 @@ const STATUSES: readonly InitiativeStatus[] = [
   'canceled',
 ];
 
+const HEALTH_OPTIONS: readonly { readonly value: ProjectUpdateHealth; readonly label: string }[] = [
+  { value: 'on_track', label: 'On track' },
+  { value: 'at_risk', label: 'At risk' },
+  { value: 'off_track', label: 'Off track' },
+];
+
 export function InitiativeDetail() {
-  const navigate = useNavigate();
   const engine = useEngine();
+  const viewerId = useViewerId();
   const { initiativeId = '' } = useParams<{ initiativeId: string }>();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [chosenProject, setChosenProject] = useState('');
-  const [archiving, setArchiving] = useState(false);
-  const [archiveBusy, setArchiveBusy] = useState(false);
-  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [health, setHealth] = useState<ProjectUpdateHealth>('on_track');
+  const [body, setBody] = useState('');
+  const [posting, setPosting] = useState(false);
 
   const initiative = useLiveQuery(
     (store) => store.initiatives.get(initiativeId) ?? null,
     ['initiative'],
     [initiativeId],
+  );
+
+  const latest = useLiveQuery(
+    (store) => latestInitiativeUpdate(store, initiativeId),
+    ['initiativeUpdate', 'user'],
+    [initiativeId],
+  );
+
+  const latestAuthor = useLiveQuery(
+    (store) =>
+      latest === undefined ? null : (store.users.get(latest.authorId)?.displayName ?? null),
+    ['user', 'initiativeUpdate'],
+    [initiativeId, latest?.authorId ?? ''],
   );
 
   const people = useLiveQuery(
@@ -98,15 +114,7 @@ export function InitiativeDetail() {
     [initiativeId, [...linkedProjectIds].join(',')],
   );
 
-  if (initiative === null) {
-    return (
-      <EmptyState
-        title="No such initiative"
-        description="It may have been archived or deleted."
-        action={<Button onClick={() => navigate(-1)}>Go back</Button>}
-      />
-    );
-  }
+  if (initiative === null) return null;
 
   const save = (fields: Parameters<typeof updateInitiative>[2]) => {
     updateInitiative(engine, initiative.id, fields).catch(report);
@@ -141,34 +149,71 @@ export function InitiativeDetail() {
     await removeInitiativeProject(engine, initiative.id, projectId);
   };
 
-  const confirmArchive = () => {
-    setArchiveBusy(true);
-    setArchiveError(null);
-    archiveInitiative(engine, initiative.id)
-      .then(() => {
-        setArchiveBusy(false);
-        setArchiving(false);
-        void navigate('/initiatives');
-      })
-      .catch((failure: unknown) => {
-        setArchiveBusy(false);
-        setArchiveError(
-          failure instanceof ApiError ? failure.message : 'That initiative could not be archived.',
-        );
+  const onSubmitUpdate = async (event: FormEvent) => {
+    event.preventDefault();
+    if (posting || viewerId === null) return;
+    setPosting(true);
+    try {
+      await createInitiativeUpdate(engine, {
+        initiativeId: initiative.id,
+        health,
+        body,
+        authorId: viewerId,
       });
+      setBody('');
+    } finally {
+      setPosting(false);
+    }
   };
 
   return (
     <div className={styles.screen}>
-      <header className={styles.header}>
-        <div className={styles.titleRow}>
-          <h1 className={styles.title}>{initiative.name}</h1>
-          <span className={styles.status}>{formatInitiativeStatus(initiative.status)}</span>
-          <Button variant="ghost" onClick={() => setArchiving(true)}>
-            Archive
-          </Button>
-        </div>
-      </header>
+      {latest !== undefined && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Latest update</h2>
+          <div className={styles.latestMeta}>
+            <ProjectHealthBadge health={latest.health} />
+            {latestAuthor !== null && (
+              <span className={styles.metaText}>
+                {latestAuthor} · {formatWhen(latest.createdAt)}
+              </span>
+            )}
+          </div>
+          {latest.body !== '' && <p className={styles.description}>{latest.body}</p>}
+        </section>
+      )}
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Post an update</h2>
+        <form className={styles.form} onSubmit={onSubmitUpdate}>
+          <Select
+            label="Health"
+            value={health}
+            onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
+          >
+            {HEALTH_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Update</span>
+            <textarea
+              className={styles.descriptionInput}
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              placeholder="What changed since the last update?"
+              rows={4}
+            />
+          </label>
+          <div className={styles.addRow}>
+            <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
+              Post update
+            </Button>
+          </div>
+        </form>
+      </section>
 
       <section className={styles.section} aria-labelledby="properties-heading">
         <h2 className={styles.sectionTitle} id="properties-heading">
@@ -322,24 +367,18 @@ export function InitiativeDetail() {
           </Button>
         </div>
       </section>
-
-      <ConfirmDialog
-        open={archiving}
-        title={`Archive ${initiative.name}?`}
-        consequence="It leaves the Initiatives list. Linked projects stay where they are. There is no archives page for initiatives yet, so bringing it back is an API call."
-        confirmLabel="Archive"
-        destructive
-        busy={archiveBusy}
-        error={archiveError ?? undefined}
-        onConfirm={confirmArchive}
-        onClose={() => {
-          if (archiveBusy) return;
-          setArchiving(false);
-          setArchiveError(null);
-        }}
-      />
     </div>
   );
+}
+
+function formatWhen(iso: string): string {
+  const date = new Date(iso);
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function listProjects(store: Store, initiativeId: UUID): readonly ProjectLinkRow[] {
