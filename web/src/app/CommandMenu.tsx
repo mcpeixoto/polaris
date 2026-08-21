@@ -1,21 +1,36 @@
 /**
  * The command menu.
  *
- * It is a *view over the registry*, not a list of commands. Nothing is enumerated here:
- * everything offered is whatever is registered and enabled in the current context, which
- * is what makes the menu correct by construction rather than by somebody remembering to
- * add an entry when they add a feature.
+ * Commands still come from the keymap registry. Prefixes (`>`, `#`, `@`) are how the
+ * same box also jumps to issues and people already in the replica — inventory 7.1's
+ * scoped prefixes, without a second search surface.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 
+import { useEngine } from '~/app/context';
 import { formatKeySpec, type Action, type Platform } from '~/keys';
 import { os } from '~/platform/runtime';
+
+import {
+  matchIssues,
+  matchUsers,
+  parseCommandQuery,
+  rankActions,
+  type EntityHit,
+} from './commandMenu';
 import { useKeymap } from './keymap';
 import styles from './CommandMenu.module.css';
 
+type Row =
+  | { kind: 'action'; id: string; group: string; action: Action }
+  | { kind: 'entity'; id: string; group: string; hit: EntityHit };
+
 export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { registry, context } = useKeymap();
+  const engine = useEngine();
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -29,10 +44,34 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
       .filter((a) => a.enabled?.({ source: 'menu', context }) ?? true);
   }, [open, registry, context]);
 
-  const results = useMemo(() => rank(candidates, query), [candidates, query]);
+  const parsed = useMemo(() => parseCommandQuery(query), [query]);
 
-  // Reset on open rather than on close: resetting on close is visible as the list
-  // flickering back to its unfiltered state during the dismissal animation.
+  const rows = useMemo((): Row[] => {
+    if (!open) return [];
+    const out: Row[] = [];
+    const showCommands = parsed.scope === 'command' || parsed.scope === 'mixed';
+    const showIssues =
+      parsed.scope === 'issue' || (parsed.scope === 'mixed' && parsed.needle !== '');
+    const showUsers = parsed.scope === 'user';
+
+    if (showCommands) {
+      for (const action of rankActions(candidates, parsed.needle)) {
+        out.push({ kind: 'action', id: action.id, group: action.group ?? 'Commands', action });
+      }
+    }
+    if (showIssues) {
+      for (const hit of matchIssues(engine.store, parsed.needle)) {
+        out.push({ kind: 'entity', id: `issue:${hit.id}`, group: 'Issues', hit });
+      }
+    }
+    if (showUsers) {
+      for (const hit of matchUsers(engine.store, parsed.needle)) {
+        out.push({ kind: 'entity', id: `user:${hit.id}`, group: 'People', hit });
+      }
+    }
+    return out;
+  }, [open, candidates, parsed, engine.store]);
+
   useEffect(() => {
     if (!open) return;
     setQuery('');
@@ -45,30 +84,28 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   }, [query]);
 
   const run = useCallback(
-    (action: Action) => {
+    (row: Row) => {
       onClose();
-      // After the menu is gone, so an action that opens a modal is not fighting the
-      // menu's own focus restoration for the same frame.
       queueMicrotask(() => {
-        void registry.invoke(action.id, { source: 'menu', context });
+        if (row.kind === 'action') {
+          void registry.invoke(row.action.id, { source: 'menu', context });
+        } else {
+          void navigate(row.hit.href);
+        }
       });
     },
-    [onClose, registry, context],
+    [onClose, registry, context, navigate],
   );
 
-  // Arrow keys, Enter and Escape are handled here rather than through the registry
-  // because they are the menu's own internal navigation, exactly as with Menu and Modal.
-  // Registering them as actions would mean the menu's list navigation competed with the
-  // list underneath it.
   const onInputKeyDown = (event: React.KeyboardEvent) => {
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault();
-        setActive((i) => (results.length === 0 ? 0 : (i + 1) % results.length));
+        setActive((i) => (rows.length === 0 ? 0 : (i + 1) % rows.length));
         break;
       case 'ArrowUp':
         event.preventDefault();
-        setActive((i) => (results.length === 0 ? 0 : (i - 1 + results.length) % results.length));
+        setActive((i) => (rows.length === 0 ? 0 : (i - 1 + rows.length) % rows.length));
         break;
       case 'Home':
         event.preventDefault();
@@ -76,11 +113,11 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
         break;
       case 'End':
         event.preventDefault();
-        setActive(Math.max(0, results.length - 1));
+        setActive(Math.max(0, rows.length - 1));
         break;
       case 'Enter': {
         event.preventDefault();
-        const chosen = results[active];
+        const chosen = rows[active];
         if (chosen) run(chosen);
         break;
       }
@@ -98,6 +135,8 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
 
   if (!open) return null;
 
+  const activeRow = rows[active];
+
   return (
     <div className={styles.backdrop} onMouseDown={onClose}>
       <div
@@ -113,10 +152,10 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onInputKeyDown}
-          placeholder="Search commands…"
+          placeholder="Type > commands, # issues, @ people…"
           aria-label="Search commands"
           aria-controls="command-menu-results"
-          aria-activedescendant={results[active] ? `command-${results[active].id}` : undefined}
+          aria-activedescendant={activeRow ? `command-${activeRow.id}` : undefined}
           role="combobox"
           aria-expanded="true"
           autoComplete="off"
@@ -124,34 +163,38 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
         />
 
         <ul className={styles.results} id="command-menu-results" role="listbox" ref={listRef}>
-          {results.length === 0 && (
+          {rows.length === 0 && (
             <li className={styles.empty} role="presentation">
               <span className={styles.emptyTitle}>No matching command</span>
-              <span className={styles.emptyHint}>Try a different search, or press Esc</span>
+              <span className={styles.emptyHint}>
+                Try &gt; for commands, # for issues, @ for people, or press Esc
+              </span>
             </li>
           )}
-          {grouped(results).flatMap((section) => {
+          {grouped(rows).flatMap((section) => {
             const header = (
               <li key={`group-${section.group}`} className={styles.groupHeader} role="presentation">
                 {section.group}
               </li>
             );
-            const items = section.actions.map((action) => {
-              const i = results.indexOf(action);
+            const items = section.rows.map((row) => {
+              const i = rows.indexOf(row);
               return (
                 <li
-                  key={action.id}
-                  id={`command-${action.id}`}
+                  key={row.id}
+                  id={`command-${row.id}`}
                   role="option"
                   aria-selected={i === active}
                   data-active={i === active}
                   className={styles.item}
                   onMouseEnter={() => setActive(i)}
-                  onClick={() => run(action)}
+                  onClick={() => run(row)}
                 >
-                  <span className={styles.title}>{action.title}</span>
-                  {action.keys?.[0] && (
-                    <kbd className={styles.keys}>{formatKeySpec(action.keys[0], platform())}</kbd>
+                  <span className={styles.title}>
+                    {row.kind === 'action' ? row.action.title : row.hit.title}
+                  </span>
+                  {row.kind === 'action' && row.action.keys?.[0] && (
+                    <kbd className={styles.keys}>{formatKeySpec(row.action.keys[0], platform())}</kbd>
                   )}
                 </li>
               );
@@ -164,73 +207,16 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   );
 }
 
-/**
- * The keymap's platform naming, derived from the runtime shim's.
- *
- * They are separate vocabularies on purpose: the shim answers "which OS is this" for
- * badges, notifications and update channels, while the keymap only cares whether the
- * command modifier renders as ⌘ or Ctrl. Collapsing them would put an OS check inside the
- * matcher, which is pure logic and deliberately DOM- and platform-free.
- */
-function grouped(actions: readonly Action[]): { group: string; actions: Action[] }[] {
-  const sections: { group: string; actions: Action[] }[] = [];
-  for (const action of actions) {
-    const name = action.group ?? 'Commands';
+function grouped(rows: readonly Row[]): { group: string; rows: Row[] }[] {
+  const sections: { group: string; rows: Row[] }[] = [];
+  for (const row of rows) {
     const last = sections[sections.length - 1];
-    if (last !== undefined && last.group === name) last.actions.push(action);
-    else sections.push({ group: name, actions: [action] });
+    if (last !== undefined && last.group === row.group) last.rows.push(row);
+    else sections.push({ group: row.group, rows: [row] });
   }
   return sections;
 }
 
 function platform(): Platform {
   return os === 'mac' ? 'mac' : 'other';
-}
-
-/**
- * Ranks actions against the query.
- *
- * Subsequence matching, not substring: "cri" should find "Create issue", because that is
- * how people actually type into one of these. Scoring prefers matches that start a word,
- * so "issue" surfaces "Issue: change status" above "Archive issue" — the thing named by
- * the query rather than the thing that merely mentions it.
- */
-function rank(actions: readonly Action[], query: string): Action[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return [...actions];
-
-  const scored: Array<{ action: Action; score: number }> = [];
-  for (const action of actions) {
-    const haystack = `${action.group} ${action.title}`.toLowerCase();
-    const score = subsequenceScore(haystack, needle);
-    if (score !== null) scored.push({ action, score });
-  }
-
-  scored.sort((a, b) => b.score - a.score || a.action.title.localeCompare(b.action.title));
-  return scored.map((s) => s.action);
-}
-
-function subsequenceScore(haystack: string, needle: string): number | null {
-  let score = 0;
-  let h = 0;
-
-  for (const ch of needle) {
-    let found = -1;
-    for (let i = h; i < haystack.length; i++) {
-      if (haystack[i] === ch) {
-        found = i;
-        break;
-      }
-    }
-    if (found === -1) return null;
-
-    // A character that begins a word is worth far more than one in the middle, which is
-    // what makes an acronym-ish query land on the command the user meant.
-    const atWordStart = found === 0 || haystack[found - 1] === ' ';
-    score += atWordStart ? 10 : 1;
-    // Adjacency keeps a literal substring ahead of a scattered subsequence.
-    if (found === h) score += 5;
-    h = found + 1;
-  }
-  return score;
 }
