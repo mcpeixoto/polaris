@@ -65,8 +65,30 @@ export interface EngineOptions {
   onStatus?(status: EngineStatus): void;
 }
 
-/** How many times a queued mutation is retried before it is treated as poison. */
+/**
+ * How many times the server may fail a queued mutation before it is treated as poison.
+ *
+ * It counts answers, not tries. A send that never reached the server is not an attempt at
+ * all — the op was not judged, so nothing was learned about it — and counting one was how
+ * this ceiling came to delete the user's oldest unsent edit after about half a minute
+ * offline: every rejection already rolls its op back on the spot, so the only thing that
+ * could ever reach five was a queue nobody could send. The ceiling exists for the op the
+ * server keeps failing, which is the one that would otherwise block everything behind it
+ * forever, silently.
+ */
 const MAX_ATTEMPTS = 5;
+
+/**
+ * Whether a failure the server *answered* with is worth queueing behind.
+ *
+ * A rate limit or a server fault says nothing about the mutation — the same op sent a
+ * minute later may well be accepted — so discarding it would throw away work over a blip.
+ * Everything else (validation, permission, conflict, plan limit) is a decision about this
+ * op specifically, and repeating it would only produce the same refusal.
+ */
+function isRetriable(err: unknown): boolean {
+  return err instanceof ApiError && (err.code === 'RATELIMITED' || err.code === 'INTERNAL');
+}
 
 export class SyncEngine {
   store!: Store;
@@ -188,10 +210,11 @@ export class SyncEngine {
       this.publishStatus();
       return data;
     } catch (err) {
-      if (err instanceof ApiError && err.isOffline) {
-        // The request never reached the server, so the mutation may still happen. Keep it
-        // queued and keep the optimistic state on screen — rolling back here is what makes
-        // an app feel like it "lost" an edit the moment a lift doors close.
+      if (err instanceof ApiError && (err.isOffline || isRetriable(err))) {
+        // Either the request never reached the server, or it reached one that was too
+        // busy to take it. In both cases the mutation may still happen, so keep it queued
+        // and keep the optimistic state on screen — rolling back here is what makes an app
+        // feel like it "lost" an edit the moment a lift's doors close.
         this.publishStatus();
         void this.scheduleDrain();
         throw err;
@@ -219,9 +242,10 @@ export class SyncEngine {
       // precisely so this ordering is available.
       for (const record of this.outbox.pending()) {
         if (record.attempts >= MAX_ATTEMPTS) {
-          // Poison: something about this op will never succeed. Dropping it loses the
-          // edit, which is bad — but retrying it forever blocks every op behind it, which
-          // is worse, and silently. The rollback at least makes the loss visible.
+          // Poison: the server has answered this op five times and failed it every time,
+          // across however many sessions. Dropping it loses the edit, which is bad — but
+          // retrying it forever blocks every op behind it, which is worse, and silently.
+          // The rollback at least makes the loss visible.
           const patch = await this.outbox.rollback(record.opId);
           if (patch) this.store.revertOptimistic(patch);
           console.error('[sync] dropping a mutation after repeated failures', record.opId);
@@ -229,7 +253,6 @@ export class SyncEngine {
         }
 
         if (!this.outbox.markInFlight(record.opId)) continue;
-        await this.outbox.markAttempt(record.opId);
 
         try {
           // The same opId as the first attempt, which is what makes the server's
@@ -242,9 +265,22 @@ export class SyncEngine {
           await this.outbox.resolve(record.opId);
         } catch (err) {
           if (err instanceof ApiError && err.isOffline) {
-            // Still offline. Stop rather than burning attempts on every queued op.
+            // Still offline. Release the claim without counting an attempt and stop:
+            // nothing about this op was judged, so a try that never left the machine
+            // must not move it closer to being discarded.
+            this.outbox.release(record.opId);
             break;
           }
+
+          // The server answered. A refusal is final, but a rate limit or a server fault
+          // is not: those keep their place in the queue and are counted, which is what
+          // the attempt ceiling is for.
+          const attempts = await this.outbox.markAttempt(record.opId);
+          if (isRetriable(err) && attempts < MAX_ATTEMPTS) {
+            void this.scheduleDrain();
+            break;
+          }
+
           const patch = await this.outbox.rollback(record.opId);
           if (patch) this.store.revertOptimistic(patch);
         }
