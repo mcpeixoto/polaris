@@ -84,6 +84,14 @@ export interface Workspace {
   readonly pulseEnabled: boolean;
   /** Inbox digest cadence. Summaries land around 06:00 in each member's timezone. */
   readonly pulseDigestCadence: 'off' | 'daily' | 'weekly';
+  /** When false, customer pages and request writes are off. */
+  readonly customerRequestsEnabled: boolean;
+  /** Public team issues from a customer page should land in. */
+  readonly customerDefaultTeamId?: UUID;
+  /** Label for the revenue number, e.g. USD or seats. */
+  readonly customerRevenueUnit: string;
+  /** Named plans shown when attributing a customer. */
+  readonly customerTiers: readonly string[];
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
   readonly archivedAt?: Timestamp;

@@ -1181,7 +1181,9 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v46 adds pulseFeed (personal named subsets of the Pulse stream).
 // v47 adds slackConnection.asksEnabled (Slack Asks intake from /asks and 🎫).
 // v48 adds initiativeUpdate (health plus narrative status posts on initiatives).
-const ClientSchemaVersion = 48
+// v49 adds workspace.customerRequestsEnabled / customerDefaultTeamId /
+// customerRevenueUnit / customerTiers.
+const ClientSchemaVersion = 49
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

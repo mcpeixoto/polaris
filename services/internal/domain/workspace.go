@@ -269,6 +269,13 @@ type UpdateWorkspaceInput struct {
 	ProjectUpdateReminderHour         *int
 	PulseEnabled                      *bool
 	PulseDigestCadence                *string
+
+	CustomerRequestsEnabled  *bool
+	CustomerDefaultTeamID    *uuid.UUID
+	ClearCustomerDefaultTeam bool
+	CustomerRevenueUnit      *string
+	CustomerTiers            []string
+	SetCustomerTiers         bool
 }
 
 func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in UpdateWorkspaceInput) (model.Workspace, int64, error) {
@@ -292,10 +299,30 @@ func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in Up
 	if err := validatePulseDigestCadence(in.PulseDigestCadence); err != nil {
 		return model.Workspace{}, 0, err
 	}
+	if in.CustomerRevenueUnit != nil {
+		unit, err := normalizeRevenueUnit(*in.CustomerRevenueUnit)
+		if err != nil {
+			return model.Workspace{}, 0, err
+		}
+		in.CustomerRevenueUnit = &unit
+	}
+	var tiers []string
+	if in.SetCustomerTiers {
+		normalized, err := normalizeCustomerTiers(in.CustomerTiers)
+		if err != nil {
+			return model.Workspace{}, 0, err
+		}
+		tiers = normalized
+	}
 
 	var out model.Workspace
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		if in.CustomerDefaultTeamID != nil && !in.ClearCustomerDefaultTeam {
+			if err := requirePublicFeedbackTeam(ctx, q, p, *in.CustomerDefaultTeamID); err != nil {
+				return err
+			}
+		}
 		row, err := q.UpdateWorkspace(ctx, store.UpdateWorkspaceParams{
 			ID:                                p.WorkspaceID,
 			Name:                              in.Name,
@@ -305,6 +332,12 @@ func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in Up
 			ProjectUpdateReminderHour:         int16PtrFromInt(in.ProjectUpdateReminderHour),
 			PulseEnabled:                      in.PulseEnabled,
 			PulseDigestCadence:                in.PulseDigestCadence,
+			CustomerRequestsEnabled:           in.CustomerRequestsEnabled,
+			CustomerDefaultTeamID:             in.CustomerDefaultTeamID,
+			ClearCustomerDefaultTeam:          in.ClearCustomerDefaultTeam,
+			CustomerRevenueUnit:               in.CustomerRevenueUnit,
+			SetCustomerTiers:                  in.SetCustomerTiers,
+			CustomerTiers:                     tiers,
 		})
 		if err != nil {
 			if store.IsNotFound(err) {
@@ -359,6 +392,66 @@ func SuggestURLKey(name string) string {
 		return ""
 	}
 	return key
+}
+
+const (
+	maxCustomerTiers       = 32
+	maxCustomerTierName    = 64
+	maxCustomerRevenueUnit = 32
+)
+
+func normalizeRevenueUnit(raw string) (string, error) {
+	unit := strings.TrimSpace(raw)
+	if len(unit) > maxCustomerRevenueUnit {
+		return "", platform.Validation("customerRevenueUnit", "revenue unit is too long")
+	}
+	return unit, nil
+}
+
+func normalizeCustomerTiers(raw []string) ([]string, error) {
+	if len(raw) > maxCustomerTiers {
+		return nil, platform.Validation("customerTiers", "at most 32 tiers")
+	}
+	seen := make(map[string]struct{}, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		name := strings.TrimSpace(item)
+		if name == "" {
+			continue
+		}
+		if len(name) > maxCustomerTierName {
+			return nil, platform.Validation("customerTiers", "a tier name is too long")
+		}
+		key := strings.ToLower(name)
+		if _, ok := seen[key]; ok {
+			return nil, platform.Validation("customerTiers", "tier names must be unique")
+		}
+		seen[key] = struct{}{}
+		out = append(out, name)
+	}
+	return out, nil
+}
+
+func requirePublicFeedbackTeam(
+	ctx context.Context, q *store.Queries, p *authz.Principal, teamID uuid.UUID,
+) error {
+	team, err := q.GetTeam(ctx, teamID)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return platform.NotFound("team")
+		}
+		return platform.Internal(err)
+	}
+	if team.WorkspaceID != p.WorkspaceID {
+		return platform.NotFound("team")
+	}
+	if team.DeletedAt != nil || team.ArchivedAt != nil || team.RetiredAt != nil {
+		return platform.NotFound("team")
+	}
+	if team.Private {
+		return platform.Validation("customerDefaultTeamId", "customer requests can only default to a public team")
+	}
+	return nil
 }
 
 // SuggestTeamKey derives an initial team key from a name, falling back to the workspace

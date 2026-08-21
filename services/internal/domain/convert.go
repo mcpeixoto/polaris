@@ -29,6 +29,10 @@ func toWorkspace(w store.Workspace) model.Workspace {
 		ProjectUpdateReminderHour:         int(w.ProjectUpdateReminderHour),
 		PulseEnabled:                      w.PulseEnabled,
 		PulseDigestCadence:                w.PulseDigestCadence,
+		CustomerRequestsEnabled:           w.CustomerRequestsEnabled,
+		CustomerDefaultTeamID:             w.CustomerDefaultTeamID,
+		CustomerRevenueUnit:               w.CustomerRevenueUnit,
+		CustomerTiers:                     customerTiers(w.CustomerTiers),
 		CreatedAt:                         w.CreatedAt,
 		UpdatedAt:                         w.UpdatedAt,
 		ArchivedAt:                        w.ArchivedAt,
@@ -336,4 +340,11 @@ func teamKeys(ctx context.Context, q *store.Queries, workspaceID uuid.UUID) (map
 		keys[t.ID] = t.Key
 	}
 	return keys, nil
+}
+
+func customerTiers(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }

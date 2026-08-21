@@ -117,7 +117,9 @@ RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
           plan_expires_at, seat_limit, plan_lapsed_at,
           project_update_reminder_interval_days, project_update_reminder_weekday,
-          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
+          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence,
+          customer_requests_enabled, customer_default_team_id, customer_revenue_unit,
+          customer_tiers
 `
 
 type CreateWorkspaceParams struct {
@@ -156,6 +158,10 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.ProjectUpdateReminderHour,
 		&i.PulseEnabled,
 		&i.PulseDigestCadence,
+		&i.CustomerRequestsEnabled,
+		&i.CustomerDefaultTeamID,
+		&i.CustomerRevenueUnit,
+		&i.CustomerTiers,
 	)
 	return i, err
 }
@@ -165,7 +171,9 @@ SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
        plan_expires_at, seat_limit, plan_lapsed_at,
        project_update_reminder_interval_days, project_update_reminder_weekday,
-       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
+       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence,
+       customer_requests_enabled, customer_default_team_id, customer_revenue_unit,
+       customer_tiers
 FROM workspace
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -192,6 +200,10 @@ func (q *Queries) GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, er
 		&i.ProjectUpdateReminderHour,
 		&i.PulseEnabled,
 		&i.PulseDigestCadence,
+		&i.CustomerRequestsEnabled,
+		&i.CustomerDefaultTeamID,
+		&i.CustomerRevenueUnit,
+		&i.CustomerTiers,
 	)
 	return i, err
 }
@@ -201,7 +213,9 @@ SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
        plan_expires_at, seat_limit, plan_lapsed_at,
        project_update_reminder_interval_days, project_update_reminder_weekday,
-       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
+       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence,
+       customer_requests_enabled, customer_default_team_id, customer_revenue_unit,
+       customer_tiers
 FROM workspace
 WHERE url_key = $1 AND deleted_at IS NULL
 `
@@ -228,6 +242,10 @@ func (q *Queries) GetWorkspaceByURLKey(ctx context.Context, urlKey string) (Work
 		&i.ProjectUpdateReminderHour,
 		&i.PulseEnabled,
 		&i.PulseDigestCadence,
+		&i.CustomerRequestsEnabled,
+		&i.CustomerDefaultTeamID,
+		&i.CustomerRevenueUnit,
+		&i.CustomerTiers,
 	)
 	return i, err
 }
@@ -357,13 +375,23 @@ SET name     = COALESCE($1, name),
     project_update_reminder_hour = COALESCE(
         $6, project_update_reminder_hour),
     pulse_enabled = COALESCE($7, pulse_enabled),
-    pulse_digest_cadence = COALESCE($8, pulse_digest_cadence)
-WHERE id = $9 AND deleted_at IS NULL
+    pulse_digest_cadence = COALESCE($8, pulse_digest_cadence),
+    customer_requests_enabled = COALESCE(
+        $9, customer_requests_enabled),
+    customer_default_team_id = CASE
+        WHEN $10::boolean THEN NULL
+        ELSE COALESCE($11, customer_default_team_id) END,
+    customer_revenue_unit = COALESCE($12, customer_revenue_unit),
+    customer_tiers = CASE WHEN $13::boolean THEN $14
+                          ELSE customer_tiers END
+WHERE id = $15 AND deleted_at IS NULL
 RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
           plan_expires_at, seat_limit, plan_lapsed_at,
           project_update_reminder_interval_days, project_update_reminder_weekday,
-          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
+          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence,
+          customer_requests_enabled, customer_default_team_id, customer_revenue_unit,
+          customer_tiers
 `
 
 type UpdateWorkspaceParams struct {
@@ -375,6 +403,12 @@ type UpdateWorkspaceParams struct {
 	ProjectUpdateReminderHour         *int16
 	PulseEnabled                      *bool
 	PulseDigestCadence                *string
+	CustomerRequestsEnabled           *bool
+	ClearCustomerDefaultTeam          bool
+	CustomerDefaultTeamID             *uuid.UUID
+	CustomerRevenueUnit               *string
+	SetCustomerTiers                  bool
+	CustomerTiers                     []string
 	ID                                uuid.UUID
 }
 
@@ -388,6 +422,12 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		arg.ProjectUpdateReminderHour,
 		arg.PulseEnabled,
 		arg.PulseDigestCadence,
+		arg.CustomerRequestsEnabled,
+		arg.ClearCustomerDefaultTeam,
+		arg.CustomerDefaultTeamID,
+		arg.CustomerRevenueUnit,
+		arg.SetCustomerTiers,
+		arg.CustomerTiers,
 		arg.ID,
 	)
 	var i Workspace
@@ -410,6 +450,10 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		&i.ProjectUpdateReminderHour,
 		&i.PulseEnabled,
 		&i.PulseDigestCadence,
+		&i.CustomerRequestsEnabled,
+		&i.CustomerDefaultTeamID,
+		&i.CustomerRevenueUnit,
+		&i.CustomerTiers,
 	)
 	return i, err
 }

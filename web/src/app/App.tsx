@@ -35,6 +35,7 @@ import { ExportSettings } from '~/views/ExportSettings';
 import { Inbox } from '~/views/Inbox';
 import { Pulse } from '~/views/Pulse';
 import { PulseSettings } from '~/views/PulseSettings';
+import { CustomerRequestSettings } from '~/views/CustomerRequestSettings';
 import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
 import { AdHocIssues } from '~/views/AdHocIssues';
@@ -223,6 +224,7 @@ function SignedInShell() {
         <Route path="/settings/project-statuses" element={<ProjectStatusSettings />} />
         <Route path="/settings/project-updates" element={<ProjectUpdateSettings />} />
         <Route path="/settings/pulse" element={<PulseSettings />} />
+        <Route path="/settings/customers" element={<CustomerRequestSettings />} />
         <Route path="/settings/slas" element={<SlaSettings />} />
         <Route path="/settings/notifications" element={<NotificationSettings />} />
         <Route path="/settings/preferences" element={<Preferences />} />

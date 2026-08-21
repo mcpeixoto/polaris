@@ -2534,6 +2534,11 @@ type UpdateWorkspaceInput struct {
 	ProjectUpdateReminderHour         *int                `json:"projectUpdateReminderHour,omitempty"`
 	PulseEnabled                      *bool               `json:"pulseEnabled,omitempty"`
 	PulseDigestCadence                *PulseDigestCadence `json:"pulseDigestCadence,omitempty"`
+	CustomerRequestsEnabled           *bool               `json:"customerRequestsEnabled,omitempty"`
+	CustomerDefaultTeamID             *uuid.UUID          `json:"customerDefaultTeamId,omitempty"`
+	ClearCustomerDefaultTeam          *bool               `json:"clearCustomerDefaultTeam,omitempty"`
+	CustomerRevenueUnit               *string             `json:"customerRevenueUnit,omitempty"`
+	CustomerTiers                     []string            `json:"customerTiers,omitempty"`
 }
 
 type User struct {
@@ -2756,12 +2761,20 @@ type Workspace struct {
 	PulseEnabled bool `json:"pulseEnabled"`
 	// Default inbox digest cadence. Summaries land around 06:00 in each member's timezone.
 	PulseDigestCadence PulseDigestCadence `json:"pulseDigestCadence"`
-	CreatedAt          time.Time          `json:"createdAt"`
-	UpdatedAt          time.Time          `json:"updatedAt"`
-	ArchivedAt         *time.Time         `json:"archivedAt,omitempty"`
-	Teams              []Team             `json:"teams"`
-	Users              []User             `json:"users"`
-	Labels             []Label            `json:"labels"`
+	// When false, customer pages and request writes are off.
+	CustomerRequestsEnabled bool `json:"customerRequestsEnabled"`
+	// Public team issues created from a customer page should land in. Null means the creator picks.
+	CustomerDefaultTeamID *uuid.UUID `json:"customerDefaultTeamId,omitempty"`
+	// Label for the revenue number, e.g. USD or seats.
+	CustomerRevenueUnit string `json:"customerRevenueUnit"`
+	// Named plans shown when attributing a customer. customer.tier matches one of these.
+	CustomerTiers []string   `json:"customerTiers"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
+	ArchivedAt    *time.Time `json:"archivedAt,omitempty"`
+	Teams         []Team     `json:"teams"`
+	Users         []User     `json:"users"`
+	Labels        []Label    `json:"labels"`
 	// What this workspace's plan permits, resolved by one service rather than scattered plan checks.
 	Entitlements *Entitlements `json:"entitlements"`
 }

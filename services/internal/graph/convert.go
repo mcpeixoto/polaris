@@ -37,10 +37,21 @@ func toWorkspace(w model.Workspace) generated.Workspace {
 		ProjectUpdateReminderHour:         w.ProjectUpdateReminderHour,
 		PulseEnabled:                      w.PulseEnabled,
 		PulseDigestCadence:                toPulseDigestCadence(w.PulseDigestCadence),
+		CustomerRequestsEnabled:           w.CustomerRequestsEnabled,
+		CustomerDefaultTeamID:             w.CustomerDefaultTeamID,
+		CustomerRevenueUnit:               w.CustomerRevenueUnit,
+		CustomerTiers:                     customerTiers(w.CustomerTiers),
 		CreatedAt:                         w.CreatedAt,
 		UpdatedAt:                         w.UpdatedAt,
 		ArchivedAt:                        w.ArchivedAt,
 	}
+}
+
+func customerTiers(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
 
 func toUser(u model.User) (generated.User, error) {
