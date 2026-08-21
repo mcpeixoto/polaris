@@ -32,13 +32,14 @@ import {
   removeFavorite,
   renameFavoriteFolder,
 } from '~/features/view/mutations';
-import type { Favorite, Store, Team, UUID, View } from '~/store';
+import type { Document, Favorite, Store, Team, UUID, View } from '~/store';
 
 import { useWorkspaceSession } from './Boot';
 import { useEngine, useQuery, useSyncStatus } from './context';
 import { useActions } from './keymap';
 import { CommandMenu } from './CommandMenu';
 import { HelpOverlay } from './HelpOverlay';
+import { pathToActiveIssues, pathToBacklogIssues } from './teamIssuePaths';
 import styles from './AppShell.module.css';
 
 export interface AppShellProps {
@@ -91,6 +92,10 @@ export function AppShell({
   const issueMenu = useMenuTrigger();
   const projectMenu = useMenuTrigger();
   const teamMenu = useMenuTrigger();
+  const viewMenu = useMenuTrigger();
+  const documentMenu = useMenuTrigger();
+  const favoriteMenu = useMenuTrigger();
+  const customerMenu = useMenuTrigger();
   const onProjects =
     pathname === '/projects' ||
     pathname.startsWith('/project/') ||
@@ -156,6 +161,32 @@ export function AppShell({
     ['project'],
     [],
   );
+  const gotoViews = useLiveQuery(
+    (store: Store) => (viewerId === null ? [] : jumpViews(store, viewerId)),
+    ['view'],
+    [viewerId],
+  );
+  const gotoDocuments = useLiveQuery(
+    (store: Store) =>
+      [...store.documents.values()]
+        .filter((doc) => doc.archivedAt === undefined && doc.deletedAt === undefined)
+        .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id)),
+    ['document'],
+    [],
+  );
+  const gotoFavorites = useLiveQuery(
+    (store: Store) => (viewerId === null ? [] : flattenFavorites(favoriteNav(store, viewerId))),
+    ['favorite', 'view', 'team', 'issue', 'label'],
+    [viewerId],
+  );
+  const gotoCustomers = useLiveQuery(
+    (store: Store) =>
+      [...store.customers.values()]
+        .filter((customer) => customer.archivedAt === undefined && customer.deletedAt === undefined)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    ['customer'],
+    [],
+  );
 
   const closeAll = useCallback(() => {
     setCommandOpen(false);
@@ -194,7 +225,7 @@ export function AppShell({
       {
         id: 'app.help',
         title: 'Keyboard shortcuts',
-        keys: ['?'],
+        keys: ['?', 'mod+slash'],
         group: 'General',
         run: () => setHelpOpen(true),
       },
@@ -334,6 +365,38 @@ export function AppShell({
         run: () => teamMenu.show(),
       },
       {
+        id: 'nav.openView',
+        title: 'Open view',
+        keys: ['o v'],
+        group: 'Navigation',
+        run: () => viewMenu.show(),
+      },
+      {
+        id: 'nav.openDocument',
+        title: 'Open document',
+        keys: ['o d'],
+        group: 'Navigation',
+        run: () => documentMenu.show(),
+      },
+      {
+        id: 'nav.openFavorite',
+        title: 'Open favourite',
+        keys: ['o f'],
+        group: 'Navigation',
+        run: () => favoriteMenu.show(),
+      },
+      ...(showCustomers
+        ? [
+            {
+              id: 'nav.openCustomer',
+              title: 'Open customer',
+              keys: ['o q'],
+              group: 'Navigation',
+              run: () => customerMenu.show(),
+            },
+          ]
+        : []),
+      {
         id: 'nav.settings',
         title: 'Go to workspace settings',
         keys: ['g s'],
@@ -381,6 +444,20 @@ export function AppShell({
         keys: ['g p'],
         group: 'Navigation',
         run: () => navigate('/projects'),
+      },
+      {
+        id: 'nav.active',
+        title: 'Go to Active issues',
+        keys: ['g a'],
+        group: 'Navigation',
+        run: () => navigate(pathToActiveIssues(engine.store, pathname)),
+      },
+      {
+        id: 'nav.backlog',
+        title: 'Go to Backlog',
+        keys: ['g b'],
+        group: 'Navigation',
+        run: () => navigate(pathToBacklogIssues(engine.store, pathname)),
       },
       {
         id: 'nav.initiatives',
@@ -450,9 +527,15 @@ export function AppShell({
       issueMenu.show,
       projectMenu.show,
       teamMenu.show,
+      viewMenu.show,
+      documentMenu.show,
+      favoriteMenu.show,
+      customerMenu.show,
       showCustomers,
       showDashboards,
       showPulse,
+      engine,
+      pathname,
     ],
   );
 
@@ -575,6 +658,78 @@ export function AppShell({
                 onSelect: () => navigate(`/team/${team.key}`),
               }))}
             />
+            <button type="button" className={styles.gotoTrigger} {...viewMenu.props}>
+              Open view
+            </button>
+            <Menu
+              open={viewMenu.open}
+              onClose={viewMenu.hide}
+              trigger={viewMenu.ref}
+              label="Views"
+              filterable={gotoViews.length > 8}
+              filterPlaceholder="Filter views"
+              emptyLabel="No views yet"
+              items={gotoViews.map((view) => ({
+                id: view.id,
+                label: view.name,
+                onSelect: () => navigate(viewPath(view)),
+              }))}
+            />
+            <button type="button" className={styles.gotoTrigger} {...documentMenu.props}>
+              Open document
+            </button>
+            <Menu
+              open={documentMenu.open}
+              onClose={documentMenu.hide}
+              trigger={documentMenu.ref}
+              label="Documents"
+              filterable={gotoDocuments.length > 8}
+              filterPlaceholder="Filter documents"
+              emptyLabel="No documents yet"
+              items={gotoDocuments.map((doc: Document) => ({
+                id: doc.id,
+                label: doc.title === '' ? 'Untitled' : doc.title,
+                onSelect: () => navigate(`/document/${doc.id}`),
+              }))}
+            />
+            <button type="button" className={styles.gotoTrigger} {...favoriteMenu.props}>
+              Open favourite
+            </button>
+            <Menu
+              open={favoriteMenu.open}
+              onClose={favoriteMenu.hide}
+              trigger={favoriteMenu.ref}
+              label="Favourites"
+              filterable={gotoFavorites.length > 8}
+              filterPlaceholder="Filter favourites"
+              emptyLabel="No favourites yet"
+              items={gotoFavorites.map((item) => ({
+                id: item.id,
+                label: item.prefix === null ? item.label : `${item.prefix} ${item.label}`,
+                onSelect: () => navigate(item.to),
+              }))}
+            />
+            {showCustomers ? (
+              <>
+                <button type="button" className={styles.gotoTrigger} {...customerMenu.props}>
+                  Open customer
+                </button>
+                <Menu
+                  open={customerMenu.open}
+                  onClose={customerMenu.hide}
+                  trigger={customerMenu.ref}
+                  label="Customers"
+                  filterable={gotoCustomers.length > 8}
+                  filterPlaceholder="Filter customers"
+                  emptyLabel="No customers yet"
+                  items={gotoCustomers.map((customer) => ({
+                    id: customer.id,
+                    label: customer.name,
+                    onSelect: () => navigate(`/customer/${customer.id}`),
+                  }))}
+                />
+              </>
+            ) : null}
           </div>
 
           <div className={styles.section}>
@@ -1413,6 +1568,28 @@ function favoriteLink(store: Store, favorite: Favorite): FavoriteLink | null {
  * sidebar make somebody check whether they go to the same place, and favouriting something
  * should move it rather than duplicate it.
  */
+function flattenFavorites(nav: FavoriteNav): FavoriteLink[] {
+  return [...nav.unfiled, ...nav.folders.flatMap((folder) => [...folder.items])];
+}
+
+/**
+ * Views the jump picker offers, including ones already favourited.
+ *
+ * The sidebar hides a favourited view from the Views section so it is not listed twice.
+ * `O V` is a jump, not a section: hiding the row there would mean the picker could not
+ * reach a view the person uses every day.
+ */
+function jumpViews(store: Store, userId: UUID): readonly View[] {
+  return [...store.views.values()]
+    .filter(
+      (view) =>
+        view.archivedAt === undefined &&
+        view.projectId === undefined &&
+        (view.ownerId === undefined || view.ownerId === userId),
+    )
+    .sort((a, b) => a.position.localeCompare(b.position) || a.name.localeCompare(b.name));
+}
+
 function visibleViews(store: Store, userId: UUID): readonly View[] {
   const favourited = new Set<UUID>();
   for (const favorite of store.favorites.values()) {
