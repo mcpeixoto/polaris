@@ -120,6 +120,17 @@ type ComplexityRoot struct {
 		Version    func(childComplexity int) int
 	}
 
+	AuthorisedOauthApp struct {
+		ClientID   func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		Developer  func(childComplexity int) int
+		ID         func(childComplexity int) int
+		ImageURL   func(childComplexity int) int
+		LastUsedAt func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Scopes     func(childComplexity int) int
+	}
+
 	BulkIssuePayload struct {
 		Issues  func(childComplexity int) int
 		Skipped func(childComplexity int) int
@@ -975,6 +986,7 @@ type ComplexityRoot struct {
 		DeleteWebhook                  func(childComplexity int, id uuid.UUID) int
 		EnsureCycleCalendarFeed        func(childComplexity int, teamID uuid.UUID) int
 		InviteToWorkspace              func(childComplexity int, input InviteInput) int
+		LeaveWorkspace                 func(childComplexity int) int
 		LinkGitHubPullRequest          func(childComplexity int, input LinkGitHubPullRequestInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		LinkGitLabMergeRequest         func(childComplexity int, input LinkGitLabMergeRequestInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		LinkSentryIssue                func(childComplexity int, input LinkSentryIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -1004,6 +1016,7 @@ type ComplexityRoot struct {
 		RetireTeam                     func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RevokeAPIKey                   func(childComplexity int, id uuid.UUID) int
 		RevokeAccountSession           func(childComplexity int, id uuid.UUID) int
+		RevokeAuthorisedOauthApp       func(childComplexity int, id uuid.UUID) int
 		RevokeInvite                   func(childComplexity int, id uuid.UUID) int
 		RevokeOtherSessions            func(childComplexity int) int
 		RotateCycleCalendarFeed        func(childComplexity int, teamID uuid.UUID) int
@@ -1434,6 +1447,7 @@ type ComplexityRoot struct {
 		ArchivedIssues               func(childComplexity int, teamID uuid.UUID) int
 		ArchivedProjects             func(childComplexity int, teamID uuid.UUID) int
 		AttachmentsForURL            func(childComplexity int, url string) int
+		AuthorisedOauthApps          func(childComplexity int) int
 		Comments                     func(childComplexity int, issueID uuid.UUID) int
 		Customer                     func(childComplexity int, id uuid.UUID) int
 		CustomerRequest              func(childComplexity int, id uuid.UUID) int
@@ -1954,6 +1968,7 @@ type MutationResolver interface {
 	SetUserRole(ctx context.Context, userID uuid.UUID, role UserRole) (*UserPayload, error)
 	SuspendUser(ctx context.Context, userID uuid.UUID, suspended bool) (*UserPayload, error)
 	RemoveUser(ctx context.Context, userID uuid.UUID) (*DeletePayload, error)
+	LeaveWorkspace(ctx context.Context) (*DeletePayload, error)
 	UpdateNotificationPrefs(ctx context.Context, prefs json.RawMessage) (*UserPayload, error)
 	UpdateWorkspace(ctx context.Context, input UpdateWorkspaceInput) (*WorkspacePayload, error)
 	BulkUpdateIssues(ctx context.Context, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) (*BulkIssuePayload, error)
@@ -2055,6 +2070,7 @@ type MutationResolver interface {
 	RevokeAPIKey(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 	RevokeAccountSession(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 	RevokeOtherSessions(ctx context.Context) (*DeletePayload, error)
+	RevokeAuthorisedOauthApp(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 	CreateWebhook(ctx context.Context, input CreateWebhookInput) (*WebhookCreatePayload, error)
 	UpdateWebhook(ctx context.Context, input UpdateWebhookInput) (*WebhookPayload, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
@@ -2139,6 +2155,7 @@ type QueryResolver interface {
 	Search(ctx context.Context, input SearchInput) (*SearchResults, error)
 	APIKeys(ctx context.Context) ([]APIKey, error)
 	AccountSessions(ctx context.Context) ([]AccountSession, error)
+	AuthorisedOauthApps(ctx context.Context) ([]AuthorisedOauthApp, error)
 	Webhooks(ctx context.Context) ([]Webhook, error)
 	WebhookDeliveries(ctx context.Context, webhookID uuid.UUID, first *int) ([]WebhookDelivery, error)
 	OauthClients(ctx context.Context) ([]OauthClient, error)
@@ -2528,6 +2545,55 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AttachmentPayload.Version(childComplexity), true
+
+	case "AuthorisedOauthApp.clientId":
+		if e.ComplexityRoot.AuthorisedOauthApp.ClientID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuthorisedOauthApp.ClientID(childComplexity), true
+	case "AuthorisedOauthApp.createdAt":
+		if e.ComplexityRoot.AuthorisedOauthApp.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuthorisedOauthApp.CreatedAt(childComplexity), true
+	case "AuthorisedOauthApp.developer":
+		if e.ComplexityRoot.AuthorisedOauthApp.Developer == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuthorisedOauthApp.Developer(childComplexity), true
+	case "AuthorisedOauthApp.id":
+		if e.ComplexityRoot.AuthorisedOauthApp.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuthorisedOauthApp.ID(childComplexity), true
+	case "AuthorisedOauthApp.imageUrl":
+		if e.ComplexityRoot.AuthorisedOauthApp.ImageURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuthorisedOauthApp.ImageURL(childComplexity), true
+	case "AuthorisedOauthApp.lastUsedAt":
+		if e.ComplexityRoot.AuthorisedOauthApp.LastUsedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuthorisedOauthApp.LastUsedAt(childComplexity), true
+	case "AuthorisedOauthApp.name":
+		if e.ComplexityRoot.AuthorisedOauthApp.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuthorisedOauthApp.Name(childComplexity), true
+	case "AuthorisedOauthApp.scopes":
+		if e.ComplexityRoot.AuthorisedOauthApp.Scopes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuthorisedOauthApp.Scopes(childComplexity), true
 
 	case "BulkIssuePayload.issues":
 		if e.ComplexityRoot.BulkIssuePayload.Issues == nil {
@@ -6867,6 +6933,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.InviteToWorkspace(childComplexity, args["input"].(InviteInput)), true
+	case "Mutation.leaveWorkspace":
+		if e.ComplexityRoot.Mutation.LeaveWorkspace == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.LeaveWorkspace(childComplexity), true
 	case "Mutation.linkGitHubPullRequest":
 		if e.ComplexityRoot.Mutation.LinkGitHubPullRequest == nil {
 			break
@@ -7181,6 +7253,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeAccountSession(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.revokeAuthorisedOauthApp":
+		if e.ComplexityRoot.Mutation.RevokeAuthorisedOauthApp == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_revokeAuthorisedOauthApp_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RevokeAuthorisedOauthApp(childComplexity, args["id"].(uuid.UUID)), true
 	case "Mutation.revokeInvite":
 		if e.ComplexityRoot.Mutation.RevokeInvite == nil {
 			break
@@ -9441,6 +9524,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AttachmentsForURL(childComplexity, args["url"].(string)), true
+	case "Query.authorisedOauthApps":
+		if e.ComplexityRoot.Query.AuthorisedOauthApps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.AuthorisedOauthApps(childComplexity), true
 	case "Query.comments":
 		if e.ComplexityRoot.Query.Comments == nil {
 			break
@@ -12875,6 +12964,28 @@ type AccountSession {
   expiresAt: Time!
 }
 
+"""
+A third-party application this person has authorised in this workspace.
+
+Grouped by application: several live tokens for the same app are one row. Tokens
+and secrets are never on this type. Authorisations are not replicated — they belong
+to a person, and putting them in every device's IndexedDB would copy a credential
+inventory onto every laptop.
+"""
+type AuthorisedOauthApp {
+  """The OAuth application's id, not a token id."""
+  id: UUID!
+  name: String!
+  clientId: String!
+  imageUrl: String
+  developer: String
+  """The union of scopes still granted by live tokens."""
+  scopes: [String!]!
+  lastUsedAt: Time
+  """When this person first authorised the application."""
+  createdAt: Time!
+}
+
 type SearchResults {
   issues: [Issue!]!
   comments: [Comment!]!
@@ -15175,6 +15286,12 @@ type Query {
   """The caller's own live sessions. Never anybody else's, and never the tokens."""
   accountSessions: [AccountSession!]!
 
+  """
+  Third-party applications this person has authorised in this workspace. Never anybody
+  else's, and never the tokens.
+  """
+  authorisedOauthApps: [AuthorisedOauthApp!]!
+
   """Workspace webhooks. Admins only; the signing secret is never returned."""
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
@@ -15378,6 +15495,11 @@ type Mutation {
   setUserRole(userId: UUID!, role: UserRole!): UserPayload!
   suspendUser(userId: UUID!, suspended: Boolean!): UserPayload!
   removeUser(userId: UUID!): DeletePayload!
+  """
+  Leave this workspace. The last owner cannot: somebody has to remain who can invite,
+  change a role, or manage billing. Work stays attributed. Returns the caller's user id.
+  """
+  leaveWorkspace: DeletePayload!
   updateNotificationPrefs(prefs: JSON!): UserPayload!
 
   updateWorkspace(input: UpdateWorkspaceInput!): WorkspacePayload!
@@ -15573,6 +15695,11 @@ type Mutation {
   revokeAccountSession(id: UUID!): DeletePayload!
   """Revoke every other live session, keeping the one making this request. Returns that session's id."""
   revokeOtherSessions: DeletePayload!
+  """
+  Revoke every live token this person granted to one application in this workspace.
+  A foreign or already-revoked id is not-found. Returns the application id.
+  """
+  revokeAuthorisedOauthApp(id: UUID!): DeletePayload!
 
   """Returns the signing secret exactly once."""
   createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!
@@ -15794,6 +15921,28 @@ func (ec *executionContext) childFields_AttachmentPayload(ctx context.Context, f
 		return ec.fieldContext_AttachmentPayload_attachment(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AttachmentPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_AuthorisedOauthApp(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AuthorisedOauthApp_id(ctx, field)
+	case "name":
+		return ec.fieldContext_AuthorisedOauthApp_name(ctx, field)
+	case "clientId":
+		return ec.fieldContext_AuthorisedOauthApp_clientId(ctx, field)
+	case "imageUrl":
+		return ec.fieldContext_AuthorisedOauthApp_imageUrl(ctx, field)
+	case "developer":
+		return ec.fieldContext_AuthorisedOauthApp_developer(ctx, field)
+	case "scopes":
+		return ec.fieldContext_AuthorisedOauthApp_scopes(ctx, field)
+	case "lastUsedAt":
+		return ec.fieldContext_AuthorisedOauthApp_lastUsedAt(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_AuthorisedOauthApp_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AuthorisedOauthApp", field.Name)
 }
 
 func (ec *executionContext) childFields_BulkIssuePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -22208,6 +22357,20 @@ func (ec *executionContext) field_Mutation_revokeApiKey_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_revokeAuthorisedOauthApp_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_revokeInvite_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -25655,6 +25818,190 @@ func (ec *executionContext) fieldContext_AttachmentPayload_attachment(_ context.
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _AuthorisedOauthApp_id(ctx context.Context, field graphql.CollectedField, obj *AuthorisedOauthApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuthorisedOauthApp_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AuthorisedOauthApp_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuthorisedOauthApp", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _AuthorisedOauthApp_name(ctx context.Context, field graphql.CollectedField, obj *AuthorisedOauthApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuthorisedOauthApp_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AuthorisedOauthApp_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuthorisedOauthApp", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuthorisedOauthApp_clientId(ctx context.Context, field graphql.CollectedField, obj *AuthorisedOauthApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuthorisedOauthApp_clientId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AuthorisedOauthApp_clientId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuthorisedOauthApp", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuthorisedOauthApp_imageUrl(ctx context.Context, field graphql.CollectedField, obj *AuthorisedOauthApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuthorisedOauthApp_imageUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ImageURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuthorisedOauthApp_imageUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuthorisedOauthApp", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuthorisedOauthApp_developer(ctx context.Context, field graphql.CollectedField, obj *AuthorisedOauthApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuthorisedOauthApp_developer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Developer, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuthorisedOauthApp_developer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuthorisedOauthApp", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuthorisedOauthApp_scopes(ctx context.Context, field graphql.CollectedField, obj *AuthorisedOauthApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuthorisedOauthApp_scopes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scopes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AuthorisedOauthApp_scopes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuthorisedOauthApp", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuthorisedOauthApp_lastUsedAt(ctx context.Context, field graphql.CollectedField, obj *AuthorisedOauthApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuthorisedOauthApp_lastUsedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastUsedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuthorisedOauthApp_lastUsedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuthorisedOauthApp", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AuthorisedOauthApp_createdAt(ctx context.Context, field graphql.CollectedField, obj *AuthorisedOauthApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuthorisedOauthApp_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AuthorisedOauthApp_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuthorisedOauthApp", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _BulkIssuePayload_version(ctx context.Context, field graphql.CollectedField, obj *BulkIssuePayload) (ret graphql.Marshaler) {
@@ -42014,6 +42361,38 @@ func (ec *executionContext) fieldContext_Mutation_removeUser(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_leaveWorkspace(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_leaveWorkspace(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().LeaveWorkspace(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_leaveWorkspace(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_updateNotificationPrefs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -46781,6 +47160,50 @@ func (ec *executionContext) fieldContext_Mutation_revokeOtherSessions(_ context.
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_DeletePayload(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_revokeAuthorisedOauthApp(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_revokeAuthorisedOauthApp(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RevokeAuthorisedOauthApp(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_revokeAuthorisedOauthApp(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_revokeAuthorisedOauthApp_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -55877,6 +56300,38 @@ func (ec *executionContext) fieldContext_Query_accountSessions(_ context.Context
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AccountSession(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_authorisedOauthApps(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_authorisedOauthApps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().AuthorisedOauthApps(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []AuthorisedOauthApp) graphql.Marshaler {
+			return ec.marshalNAuthorisedOauthApp2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAuthorisedOauthAppᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_authorisedOauthApps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AuthorisedOauthApp(ctx, field)
 		},
 	}
 	return fc, nil
@@ -72386,6 +72841,79 @@ func (ec *executionContext) _AttachmentPayload(ctx context.Context, sel ast.Sele
 	return out
 }
 
+var authorisedOauthAppImplementors = []string{"AuthorisedOauthApp"}
+
+func (ec *executionContext) _AuthorisedOauthApp(ctx context.Context, sel ast.SelectionSet, obj *AuthorisedOauthApp) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, authorisedOauthAppImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AuthorisedOauthApp")
+		case "id":
+			out.Values[i] = ec._AuthorisedOauthApp_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AuthorisedOauthApp_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clientId":
+			out.Values[i] = ec._AuthorisedOauthApp_clientId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "imageUrl":
+			out.Values[i] = ec._AuthorisedOauthApp_imageUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "developer":
+			out.Values[i] = ec._AuthorisedOauthApp_developer(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "scopes":
+			out.Values[i] = ec._AuthorisedOauthApp_scopes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastUsedAt":
+			out.Values[i] = ec._AuthorisedOauthApp_lastUsedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._AuthorisedOauthApp_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var bulkIssuePayloadImplementors = []string{"BulkIssuePayload", "MutationResult"}
 
 func (ec *executionContext) _BulkIssuePayload(ctx context.Context, sel ast.SelectionSet, obj *BulkIssuePayload) graphql.Marshaler {
@@ -78028,6 +78556,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "leaveWorkspace":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_leaveWorkspace(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updateNotificationPrefs":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateNotificationPrefs(ctx, field)
@@ -78731,6 +79266,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "revokeOtherSessions":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_revokeOtherSessions(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revokeAuthorisedOauthApp":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_revokeAuthorisedOauthApp(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -82475,6 +83017,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_accountSessions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "authorisedOauthApps":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_authorisedOauthApps(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -86448,6 +87012,26 @@ func (ec *executionContext) marshalNAttachmentPayload2ᚖgithubᚗcomᚋpeixotol
 		return graphql.Null
 	}
 	return ec._AttachmentPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAuthorisedOauthApp2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAuthorisedOauthApp(ctx context.Context, sel ast.SelectionSet, v AuthorisedOauthApp) graphql.Marshaler {
+	return ec._AuthorisedOauthApp(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAuthorisedOauthApp2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAuthorisedOauthAppᚄ(ctx context.Context, sel ast.SelectionSet, v []AuthorisedOauthApp) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAuthorisedOauthApp2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAuthorisedOauthApp(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {

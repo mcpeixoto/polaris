@@ -901,6 +901,12 @@ type Querier interface {
 	// deleted is in neither, or the two replicas disagree about a chip nobody can open.
 	//
 	ListLiveIssueRelationsForIssue(ctx context.Context, issueID uuid.UUID) ([]IssueRelation, error)
+	// Live tokens this person granted in this workspace, excluding client-credentials
+	// (those authenticate as the app, not as a member who authorised it). Hashes stay
+	// off the SELECT list the same way they stay off every other listing: a settings
+	// screen that could show a token would be a settings screen that could steal one.
+	//
+	ListLiveOauthTokensForUser(ctx context.Context, arg ListLiveOauthTokensForUserParams) ([]ListLiveOauthTokensForUserRow, error)
 	ListMembershipsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]TeamMembership, error)
 	// ListMyIssues is everything assigned to the caller across every team they can see.
 	//
@@ -1207,6 +1213,7 @@ type Querier interface {
 	RevokeOauthTokenByAccessHash(ctx context.Context, accessTokenHash []byte) (uuid.UUID, error)
 	RevokeOauthTokenByRefreshHash(ctx context.Context, refreshTokenHash []byte) (uuid.UUID, error)
 	RevokeOauthTokensForApplication(ctx context.Context, applicationID uuid.UUID) (int64, error)
+	RevokeOauthTokensForUserApplication(ctx context.Context, arg RevokeOauthTokensForUserApplicationParams) (int64, error)
 	RevokeOtherSessionsForAccount(ctx context.Context, arg RevokeOtherSessionsForAccountParams) (int64, error)
 	// Re-inviting an address replaces the outstanding invite rather than accumulating rows,
 	// which is also what invite_workspace_email_pending_key enforces.

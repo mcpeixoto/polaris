@@ -43,6 +43,87 @@ func TestRemoveUser_RefusesToRemoveTheWorkspacesLastOwner(t *testing.T) {
 	}
 }
 
+func TestLeaveWorkspace_AMemberCanLeaveWithoutAskingAnAdmin(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	bob := f.NewUser(t, "bob", "member", true)
+	pBob := f.PrincipalFor(bob, authz.RoleMember, f.TeamID)
+
+	issue, _, err := svc.CreateIssue(ctx, pBob, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Bob's leftover",
+	})
+	if err != nil {
+		t.Fatalf("create issue: %v", err)
+	}
+
+	left, _, err := svc.LeaveWorkspace(ctx, pBob)
+	if err != nil {
+		t.Fatalf("leave: %v", err)
+	}
+	if left != bob {
+		t.Errorf("left = %s, want %s", left, bob)
+	}
+
+	row, err := db.Queries().GetUser(ctx, bob)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if row.ArchivedAt == nil || row.Status != "suspended" {
+		t.Errorf("status=%s archived=%v, want suspended and archived", row.Status, row.ArchivedAt)
+	}
+
+	after, err := svc.GetIssue(ctx, f.Principal(), issue.ID)
+	if err != nil {
+		t.Fatalf("get issue: %v", err)
+	}
+	if after.CreatorID == nil || *after.CreatorID != bob {
+		t.Errorf("creator = %v, want %s — leaving must not unattribute work", after.CreatorID, bob)
+	}
+
+	if row.AccountID == nil {
+		t.Fatal("a human member must have an account, or the switcher has nothing to query")
+	}
+	listed, err := svc.ListWorkspacesForAccount(ctx, *row.AccountID)
+	if err != nil {
+		t.Fatalf("list workspaces: %v", err)
+	}
+	for _, ws := range listed {
+		if ws.ID == f.WorkspaceID {
+			t.Fatal("the workspace they left must not appear in the switcher")
+		}
+	}
+}
+
+func TestLeaveWorkspace_TheLastOwnerCannot(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+
+	_, _, err := svc.LeaveWorkspace(context.Background(), f.Principal())
+	if code := platform.CodeOf(err); code != platform.CodeConflict {
+		t.Fatalf("code = %s, want %s (err = %v)", code, platform.CodeConflict, err)
+	}
+	if !strings.Contains(err.Error(), "last owner") {
+		t.Errorf("the refusal must say why: %v", err)
+	}
+}
+
+func TestLeaveWorkspace_AnAppUserCannot(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+
+	p := f.Principal()
+	p.ActorType = authz.ActorAppUser
+	_, _, err := svc.LeaveWorkspace(context.Background(), p)
+	if code := platform.CodeOf(err); code != platform.CodeForbidden {
+		t.Fatalf("code = %s, want %s (err = %v)", code, platform.CodeForbidden, err)
+	}
+}
+
 func TestRemoveUser_TakesTheirAccessAndLeavesTheirWork(t *testing.T) {
 	db := testutil.NewDB(t)
 	f := testutil.NewFixture(t, db)
