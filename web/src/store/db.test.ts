@@ -590,6 +590,19 @@ function oneOfEach(): EntityRow[] {
       },
     },
     {
+      type: 'initiativeUpdate',
+      entity: {
+        id: 'iu1',
+        workspaceId: 'w',
+        initiativeId: 'in1',
+        health: 'on_track',
+        body: 'On schedule',
+        authorId: 'u1',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
       type: 'projectUpdate',
       entity: {
         id: 'pu1',

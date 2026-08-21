@@ -1,0 +1,17 @@
+.row {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  flex: none;
+}
+
+.muted {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}

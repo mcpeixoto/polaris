@@ -613,6 +613,71 @@ func (r *mutationResolver) RemoveInitiativeProject(ctx context.Context, initiati
 	return &generated.DeletePayload{Version: int(version), ID: projectID}, nil
 }
 
+// CreateInitiativeUpdate is the resolver for the createInitiativeUpdate field.
+func (r *mutationResolver) CreateInitiativeUpdate(ctx context.Context, input generated.CreateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.InitiativeUpdatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromCreateInitiativeUpdateInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	iu, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.InitiativeUpdate, int64, error) {
+			return r.Svc.CreateInitiativeUpdate(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toInitiativeUpdate(iu)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.InitiativeUpdatePayload{Version: int(version), InitiativeUpdate: &out}, nil
+}
+
+// UpdateInitiativeUpdate is the resolver for the updateInitiativeUpdate field.
+func (r *mutationResolver) UpdateInitiativeUpdate(ctx context.Context, input generated.UpdateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.InitiativeUpdatePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in, err := fromUpdateInitiativeUpdateInput(input)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	iu, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.InitiativeUpdate, int64, error) {
+			return r.Svc.UpdateInitiativeUpdate(ctx, p, in)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toInitiativeUpdate(iu)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.InitiativeUpdatePayload{Version: int(version), InitiativeUpdate: &out}, nil
+}
+
+// DeleteInitiativeUpdate is the resolver for the deleteInitiativeUpdate field.
+func (r *mutationResolver) DeleteInitiativeUpdate(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	_, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (deletedEntity, int64, error) {
+			v, err := r.Svc.DeleteInitiativeUpdate(ctx, p, id)
+			return deletedEntity{ID: id}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // CreateCustomer is the resolver for the createCustomer field.
 func (r *mutationResolver) CreateCustomer(ctx context.Context, input generated.CreateCustomerInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.CustomerPayload, error) {
 	p, err := principalFrom(ctx)
@@ -4976,6 +5041,44 @@ func (r *queryResolver) ProjectUpdates(ctx context.Context, projectID uuid.UUID)
 	out := make([]generated.ProjectUpdate, 0, len(rows))
 	for _, row := range rows {
 		converted, err := toProjectUpdate(row)
+		if err != nil {
+			return nil, PresentError(ctx, err)
+		}
+		out = append(out, converted)
+	}
+	return out, nil
+}
+
+// InitiativeUpdate is the resolver for the initiativeUpdate field.
+func (r *queryResolver) InitiativeUpdate(ctx context.Context, id uuid.UUID) (*generated.InitiativeUpdate, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	iu, err := r.Svc.GetInitiativeUpdate(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toInitiativeUpdate(iu)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &out, nil
+}
+
+// InitiativeUpdates is the resolver for the initiativeUpdates field.
+func (r *queryResolver) InitiativeUpdates(ctx context.Context, initiativeID uuid.UUID) ([]generated.InitiativeUpdate, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	rows, err := r.Svc.ListInitiativeUpdates(ctx, p, initiativeID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := make([]generated.InitiativeUpdate, 0, len(rows))
+	for _, row := range rows {
+		converted, err := toInitiativeUpdate(row)
 		if err != nil {
 			return nil, PresentError(ctx, err)
 		}

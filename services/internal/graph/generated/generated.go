@@ -543,6 +543,26 @@ type ComplexityRoot struct {
 		Version           func(childComplexity int) int
 	}
 
+	InitiativeUpdate struct {
+		Author       func(childComplexity int) int
+		AuthorID     func(childComplexity int) int
+		Body         func(childComplexity int) int
+		CreatedAt    func(childComplexity int) int
+		DeletedAt    func(childComplexity int) int
+		EditedAt     func(childComplexity int) int
+		Health       func(childComplexity int) int
+		ID           func(childComplexity int) int
+		Initiative   func(childComplexity int) int
+		InitiativeID func(childComplexity int) int
+		UpdatedAt    func(childComplexity int) int
+		WorkspaceID  func(childComplexity int) int
+	}
+
+	InitiativeUpdatePayload struct {
+		InitiativeUpdate func(childComplexity int) int
+		Version          func(childComplexity int) int
+	}
+
 	IntegrationSubmission struct {
 		CreatedAt   func(childComplexity int) int
 		ID          func(childComplexity int) int
@@ -790,6 +810,7 @@ type ComplexityRoot struct {
 		CreateGitLabConnection         func(childComplexity int, input CreateGitLabConnectionInput) int
 		CreateGitLabUserLink           func(childComplexity int, input CreateGitLabUserLinkInput) int
 		CreateInitiative               func(childComplexity int, input CreateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateInitiativeUpdate         func(childComplexity int, input CreateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssue                    func(childComplexity int, input CreateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssueRelation            func(childComplexity int, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssueTemplate            func(childComplexity int, input CreateIssueTemplateInput) int
@@ -831,6 +852,7 @@ type ComplexityRoot struct {
 		DeleteGitLabTeamAutomation     func(childComplexity int, teamID uuid.UUID) int
 		DeleteGitLabUserLink           func(childComplexity int) int
 		DeleteInitiative               func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteInitiativeUpdate         func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssue                    func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssueRelation            func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteNotification             func(childComplexity int, id uuid.UUID) int
@@ -907,6 +929,7 @@ type ComplexityRoot struct {
 		UpdateGitLabConnection         func(childComplexity int, input UpdateGitLabConnectionInput) int
 		UpdateGitLabTeamAutomation     func(childComplexity int, input UpdateGitLabTeamAutomationInput) int
 		UpdateInitiative               func(childComplexity int, input UpdateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		UpdateInitiativeUpdate         func(childComplexity int, input UpdateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateIssue                    func(childComplexity int, input UpdateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateIssueTemplate            func(childComplexity int, input UpdateIssueTemplateInput) int
 		UpdateIssueTemplateEmailIntake func(childComplexity int, input UpdateIssueTemplateEmailIntakeInput) int
@@ -1307,6 +1330,8 @@ type ComplexityRoot struct {
 		GitlabUserLink               func(childComplexity int) int
 		GitlabWebhook                func(childComplexity int) int
 		Initiative                   func(childComplexity int, id uuid.UUID) int
+		InitiativeUpdate             func(childComplexity int, id uuid.UUID) int
+		InitiativeUpdates            func(childComplexity int, initiativeID uuid.UUID) int
 		Initiatives                  func(childComplexity int) int
 		IntegrationSubmissions       func(childComplexity int) int
 		Invites                      func(childComplexity int) int
@@ -1741,6 +1766,9 @@ type MutationResolver interface {
 	DeleteInitiative(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	AddInitiativeProject(ctx context.Context, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*InitiativeProjectPayload, error)
 	RemoveInitiativeProject(ctx context.Context, initiativeID uuid.UUID, projectID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	CreateInitiativeUpdate(ctx context.Context, input CreateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) (*InitiativeUpdatePayload, error)
+	UpdateInitiativeUpdate(ctx context.Context, input UpdateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) (*InitiativeUpdatePayload, error)
+	DeleteInitiativeUpdate(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateCustomer(ctx context.Context, input CreateCustomerInput, clientID *uuid.UUID, opID *uuid.UUID) (*CustomerPayload, error)
 	UpdateCustomer(ctx context.Context, input UpdateCustomerInput, clientID *uuid.UUID, opID *uuid.UUID) (*CustomerPayload, error)
 	ArchiveCustomer(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
@@ -1969,6 +1997,8 @@ type QueryResolver interface {
 	Document(ctx context.Context, id uuid.UUID) (*Document, error)
 	ProjectUpdate(ctx context.Context, id uuid.UUID) (*ProjectUpdate, error)
 	ProjectUpdates(ctx context.Context, projectID uuid.UUID) ([]ProjectUpdate, error)
+	InitiativeUpdate(ctx context.Context, id uuid.UUID) (*InitiativeUpdate, error)
+	InitiativeUpdates(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeUpdate, error)
 	ProjectDependenciesBlocking(ctx context.Context, projectID uuid.UUID) ([]ProjectDependency, error)
 	ProjectDependenciesBlockedBy(ctx context.Context, projectID uuid.UUID) ([]ProjectDependency, error)
 	Initiatives(ctx context.Context) ([]Initiative, error)
@@ -4062,6 +4092,92 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.InitiativeProjectPayload.Version(childComplexity), true
 
+	case "InitiativeUpdate.author":
+		if e.ComplexityRoot.InitiativeUpdate.Author == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.Author(childComplexity), true
+	case "InitiativeUpdate.authorId":
+		if e.ComplexityRoot.InitiativeUpdate.AuthorID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.AuthorID(childComplexity), true
+	case "InitiativeUpdate.body":
+		if e.ComplexityRoot.InitiativeUpdate.Body == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.Body(childComplexity), true
+	case "InitiativeUpdate.createdAt":
+		if e.ComplexityRoot.InitiativeUpdate.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.CreatedAt(childComplexity), true
+	case "InitiativeUpdate.deletedAt":
+		if e.ComplexityRoot.InitiativeUpdate.DeletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.DeletedAt(childComplexity), true
+	case "InitiativeUpdate.editedAt":
+		if e.ComplexityRoot.InitiativeUpdate.EditedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.EditedAt(childComplexity), true
+	case "InitiativeUpdate.health":
+		if e.ComplexityRoot.InitiativeUpdate.Health == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.Health(childComplexity), true
+	case "InitiativeUpdate.id":
+		if e.ComplexityRoot.InitiativeUpdate.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.ID(childComplexity), true
+	case "InitiativeUpdate.initiative":
+		if e.ComplexityRoot.InitiativeUpdate.Initiative == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.Initiative(childComplexity), true
+	case "InitiativeUpdate.initiativeId":
+		if e.ComplexityRoot.InitiativeUpdate.InitiativeID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.InitiativeID(childComplexity), true
+	case "InitiativeUpdate.updatedAt":
+		if e.ComplexityRoot.InitiativeUpdate.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.UpdatedAt(childComplexity), true
+	case "InitiativeUpdate.workspaceId":
+		if e.ComplexityRoot.InitiativeUpdate.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdate.WorkspaceID(childComplexity), true
+
+	case "InitiativeUpdatePayload.initiativeUpdate":
+		if e.ComplexityRoot.InitiativeUpdatePayload.InitiativeUpdate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdatePayload.InitiativeUpdate(childComplexity), true
+	case "InitiativeUpdatePayload.version":
+		if e.ComplexityRoot.InitiativeUpdatePayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiativeUpdatePayload.Version(childComplexity), true
+
 	case "IntegrationSubmission.createdAt":
 		if e.ComplexityRoot.IntegrationSubmission.CreatedAt == nil {
 			break
@@ -5474,6 +5590,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateInitiative(childComplexity, args["input"].(CreateInitiativeInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.createInitiativeUpdate":
+		if e.ComplexityRoot.Mutation.CreateInitiativeUpdate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createInitiativeUpdate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateInitiativeUpdate(childComplexity, args["input"].(CreateInitiativeUpdateInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createIssue":
 		if e.ComplexityRoot.Mutation.CreateIssue == nil {
 			break
@@ -5905,6 +6032,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteInitiative(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteInitiativeUpdate":
+		if e.ComplexityRoot.Mutation.DeleteInitiativeUpdate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteInitiativeUpdate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteInitiativeUpdate(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.deleteIssue":
 		if e.ComplexityRoot.Mutation.DeleteIssue == nil {
 			break
@@ -6726,6 +6864,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateInitiative(childComplexity, args["input"].(UpdateInitiativeInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.updateInitiativeUpdate":
+		if e.ComplexityRoot.Mutation.UpdateInitiativeUpdate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateInitiativeUpdate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateInitiativeUpdate(childComplexity, args["input"].(UpdateInitiativeUpdateInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.updateIssue":
 		if e.ComplexityRoot.Mutation.UpdateIssue == nil {
 			break
@@ -8725,6 +8874,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Initiative(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.initiativeUpdate":
+		if e.ComplexityRoot.Query.InitiativeUpdate == nil {
+			break
+		}
+
+		args, err := ec.field_Query_initiativeUpdate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.InitiativeUpdate(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.initiativeUpdates":
+		if e.ComplexityRoot.Query.InitiativeUpdates == nil {
+			break
+		}
+
+		args, err := ec.field_Query_initiativeUpdates_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.InitiativeUpdates(childComplexity, args["initiativeId"].(uuid.UUID)), true
 	case "Query.initiatives":
 		if e.ComplexityRoot.Query.Initiatives == nil {
 			break
@@ -10713,6 +10884,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateGitLabConnectionInput,
 		ec.unmarshalInputCreateGitLabUserLinkInput,
 		ec.unmarshalInputCreateInitiativeInput,
+		ec.unmarshalInputCreateInitiativeUpdateInput,
 		ec.unmarshalInputCreateIssueInput,
 		ec.unmarshalInputCreateIssueTemplateInput,
 		ec.unmarshalInputCreateLabelInput,
@@ -10760,6 +10932,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateGitLabConnectionInput,
 		ec.unmarshalInputUpdateGitLabTeamAutomationInput,
 		ec.unmarshalInputUpdateInitiativeInput,
+		ec.unmarshalInputUpdateInitiativeUpdateInput,
 		ec.unmarshalInputUpdateIssueInput,
 		ec.unmarshalInputUpdateIssueTemplateEmailIntakeInput,
 		ec.unmarshalInputUpdateIssueTemplateInput,
@@ -11980,6 +12153,28 @@ type InitiativePayload implements MutationResult {
 type InitiativeProjectPayload implements MutationResult {
   version: Int!
   initiativeProject: InitiativeProject!
+}
+
+"""A status post on an initiative — health plus narrative markdown."""
+type InitiativeUpdate {
+  id: UUID!
+  workspaceId: UUID!
+  initiativeId: UUID!
+  health: ProjectUpdateHealth!
+  body: String!
+  authorId: UUID!
+  editedAt: Time
+  deletedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+
+  author: User
+  initiative: Initiative
+}
+
+type InitiativeUpdatePayload implements MutationResult {
+  version: Int!
+  initiativeUpdate: InitiativeUpdate!
 }
 
 enum CustomerStatus {
@@ -13660,6 +13855,18 @@ input UpdateProjectUpdateInput {
   body: String
 }
 
+input CreateInitiativeUpdateInput {
+  initiativeId: UUID!
+  health: ProjectUpdateHealth!
+  body: String
+}
+
+input UpdateInitiativeUpdateInput {
+  id: UUID!
+  health: ProjectUpdateHealth
+  body: String
+}
+
 input CreateInitiativeInput {
   name: String!
   description: String
@@ -13942,6 +14149,9 @@ type Query {
   projectUpdate(id: UUID!): ProjectUpdate
   projectUpdates(projectId: UUID!): [ProjectUpdate!]!
 
+  initiativeUpdate(id: UUID!): InitiativeUpdate
+  initiativeUpdates(initiativeId: UUID!): [InitiativeUpdate!]!
+
   projectDependenciesBlocking(projectId: UUID!): [ProjectDependency!]!
   projectDependenciesBlockedBy(projectId: UUID!): [ProjectDependency!]!
 
@@ -14027,6 +14237,10 @@ type Mutation {
   deleteInitiative(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   addInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): InitiativeProjectPayload! @idempotent
   removeInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createInitiativeUpdate(input: CreateInitiativeUpdateInput!, clientId: UUID, opId: UUID): InitiativeUpdatePayload! @idempotent
+  updateInitiativeUpdate(input: UpdateInitiativeUpdateInput!, clientId: UUID, opId: UUID): InitiativeUpdatePayload! @idempotent
+  deleteInitiativeUpdate(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createCustomer(input: CreateCustomerInput!, clientId: UUID, opId: UUID): CustomerPayload! @idempotent
   updateCustomer(input: UpdateCustomerInput!, clientId: UUID, opId: UUID): CustomerPayload! @idempotent
@@ -15326,6 +15540,46 @@ func (ec *executionContext) childFields_InitiativeProjectPayload(ctx context.Con
 		return ec.fieldContext_InitiativeProjectPayload_initiativeProject(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type InitiativeProjectPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_InitiativeUpdate(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_InitiativeUpdate_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_InitiativeUpdate_workspaceId(ctx, field)
+	case "initiativeId":
+		return ec.fieldContext_InitiativeUpdate_initiativeId(ctx, field)
+	case "health":
+		return ec.fieldContext_InitiativeUpdate_health(ctx, field)
+	case "body":
+		return ec.fieldContext_InitiativeUpdate_body(ctx, field)
+	case "authorId":
+		return ec.fieldContext_InitiativeUpdate_authorId(ctx, field)
+	case "editedAt":
+		return ec.fieldContext_InitiativeUpdate_editedAt(ctx, field)
+	case "deletedAt":
+		return ec.fieldContext_InitiativeUpdate_deletedAt(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_InitiativeUpdate_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_InitiativeUpdate_updatedAt(ctx, field)
+	case "author":
+		return ec.fieldContext_InitiativeUpdate_author(ctx, field)
+	case "initiative":
+		return ec.fieldContext_InitiativeUpdate_initiative(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InitiativeUpdate", field.Name)
+}
+
+func (ec *executionContext) childFields_InitiativeUpdatePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_InitiativeUpdatePayload_version(ctx, field)
+	case "initiativeUpdate":
+		return ec.fieldContext_InitiativeUpdatePayload_initiativeUpdate(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InitiativeUpdatePayload", field.Name)
 }
 
 func (ec *executionContext) childFields_IntegrationSubmission(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -18428,6 +18682,36 @@ func (ec *executionContext) field_Mutation_createGitLabUserLink_args(ctx context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createInitiativeUpdate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateInitiativeUpdateInput, error) {
+			return ec.unmarshalNCreateInitiativeUpdateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateInitiativeUpdateInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createInitiative_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -19247,6 +19531,36 @@ func (ec *executionContext) field_Mutation_deleteGitLabTeamAutomation_args(ctx c
 		return nil, err
 	}
 	args["teamId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteInitiativeUpdate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -21024,6 +21338,36 @@ func (ec *executionContext) field_Mutation_updateGitLabTeamAutomation_args(ctx c
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateInitiativeUpdate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (UpdateInitiativeUpdateInput, error) {
+			return ec.unmarshalNUpdateInitiativeUpdateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateInitiativeUpdateInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateInitiative_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -21849,6 +22193,34 @@ func (ec *executionContext) field_Query_gitlabTeamAutomation_args(ctx context.Co
 		return nil, err
 	}
 	args["teamId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_initiativeUpdate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_initiativeUpdates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "initiativeId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["initiativeId"] = arg0
 	return args, nil
 }
 
@@ -30389,6 +30761,355 @@ func (ec *executionContext) fieldContext_InitiativeProjectPayload_initiativeProj
 	return fc, nil
 }
 
+func (ec *executionContext) _InitiativeUpdate_id(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdate_workspaceId(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdate_initiativeId(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_initiativeId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InitiativeID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_initiativeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdate_health(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_health(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Health, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v ProjectUpdateHealth) graphql.Marshaler {
+			return ec.marshalNProjectUpdateHealth2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateHealth(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_health(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdate", field, false, false, errors.New("field of type ProjectUpdateHealth does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdate_body(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_body(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Body, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_body(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdate", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdate_authorId(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_authorId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AuthorID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_authorId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdate", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdate_editedAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_editedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EditedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_editedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdate", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdate_deletedAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_deletedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeletedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_deletedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdate", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdate_createdAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdate", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdate_updatedAt(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdate", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdate_author(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_author(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Author, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *User) graphql.Marshaler {
+			return ec.marshalOUser2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUser(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_author(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InitiativeUpdate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_User(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InitiativeUpdate_initiative(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdate_initiative(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Initiative, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Initiative) graphql.Marshaler {
+			return ec.marshalOInitiative2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiative(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdate_initiative(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InitiativeUpdate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Initiative(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InitiativeUpdatePayload_version(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdatePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdatePayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdatePayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InitiativeUpdatePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InitiativeUpdatePayload_initiativeUpdate(ctx context.Context, field graphql.CollectedField, obj *InitiativeUpdatePayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InitiativeUpdatePayload_initiativeUpdate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InitiativeUpdate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeUpdate) graphql.Marshaler {
+			return ec.marshalNInitiativeUpdate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdate(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InitiativeUpdatePayload_initiativeUpdate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InitiativeUpdatePayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeUpdate(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _IntegrationSubmission_id(ctx context.Context, field graphql.CollectedField, obj *IntegrationSubmission) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35558,6 +36279,177 @@ func (ec *executionContext) fieldContext_Mutation_removeInitiativeProject(ctx co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_removeInitiativeProject_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createInitiativeUpdate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createInitiativeUpdate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateInitiativeUpdate(ctx, fc.Args["input"].(CreateInitiativeUpdateInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *InitiativeUpdatePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeUpdatePayload) graphql.Marshaler {
+			return ec.marshalNInitiativeUpdatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdatePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createInitiativeUpdate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeUpdatePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createInitiativeUpdate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateInitiativeUpdate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateInitiativeUpdate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateInitiativeUpdate(ctx, fc.Args["input"].(UpdateInitiativeUpdateInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *InitiativeUpdatePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeUpdatePayload) graphql.Marshaler {
+			return ec.marshalNInitiativeUpdatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdatePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateInitiativeUpdate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeUpdatePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateInitiativeUpdate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteInitiativeUpdate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteInitiativeUpdate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteInitiativeUpdate(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteInitiativeUpdate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteInitiativeUpdate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -51417,6 +52309,94 @@ func (ec *executionContext) fieldContext_Query_projectUpdates(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_initiativeUpdate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_initiativeUpdate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().InitiativeUpdate(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeUpdate) graphql.Marshaler {
+			return ec.marshalOInitiativeUpdate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdate(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_initiativeUpdate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeUpdate(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_initiativeUpdate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_initiativeUpdates(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_initiativeUpdates(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().InitiativeUpdates(ctx, fc.Args["initiativeId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []InitiativeUpdate) graphql.Marshaler {
+			return ec.marshalNInitiativeUpdate2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdateᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_initiativeUpdates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InitiativeUpdate(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_initiativeUpdates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_projectDependenciesBlocking(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -60372,6 +61352,50 @@ func (ec *executionContext) unmarshalInputCreateInitiativeInput(ctx context.Cont
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateInitiativeUpdateInput(ctx context.Context, obj any) (CreateInitiativeUpdateInput, error) {
+	var it CreateInitiativeUpdateInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"initiativeId", "health", "body"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "initiativeId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("initiativeId"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InitiativeID = data
+		case "health":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("health"))
+			data, err := ec.unmarshalNProjectUpdateHealth2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateHealth(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Health = data
+		case "body":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Body = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, obj any) (CreateIssueInput, error) {
 	var it CreateIssueInput
 	if obj == nil {
@@ -63434,6 +64458,50 @@ func (ec *executionContext) unmarshalInputUpdateInitiativeInput(ctx context.Cont
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateInitiativeUpdateInput(ctx context.Context, obj any) (UpdateInitiativeUpdateInput, error) {
+	var it UpdateInitiativeUpdateInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "health", "body"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "health":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("health"))
+			data, err := ec.unmarshalOProjectUpdateHealth2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectUpdateHealth(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Health = data
+		case "body":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Body = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateIssueInput(ctx context.Context, obj any) (UpdateIssueInput, error) {
 	var it UpdateIssueInput
 	if obj == nil {
@@ -65784,6 +66852,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._IssueLabelPayload(ctx, sel, obj)
+	case InitiativeUpdatePayload:
+		return ec._InitiativeUpdatePayload(ctx, sel, &obj)
+	case *InitiativeUpdatePayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._InitiativeUpdatePayload(ctx, sel, obj)
 	case InitiativeProjectPayload:
 		return ec._InitiativeProjectPayload(ctx, sel, &obj)
 	case *InitiativeProjectPayload:
@@ -69513,6 +70588,142 @@ func (ec *executionContext) _InitiativeProjectPayload(ctx context.Context, sel a
 	return out
 }
 
+var initiativeUpdateImplementors = []string{"InitiativeUpdate"}
+
+func (ec *executionContext) _InitiativeUpdate(ctx context.Context, sel ast.SelectionSet, obj *InitiativeUpdate) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiativeUpdateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiativeUpdate")
+		case "id":
+			out.Values[i] = ec._InitiativeUpdate_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._InitiativeUpdate_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "initiativeId":
+			out.Values[i] = ec._InitiativeUpdate_initiativeId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "health":
+			out.Values[i] = ec._InitiativeUpdate_health(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "body":
+			out.Values[i] = ec._InitiativeUpdate_body(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "authorId":
+			out.Values[i] = ec._InitiativeUpdate_authorId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "editedAt":
+			out.Values[i] = ec._InitiativeUpdate_editedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "deletedAt":
+			out.Values[i] = ec._InitiativeUpdate_deletedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._InitiativeUpdate_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._InitiativeUpdate_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "author":
+			out.Values[i] = ec._InitiativeUpdate_author(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "initiative":
+			out.Values[i] = ec._InitiativeUpdate_initiative(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var initiativeUpdatePayloadImplementors = []string{"InitiativeUpdatePayload", "MutationResult"}
+
+func (ec *executionContext) _InitiativeUpdatePayload(ctx context.Context, sel ast.SelectionSet, obj *InitiativeUpdatePayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiativeUpdatePayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiativeUpdatePayload")
+		case "version":
+			out.Values[i] = ec._InitiativeUpdatePayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "initiativeUpdate":
+			out.Values[i] = ec._InitiativeUpdatePayload_initiativeUpdate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var integrationSubmissionImplementors = []string{"IntegrationSubmission"}
 
 func (ec *executionContext) _IntegrationSubmission(ctx context.Context, sel ast.SelectionSet, obj *IntegrationSubmission) graphql.Marshaler {
@@ -71022,6 +72233,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "removeInitiativeProject":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_removeInitiativeProject(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createInitiativeUpdate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createInitiativeUpdate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateInitiativeUpdate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateInitiativeUpdate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteInitiativeUpdate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteInitiativeUpdate(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -75875,6 +77107,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "initiativeUpdate":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_initiativeUpdate(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "initiativeUpdates":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_initiativeUpdates(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "projectDependenciesBlocking":
 			field := field
 
@@ -79526,6 +80802,11 @@ func (ec *executionContext) unmarshalNCreateInitiativeInput2githubᚗcomᚋpeixo
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateInitiativeUpdateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateInitiativeUpdateInput(ctx context.Context, v any) (CreateInitiativeUpdateInput, error) {
+	res, err := ec.unmarshalInputCreateInitiativeUpdateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCreateIssueInput(ctx context.Context, v any) (CreateIssueInput, error) {
 	res, err := ec.unmarshalInputCreateIssueInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -80410,6 +81691,50 @@ func (ec *executionContext) unmarshalNInitiativeStatus2githubᚗcomᚋpeixotolab
 
 func (ec *executionContext) marshalNInitiativeStatus2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeStatus(ctx context.Context, sel ast.SelectionSet, v InitiativeStatus) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNInitiativeUpdate2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdate(ctx context.Context, sel ast.SelectionSet, v InitiativeUpdate) graphql.Marshaler {
+	return ec._InitiativeUpdate(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNInitiativeUpdate2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdateᚄ(ctx context.Context, sel ast.SelectionSet, v []InitiativeUpdate) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNInitiativeUpdate2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdate(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNInitiativeUpdate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdate(ctx context.Context, sel ast.SelectionSet, v *InitiativeUpdate) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiativeUpdate(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNInitiativeUpdatePayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdatePayload(ctx context.Context, sel ast.SelectionSet, v InitiativeUpdatePayload) graphql.Marshaler {
+	return ec._InitiativeUpdatePayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNInitiativeUpdatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdatePayload(ctx context.Context, sel ast.SelectionSet, v *InitiativeUpdatePayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiativeUpdatePayload(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v any) (int, error) {
@@ -82099,6 +83424,11 @@ func (ec *executionContext) unmarshalNUpdateInitiativeInput2githubᚗcomᚋpeixo
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateInitiativeUpdateInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateInitiativeUpdateInput(ctx context.Context, v any) (UpdateInitiativeUpdateInput, error) {
+	res, err := ec.unmarshalInputUpdateInitiativeUpdateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateIssueInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUpdateIssueInput(ctx context.Context, v any) (UpdateIssueInput, error) {
 	res, err := ec.unmarshalInputUpdateIssueInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -82987,6 +84317,13 @@ func (ec *executionContext) marshalOInitiativeStatus2ᚖgithubᚗcomᚋpeixotola
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOInitiativeUpdate2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeUpdate(ctx context.Context, sel ast.SelectionSet, v *InitiativeUpdate) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._InitiativeUpdate(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {

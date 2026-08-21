@@ -309,6 +309,7 @@ type Querier interface {
 	CreateGitLabUserLink(ctx context.Context, arg CreateGitLabUserLinkParams) (GitlabUserLink, error)
 	CreateInitiative(ctx context.Context, arg CreateInitiativeParams) (Initiative, error)
 	CreateInitiativeProject(ctx context.Context, arg CreateInitiativeProjectParams) (InitiativeProject, error)
+	CreateInitiativeUpdate(ctx context.Context, arg CreateInitiativeUpdateParams) (InitiativeUpdate, error)
 	CreateIntegrationSubmission(ctx context.Context, arg CreateIntegrationSubmissionParams) (IntegrationSubmission, error)
 	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
 	// Every list below is the issue table's columns, in the table's own order, minus
@@ -506,6 +507,8 @@ type Querier interface {
 	GetInitiativeForUpdate(ctx context.Context, id uuid.UUID) (Initiative, error)
 	GetInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
 	GetInitiativeProjectByPair(ctx context.Context, arg GetInitiativeProjectByPairParams) (InitiativeProject, error)
+	GetInitiativeUpdate(ctx context.Context, id uuid.UUID) (InitiativeUpdate, error)
+	GetInitiativeUpdateForUpdate(ctx context.Context, id uuid.UUID) (InitiativeUpdate, error)
 	GetInviteByTokenHash(ctx context.Context, tokenHash []byte) (Invite, error)
 	GetIssue(ctx context.Context, id uuid.UUID) (GetIssueRow, error)
 	GetIssueByTeamAndNumber(ctx context.Context, arg GetIssueByTeamAndNumberParams) (GetIssueByTeamAndNumberRow, error)
@@ -769,6 +772,7 @@ type Querier interface {
 	ListFormTemplatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListFormTemplatesInWorkspaceRow, error)
 	ListInitiativeProjectIDs(ctx context.Context, initiativeID uuid.UUID) ([]uuid.UUID, error)
 	ListInitiativeProjects(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeProject, error)
+	ListInitiativeUpdatesForInitiative(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeUpdate, error)
 	ListInitiativesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Initiative, error)
 	ListIntegrationSubmissions(ctx context.Context, workspaceID uuid.UUID) ([]IntegrationSubmission, error)
 	ListIssueHistory(ctx context.Context, issueID uuid.UUID) ([]IssueHistory, error)
@@ -1199,6 +1203,7 @@ type Querier interface {
 	SoftDeleteDashboard(ctx context.Context, arg SoftDeleteDashboardParams) (Dashboard, error)
 	SoftDeleteDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	SoftDeleteInitiative(ctx context.Context, arg SoftDeleteInitiativeParams) (Initiative, error)
+	SoftDeleteInitiativeUpdate(ctx context.Context, id uuid.UUID) (InitiativeUpdate, error)
 	// SoftDeleteIssue records who as well as when.
 	//
 	// deleted_by is nullable and a caller may pass nothing, which is what the retention sweep
@@ -1279,6 +1284,9 @@ type Querier interface {
 	// StreamInitiativeProjectsForBootstrap: both the initiative and the project must be visible.
 	//
 	StreamInitiativeProjectsForBootstrap(ctx context.Context, arg StreamInitiativeProjectsForBootstrapParams) ([]InitiativeProject, error)
+	// StreamInitiativeUpdatesForBootstrap: visible when the initiative is visible.
+	//
+	StreamInitiativeUpdatesForBootstrap(ctx context.Context, arg StreamInitiativeUpdatesForBootstrapParams) ([]InitiativeUpdate, error)
 	// StreamInitiativesForBootstrap: workspace-visible unless the lead team is private and
 	// the principal is not in it — the same rule initiativeScope uses.
 	//
@@ -1520,6 +1528,7 @@ type Querier interface {
 	UpdateGitLabConnection(ctx context.Context, arg UpdateGitLabConnectionParams) (UpdateGitLabConnectionRow, error)
 	UpdateGitLabUserLink(ctx context.Context, arg UpdateGitLabUserLinkParams) (GitlabUserLink, error)
 	UpdateInitiative(ctx context.Context, arg UpdateInitiativeParams) (Initiative, error)
+	UpdateInitiativeUpdate(ctx context.Context, arg UpdateInitiativeUpdateParams) (InitiativeUpdate, error)
 	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (UpdateIssueRow, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error
 	UpdateIssueTemplate(ctx context.Context, arg UpdateIssueTemplateParams) (UpdateIssueTemplateRow, error)

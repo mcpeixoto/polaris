@@ -20,7 +20,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Sync engine | Gapless per-workspace versions, NDJSON bootstrap, WebSocket hub, resume, revoke, backpressure |
 | API | GraphQL over the whole domain, one contract in `schema/schema.graphql`, complexity scored by the published model |
 | Auth | Argon2id, rotating refresh tokens, HttpOnly cookies, invitations |
-| Client store | IndexedDB replica (schema 21), in-memory indexes, durable outbox, optimistic mutations |
+| Client store | IndexedDB replica (schema 48), in-memory indexes, durable outbox, optimistic mutations |
 | Keyboard | One registry; the command menu and help overlay are views over it. Peek is `Space`; triage is `G T` / `1` `2` `3` `H`; archives is `G X` / `#`; add link is `⌘⇧U` |
 | Projects | Workspace and team lists with health from latest update, Display → Timeline (bars, deps, milestones), overview graph/issues/activity tabs, `Shift+P` picker, `C` files into the open project |
 | Cycles | Team cadence, auto-created windows, rollover and auto-add, cycle graph on detail, `G C` / `Shift+C`, `C` files into the open cycle |
@@ -29,7 +29,7 @@ Backend and web client are both complete through Milestone 1 and tested end to e
 | Attachments | URL-idempotent link cards on issues, `attachmentsForURL`, duplicate merge moves unique URLs |
 | Webhooks | Admin HTTPS subscriptions, HMAC-SHA256 of the raw body, SSRF pin, 1m/1h/6h then disable — Settings → Webhooks, `N` to create |
 | Documents | Team and project markdown docs, `/team/:key/documents`, `/document/:id`, archive and soft-delete on the sync stream |
-| Initiatives | Workspace objectives grouping curated projects, `/initiatives`, `/initiative/:id`, status/owner/target date on the sync stream |
+| Initiatives | Workspace objectives grouping curated projects, `/initiatives`, `/initiative/:id`, status/owner/target date, updates + health roll-up on the sync stream |
 | Project updates | Health plus markdown status posts, Overview compose and Activity history, derived health on project list |
 | Project dependencies | End→start Blocked by / Blocking on Overview and sidebar, command menu, list filters, timeline lines — client schema 12 |
 | Project timeline | Display → Timeline on `/projects`: Gantt bars, dependency lines, milestones, zoom — web-only, no migration |

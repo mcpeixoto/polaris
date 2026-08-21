@@ -1115,6 +1115,28 @@ type InitiativeProjectPayload implements MutationResult {
   initiativeProject: InitiativeProject!
 }
 
+"""A status post on an initiative — health plus narrative markdown."""
+type InitiativeUpdate {
+  id: UUID!
+  workspaceId: UUID!
+  initiativeId: UUID!
+  health: ProjectUpdateHealth!
+  body: String!
+  authorId: UUID!
+  editedAt: Time
+  deletedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+
+  author: User
+  initiative: Initiative
+}
+
+type InitiativeUpdatePayload implements MutationResult {
+  version: Int!
+  initiativeUpdate: InitiativeUpdate!
+}
+
 enum CustomerStatus {
   ACTIVE
   PROSPECT
@@ -2793,6 +2815,18 @@ input UpdateProjectUpdateInput {
   body: String
 }
 
+input CreateInitiativeUpdateInput {
+  initiativeId: UUID!
+  health: ProjectUpdateHealth!
+  body: String
+}
+
+input UpdateInitiativeUpdateInput {
+  id: UUID!
+  health: ProjectUpdateHealth
+  body: String
+}
+
 input CreateInitiativeInput {
   name: String!
   description: String
@@ -3075,6 +3109,9 @@ type Query {
   projectUpdate(id: UUID!): ProjectUpdate
   projectUpdates(projectId: UUID!): [ProjectUpdate!]!
 
+  initiativeUpdate(id: UUID!): InitiativeUpdate
+  initiativeUpdates(initiativeId: UUID!): [InitiativeUpdate!]!
+
   projectDependenciesBlocking(projectId: UUID!): [ProjectDependency!]!
   projectDependenciesBlockedBy(projectId: UUID!): [ProjectDependency!]!
 
@@ -3160,6 +3197,10 @@ type Mutation {
   deleteInitiative(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   addInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): InitiativeProjectPayload! @idempotent
   removeInitiativeProject(initiativeId: UUID!, projectId: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
+  createInitiativeUpdate(input: CreateInitiativeUpdateInput!, clientId: UUID, opId: UUID): InitiativeUpdatePayload! @idempotent
+  updateInitiativeUpdate(input: UpdateInitiativeUpdateInput!, clientId: UUID, opId: UUID): InitiativeUpdatePayload! @idempotent
+  deleteInitiativeUpdate(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   createCustomer(input: CreateCustomerInput!, clientId: UUID, opId: UUID): CustomerPayload! @idempotent
   updateCustomer(input: UpdateCustomerInput!, clientId: UUID, opId: UUID): CustomerPayload! @idempotent
