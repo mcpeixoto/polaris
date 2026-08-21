@@ -380,6 +380,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     timezone: scope.timezone,
     now: inTriage ? now : undefined,
     sourceFilter: inTriage ? TRIAGE_SOURCE_FILTER : undefined,
+    teamId: scope.team?.id,
   });
 
   const groups = view.groups;

@@ -97,6 +97,15 @@ export interface UseViewOptions {
    * inbox; keeping it here means the bar is still the user's refinement.
    */
   readonly sourceFilter?: FilterNode | undefined;
+  /**
+   * The team the view is scoped to, when it is scoped to one.
+   *
+   * Only grouping uses it, and only to know whose status list to show the whole of.
+   * Statuses belong to a team, so a team's list is the one fixed set worth padding with
+   * empty columns; a view that spans teams leaves this unset. It deliberately does not
+   * filter — `issues` already decided what the view is over.
+   */
+  readonly teamId?: UUID | undefined;
 }
 
 /** The entity types the answer can depend on: the filter's inputs and the grouping's. */
@@ -121,6 +130,7 @@ export function useView({
   timezone,
   now,
   sourceFilter,
+  teamId,
 }: UseViewOptions): ViewState {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -148,6 +158,7 @@ export function useView({
         },
         sourceFilter,
         hideCustomers,
+        teamId,
       ),
     VIEW_DEPS,
     [
@@ -162,6 +173,7 @@ export function useView({
       timezone,
       sourceFilter,
       hideCustomers,
+      teamId ?? '',
       ...inputs,
     ],
   );
@@ -235,6 +247,7 @@ function computeView(
   clock: ViewClock,
   sourceFilter: FilterNode | undefined,
   hideCustomers: boolean,
+  teamId: UUID | undefined,
 ): ViewResult {
   const combined =
     sourceFilter === undefined ? filter : { conj: 'and' as const, nodes: [sourceFilter, filter] };
@@ -266,9 +279,14 @@ function computeView(
 
   return {
     count: issues.length,
-    groups: groupIssues(issues, store, display.groupBy, display.orderBy, display.direction).map(
-      toViewGroup,
-    ),
+    groups: groupIssues(
+      issues,
+      store,
+      display.groupBy,
+      display.orderBy,
+      display.direction,
+      teamId,
+    ).map(toViewGroup),
   };
 }
 

@@ -6,6 +6,7 @@ import { groupIssues, sortIssues } from './group';
 
 const WORKSPACE = '01900000-0000-7000-8000-000000000001';
 const TEAM = '01900000-0000-7000-8000-0000000000b1';
+const OTHER_TEAM = '01900000-0000-7000-8000-0000000000b2';
 const ADA = '01900000-0000-7000-8000-0000000000a1';
 const GRACE = '01900000-0000-7000-8000-0000000000a2';
 const AT = '2026-01-01T00:00:00Z';
@@ -13,12 +14,19 @@ const AT = '2026-01-01T00:00:00Z';
 const TODO = '01900000-0000-7000-8000-0000000000c1';
 const DOING = '01900000-0000-7000-8000-0000000000c2';
 const DONE = '01900000-0000-7000-8000-0000000000c3';
+const OTHER_TODO = '01900000-0000-7000-8000-0000000000d1';
 
-function state(id: string, name: string, category: string, position: string): WorkflowState {
+function state(
+  id: string,
+  name: string,
+  category: string,
+  position: string,
+  teamId: string = TEAM,
+): WorkflowState {
   return {
     id,
     workspaceId: WORKSPACE,
-    teamId: TEAM,
+    teamId,
     name,
     color: '#888',
     category: category as WorkflowState['category'],
@@ -89,6 +97,42 @@ describe('grouping', () => {
     expect(groups[1]?.issues).toEqual([]);
   });
 
+  // Statuses belong to a team. Padding a team's list from every status in the workspace
+  // puts another team's columns on this team's board — three "Todo"s in a three-team
+  // workspace — for issues that could never land in them.
+  it('does not pad a team view with another team\'s statuses', () => {
+    store.applyChanges([
+      {
+        v: 10,
+        type: 'workflowState',
+        id: OTHER_TODO,
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: state(OTHER_TODO, 'Todo', 'unstarted', 'a0', OTHER_TEAM),
+      },
+    ]);
+    const groups = groupIssues([issue({ id: 'i1' })], store, 'state', 'manual', 'asc', TEAM);
+    expect(groups.map((g) => g.label)).toEqual(['Todo', 'Doing', 'Done']);
+    expect(groups.every((g) => g.stateId !== OTHER_TODO)).toBe(true);
+  });
+
+  // A view that spans teams has no one team's status list to show, so it shows the
+  // statuses its issues are actually in rather than every status in the workspace.
+  it('pads an unscoped view only from the teams its issues are in', () => {
+    store.applyChanges([
+      {
+        v: 11,
+        type: 'workflowState',
+        id: OTHER_TODO,
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: state(OTHER_TODO, 'Todo', 'unstarted', 'a0', OTHER_TEAM),
+      },
+    ]);
+    const groups = groupIssues([issue({ id: 'i1' })], store, 'state', 'manual', 'asc');
+    expect(groups.every((g) => g.stateId !== OTHER_TODO)).toBe(true);
+  });
+
   // Position is a fractional index and is only comparable within a category. Sorting on it
   // alone produces an order that looks almost right, which is worse than one that looks
   // wrong.
@@ -103,7 +147,9 @@ describe('grouping', () => {
         payload: state(DONE, 'Done', 'completed', 'a0'),
       },
     ]);
-    const groups = groupIssues([], store, 'state', 'manual', 'asc');
+    // Scoped to the team, because an empty unscoped view has no team whose status list to
+    // show — the ordering under test is of the padded columns, not of the scoping.
+    const groups = groupIssues([], store, 'state', 'manual', 'asc', TEAM);
     expect(groups.map((g) => g.label)).toEqual(['Todo', 'Doing', 'Done']);
   });
 
