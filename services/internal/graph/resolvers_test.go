@@ -119,6 +119,14 @@ func TestCreateIssue_IsThenReadableByIDAndByIdentifier(t *testing.T) {
 		t.Errorf("issueByIdentifier returned %s and issue(id) returned %s for the same issue", byIdentifier.ID, created.Issue.ID)
 	}
 
+	byShorthand, err := h.Query().IssueByIdentifier(h.ctx, "eng1")
+	if err != nil {
+		t.Fatalf("read the same issue without the hyphen: %v", err)
+	}
+	if byShorthand.ID != created.Issue.ID {
+		t.Errorf("eng1 returned %s, want %s", byShorthand.ID, created.Issue.ID)
+	}
+
 	if byID.State == nil || byID.State.Name != "Backlog" {
 		t.Errorf("a new issue must land in the team's default status; got %v", byID.State)
 	}

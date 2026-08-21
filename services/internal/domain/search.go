@@ -89,8 +89,9 @@ type SearchResults struct {
 }
 
 func (s *Service) Search(ctx context.Context, p *authz.Principal, in SearchInput) (SearchResults, error) {
+	identKey, identNumber, identErr := ParseIssueIdentifier(strings.TrimSpace(in.Query))
 	query := buildTSQuery(in.Query)
-	if query == "" {
+	if identErr != nil && query == "" {
 		// Not an error. An empty search box is a normal state, and a product that shouts
 		// at you for it is one you learn to approach carefully.
 		return SearchResults{Issues: []model.Issue{}, Comments: []model.Comment{}}, nil
@@ -119,6 +120,21 @@ func (s *Service) Search(ctx context.Context, p *authz.Principal, in SearchInput
 
 	var out SearchResults
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		if identErr == nil {
+			issue, err := s.pinnedSearchIssue(ctx, q, p, in, identKey, identNumber)
+			if err != nil {
+				return err
+			}
+			if issue != nil {
+				out.Issues = []model.Issue{*issue}
+				out.IssueCount = 1
+			} else {
+				out.Issues = []model.Issue{}
+			}
+			out.Comments = []model.Comment{}
+			return nil
+		}
+
 		// The filter is compiled inside the transaction because resolving it needs a read —
 		// the timezone "today" is measured in — and that read has to see the same snapshot
 		// as the search it qualifies.
@@ -168,6 +184,42 @@ func (s *Service) Search(ctx context.Context, p *authz.Principal, in SearchInput
 		return nil
 	})
 	return out, err
+}
+
+// pinnedSearchIssue resolves ENG-123 / eng123 to one visible issue, or nil.
+//
+// Unknown, private, deleted, and (unless asked) archived identifiers all answer as
+// nothing — the same not-found shape as reading an issue by id you cannot see.
+func (s *Service) pinnedSearchIssue(
+	ctx context.Context, q *store.Queries, p *authz.Principal, in SearchInput, key string, number int64,
+) (*model.Issue, error) {
+	team, err := q.GetTeamByKey(ctx, store.GetTeamByKeyParams{WorkspaceID: p.WorkspaceID, Key: key})
+	if err != nil {
+		if store.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, platform.Internal(err)
+	}
+	if in.TeamID != nil && team.ID != *in.TeamID {
+		return nil, nil
+	}
+	if !p.Teams.Has(team.ID) {
+		return nil, nil
+	}
+	row, err := q.GetIssueByTeamAndNumber(ctx, store.GetIssueByTeamAndNumberParams{
+		TeamID: team.ID, Number: number,
+	})
+	if err != nil {
+		if store.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, platform.Internal(err)
+	}
+	if row.ArchivedAt != nil && !in.IncludeArchived {
+		return nil, nil
+	}
+	issue := toIssue(store.AsIssueRow(row), team.Key)
+	return &issue, nil
 }
 
 // compileSearchFilter turns the request's filter AST into the WHERE fragment the search
@@ -263,42 +315,175 @@ func (s *Service) searchLocation(
 /*
 buildTSQuery turns what a person typed into a tsquery expression.
 
-Three rules, and each exists because of something to_tsquery does with raw input:
+Rules, each because of something to_tsquery does with raw input:
 
-  - Only letters and digits survive. Everything else is a separator, which means the
-    tsquery operators (&, |, !, :, parentheses) cannot reach the parser at all. Escaping
-    them instead would work until somebody found the combination that did not.
-  - Tokens are joined with AND. "login redirect" means both words, which is what people
-    expect from a search box and is also the narrower, cheaper query.
+  - Only letters and digits survive, except quotes which mark a phrase. Everything else
+    is a separator, which means the tsquery operators (&, |, !, :, parentheses) cannot
+    reach the parser at all. Escaping them instead would work until somebody found the
+    combination that did not.
+  - Unquoted tokens are joined with AND. "login redirect" means both words.
+  - Quoted spans are phrases (`<->`): `"login redirect"` means those words in order,
+    next to each other, which is what the quotes asked for.
+  - Unquoted English glue ("the", "a", "of", …) is dropped so "the login" is a search
+    for login. If every token was glue, the tokens are kept — searching "the" should
+    still find titles that say it.
   - The last token gets `:*`. That is what makes search find the issue you half-remember
     the title of while you are still typing it — and it is only the last one, because a
-    prefix match on every token matches far too much to rank usefully.
+    prefix match on every token matches far too much to rank usefully. A finished quoted
+    phrase does not get it: the closing quote says the words are complete.
 
 Unicode letters are kept, not stripped to ASCII: "Ação" is one token, and the folding that
 makes it match "acao" happens in SQL, with the same function the index was built with.
 */
 func buildTSQuery(raw string) string {
-	tokens := strings.FieldsFunc(raw, func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-	})
-	if len(tokens) == 0 {
+	parts := tokenizeSearch(raw)
+	if len(parts) == 0 {
 		return ""
 	}
-	if len(tokens) > maxSearchTokens {
-		tokens = tokens[:maxSearchTokens]
+	n := 0
+	for _, part := range parts {
+		n += len(part.words)
 	}
-	// Only the final token is a prefix, and only when the input did not end on a
-	// separator: "login " is a finished word, "logi" is one being typed.
-	//
-	// DecodeLastRuneInString rather than raw[len(raw)-1], because that indexes a *byte*: a
-	// query ending in "ç" would hand this a UTF-8 continuation byte, which is not a letter,
-	// so every search in an accented language would silently lose its prefix match — and
-	// only in that language, which is the kind of bug that gets reported as "search feels
-	// worse in Portuguese".
-	last := len(tokens) - 1
+	if n > maxSearchTokens {
+		parts = trimSearchParts(parts, maxSearchTokens)
+	}
+
 	trailing, _ := utf8.DecodeLastRuneInString(raw)
-	if unicode.IsLetter(trailing) || unicode.IsDigit(trailing) {
-		tokens[last] += ":*"
+	prefix := unicode.IsLetter(trailing) || unicode.IsDigit(trailing)
+
+	var chunks []string
+	for i, part := range parts {
+		words := append([]string(nil), part.words...)
+		if prefix && i == len(parts)-1 && len(words) > 0 {
+			words[len(words)-1] += ":*"
+		}
+		if part.phrase && len(words) > 1 {
+			chunks = append(chunks, strings.Join(words, " <-> "))
+			continue
+		}
+		chunks = append(chunks, words...)
 	}
-	return strings.Join(tokens, " & ")
+	return strings.Join(chunks, " & ")
+}
+
+type searchPart struct {
+	words  []string
+	phrase bool
+}
+
+// searchStopWords are unquoted English glue. Restated in web/src/features/search/search.ts.
+var searchStopWords = map[string]struct{}{
+	"a": {}, "an": {}, "the": {}, "of": {}, "to": {}, "in": {}, "for": {},
+	"and": {}, "or": {}, "on": {}, "is": {}, "at": {}, "by": {}, "as": {},
+	"it": {}, "be": {}, "this": {}, "that": {},
+}
+
+func tokenizeSearch(raw string) []searchPart {
+	var parts []searchPart
+	var loose []string
+	flushLoose := func() {
+		for _, word := range loose {
+			parts = append(parts, searchPart{words: []string{word}})
+		}
+		loose = nil
+	}
+
+	i := 0
+	for i < len(raw) {
+		r, size := utf8.DecodeRuneInString(raw[i:])
+		if r == '"' {
+			flushLoose()
+			i += size
+			start := i
+			closed := false
+			for i < len(raw) {
+				q, qSize := utf8.DecodeRuneInString(raw[i:])
+				if q == '"' {
+					closed = true
+					break
+				}
+				i += qSize
+			}
+			words := wordTokens(raw[start:i])
+			if closed {
+				i += utf8.RuneLen('"')
+			}
+			if len(words) > 0 {
+				parts = append(parts, searchPart{words: words, phrase: true})
+			}
+			continue
+		}
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			start := i
+			i += size
+			for i < len(raw) {
+				n, nSize := utf8.DecodeRuneInString(raw[i:])
+				if !unicode.IsLetter(n) && !unicode.IsDigit(n) {
+					break
+				}
+				i += nSize
+			}
+			loose = append(loose, raw[start:i])
+			continue
+		}
+		i += size
+	}
+	flushLoose()
+	return dropLooseStops(parts)
+}
+
+func dropLooseStops(parts []searchPart) []searchPart {
+	hasContent := false
+	for _, part := range parts {
+		if part.phrase {
+			hasContent = true
+			continue
+		}
+		if len(part.words) == 0 {
+			continue
+		}
+		if _, stop := searchStopWords[strings.ToLower(part.words[0])]; !stop {
+			hasContent = true
+		}
+	}
+	if !hasContent {
+		return parts
+	}
+	out := make([]searchPart, 0, len(parts))
+	for _, part := range parts {
+		if part.phrase {
+			out = append(out, part)
+			continue
+		}
+		if _, stop := searchStopWords[strings.ToLower(part.words[0])]; stop {
+			continue
+		}
+		out = append(out, part)
+	}
+	return out
+}
+
+func wordTokens(raw string) []string {
+	return strings.FieldsFunc(raw, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+}
+
+func trimSearchParts(parts []searchPart, max int) []searchPart {
+	var out []searchPart
+	n := 0
+	for _, part := range parts {
+		if n >= max {
+			break
+		}
+		remain := max - n
+		if len(part.words) <= remain {
+			out = append(out, part)
+			n += len(part.words)
+			continue
+		}
+		out = append(out, searchPart{words: part.words[:remain], phrase: part.phrase})
+		break
+	}
+	return out
 }
