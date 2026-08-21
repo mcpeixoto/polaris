@@ -39,10 +39,17 @@ type Phase =
   | { kind: 'failed'; error: string };
 
 export interface BootProps {
-  /** Rendered when nobody is signed in — the sign-in and sign-up screens. */
-  renderSignedOut: (props: { onSignedIn: () => void }) => ReactNode;
+  /**
+   * Rendered when nobody is signed in — the sign-in and sign-up screens.
+   *
+   * `onSignedIn` takes the workspace to open, because one of these screens knows which one
+   * it should be: somebody arriving on an invitation link has just joined a specific
+   * workspace, and sending them to whichever one this browser last had open would land them
+   * anywhere but the place the link was for.
+   */
+  renderSignedOut: (props: { onSignedIn: (workspaceId?: string) => void }) => ReactNode;
   /** Rendered when an account has no workspace yet. */
-  renderNoWorkspace: (props: { onCreated: () => void }) => ReactNode;
+  renderNoWorkspace: (props: { onCreated: (workspaceId?: string) => void }) => ReactNode;
   children: ReactNode;
 }
 
@@ -97,34 +104,39 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
     }
   }, []);
 
-  const enter = useCallback(async () => {
-    let workspaces: Workspace[];
-    try {
-      workspaces = await auth.listWorkspaces();
-    } catch (err) {
-      setPhase({
-        kind: 'failed',
-        error: err instanceof Error ? err.message : 'could not load workspaces',
-      });
-      return;
-    }
+  const enter = useCallback(
+    async (preferred?: string) => {
+      let workspaces: Workspace[];
+      try {
+        workspaces = await auth.listWorkspaces();
+      } catch (err) {
+        setPhase({
+          kind: 'failed',
+          error: err instanceof Error ? err.message : 'could not load workspaces',
+        });
+        return;
+      }
 
-    setWorkspaces(workspaces);
+      setWorkspaces(workspaces);
 
-    if (workspaces.length === 0) {
-      setPhase({ kind: 'choosing', workspaces });
-      return;
-    }
+      if (workspaces.length === 0) {
+        setPhase({ kind: 'choosing', workspaces });
+        return;
+      }
 
-    const remembered = readLastWorkspace();
-    const chosen = workspaces.find((w) => w.id === remembered) ?? workspaces[0];
-    if (!chosen) {
-      setPhase({ kind: 'choosing', workspaces });
-      return;
-    }
+      // A caller that knows where the user is going wins over what this browser last had
+      // open, and falls back to it when the workspace is not one they are in.
+      const wanted = preferred ?? readLastWorkspace();
+      const chosen = workspaces.find((w) => w.id === wanted) ?? workspaces[0];
+      if (!chosen) {
+        setPhase({ kind: 'choosing', workspaces });
+        return;
+      }
 
-    await open(chosen);
-  }, [open]);
+      await open(chosen);
+    },
+    [open],
+  );
 
   // The access token lives in memory only, so every load starts by exchanging the
   // HttpOnly refresh cookie for a new one. That round trip is the price of not keeping a
@@ -203,10 +215,10 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
       return <Splash message="Signing you in" />;
 
     case 'signed-out':
-      return <>{renderSignedOut({ onSignedIn: () => void enter() })}</>;
+      return <>{renderSignedOut({ onSignedIn: (workspaceId) => void enter(workspaceId) })}</>;
 
     case 'choosing':
-      return <>{renderNoWorkspace({ onCreated: () => void enter() })}</>;
+      return <>{renderNoWorkspace({ onCreated: (workspaceId) => void enter(workspaceId) })}</>;
 
     case 'failed': {
       const outdated = isOutdatedClientMessage(phase.error);
@@ -270,7 +282,14 @@ function readLastWorkspace(): string | null {
   }
 }
 
-function rememberWorkspace(id: string): void {
+/**
+ * Records which workspace to open next.
+ *
+ * Exported for the one caller outside this file: joining a workspace from an invitation
+ * while already signed in reloads the app, and this is what tells the boot that follows to
+ * open the workspace just joined rather than the one just left.
+ */
+export function rememberWorkspace(id: string): void {
   try {
     localStorage.setItem(LAST_WORKSPACE_KEY, id);
   } catch {

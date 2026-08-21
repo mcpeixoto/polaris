@@ -24,8 +24,12 @@ import { ApiError, auth, isSignedIn } from '~/sync/api';
 import { AuthError, AuthForm, AuthLayout } from './AuthLayout';
 
 export interface AcceptInviteProps {
-  /** Called once this account is a member of the workspace. */
-  onAccepted: () => void;
+  /**
+   * Called once this account is a member of the workspace, with the workspace it just
+   * joined — the boot sequence has no other way to know that the one to open is the one the
+   * link was for rather than whichever this browser last had open.
+   */
+  onAccepted: (workspaceId?: string) => void;
 }
 
 type Mode = 'register' | 'login';
@@ -63,8 +67,13 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
       // there and the token is already spent, so the second call can only fail, and it would
       // fail with "this invitation cannot be used" on a join that had in fact just worked.
       if (!signedIn && mode === 'register') {
-        await auth.register(email.trim(), password, { inviteToken: token, displayName: name });
-        onAccepted();
+        // A brand-new account belongs to exactly the workspace that invited it, so the one
+        // workspace the register call comes back with is the one to open.
+        const registered = await auth.register(email.trim(), password, {
+          inviteToken: token,
+          displayName: name,
+        });
+        onAccepted(registered.workspaces[0]?.id);
         return;
       }
 
@@ -73,8 +82,8 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
       // this form — is joining a second workspace, and there is no registration to fold the
       // membership into.
       if (!signedIn) await auth.login(email.trim(), password);
-      await auth.acceptInvite(token, name);
-      onAccepted();
+      const joined = await auth.acceptInvite(token, name);
+      onAccepted(joined.workspaceId);
     } catch (failure) {
       setBusy(false);
       setError(

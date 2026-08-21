@@ -26,6 +26,8 @@ import {
   expect,
   inviteToWorkspace,
   registerAccount,
+  seedWorkspace,
+  signIn,
   test,
   uniqueEmail,
   createIssueViaApi,
@@ -101,6 +103,49 @@ test.describe('invitation', () => {
     await expect(page.getByText('Visible once joined')).toBeVisible({ timeout: 20_000 });
 
     await context.close();
+  });
+
+  /**
+   * The invitation that arrives at somebody already using Polaris.
+   *
+   * This is the ordinary case for a second workspace — a contractor added to a client's, an
+   * engineer joining the design team's — and it is followed from an email, in a browser that
+   * is very likely already signed in. The screen has always handled it, and for a long time
+   * nothing could reach the screen: with a workspace open the whole app is the workspace
+   * shell, `/invite/:token` matched no route in it, and the catch-all put the person back on
+   * their own issue list. Silently — no error, no join, and an invitation link that behaved
+   * exactly like a bookmark to the wrong page.
+   *
+   * So the assertion that matters is the last one: not merely that a workspace loaded, but
+   * that it is the workspace the link was for.
+   */
+  test('somebody already inside a workspace joins a second one', async ({ browser, workspace }) => {
+    const other = await seedWorkspace('second-workspace');
+    await createIssueViaApi(other, 'Work in the workspace they were invited to');
+    const { token } = await inviteToWorkspace(other, workspace.account.email);
+
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    // Signed in, and working — the state an emailed link actually lands in.
+    await signIn(page, workspace.account);
+    await page.goto(`/invite/${token}`);
+
+    // One button, and no credentials asked for a second time.
+    await expect(page.getByRole('button', { name: /join workspace/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByLabel(/^password$/i)).toHaveCount(0);
+
+    await page.getByLabel(/your name in this workspace/i).fill('Ada Elsewhere');
+    await page.getByRole('button', { name: /join workspace/i }).click();
+
+    await expect(page.getByRole('navigation', { name: /workspace/i })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText('Work in the workspace they were invited to')).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('a token that has already been spent says so rather than half-joining', async ({
