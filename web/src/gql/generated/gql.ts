@@ -171,6 +171,9 @@ type Documents = {
     "\n  fragment ProjectDependencyFields on ProjectDependency {\n    id\n    workspaceId\n    blockingProjectId\n    blockedProjectId\n    createdAt\n  }\n": typeof types.ProjectDependencyFieldsFragmentDoc,
     "\n  \n  mutation AddProjectDependency(\n    $blockingProjectId: UUID!\n    $blockedProjectId: UUID!\n    $clientId: UUID!\n    $opId: UUID!\n  ) {\n    addProjectDependency(\n      blockingProjectId: $blockingProjectId\n      blockedProjectId: $blockedProjectId\n      clientId: $clientId\n      opId: $opId\n    ) {\n      version\n      projectDependency {\n        ...ProjectDependencyFields\n      }\n    }\n  }\n": typeof types.AddProjectDependencyDocument,
     "\n  mutation RemoveProjectDependency($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    removeProjectDependency(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveProjectDependencyDocument,
+    "\n  \n  mutation CreateProjectStatus($input: CreateProjectStatusInput!) {\n    createProjectStatus(input: $input) {\n      version\n      status {\n        ...ProjectStatusFields\n      }\n    }\n  }\n": typeof types.CreateProjectStatusDocument,
+    "\n  \n  mutation UpdateProjectStatus($input: UpdateProjectStatusInput!) {\n    updateProjectStatus(input: $input) {\n      version\n      status {\n        ...ProjectStatusFields\n      }\n    }\n  }\n": typeof types.UpdateProjectStatusDocument,
+    "\n  mutation ArchiveProjectStatus($id: UUID!, $archived: Boolean!) {\n    archiveProjectStatus(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveProjectStatusDocument,
     "\n  fragment PulseFeedFields on PulseFeed {\n    id\n    workspaceId\n    userId\n    name\n    projectIds\n    createdAt\n    updatedAt\n  }\n": typeof types.PulseFeedFieldsFragmentDoc,
     "\n  \n  mutation CreatePulseFeed($input: CreatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    createPulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n": typeof types.CreatePulseFeedDocument,
     "\n  \n  mutation UpdatePulseFeed($input: UpdatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    updatePulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n": typeof types.UpdatePulseFeedDocument,
@@ -426,6 +429,9 @@ const documents: Documents = {
     "\n  fragment ProjectDependencyFields on ProjectDependency {\n    id\n    workspaceId\n    blockingProjectId\n    blockedProjectId\n    createdAt\n  }\n": types.ProjectDependencyFieldsFragmentDoc,
     "\n  \n  mutation AddProjectDependency(\n    $blockingProjectId: UUID!\n    $blockedProjectId: UUID!\n    $clientId: UUID!\n    $opId: UUID!\n  ) {\n    addProjectDependency(\n      blockingProjectId: $blockingProjectId\n      blockedProjectId: $blockedProjectId\n      clientId: $clientId\n      opId: $opId\n    ) {\n      version\n      projectDependency {\n        ...ProjectDependencyFields\n      }\n    }\n  }\n": types.AddProjectDependencyDocument,
     "\n  mutation RemoveProjectDependency($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    removeProjectDependency(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.RemoveProjectDependencyDocument,
+    "\n  \n  mutation CreateProjectStatus($input: CreateProjectStatusInput!) {\n    createProjectStatus(input: $input) {\n      version\n      status {\n        ...ProjectStatusFields\n      }\n    }\n  }\n": types.CreateProjectStatusDocument,
+    "\n  \n  mutation UpdateProjectStatus($input: UpdateProjectStatusInput!) {\n    updateProjectStatus(input: $input) {\n      version\n      status {\n        ...ProjectStatusFields\n      }\n    }\n  }\n": types.UpdateProjectStatusDocument,
+    "\n  mutation ArchiveProjectStatus($id: UUID!, $archived: Boolean!) {\n    archiveProjectStatus(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": types.ArchiveProjectStatusDocument,
     "\n  fragment PulseFeedFields on PulseFeed {\n    id\n    workspaceId\n    userId\n    name\n    projectIds\n    createdAt\n    updatedAt\n  }\n": types.PulseFeedFieldsFragmentDoc,
     "\n  \n  mutation CreatePulseFeed($input: CreatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    createPulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n": types.CreatePulseFeedDocument,
     "\n  \n  mutation UpdatePulseFeed($input: UpdatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    updatePulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n": types.UpdatePulseFeedDocument,
@@ -1166,6 +1172,18 @@ export function graphql(source: "\n  \n  mutation AddProjectDependency(\n    $bl
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RemoveProjectDependency($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    removeProjectDependency(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RemoveProjectDependency($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    removeProjectDependency(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreateProjectStatus($input: CreateProjectStatusInput!) {\n    createProjectStatus(input: $input) {\n      version\n      status {\n        ...ProjectStatusFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreateProjectStatus($input: CreateProjectStatusInput!) {\n    createProjectStatus(input: $input) {\n      version\n      status {\n        ...ProjectStatusFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdateProjectStatus($input: UpdateProjectStatusInput!) {\n    updateProjectStatus(input: $input) {\n      version\n      status {\n        ...ProjectStatusFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateProjectStatus($input: UpdateProjectStatusInput!) {\n    updateProjectStatus(input: $input) {\n      version\n      status {\n        ...ProjectStatusFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation ArchiveProjectStatus($id: UUID!, $archived: Boolean!) {\n    archiveProjectStatus(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation ArchiveProjectStatus($id: UUID!, $archived: Boolean!) {\n    archiveProjectStatus(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

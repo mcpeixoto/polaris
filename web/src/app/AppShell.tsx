@@ -347,6 +347,12 @@ export function AppShell({
         run: () => navigate('/settings/profile'),
       },
       {
+        id: 'nav.projectStatuses',
+        title: 'Go to Project statuses',
+        group: 'Navigation',
+        run: () => navigate('/settings/project-statuses'),
+      },
+      {
         id: 'nav.mcp',
         title: 'Go to MCP',
         group: 'Navigation',
@@ -673,6 +679,10 @@ export function AppShell({
             <NavLink to="/settings/project-labels" className={navClass}>
               <NavGlyph name="labels" />
               <span className={styles.navLabel}>Project labels</span>
+            </NavLink>
+            <NavLink to="/settings/project-statuses" className={navClass}>
+              <NavGlyph name="project" />
+              <span className={styles.navLabel}>Project statuses</span>
             </NavLink>
             <NavLink to="/settings/project-updates" className={navClass}>
               <NavGlyph name="bell" />
