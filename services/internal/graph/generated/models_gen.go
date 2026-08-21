@@ -124,6 +124,26 @@ type AttachmentPayload struct {
 
 func (AttachmentPayload) IsMutationResult() {}
 
+// A third-party application this person has authorised in this workspace.
+//
+// Grouped by application: several live tokens for the same app are one row. Tokens
+// and secrets are never on this type. Authorisations are not replicated — they belong
+// to a person, and putting them in every device's IndexedDB would copy a credential
+// inventory onto every laptop.
+type AuthorisedOauthApp struct {
+	// The OAuth application's id, not a token id.
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	ClientID  string    `json:"clientId"`
+	ImageURL  *string   `json:"imageUrl,omitempty"`
+	Developer *string   `json:"developer,omitempty"`
+	// The union of scopes still granted by live tokens.
+	Scopes     []string   `json:"scopes"`
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+	// When this person first authorised the application.
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 // A bulk update returns the issues it changed and the single version the whole batch landed
 // at, because it emits one version block rather than one per issue.
 type BulkIssuePayload struct {

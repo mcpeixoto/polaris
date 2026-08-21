@@ -21,6 +21,7 @@ import { AcceptInvite } from '~/views/AcceptInvite';
 import { AskFormPage } from '~/views/AskFormPage';
 import { AskSettings } from '~/views/AskSettings';
 import { ApiKeys } from '~/views/ApiKeys';
+import { AuthorisedApps } from '~/views/AuthorisedApps';
 import { Sessions } from '~/views/Sessions';
 import { Webhooks } from '~/views/Webhooks';
 import { OAuthApps } from '~/views/OAuthApps';
@@ -234,6 +235,7 @@ function SignedInShell() {
         <Route path="/settings/templates" element={<Templates />} />
         <Route path="/settings/api-keys" element={<ApiKeys />} />
         <Route path="/settings/sessions" element={<Sessions />} />
+        <Route path="/settings/authorised-apps" element={<AuthorisedApps />} />
         <Route path="/settings/mcp" element={<McpSettings />} />
         <Route path="/settings/asks" element={<AskSettings />} />
         <Route path="/settings/oauth-apps" element={<OAuthApps />} />

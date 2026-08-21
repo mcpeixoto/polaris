@@ -425,6 +425,12 @@ export function AppShell({
         run: () => navigate('/settings/sessions'),
       },
       {
+        id: 'nav.authorisedApps',
+        title: 'Go to Authorised apps',
+        group: 'Navigation',
+        run: () => navigate('/settings/authorised-apps'),
+      },
+      {
         id: 'nav.mcp',
         title: 'Go to MCP',
         group: 'Navigation',
@@ -889,6 +895,10 @@ export function AppShell({
             <NavLink to="/settings/sessions" className={navClass}>
               <NavGlyph name="key" />
               <span className={styles.navLabel}>Sessions</span>
+            </NavLink>
+            <NavLink to="/settings/authorised-apps" className={navClass}>
+              <NavGlyph name="key" />
+              <span className={styles.navLabel}>Authorised apps</span>
             </NavLink>
             <NavLink to="/settings/mcp" className={navClass}>
               <NavGlyph name="key" />

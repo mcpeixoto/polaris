@@ -32,7 +32,27 @@ func (s *Service) RemoveUser(ctx context.Context, p *authz.Principal, userID uui
 	if !authz.Can(p, authz.ActionMemberRemove) {
 		return uuid.Nil, 0, platform.Forbidden("only admins can remove people from the workspace")
 	}
+	return s.archiveWorkspaceMember(ctx, p, userID)
+}
 
+// LeaveWorkspace takes the caller out of this workspace.
+//
+// It is the same archive RemoveUser performs, without the admin gate: a member who is
+// no longer part of a workspace should not have to ask a colleague to press the same
+// button. An OAuth app user cannot leave this way — it is not a person, and uninstall
+// is a different mutation. The last-owner rule still applies: leaving must not strand
+// a workspace with nobody who can invite, change a role, or manage billing.
+func (s *Service) LeaveWorkspace(ctx context.Context, p *authz.Principal) (uuid.UUID, int64, error) {
+	if p == nil || p.UserID == uuid.Nil {
+		return uuid.Nil, 0, platform.Unauthorized("")
+	}
+	if p.ActorType == authz.ActorAppUser {
+		return uuid.Nil, 0, platform.Forbidden("an application cannot leave a workspace")
+	}
+	return s.archiveWorkspaceMember(ctx, p, p.UserID)
+}
+
+func (s *Service) archiveWorkspaceMember(ctx context.Context, p *authz.Principal, userID uuid.UUID) (uuid.UUID, int64, error) {
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		existing, err := q.GetUser(ctx, userID)
