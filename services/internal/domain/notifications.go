@@ -132,10 +132,10 @@ func (s *Service) FanOut(ctx context.Context, workspaceID uuid.UUID) (int, error
 					ActorID:       r.ActorID,
 					ChangeVersion: r.Version,
 					GroupKey:      d.GroupKey,
-					// No payload. The inbox row points at entities the client already
-					// replicates, and copying a title in here would be a second copy that
-					// goes stale the moment somebody renames the issue.
-					Payload: nil,
+					// Issue-backed rows leave payload empty: the inbox already has the
+					// issue. Project/initiative/customer watches that have no issue put
+					// only ids here, never a title that would go stale.
+					Payload: d.Payload,
 				})
 				if err != nil {
 					if store.IsNotFound(err) {
@@ -303,7 +303,11 @@ func deliveriesFor(ctx context.Context, c *fanOutCache, r store.ChangeLog) ([]no
 			deliveries = append(deliveries, extra...)
 		}
 	}
-	return deliveries, nil
+	more, err := entitySubscriptionDeliveries(ctx, c, r)
+	if err != nil {
+		return nil, err
+	}
+	return append(deliveries, more...), nil
 }
 
 // fanOutCache memoises the reads one pass makes over and over.
@@ -321,10 +325,16 @@ type fanOutCache struct {
 	category    map[uuid.UUID]string
 	// recipient records whether an id names somebody in this workspace, and muted what
 	// they have switched off. Both are filled by keep.
-	recipient      map[uuid.UUID]bool
-	muted          map[uuid.UUID]map[string]bool
-	viewSubs       []store.ListViewSubscriptionsForFanOutRow
-	viewSubsLoaded bool
+	recipient            map[uuid.UUID]bool
+	muted                map[uuid.UUID]map[string]bool
+	viewSubs             []store.ListViewSubscriptionsForFanOutRow
+	viewSubsLoaded       bool
+	projectSubs          []store.ProjectSubscription
+	projectSubsLoaded    bool
+	initiativeSubs       []initiativeSubWatch
+	initiativeSubsLoaded bool
+	customerSubs         []store.CustomerSubscription
+	customerSubsLoaded   bool
 }
 
 func newFanOutCache(q *store.Queries, workspaceID uuid.UUID) *fanOutCache {

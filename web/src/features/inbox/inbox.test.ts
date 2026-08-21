@@ -4,7 +4,9 @@ import { Store, type Change, type Notification } from '~/store';
 
 import {
   DEFAULT_INBOX_DISPLAY,
+  describeEvent,
   matchesInboxQuery,
+  notificationHref,
   visibleNotificationIds,
 } from './inbox';
 
@@ -73,5 +75,40 @@ describe('matchesInboxQuery', () => {
     expect(matchesInboxQuery('Ada assigned ENG-4 to you', 'eng-4')).toBe(true);
     expect(matchesInboxQuery('Ada assigned ENG-4 to you', 'comment')).toBe(false);
     expect(matchesInboxQuery('Ada assigned ENG-4 to you', '  ')).toBe(true);
+  });
+});
+
+describe('describeEvent for entity subscriptions', () => {
+  it('names a project update without pretending it is an issue', () => {
+    expect(describeEvent('project_update', 'an issue')).toBe(
+      'posted an update on a project you follow',
+    );
+    expect(describeEvent('initiative_update', 'an issue')).toBe(
+      'posted an update on an initiative you follow',
+    );
+  });
+
+  it('uses the issue when a customer request has one, and not when it does not', () => {
+    expect(describeEvent('customer_request_added', 'an issue')).toBe(
+      'added a request for a customer you follow',
+    );
+    expect(describeEvent('customer_request_added', 'ENG-4')).toBe('added a request on ENG-4');
+  });
+});
+
+describe('notificationHref', () => {
+  it('opens Pulse, activity, and the customer page when there is no issue', () => {
+    expect(notificationHref('pulse_digest', undefined, undefined)).toBe('/pulse');
+    expect(notificationHref('project_update', { projectId: 'p1' }, undefined)).toBe(
+      '/project/p1/activity',
+    );
+    expect(notificationHref('initiative_update', { initiativeId: 'in1' }, undefined)).toBe(
+      '/initiative/in1/activity',
+    );
+    expect(notificationHref('customer_request_added', { customerId: 'c1' }, undefined)).toBe(
+      '/customer/c1',
+    );
+    expect(notificationHref('customer_request_added', { customerId: 'c1' }, 'i1')).toBeUndefined();
+    expect(notificationHref('issue_assigned', undefined, 'i1')).toBeUndefined();
   });
 });

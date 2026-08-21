@@ -68,6 +68,9 @@ type scene struct {
 	openDashboardTile                             uuid.UUID
 	openAskForm, privateAskForm                   uuid.UUID
 	bobsViewSubscription                          uuid.UUID
+	bobsProjectSubscription                       uuid.UUID
+	bobsInitiativeSubscription                    uuid.UUID
+	bobsCustomerSubscription                      uuid.UUID
 	bobsPulseFeed                                 uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
 	bobsFavorite                                  uuid.UUID
@@ -523,6 +526,27 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		t.Fatalf("subscribe bob to the workspace view: %v", err)
 	}
 	s.bobsViewSubscription = watch.ID
+	projWatch, _, err := svc.SetProjectSubscription(ctx, s.bob, domain.SetProjectSubscriptionInput{
+		ProjectID: project.ID, IssuesAdded: true,
+	})
+	if err != nil {
+		t.Fatalf("subscribe bob to the project: %v", err)
+	}
+	s.bobsProjectSubscription = projWatch.ID
+	initWatch, _, err := svc.SetInitiativeSubscription(ctx, s.bob, domain.SetInitiativeSubscriptionInput{
+		InitiativeID: init.ID, Updates: true,
+	})
+	if err != nil {
+		t.Fatalf("subscribe bob to the initiative: %v", err)
+	}
+	s.bobsInitiativeSubscription = initWatch.ID
+	custWatch, _, err := svc.SetCustomerSubscription(ctx, s.bob, domain.SetCustomerSubscriptionInput{
+		CustomerID: cust.ID, RequestAdded: true,
+	})
+	if err != nil {
+		t.Fatalf("subscribe bob to the customer: %v", err)
+	}
+	s.bobsCustomerSubscription = custWatch.ID
 	feed, _, err := svc.CreatePulseFeed(ctx, s.bob, domain.CreatePulseFeedInput{
 		Name: "Shipping", ProjectIDs: []uuid.UUID{project.ID},
 	})
@@ -619,6 +643,12 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 			"how somebody arranges their own screen is theirs"},
 		{aliceName, "viewSubscription", s.bobsViewSubscription,
 			"a watch on a saved view is one person's"},
+		{aliceName, "projectSubscription", s.bobsProjectSubscription,
+			"a watch on a project is one person's"},
+		{aliceName, "initiativeSubscription", s.bobsInitiativeSubscription,
+			"a watch on an initiative is one person's"},
+		{aliceName, "customerSubscription", s.bobsCustomerSubscription,
+			"a watch on a customer is one person's"},
 		{aliceName, "pulseFeed", s.bobsPulseFeed,
 			"a Pulse feed is one person's"},
 		{gretaName, "pulseFeed", s.bobsPulseFeed,
@@ -711,6 +741,9 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "dashboard", s.openDashboard},
 		{bobName, "dashboardTile", s.openDashboardTile},
 		{bobName, "viewSubscription", s.bobsViewSubscription},
+		{bobName, "projectSubscription", s.bobsProjectSubscription},
+		{bobName, "initiativeSubscription", s.bobsInitiativeSubscription},
+		{bobName, "customerSubscription", s.bobsCustomerSubscription},
 		{bobName, "pulseFeed", s.bobsPulseFeed},
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},

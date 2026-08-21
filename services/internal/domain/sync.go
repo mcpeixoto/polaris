@@ -1120,6 +1120,54 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "projectSubscription",
+			func(ctx context.Context, after uuid.UUID) ([]store.ProjectSubscription, error) {
+				return q.StreamProjectSubscriptionsForBootstrap(ctx, store.StreamProjectSubscriptionsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					UserID:      p.UserID,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(row store.ProjectSubscription) (uuid.UUID, any) {
+				return row.ID, toProjectSubscription(row)
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "initiativeSubscription",
+			func(ctx context.Context, after uuid.UUID) ([]store.InitiativeSubscription, error) {
+				return q.StreamInitiativeSubscriptionsForBootstrap(ctx, store.StreamInitiativeSubscriptionsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					UserID:      p.UserID,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(row store.InitiativeSubscription) (uuid.UUID, any) {
+				return row.ID, toInitiativeSubscription(row)
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := streamPages(ctx, w, "customerSubscription",
+			func(ctx context.Context, after uuid.UUID) ([]store.CustomerSubscription, error) {
+				return q.StreamCustomerSubscriptionsForBootstrap(ctx, store.StreamCustomerSubscriptionsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					UserID:      p.UserID,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(row store.CustomerSubscription) (uuid.UUID, any) {
+				return row.ID, toCustomerSubscription(row)
+			},
+		); err != nil {
+			return err
+		}
+
 		if err := streamPages(ctx, w, "viewPreference",
 			func(ctx context.Context, after uuid.UUID) ([]store.ViewPreference, error) {
 				return q.StreamViewPreferencesForBootstrap(ctx, store.StreamViewPreferencesForBootstrapParams{
@@ -1238,7 +1286,9 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v51 adds issueTemplate.subIssues (children filed with the issue).
 // v52 adds initiativeLabel, initiativeLabelLink and initiativeRelation
 // (initiative labels with groups, and sub-initiative nests).
-const ClientSchemaVersion = 52
+// v53 adds projectSubscription, initiativeSubscription and customerSubscription
+// (personal bells on those pages).
+const ClientSchemaVersion = 53
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

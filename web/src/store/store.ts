@@ -83,6 +83,9 @@ import {
   type View,
   type ViewPreference,
   type ViewSubscription,
+  type ProjectSubscription,
+  type InitiativeSubscription,
+  type CustomerSubscription,
   type WorkflowState,
   type Workspace,
 } from './types';
@@ -225,6 +228,9 @@ export class Store {
     notification: new Map(),
     view: new Map(),
     viewSubscription: new Map(),
+    projectSubscription: new Map(),
+    initiativeSubscription: new Map(),
+    customerSubscription: new Map(),
     viewPreference: new Map(),
     favorite: new Map(),
   };
@@ -266,6 +272,12 @@ export class Store {
   private readonly viewSubscriptionOf = new SetIndex<UUID>();
   /** Keyed by user and view together; see `viewSubKey`. */
   private readonly viewSubscriptionByUserView = new Map<string, UUID>();
+  private readonly projectSubscriptionOf = new SetIndex<UUID>();
+  private readonly projectSubscriptionByUser = new Map<string, UUID>();
+  private readonly initiativeSubscriptionOf = new SetIndex<UUID>();
+  private readonly initiativeSubscriptionByUser = new Map<string, UUID>();
+  private readonly customerSubscriptionOf = new SetIndex<UUID>();
+  private readonly customerSubscriptionByUser = new Map<string, UUID>();
   private readonly subscriptionIssue = new SetIndex<UUID>();
   private readonly subscriptionUser = new SetIndex<UUID>();
   /**
@@ -558,6 +570,30 @@ export class Store {
 
   viewSubscriptionIdFor(userId: UUID, viewId: UUID): UUID | undefined {
     return this.viewSubscriptionByUserView.get(viewSubKey(userId, viewId));
+  }
+
+  get projectSubscriptions(): ReadonlyMap<UUID, ProjectSubscription> {
+    return this.tables.projectSubscription as ReadonlyMap<UUID, ProjectSubscription>;
+  }
+
+  projectSubscriptionIdFor(userId: UUID, projectId: UUID): UUID | undefined {
+    return this.projectSubscriptionByUser.get(viewSubKey(userId, projectId));
+  }
+
+  get initiativeSubscriptions(): ReadonlyMap<UUID, InitiativeSubscription> {
+    return this.tables.initiativeSubscription as ReadonlyMap<UUID, InitiativeSubscription>;
+  }
+
+  initiativeSubscriptionIdFor(userId: UUID, initiativeId: UUID): UUID | undefined {
+    return this.initiativeSubscriptionByUser.get(viewSubKey(userId, initiativeId));
+  }
+
+  get customerSubscriptions(): ReadonlyMap<UUID, CustomerSubscription> {
+    return this.tables.customerSubscription as ReadonlyMap<UUID, CustomerSubscription>;
+  }
+
+  customerSubscriptionIdFor(userId: UUID, customerId: UUID): UUID | undefined {
+    return this.customerSubscriptionByUser.get(viewSubKey(userId, customerId));
   }
 
   get viewPreferences(): ReadonlyMap<UUID, ViewPreference> {
@@ -1041,6 +1077,12 @@ export class Store {
     this.viewProject.clear();
     this.viewSubscriptionOf.clear();
     this.viewSubscriptionByUserView.clear();
+    this.projectSubscriptionOf.clear();
+    this.projectSubscriptionByUser.clear();
+    this.initiativeSubscriptionOf.clear();
+    this.initiativeSubscriptionByUser.clear();
+    this.customerSubscriptionOf.clear();
+    this.customerSubscriptionByUser.clear();
     this.subscriptionIssue.clear();
     this.subscriptionUser.clear();
     this.subscriberUsers.clear();
@@ -1151,6 +1193,9 @@ export class Store {
         for (const rowId of [...this.customerRequestProject.get(id)]) {
           this.forget('customerRequest', rowId, deletes, touched);
         }
+        for (const rowId of [...this.projectSubscriptionOf.get(id)]) {
+          this.forget('projectSubscription', rowId, deletes, touched);
+        }
         break;
       case 'issue':
         for (const commentId of [...this.commentIssue.get(id)]) {
@@ -1186,6 +1231,9 @@ export class Store {
       case 'customer':
         for (const rowId of [...this.customerRequestCustomer.get(id)]) {
           this.forget('customerRequest', rowId, deletes, touched);
+        }
+        for (const rowId of [...this.customerSubscriptionOf.get(id)]) {
+          this.forget('customerSubscription', rowId, deletes, touched);
         }
         break;
       case 'dashboard':
@@ -1228,6 +1276,9 @@ export class Store {
         }
         for (const rowId of [...this.initiativeRelationIndex.rowIdsForChild(id)]) {
           this.forget('initiativeRelation', rowId, deletes, touched);
+        }
+        for (const rowId of [...this.initiativeSubscriptionOf.get(id)]) {
+          this.forget('initiativeSubscription', rowId, deletes, touched);
         }
         break;
       case 'projectTemplate':
@@ -1567,6 +1618,39 @@ export class Store {
         this.viewSubscriptionByUserView.set(viewSubKey(row.userId, row.viewId), row.id);
         break;
       }
+      case 'projectSubscription': {
+        const row = next as ProjectSubscription;
+        const before = previous as ProjectSubscription | undefined;
+        if (before !== undefined) {
+          this.projectSubscriptionOf.remove(before.projectId, before.id);
+          this.projectSubscriptionByUser.delete(viewSubKey(before.userId, before.projectId));
+        }
+        this.projectSubscriptionOf.add(row.projectId, row.id);
+        this.projectSubscriptionByUser.set(viewSubKey(row.userId, row.projectId), row.id);
+        break;
+      }
+      case 'initiativeSubscription': {
+        const row = next as InitiativeSubscription;
+        const before = previous as InitiativeSubscription | undefined;
+        if (before !== undefined) {
+          this.initiativeSubscriptionOf.remove(before.initiativeId, before.id);
+          this.initiativeSubscriptionByUser.delete(viewSubKey(before.userId, before.initiativeId));
+        }
+        this.initiativeSubscriptionOf.add(row.initiativeId, row.id);
+        this.initiativeSubscriptionByUser.set(viewSubKey(row.userId, row.initiativeId), row.id);
+        break;
+      }
+      case 'customerSubscription': {
+        const row = next as CustomerSubscription;
+        const before = previous as CustomerSubscription | undefined;
+        if (before !== undefined) {
+          this.customerSubscriptionOf.remove(before.customerId, before.id);
+          this.customerSubscriptionByUser.delete(viewSubKey(before.userId, before.customerId));
+        }
+        this.customerSubscriptionOf.add(row.customerId, row.id);
+        this.customerSubscriptionByUser.set(viewSubKey(row.userId, row.customerId), row.id);
+        break;
+      }
       default:
         break;
     }
@@ -1734,6 +1818,24 @@ export class Store {
         const row = entity as ViewSubscription;
         this.viewSubscriptionOf.remove(row.viewId, row.id);
         this.viewSubscriptionByUserView.delete(viewSubKey(row.userId, row.viewId));
+        break;
+      }
+      case 'projectSubscription': {
+        const row = entity as ProjectSubscription;
+        this.projectSubscriptionOf.remove(row.projectId, row.id);
+        this.projectSubscriptionByUser.delete(viewSubKey(row.userId, row.projectId));
+        break;
+      }
+      case 'initiativeSubscription': {
+        const row = entity as InitiativeSubscription;
+        this.initiativeSubscriptionOf.remove(row.initiativeId, row.id);
+        this.initiativeSubscriptionByUser.delete(viewSubKey(row.userId, row.initiativeId));
+        break;
+      }
+      case 'customerSubscription': {
+        const row = entity as CustomerSubscription;
+        this.customerSubscriptionOf.remove(row.customerId, row.id);
+        this.customerSubscriptionByUser.delete(viewSubKey(row.userId, row.customerId));
         break;
       }
       default:

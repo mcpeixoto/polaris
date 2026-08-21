@@ -174,6 +174,10 @@ type Delivery struct {
 	GroupKey  string
 	IssueID   *uuid.UUID
 	CommentID *uuid.UUID
+	// Payload is for rows that do not point at an issue — a project update, a customer
+	// request with no issue yet. Issue-backed rows leave it empty: the inbox already
+	// has the issue.
+	Payload []byte
 }
 
 // precedence is the order one event's candidate deliveries are considered in, and the whole

@@ -601,7 +601,16 @@ export type NotificationType =
   | 'sub_issue_completed'
   | 'view_issue_added'
   | 'view_issue_completed'
-  | 'pulse_digest';
+  | 'pulse_digest'
+  | 'project_issue_added'
+  | 'project_issue_completed'
+  | 'project_update'
+  | 'initiative_issue_added'
+  | 'initiative_issue_completed'
+  | 'initiative_update'
+  | 'customer_request_added'
+  | 'customer_request_important'
+  | 'customer_request_completed';
 
 /**
  * One inbox row, derived from a change-log row rather than re-derived from entities.
@@ -674,6 +683,45 @@ export interface ViewSubscription {
   readonly userId: UUID;
   readonly added: boolean;
   readonly completed: boolean;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/** Personal watch on a project. Slack-channel subscriptions stay out. */
+export interface ProjectSubscription {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly projectId: UUID;
+  readonly userId: UUID;
+  readonly issuesAdded: boolean;
+  readonly issuesCompleted: boolean;
+  readonly updates: boolean;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/** Personal watch on an initiative. Issue events fire for linked projects. */
+export interface InitiativeSubscription {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly initiativeId: UUID;
+  readonly userId: UUID;
+  readonly issuesAdded: boolean;
+  readonly issuesCompleted: boolean;
+  readonly updates: boolean;
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
+/** Personal watch on a customer. */
+export interface CustomerSubscription {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly customerId: UUID;
+  readonly userId: UUID;
+  readonly requestAdded: boolean;
+  readonly requestImportant: boolean;
+  readonly requestCompleted: boolean;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
 }
@@ -1286,6 +1334,9 @@ export interface EntityByType {
   notification: Notification;
   view: View;
   viewSubscription: ViewSubscription;
+  projectSubscription: ProjectSubscription;
+  initiativeSubscription: InitiativeSubscription;
+  customerSubscription: CustomerSubscription;
   viewPreference: ViewPreference;
   favorite: Favorite;
 }
@@ -1359,6 +1410,9 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'notification',
   'view',
   'viewSubscription',
+  'projectSubscription',
+  'initiativeSubscription',
+  'customerSubscription',
   'viewPreference',
   // Last: a favourite may point at any of the above.
   'favorite',

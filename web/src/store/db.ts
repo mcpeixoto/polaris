@@ -62,6 +62,9 @@ import {
   type View,
   type ViewPreference,
   type ViewSubscription,
+  type ProjectSubscription,
+  type InitiativeSubscription,
+  type CustomerSubscription,
   type WorkflowState,
   type Workspace,
 } from './types';
@@ -152,8 +155,10 @@ import {
  * v51 adds issueTemplate.subIssues (children filed with the issue).
  * v52 adds initiativeLabel, initiativeLabelLink and initiativeRelation
  * (initiative labels with groups, and sub-initiative nests).
+ * v53 adds projectSubscription, initiativeSubscription and customerSubscription
+ * (personal bells on those pages).
  */
-export const CLIENT_SCHEMA = 52;
+export const CLIENT_SCHEMA = 53;
 
 /**
  * One database per workspace per schema version.
@@ -276,6 +281,9 @@ interface PolarisSchema extends DBSchema {
   notification: { key: UUID; value: Notification };
   view: { key: UUID; value: View };
   viewSubscription: { key: UUID; value: ViewSubscription };
+  projectSubscription: { key: UUID; value: ProjectSubscription };
+  initiativeSubscription: { key: UUID; value: InitiativeSubscription };
+  customerSubscription: { key: UUID; value: CustomerSubscription };
   viewPreference: { key: UUID; value: ViewPreference };
   favorite: { key: UUID; value: Favorite };
   meta: { key: string; value: Meta };

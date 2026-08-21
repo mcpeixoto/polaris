@@ -349,6 +349,24 @@ func toNotificationType(v string) (generated.NotificationType, error) {
 		return generated.NotificationTypeViewIssueCompleted, nil
 	case model.NotifyPulseDigest:
 		return generated.NotificationTypePulseDigest, nil
+	case model.NotifyProjectIssueAdded:
+		return generated.NotificationTypeProjectIssueAdded, nil
+	case model.NotifyProjectIssueCompleted:
+		return generated.NotificationTypeProjectIssueCompleted, nil
+	case model.NotifyProjectUpdate:
+		return generated.NotificationTypeProjectUpdate, nil
+	case model.NotifyInitiativeIssueAdded:
+		return generated.NotificationTypeInitiativeIssueAdded, nil
+	case model.NotifyInitiativeIssueCompleted:
+		return generated.NotificationTypeInitiativeIssueCompleted, nil
+	case model.NotifyInitiativeUpdate:
+		return generated.NotificationTypeInitiativeUpdate, nil
+	case model.NotifyCustomerRequestAdded:
+		return generated.NotificationTypeCustomerRequestAdded, nil
+	case model.NotifyCustomerRequestImportant:
+		return generated.NotificationTypeCustomerRequestImportant, nil
+	case model.NotifyCustomerRequestCompleted:
+		return generated.NotificationTypeCustomerRequestCompleted, nil
 	}
 	return "", platform.Internal(fmt.Errorf("unknown notification type %q", v))
 }
@@ -394,6 +412,48 @@ func toViewSubscription(v model.ViewSubscription) generated.ViewSubscription {
 		Completed:   v.Completed,
 		CreatedAt:   v.CreatedAt,
 		UpdatedAt:   v.UpdatedAt,
+	}
+}
+
+func toProjectSubscription(v model.ProjectSubscription) generated.ProjectSubscription {
+	return generated.ProjectSubscription{
+		ID:              v.ID,
+		WorkspaceID:     v.WorkspaceID,
+		ProjectID:       v.ProjectID,
+		UserID:          v.UserID,
+		IssuesAdded:     v.IssuesAdded,
+		IssuesCompleted: v.IssuesCompleted,
+		Updates:         v.Updates,
+		CreatedAt:       v.CreatedAt,
+		UpdatedAt:       v.UpdatedAt,
+	}
+}
+
+func toInitiativeSubscription(v model.InitiativeSubscription) generated.InitiativeSubscription {
+	return generated.InitiativeSubscription{
+		ID:              v.ID,
+		WorkspaceID:     v.WorkspaceID,
+		InitiativeID:    v.InitiativeID,
+		UserID:          v.UserID,
+		IssuesAdded:     v.IssuesAdded,
+		IssuesCompleted: v.IssuesCompleted,
+		Updates:         v.Updates,
+		CreatedAt:       v.CreatedAt,
+		UpdatedAt:       v.UpdatedAt,
+	}
+}
+
+func toCustomerSubscription(v model.CustomerSubscription) generated.CustomerSubscription {
+	return generated.CustomerSubscription{
+		ID:               v.ID,
+		WorkspaceID:      v.WorkspaceID,
+		CustomerID:       v.CustomerID,
+		UserID:           v.UserID,
+		RequestAdded:     v.RequestAdded,
+		RequestImportant: v.RequestImportant,
+		RequestCompleted: v.RequestCompleted,
+		CreatedAt:        v.CreatedAt,
+		UpdatedAt:        v.UpdatedAt,
 	}
 }
 

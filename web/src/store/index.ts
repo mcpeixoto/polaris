@@ -149,6 +149,9 @@ export type {
   View,
   ViewPreference,
   ViewSubscription,
+  ProjectSubscription,
+  InitiativeSubscription,
+  CustomerSubscription,
   Workspace,
   WorkflowState,
 } from './types';

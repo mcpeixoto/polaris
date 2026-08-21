@@ -475,6 +475,21 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	}); err != nil {
 		t.Fatalf("viewSubscription: %v", err)
 	}
+	if _, _, err := svc.SetProjectSubscription(ctx, p, domain.SetProjectSubscriptionInput{
+		ProjectID: project.ID, IssuesAdded: true,
+	}); err != nil {
+		t.Fatalf("projectSubscription: %v", err)
+	}
+	if _, _, err := svc.SetInitiativeSubscription(ctx, p, domain.SetInitiativeSubscriptionInput{
+		InitiativeID: init.ID, Updates: true,
+	}); err != nil {
+		t.Fatalf("initiativeSubscription: %v", err)
+	}
+	if _, _, err := svc.SetCustomerSubscription(ctx, p, domain.SetCustomerSubscriptionInput{
+		CustomerID: cust.ID, RequestAdded: true,
+	}); err != nil {
+		t.Fatalf("customerSubscription: %v", err)
+	}
 	if _, _, err := svc.AddFavorite(ctx, p, "view", view.ID, nil); err != nil {
 		t.Fatalf("favorite: %v", err)
 	}

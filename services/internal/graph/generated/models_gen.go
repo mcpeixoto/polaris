@@ -652,6 +652,29 @@ type CustomerRequestPayload struct {
 
 func (CustomerRequestPayload) IsMutationResult() {}
 
+// Personal watch on a customer. Slack-channel subscriptions stay out.
+type CustomerSubscription struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	CustomerID  uuid.UUID `json:"customerId"`
+	UserID      uuid.UUID `json:"userId"`
+	// Notify when a request is attributed to the customer.
+	RequestAdded bool `json:"requestAdded"`
+	// Notify when a request is marked important.
+	RequestImportant bool `json:"requestImportant"`
+	// Notify when a request's issue is completed or canceled.
+	RequestCompleted bool      `json:"requestCompleted"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+}
+
+type CustomerSubscriptionPayload struct {
+	Version              int                   `json:"version"`
+	CustomerSubscription *CustomerSubscription `json:"customerSubscription"`
+}
+
+func (CustomerSubscriptionPayload) IsMutationResult() {}
+
 // A dated window on one team. Cooldown is a gap between cycles, not a row of this type.
 type Cycle struct {
 	ID          uuid.UUID  `json:"id"`
@@ -1144,6 +1167,29 @@ type InitiativeRelationPayload struct {
 }
 
 func (InitiativeRelationPayload) IsMutationResult() {}
+
+// Personal watch on an initiative. Issues fire for projects linked to it.
+type InitiativeSubscription struct {
+	ID           uuid.UUID `json:"id"`
+	WorkspaceID  uuid.UUID `json:"workspaceId"`
+	InitiativeID uuid.UUID `json:"initiativeId"`
+	UserID       uuid.UUID `json:"userId"`
+	// Notify when a newly created issue is in a linked project.
+	IssuesAdded bool `json:"issuesAdded"`
+	// Notify when an issue in a linked project is completed or canceled.
+	IssuesCompleted bool `json:"issuesCompleted"`
+	// Notify when a new initiative update is posted.
+	Updates   bool      `json:"updates"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type InitiativeSubscriptionPayload struct {
+	Version                int                     `json:"version"`
+	InitiativeSubscription *InitiativeSubscription `json:"initiativeSubscription"`
+}
+
+func (InitiativeSubscriptionPayload) IsMutationResult() {}
 
 // A status post on an initiative — health plus narrative markdown.
 type InitiativeUpdate struct {
@@ -1760,6 +1806,31 @@ type ProjectStatusPayload struct {
 
 func (ProjectStatusPayload) IsMutationResult() {}
 
+// Personal watch on a project. Slack-channel subscriptions are a different row of this
+// type: they need a Slack install. Self-triggered changes do not notify — that rule is
+// the fan-out's, not a column here.
+type ProjectSubscription struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	ProjectID   uuid.UUID `json:"projectId"`
+	UserID      uuid.UUID `json:"userId"`
+	// Notify when a newly created issue is in the project.
+	IssuesAdded bool `json:"issuesAdded"`
+	// Notify when an issue in the project is completed or canceled.
+	IssuesCompleted bool `json:"issuesCompleted"`
+	// Notify when a new project update is posted.
+	Updates   bool      `json:"updates"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type ProjectSubscriptionPayload struct {
+	Version             int                  `json:"version"`
+	ProjectSubscription *ProjectSubscription `json:"projectSubscription"`
+}
+
+func (ProjectSubscriptionPayload) IsMutationResult() {}
+
 type ProjectTeam struct {
 	ID          uuid.UUID `json:"id"`
 	WorkspaceID uuid.UUID `json:"workspaceId"`
@@ -2005,9 +2076,30 @@ type SentryWebhook struct {
 	Secret string `json:"secret"`
 }
 
+type SetCustomerSubscriptionInput struct {
+	CustomerID       uuid.UUID `json:"customerId"`
+	RequestAdded     bool      `json:"requestAdded"`
+	RequestImportant bool      `json:"requestImportant"`
+	RequestCompleted bool      `json:"requestCompleted"`
+}
+
+type SetInitiativeSubscriptionInput struct {
+	InitiativeID    uuid.UUID `json:"initiativeId"`
+	IssuesAdded     bool      `json:"issuesAdded"`
+	IssuesCompleted bool      `json:"issuesCompleted"`
+	Updates         bool      `json:"updates"`
+}
+
 type SetIssueSLAInput struct {
 	IssueID         uuid.UUID `json:"issueId"`
 	DurationMinutes int       `json:"durationMinutes"`
+}
+
+type SetProjectSubscriptionInput struct {
+	ProjectID       uuid.UUID `json:"projectId"`
+	IssuesAdded     bool      `json:"issuesAdded"`
+	IssuesCompleted bool      `json:"issuesCompleted"`
+	Updates         bool      `json:"updates"`
 }
 
 type SetViewSubscriptionInput struct {
@@ -3577,17 +3669,26 @@ func (e InitiativeStatus) MarshalJSON() ([]byte, error) {
 type NotificationType string
 
 const (
-	NotificationTypeIssueAssigned       NotificationType = "ISSUE_ASSIGNED"
-	NotificationTypeIssueStatusChanged  NotificationType = "ISSUE_STATUS_CHANGED"
-	NotificationTypeIssuePriorityRaised NotificationType = "ISSUE_PRIORITY_RAISED"
-	NotificationTypeIssueDue            NotificationType = "ISSUE_DUE"
-	NotificationTypeIssueBlocked        NotificationType = "ISSUE_BLOCKED"
-	NotificationTypeComment             NotificationType = "COMMENT"
-	NotificationTypeMention             NotificationType = "MENTION"
-	NotificationTypeSubIssueCompleted   NotificationType = "SUB_ISSUE_COMPLETED"
-	NotificationTypeViewIssueAdded      NotificationType = "VIEW_ISSUE_ADDED"
-	NotificationTypeViewIssueCompleted  NotificationType = "VIEW_ISSUE_COMPLETED"
-	NotificationTypePulseDigest         NotificationType = "PULSE_DIGEST"
+	NotificationTypeIssueAssigned            NotificationType = "ISSUE_ASSIGNED"
+	NotificationTypeIssueStatusChanged       NotificationType = "ISSUE_STATUS_CHANGED"
+	NotificationTypeIssuePriorityRaised      NotificationType = "ISSUE_PRIORITY_RAISED"
+	NotificationTypeIssueDue                 NotificationType = "ISSUE_DUE"
+	NotificationTypeIssueBlocked             NotificationType = "ISSUE_BLOCKED"
+	NotificationTypeComment                  NotificationType = "COMMENT"
+	NotificationTypeMention                  NotificationType = "MENTION"
+	NotificationTypeSubIssueCompleted        NotificationType = "SUB_ISSUE_COMPLETED"
+	NotificationTypeViewIssueAdded           NotificationType = "VIEW_ISSUE_ADDED"
+	NotificationTypeViewIssueCompleted       NotificationType = "VIEW_ISSUE_COMPLETED"
+	NotificationTypePulseDigest              NotificationType = "PULSE_DIGEST"
+	NotificationTypeProjectIssueAdded        NotificationType = "PROJECT_ISSUE_ADDED"
+	NotificationTypeProjectIssueCompleted    NotificationType = "PROJECT_ISSUE_COMPLETED"
+	NotificationTypeProjectUpdate            NotificationType = "PROJECT_UPDATE"
+	NotificationTypeInitiativeIssueAdded     NotificationType = "INITIATIVE_ISSUE_ADDED"
+	NotificationTypeInitiativeIssueCompleted NotificationType = "INITIATIVE_ISSUE_COMPLETED"
+	NotificationTypeInitiativeUpdate         NotificationType = "INITIATIVE_UPDATE"
+	NotificationTypeCustomerRequestAdded     NotificationType = "CUSTOMER_REQUEST_ADDED"
+	NotificationTypeCustomerRequestImportant NotificationType = "CUSTOMER_REQUEST_IMPORTANT"
+	NotificationTypeCustomerRequestCompleted NotificationType = "CUSTOMER_REQUEST_COMPLETED"
 )
 
 var AllNotificationType = []NotificationType{
@@ -3602,11 +3703,20 @@ var AllNotificationType = []NotificationType{
 	NotificationTypeViewIssueAdded,
 	NotificationTypeViewIssueCompleted,
 	NotificationTypePulseDigest,
+	NotificationTypeProjectIssueAdded,
+	NotificationTypeProjectIssueCompleted,
+	NotificationTypeProjectUpdate,
+	NotificationTypeInitiativeIssueAdded,
+	NotificationTypeInitiativeIssueCompleted,
+	NotificationTypeInitiativeUpdate,
+	NotificationTypeCustomerRequestAdded,
+	NotificationTypeCustomerRequestImportant,
+	NotificationTypeCustomerRequestCompleted,
 }
 
 func (e NotificationType) IsValid() bool {
 	switch e {
-	case NotificationTypeIssueAssigned, NotificationTypeIssueStatusChanged, NotificationTypeIssuePriorityRaised, NotificationTypeIssueDue, NotificationTypeIssueBlocked, NotificationTypeComment, NotificationTypeMention, NotificationTypeSubIssueCompleted, NotificationTypeViewIssueAdded, NotificationTypeViewIssueCompleted, NotificationTypePulseDigest:
+	case NotificationTypeIssueAssigned, NotificationTypeIssueStatusChanged, NotificationTypeIssuePriorityRaised, NotificationTypeIssueDue, NotificationTypeIssueBlocked, NotificationTypeComment, NotificationTypeMention, NotificationTypeSubIssueCompleted, NotificationTypeViewIssueAdded, NotificationTypeViewIssueCompleted, NotificationTypePulseDigest, NotificationTypeProjectIssueAdded, NotificationTypeProjectIssueCompleted, NotificationTypeProjectUpdate, NotificationTypeInitiativeIssueAdded, NotificationTypeInitiativeIssueCompleted, NotificationTypeInitiativeUpdate, NotificationTypeCustomerRequestAdded, NotificationTypeCustomerRequestImportant, NotificationTypeCustomerRequestCompleted:
 		return true
 	}
 	return false

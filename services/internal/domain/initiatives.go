@@ -280,6 +280,9 @@ func (s *Service) ArchiveInitiative(
 			if err := q.ArchiveInitiative(ctx, id); err != nil {
 				return platform.Internal(err)
 			}
+			if err := emitInitiativeSubscriptionDeletes(ctx, s.em, q, p.WorkspaceID, id); err != nil {
+				return err
+			}
 			payload = toInitiative(existing)
 		} else {
 			row, err := q.UnarchiveInitiative(ctx, id)
@@ -325,6 +328,9 @@ func (s *Service) DeleteInitiative(ctx context.Context, p *authz.Principal, id u
 			return platform.Internal(err)
 		}
 		payload := toInitiative(row)
+		if err := emitInitiativeSubscriptionDeletes(ctx, s.em, q, p.WorkspaceID, id); err != nil {
+			return err
+		}
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "initiative", EntityID: id, Op: OpDelete, Scope: scope, Payload: payload,
 		})

@@ -34,6 +34,8 @@ import {
   describeEvent,
   isAwake,
   matchesInboxQuery,
+  notificationHref,
+  payloadId,
   useWakingQuery,
   visibleNotificationIds,
   type InboxDisplay,
@@ -134,6 +136,17 @@ export function Inbox() {
           // replicated, or the system, and a row with no subject reads as a bug.
           const actorName =
             actor?.displayName ?? (notification.type === 'pulse_digest' ? 'Polaris' : 'Somebody');
+          const watchedProjectId = payloadId(notification.payload, 'projectId');
+          const watchedInitiativeId = payloadId(notification.payload, 'initiativeId');
+          const watchedCustomerId = payloadId(notification.payload, 'customerId');
+          const watchedProject =
+            watchedProjectId === undefined ? undefined : store.get('project', watchedProjectId);
+          const watchedInitiative =
+            watchedInitiativeId === undefined
+              ? undefined
+              : store.get('initiative', watchedInitiativeId);
+          const watchedCustomer =
+            watchedCustomerId === undefined ? undefined : store.get('customer', watchedCustomerId);
           const builtRow: Row = {
             id,
             actor: actorName,
@@ -144,7 +157,7 @@ export function Inbox() {
             unread: notification.readAt === undefined,
             snoozedUntil: notification.snoozedUntil,
             issueIdentifier: identifier,
-            href: notification.type === 'pulse_digest' ? '/pulse' : undefined,
+            href: notificationHref(notification.type, notification.payload, notification.issueId),
             haystack: [
               actorName,
               event,
@@ -154,6 +167,9 @@ export function Inbox() {
               team?.key,
               team?.name,
               project?.name,
+              watchedProject?.name,
+              watchedInitiative?.name,
+              watchedCustomer?.name,
               assignee === undefined ? undefined : assignee.displayName,
               issue === undefined ? undefined : priorityLabel(issue.priority),
             ]
@@ -168,7 +184,7 @@ export function Inbox() {
       },
       [display, query],
     ),
-    ['notification', 'issue', 'user', 'team', 'project'],
+    ['notification', 'issue', 'user', 'team', 'project', 'initiative', 'customer'],
     [display.showRead, display.showSnoozed, query],
   );
 

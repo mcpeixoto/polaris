@@ -291,6 +291,7 @@ type Querier interface {
 	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
 	CreateCustomerRequest(ctx context.Context, arg CreateCustomerRequestParams) (CustomerRequest, error)
+	CreateCustomerSubscription(ctx context.Context, arg CreateCustomerSubscriptionParams) (CustomerSubscription, error)
 	// Cycles. Column lists follow the table order, same rule as issues.sql.
 	CreateCycle(ctx context.Context, arg CreateCycleParams) (Cycle, error)
 	// Replicated columns only. token is never selected here except on the owner-read
@@ -316,6 +317,7 @@ type Querier interface {
 	CreateInitiativeProject(ctx context.Context, arg CreateInitiativeProjectParams) (InitiativeProject, error)
 	// Sub-initiative parent/child links.
 	CreateInitiativeRelation(ctx context.Context, arg CreateInitiativeRelationParams) (InitiativeRelation, error)
+	CreateInitiativeSubscription(ctx context.Context, arg CreateInitiativeSubscriptionParams) (InitiativeSubscription, error)
 	CreateInitiativeUpdate(ctx context.Context, arg CreateInitiativeUpdateParams) (InitiativeUpdate, error)
 	CreateIntegrationSubmission(ctx context.Context, arg CreateIntegrationSubmissionParams) (IntegrationSubmission, error)
 	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
@@ -362,6 +364,8 @@ type Querier interface {
 	// ---------------------------------------------------------------------------------------
 	// project_status
 	CreateProjectStatus(ctx context.Context, arg CreateProjectStatusParams) (ProjectStatus, error)
+	// Personal subscriptions to a project, initiative, or customer.
+	CreateProjectSubscription(ctx context.Context, arg CreateProjectSubscriptionParams) (ProjectSubscription, error)
 	CreateProjectTemplate(ctx context.Context, arg CreateProjectTemplateParams) (CreateProjectTemplateRow, error)
 	CreateProjectTemplateIssue(ctx context.Context, arg CreateProjectTemplateIssueParams) (ProjectTemplateIssue, error)
 	CreateProjectTemplateMilestone(ctx context.Context, arg CreateProjectTemplateMilestoneParams) (ProjectTemplateMilestone, error)
@@ -392,6 +396,7 @@ type Querier interface {
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
 	DeleteCustomerDomains(ctx context.Context, customerID uuid.UUID) error
 	DeleteCustomerRequest(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
+	DeleteCustomerSubscription(ctx context.Context, id uuid.UUID) error
 	// A single window, used when a sub-team remaps upcoming cycles onto a parent schedule.
 	// Issues on the row SET NULL via the FK; callers re-point open work first.
 	DeleteCycle(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
@@ -408,6 +413,7 @@ type Querier interface {
 	DeleteGitLabUserLink(ctx context.Context, arg DeleteGitLabUserLinkParams) error
 	DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
 	DeleteInitiativeRelation(ctx context.Context, id uuid.UUID) (InitiativeRelation, error)
+	DeleteInitiativeSubscription(ctx context.Context, id uuid.UUID) error
 	// The remainder after RetargetIssueLabels: issues that already carried the survivor, so
 	// the source application is dropped rather than doubled.
 	//
@@ -419,6 +425,7 @@ type Querier interface {
 	//
 	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) (Notification, error)
 	DeleteProjectDependency(ctx context.Context, id uuid.UUID) (ProjectDependency, error)
+	DeleteProjectSubscription(ctx context.Context, id uuid.UUID) error
 	DeleteProjectTemplateIssue(ctx context.Context, id uuid.UUID) error
 	DeleteProjectTemplateIssuesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
 	DeleteProjectTemplateMilestone(ctx context.Context, id uuid.UUID) error
@@ -483,6 +490,7 @@ type Querier interface {
 	GetCustomerForUpdate(ctx context.Context, id uuid.UUID) (Customer, error)
 	GetCustomerRequest(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
 	GetCustomerRequestForUpdate(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
+	GetCustomerSubscriptionForUser(ctx context.Context, arg GetCustomerSubscriptionForUserParams) (CustomerSubscription, error)
 	GetCycle(ctx context.Context, id uuid.UUID) (Cycle, error)
 	GetCycleCalendarFeedByToken(ctx context.Context, token string) (GetCycleCalendarFeedByTokenRow, error)
 	GetCycleCalendarFeedForOwner(ctx context.Context, arg GetCycleCalendarFeedForOwnerParams) (CycleCalendarFeed, error)
@@ -521,6 +529,7 @@ type Querier interface {
 	GetInitiativeProjectByPair(ctx context.Context, arg GetInitiativeProjectByPairParams) (InitiativeProject, error)
 	GetInitiativeRelation(ctx context.Context, id uuid.UUID) (InitiativeRelation, error)
 	GetInitiativeRelationByPair(ctx context.Context, arg GetInitiativeRelationByPairParams) (InitiativeRelation, error)
+	GetInitiativeSubscriptionForUser(ctx context.Context, arg GetInitiativeSubscriptionForUserParams) (InitiativeSubscription, error)
 	GetInitiativeUpdate(ctx context.Context, id uuid.UUID) (InitiativeUpdate, error)
 	GetInitiativeUpdateForUpdate(ctx context.Context, id uuid.UUID) (InitiativeUpdate, error)
 	GetInviteByTokenHash(ctx context.Context, tokenHash []byte) (Invite, error)
@@ -600,6 +609,7 @@ type Querier interface {
 	GetProjectMilestone(ctx context.Context, id uuid.UUID) (ProjectMilestone, error)
 	GetProjectSortOrderAfter(ctx context.Context, arg GetProjectSortOrderAfterParams) (string, error)
 	GetProjectStatus(ctx context.Context, id uuid.UUID) (ProjectStatus, error)
+	GetProjectSubscriptionForUser(ctx context.Context, arg GetProjectSubscriptionForUserParams) (ProjectSubscription, error)
 	GetProjectTeam(ctx context.Context, arg GetProjectTeamParams) (ProjectTeam, error)
 	GetProjectTemplate(ctx context.Context, id uuid.UUID) (GetProjectTemplateRow, error)
 	GetProjectTemplateIssue(ctx context.Context, id uuid.UUID) (ProjectTemplateIssue, error)
@@ -711,6 +721,9 @@ type Querier interface {
 	ListChildTeams(ctx context.Context, parentTeamID *uuid.UUID) ([]Team, error)
 	ListCommentsForIssue(ctx context.Context, issueID uuid.UUID) ([]Comment, error)
 	ListCustomerRequestIDsForCustomer(ctx context.Context, customerID *uuid.UUID) ([]uuid.UUID, error)
+	ListCustomerRequestsForIssue(ctx context.Context, issueID *uuid.UUID) ([]CustomerRequest, error)
+	ListCustomerSubscriptionsForCustomer(ctx context.Context, customerID uuid.UUID) ([]CustomerSubscription, error)
+	ListCustomerSubscriptionsForFanOut(ctx context.Context, workspaceID uuid.UUID) ([]CustomerSubscription, error)
 	ListCustomersInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Customer, error)
 	// Cycle-less issues in a given category, for auto-add.
 	ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyclelessIssuesByCategoryParams) ([]ListCyclelessIssuesByCategoryRow, error)
@@ -793,6 +806,11 @@ type Querier interface {
 	ListInitiativeProjectIDs(ctx context.Context, initiativeID uuid.UUID) ([]uuid.UUID, error)
 	ListInitiativeProjects(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeProject, error)
 	ListInitiativeRelationsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]InitiativeRelation, error)
+	// One row per (subscription, linked project). An initiative with no projects still returns
+	// one row with a null project_id so update watches fire.
+	//
+	ListInitiativeSubscriptionsForFanOut(ctx context.Context, workspaceID uuid.UUID) ([]ListInitiativeSubscriptionsForFanOutRow, error)
+	ListInitiativeSubscriptionsForInitiative(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeSubscription, error)
 	ListInitiativeUpdatesForInitiative(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeUpdate, error)
 	ListInitiativesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Initiative, error)
 	ListIntegrationSubmissions(ctx context.Context, workspaceID uuid.UUID) ([]IntegrationSubmission, error)
@@ -925,6 +943,11 @@ type Querier interface {
 	ListProjectMembers(ctx context.Context, projectID uuid.UUID) ([]ProjectMember, error)
 	ListProjectMilestones(ctx context.Context, projectID uuid.UUID) ([]ProjectMilestone, error)
 	ListProjectStatuses(ctx context.Context, workspaceID uuid.UUID) ([]ProjectStatus, error)
+	// Archived and deleted projects are omitted: archive does not CASCADE, and a subscription
+	// pointing at a project nobody can open must not produce inbox rows.
+	//
+	ListProjectSubscriptionsForFanOut(ctx context.Context, workspaceID uuid.UUID) ([]ProjectSubscription, error)
+	ListProjectSubscriptionsForProject(ctx context.Context, projectID uuid.UUID) ([]ProjectSubscription, error)
 	ListProjectTeamIDs(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error)
 	ListProjectTeams(ctx context.Context, projectID uuid.UUID) ([]ProjectTeam, error)
 	ListProjectTemplateIssues(ctx context.Context, projectTemplateID uuid.UUID) ([]ProjectTemplateIssue, error)
@@ -1271,6 +1294,7 @@ type Querier interface {
 	// a project-only row follows the project's teams. Guests never call this.
 	//
 	StreamCustomerRequestsForBootstrap(ctx context.Context, arg StreamCustomerRequestsForBootstrapParams) ([]CustomerRequest, error)
+	StreamCustomerSubscriptionsForBootstrap(ctx context.Context, arg StreamCustomerSubscriptionsForBootstrapParams) ([]CustomerSubscription, error)
 	// StreamCustomersForBootstrap: workspace-scoped; guests never call this.
 	//
 	StreamCustomersForBootstrap(ctx context.Context, arg StreamCustomersForBootstrapParams) ([]Customer, error)
@@ -1320,6 +1344,7 @@ type Querier interface {
 	// initiative the replica does not hold.
 	//
 	StreamInitiativeRelationsForBootstrap(ctx context.Context, arg StreamInitiativeRelationsForBootstrapParams) ([]InitiativeRelation, error)
+	StreamInitiativeSubscriptionsForBootstrap(ctx context.Context, arg StreamInitiativeSubscriptionsForBootstrapParams) ([]InitiativeSubscription, error)
 	// StreamInitiativeUpdatesForBootstrap: visible when the initiative is visible.
 	//
 	StreamInitiativeUpdatesForBootstrap(ctx context.Context, arg StreamInitiativeUpdatesForBootstrapParams) ([]InitiativeUpdate, error)
@@ -1434,6 +1459,7 @@ type Querier interface {
 	StreamProjectMembersForBootstrap(ctx context.Context, arg StreamProjectMembersForBootstrapParams) ([]ProjectMember, error)
 	StreamProjectMilestonesForBootstrap(ctx context.Context, arg StreamProjectMilestonesForBootstrapParams) ([]ProjectMilestone, error)
 	StreamProjectStatusesForBootstrap(ctx context.Context, arg StreamProjectStatusesForBootstrapParams) ([]ProjectStatus, error)
+	StreamProjectSubscriptionsForBootstrap(ctx context.Context, arg StreamProjectSubscriptionsForBootstrapParams) ([]ProjectSubscription, error)
 	// StreamProjectTeamsForBootstrap follows the parent project's visibility.
 	//
 	StreamProjectTeamsForBootstrap(ctx context.Context, arg StreamProjectTeamsForBootstrapParams) ([]ProjectTeam, error)
@@ -1552,6 +1578,7 @@ type Querier interface {
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error)
 	UpdateCustomerRequest(ctx context.Context, arg UpdateCustomerRequestParams) (CustomerRequest, error)
+	UpdateCustomerSubscription(ctx context.Context, arg UpdateCustomerSubscriptionParams) (CustomerSubscription, error)
 	UpdateCycle(ctx context.Context, arg UpdateCycleParams) (Cycle, error)
 	UpdateDashboard(ctx context.Context, arg UpdateDashboardParams) (Dashboard, error)
 	UpdateDashboardTile(ctx context.Context, arg UpdateDashboardTileParams) (DashboardTile, error)
@@ -1566,6 +1593,7 @@ type Querier interface {
 	UpdateGitLabUserLink(ctx context.Context, arg UpdateGitLabUserLinkParams) (GitlabUserLink, error)
 	UpdateInitiative(ctx context.Context, arg UpdateInitiativeParams) (Initiative, error)
 	UpdateInitiativeLabel(ctx context.Context, arg UpdateInitiativeLabelParams) (UpdateInitiativeLabelRow, error)
+	UpdateInitiativeSubscription(ctx context.Context, arg UpdateInitiativeSubscriptionParams) (InitiativeSubscription, error)
 	UpdateInitiativeUpdate(ctx context.Context, arg UpdateInitiativeUpdateParams) (InitiativeUpdate, error)
 	UpdateIssue(ctx context.Context, arg UpdateIssueParams) (UpdateIssueRow, error)
 	UpdateIssueHistoryTarget(ctx context.Context, arg UpdateIssueHistoryTargetParams) error
@@ -1584,6 +1612,7 @@ type Querier interface {
 	UpdateProjectLabel(ctx context.Context, arg UpdateProjectLabelParams) (UpdateProjectLabelRow, error)
 	UpdateProjectMilestone(ctx context.Context, arg UpdateProjectMilestoneParams) (ProjectMilestone, error)
 	UpdateProjectStatus(ctx context.Context, arg UpdateProjectStatusParams) (ProjectStatus, error)
+	UpdateProjectSubscription(ctx context.Context, arg UpdateProjectSubscriptionParams) (ProjectSubscription, error)
 	UpdateProjectTemplate(ctx context.Context, arg UpdateProjectTemplateParams) (UpdateProjectTemplateRow, error)
 	UpdateProjectTemplateIssue(ctx context.Context, arg UpdateProjectTemplateIssueParams) (ProjectTemplateIssue, error)
 	UpdateProjectTemplateMilestone(ctx context.Context, arg UpdateProjectTemplateMilestoneParams) (ProjectTemplateMilestone, error)
