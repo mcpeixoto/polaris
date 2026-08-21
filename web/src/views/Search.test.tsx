@@ -77,6 +77,8 @@ describe('searchTerms', () => {
     expect(searchTerms('Login, redirect!')).toEqual(['login', 'redirect']);
     expect(searchTerms('Ação — já?')).toEqual(['acao', 'ja']);
     expect(searchTerms('ENG-123')).toEqual(['eng', '123']);
+    expect(searchTerms('the login')).toEqual(['login']);
+    expect(searchTerms('"login redirect"')).toEqual(['login', 'redirect']);
   });
 
   it('has nothing to say about an empty query', () => {

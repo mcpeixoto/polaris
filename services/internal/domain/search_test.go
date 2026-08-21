@@ -348,3 +348,36 @@ func TestSearch_NarrowsByTheFilterItAccepts(t *testing.T) {
 			"the list must be the same question", filtered.IssueCount, len(filtered.Issues))
 	}
 }
+
+func TestSearch_FindsAnIssueByShorthandIdentifier(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	created, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Ship the sync engine",
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	for _, q := range []string{"ENG-1", "eng-1", "eng1"} {
+		got, err := svc.Search(ctx, p, domain.SearchInput{Query: q})
+		if err != nil {
+			t.Fatalf("search %q: %v", q, err)
+		}
+		if len(got.Issues) != 1 || got.Issues[0].ID != created.ID {
+			t.Errorf("search %q returned %d hits, want the issue just created", q, len(got.Issues))
+		}
+	}
+
+	got, err := svc.Search(ctx, p, domain.SearchInput{Query: "ENG-999"})
+	if err != nil {
+		t.Fatalf("missing identifier: %v", err)
+	}
+	if len(got.Issues) != 0 {
+		t.Errorf("an unknown identifier returned %d hits", len(got.Issues))
+	}
+}
