@@ -21,20 +21,37 @@ FROM workspace
 WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: GetWorkspaceByURLKey :one
-SELECT id, name, url_key, logo_url, settings, plan,
-       archived_at, deleted_at, created_at, updated_at,
-       plan_expires_at, seat_limit, plan_lapsed_at,
-       project_update_reminder_interval_days, project_update_reminder_weekday,
-       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence,
-       customer_requests_enabled, customer_default_team_id, customer_revenue_unit,
-       customer_tiers
-FROM workspace
-WHERE url_key = $1 AND deleted_at IS NULL;
+SELECT w.id, w.name, w.url_key, w.logo_url, w.settings, w.plan,
+       w.archived_at, w.deleted_at, w.created_at, w.updated_at,
+       w.plan_expires_at, w.seat_limit, w.plan_lapsed_at,
+       w.project_update_reminder_interval_days, w.project_update_reminder_weekday,
+       w.project_update_reminder_hour, w.pulse_enabled, w.pulse_digest_cadence,
+       w.customer_requests_enabled, w.customer_default_team_id, w.customer_revenue_unit,
+       w.customer_tiers
+FROM workspace w
+WHERE w.deleted_at IS NULL
+  AND (
+    w.url_key = sqlc.arg(url_key)
+    OR w.id = (
+      SELECT a.workspace_id FROM workspace_url_alias a
+      WHERE a.url_key = sqlc.arg(url_key)
+    )
+  );
+
+-- name: InsertWorkspaceURLAlias :exec
+INSERT INTO workspace_url_alias (url_key, workspace_id)
+VALUES (sqlc.arg(url_key), sqlc.arg(workspace_id))
+ON CONFLICT (url_key) DO NOTHING;
+
+-- name: DeleteWorkspaceURLAlias :exec
+DELETE FROM workspace_url_alias
+WHERE url_key = sqlc.arg(url_key) AND workspace_id = sqlc.arg(workspace_id);
 
 -- name: UpdateWorkspace :one
 UPDATE workspace
 SET name     = COALESCE(sqlc.narg(name), name),
     logo_url = COALESCE(sqlc.narg(logo_url), logo_url),
+    url_key  = COALESCE(sqlc.narg(url_key), url_key),
     settings = COALESCE(sqlc.narg(settings), settings),
     project_update_reminder_interval_days = COALESCE(
         sqlc.narg(project_update_reminder_interval_days),

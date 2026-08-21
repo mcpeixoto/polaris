@@ -2,8 +2,8 @@
  * Settings → Workspace: the name on the sidebar, the URL key, and the logo.
  *
  * Admins only for writes — the mutation refuses members — but everybody can read the name
- * they already see in the shell. The URL key is displayed, not edited: changing it is a
- * redirect problem for every bookmark and invite, and that is a later slice.
+ * they already see in the shell. Changing the URL key keeps the previous slug as an alias
+ * so bookmarks still resolve and nobody else can take it.
  */
 
 import { useState } from 'react';
@@ -64,9 +64,16 @@ export function WorkspaceSettings() {
           />
           <Input
             label="URL key"
-            hint="The workspace slug. Changing it would break every bookmark and invite, so it stays put."
-            value={workspace.urlKey}
-            readOnly
+            hint="The previous address keeps working, so bookmarks and invites do not break."
+            defaultValue={workspace.urlKey}
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={48}
+            onBlur={(event) => {
+              const next = event.target.value.trim().toLowerCase();
+              if (next === '' || next === workspace.urlKey) return;
+              save({ urlKey: next });
+            }}
           />
           <Input
             label="Logo URL"

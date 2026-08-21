@@ -1148,6 +1148,12 @@ type Workspace struct {
 	CustomerTiers                     []string
 }
 
+type WorkspaceUrlAlias struct {
+	UrlKey      string
+	WorkspaceID uuid.UUID
+	CreatedAt   time.Time
+}
+
 type WorkspaceVersion struct {
 	WorkspaceID uuid.UUID
 	Version     int64

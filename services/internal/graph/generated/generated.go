@@ -14535,6 +14535,8 @@ input UpdateProfileInput {
 input UpdateWorkspaceInput {
   name: String
   logoUrl: String
+  """The address segment. The previous value stays reserved so bookmarks still resolve."""
+  urlKey: String
   projectUpdateReminderIntervalDays: Int
   projectUpdateReminderWeekday: Int
   projectUpdateReminderHour: Int
@@ -68885,7 +68887,7 @@ func (ec *executionContext) unmarshalInputUpdateWorkspaceInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "logoUrl", "projectUpdateReminderIntervalDays", "projectUpdateReminderWeekday", "projectUpdateReminderHour", "pulseEnabled", "pulseDigestCadence", "customerRequestsEnabled", "customerDefaultTeamId", "clearCustomerDefaultTeam", "customerRevenueUnit", "customerTiers"}
+	fieldsInOrder := [...]string{"name", "logoUrl", "urlKey", "projectUpdateReminderIntervalDays", "projectUpdateReminderWeekday", "projectUpdateReminderHour", "pulseEnabled", "pulseDigestCadence", "customerRequestsEnabled", "customerDefaultTeamId", "clearCustomerDefaultTeam", "customerRevenueUnit", "customerTiers"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -68906,6 +68908,13 @@ func (ec *executionContext) unmarshalInputUpdateWorkspaceInput(ctx context.Conte
 				return it, err
 			}
 			it.LogoURL = data
+		case "urlKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("urlKey"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.URLKey = data
 		case "projectUpdateReminderIntervalDays":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectUpdateReminderIntervalDays"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
