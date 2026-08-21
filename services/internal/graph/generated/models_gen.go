@@ -370,6 +370,8 @@ type CreateIssueTemplateInput struct {
 	Title       *string         `json:"title,omitempty"`
 	Body        *string         `json:"body,omitempty"`
 	Properties  json.RawMessage `json:"properties,omitempty"`
+	// Omitted or empty means the template files a parent only.
+	SubIssues []TemplateSubIssueInput `json:"subIssues,omitempty"`
 }
 
 type CreateLabelInput struct {
@@ -1311,11 +1313,13 @@ type IssueTemplate struct {
 	Body        string     `json:"body"`
 	// Keys are the same names createIssue takes.
 	Properties json.RawMessage `json:"properties"`
-	Position   string          `json:"position"`
-	CreatedBy  *uuid.UUID      `json:"createdBy,omitempty"`
-	CreatedAt  time.Time       `json:"createdAt"`
-	UpdatedAt  time.Time       `json:"updatedAt"`
-	ArchivedAt *time.Time      `json:"archivedAt,omitempty"`
+	// Children filed with the issue. Empty means the template makes a parent only.
+	SubIssues  []TemplateSubIssue `json:"subIssues"`
+	Position   string             `json:"position"`
+	CreatedBy  *uuid.UUID         `json:"createdBy,omitempty"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	UpdatedAt  time.Time          `json:"updatedAt"`
+	ArchivedAt *time.Time         `json:"archivedAt,omitempty"`
 	// Off by default. Team templates only — a workspace template has no team to file into.
 	EmailIntakeEnabled bool `json:"emailIntakeEnabled"`
 	// The address that creates issues from this template. Null until intake is enabled.
@@ -2086,6 +2090,15 @@ type TeamPayload struct {
 
 func (TeamPayload) IsMutationResult() {}
 
+// A child the template files under the new issue. Titles only — nested templates stay later.
+type TemplateSubIssue struct {
+	Title string `json:"title"`
+}
+
+type TemplateSubIssueInput struct {
+	Title string `json:"title"`
+}
+
 type UpdateAskFormInput struct {
 	ID          uuid.UUID `json:"id"`
 	Name        *string   `json:"name,omitempty"`
@@ -2278,6 +2291,8 @@ type UpdateIssueTemplateInput struct {
 	Title       *string         `json:"title,omitempty"`
 	Body        *string         `json:"body,omitempty"`
 	Properties  json.RawMessage `json:"properties,omitempty"`
+	// Sent whole, like properties. Omitted leaves the stored list alone.
+	SubIssues []TemplateSubIssueInput `json:"subIssues,omitempty"`
 }
 
 type UpdateLabelInput struct {

@@ -138,6 +138,7 @@ function template(id: UUID, name: string, over: Partial<IssueTemplate> = {}): Is
     title: '',
     body: '',
     properties: {},
+    subIssues: [],
     position: 'V',
     createdAt: AT,
     updatedAt: AT,
@@ -190,6 +191,9 @@ function answer(mutation: string, variables: Record<string, unknown>): unknown {
             title: input.title === undefined ? '' : String(input.title),
             body: input.body === undefined ? '' : String(input.body),
             properties: (input.properties ?? {}) as TemplateProperties,
+            subIssues: Array.isArray(input.subIssues)
+              ? (input.subIssues as { title: string }[])
+              : [],
             position: 'z',
             createdBy: ADA,
           }),
@@ -356,6 +360,7 @@ describe('Templates', () => {
         // Written whole, because the server replaces the stored JSON rather than merging
         // into it. Priority is absent because zero is the absence of a priority.
         properties: { stateId: 's-todo', labelIds: ['l-urgent'] },
+        subIssues: [],
       },
     });
 
@@ -371,6 +376,29 @@ describe('Templates', () => {
     expect(row).toBeTruthy();
     expect(within(section(/^Engineering/)).getByText(/Status: Todo/)).toBeTruthy();
     expect(within(section(/^Engineering/)).getByText(/urgent/)).toBeTruthy();
+  }, 10_000);
+
+  it('files named sub-issues with the template and offers Aa on the description', async () => {
+    const { mutate, user } = renderScreen(storeWith(TEAMS));
+
+    await user.click(screen.getByRole('button', { name: 'New template for Engineering' }));
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Incident');
+    await user.type(screen.getByRole('textbox', { name: 'Add a sub-issue' }), 'Write the repro');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.getByText('Write the repro')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark selected text as placeholder' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Create template' }));
+    await waitFor(() => expect(sent(mutate, 'mutation CreateIssueTemplate')).toBeTruthy());
+    expect(sent(mutate, 'mutation CreateIssueTemplate')?.variables).toEqual({
+      input: {
+        teamId: ENG,
+        name: 'Incident',
+        properties: {},
+        subIssues: [{ title: 'Write the repro' }],
+      },
+    });
+    expect(within(section(/^Engineering/)).getByText(/1 sub-issue/)).toBeTruthy();
   }, 10_000);
 
   it('sends only what an edit changed, so a rename does not rewrite the properties', async () => {

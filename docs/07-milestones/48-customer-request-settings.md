@@ -23,4 +23,4 @@ Workspace Settings → Customer requests, and merge from a customer page.
 - Customer attribute sync from Intercom / Zendesk / Front / Salesforce
 - Slack channel link on a customer
 - Excluded domains, CSV export, page subscriptions
-- Template sub-issues / Aa placeholders
+- Template sub-issues / Aa placeholders (shipped in 49)

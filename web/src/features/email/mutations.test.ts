@@ -125,6 +125,7 @@ function issueTemplate(): IssueTemplate {
     title: '',
     body: '',
     properties: {},
+    subIssues: [],
     position: 'a0',
     createdAt: AT,
     updatedAt: AT,

@@ -208,11 +208,24 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		if err := s.applyDefaultTemplate(ctx, q, p, team, member, &in); err != nil {
 			return err
 		}
+		if in.TemplateID != nil {
+			in.Description = UnwrapPlaceholders(in.Description)
+		}
 		if err := s.validateTemplate(ctx, q, p, in.TeamID, in.TemplateID); err != nil {
 			return err
 		}
 		if err := s.validateFormTemplate(ctx, q, p, in.TeamID, in.FormTemplateID); err != nil {
 			return err
+		}
+
+		childTitles, err := s.templateSubIssueTitles(ctx, q, in.TemplateID, in.ParentID)
+		if err != nil {
+			return err
+		}
+		if live+int64(1+len(childTitles)) > TeamIssueLimit {
+			return platform.Conflict(fmt.Sprintf(
+				"this team has reached the %d issue limit; archive or move issues before creating more",
+				TeamIssueLimit))
 		}
 		labelIDs = dedupe(in.LabelIDs)
 
@@ -338,6 +351,13 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 				EntityType: "issue", EntityID: id, Op: OpUpsert, TeamID: &in.TeamID,
 				Scope: authz.TeamScope(in.TeamID, team.Private), Payload: out,
 			})
+			if err != nil {
+				return err
+			}
+		}
+
+		if len(childTitles) > 0 {
+			version, err = s.mintTemplateSubIssues(ctx, q, p, actor, team, out, in, childTitles)
 			if err != nil {
 				return err
 			}

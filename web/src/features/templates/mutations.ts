@@ -43,6 +43,7 @@ import {
   type IssueTemplate,
   type Store,
   type TemplateProperties,
+  type TemplateSubIssue,
   type UUID,
 } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
@@ -60,6 +61,8 @@ export interface NewTemplate {
   /** The issue description it prefills, as Markdown. */
   readonly body?: string | undefined;
   readonly properties?: TemplateProperties | undefined;
+  /** Children filed with the issue. Empty means a parent only. */
+  readonly subIssues?: readonly TemplateSubIssue[] | undefined;
   /** The viewer, when it is known. Only used by the optimistic row. */
   readonly createdBy?: UUID | undefined;
 }
@@ -83,6 +86,7 @@ export async function createTemplate(engine: SyncEngine, input: NewTemplate): Pr
   const title = input.title ?? '';
   const body = input.body ?? '';
   const properties = input.properties ?? {};
+  const subIssues = [...(input.subIssues ?? [])];
   const now = new Date().toISOString();
 
   const provisional: IssueTemplate = {
@@ -99,6 +103,7 @@ export async function createTemplate(engine: SyncEngine, input: NewTemplate): Pr
     title,
     body,
     properties,
+    subIssues,
     position: lastPosition(store),
     ...(input.createdBy === undefined ? null : { createdBy: input.createdBy }),
     createdAt: now,
@@ -115,6 +120,7 @@ export async function createTemplate(engine: SyncEngine, input: NewTemplate): Pr
         ...(title === '' ? null : { title }),
         ...(body === '' ? null : { body }),
         properties,
+        subIssues,
       },
     },
     optimistic: [{ type: 'issueTemplate', id: provisional.id, before: null, after: provisional }],
@@ -140,6 +146,8 @@ export interface TemplateFields {
    * replaces the stored JSON rather than merging into it.
    */
   readonly properties?: TemplateProperties | undefined;
+  /** The whole child list the template should file from now on. */
+  readonly subIssues?: readonly TemplateSubIssue[] | undefined;
 }
 
 /**
@@ -165,6 +173,7 @@ export async function updateTemplate(
     ...(fields.title === undefined ? null : { title: fields.title }),
     ...(fields.body === undefined ? null : { body: fields.body }),
     ...(fields.properties === undefined ? null : { properties: fields.properties }),
+    ...(fields.subIssues === undefined ? null : { subIssues: [...fields.subIssues] }),
     updatedAt: new Date().toISOString(),
   };
   if (sameTemplate(before, after)) return;
@@ -185,6 +194,9 @@ export async function updateTemplate(
         ...(sameProperties(before.properties, after.properties)
           ? null
           : { properties: after.properties }),
+        ...(sameSubIssues(before.subIssues, after.subIssues)
+          ? null
+          : { subIssues: after.subIssues }),
       },
     },
     optimistic: [{ type: 'issueTemplate', id: templateId, before, after }],
@@ -258,6 +270,8 @@ export interface TemplateDefaults {
   readonly priority?: number | undefined;
   readonly estimate?: number | undefined;
   readonly labelIds: readonly UUID[];
+  /** Children the server will file under the new issue. Empty for a parent-only template. */
+  readonly subIssues: readonly TemplateSubIssue[];
   /**
    * The properties this team cannot use, named in words a dialog can show: `status`,
    * `assignee`, `estimate`, `1 label`. Empty in the ordinary case.
@@ -342,6 +356,7 @@ export function templateDefaults(
       : { priority: properties.priority }),
     estimate,
     labelIds,
+    subIssues: [...(template.subIssues ?? [])],
     dropped,
   };
 }
@@ -400,7 +415,8 @@ function sameTemplate(before: IssueTemplate, after: IssueTemplate): boolean {
     before.description === after.description &&
     before.title === after.title &&
     before.body === after.body &&
-    sameProperties(before.properties, after.properties)
+    sameProperties(before.properties, after.properties) &&
+    sameSubIssues(before.subIssues, after.subIssues)
   );
 }
 
@@ -424,4 +440,9 @@ function sameProperties(a: TemplateProperties, b: TemplateProperties): boolean {
   const left = [...(a.labelIds ?? [])].sort();
   const right = [...(b.labelIds ?? [])].sort();
   return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+function sameSubIssues(a: readonly TemplateSubIssue[], b: readonly TemplateSubIssue[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((item, index) => item.title === b[index]?.title);
 }

@@ -51,6 +51,7 @@ import { ApiError } from '~/sync/api';
 import { createIssue } from './mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { templateDefaults, type TemplateDefaults } from '~/features/templates/mutations';
+import { placeholderSpans, unwrapPlaceholders } from '~/features/templates/placeholder';
 import { fieldsForFormTemplate } from '~/features/form-templates/mutations';
 import { FormTemplatePicker } from '~/features/form-templates/FormTemplatePicker';
 import {
@@ -524,8 +525,13 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
         title: resolvedTitle,
         description:
           formTemplate === null
-            ? description.trim()
-            : [description.trim(), descriptionFromFormAnswers(formFields, formAnswers)]
+            ? template === null
+              ? description.trim()
+              : unwrapPlaceholders(description.trim())
+            : [
+                unwrapPlaceholders(description.trim()),
+                descriptionFromFormAnswers(formFields, formAnswers),
+              ]
                 .filter((part) => part !== '')
                 .join('\n\n'),
         stateId: stateId === '' ? undefined : stateId,
@@ -659,9 +665,18 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
             value={description}
             minRows={3}
             maxRows={12}
-            placeholder="Add a description…"
+            placeholder={
+              placeholderSpans(description).length > 0
+                ? 'Type over the ⟦prompts⟧, then create'
+                : 'Add a description…'
+            }
             onChange={(event) => setDescription(event.target.value)}
           />
+          {template === null || template.subIssues.length === 0 ? null : (
+            <p className={styles.dropped}>
+              Also creates {template.subIssues.map((item) => item.title).join(', ')}.
+            </p>
+          )}
 
           <div className={styles.properties}>
             <Select

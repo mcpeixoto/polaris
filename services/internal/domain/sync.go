@@ -1183,7 +1183,7 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v48 adds initiativeUpdate (health plus narrative status posts on initiatives).
 // v49 adds workspace.customerRequestsEnabled / customerDefaultTeamId /
 // customerRevenueUnit / customerTiers.
-const ClientSchemaVersion = 49
+const ClientSchemaVersion = 51
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

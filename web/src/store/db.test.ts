@@ -168,6 +168,7 @@ function oneOfEach(): EntityRow[] {
     title: 'Bug: ',
     body: '',
     properties: {},
+    subIssues: [],
     position: 'a0',
     createdAt: NOW,
     updatedAt: NOW,

@@ -16,7 +16,7 @@ import (
 const archiveIssueTemplate = `-- name: ArchiveIssueTemplate :one
 UPDATE issue_template SET archived_at = now()
 WHERE id = $1 AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+RETURNING id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
           position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 `
@@ -30,6 +30,7 @@ type ArchiveIssueTemplateRow struct {
 	Title              string
 	Body               string
 	Properties         json.RawMessage
+	SubIssues          json.RawMessage
 	Position           string
 	CreatedBy          *uuid.UUID
 	ArchivedAt         *time.Time
@@ -55,6 +56,7 @@ func (q *Queries) ArchiveIssueTemplate(ctx context.Context, id uuid.UUID) (Archi
 		&i.Title,
 		&i.Body,
 		&i.Properties,
+		&i.SubIssues,
 		&i.Position,
 		&i.CreatedBy,
 		&i.ArchivedAt,
@@ -82,14 +84,14 @@ func (q *Queries) CountIssuesFromTemplate(ctx context.Context, templateID *uuid.
 
 const createIssueTemplate = `-- name: CreateIssueTemplate :one
 INSERT INTO issue_template (id, workspace_id, team_id, name, description, title, body,
-                            properties, position, created_by)
+                            properties, sub_issues, position, created_by)
 VALUES ($1, $2, $3, $4,
         $5,
         -- title and body are NOT NULL with an empty default: a template that prefills
         -- nothing but a set of properties is a legitimate thing to want.
         COALESCE($6::text, ''), COALESCE($7::text, ''),
-        $8, $9, $10)
-RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+        $8, $9, $10, $11)
+RETURNING id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
           position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 `
@@ -103,6 +105,7 @@ type CreateIssueTemplateParams struct {
 	Title       *string
 	Body        *string
 	Properties  json.RawMessage
+	SubIssues   json.RawMessage
 	Position    string
 	CreatedBy   *uuid.UUID
 }
@@ -116,6 +119,7 @@ type CreateIssueTemplateRow struct {
 	Title              string
 	Body               string
 	Properties         json.RawMessage
+	SubIssues          json.RawMessage
 	Position           string
 	CreatedBy          *uuid.UUID
 	ArchivedAt         *time.Time
@@ -136,6 +140,7 @@ func (q *Queries) CreateIssueTemplate(ctx context.Context, arg CreateIssueTempla
 		arg.Title,
 		arg.Body,
 		arg.Properties,
+		arg.SubIssues,
 		arg.Position,
 		arg.CreatedBy,
 	)
@@ -149,6 +154,7 @@ func (q *Queries) CreateIssueTemplate(ctx context.Context, arg CreateIssueTempla
 		&i.Title,
 		&i.Body,
 		&i.Properties,
+		&i.SubIssues,
 		&i.Position,
 		&i.CreatedBy,
 		&i.ArchivedAt,
@@ -162,7 +168,7 @@ func (q *Queries) CreateIssueTemplate(ctx context.Context, arg CreateIssueTempla
 }
 
 const getIssueTemplate = `-- name: GetIssueTemplate :one
-SELECT id, workspace_id, team_id, name, description, title, body, properties,
+SELECT id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
        position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
@@ -178,6 +184,7 @@ type GetIssueTemplateRow struct {
 	Title              string
 	Body               string
 	Properties         json.RawMessage
+	SubIssues          json.RawMessage
 	Position           string
 	CreatedBy          *uuid.UUID
 	ArchivedAt         *time.Time
@@ -200,6 +207,7 @@ func (q *Queries) GetIssueTemplate(ctx context.Context, id uuid.UUID) (GetIssueT
 		&i.Title,
 		&i.Body,
 		&i.Properties,
+		&i.SubIssues,
 		&i.Position,
 		&i.CreatedBy,
 		&i.ArchivedAt,
@@ -213,7 +221,7 @@ func (q *Queries) GetIssueTemplate(ctx context.Context, id uuid.UUID) (GetIssueT
 }
 
 const getIssueTemplateByEmailIntakeToken = `-- name: GetIssueTemplateByEmailIntakeToken :one
-SELECT id, workspace_id, team_id, name, description, title, body, properties,
+SELECT id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
        position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
@@ -231,6 +239,7 @@ type GetIssueTemplateByEmailIntakeTokenRow struct {
 	Title              string
 	Body               string
 	Properties         json.RawMessage
+	SubIssues          json.RawMessage
 	Position           string
 	CreatedBy          *uuid.UUID
 	ArchivedAt         *time.Time
@@ -253,6 +262,7 @@ func (q *Queries) GetIssueTemplateByEmailIntakeToken(ctx context.Context, token 
 		&i.Title,
 		&i.Body,
 		&i.Properties,
+		&i.SubIssues,
 		&i.Position,
 		&i.CreatedBy,
 		&i.ArchivedAt,
@@ -301,7 +311,7 @@ func (q *Queries) GetLastIssueTemplatePosition(ctx context.Context, workspaceID 
 }
 
 const listIssueTemplatesForTeam = `-- name: ListIssueTemplatesForTeam :many
-SELECT id, workspace_id, team_id, name, description, title, body, properties,
+SELECT id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
        position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
@@ -325,6 +335,7 @@ type ListIssueTemplatesForTeamRow struct {
 	Title              string
 	Body               string
 	Properties         json.RawMessage
+	SubIssues          json.RawMessage
 	Position           string
 	CreatedBy          *uuid.UUID
 	ArchivedAt         *time.Time
@@ -355,6 +366,7 @@ func (q *Queries) ListIssueTemplatesForTeam(ctx context.Context, arg ListIssueTe
 			&i.Title,
 			&i.Body,
 			&i.Properties,
+			&i.SubIssues,
 			&i.Position,
 			&i.CreatedBy,
 			&i.ArchivedAt,
@@ -375,7 +387,7 @@ func (q *Queries) ListIssueTemplatesForTeam(ctx context.Context, arg ListIssueTe
 }
 
 const listIssueTemplatesInWorkspace = `-- name: ListIssueTemplatesInWorkspace :many
-SELECT id, workspace_id, team_id, name, description, title, body, properties,
+SELECT id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
        position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
@@ -392,6 +404,7 @@ type ListIssueTemplatesInWorkspaceRow struct {
 	Title              string
 	Body               string
 	Properties         json.RawMessage
+	SubIssues          json.RawMessage
 	Position           string
 	CreatedBy          *uuid.UUID
 	ArchivedAt         *time.Time
@@ -420,6 +433,7 @@ func (q *Queries) ListIssueTemplatesInWorkspace(ctx context.Context, workspaceID
 			&i.Title,
 			&i.Body,
 			&i.Properties,
+			&i.SubIssues,
 			&i.Position,
 			&i.CreatedBy,
 			&i.ArchivedAt,
@@ -440,7 +454,7 @@ func (q *Queries) ListIssueTemplatesInWorkspace(ctx context.Context, workspaceID
 }
 
 const streamIssueTemplatesForBootstrap = `-- name: StreamIssueTemplatesForBootstrap :many
-SELECT id, workspace_id, team_id, name, description, title, body, properties,
+SELECT id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
        position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 FROM issue_template
@@ -470,6 +484,7 @@ type StreamIssueTemplatesForBootstrapRow struct {
 	Title              string
 	Body               string
 	Properties         json.RawMessage
+	SubIssues          json.RawMessage
 	Position           string
 	CreatedBy          *uuid.UUID
 	ArchivedAt         *time.Time
@@ -513,6 +528,7 @@ func (q *Queries) StreamIssueTemplatesForBootstrap(ctx context.Context, arg Stre
 			&i.Title,
 			&i.Body,
 			&i.Properties,
+			&i.SubIssues,
 			&i.Position,
 			&i.CreatedBy,
 			&i.ArchivedAt,
@@ -535,7 +551,7 @@ func (q *Queries) StreamIssueTemplatesForBootstrap(ctx context.Context, arg Stre
 const unarchiveIssueTemplate = `-- name: UnarchiveIssueTemplate :one
 UPDATE issue_template SET archived_at = NULL
 WHERE id = $1 AND archived_at IS NOT NULL
-RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+RETURNING id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
           position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 `
@@ -549,6 +565,7 @@ type UnarchiveIssueTemplateRow struct {
 	Title              string
 	Body               string
 	Properties         json.RawMessage
+	SubIssues          json.RawMessage
 	Position           string
 	CreatedBy          *uuid.UUID
 	ArchivedAt         *time.Time
@@ -573,6 +590,7 @@ func (q *Queries) UnarchiveIssueTemplate(ctx context.Context, id uuid.UUID) (Una
 		&i.Title,
 		&i.Body,
 		&i.Properties,
+		&i.SubIssues,
 		&i.Position,
 		&i.CreatedBy,
 		&i.ArchivedAt,
@@ -592,9 +610,10 @@ SET name        = COALESCE($1, name),
     title       = COALESCE($3, title),
     body        = COALESCE($4, body),
     properties  = COALESCE($5, properties),
-    position    = COALESCE($6, position)
-WHERE id = $7 AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+    sub_issues  = COALESCE($6, sub_issues),
+    position    = COALESCE($7, position)
+WHERE id = $8 AND archived_at IS NULL
+RETURNING id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
           position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 `
@@ -605,6 +624,7 @@ type UpdateIssueTemplateParams struct {
 	Title       *string
 	Body        *string
 	Properties  []byte
+	SubIssues   []byte
 	Position    *string
 	ID          uuid.UUID
 }
@@ -618,6 +638,7 @@ type UpdateIssueTemplateRow struct {
 	Title              string
 	Body               string
 	Properties         json.RawMessage
+	SubIssues          json.RawMessage
 	Position           string
 	CreatedBy          *uuid.UUID
 	ArchivedAt         *time.Time
@@ -635,6 +656,7 @@ func (q *Queries) UpdateIssueTemplate(ctx context.Context, arg UpdateIssueTempla
 		arg.Title,
 		arg.Body,
 		arg.Properties,
+		arg.SubIssues,
 		arg.Position,
 		arg.ID,
 	)
@@ -648,6 +670,7 @@ func (q *Queries) UpdateIssueTemplate(ctx context.Context, arg UpdateIssueTempla
 		&i.Title,
 		&i.Body,
 		&i.Properties,
+		&i.SubIssues,
 		&i.Position,
 		&i.CreatedBy,
 		&i.ArchivedAt,
@@ -666,7 +689,7 @@ SET email_intake_enabled = $1,
     email_intake_token   = COALESCE($2, email_intake_token),
     email_intake_address = COALESCE($3, email_intake_address)
 WHERE id = $4 AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, name, description, title, body, properties,
+RETURNING id, workspace_id, team_id, name, description, title, body, properties, sub_issues,
           position, created_by, archived_at, created_at, updated_at,
           email_intake_enabled, email_intake_token, email_intake_address
 `
@@ -687,6 +710,7 @@ type UpdateIssueTemplateEmailIntakeRow struct {
 	Title              string
 	Body               string
 	Properties         json.RawMessage
+	SubIssues          json.RawMessage
 	Position           string
 	CreatedBy          *uuid.UUID
 	ArchivedAt         *time.Time
@@ -716,6 +740,7 @@ func (q *Queries) UpdateIssueTemplateEmailIntake(ctx context.Context, arg Update
 		&i.Title,
 		&i.Body,
 		&i.Properties,
+		&i.SubIssues,
 		&i.Position,
 		&i.CreatedBy,
 		&i.ArchivedAt,
