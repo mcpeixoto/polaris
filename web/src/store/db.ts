@@ -145,8 +145,10 @@ import {
  * v48 adds initiativeUpdate (health plus narrative status posts on initiatives).
  * v49 adds workspace.customerRequestsEnabled / customerDefaultTeamId /
  * customerRevenueUnit / customerTiers.
+ * v50 is reserved for a concurrent slice (initiative labels).
+ * v51 adds issueTemplate.subIssues (children filed with the issue).
  */
-export const CLIENT_SCHEMA = 49;
+export const CLIENT_SCHEMA = 51;
 
 /**
  * One database per workspace per schema version.

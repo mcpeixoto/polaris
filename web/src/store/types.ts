@@ -719,6 +719,8 @@ export interface IssueTemplate {
   readonly body: string;
   /** Keys are the same names the create mutation takes. */
   readonly properties: TemplateProperties;
+  /** Children filed with the issue. Empty means the template makes a parent only. */
+  readonly subIssues: readonly TemplateSubIssue[];
   readonly position: string;
   readonly createdBy?: UUID;
   readonly createdAt: Timestamp;
@@ -726,6 +728,10 @@ export interface IssueTemplate {
   readonly archivedAt?: Timestamp;
   readonly emailIntakeEnabled?: boolean;
   readonly emailIntakeAddress?: string;
+}
+
+export interface TemplateSubIssue {
+  readonly title: string;
 }
 
 export type RecurringCadence = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
