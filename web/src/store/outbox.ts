@@ -215,6 +215,18 @@ export class Outbox {
     return true;
   }
 
+  /**
+   * Releases a claim without counting an attempt.
+   *
+   * For a send that never reached the server. The op is exactly as sendable as it was
+   * before — nothing about it was judged — so counting the try would turn `attempts` into
+   * a measure of how long the network has been down, and the poison threshold into a
+   * timer that deletes the user's work for being offline.
+   */
+  release(opId: UUID): void {
+    this.inFlight.delete(opId);
+  }
+
   /** Counts a send attempt and releases the op so a retry can claim it again. */
   async markAttempt(opId: UUID): Promise<number> {
     const record = this.records.get(opId);

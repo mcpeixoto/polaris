@@ -109,13 +109,20 @@ test.describe('sync engine', () => {
           const db = open.result;
           const tx = db.transaction('meta', 'readwrite');
           const store = tx.objectStore('meta');
-          const read = store.get('meta');
+          // `replica`, which is `META_KEY` in web/src/store/db.ts, and not `meta` — that
+          // is the store's name, not the row's. Reading the wrong key returns undefined
+          // rather than an error, so the guard below quietly skipped the rewrite and the
+          // test went on to assert that a replica nobody had touched still worked. It
+          // passed for as long as it existed and never once exercised the schema bump.
+          const read = store.get('replica');
           read.onsuccess = () => {
             const meta = read.result as { clientSchema: number } | undefined;
-            if (meta) {
-              meta.clientSchema = 0;
-              store.put(meta, 'meta');
+            if (!meta) {
+              reject(new Error('the replica has no meta row to tamper with'));
+              return;
             }
+            meta.clientSchema = 0;
+            store.put(meta, 'replica');
           };
           tx.oncomplete = () => {
             db.close();
