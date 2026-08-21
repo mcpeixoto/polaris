@@ -78,7 +78,10 @@ export function Sessions() {
   }, [sessions]);
 
   const others = rows.filter((row) => !row.current);
-  const target = revoking === null || revoking === 'others' ? null : (sessions?.find((row) => row.id === revoking) ?? null);
+  const target =
+    revoking === null || revoking === 'others'
+      ? null
+      : (sessions?.find((row) => row.id === revoking) ?? null);
 
   const askRevoke = (session: AccountSessionSummary) => {
     setRevokeError(null);
@@ -153,10 +156,9 @@ export function Sessions() {
             Where you are signed in
           </h2>
           <p className={styles.sectionHint}>
-            Each row is a browser or device holding a live login. Revoking one signs that
-            device out on its next request. Revoking the others keeps this browser and kills
-            everything else — the move after a stolen laptop or a hotel wifi you no longer
-            trust.
+            Each row is a browser or device holding a live login. Revoking one signs that device out
+            on its next request. Revoking the others keeps this browser and kills everything else —
+            the move after a stolen laptop or a hotel wifi you no longer trust.
           </p>
         </section>
 
@@ -199,7 +201,11 @@ export function Sessions() {
             </thead>
             <tbody>
               {rows.map((session) => (
-                <SessionRow key={session.id} session={session} onRevoke={() => askRevoke(session)} />
+                <SessionRow
+                  key={session.id}
+                  session={session}
+                  onRevoke={() => askRevoke(session)}
+                />
               ))}
             </tbody>
           </table>
@@ -208,7 +214,13 @@ export function Sessions() {
 
       <ConfirmDialog
         open={target !== null}
-        title={target === null ? '' : target.current ? 'Sign out this browser?' : `Revoke ${target.label}?`}
+        title={
+          target === null
+            ? ''
+            : target.current
+              ? 'Sign out this browser?'
+              : `Revoke ${target.label}?`
+        }
         consequence={target === null ? '' : revocationConsequence(target)}
         confirmLabel={target?.current === true ? 'Sign out' : 'Revoke this session'}
         destructive
@@ -250,7 +262,9 @@ function SessionRow({
           </span>
         </span>
       </th>
-      <td className={session.country === null ? styles.unknown : undefined}>{locationOf(session)}</td>
+      <td className={session.country === null ? styles.unknown : undefined}>
+        {locationOf(session)}
+      </td>
       <td className={session.ip === null ? styles.unknown : styles.ip}>{session.ip ?? '—'}</td>
       <td>
         <span title={exact(session.lastSeenAt)}>{when(session.lastSeenAt)}</span>

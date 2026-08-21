@@ -5,7 +5,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
-import { Store, type Change, type Entity, type Issue, type Notification, type Team, type User } from '~/store';
+import {
+  Store,
+  type Change,
+  type Entity,
+  type Issue,
+  type Notification,
+  type Team,
+  type User,
+} from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
 import { Inbox } from './Inbox';

@@ -35,16 +35,14 @@ function row(id: string, over: Partial<Notification> = {}): Notification {
 function storeWith(...rows: Notification[]): Store {
   const store = new Store(WORKSPACE);
   store.applyChanges(
-    rows.map(
-      (payload, index): Change => ({
-        v: index + 1,
-        type: 'notification',
-        id: payload.id,
-        op: 'upsert',
-        actor: { type: 'system' },
-        payload,
-      }),
-    ),
+    rows.map((payload, index): Change => ({
+      v: index + 1,
+      type: 'notification',
+      id: payload.id,
+      op: 'upsert',
+      actor: { type: 'system' },
+      payload,
+    })),
   );
   return store;
 }
@@ -56,17 +54,18 @@ describe('visibleNotificationIds', () => {
       row('asleep', { snoozedUntil: '2026-08-16T18:00:00.000Z' }),
     );
     expect(visibleNotificationIds(store, NOW, DEFAULT_INBOX_DISPLAY)).toEqual(['awake']);
-    expect(
-      visibleNotificationIds(store, NOW, { showRead: true, showSnoozed: true }),
-    ).toEqual(['awake', 'asleep']);
+    expect(visibleNotificationIds(store, NOW, { showRead: true, showSnoozed: true })).toEqual([
+      'awake',
+      'asleep',
+    ]);
   });
 
   it('hides read rows when Show read is off', () => {
     const store = storeWith(row('unread'), row('read', { readAt: AT }));
     expect(visibleNotificationIds(store, NOW, DEFAULT_INBOX_DISPLAY)).toEqual(['unread', 'read']);
-    expect(
-      visibleNotificationIds(store, NOW, { showRead: false, showSnoozed: false }),
-    ).toEqual(['unread']);
+    expect(visibleNotificationIds(store, NOW, { showRead: false, showSnoozed: false })).toEqual([
+      'unread',
+    ]);
   });
 });
 

@@ -290,11 +290,7 @@ function viewSubscription(id: UUID, viewId: UUID, userId: UUID): ViewSubscriptio
   };
 }
 
-function projectSubscription(
-  id: UUID,
-  projectId: UUID,
-  userId: UUID,
-): ProjectSubscription {
+function projectSubscription(id: UUID, projectId: UUID, userId: UUID): ProjectSubscription {
   return {
     id,
     workspaceId: 'w1',
@@ -326,11 +322,7 @@ function initiativeSubscription(
   };
 }
 
-function customerSubscription(
-  id: UUID,
-  customerId: UUID,
-  userId: UUID,
-): CustomerSubscription {
+function customerSubscription(id: UUID, customerId: UUID, userId: UUID): CustomerSubscription {
   return {
     id,
     workspaceId: 'w1',

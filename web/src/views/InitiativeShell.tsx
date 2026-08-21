@@ -112,7 +112,9 @@ export function InitiativeShell() {
                   initiativeId: initiative.id,
                   userId: viewer.id,
                   issuesAdded:
-                    id === 'issuesAdded' ? watch?.issuesAdded !== true : watch?.issuesAdded === true,
+                    id === 'issuesAdded'
+                      ? watch?.issuesAdded !== true
+                      : watch?.issuesAdded === true,
                   issuesCompleted:
                     id === 'issuesCompleted'
                       ? watch?.issuesCompleted !== true

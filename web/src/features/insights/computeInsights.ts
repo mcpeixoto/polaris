@@ -444,7 +444,11 @@ function dimensions(store: Store, issue: Issue, slice: InsightSlice): readonly D
     return revenues.map((revenue) => ({
       key: String(revenue),
       label: revenue.toLocaleString('en-US'),
-      filter: { field: 'customerRevenue', op: 'eq', values: [String(revenue)] } satisfies FilterClause,
+      filter: {
+        field: 'customerRevenue',
+        op: 'eq',
+        values: [String(revenue)],
+      } satisfies FilterClause,
     }));
   }
   const labelIds = [...store.labelIdsFor(issue.id)];

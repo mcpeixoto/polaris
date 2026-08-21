@@ -56,7 +56,11 @@ export function InsightChart({ data, onSelect }: InsightChartProps) {
                   : `${bar.bucket.label}: ${bar.bucket.value}`
               }
               onClick={clickable ? () => activate(bar.bucket) : undefined}
-              onKeyDown={clickable ? (event) => onBarKey(event, bar.bucket) : undefined}
+              onKeyDown={
+                /* keymap-lint-allow: an SVG rect has no native Enter/Space activation */ clickable
+                  ? (event) => onBarKey(event, bar.bucket)
+                  : undefined
+              }
             >
               <title>
                 {bar.bucket.label}: {formatValue(bar.bucket.value, data.unit)}

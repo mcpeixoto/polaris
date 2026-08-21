@@ -100,7 +100,7 @@ describe('grouping', () => {
   // Statuses belong to a team. Padding a team's list from every status in the workspace
   // puts another team's columns on this team's board — three "Todo"s in a three-team
   // workspace — for issues that could never land in them.
-  it('does not pad a team view with another team\'s statuses', () => {
+  it("does not pad a team view with another team's statuses", () => {
     store.applyChanges([
       {
         v: 10,
