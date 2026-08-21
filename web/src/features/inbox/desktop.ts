@@ -9,11 +9,11 @@
 import { useEffect, useRef } from 'react';
 
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import { notify } from '~/platform/runtime';
+import { notify, setBadgeCount } from '~/platform/runtime';
 import type { Store, UUID } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
-import { describeEvent, isAwake, notificationHref } from './inbox';
+import { describeEvent, isAwake, notificationHref, unreadCount, useWakingQuery } from './inbox';
 import { hydrateInbox } from './mutations';
 
 export function idsToAnnounce(
@@ -99,4 +99,23 @@ function desktopSnapshot(store: Store, viewerId: UUID | null): DesktopSnapshot |
     });
   }
   return { desktop, unread, bodies };
+}
+
+/**
+ * Keeps the dock, taskbar or tab title showing how many inbox rows are waiting.
+ *
+ * `setBadgeCount` and `unreadCount` both existed and neither was ever called, so the count
+ * this product is built around reached no surface at all: the settings screen promises "the
+ * tab badge still updates either way" beside the browser-notification switch, and the tab
+ * said `Polaris` however much was waiting.
+ *
+ * Through `useWakingQuery` rather than a plain live query because the number moves without
+ * anything being written — a snoozed row waking is a clock comparison — and a badge that
+ * only re-counted on a delta would keep a nine-o'clock reminder out of the title all day.
+ */
+export function useUnreadBadge(): void {
+  const { count } = useWakingQuery(unreadCount, ['notification']);
+  useEffect(() => {
+    setBadgeCount(count);
+  }, [count]);
 }

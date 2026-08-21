@@ -17,7 +17,7 @@ import {
 } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 
-import { useDesktopNotifications } from '~/features/inbox/desktop';
+import { useDesktopNotifications, useUnreadBadge } from '~/features/inbox/desktop';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
@@ -120,6 +120,7 @@ export function AppShell({
   const viewer = useViewer();
   const engine = useEngine();
   useDesktopNotifications(engine, viewerId);
+  useUnreadBadge();
   const showCustomers =
     viewer !== null &&
     viewer.role !== 'guest' &&
