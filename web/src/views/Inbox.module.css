@@ -38,6 +38,11 @@
   flex: 1;
 }
 
+.find {
+  width: 12rem;
+  flex: none;
+}
+
 .list {
   flex: 1;
   min-height: 0;
