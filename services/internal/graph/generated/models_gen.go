@@ -20,6 +20,24 @@ type MutationResult interface {
 	IsMutationResult()
 }
 
+// A signed-in browser or device. The refresh token is never on this type.
+//
+// Sessions are not replicated: they belong to an account, not a workspace, and putting
+// them in every device's IndexedDB would copy a credential inventory onto every laptop.
+type AccountSession struct {
+	ID uuid.UUID `json:"id"`
+	// Chrome on macOS, or Unknown device when the user-agent cannot be read.
+	Label     string  `json:"label"`
+	UserAgent *string `json:"userAgent,omitempty"`
+	IP        *string `json:"ip,omitempty"`
+	Country   *string `json:"country,omitempty"`
+	// True when this row is the refresh cookie on this request.
+	Current    bool      `json:"current"`
+	LastSeenAt time.Time `json:"lastSeenAt"`
+	CreatedAt  time.Time `json:"createdAt"`
+	ExpiresAt  time.Time `json:"expiresAt"`
+}
+
 type Actor struct {
 	Type ActorType  `json:"type"`
 	ID   *uuid.UUID `json:"id,omitempty"`

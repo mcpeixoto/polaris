@@ -249,6 +249,7 @@ describe('the settings section', () => {
       'Notifications',
       'Templates',
       'API keys',
+      'Sessions',
       'MCP',
       'Asks',
       'Customer requests',
