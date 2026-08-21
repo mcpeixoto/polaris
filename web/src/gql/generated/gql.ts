@@ -220,6 +220,15 @@ type Documents = {
     "\n  mutation DeleteSlaRule($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteSlaRule(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteSlaRuleDocument,
     "\n  \n  mutation SetIssueSla($input: SetIssueSlaInput!, $clientId: UUID!, $opId: UUID!) {\n    setIssueSla(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": typeof types.SetIssueSlaDocument,
     "\n  \n  mutation ClearIssueSla($issueId: UUID!, $clientId: UUID!, $opId: UUID!) {\n    clearIssueSla(issueId: $issueId, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": typeof types.ClearIssueSlaDocument,
+    "\n  fragment ProjectSubscriptionFields on ProjectSubscription {\n    id\n    workspaceId\n    projectId\n    userId\n    issuesAdded\n    issuesCompleted\n    updates\n    createdAt\n    updatedAt\n  }\n": typeof types.ProjectSubscriptionFieldsFragmentDoc,
+    "\n  \n  mutation SetProjectSubscription($input: SetProjectSubscriptionInput!) {\n    setProjectSubscription(input: $input) {\n      version\n      projectSubscription {\n        ...ProjectSubscriptionFields\n      }\n    }\n  }\n": typeof types.SetProjectSubscriptionDocument,
+    "\n  mutation DeleteProjectSubscription($projectId: UUID!) {\n    deleteProjectSubscription(projectId: $projectId) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteProjectSubscriptionDocument,
+    "\n  fragment InitiativeSubscriptionFields on InitiativeSubscription {\n    id\n    workspaceId\n    initiativeId\n    userId\n    issuesAdded\n    issuesCompleted\n    updates\n    createdAt\n    updatedAt\n  }\n": typeof types.InitiativeSubscriptionFieldsFragmentDoc,
+    "\n  \n  mutation SetInitiativeSubscription($input: SetInitiativeSubscriptionInput!) {\n    setInitiativeSubscription(input: $input) {\n      version\n      initiativeSubscription {\n        ...InitiativeSubscriptionFields\n      }\n    }\n  }\n": typeof types.SetInitiativeSubscriptionDocument,
+    "\n  mutation DeleteInitiativeSubscription($initiativeId: UUID!) {\n    deleteInitiativeSubscription(initiativeId: $initiativeId) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteInitiativeSubscriptionDocument,
+    "\n  fragment CustomerSubscriptionFields on CustomerSubscription {\n    id\n    workspaceId\n    customerId\n    userId\n    requestAdded\n    requestImportant\n    requestCompleted\n    createdAt\n    updatedAt\n  }\n": typeof types.CustomerSubscriptionFieldsFragmentDoc,
+    "\n  \n  mutation SetCustomerSubscription($input: SetCustomerSubscriptionInput!) {\n    setCustomerSubscription(input: $input) {\n      version\n      customerSubscription {\n        ...CustomerSubscriptionFields\n      }\n    }\n  }\n": typeof types.SetCustomerSubscriptionDocument,
+    "\n  mutation DeleteCustomerSubscription($customerId: UUID!) {\n    deleteCustomerSubscription(customerId: $customerId) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteCustomerSubscriptionDocument,
     "\n  \n  query DeletedTeams {\n    deletedTeams {\n      ...TeamFields\n      deletedAt\n    }\n  }\n": typeof types.DeletedTeamsDocument,
     "\n  \n  mutation RetireTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    retireTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": typeof types.RetireTeamDocument,
     "\n  \n  mutation UnretireTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    unretireTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": typeof types.UnretireTeamDocument,
@@ -499,6 +508,15 @@ const documents: Documents = {
     "\n  mutation DeleteSlaRule($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deleteSlaRule(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.DeleteSlaRuleDocument,
     "\n  \n  mutation SetIssueSla($input: SetIssueSlaInput!, $clientId: UUID!, $opId: UUID!) {\n    setIssueSla(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": types.SetIssueSlaDocument,
     "\n  \n  mutation ClearIssueSla($issueId: UUID!, $clientId: UUID!, $opId: UUID!) {\n    clearIssueSla(issueId: $issueId, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": types.ClearIssueSlaDocument,
+    "\n  fragment ProjectSubscriptionFields on ProjectSubscription {\n    id\n    workspaceId\n    projectId\n    userId\n    issuesAdded\n    issuesCompleted\n    updates\n    createdAt\n    updatedAt\n  }\n": types.ProjectSubscriptionFieldsFragmentDoc,
+    "\n  \n  mutation SetProjectSubscription($input: SetProjectSubscriptionInput!) {\n    setProjectSubscription(input: $input) {\n      version\n      projectSubscription {\n        ...ProjectSubscriptionFields\n      }\n    }\n  }\n": types.SetProjectSubscriptionDocument,
+    "\n  mutation DeleteProjectSubscription($projectId: UUID!) {\n    deleteProjectSubscription(projectId: $projectId) {\n      version\n      id\n    }\n  }\n": types.DeleteProjectSubscriptionDocument,
+    "\n  fragment InitiativeSubscriptionFields on InitiativeSubscription {\n    id\n    workspaceId\n    initiativeId\n    userId\n    issuesAdded\n    issuesCompleted\n    updates\n    createdAt\n    updatedAt\n  }\n": types.InitiativeSubscriptionFieldsFragmentDoc,
+    "\n  \n  mutation SetInitiativeSubscription($input: SetInitiativeSubscriptionInput!) {\n    setInitiativeSubscription(input: $input) {\n      version\n      initiativeSubscription {\n        ...InitiativeSubscriptionFields\n      }\n    }\n  }\n": types.SetInitiativeSubscriptionDocument,
+    "\n  mutation DeleteInitiativeSubscription($initiativeId: UUID!) {\n    deleteInitiativeSubscription(initiativeId: $initiativeId) {\n      version\n      id\n    }\n  }\n": types.DeleteInitiativeSubscriptionDocument,
+    "\n  fragment CustomerSubscriptionFields on CustomerSubscription {\n    id\n    workspaceId\n    customerId\n    userId\n    requestAdded\n    requestImportant\n    requestCompleted\n    createdAt\n    updatedAt\n  }\n": types.CustomerSubscriptionFieldsFragmentDoc,
+    "\n  \n  mutation SetCustomerSubscription($input: SetCustomerSubscriptionInput!) {\n    setCustomerSubscription(input: $input) {\n      version\n      customerSubscription {\n        ...CustomerSubscriptionFields\n      }\n    }\n  }\n": types.SetCustomerSubscriptionDocument,
+    "\n  mutation DeleteCustomerSubscription($customerId: UUID!) {\n    deleteCustomerSubscription(customerId: $customerId) {\n      version\n      id\n    }\n  }\n": types.DeleteCustomerSubscriptionDocument,
     "\n  \n  query DeletedTeams {\n    deletedTeams {\n      ...TeamFields\n      deletedAt\n    }\n  }\n": types.DeletedTeamsDocument,
     "\n  \n  mutation RetireTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    retireTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": types.RetireTeamDocument,
     "\n  \n  mutation UnretireTeam($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    unretireTeam(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      team {\n        ...TeamFields\n      }\n    }\n  }\n": types.UnretireTeamDocument,
@@ -1410,6 +1428,42 @@ export function graphql(source: "\n  \n  mutation SetIssueSla($input: SetIssueSl
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  \n  mutation ClearIssueSla($issueId: UUID!, $clientId: UUID!, $opId: UUID!) {\n    clearIssueSla(issueId: $issueId, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation ClearIssueSla($issueId: UUID!, $clientId: UUID!, $opId: UUID!) {\n    clearIssueSla(issueId: $issueId, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment ProjectSubscriptionFields on ProjectSubscription {\n    id\n    workspaceId\n    projectId\n    userId\n    issuesAdded\n    issuesCompleted\n    updates\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment ProjectSubscriptionFields on ProjectSubscription {\n    id\n    workspaceId\n    projectId\n    userId\n    issuesAdded\n    issuesCompleted\n    updates\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation SetProjectSubscription($input: SetProjectSubscriptionInput!) {\n    setProjectSubscription(input: $input) {\n      version\n      projectSubscription {\n        ...ProjectSubscriptionFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation SetProjectSubscription($input: SetProjectSubscriptionInput!) {\n    setProjectSubscription(input: $input) {\n      version\n      projectSubscription {\n        ...ProjectSubscriptionFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteProjectSubscription($projectId: UUID!) {\n    deleteProjectSubscription(projectId: $projectId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteProjectSubscription($projectId: UUID!) {\n    deleteProjectSubscription(projectId: $projectId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment InitiativeSubscriptionFields on InitiativeSubscription {\n    id\n    workspaceId\n    initiativeId\n    userId\n    issuesAdded\n    issuesCompleted\n    updates\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment InitiativeSubscriptionFields on InitiativeSubscription {\n    id\n    workspaceId\n    initiativeId\n    userId\n    issuesAdded\n    issuesCompleted\n    updates\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation SetInitiativeSubscription($input: SetInitiativeSubscriptionInput!) {\n    setInitiativeSubscription(input: $input) {\n      version\n      initiativeSubscription {\n        ...InitiativeSubscriptionFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation SetInitiativeSubscription($input: SetInitiativeSubscriptionInput!) {\n    setInitiativeSubscription(input: $input) {\n      version\n      initiativeSubscription {\n        ...InitiativeSubscriptionFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteInitiativeSubscription($initiativeId: UUID!) {\n    deleteInitiativeSubscription(initiativeId: $initiativeId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteInitiativeSubscription($initiativeId: UUID!) {\n    deleteInitiativeSubscription(initiativeId: $initiativeId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment CustomerSubscriptionFields on CustomerSubscription {\n    id\n    workspaceId\n    customerId\n    userId\n    requestAdded\n    requestImportant\n    requestCompleted\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment CustomerSubscriptionFields on CustomerSubscription {\n    id\n    workspaceId\n    customerId\n    userId\n    requestAdded\n    requestImportant\n    requestCompleted\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation SetCustomerSubscription($input: SetCustomerSubscriptionInput!) {\n    setCustomerSubscription(input: $input) {\n      version\n      customerSubscription {\n        ...CustomerSubscriptionFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation SetCustomerSubscription($input: SetCustomerSubscriptionInput!) {\n    setCustomerSubscription(input: $input) {\n      version\n      customerSubscription {\n        ...CustomerSubscriptionFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteCustomerSubscription($customerId: UUID!) {\n    deleteCustomerSubscription(customerId: $customerId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteCustomerSubscription($customerId: UUID!) {\n    deleteCustomerSubscription(customerId: $customerId) {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

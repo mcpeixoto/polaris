@@ -30,6 +30,9 @@ import type {
   View,
   ViewPreference,
   ViewSubscription,
+  ProjectSubscription,
+  InitiativeSubscription,
+  CustomerSubscription,
   Workspace,
 } from './types';
 
@@ -314,6 +317,39 @@ function oneOfEach(): EntityRow[] {
     userId: 'u1',
     added: true,
     completed: false,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const projectSubscription: ProjectSubscription = {
+    id: 'ps1',
+    workspaceId: 'w',
+    projectId: 'p1',
+    userId: 'u1',
+    issuesAdded: true,
+    issuesCompleted: false,
+    updates: false,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const initiativeSubscription: InitiativeSubscription = {
+    id: 'is1',
+    workspaceId: 'w',
+    initiativeId: 'in1',
+    userId: 'u1',
+    issuesAdded: true,
+    issuesCompleted: false,
+    updates: true,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const customerSubscription: CustomerSubscription = {
+    id: 'cs1',
+    workspaceId: 'w',
+    customerId: 'cu1',
+    userId: 'u1',
+    requestAdded: true,
+    requestImportant: false,
+    requestCompleted: false,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -747,6 +783,9 @@ function oneOfEach(): EntityRow[] {
     { type: 'notification', entity: notification },
     { type: 'view', entity: view },
     { type: 'viewSubscription', entity: viewSubscription },
+    { type: 'projectSubscription', entity: projectSubscription },
+    { type: 'initiativeSubscription', entity: initiativeSubscription },
+    { type: 'customerSubscription', entity: customerSubscription },
     { type: 'viewPreference', entity: viewPreference },
     { type: 'favorite', entity: favorite },
   ];

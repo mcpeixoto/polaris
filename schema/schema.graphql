@@ -119,6 +119,15 @@ enum NotificationType {
   VIEW_ISSUE_ADDED
   VIEW_ISSUE_COMPLETED
   PULSE_DIGEST
+  PROJECT_ISSUE_ADDED
+  PROJECT_ISSUE_COMPLETED
+  PROJECT_UPDATE
+  INITIATIVE_ISSUE_ADDED
+  INITIATIVE_ISSUE_COMPLETED
+  INITIATIVE_UPDATE
+  CUSTOMER_REQUEST_ADDED
+  CUSTOMER_REQUEST_IMPORTANT
+  CUSTOMER_REQUEST_COMPLETED
 }
 
 """How often Pulse writes a morning inbox summary of project updates."""
@@ -679,6 +688,58 @@ type ViewSubscription {
   added: Boolean!
   """Notify when an issue that matches the view is completed or canceled."""
   completed: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
+Personal watch on a project. Slack-channel subscriptions are a different row of this
+type: they need a Slack install. Self-triggered changes do not notify — that rule is
+the fan-out's, not a column here.
+"""
+type ProjectSubscription {
+  id: UUID!
+  workspaceId: UUID!
+  projectId: UUID!
+  userId: UUID!
+  """Notify when a newly created issue is in the project."""
+  issuesAdded: Boolean!
+  """Notify when an issue in the project is completed or canceled."""
+  issuesCompleted: Boolean!
+  """Notify when a new project update is posted."""
+  updates: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""Personal watch on an initiative. Issues fire for projects linked to it."""
+type InitiativeSubscription {
+  id: UUID!
+  workspaceId: UUID!
+  initiativeId: UUID!
+  userId: UUID!
+  """Notify when a newly created issue is in a linked project."""
+  issuesAdded: Boolean!
+  """Notify when an issue in a linked project is completed or canceled."""
+  issuesCompleted: Boolean!
+  """Notify when a new initiative update is posted."""
+  updates: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""Personal watch on a customer. Slack-channel subscriptions stay out."""
+type CustomerSubscription {
+  id: UUID!
+  workspaceId: UUID!
+  customerId: UUID!
+  userId: UUID!
+  """Notify when a request is attributed to the customer."""
+  requestAdded: Boolean!
+  """Notify when a request is marked important."""
+  requestImportant: Boolean!
+  """Notify when a request's issue is completed or canceled."""
+  requestCompleted: Boolean!
   createdAt: Time!
   updatedAt: Time!
 }
@@ -1530,6 +1591,21 @@ type ViewPayload implements MutationResult {
 type ViewSubscriptionPayload implements MutationResult {
   version: Int!
   viewSubscription: ViewSubscription!
+}
+
+type ProjectSubscriptionPayload implements MutationResult {
+  version: Int!
+  projectSubscription: ProjectSubscription!
+}
+
+type InitiativeSubscriptionPayload implements MutationResult {
+  version: Int!
+  initiativeSubscription: InitiativeSubscription!
+}
+
+type CustomerSubscriptionPayload implements MutationResult {
+  version: Int!
+  customerSubscription: CustomerSubscription!
 }
 
 type ViewPreferencePayload implements MutationResult {
@@ -2571,6 +2647,27 @@ input SetViewSubscriptionInput {
   completed: Boolean!
 }
 
+input SetProjectSubscriptionInput {
+  projectId: UUID!
+  issuesAdded: Boolean!
+  issuesCompleted: Boolean!
+  updates: Boolean!
+}
+
+input SetInitiativeSubscriptionInput {
+  initiativeId: UUID!
+  issuesAdded: Boolean!
+  issuesCompleted: Boolean!
+  updates: Boolean!
+}
+
+input SetCustomerSubscriptionInput {
+  customerId: UUID!
+  requestAdded: Boolean!
+  requestImportant: Boolean!
+  requestCompleted: Boolean!
+}
+
 input MoveFavoriteInput {
   id: UUID!
   """The folder to sit in. Ignored when clearFolder is set."""
@@ -3506,6 +3603,16 @@ type Mutation {
   """
   setViewSubscription(input: SetViewSubscriptionInput!): ViewSubscriptionPayload!
   deleteViewSubscription(viewId: UUID!): DeletePayload!
+  """
+  Subscribe to a project, or change which events fire. Passing every flag false is an
+  unsubscribe. The row is personal: only the caller can write their own.
+  """
+  setProjectSubscription(input: SetProjectSubscriptionInput!): ProjectSubscriptionPayload!
+  deleteProjectSubscription(projectId: UUID!): DeletePayload!
+  setInitiativeSubscription(input: SetInitiativeSubscriptionInput!): InitiativeSubscriptionPayload!
+  deleteInitiativeSubscription(initiativeId: UUID!): DeletePayload!
+  setCustomerSubscription(input: SetCustomerSubscriptionInput!): CustomerSubscriptionPayload!
+  deleteCustomerSubscription(customerId: UUID!): DeletePayload!
 
   addFavorite(kind: FavoriteKind!, targetId: UUID!, afterFavoriteId: UUID): FavoritePayload!
   removeFavorite(kind: FavoriteKind!, targetId: UUID!): DeletePayload!

@@ -93,6 +93,17 @@ var sectionOrder = []string{
 	model.NotifyIssueStatusChanged,
 	model.NotifySubIssueCompleted,
 	model.NotifyIssueDue,
+	model.NotifyViewIssueAdded,
+	model.NotifyViewIssueCompleted,
+	model.NotifyProjectIssueAdded,
+	model.NotifyProjectIssueCompleted,
+	model.NotifyProjectUpdate,
+	model.NotifyInitiativeIssueAdded,
+	model.NotifyInitiativeIssueCompleted,
+	model.NotifyInitiativeUpdate,
+	model.NotifyCustomerRequestAdded,
+	model.NotifyCustomerRequestImportant,
+	model.NotifyCustomerRequestCompleted,
 }
 
 // RenderDigest turns a digest into the message that carries it.
@@ -185,6 +196,28 @@ func SectionTitle(typ string, n int) string {
 		return plural(n, "sub-issue completed", "sub-issues completed")
 	case model.NotifyIssueDue:
 		return plural(n, "issue due", "issues due")
+	case model.NotifyViewIssueAdded:
+		return plural(n, "issue added to a view you follow", "issues added to views you follow")
+	case model.NotifyViewIssueCompleted:
+		return plural(n, "issue completed in a view you follow", "issues completed in views you follow")
+	case model.NotifyProjectIssueAdded:
+		return plural(n, "issue added to a project you follow", "issues added to projects you follow")
+	case model.NotifyProjectIssueCompleted:
+		return plural(n, "issue completed in a project you follow", "issues completed in projects you follow")
+	case model.NotifyProjectUpdate:
+		return plural(n, "update on a project you follow", "updates on projects you follow")
+	case model.NotifyInitiativeIssueAdded:
+		return plural(n, "issue added to an initiative you follow", "issues added to initiatives you follow")
+	case model.NotifyInitiativeIssueCompleted:
+		return plural(n, "issue completed in an initiative you follow", "issues completed in initiatives you follow")
+	case model.NotifyInitiativeUpdate:
+		return plural(n, "update on an initiative you follow", "updates on initiatives you follow")
+	case model.NotifyCustomerRequestAdded:
+		return plural(n, "request added for a customer you follow", "requests added for customers you follow")
+	case model.NotifyCustomerRequestImportant:
+		return plural(n, "request marked important for a customer you follow", "requests marked important for customers you follow")
+	case model.NotifyCustomerRequestCompleted:
+		return plural(n, "request completed for a customer you follow", "requests completed for customers you follow")
 	default:
 		return plural(n, "update", "updates")
 	}

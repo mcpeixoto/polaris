@@ -626,6 +626,9 @@ func (s *Service) archiveProjectLocked(
 		if err := q.ArchiveProject(ctx, project.ID); err != nil {
 			return 0, platform.Internal(err)
 		}
+		if err := emitProjectSubscriptionDeletes(ctx, s.em, q, project.WorkspaceID, project.ID); err != nil {
+			return 0, err
+		}
 	} else {
 		row, err := q.UnarchiveProject(ctx, project.ID)
 		if err != nil {

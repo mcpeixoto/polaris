@@ -60,6 +60,9 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"Dashboard", model.Dashboard{}, generated.Dashboard{}},
 		{"DashboardTile", model.DashboardTile{}, generated.DashboardTile{}},
 		{"ViewSubscription", model.ViewSubscription{}, generated.ViewSubscription{}},
+		{"ProjectSubscription", model.ProjectSubscription{}, generated.ProjectSubscription{}},
+		{"InitiativeSubscription", model.InitiativeSubscription{}, generated.InitiativeSubscription{}},
+		{"CustomerSubscription", model.CustomerSubscription{}, generated.CustomerSubscription{}},
 		{"InitiativeLabel", model.InitiativeLabel{}, generated.InitiativeLabel{}},
 		{"InitiativeLabelLink", model.InitiativeLabelLink{}, generated.InitiativeLabelLink{}},
 		{"InitiativeRelation", model.InitiativeRelation{}, generated.InitiativeRelation{}},
@@ -137,6 +140,9 @@ func TestSchemaDrift_TheConvertersCarryEveryFieldTheTwoShapesShare(t *testing.T)
 		{"AskForm", model.AskForm{}, func(v any) (any, error) { return toAskForm(v.(model.AskForm)), nil }},
 		{"PulseFeed", model.PulseFeed{}, func(v any) (any, error) { return toPulseFeed(v.(model.PulseFeed)), nil }},
 		{"ViewSubscription", model.ViewSubscription{}, func(v any) (any, error) { return toViewSubscription(v.(model.ViewSubscription)), nil }},
+		{"ProjectSubscription", model.ProjectSubscription{}, func(v any) (any, error) { return toProjectSubscription(v.(model.ProjectSubscription)), nil }},
+		{"InitiativeSubscription", model.InitiativeSubscription{}, func(v any) (any, error) { return toInitiativeSubscription(v.(model.InitiativeSubscription)), nil }},
+		{"CustomerSubscription", model.CustomerSubscription{}, func(v any) (any, error) { return toCustomerSubscription(v.(model.CustomerSubscription)), nil }},
 	}
 
 	for _, c := range cases {

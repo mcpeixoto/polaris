@@ -20,6 +20,11 @@ import { useEngine } from '~/app/context';
 import { Button, Checkbox, EmptyState, Select } from '~/components';
 import { report, updateNotificationPrefs } from '~/features/inbox/mutations';
 import { requestNotificationPermission } from '~/platform/runtime';
+import {
+  setCustomerSubscription,
+  setInitiativeSubscription,
+  setProjectSubscription,
+} from '~/features/subscriptions/mutations';
 import { setViewSubscription } from '~/features/view/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
@@ -96,6 +101,51 @@ const TYPES: readonly {
     hint: 'An issue that matches a saved view you subscribed to was finished or canceled.',
   },
   {
+    value: 'project_issue_added',
+    label: 'Issues added to a project I follow',
+    hint: 'A newly created issue was put in a project you subscribed to.',
+  },
+  {
+    value: 'project_issue_completed',
+    label: 'Issues completed in a project I follow',
+    hint: 'An issue in a project you subscribed to was finished or canceled.',
+  },
+  {
+    value: 'project_update',
+    label: 'Project updates',
+    hint: 'A new status update was posted on a project you subscribed to.',
+  },
+  {
+    value: 'initiative_issue_added',
+    label: 'Issues added to an initiative I follow',
+    hint: 'A newly created issue was put in a project linked to an initiative you subscribed to.',
+  },
+  {
+    value: 'initiative_issue_completed',
+    label: 'Issues completed in an initiative I follow',
+    hint: 'An issue in a linked project of an initiative you subscribed to was finished or canceled.',
+  },
+  {
+    value: 'initiative_update',
+    label: 'Initiative updates',
+    hint: 'A new status update was posted on an initiative you subscribed to.',
+  },
+  {
+    value: 'customer_request_added',
+    label: 'Requests added for a customer I follow',
+    hint: 'A request was attributed to a customer you subscribed to.',
+  },
+  {
+    value: 'customer_request_important',
+    label: 'Requests marked important',
+    hint: 'A request for a customer you subscribed to was marked important.',
+  },
+  {
+    value: 'customer_request_completed',
+    label: 'Requests completed for a customer I follow',
+    hint: 'The issue linked to a request for a customer you subscribed to was finished or canceled.',
+  },
+  {
     value: 'pulse_digest',
     label: 'Pulse digest',
     hint: 'A morning summary of project updates on work you lead, created, or belong to.',
@@ -136,6 +186,93 @@ export function NotificationSettings() {
       return rows;
     },
     ['viewSubscription', 'view'],
+    [viewerId],
+  );
+
+  const projectWatches = useLiveQuery(
+    (store) => {
+      if (viewerId === null) return [];
+      const rows: {
+        readonly id: string;
+        readonly projectId: string;
+        readonly name: string;
+        readonly issuesAdded: boolean;
+        readonly issuesCompleted: boolean;
+        readonly updates: boolean;
+      }[] = [];
+      for (const sub of store.projectSubscriptions.values()) {
+        if (sub.userId !== viewerId) continue;
+        rows.push({
+          id: sub.id,
+          projectId: sub.projectId,
+          name: store.get('project', sub.projectId)?.name ?? 'Deleted project',
+          issuesAdded: sub.issuesAdded,
+          issuesCompleted: sub.issuesCompleted,
+          updates: sub.updates,
+        });
+      }
+      rows.sort((a, b) => a.name.localeCompare(b.name));
+      return rows;
+    },
+    ['projectSubscription', 'project'],
+    [viewerId],
+  );
+
+  const initiativeWatches = useLiveQuery(
+    (store) => {
+      if (viewerId === null) return [];
+      const rows: {
+        readonly id: string;
+        readonly initiativeId: string;
+        readonly name: string;
+        readonly issuesAdded: boolean;
+        readonly issuesCompleted: boolean;
+        readonly updates: boolean;
+      }[] = [];
+      for (const sub of store.initiativeSubscriptions.values()) {
+        if (sub.userId !== viewerId) continue;
+        rows.push({
+          id: sub.id,
+          initiativeId: sub.initiativeId,
+          name: store.get('initiative', sub.initiativeId)?.name ?? 'Deleted initiative',
+          issuesAdded: sub.issuesAdded,
+          issuesCompleted: sub.issuesCompleted,
+          updates: sub.updates,
+        });
+      }
+      rows.sort((a, b) => a.name.localeCompare(b.name));
+      return rows;
+    },
+    ['initiativeSubscription', 'initiative'],
+    [viewerId],
+  );
+
+  const customerWatches = useLiveQuery(
+    (store) => {
+      if (viewerId === null) return [];
+      const rows: {
+        readonly id: string;
+        readonly customerId: string;
+        readonly name: string;
+        readonly requestAdded: boolean;
+        readonly requestImportant: boolean;
+        readonly requestCompleted: boolean;
+      }[] = [];
+      for (const sub of store.customerSubscriptions.values()) {
+        if (sub.userId !== viewerId) continue;
+        rows.push({
+          id: sub.id,
+          customerId: sub.customerId,
+          name: store.get('customer', sub.customerId)?.name ?? 'Deleted customer',
+          requestAdded: sub.requestAdded,
+          requestImportant: sub.requestImportant,
+          requestCompleted: sub.requestCompleted,
+        });
+      }
+      rows.sort((a, b) => a.name.localeCompare(b.name));
+      return rows;
+    },
+    ['customerSubscription', 'customer'],
     [viewerId],
   );
 
@@ -295,6 +432,147 @@ export function NotificationSettings() {
                         userId: viewerId,
                         added: false,
                         completed: false,
+                      }).catch(report);
+                    }}
+                  >
+                    Unsubscribe
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className={styles.section} aria-labelledby="projects-heading">
+          <h2 className={styles.sectionTitle} id="projects-heading">
+            Projects you follow
+          </h2>
+          <p className={styles.sectionNote}>
+            Subscribe from a project’s header. Turning every event off here is the same as
+            unsubscribing.
+          </p>
+          {projectWatches.length === 0 ? (
+            <p className={styles.warning}>You are not watching any projects.</p>
+          ) : (
+            <ul className={styles.types}>
+              {projectWatches.map((watch) => (
+                <li key={watch.id} className={styles.watch}>
+                  <div className={styles.watchMeta}>
+                    <span>{watch.name}</span>
+                    <span className={styles.typeHint}>
+                      {[
+                        watch.issuesAdded ? 'issues added' : null,
+                        watch.issuesCompleted ? 'issues completed' : null,
+                        watch.updates ? 'updates' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setProjectSubscription(engine, {
+                        projectId: watch.projectId,
+                        userId: viewerId,
+                        issuesAdded: false,
+                        issuesCompleted: false,
+                        updates: false,
+                      }).catch(report);
+                    }}
+                  >
+                    Unsubscribe
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className={styles.section} aria-labelledby="initiatives-heading">
+          <h2 className={styles.sectionTitle} id="initiatives-heading">
+            Initiatives you follow
+          </h2>
+          <p className={styles.sectionNote}>
+            Subscribe from an initiative’s header. Turning every event off here is the same as
+            unsubscribing.
+          </p>
+          {initiativeWatches.length === 0 ? (
+            <p className={styles.warning}>You are not watching any initiatives.</p>
+          ) : (
+            <ul className={styles.types}>
+              {initiativeWatches.map((watch) => (
+                <li key={watch.id} className={styles.watch}>
+                  <div className={styles.watchMeta}>
+                    <span>{watch.name}</span>
+                    <span className={styles.typeHint}>
+                      {[
+                        watch.issuesAdded ? 'issues added' : null,
+                        watch.issuesCompleted ? 'issues completed' : null,
+                        watch.updates ? 'updates' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setInitiativeSubscription(engine, {
+                        initiativeId: watch.initiativeId,
+                        userId: viewerId,
+                        issuesAdded: false,
+                        issuesCompleted: false,
+                        updates: false,
+                      }).catch(report);
+                    }}
+                  >
+                    Unsubscribe
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className={styles.section} aria-labelledby="customers-heading">
+          <h2 className={styles.sectionTitle} id="customers-heading">
+            Customers you follow
+          </h2>
+          <p className={styles.sectionNote}>
+            Subscribe from a customer’s page. Turning every event off here is the same as
+            unsubscribing.
+          </p>
+          {customerWatches.length === 0 ? (
+            <p className={styles.warning}>You are not watching any customers.</p>
+          ) : (
+            <ul className={styles.types}>
+              {customerWatches.map((watch) => (
+                <li key={watch.id} className={styles.watch}>
+                  <div className={styles.watchMeta}>
+                    <span>{watch.name}</span>
+                    <span className={styles.typeHint}>
+                      {[
+                        watch.requestAdded ? 'requests added' : null,
+                        watch.requestImportant ? 'marked important' : null,
+                        watch.requestCompleted ? 'requests completed' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCustomerSubscription(engine, {
+                        customerId: watch.customerId,
+                        userId: viewerId,
+                        requestAdded: false,
+                        requestImportant: false,
+                        requestCompleted: false,
                       }).catch(report);
                     }}
                   >
