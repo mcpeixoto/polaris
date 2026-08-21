@@ -369,7 +369,7 @@ export async function postComment(engine: SyncEngine, input: NewComment): Promis
   };
 
   try {
-    const data = await engine.mutate<{ createComment: { comment: Comment } }>({
+    await engine.mutate<{ createComment: { comment: Comment } }>({
       mutation: CREATE_COMMENT,
       variables: {
         input: {
@@ -386,8 +386,15 @@ export async function postComment(engine: SyncEngine, input: NewComment): Promis
         },
       },
       optimistic: [{ type: 'comment', id: provisional.id, before: null, after: provisional }],
+      // A comment's id is the server's, so the stand-in above has to be swapped for the
+      // real row. Declared rather than done in the `await` below, because the `await` does
+      // not survive the reload — see `SyncEngine.settle`.
+      reconcile: {
+        type: 'comment',
+        provisionalId: provisional.id,
+        path: ['createComment', 'comment'],
+      },
     });
-    swap(store, 'comment', provisional, data.createComment.comment);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -600,14 +607,21 @@ export async function createRelation(engine: SyncEngine, input: NewRelation): Pr
   };
 
   try {
-    const data = await engine.mutate<{ createIssueRelation: { relation: IssueRelation } }>({
+    await engine.mutate<{ createIssueRelation: { relation: IssueRelation } }>({
       mutation: CREATE_ISSUE_RELATION,
       // `toWire`: the argument is declared `RelationType!`, and a GraphQL enum value is
       // case-sensitive, so `"blocks"` is not `BLOCKS` and the server rejects it outright.
       variables: { issueId, relatedIssueId, type: toWire(input.type) },
       optimistic: [{ type: 'issueRelation', id: provisional.id, before: null, after: provisional }],
+      // The API mints a relation's id, so the stand-in has to be swapped for the real row —
+      // and it has to survive a reload, or the two sit side by side and the panel shows one
+      // link twice. See `SyncEngine.settle`.
+      reconcile: {
+        type: 'issueRelation',
+        provisionalId: provisional.id,
+        path: ['createIssueRelation', 'relation'],
+      },
     });
-    adopt(store, 'issueRelation', provisional.id, data.createIssueRelation.relation);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -683,7 +697,7 @@ export async function setSubscribed(engine: SyncEngine, input: SubscriptionChang
   };
 
   try {
-    const data = await engine.mutate<{
+    await engine.mutate<{
       setIssueSubscription: { subscription: IssueSubscription };
     }>({
       mutation: SET_ISSUE_SUBSCRIPTION,
@@ -691,8 +705,12 @@ export async function setSubscribed(engine: SyncEngine, input: SubscriptionChang
       optimistic: [
         { type: 'issueSubscription', id: provisional.id, before: null, after: provisional },
       ],
+      reconcile: {
+        type: 'issueSubscription',
+        provisionalId: provisional.id,
+        path: ['setIssueSubscription', 'subscription'],
+      },
     });
-    adopt(store, 'issueSubscription', provisional.id, data.setIssueSubscription.subscription);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -733,10 +751,11 @@ function all(work: readonly Promise<unknown>[]): Promise<void> {
  * that disappears for a frame on the way to being replaced by itself is the exact flicker
  * an optimistic create is supposed to prevent.
  *
- * The differing-id branch is now only reachable for comments, whose ids are still
- * server-allocated. Issues mint their own, so the ids match and this is a plain upsert. It
- * is kept rather than specialised because the comment path needs it and because a server
- * that ever refuses a client's id must still leave the client in a correct state.
+ * Only issues reach this now, and they mint their own ids, so it is a plain upsert. The
+ * differing-id branch is kept because a server that ever refuses a client's id must still
+ * leave the client in a correct state. Rows whose id the *server* allocates are paired by
+ * `SyncEngine.settle` instead, which is reached from the outbox as well as from the call
+ * that sent the mutation — and so survives a reload taken between the two.
  */
 function swap<T extends 'issue' | 'comment'>(
   store: Store,
@@ -754,34 +773,6 @@ function swap<T extends 'issue' | 'comment'>(
   const patch: EntityPatch[] = [{ type, id: real.id, before: existing, after: real }];
   if (real.id !== provisional.id) {
     patch.unshift({ type, id: provisional.id, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-}
-
-/**
- * Puts a row the server allocated the id for in place of the stand-in that stood for it.
- *
- * The same one-write bargain as `swap`, for the two entities whose ids the API still mints.
- * Separate from it because those two are keyed by their contents — a pair of issues, an
- * issue and a user — rather than by an id the client could have chosen, so there is nothing
- * to unify beyond the shape.
- */
-function adopt<T extends 'issueRelation' | 'issueSubscription'>(
-  store: Store,
-  type: T,
-  provisionalId: UUID,
-  wire: IssueRelation | IssueSubscription,
-): void {
-  // See `swap`: both of these carry an enum — a relation's `type`, a subscription's `reason`
-  // — and both were being written into the store as `"BLOCKS"` and `"SUBSCRIBED"`. The
-  // relation created in this session was then invisible to the panel that lists relations
-  // until a reload re-bootstrapped it from the stream in the right spelling.
-  const real = fromWire(type, wire as EntityOf<T>);
-  const patch: EntityPatch[] = [
-    { type, id: real.id, before: store.get(type, real.id) ?? null, after: real },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type, id: provisionalId, before: null, after: null });
   }
   store.applyOptimistic(patch);
 }

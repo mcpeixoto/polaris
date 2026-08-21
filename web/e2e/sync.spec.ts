@@ -200,6 +200,57 @@ test.describe('sync engine', () => {
     await verifier.close();
     await context.close();
   });
+
+  /**
+   * A reload taken between an optimistic write and its response must not leave two rows.
+   *
+   * This is only reproducible in a browser, which is why it belongs here. A comment's id is
+   * the server's, so posting one renders a stand-in under an id the client invented and
+   * swaps it for the real row when the response arrives — and the stand-in is *persisted*,
+   * because an optimistic write that vanished on refresh would be the worse bug. Reload
+   * before the response and the swap has nobody left to make it: the outbox replays the op,
+   * the server's idempotency table answers with the original comment, and that comment lands
+   * in the replica beside the stand-in. Both are real rows by then, so the issue shows one
+   * comment twice and no further reload clears it.
+   *
+   * The response is stranded rather than the request blocked, because the failure needs the
+   * server to have *taken* the write. That is a closing lid or a tunnel, not an outage.
+   */
+  test('a reload while a comment is in flight leaves one comment', async ({ page, workspace }) => {
+    const issue = await createIssueViaApi(workspace, 'Reload mid-flight');
+    await signIn(page, workspace.account);
+    await page.goto(`/issue/${issue.identifier}`);
+    await page.getByRole('complementary', { name: /properties/i }).waitFor();
+
+    let stranded = false;
+    await page.route('**/graphql', async (route) => {
+      if (stranded || !(route.request().postData() ?? '').includes('CreateComment')) {
+        await route.continue();
+        return;
+      }
+      stranded = true;
+      const response = await route.fetch();
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      // By now the page is gone and there is nobody to answer, which is the point. The
+      // rejection is this test's own plumbing, not the product's.
+      await route.fulfill({ response }).catch(() => {});
+    });
+
+    const comments = page.getByRole('region', { name: 'Comments' });
+    await comments.getByRole('textbox', { name: /leave a comment/i }).fill('Said once');
+    await comments.getByRole('button', { name: /^comment$/i }).click();
+    await expect(comments.getByText('Said once')).toHaveCount(1);
+
+    await page.waitForTimeout(1_000);
+    await page.unroute('**/graphql');
+    await page.reload();
+    await page.getByRole('complementary', { name: /properties/i }).waitFor();
+
+    await expect(page.getByRole('region', { name: 'Comments' }).getByText('Said once')).toHaveCount(
+      1,
+      { timeout: 15_000 },
+    );
+  });
 });
 
 test.describe('keyboard model', () => {

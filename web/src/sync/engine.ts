@@ -22,10 +22,12 @@ import {
   type EntityRow,
   type EntityType,
   type OptimisticPatch,
+  type Reconciliation,
   type UUID,
 } from '~/store';
 import { ApiError, gql, setWorkspace } from './api';
 import { streamBootstrap } from './bootstrap';
+import { settle } from './reconcile';
 import {
   OUTDATED_CLIENT_MESSAGE,
   clearSchemaReloadAttempt,
@@ -187,6 +189,8 @@ export class SyncEngine {
     mutation: string;
     variables: Record<string, unknown>;
     optimistic?: OptimisticPatch;
+    /** How to pair the response's row with the stand-in, for server-allocated ids. */
+    reconcile?: Reconciliation;
   }): Promise<T> {
     const opId = uuidv7();
 
@@ -197,6 +201,7 @@ export class SyncEngine {
       mutation: input.mutation,
       variables: input.variables,
       optimisticPatch: input.optimistic,
+      reconcile: input.reconcile,
     });
     this.publishStatus();
 
@@ -206,6 +211,7 @@ export class SyncEngine {
         clientId: this.clientId,
         opId,
       });
+      if (input.reconcile) settle(this.store, input.reconcile, data);
       await this.outbox.resolve(opId);
       this.publishStatus();
       return data;
@@ -257,11 +263,15 @@ export class SyncEngine {
         try {
           // The same opId as the first attempt, which is what makes the server's
           // idempotency table return the original result instead of writing again.
-          await gql(record.mutation, {
+          const data = await gql(record.mutation, {
             ...record.variables,
             clientId: this.clientId,
             opId: record.opId,
           });
+          // The replay carries the original result, so this is the same pairing the
+          // first attempt would have done — and the only chance to do it, because the
+          // caller that was awaiting the first attempt is gone.
+          if (record.reconcile) settle(this.store, record.reconcile, data);
           await this.outbox.resolve(record.opId);
         } catch (err) {
           if (err instanceof ApiError && err.isOffline) {

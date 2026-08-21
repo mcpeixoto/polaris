@@ -34,6 +34,31 @@ export interface EntityPatch {
 /** One mutation's optimistic effect. A mutation may touch several entities at once. */
 export type OptimisticPatch = readonly EntityPatch[];
 
+/**
+ * How to pair the row the server allocated an id for with the stand-in that stood for it.
+ *
+ * Only the entities whose ids the API still mints need one — a comment, a relation, an
+ * issue subscription. Issues carry a client-minted id, so their response upserts over the
+ * same key and there is nothing to pair.
+ *
+ * It is *stored*, alongside the mutation, and that is the whole point. Reconciling in the
+ * `await` that sent the mutation works only for as long as that `await` survives: a reload
+ * between the optimistic write and the response discards the closure, the outbox replays
+ * the op from IndexedDB, and the server's row then arrives beside a stand-in nothing is
+ * left holding — two comments on the screen for one comment on the server, and no reload
+ * clears it because both rows are now in the replica. Data, not a closure, is what
+ * survives the reload that causes the bug.
+ *
+ * Plain data for the same reason: an IndexedDB value cannot hold a function.
+ */
+export interface Reconciliation {
+  readonly type: EntityType;
+  /** The id the client invented while it waited. */
+  readonly provisionalId: UUID;
+  /** Where the row sits in the mutation's response — `['createComment', 'comment']`. */
+  readonly path: readonly string[];
+}
+
 /** A queued mutation, exactly as it is stored. */
 export interface OutboxRecord {
   /** UUIDv7, generated client-side. This is what makes a server-side retry idempotent. */
@@ -42,6 +67,8 @@ export interface OutboxRecord {
   readonly mutation: string;
   readonly variables: Readonly<Record<string, unknown>>;
   readonly optimisticPatch: OptimisticPatch;
+  /** How to pair the response's row with the stand-in. Absent for client-minted ids. */
+  readonly reconcile?: Reconciliation | undefined;
   /** Send attempts so far. Persisted, so a poison op cannot be retried forever across reloads. */
   readonly attempts: number;
   readonly createdAt: Timestamp;
@@ -51,6 +78,7 @@ export interface OutboxAppend {
   readonly mutation: string;
   readonly variables: Readonly<Record<string, unknown>>;
   readonly optimisticPatch?: OptimisticPatch | undefined;
+  readonly reconcile?: Reconciliation | undefined;
   /** Supplied only by tests and by a caller that minted the id before rendering. */
   readonly opId?: UUID | undefined;
 }
@@ -198,6 +226,9 @@ export class Outbox {
       mutation: input.mutation,
       variables: input.variables,
       optimisticPatch: input.optimisticPatch ?? [],
+      // Spread rather than assigned, so an op with nothing to pair stores no key at all
+      // under `exactOptionalPropertyTypes`.
+      ...(input.reconcile === undefined ? null : { reconcile: input.reconcile }),
       attempts: 0,
       createdAt: new Date().toISOString(),
     };

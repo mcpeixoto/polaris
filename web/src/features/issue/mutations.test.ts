@@ -32,8 +32,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { setRole } from '~/features/members/mutations';
 import { createStatus } from '~/features/team/mutations';
-import { Store, type Change, type Entity } from '~/store';
+import { Store, type Change, type Entity, type Reconciliation } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
+import { settle } from '~/sync/reconcile';
 
 import { createIssue, createRelation } from './mutations';
 
@@ -168,11 +169,18 @@ describe('createRelation', () => {
   });
 
   it('stores the response in the replica’s spelling', async () => {
-    mutate.mockResolvedValue({
-      createIssueRelation: { relation: serverRelation('BLOCKS') },
-    });
+    const response = { createIssueRelation: { relation: serverRelation('BLOCKS') } };
+    mutate.mockResolvedValue(response);
 
     await createRelation(engine, { issueId: ISSUE_A, relatedIssueId: ISSUE_B, type: 'blocks' });
+
+    // `createRelation` no longer writes the response itself. It *declares* how the server's
+    // row is to be paired with the stand-in, and the engine applies that — from the outbox
+    // as well as from this call, which is what makes the pairing survive a reload taken
+    // while the request is in flight. So the conversion is asserted where it now happens.
+    const spec = mutate.mock.calls[0]?.[0].reconcile as Reconciliation;
+    expect(spec.path).toEqual(['createIssueRelation', 'relation']);
+    settle(store, spec, response);
 
     // The whole defect in one assertion: without the conversion this reads 'BLOCKS', which
     // is not equal to anything the relation panel or the filter grammar looks for, so the
