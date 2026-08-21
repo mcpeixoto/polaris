@@ -31,7 +31,13 @@ export {
 } from './indexes';
 
 export { Outbox, uuidv7 } from './outbox';
-export type { EntityPatch, OptimisticPatch, OutboxAppend, OutboxRecord } from './outbox';
+export type {
+  EntityPatch,
+  OptimisticPatch,
+  OutboxAppend,
+  OutboxRecord,
+  Reconciliation,
+} from './outbox';
 
 export { queryIssues, subIssueProgress } from './query';
 export type {
