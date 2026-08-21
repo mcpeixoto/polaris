@@ -128,11 +128,22 @@ func (s *Service) Search(ctx context.Context, p *authz.Principal, in SearchInput
 			if issue != nil {
 				out.Issues = []model.Issue{*issue}
 				out.IssueCount = 1
-			} else {
-				out.Issues = []model.Issue{}
+				out.Comments = []model.Comment{}
+				return nil
 			}
-			out.Comments = []model.Comment{}
-			return nil
+			// Nothing pinned, so this was never an identifier — it was a word that happens
+			// to be spelled like one. ParseIssueIdentifier accepts any letters followed by
+			// digits, which is not a rare shape in a search box: oauth2, utf8, sprint3,
+			// ipv6, h264, s3, postgres16. Returning empty here made every one of those
+			// queries answer "nothing matches" while the word sat in a title on the next
+			// screen, and the giveaway was that adding a second word fixed it. So a miss
+			// falls through to the text search, and only a *hit* short-circuits it: a real
+			// ENG-123 still resolves to exactly its issue.
+			if query == "" {
+				out.Issues = []model.Issue{}
+				out.Comments = []model.Comment{}
+				return nil
+			}
 		}
 
 		// The filter is compiled inside the transaction because resolving it needs a read —
@@ -188,8 +199,11 @@ func (s *Service) Search(ctx context.Context, p *authz.Principal, in SearchInput
 
 // pinnedSearchIssue resolves ENG-123 / eng123 to one visible issue, or nil.
 //
-// Unknown, private, deleted, and (unless asked) archived identifiers all answer as
-// nothing — the same not-found shape as reading an issue by id you cannot see.
+// Unknown, private, deleted, and (unless asked) archived identifiers all answer as nil —
+// the same not-found shape as reading an issue by id you cannot see. Nil is deliberately
+// not the end of the search: see the caller, which then runs the words as words. Answering
+// "nothing" on behalf of a query nobody meant as an identifier is how `oauth2` came to find
+// nothing at all.
 func (s *Service) pinnedSearchIssue(
 	ctx context.Context, q *store.Queries, p *authz.Principal, in SearchInput, key string, number int64,
 ) (*model.Issue, error) {

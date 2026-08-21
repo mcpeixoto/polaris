@@ -4,13 +4,15 @@
  * Four things about this screen are decisions rather than mechanics, and each of them is a
  * property somebody would otherwise have to rediscover by using it wrong.
  *
- * **The query is in the URL.** `?q=` is the only copy of it — there is no component state
- * mirroring the box, and the input's value is read back out of the search params on every
- * render. That is the same rule `features/view/ui/useView` states for filters and it exists
- * for the same reason: a result set has to be a link somebody can paste into a chat, and the
- * person who clicks it has to land on what the sender was looking at. Writes `replace`
- * rather than push, because a query is refined one character at a time and a history stack
- * with an entry per keystroke is one where the back button no longer means anything.
+ * **The query is in the URL.** `?q=` is the durable copy of it. That is the same rule
+ * `features/view/ui/useView` states for filters and it exists for the same reason: a result
+ * set has to be a link somebody can paste into a chat, and the person who clicks it has to
+ * land on what the sender was looking at. Writes `replace` rather than push, because a query
+ * is refined one character at a time and a history stack with an entry per keystroke is one
+ * where the back button no longer means anything. The box itself is *not* driven straight
+ * from the location, and `useQueryParam` states exactly why: react-router applies a location
+ * change inside a transition, and a controlled input behind a transition drops the
+ * characters typed while one is pending.
  *
  * **The ranking is the server's; the rows are the replica's.** Search is the one screen in
  * the client whose answer cannot be computed locally — relevance is a GIN scan over folded
@@ -167,10 +169,10 @@ interface SearchCommands {
 }
 
 export function Search() {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const navigate = useNavigate();
 
-  const query = params.get(QUERY_PARAM) ?? '';
+  const [query, setQuery] = useQueryParam();
   const filterParam = params.get(FILTER_PARAM);
   const asked = query.trim();
   const showingRecent = asked === '';
@@ -235,18 +237,6 @@ export function Search() {
 
   const boxRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-
-  const setQuery = useCallback(
-    (next: string) => {
-      const search = new URLSearchParams(params);
-      // Deleted rather than left empty: a bare `?q=` in a shared link says "a search" about
-      // a page that is not one.
-      if (next === '') search.delete(QUERY_PARAM);
-      else search.set(QUERY_PARAM, next);
-      setParams(search, { replace: true });
-    },
-    [params, setParams],
-  );
 
   const tally: IssueTally | null =
     request.results === null
@@ -620,6 +610,96 @@ function Highlighted({ text, terms }: { text: string; terms: readonly string[] }
       )}
     </>
   );
+}
+
+/**
+ * The query, in the URL, in a box that does not lose characters.
+ *
+ * The URL is still the durable copy — `?q=` is what makes a result set a link somebody can
+ * paste — but the input cannot be driven straight from it, and the reason is specific enough
+ * to be worth stating rather than rediscovering.
+ *
+ * `BrowserRouter` applies every location change inside `React.startTransition`
+ * (react-router 7). A transition is interruptible, and the thing that interrupts it is the
+ * next keystroke: React re-renders urgently with the *previous* location, finds a controlled
+ * input whose `value` prop no longer matches the DOM, and resets the DOM to the prop. The
+ * character that arrived during the transition is then gone from the box and from the URL
+ * both, and the next one is typed onto the shorter string. Measured on this screen before
+ * this hook existed: at 4x CPU throttling, "json parser" typed at a very ordinary 150 ms a
+ * character arrived as "jon parsr"; at 6x, even 200 ms a character lost half of it. The same
+ * input inside a dialogue, backed by plain `useState`, kept every character at 0 ms — the
+ * transition is the whole difference.
+ *
+ * So the text lives in urgent state and the URL is written from it:
+ *
+ *  - the box renders `typed`, which a keystroke updates urgently and nothing rolls back;
+ *  - the write effect pushes `typed` into `?q=`, `replace`d rather than pushed, because a
+ *    query is refined one character at a time and a history entry per keystroke is a back
+ *    button that no longer means anything;
+ *  - the adopt effect takes a query that arrived from anywhere else — back, forward, a
+ *    pasted link, a command-menu jump — and puts it in the box.
+ *
+ * `written` is what tells those two apart, and it has to be a list rather than a single
+ * value. While somebody is typing there are several locations in flight at once, and each
+ * lands as a separate render: seeing "jso" arrive when the box already says "json" means the
+ * *older* of this screen's own writes just committed, not that anything outside changed it.
+ * A value found in the list is therefore consumed and ignored, and only a location this
+ * screen never asked for reaches the box.
+ */
+function useQueryParam(): [string, (next: string) => void] {
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+
+  const initial = params.get(QUERY_PARAM) ?? '';
+  const [typed, setTyped] = useState(initial);
+
+  /** Queries this screen has asked for and not yet seen come back. Oldest first. */
+  const written = useRef<string[]>([initial]);
+
+  // The rest of the query string, so writing `q` does not drop the filter beside it. Held
+  // in a ref because the write must depend on the text alone: an effect that re-ran when
+  // the location changed would answer the back button by writing the old query back.
+  const others = useRef(params);
+  others.current = params;
+
+  useEffect(() => {
+    if (written.current[written.current.length - 1] === typed) return;
+    written.current.push(typed);
+
+    const search = new URLSearchParams(others.current);
+    // Deleted rather than left empty: a bare `?q=` in a shared link says "a search" about
+    // a page that is not one.
+    if (typed === '') search.delete(QUERY_PARAM);
+    else search.set(QUERY_PARAM, typed);
+
+    const rest = search.toString();
+    void navigate({ search: rest === '' ? '' : `?${rest}` }, { replace: true });
+  }, [typed, navigate]);
+
+  // What the box says, for the effect below to compare against without depending on it. An
+  // adopt effect that re-ran on every keystroke would run against a location one write
+  // behind, mistake it for an outside change, and put the box back a character.
+  const current = useRef(typed);
+  current.current = typed;
+
+  useEffect(() => {
+    const settled = params.get(QUERY_PARAM) ?? '';
+
+    const mine = written.current.indexOf(settled);
+    if (mine !== -1) {
+      // One of this screen's own writes, arriving after the box has already moved on.
+      written.current.splice(0, mine + 1);
+      return;
+    }
+    if (settled === current.current) return;
+
+    // Somewhere else set the query. Recorded as written so the effect above does not
+    // immediately answer by putting the old one back.
+    written.current = [settled];
+    setTyped(settled);
+  }, [params]);
+
+  return [typed, setTyped];
 }
 
 interface SearchRequest {
