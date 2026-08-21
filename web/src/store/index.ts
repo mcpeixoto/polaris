@@ -116,6 +116,7 @@ export type {
   InitiativeStatus,
   CustomerStatus,
   ProjectUpdate,
+  PulseFeed,
   ProjectUpdateHealth,
   ProjectUpdateSchedule,
   ProjectDependency,

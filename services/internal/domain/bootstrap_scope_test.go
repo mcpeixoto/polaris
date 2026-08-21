@@ -64,6 +64,7 @@ type scene struct {
 	openDashboardTile                             uuid.UUID
 	openAskForm, privateAskForm                   uuid.UUID
 	bobsViewSubscription                          uuid.UUID
+	bobsPulseFeed                                 uuid.UUID
 	alicesPrivateFavorite, alicesLabelFavorite    uuid.UUID
 	bobsFavorite                                  uuid.UUID
 
@@ -485,6 +486,13 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 		t.Fatalf("subscribe bob to the workspace view: %v", err)
 	}
 	s.bobsViewSubscription = watch.ID
+	feed, _, err := svc.CreatePulseFeed(ctx, s.bob, domain.CreatePulseFeedInput{
+		Name: "Shipping", ProjectIDs: []uuid.UUID{project.ID},
+	})
+	if err != nil {
+		t.Fatalf("create bob's pulse feed: %v", err)
+	}
+	s.bobsPulseFeed = feed.ID
 	return s
 }
 
@@ -574,6 +582,10 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 			"how somebody arranges their own screen is theirs"},
 		{aliceName, "viewSubscription", s.bobsViewSubscription,
 			"a watch on a saved view is one person's"},
+		{aliceName, "pulseFeed", s.bobsPulseFeed,
+			"a Pulse feed is one person's"},
+		{gretaName, "pulseFeed", s.bobsPulseFeed,
+			"a Pulse feed is one person's"},
 		{bobName, "favorite", s.alicesPrivateFavorite, "a sidebar is one person's"},
 		{bobName, "favorite", s.alicesLabelFavorite,
 			"a sidebar is one person's, even when what it points at is workspace-wide"},
@@ -658,6 +670,7 @@ func TestStreamBootstrap_GivesEachPrincipalWhatTheStreamWouldHaveSent(t *testing
 		{bobName, "dashboard", s.openDashboard},
 		{bobName, "dashboardTile", s.openDashboardTile},
 		{bobName, "viewSubscription", s.bobsViewSubscription},
+		{bobName, "pulseFeed", s.bobsPulseFeed},
 		{bobName, "favorite", s.bobsFavorite},
 		{gretaName, "label", s.openLabel},
 		{gretaName, "issue", s.openIssue},

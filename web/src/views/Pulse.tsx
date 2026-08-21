@@ -1,24 +1,27 @@
 /**
  * Pulse: the workspace feed of project updates.
  *
- * A dense list, like the inbox, of status posts already in the replica. There is no
- * extra query — posting an update emits a change-log row, and that row is what lands
- * here. Guests do not see it: Pulse is a workspace-level surface.
+ * A dense list of status posts already in the replica. Tabs rank the same rows —
+ * For me, Popular (comment engagement), Recent, and personal named feeds.
+ * Guests do not see it: Pulse is a workspace-level surface.
  */
 
-import { useState } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 
-import { useActions } from '~/app/keymap';
-import { EmptyState } from '~/components';
+import { useEngine } from '~/app/context';
+import { useActions, useKeyContext } from '~/app/keymap';
+import { Button, Checkbox, EmptyState, Input, Modal } from '~/components';
 import { dayKeyOf } from '~/features/inbox/inbox';
 import { browserTimezone } from '~/features/locale';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
-import { listPulse, type PulseTab } from '~/features/pulse/pulse';
+import { createPulseFeed, deletePulseFeed, updatePulseFeed } from '~/features/pulse/mutations';
+import { feedIdOf, listPulse, listPulseFeeds, type PulseTab } from '~/features/pulse/pulse';
 import { when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
-import type { Store } from '~/store';
+import type { Project, PulseFeed, Store, UUID } from '~/store';
+import { ApiError } from '~/sync/api';
 
 import styles from './Pulse.module.css';
 
@@ -29,20 +32,31 @@ export function Pulse() {
   const timezone = browserTimezone();
   const [tab, setTab] = useState<PulseTab>('for-me');
   const [cursor, setCursor] = useState(0);
+  const [editor, setEditor] = useState<'new' | UUID | null>(null);
 
   const workspace = useLiveQuery(
     (store: Store) => store.workspaces.get(store.workspaceId) ?? null,
     ['workspace'],
     [],
   );
+  const feeds = useLiveQuery(
+    (store: Store) => listPulseFeeds(store, viewerId),
+    ['pulseFeed'],
+    [viewerId],
+  );
   const days = useLiveQuery(
     (store: Store) => listPulse(store, viewerId, tab, timezone),
-    ['project', 'projectMember', 'projectUpdate', 'user'],
+    ['project', 'projectMember', 'projectUpdate', 'pulseFeed', 'issue', 'comment', 'user'],
     [viewerId, tab, timezone],
   );
 
   const flat = days.flatMap((day) => day.events);
   const active = flat[cursor];
+  const editing = editor === 'new' ? null : (feeds.find((feed) => feed.id === editor) ?? null);
+  const selectedFeed = (() => {
+    const id = feedIdOf(tab);
+    return id === null ? null : (feeds.find((feed) => feed.id === id) ?? null);
+  })();
 
   useActions(
     [
@@ -93,40 +107,50 @@ export function Pulse() {
     );
   }
 
+  const empty = emptyCopy(tab);
+  const selectTab = (next: PulseTab) => {
+    setTab(next);
+    setCursor(0);
+  };
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.title}>Pulse</h1>
         <div className={styles.tabs} role="tablist" aria-label="Pulse tabs">
-          <TabButton
-            current={tab}
-            id="for-me"
-            onSelect={(next) => {
-              setTab(next);
-              setCursor(0);
-            }}
-          >
+          <TabButton current={tab} id="for-me" onSelect={selectTab}>
             For me
           </TabButton>
-          <TabButton
-            current={tab}
-            id="recent"
-            onSelect={(next) => {
-              setTab(next);
-              setCursor(0);
-            }}
-          >
+          <TabButton current={tab} id="popular" onSelect={selectTab}>
+            Popular
+          </TabButton>
+          <TabButton current={tab} id="recent" onSelect={selectTab}>
             Recent
           </TabButton>
+          {feeds.map((feed) => (
+            <TabButton key={feed.id} current={tab} id={`feed:${feed.id}`} onSelect={selectTab}>
+              {feed.name}
+            </TabButton>
+          ))}
+          <button
+            type="button"
+            className={styles.tabAdd}
+            onClick={() => setEditor('new')}
+            aria-label="New feed"
+          >
+            + New feed
+          </button>
         </div>
+        {selectedFeed !== null && (
+          <div className={styles.feedActions}>
+            <Button onClick={() => setEditor(selectedFeed.id)}>Edit feed</Button>
+          </div>
+        )}
       </header>
 
       {flat.length === 0 ? (
         <div className={styles.empty}>
-          <EmptyState
-            title={tab === 'for-me' ? 'Nothing for you yet' : 'No updates yet'}
-            description="Project status updates in this workspace will land here as they are posted."
-          />
+          <EmptyState title={empty.title} description={empty.description} />
         </div>
       ) : (
         <div className={styles.list}>
@@ -163,8 +187,204 @@ export function Pulse() {
           ))}
         </div>
       )}
+
+      {editor !== null && viewerId !== null && (editor === 'new' || editing !== null) && (
+        <PulseFeedEditor
+          feed={editor === 'new' ? null : editing}
+          viewerId={viewerId}
+          onClose={() => setEditor(null)}
+          onCreated={(id) => {
+            setEditor(null);
+            selectTab(`feed:${id}`);
+          }}
+          onDeleted={() => {
+            setEditor(null);
+            selectTab('for-me');
+          }}
+        />
+      )}
     </div>
   );
+}
+
+function PulseFeedEditor({
+  feed,
+  viewerId,
+  onClose,
+  onCreated,
+  onDeleted,
+}: {
+  feed: PulseFeed | null;
+  viewerId: UUID;
+  onClose: () => void;
+  onCreated: (id: UUID) => void;
+  onDeleted: () => void;
+}) {
+  const engine = useEngine();
+  const formId = useId();
+  const nameRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState(feed?.name ?? '');
+  const [selected, setSelected] = useState<ReadonlySet<UUID>>(
+    () => new Set(feed?.projectIds ?? []),
+  );
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const projects = useLiveQuery((store: Store) => liveProjects(store), ['project'], []);
+
+  useKeyContext('modal');
+
+  const toggle = (id: UUID) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setProjectsError(null);
+  };
+
+  const save = async () => {
+    const trimmed = name.trim();
+    if (trimmed === '') {
+      setNameError('A feed needs a name');
+      nameRef.current?.focus();
+      return;
+    }
+    if (selected.size === 0) {
+      setProjectsError('Pick at least one project');
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    const projectIds = [...selected];
+    try {
+      if (feed === null) {
+        const id = await createPulseFeed(engine, { userId: viewerId, name: trimmed, projectIds });
+        onCreated(id);
+        return;
+      }
+      await updatePulseFeed(engine, { id: feed.id, name: trimmed, projectIds });
+      onClose();
+    } catch (error) {
+      setSaving(false);
+      setSaveError(error instanceof ApiError ? error.message : 'Could not save the feed');
+    }
+  };
+
+  const remove = async () => {
+    if (feed === null) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await deletePulseFeed(engine, feed.id);
+      onDeleted();
+    } catch (error) {
+      setSaving(false);
+      setSaveError(error instanceof ApiError ? error.message : 'Could not delete the feed');
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={feed === null ? 'New feed' : 'Edit feed'}
+      description="A personal subset of project status updates. Only you see it."
+      size="md"
+      initialFocus={nameRef}
+      footer={
+        <>
+          {feed !== null && (
+            <Button onClick={() => void remove()} disabled={saving}>
+              Delete
+            </Button>
+          )}
+          <Button onClick={onClose}>Cancel</Button>
+          <Button form={formId} type="submit" variant="primary" loading={saving}>
+            {feed === null ? 'Create feed' : 'Save feed'}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={formId}
+        className={styles.form}
+        onSubmit={(event: FormEvent) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <Input
+          ref={nameRef}
+          label="Name"
+          value={name}
+          onChange={(event) => {
+            setName(event.target.value);
+            setNameError(null);
+          }}
+          error={nameError ?? undefined}
+          placeholder="Shipping"
+          maxLength={64}
+        />
+        <fieldset className={styles.projects}>
+          <legend className={styles.projectsLegend}>Projects</legend>
+          {projects.length === 0 ? (
+            <p className={styles.hint}>Create a project first, then a feed can follow it.</p>
+          ) : (
+            projects.map((project) => (
+              <Checkbox
+                key={project.id}
+                label={project.name}
+                checked={selected.has(project.id)}
+                onChange={() => toggle(project.id)}
+              />
+            ))
+          )}
+          {projectsError !== null && <p className={styles.error}>{projectsError}</p>}
+        </fieldset>
+        {saveError !== null && <p className={styles.error}>{saveError}</p>}
+      </form>
+    </Modal>
+  );
+}
+
+function liveProjects(store: Store): readonly Project[] {
+  const out: Project[] = [];
+  for (const project of store.projects.values()) {
+    if (project.archivedAt !== undefined || project.deletedAt !== undefined) continue;
+    out.push(project);
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return out;
+}
+
+function emptyCopy(tab: PulseTab): { title: string; description: string } {
+  if (tab === 'for-me') {
+    return {
+      title: 'Nothing for you yet',
+      description: 'Project status updates in this workspace will land here as they are posted.',
+    };
+  }
+  if (tab === 'popular') {
+    return {
+      title: 'Nothing popular yet',
+      description:
+        'Comments on issues after a status post rank it here. Emoji reactions are later.',
+    };
+  }
+  if (tab === 'recent') {
+    return {
+      title: 'No updates yet',
+      description: 'Project status updates in this workspace will land here as they are posted.',
+    };
+  }
+  return {
+    title: 'Nothing in this feed yet',
+    description: 'Status updates in the projects this feed follows will land here.',
+  };
 }
 
 function indexOfDay(

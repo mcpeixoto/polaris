@@ -17,8 +17,7 @@ Workspace switch for Pulse, a digest cadence, and a worker that writes an inbox 
 
 ## Deferred
 
-- Popular tab (emoji / comment engagement)
+- Emoji reactions as a Popular signal
 - Initiative updates
-- Custom feeds
 - Pulse audio
 - Per-user digest override (workspace cadence is the default)

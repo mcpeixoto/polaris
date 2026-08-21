@@ -38,6 +38,7 @@ import {
   type Initiative,
   type InitiativeProject,
   type ProjectUpdate,
+  type PulseFeed,
   type ProjectDependency,
   type ProjectLabel,
   type ProjectLabelLink,
@@ -138,8 +139,9 @@ import {
  * v43 adds cycleCalendarFeed (personal ICS token per team, no secrets).
  * v44 adds slackConnection (Slack webhook notify / slash / unfurls, no secrets).
  * v45 adds workspace.pulseEnabled and workspace.pulseDigestCadence.
+ * v46 adds pulseFeed (personal named subsets of the Pulse stream).
  */
-export const CLIENT_SCHEMA = 45;
+export const CLIENT_SCHEMA = 46;
 
 /**
  * One database per workspace per schema version.
@@ -241,6 +243,7 @@ interface PolarisSchema extends DBSchema {
   initiative: { key: UUID; value: Initiative };
   initiativeProject: { key: UUID; value: InitiativeProject };
   projectUpdate: { key: UUID; value: ProjectUpdate };
+  pulseFeed: { key: UUID; value: PulseFeed };
   projectDependency: { key: UUID; value: ProjectDependency };
   projectLabel: { key: UUID; value: ProjectLabel };
   projectLabelLink: { key: UUID; value: ProjectLabelLink };
