@@ -58,12 +58,30 @@ export function Pulse() {
     return id === null ? null : (feeds.find((feed) => feed.id === id) ?? null);
   })();
 
+  /**
+   * Pulse owns the keyboard while it is on screen, and says so with a context.
+   *
+   * These were registered into `global`, which is what an action with no `when` gets, and
+   * `pulse.open` claimed a bare `o` there. `O` is the shell's picker prefix — `o i`, `o p`,
+   * `o t` and eight more — and a one-chord binding is a prefix of every one of them, so the
+   * registry refused the whole shell keymap the moment this screen mounted: `registerAll`
+   * rolled it back, and the command menu, the help overlay and every G and O chord stopped
+   * working here.
+   *
+   * `o` is gone with it rather than merely re-scoped. Even in `list` it would win the race
+   * against `o i` — the matcher takes the first exact match and a one-chord binding is exact
+   * immediately — so keeping it would trade a crash for eleven navigation chords silently
+   * dying on this one screen. `Enter` opens an update, which is what it does everywhere else.
+   */
+  useKeyContext('list');
+
   useActions(
     [
       {
         id: 'pulse.up',
         title: 'Previous update',
         keys: ['k', 'ArrowUp'],
+        when: 'list',
         group: 'Pulse',
         run: () => setCursor((current) => Math.max(0, current - 1)),
       },
@@ -71,13 +89,15 @@ export function Pulse() {
         id: 'pulse.down',
         title: 'Next update',
         keys: ['j', 'ArrowDown'],
+        when: 'list',
         group: 'Pulse',
         run: () => setCursor((current) => Math.min(Math.max(flat.length - 1, 0), current + 1)),
       },
       {
         id: 'pulse.open',
         title: 'Open update',
-        keys: ['Enter', 'o'],
+        keys: ['Enter'],
+        when: 'list',
         group: 'Pulse',
         run: () => {
           if (active !== undefined) void navigate(active.href);
