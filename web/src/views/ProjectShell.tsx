@@ -9,6 +9,8 @@ import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell'
 import { ProjectProperties } from '~/features/projects/properties';
 import { ProjectViewTabs } from '~/features/projects/attachedViews';
 import { useEngine } from '~/app/context';
+import { useActions, useKeyContext } from '~/app/keymap';
+import { copyText } from '~/features/github/copy';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import styles from './ProjectShell.module.css';
 
@@ -27,6 +29,23 @@ export function ProjectShell() {
     (store) => store.projects.get(projectId) ?? null,
     ['project', 'projectUpdate', 'projectStatus', 'workspace'],
     [projectId],
+  );
+
+  useKeyContext('detail');
+  useActions(
+    [
+      {
+        id: 'project.copyModelUuid',
+        title: 'Copy model UUID',
+        when: 'detail',
+        group: 'Projects',
+        enabled: () => project !== null,
+        run: () => {
+          if (project !== null) void copyText(project.id);
+        },
+      },
+    ],
+    [project],
   );
 
   if (project === null) {
