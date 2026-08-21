@@ -1922,17 +1922,19 @@ func (SLARulePayload) IsMutationResult() {}
 // carries the default team and notify toggles a client needs to render settings.
 // One Slack connection per workspace.
 type SlackConnection struct {
-	ID             uuid.UUID  `json:"id"`
-	WorkspaceID    uuid.UUID  `json:"workspaceId"`
-	CreatorID      uuid.UUID  `json:"creatorId"`
-	Enabled        bool       `json:"enabled"`
-	DefaultTeamID  uuid.UUID  `json:"defaultTeamId"`
-	ChannelName    *string    `json:"channelName,omitempty"`
-	NotifyIssues   bool       `json:"notifyIssues"`
-	NotifyComments bool       `json:"notifyComments"`
-	ConnectedAt    *time.Time `json:"connectedAt,omitempty"`
-	CreatedAt      time.Time  `json:"createdAt"`
-	UpdatedAt      time.Time  `json:"updatedAt"`
+	ID             uuid.UUID `json:"id"`
+	WorkspaceID    uuid.UUID `json:"workspaceId"`
+	CreatorID      uuid.UUID `json:"creatorId"`
+	Enabled        bool      `json:"enabled"`
+	DefaultTeamID  uuid.UUID `json:"defaultTeamId"`
+	ChannelName    *string   `json:"channelName,omitempty"`
+	NotifyIssues   bool      `json:"notifyIssues"`
+	NotifyComments bool      `json:"notifyComments"`
+	// When true, `/asks` and a leading 🎫 in Slack file a triage issue.
+	AsksEnabled bool       `json:"asksEnabled"`
+	ConnectedAt *time.Time `json:"connectedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
 type SlackConnectionPayload struct {
@@ -2397,6 +2399,7 @@ type UpdateSlackConnectionInput struct {
 	WebhookURL     *string    `json:"webhookUrl,omitempty"`
 	NotifyIssues   *bool      `json:"notifyIssues,omitempty"`
 	NotifyComments *bool      `json:"notifyComments,omitempty"`
+	AsksEnabled    *bool      `json:"asksEnabled,omitempty"`
 	Enabled        *bool      `json:"enabled,omitempty"`
 }
 

@@ -48,7 +48,8 @@ INSERT INTO slack_connection (
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 )
 RETURNING id, workspace_id, creator_id, enabled, default_team_id,
-          channel_name, notify_issues, notify_comments, connected_at, created_at, updated_at
+          channel_name, notify_issues, notify_comments, asks_enabled,
+          connected_at, created_at, updated_at
 `
 
 type CreateSlackConnectionParams struct {
@@ -74,6 +75,7 @@ type CreateSlackConnectionRow struct {
 	ChannelName    *string
 	NotifyIssues   bool
 	NotifyComments bool
+	AsksEnabled    bool
 	ConnectedAt    *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
@@ -104,6 +106,7 @@ func (q *Queries) CreateSlackConnection(ctx context.Context, arg CreateSlackConn
 		&i.ChannelName,
 		&i.NotifyIssues,
 		&i.NotifyComments,
+		&i.AsksEnabled,
 		&i.ConnectedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -122,7 +125,8 @@ func (q *Queries) DeleteSlackConnection(ctx context.Context, workspaceID uuid.UU
 
 const getSlackConnection = `-- name: GetSlackConnection :one
 SELECT id, workspace_id, creator_id, enabled, default_team_id,
-       channel_name, notify_issues, notify_comments, connected_at, created_at, updated_at
+       channel_name, notify_issues, notify_comments, asks_enabled,
+       connected_at, created_at, updated_at
 FROM slack_connection
 WHERE workspace_id = $1
 `
@@ -136,6 +140,7 @@ type GetSlackConnectionRow struct {
 	ChannelName    *string
 	NotifyIssues   bool
 	NotifyComments bool
+	AsksEnabled    bool
 	ConnectedAt    *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
@@ -153,6 +158,7 @@ func (q *Queries) GetSlackConnection(ctx context.Context, workspaceID uuid.UUID)
 		&i.ChannelName,
 		&i.NotifyIssues,
 		&i.NotifyComments,
+		&i.AsksEnabled,
 		&i.ConnectedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -252,7 +258,8 @@ func (q *Queries) SetSlackConnectionWebhookURL(ctx context.Context, arg SetSlack
 
 const streamSlackConnectionsForBootstrap = `-- name: StreamSlackConnectionsForBootstrap :many
 SELECT id, workspace_id, creator_id, enabled, default_team_id,
-       channel_name, notify_issues, notify_comments, connected_at, created_at, updated_at
+       channel_name, notify_issues, notify_comments, asks_enabled,
+       connected_at, created_at, updated_at
 FROM slack_connection
 WHERE workspace_id = $1
   AND id > $2
@@ -275,6 +282,7 @@ type StreamSlackConnectionsForBootstrapRow struct {
 	ChannelName    *string
 	NotifyIssues   bool
 	NotifyComments bool
+	AsksEnabled    bool
 	ConnectedAt    *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
@@ -298,6 +306,7 @@ func (q *Queries) StreamSlackConnectionsForBootstrap(ctx context.Context, arg St
 			&i.ChannelName,
 			&i.NotifyIssues,
 			&i.NotifyComments,
+			&i.AsksEnabled,
 			&i.ConnectedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -318,11 +327,13 @@ SET default_team_id = COALESCE($1, default_team_id),
     channel_name = COALESCE($2, channel_name),
     notify_issues = COALESCE($3, notify_issues),
     notify_comments = COALESCE($4, notify_comments),
-    enabled = COALESCE($5, enabled),
-    connected_at = COALESCE($6, connected_at)
-WHERE workspace_id = $7
+    asks_enabled = COALESCE($5, asks_enabled),
+    enabled = COALESCE($6, enabled),
+    connected_at = COALESCE($7, connected_at)
+WHERE workspace_id = $8
 RETURNING id, workspace_id, creator_id, enabled, default_team_id,
-          channel_name, notify_issues, notify_comments, connected_at, created_at, updated_at
+          channel_name, notify_issues, notify_comments, asks_enabled,
+          connected_at, created_at, updated_at
 `
 
 type UpdateSlackConnectionParams struct {
@@ -330,6 +341,7 @@ type UpdateSlackConnectionParams struct {
 	ChannelName    *string
 	NotifyIssues   *bool
 	NotifyComments *bool
+	AsksEnabled    *bool
 	Enabled        *bool
 	ConnectedAt    *time.Time
 	WorkspaceID    uuid.UUID
@@ -344,6 +356,7 @@ type UpdateSlackConnectionRow struct {
 	ChannelName    *string
 	NotifyIssues   bool
 	NotifyComments bool
+	AsksEnabled    bool
 	ConnectedAt    *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
@@ -355,6 +368,7 @@ func (q *Queries) UpdateSlackConnection(ctx context.Context, arg UpdateSlackConn
 		arg.ChannelName,
 		arg.NotifyIssues,
 		arg.NotifyComments,
+		arg.AsksEnabled,
 		arg.Enabled,
 		arg.ConnectedAt,
 		arg.WorkspaceID,
@@ -369,6 +383,7 @@ func (q *Queries) UpdateSlackConnection(ctx context.Context, arg UpdateSlackConn
 		&i.ChannelName,
 		&i.NotifyIssues,
 		&i.NotifyComments,
+		&i.AsksEnabled,
 		&i.ConnectedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,

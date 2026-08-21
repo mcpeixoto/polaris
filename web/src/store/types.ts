@@ -207,6 +207,7 @@ export interface SlackConnection {
   readonly channelName?: string;
   readonly notifyIssues: boolean;
   readonly notifyComments: boolean;
+  readonly asksEnabled: boolean;
   readonly connectedAt?: Timestamp;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;

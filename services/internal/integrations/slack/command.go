@@ -36,6 +36,7 @@ type Kind string
 const (
 	KindHelp    Kind = "help"
 	KindCreate  Kind = "create"
+	KindAsk     Kind = "ask"
 	KindComment Kind = "comment"
 	KindShow    Kind = "show"
 )
@@ -59,6 +60,11 @@ func ParseText(text string) Parsed {
 	switch strings.ToLower(verb) {
 	case "help":
 		return Parsed{Kind: KindHelp}
+	case "ask", "asks":
+		if rest == "" {
+			return Parsed{Kind: KindHelp}
+		}
+		return Parsed{Kind: KindAsk, Title: rest}
 	case "create", "new":
 		if rest == "" {
 			return Parsed{Kind: KindHelp}
@@ -110,4 +116,15 @@ func looksLikeID(s string) bool {
 		}
 	}
 	return true
+}
+
+// IsAsksCommand is the dedicated Slack slash that always files an Ask, not a
+// regular issue. `/polaris ask` is parsed from the text instead.
+func IsAsksCommand(command string) bool {
+	switch strings.ToLower(strings.TrimSpace(command)) {
+	case "/asks", "/ask":
+		return true
+	default:
+		return false
+	}
 }

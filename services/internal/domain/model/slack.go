@@ -20,6 +20,7 @@ type SlackConnection struct {
 	ChannelName    *string    `json:"channelName,omitempty"`
 	NotifyIssues   bool       `json:"notifyIssues"`
 	NotifyComments bool       `json:"notifyComments"`
+	AsksEnabled    bool       `json:"asksEnabled"`
 	ConnectedAt    *time.Time `json:"connectedAt,omitempty"`
 	CreatedAt      time.Time  `json:"createdAt"`
 	UpdatedAt      time.Time  `json:"updatedAt"`

@@ -47,7 +47,7 @@ export const DIRECTORY: readonly DirectoryEntry[] = [
     id: 'asks',
     name: 'Asks',
     category: 'Intake',
-    summary: 'Shareable forms that file a triage issue. Slack intake stays out.',
+    summary: 'Shareable forms and Slack 🎫 / `/asks` that file a triage issue.',
     href: '/settings/asks',
   },
   {
