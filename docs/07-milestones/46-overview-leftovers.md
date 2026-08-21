@@ -19,5 +19,4 @@ team, target date, domains, tier, revenue, size, logo, and archive were already 
 ## Deferred
 
 - Initiative / customer archives pages (restore is API-only)
-- Merge customers, revenue-tier settings, workspace enable toggles
-- Customer filter grammar
+- Insights slices by customer

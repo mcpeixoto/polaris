@@ -51,7 +51,7 @@ const idPrefix = "01900000-0000-7000-8000-"
 var uuidFields = map[string]bool{
 	"state": true, "assignee": true, "creator": true, "subscriber": true,
 	"label": true, "team": true, "parent": true, "blockedBy": true, "blocking": true,
-	"template": true,
+	"template": true, "customer": true,
 }
 
 type conformance struct {
@@ -127,6 +127,23 @@ type conformance struct {
 		RelatedIssueID uuid.UUID `json:"relatedIssueId"`
 		Type           string    `json:"type"`
 	} `json:"relations"`
+
+	Customers []struct {
+		ID        uuid.UUID `json:"id"`
+		Name      string    `json:"name"`
+		Status    string    `json:"status"`
+		Tier      *string   `json:"tier"`
+		Revenue   *int      `json:"revenue"`
+		Size      *int      `json:"size"`
+		SortOrder string    `json:"sortOrder"`
+	} `json:"customers"`
+
+	CustomerRequests []struct {
+		ID         uuid.UUID  `json:"id"`
+		IssueID    uuid.UUID  `json:"issueId"`
+		CustomerID *uuid.UUID `json:"customerId"`
+		Important  bool       `json:"important"`
+	} `json:"customerRequests"`
 
 	Subscriptions []struct {
 		ID           uuid.UUID `json:"id"`
@@ -439,6 +456,18 @@ func insertWorkspace(t *testing.T, ctx context.Context, pool *pgxpool.Pool, fx *
 		exec(`INSERT INTO issue_relation (id, workspace_id, issue_id, related_issue_id, type)
 		      VALUES ($1, $2, $3, $4, $5)`,
 			r.ID, fx.Workspace.ID, r.IssueID, r.RelatedIssueID, r.Type)
+	}
+
+	for _, cu := range fx.Customers {
+		exec(`INSERT INTO customer (id, workspace_id, name, status, tier, revenue, size, sort_order)
+		      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			cu.ID, fx.Workspace.ID, cu.Name, cu.Status, cu.Tier, cu.Revenue, cu.Size, cu.SortOrder)
+	}
+
+	for _, cr := range fx.CustomerRequests {
+		exec(`INSERT INTO customer_request (id, workspace_id, customer_id, issue_id, important)
+		      VALUES ($1, $2, $3, $4, $5)`,
+			cr.ID, fx.Workspace.ID, cr.CustomerID, cr.IssueID, cr.Important)
 	}
 
 	for _, s := range fx.Subscriptions {

@@ -48,6 +48,12 @@ type Options struct {
 	// numbers its own from ArgOffset+1, so a caller that starts with
 	// "workspace_id = $1" passes 1 and appends Compiled.Args to its own.
 	ArgOffset int
+
+	// HideCustomers compiles every customer-field clause to false. Guests never see
+	// customer request data, including views that use customer filters — matching
+	// `customerCount eq 0` would otherwise return the whole workspace from an empty
+	// replica.
+	HideCustomers bool
 }
 
 // aliasPattern is the one string in this package that reaches SQL text uninterpolated.
@@ -91,7 +97,7 @@ func Compile(root Node, opts Options) (Compiled, error) {
 		loc = time.UTC
 	}
 
-	c := &compiler{alias: alias, now: now, loc: loc, offset: opts.ArgOffset}
+	c := &compiler{alias: alias, now: now, loc: loc, offset: opts.ArgOffset, hideCustomers: opts.HideCustomers}
 
 	predicate, err := c.node(root)
 	if err != nil {
@@ -141,11 +147,12 @@ func mentions(n Node, f Field) bool {
 }
 
 type compiler struct {
-	alias  string
-	now    time.Time
-	loc    *time.Location
-	offset int
-	args   []any
+	alias         string
+	now           time.Time
+	loc           *time.Location
+	offset        int
+	args          []any
+	hideCustomers bool
 }
 
 // placeholder appends an argument and returns the $n that reads it. The only way a value
@@ -211,13 +218,29 @@ func (c *compiler) clause(n Node) (string, error) {
 	}
 
 	switch {
+	case c.hideCustomers && customerField[b.field]:
+		return sqlFalse, nil
 	case b.spec.flag:
 		return c.flag(b, values), nil
+	case b.spec.expr != "":
+		return c.column(b, values, fmt.Sprintf(b.spec.expr, c.alias)), nil
+	case b.spec.relatedFrom != "":
+		return c.related(b, values), nil
 	case b.spec.membership != "":
 		return c.membership(b, values), nil
 	default:
-		return c.column(b, values), nil
+		return c.column(b, values, c.alias+"."+b.spec.column), nil
 	}
+}
+
+var customerField = map[Field]bool{
+	FieldCustomer:          true,
+	FieldCustomerCount:     true,
+	FieldCustomerStatus:    true,
+	FieldCustomerTier:      true,
+	FieldCustomerRevenue:   true,
+	FieldCustomerSize:      true,
+	FieldCustomerImportant: true,
 }
 
 // flag compiles archived, deleted and recurring, which the user sees as booleans and the
@@ -255,13 +278,19 @@ func (c *compiler) flag(b bound, values []any) string {
 	}
 
 	col := c.alias + "." + b.spec.column
+	trueSQL := col + " IS NOT NULL"
+	falseSQL := col + " IS NULL"
+	if b.spec.presence != "" {
+		trueSQL = fmt.Sprintf(b.spec.presence, c.alias)
+		falseSQL = "NOT " + trueSQL
+	}
 	switch {
 	case wantTrue && wantFalse:
 		return sqlTrue
 	case wantTrue:
-		return col + " IS NOT NULL"
+		return trueSQL
 	case wantFalse:
-		return col + " IS NULL"
+		return falseSQL
 	default:
 		return sqlFalse
 	}
@@ -295,9 +324,54 @@ func (c *compiler) membership(b bound, values []any) string {
 	return exists
 }
 
-// column compiles the fields that are columns of issue.
-func (c *compiler) column(b bound, values []any) string {
-	col := c.alias + "." + b.spec.column
+// related compiles attributes that live on customers linked through customer_request.
+//
+// EXISTS, never a join, for the same reason membership does: `customer notIn [acme]` means
+// "has no request from Acme", not "has a request from someone else".
+func (c *compiler) related(b bound, values []any) string {
+	from := fmt.Sprintf(b.spec.relatedFrom, c.alias)
+	col := b.spec.relatedColumn
+	exists := func(pred string) string {
+		return "EXISTS (SELECT 1 " + from + " AND " + pred + ")"
+	}
+
+	switch b.op {
+	case OpIsNull:
+		return "NOT " + exists(col+" IS NOT NULL")
+	case OpIsNotNull:
+		return exists(col + " IS NOT NULL")
+	case OpEq:
+		return exists(col + " = " + c.placeholder(values[0]))
+	case OpNeq:
+		return "NOT " + exists(col+" = "+c.placeholder(values[0]))
+	case OpIn:
+		if len(values) == 0 {
+			return sqlFalse
+		}
+		return exists(col + " = ANY(" + c.placeholder(listArg(b.spec.kind, values)) + ")")
+	case OpNotIn:
+		if len(values) == 0 {
+			return sqlTrue
+		}
+		return "NOT " + exists(col+" = ANY("+c.placeholder(listArg(b.spec.kind, values))+")")
+	case OpGt:
+		return exists(col + " > " + c.placeholder(values[0]))
+	case OpGte:
+		return exists(col + " >= " + c.placeholder(values[0]))
+	case OpLt:
+		return exists(col + " < " + c.placeholder(values[0]))
+	case OpLte:
+		return exists(col + " <= " + c.placeholder(values[0]))
+	case OpContains:
+		return exists(c.contains(col, values[0].(string)))
+	case OpNotContains:
+		return "NOT " + exists(c.contains(col, values[0].(string)))
+	}
+	return sqlFalse
+}
+
+// column compiles the fields that are columns of issue, or an equivalent expression.
+func (c *compiler) column(b bound, values []any, col string) string {
 
 	switch b.op {
 	case OpEq:

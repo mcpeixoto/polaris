@@ -244,6 +244,7 @@ const ORDER_BY: ReadonlySet<string> = new Set<string>([
   'createdAt',
   'updatedAt',
   'title',
+  'customerCount',
 ]);
 
 const PROPERTIES: ReadonlySet<string> = new Set<string>([
