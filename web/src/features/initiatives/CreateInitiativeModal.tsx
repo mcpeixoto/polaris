@@ -7,8 +7,9 @@ import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Input, Modal } from '~/components';
+import { Button, Input, Modal, Select } from '~/components';
 import { useViewerId } from '~/hooks/useViewer';
+import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { ApiError } from '~/sync/api';
 
 import { createInitiative } from './mutations';
@@ -26,9 +27,19 @@ export function CreateInitiativeModal({ onClose }: CreateInitiativeModalProps) {
   const nameRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState('');
+  const [parentId, setParentId] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const parents = useLiveQuery(
+    (store) =>
+      [...store.initiatives.values()]
+        .filter((row) => row.archivedAt === undefined && row.deletedAt === undefined)
+        .map((row) => ({ id: row.id, name: row.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    ['initiative'],
+  );
 
   useKeyContext('modal');
   useActions(
@@ -61,6 +72,7 @@ export function CreateInitiativeModal({ onClose }: CreateInitiativeModalProps) {
       const id = await createInitiative(engine, {
         name: trimmed,
         ownerId: viewerId ?? undefined,
+        parentInitiativeId: parentId === '' ? undefined : parentId,
       });
       onClose();
       if (id !== '') void navigate(`/initiative/${id}`);
@@ -105,6 +117,21 @@ export function CreateInitiativeModal({ onClose }: CreateInitiativeModalProps) {
           error={nameError ?? undefined}
           placeholder="Q3 platform reliability"
         />
+        {parents.length > 0 && (
+          <Select
+            label="Parent"
+            hint="Optional. Nests this initiative under another."
+            value={parentId}
+            onChange={(event) => setParentId(event.target.value)}
+          >
+            <option value="">No parent</option>
+            {parents.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name}
+              </option>
+            ))}
+          </Select>
+        )}
         {saveError !== null && <p className={styles.error}>{saveError}</p>}
       </form>
     </Modal>

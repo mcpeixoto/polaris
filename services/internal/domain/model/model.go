@@ -1000,6 +1000,45 @@ type InitiativeUpdate struct {
 	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
+// InitiativeLabel is both a label and a group of labels for initiatives. Workspace-scoped only.
+type InitiativeLabel struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	ParentID    *uuid.UUID `json:"parentId,omitempty"`
+	IsGroup     bool       `json:"isGroup"`
+
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Color       string  `json:"color"`
+	Position    string  `json:"position"`
+
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
+// InitiativeLabelLink is one initiative label applied to one initiative.
+type InitiativeLabelLink struct {
+	ID           uuid.UUID  `json:"id"`
+	WorkspaceID  uuid.UUID  `json:"workspaceId"`
+	InitiativeID uuid.UUID  `json:"initiativeId"`
+	LabelID      uuid.UUID  `json:"labelId"`
+	GroupID      *uuid.UUID `json:"groupId,omitempty"`
+	CreatedBy    *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+}
+
+// InitiativeRelation is a parent → child nest. An initiative may have multiple parents.
+type InitiativeRelation struct {
+	ID                  uuid.UUID  `json:"id"`
+	WorkspaceID         uuid.UUID  `json:"workspaceId"`
+	ParentInitiativeID  uuid.UUID  `json:"parentInitiativeId"`
+	ChildInitiativeID   uuid.UUID  `json:"childInitiativeId"`
+	SortOrder           string     `json:"sortOrder"`
+	CreatedBy           *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt           time.Time  `json:"createdAt"`
+}
+
 const (
 	CustomerStatusActive   = "active"
 	CustomerStatusProspect = "prospect"

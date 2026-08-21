@@ -60,6 +60,9 @@ func TestSchemaDrift_EveryModelFieldExistsOnItsGraphQLType(t *testing.T) {
 		{"Dashboard", model.Dashboard{}, generated.Dashboard{}},
 		{"DashboardTile", model.DashboardTile{}, generated.DashboardTile{}},
 		{"ViewSubscription", model.ViewSubscription{}, generated.ViewSubscription{}},
+		{"InitiativeLabel", model.InitiativeLabel{}, generated.InitiativeLabel{}},
+		{"InitiativeLabelLink", model.InitiativeLabelLink{}, generated.InitiativeLabelLink{}},
+		{"InitiativeRelation", model.InitiativeRelation{}, generated.InitiativeRelation{}},
 	}
 
 	for _, pair := range pairs {

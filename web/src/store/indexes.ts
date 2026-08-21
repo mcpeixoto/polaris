@@ -2,6 +2,8 @@ import type {
   Issue,
   IssueLabel,
   IssueRelation,
+  InitiativeLabelLink,
+  InitiativeRelation,
   Notification,
   ProjectLabelLink,
   UUID,
@@ -581,6 +583,117 @@ export class ProjectLabelIndex {
 
   rowIdsForLabel(labelId: UUID): ReadonlySet<UUID> {
     return this.rowsOfLabel.get(labelId);
+  }
+}
+
+/**
+ * Which initiative labels are on which initiatives, from a `initiativeLabelLink` row per application.
+ */
+export class InitiativeLabelIndex {
+  private readonly labelsOfInitiative = new SetIndex<UUID>();
+  private readonly initiativesOfLabel = new SetIndex<UUID>();
+  private readonly rowsOfInitiative = new SetIndex<UUID>();
+  private readonly rowsOfLabel = new SetIndex<UUID>();
+
+  add(row: InitiativeLabelLink): void {
+    this.labelsOfInitiative.add(row.initiativeId, row.labelId);
+    this.initiativesOfLabel.add(row.labelId, row.initiativeId);
+    this.rowsOfInitiative.add(row.initiativeId, row.id);
+    this.rowsOfLabel.add(row.labelId, row.id);
+  }
+
+  update(previous: InitiativeLabelLink, next: InitiativeLabelLink): void {
+    if (previous.initiativeId !== next.initiativeId || previous.labelId !== next.labelId) {
+      this.remove(previous);
+    }
+    this.add(next);
+  }
+
+  remove(row: InitiativeLabelLink): void {
+    this.labelsOfInitiative.remove(row.initiativeId, row.labelId);
+    this.initiativesOfLabel.remove(row.labelId, row.initiativeId);
+    this.rowsOfInitiative.remove(row.initiativeId, row.id);
+    this.rowsOfLabel.remove(row.labelId, row.id);
+  }
+
+  clear(): void {
+    this.labelsOfInitiative.clear();
+    this.initiativesOfLabel.clear();
+    this.rowsOfInitiative.clear();
+    this.rowsOfLabel.clear();
+  }
+
+  labelIdsFor(initiativeId: UUID): ReadonlySet<UUID> {
+    return this.labelsOfInitiative.get(initiativeId);
+  }
+
+  initiativeIdsWith(labelId: UUID): ReadonlySet<UUID> {
+    return this.initiativesOfLabel.get(labelId);
+  }
+
+  rowIdsForInitiative(initiativeId: UUID): ReadonlySet<UUID> {
+    return this.rowsOfInitiative.get(initiativeId);
+  }
+
+  rowIdsForLabel(labelId: UUID): ReadonlySet<UUID> {
+    return this.rowsOfLabel.get(labelId);
+  }
+}
+
+/**
+ * Parent/child nests, indexed from both ends so a list can walk descendants without a scan.
+ */
+export class InitiativeRelationIndex {
+  private readonly childrenOf = new SetIndex<UUID>();
+  private readonly parentsOf = new SetIndex<UUID>();
+  private readonly rowsOfParent = new SetIndex<UUID>();
+  private readonly rowsOfChild = new SetIndex<UUID>();
+
+  add(row: InitiativeRelation): void {
+    this.childrenOf.add(row.parentInitiativeId, row.childInitiativeId);
+    this.parentsOf.add(row.childInitiativeId, row.parentInitiativeId);
+    this.rowsOfParent.add(row.parentInitiativeId, row.id);
+    this.rowsOfChild.add(row.childInitiativeId, row.id);
+  }
+
+  update(previous: InitiativeRelation, next: InitiativeRelation): void {
+    if (
+      previous.parentInitiativeId !== next.parentInitiativeId ||
+      previous.childInitiativeId !== next.childInitiativeId
+    ) {
+      this.remove(previous);
+    }
+    this.add(next);
+  }
+
+  remove(row: InitiativeRelation): void {
+    this.childrenOf.remove(row.parentInitiativeId, row.childInitiativeId);
+    this.parentsOf.remove(row.childInitiativeId, row.parentInitiativeId);
+    this.rowsOfParent.remove(row.parentInitiativeId, row.id);
+    this.rowsOfChild.remove(row.childInitiativeId, row.id);
+  }
+
+  clear(): void {
+    this.childrenOf.clear();
+    this.parentsOf.clear();
+    this.rowsOfParent.clear();
+    this.rowsOfChild.clear();
+  }
+
+  childIdsFor(parentId: UUID): ReadonlySet<UUID> {
+    return this.childrenOf.get(parentId);
+  }
+
+  parentIdsFor(childId: UUID): ReadonlySet<UUID> {
+    return this.parentsOf.get(childId);
+  }
+
+  rowIdsForParent(parentId: UUID): ReadonlySet<UUID> {
+    return this.rowsOfParent.get(parentId);
+  }
+
+  rowIdsForChild(childId: UUID): ReadonlySet<UUID> {
+    return this.rowsOfChild.get(childId);
   }
 }
 
