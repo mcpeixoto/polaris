@@ -8,6 +8,7 @@ import {
   CREATE_CUSTOMER,
   CREATE_CUSTOMER_REQUEST,
   DELETE_CUSTOMER_REQUEST,
+  MERGE_CUSTOMERS,
   UPDATE_CUSTOMER,
   UPDATE_CUSTOMER_REQUEST,
 } from './operations';
@@ -157,6 +158,24 @@ export async function archiveCustomer(engine: SyncEngine, id: UUID): Promise<voi
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
   }
+}
+
+/**
+ * Fold one customer into another. The source is archived; domains and requests move.
+ *
+ * Not optimistic: the server rewrites every request and the domain uniqueness table, and
+ * a local guess would be wrong the moment both rows claimed overlapping domains.
+ */
+export async function mergeCustomers(
+  engine: SyncEngine,
+  sourceId: UUID,
+  intoId: UUID,
+): Promise<void> {
+  if (sourceId === intoId) return;
+  await engine.mutate({
+    mutation: MERGE_CUSTOMERS,
+    variables: { sourceId, intoId },
+  });
 }
 
 export interface NewCustomerRequest {

@@ -878,6 +878,7 @@ type ComplexityRoot struct {
 		MarkAllNotificationsRead       func(childComplexity int) int
 		MarkIssueDuplicate             func(childComplexity int, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		MarkNotificationRead           func(childComplexity int, id uuid.UUID, read bool) int
+		MergeCustomers                 func(childComplexity int, sourceID uuid.UUID, intoID uuid.UUID) int
 		MergeLabels                    func(childComplexity int, sourceID uuid.UUID, intoID uuid.UUID) int
 		MoveFavorite                   func(childComplexity int, input MoveFavoriteInput) int
 		MoveTeam                       func(childComplexity int, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -1709,6 +1710,10 @@ type ComplexityRoot struct {
 	Workspace struct {
 		ArchivedAt                        func(childComplexity int) int
 		CreatedAt                         func(childComplexity int) int
+		CustomerDefaultTeamID             func(childComplexity int) int
+		CustomerRequestsEnabled           func(childComplexity int) int
+		CustomerRevenueUnit               func(childComplexity int) int
+		CustomerTiers                     func(childComplexity int) int
 		Entitlements                      func(childComplexity int) int
 		ID                                func(childComplexity int) int
 		Labels                            func(childComplexity int) int
@@ -1773,6 +1778,7 @@ type MutationResolver interface {
 	UpdateCustomer(ctx context.Context, input UpdateCustomerInput, clientID *uuid.UUID, opID *uuid.UUID) (*CustomerPayload, error)
 	ArchiveCustomer(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	DeleteCustomer(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	MergeCustomers(ctx context.Context, sourceID uuid.UUID, intoID uuid.UUID) (*CustomerPayload, error)
 	CreateCustomerRequest(ctx context.Context, input CreateCustomerRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*CustomerRequestPayload, error)
 	UpdateCustomerRequest(ctx context.Context, input UpdateCustomerRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*CustomerRequestPayload, error)
 	DeleteCustomerRequest(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
@@ -6303,6 +6309,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MarkNotificationRead(childComplexity, args["id"].(uuid.UUID), args["read"].(bool)), true
+	case "Mutation.mergeCustomers":
+		if e.ComplexityRoot.Mutation.MergeCustomers == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_mergeCustomers_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MergeCustomers(childComplexity, args["sourceId"].(uuid.UUID), args["intoId"].(uuid.UUID)), true
 	case "Mutation.mergeLabels":
 		if e.ComplexityRoot.Mutation.MergeLabels == nil {
 			break
@@ -10736,6 +10753,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Workspace.CreatedAt(childComplexity), true
+	case "Workspace.customerDefaultTeamId":
+		if e.ComplexityRoot.Workspace.CustomerDefaultTeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Workspace.CustomerDefaultTeamID(childComplexity), true
+	case "Workspace.customerRequestsEnabled":
+		if e.ComplexityRoot.Workspace.CustomerRequestsEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Workspace.CustomerRequestsEnabled(childComplexity), true
+	case "Workspace.customerRevenueUnit":
+		if e.ComplexityRoot.Workspace.CustomerRevenueUnit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Workspace.CustomerRevenueUnit(childComplexity), true
+	case "Workspace.customerTiers":
+		if e.ComplexityRoot.Workspace.CustomerTiers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Workspace.CustomerTiers(childComplexity), true
 	case "Workspace.entitlements":
 		if e.ComplexityRoot.Workspace.Entitlements == nil {
 			break
@@ -11208,6 +11249,14 @@ type Workspace {
   pulseEnabled: Boolean!
   """Default inbox digest cadence. Summaries land around 06:00 in each member's timezone."""
   pulseDigestCadence: PulseDigestCadence!
+  """When false, customer pages and request writes are off."""
+  customerRequestsEnabled: Boolean!
+  """Public team issues created from a customer page should land in. Null means the creator picks."""
+  customerDefaultTeamId: UUID
+  """Label for the revenue number, e.g. USD or seats."""
+  customerRevenueUnit: String!
+  """Named plans shown when attributing a customer. customer.tier matches one of these."""
+  customerTiers: [String!]!
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
@@ -14029,6 +14078,11 @@ input UpdateWorkspaceInput {
   projectUpdateReminderHour: Int
   pulseEnabled: Boolean
   pulseDigestCadence: PulseDigestCadence
+  customerRequestsEnabled: Boolean
+  customerDefaultTeamId: UUID
+  clearCustomerDefaultTeam: Boolean
+  customerRevenueUnit: String
+  customerTiers: [String!]
 }
 
 # ---------------------------------------------------------------- root
@@ -14246,6 +14300,8 @@ type Mutation {
   updateCustomer(input: UpdateCustomerInput!, clientId: UUID, opId: UUID): CustomerPayload! @idempotent
   archiveCustomer(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   deleteCustomer(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  """Folds source into the survivor: domains and requests move, source is archived."""
+  mergeCustomers(sourceId: UUID!, intoId: UUID!): CustomerPayload!
   createCustomerRequest(input: CreateCustomerRequestInput!, clientId: UUID, opId: UUID): CustomerRequestPayload! @idempotent
   updateCustomerRequest(input: UpdateCustomerRequestInput!, clientId: UUID, opId: UUID): CustomerRequestPayload! @idempotent
   deleteCustomerRequest(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
@@ -17322,6 +17378,14 @@ func (ec *executionContext) childFields_Workspace(ctx context.Context, field gra
 		return ec.fieldContext_Workspace_pulseEnabled(ctx, field)
 	case "pulseDigestCadence":
 		return ec.fieldContext_Workspace_pulseDigestCadence(ctx, field)
+	case "customerRequestsEnabled":
+		return ec.fieldContext_Workspace_customerRequestsEnabled(ctx, field)
+	case "customerDefaultTeamId":
+		return ec.fieldContext_Workspace_customerDefaultTeamId(ctx, field)
+	case "customerRevenueUnit":
+		return ec.fieldContext_Workspace_customerRevenueUnit(ctx, field)
+	case "customerTiers":
+		return ec.fieldContext_Workspace_customerTiers(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Workspace_createdAt(ctx, field)
 	case "updatedAt":
@@ -20107,6 +20171,28 @@ func (ec *executionContext) field_Mutation_markNotificationRead_args(ctx context
 		return nil, err
 	}
 	args["read"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_mergeCustomers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sourceId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sourceId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "intoId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["intoId"] = arg1
 	return args, nil
 }
 
@@ -36678,6 +36764,50 @@ func (ec *executionContext) fieldContext_Mutation_deleteCustomer(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteCustomer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_mergeCustomers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_mergeCustomers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MergeCustomers(ctx, fc.Args["sourceId"].(uuid.UUID), fc.Args["intoId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *CustomerPayload) graphql.Marshaler {
+			return ec.marshalNCustomerPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐCustomerPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_mergeCustomers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_mergeCustomers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -59004,6 +59134,98 @@ func (ec *executionContext) fieldContext_Workspace_pulseDigestCadence(_ context.
 	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type PulseDigestCadence does not have child fields"))
 }
 
+func (ec *executionContext) _Workspace_customerRequestsEnabled(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Workspace_customerRequestsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CustomerRequestsEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Workspace_customerRequestsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Workspace_customerDefaultTeamId(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Workspace_customerDefaultTeamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CustomerDefaultTeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Workspace_customerDefaultTeamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Workspace_customerRevenueUnit(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Workspace_customerRevenueUnit(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CustomerRevenueUnit, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Workspace_customerRevenueUnit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Workspace_customerTiers(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Workspace_customerTiers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CustomerTiers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Workspace_customerTiers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Workspace", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _Workspace_createdAt(ctx context.Context, field graphql.CollectedField, obj *Workspace) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -66503,7 +66725,7 @@ func (ec *executionContext) unmarshalInputUpdateWorkspaceInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "logoUrl", "projectUpdateReminderIntervalDays", "projectUpdateReminderWeekday", "projectUpdateReminderHour", "pulseEnabled", "pulseDigestCadence"}
+	fieldsInOrder := [...]string{"name", "logoUrl", "projectUpdateReminderIntervalDays", "projectUpdateReminderWeekday", "projectUpdateReminderHour", "pulseEnabled", "pulseDigestCadence", "customerRequestsEnabled", "customerDefaultTeamId", "clearCustomerDefaultTeam", "customerRevenueUnit", "customerTiers"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -66559,6 +66781,41 @@ func (ec *executionContext) unmarshalInputUpdateWorkspaceInput(ctx context.Conte
 				return it, err
 			}
 			it.PulseDigestCadence = data
+		case "customerRequestsEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerRequestsEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomerRequestsEnabled = data
+		case "customerDefaultTeamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerDefaultTeamId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomerDefaultTeamID = data
+		case "clearCustomerDefaultTeam":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearCustomerDefaultTeam"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearCustomerDefaultTeam = data
+		case "customerRevenueUnit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerRevenueUnit"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomerRevenueUnit = data
+		case "customerTiers":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customerTiers"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomerTiers = data
 		}
 	}
 	return it, nil
@@ -72282,6 +72539,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteCustomer":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteCustomer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mergeCustomers":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_mergeCustomers(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -79982,6 +80246,26 @@ func (ec *executionContext) _Workspace(ctx context.Context, sel ast.SelectionSet
 			}
 		case "pulseDigestCadence":
 			out.Values[i] = ec._Workspace_pulseDigestCadence(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customerRequestsEnabled":
+			out.Values[i] = ec._Workspace_customerRequestsEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customerDefaultTeamId":
+			out.Values[i] = ec._Workspace_customerDefaultTeamId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "customerRevenueUnit":
+			out.Values[i] = ec._Workspace_customerRevenueUnit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customerTiers":
+			out.Values[i] = ec._Workspace_customerTiers(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

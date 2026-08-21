@@ -13,6 +13,10 @@ export const WORKSPACE_FIELDS = /* GraphQL */ `
     projectUpdateReminderHour
     pulseEnabled
     pulseDigestCadence
+    customerRequestsEnabled
+    customerDefaultTeamId
+    customerRevenueUnit
+    customerTiers
     createdAt
     updatedAt
     archivedAt
