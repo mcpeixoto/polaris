@@ -16,6 +16,7 @@ import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerR
 import {
   archiveCustomer,
   formatCustomerStatus,
+  mergeCustomers,
   toggleCustomerRequestImportant,
   updateCustomer,
 } from '~/features/customers/mutations';
@@ -43,6 +44,10 @@ export function CustomerDetail() {
   const [archiving, setArchiving] = useState(false);
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [mergeIntoId, setMergeIntoId] = useState('');
+  const [merging, setMerging] = useState(false);
+  const [mergeBusy, setMergeBusy] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
 
   const customer = useLiveQuery(
     (store) => store.customers.get(customerId) ?? null,
@@ -57,6 +62,23 @@ export function CustomerDetail() {
         .map((user) => ({ id: user.id, name: user.displayName }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     ['user'],
+  );
+
+  const workspace = useLiveQuery(
+    (store) => store.workspaces.get(store.workspaceId) ?? null,
+    ['workspace'],
+  );
+
+  const others = useLiveQuery(
+    (store) =>
+      [...store.customers.values()]
+        .filter(
+          (row) =>
+            row.id !== customerId && row.archivedAt === undefined && row.deletedAt === undefined,
+        )
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    ['customer'],
+    [customerId],
   );
 
   const requests = useLiveQuery(
@@ -96,6 +118,26 @@ export function CustomerDetail() {
       });
   };
 
+  const mergeTarget = others.find((row) => row.id === mergeIntoId) ?? null;
+
+  const confirmMerge = () => {
+    if (mergeTarget === null) return;
+    setMergeBusy(true);
+    setMergeError(null);
+    mergeCustomers(engine, customer.id, mergeTarget.id)
+      .then(() => {
+        setMergeBusy(false);
+        setMerging(false);
+        void navigate(`/customer/${mergeTarget.id}`);
+      })
+      .catch((failure: unknown) => {
+        setMergeBusy(false);
+        setMergeError(
+          failure instanceof ApiError ? failure.message : 'Those customers could not be merged.',
+        );
+      });
+  };
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
@@ -105,6 +147,30 @@ export function CustomerDetail() {
           <Button variant="ghost" onClick={() => setArchiving(true)}>
             Archive
           </Button>
+          {others.length === 0 ? null : (
+            <>
+              <Select
+                label="Merge into"
+                hideLabel
+                value={mergeIntoId}
+                onChange={(event) => setMergeIntoId(event.target.value)}
+              >
+                <option value="">Merge with…</option>
+                {others.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
+                ))}
+              </Select>
+              <Button
+                variant="ghost"
+                disabled={mergeIntoId === ''}
+                onClick={() => setMerging(true)}
+              >
+                Merge
+              </Button>
+            </>
+          )}
         </div>
       </header>
 
@@ -165,23 +231,44 @@ export function CustomerDetail() {
               </option>
             ))}
           </Select>
-          <Input
-            label="Tier"
-            hint="A label you choose — Enterprise, Pro, self-serve."
-            defaultValue={customer.tier ?? ''}
-            key={`tier:${customer.tier ?? ''}`}
-            onBlur={(event) => {
-              const tier = event.target.value.trim();
-              const previous = customer.tier ?? '';
-              if (tier === previous) return;
-              save({ tier: tier === '' ? null : tier });
-            }}
-          />
+          {workspace !== null && workspace.customerTiers.length > 0 ? (
+            <Select
+              label="Tier"
+              value={customer.tier ?? ''}
+              onChange={(event) =>
+                save({ tier: event.target.value === '' ? null : event.target.value })
+              }
+            >
+              <option value="">No tier</option>
+              {workspace.customerTiers.map((tier) => (
+                <option key={tier} value={tier}>
+                  {tier}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <Input
+              label="Tier"
+              hint="A label you choose — Enterprise, Pro, self-serve."
+              defaultValue={customer.tier ?? ''}
+              key={`tier:${customer.tier ?? ''}`}
+              onBlur={(event) => {
+                const tier = event.target.value.trim();
+                const previous = customer.tier ?? '';
+                if (tier === previous) return;
+                save({ tier: tier === '' ? null : tier });
+              }}
+            />
+          )}
           <Input
             label="Revenue"
             type="number"
             min={0}
-            hint="Whole units. Blank clears it."
+            hint={
+              workspace !== null && workspace.customerRevenueUnit !== ''
+                ? `Whole ${workspace.customerRevenueUnit}. Blank clears it.`
+                : 'Whole units. Blank clears it.'
+            }
             defaultValue={customer.revenue === undefined ? '' : String(customer.revenue)}
             key={`revenue:${customer.revenue === undefined ? '' : String(customer.revenue)}`}
             onBlur={(event) => {
@@ -283,6 +370,22 @@ export function CustomerDetail() {
           if (archiveBusy) return;
           setArchiving(false);
           setArchiveError(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={merging && mergeTarget !== null}
+        title={mergeTarget === null ? 'Merge?' : `Merge ${customer.name} into ${mergeTarget.name}?`}
+        consequence="Domains and requests move onto the surviving customer. Empty attributes fill in from this one. This customer is archived."
+        confirmLabel="Merge"
+        destructive
+        busy={mergeBusy}
+        error={mergeError ?? undefined}
+        onConfirm={confirmMerge}
+        onClose={() => {
+          if (mergeBusy) return;
+          setMerging(false);
+          setMergeError(null);
         }}
       />
     </div>

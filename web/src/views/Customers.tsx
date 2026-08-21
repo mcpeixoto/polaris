@@ -25,10 +25,29 @@ export function Customers() {
   const { registry, context } = useKeymap();
   const create = () => registry.invoke('customer.create', { source: 'menu', context });
 
+  const workspace = useLiveQuery(
+    (store) => store.workspaces.get(store.workspaceId) ?? null,
+    ['workspace'],
+  );
+
   const rows = useLiveQuery(
     (store) => listCustomers(store),
     ['customer', 'customerRequest', 'user'],
   );
+
+  if (workspace !== null && !workspace.customerRequestsEnabled) {
+    return (
+      <div className={styles.screen}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>Customers</h1>
+        </header>
+        <EmptyState
+          title="Customer requests are off"
+          description="An admin can turn them back on in Settings → Customer requests. Existing customers stay in the replica."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={styles.screen}>

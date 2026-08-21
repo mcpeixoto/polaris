@@ -103,6 +103,9 @@ func (s *Service) CreateCustomer(
 	var out model.Customer
 	var version int64
 	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		if err := requireCustomerRequestsEnabled(ctx, q, p.WorkspaceID); err != nil {
+			return err
+		}
 		if in.OwnerID != nil {
 			if _, err := q.GetUser(ctx, *in.OwnerID); err != nil {
 				if store.IsNotFound(err) {
@@ -189,6 +192,9 @@ func (s *Service) UpdateCustomer(
 	var out model.Customer
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		if err := requireCustomerRequestsEnabled(ctx, q, p.WorkspaceID); err != nil {
+			return err
+		}
 		existing, err := s.requireCustomerWrite(ctx, q, p, in.ID)
 		if err != nil {
 			return err
@@ -277,6 +283,130 @@ func (s *Service) ArchiveCustomer(
 		return err
 	})
 	return version, err
+}
+
+// MergeCustomers folds source into survivor. Domains and requests move; empty survivor
+// attributes fill from the source; the source is archived.
+func (s *Service) MergeCustomers(
+	ctx context.Context, p *authz.Principal, sourceID, intoID uuid.UUID,
+) (model.Customer, int64, error) {
+	if sourceID == intoID {
+		return model.Customer{}, 0, platform.Validation("intoId", "a customer cannot merge into itself")
+	}
+
+	var out model.Customer
+	var version int64
+	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		if err := requireCustomerRequestsEnabled(ctx, q, p.WorkspaceID); err != nil {
+			return err
+		}
+		first, second := sourceID, intoID
+		if first.String() > second.String() {
+			first, second = second, first
+		}
+		if _, err := q.GetCustomerForUpdate(ctx, first); err != nil {
+			if store.IsNotFound(err) {
+				return platform.NotFound("customer")
+			}
+			return platform.Internal(err)
+		}
+		if _, err := q.GetCustomerForUpdate(ctx, second); err != nil {
+			if store.IsNotFound(err) {
+				return platform.NotFound("customer")
+			}
+			return platform.Internal(err)
+		}
+
+		source, err := s.requireCustomerWrite(ctx, q, p, sourceID)
+		if err != nil {
+			return err
+		}
+		into, err := s.requireCustomerWrite(ctx, q, p, intoID)
+		if err != nil {
+			return err
+		}
+		if source.DeletedAt != nil || source.ArchivedAt != nil {
+			return platform.NotFound("customer")
+		}
+		if into.DeletedAt != nil || into.ArchivedAt != nil {
+			return platform.NotFound("customer")
+		}
+
+		domains := unionDomains(into.Domains, source.Domains)
+		if err := q.DeleteCustomerDomains(ctx, sourceID); err != nil {
+			return platform.Internal(err)
+		}
+		if err := replaceCustomerDomains(ctx, q, p.WorkspaceID, intoID, domains); err != nil {
+			return err
+		}
+
+		moved, err := q.RetargetCustomerRequests(ctx, store.RetargetCustomerRequestsParams{
+			IntoID:   &intoID,
+			SourceID: &sourceID,
+		})
+		if err != nil {
+			return platform.Internal(err)
+		}
+
+		revenue, clearRevenue := coalesceInt32(into.Revenue, source.Revenue)
+		size, clearSize := coalesceInt32(into.Size, source.Size)
+		tier, clearTier := coalesceString(into.Tier, source.Tier)
+		ownerID, clearOwner := coalesceUUID(into.OwnerID, source.OwnerID)
+		logoURL := into.LogoUrl
+		if strings.TrimSpace(logoURL) == "" {
+			logoURL = source.LogoUrl
+		}
+
+		row, err := q.UpdateCustomer(ctx, store.UpdateCustomerParams{
+			ID:           intoID,
+			SetDomains:   true,
+			Domains:      domains,
+			Revenue:      revenue,
+			ClearRevenue: clearRevenue,
+			Size:         size,
+			ClearSize:    clearSize,
+			Tier:         tier,
+			ClearTier:    clearTier,
+			OwnerID:      ownerID,
+			ClearOwner:   clearOwner,
+			LogoUrl:      &logoURL,
+		})
+		if err != nil {
+			return platform.Internal(err)
+		}
+
+		for _, request := range moved {
+			payload := toCustomerRequest(request)
+			scope, err := s.customerRequestScope(ctx, q, request)
+			if err != nil {
+				return err
+			}
+			if _, err := s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+				EntityType: "customerRequest", EntityID: request.ID, Op: OpUpsert,
+				Scope: scope, Payload: payload,
+			}); err != nil {
+				return err
+			}
+		}
+
+		if err := q.ArchiveCustomer(ctx, sourceID); err != nil {
+			return platform.Internal(err)
+		}
+		if _, err := s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "customer", EntityID: sourceID, Op: OpDelete,
+			Scope: authz.WorkspaceScope(), Payload: toCustomer(source),
+		}); err != nil {
+			return err
+		}
+
+		out = toCustomer(row)
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "customer", EntityID: intoID, Op: OpUpsert,
+			Scope: authz.WorkspaceScope(), Payload: out,
+		})
+		return err
+	})
+	return out, version, err
 }
 
 func (s *Service) DeleteCustomer(ctx context.Context, p *authz.Principal, id uuid.UUID) (int64, error) {
@@ -376,6 +506,9 @@ func (s *Service) CreateCustomerRequest(
 	var out model.CustomerRequest
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		if err := requireCustomerRequestsEnabled(ctx, q, p.WorkspaceID); err != nil {
+			return err
+		}
 		if in.CustomerID != nil {
 			if _, err := s.requireCustomerVisible(ctx, q, p, *in.CustomerID); err != nil {
 				return err
@@ -440,6 +573,9 @@ func (s *Service) UpdateCustomerRequest(
 	var out model.CustomerRequest
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		if err := requireCustomerRequestsEnabled(ctx, q, p.WorkspaceID); err != nil {
+			return err
+		}
 		existing, err := s.requireCustomerRequestWrite(ctx, q, p, in.ID)
 		if err != nil {
 			return err
@@ -546,6 +682,61 @@ func (s *Service) GetCustomerRequest(
 		return model.CustomerRequest{}, platform.NotFound("customerRequest")
 	}
 	return toCustomerRequest(row), nil
+}
+
+func requireCustomerRequestsEnabled(ctx context.Context, q *store.Queries, workspaceID uuid.UUID) error {
+	ws, err := q.GetWorkspace(ctx, workspaceID)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return platform.NotFound("workspace")
+		}
+		return platform.Internal(err)
+	}
+	if !ws.CustomerRequestsEnabled {
+		return platform.Validation("customerRequestsEnabled", "customer requests are turned off")
+	}
+	return nil
+}
+
+func unionDomains(keep, extra []string) []string {
+	seen := make(map[string]struct{}, len(keep)+len(extra))
+	out := make([]string, 0, len(keep)+len(extra))
+	for _, domain := range keep {
+		if _, ok := seen[domain]; ok {
+			continue
+		}
+		seen[domain] = struct{}{}
+		out = append(out, domain)
+	}
+	for _, domain := range extra {
+		if _, ok := seen[domain]; ok {
+			continue
+		}
+		seen[domain] = struct{}{}
+		out = append(out, domain)
+	}
+	return out
+}
+
+func coalesceInt32(keep, fallback *int32) (value *int32, clear bool) {
+	if keep != nil {
+		return keep, false
+	}
+	return fallback, false
+}
+
+func coalesceString(keep, fallback *string) (value *string, clear bool) {
+	if keep != nil && strings.TrimSpace(*keep) != "" {
+		return keep, false
+	}
+	return fallback, false
+}
+
+func coalesceUUID(keep, fallback *uuid.UUID) (value *uuid.UUID, clear bool) {
+	if keep != nil {
+		return keep, false
+	}
+	return fallback, false
 }
 
 func (s *Service) requireCustomerWrite(

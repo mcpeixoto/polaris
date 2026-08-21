@@ -760,6 +760,23 @@ func (r *mutationResolver) DeleteCustomer(ctx context.Context, id uuid.UUID, cli
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// MergeCustomers is the resolver for the mergeCustomers field.
+func (r *mutationResolver) MergeCustomers(ctx context.Context, sourceID uuid.UUID, intoID uuid.UUID) (*generated.CustomerPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	row, version, err := r.Svc.MergeCustomers(ctx, p, sourceID, intoID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := toCustomer(row)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.CustomerPayload{Version: int(version), Customer: &out}, nil
+}
+
 // CreateCustomerRequest is the resolver for the createCustomerRequest field.
 func (r *mutationResolver) CreateCustomerRequest(ctx context.Context, input generated.CreateCustomerRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.CustomerRequestPayload, error) {
 	p, err := principalFrom(ctx)
@@ -1544,6 +1561,12 @@ func (r *mutationResolver) UpdateWorkspace(ctx context.Context, input generated.
 		ProjectUpdateReminderHour:         input.ProjectUpdateReminderHour,
 		PulseEnabled:                      input.PulseEnabled,
 		PulseDigestCadence:                fromOptionalPulseCadence(input.PulseDigestCadence),
+		CustomerRequestsEnabled:           input.CustomerRequestsEnabled,
+		CustomerDefaultTeamID:             input.CustomerDefaultTeamID,
+		ClearCustomerDefaultTeam:          deref(input.ClearCustomerDefaultTeam),
+		CustomerRevenueUnit:               input.CustomerRevenueUnit,
+		CustomerTiers:                     input.CustomerTiers,
+		SetCustomerTiers:                  input.CustomerTiers != nil,
 	})
 	if err != nil {
 		return nil, PresentError(ctx, err)

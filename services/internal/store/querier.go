@@ -1128,6 +1128,7 @@ type Querier interface {
 	RestoreIssuesInTeam(ctx context.Context, arg RestoreIssuesInTeamParams) (int64, error)
 	RestoreProject(ctx context.Context, arg RestoreProjectParams) (Project, error)
 	RestoreTeam(ctx context.Context, arg RestoreTeamParams) (Team, error)
+	RetargetCustomerRequests(ctx context.Context, arg RetargetCustomerRequestsParams) ([]CustomerRequest, error)
 	// RetargetIssueLabels is the bulk half of a label merge: every application of the source
 	// that would not collide with the survivor is rewritten in place. The row keeps its id,
 	// so the change stream is an upsert of the same entity rather than a delete-plus-add that

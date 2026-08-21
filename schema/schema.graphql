@@ -168,6 +168,14 @@ type Workspace {
   pulseEnabled: Boolean!
   """Default inbox digest cadence. Summaries land around 06:00 in each member's timezone."""
   pulseDigestCadence: PulseDigestCadence!
+  """When false, customer pages and request writes are off."""
+  customerRequestsEnabled: Boolean!
+  """Public team issues created from a customer page should land in. Null means the creator picks."""
+  customerDefaultTeamId: UUID
+  """Label for the revenue number, e.g. USD or seats."""
+  customerRevenueUnit: String!
+  """Named plans shown when attributing a customer. customer.tier matches one of these."""
+  customerTiers: [String!]!
   createdAt: Time!
   updatedAt: Time!
   archivedAt: Time
@@ -2989,6 +2997,11 @@ input UpdateWorkspaceInput {
   projectUpdateReminderHour: Int
   pulseEnabled: Boolean
   pulseDigestCadence: PulseDigestCadence
+  customerRequestsEnabled: Boolean
+  customerDefaultTeamId: UUID
+  clearCustomerDefaultTeam: Boolean
+  customerRevenueUnit: String
+  customerTiers: [String!]
 }
 
 # ---------------------------------------------------------------- root
@@ -3206,6 +3219,8 @@ type Mutation {
   updateCustomer(input: UpdateCustomerInput!, clientId: UUID, opId: UUID): CustomerPayload! @idempotent
   archiveCustomer(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
   deleteCustomer(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+  """Folds source into the survivor: domains and requests move, source is archived."""
+  mergeCustomers(sourceId: UUID!, intoId: UUID!): CustomerPayload!
   createCustomerRequest(input: CreateCustomerRequestInput!, clientId: UUID, opId: UUID): CustomerRequestPayload! @idempotent
   updateCustomerRequest(input: UpdateCustomerRequestInput!, clientId: UUID, opId: UUID): CustomerRequestPayload! @idempotent
   deleteCustomerRequest(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent

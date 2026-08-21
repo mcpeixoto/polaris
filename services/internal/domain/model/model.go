@@ -65,6 +65,15 @@ type Workspace struct {
 	// PulseDigestCadence is off, daily, or weekly. Summaries land around 06:00 local.
 	PulseDigestCadence string `json:"pulseDigestCadence"`
 
+	// CustomerRequestsEnabled hides customer pages and refuses request writes when false.
+	CustomerRequestsEnabled bool `json:"customerRequestsEnabled"`
+	// CustomerDefaultTeamID is the public team issues from a customer page should land in.
+	CustomerDefaultTeamID *uuid.UUID `json:"customerDefaultTeamId,omitempty"`
+	// CustomerRevenueUnit labels the revenue number: "USD", "seats", empty for none.
+	CustomerRevenueUnit string `json:"customerRevenueUnit"`
+	// CustomerTiers is the vocabulary offered when setting customer.tier.
+	CustomerTiers []string `json:"customerTiers"`
+
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`

@@ -56,6 +56,17 @@ function seeded(): Store {
       createdAt: AT,
       updatedAt: AT,
     }),
+    upsert(3, 'customer', {
+      id: 'c2',
+      workspaceId: WORKSPACE,
+      name: 'Acme West',
+      domains: ['west.acme.com'],
+      status: 'active',
+      logoUrl: '',
+      sortOrder: 'b',
+      createdAt: AT,
+      updatedAt: AT,
+    }),
   ]);
   return store;
 }
@@ -103,5 +114,20 @@ describe('Customer page leftovers', () => {
     const call = mutate.mock.calls[0]![0] as { variables: { archived?: boolean } };
     expect(call.variables.archived).toBe(true);
     expect(await screen.findByRole('heading', { name: 'Customers' })).toBeTruthy();
+  });
+
+  it('offers merge into another customer', async () => {
+    const { mutate, user } = renderDetail();
+    await user.selectOptions(screen.getByLabelText('Merge into'), 'c2');
+    await user.click(screen.getByRole('button', { name: 'Merge' }));
+    expect(screen.getByRole('heading', { name: 'Merge Acme into Acme West?' })).toBeTruthy();
+    const confirms = screen.getAllByRole('button', { name: 'Merge' });
+    await user.click(confirms[confirms.length - 1]!);
+    expect(mutate).toHaveBeenCalled();
+    const call = mutate.mock.calls[0]![0] as {
+      variables: { sourceId?: string; intoId?: string };
+    };
+    expect(call.variables.sourceId).toBe(CUSTOMER);
+    expect(call.variables.intoId).toBe('c2');
   });
 });

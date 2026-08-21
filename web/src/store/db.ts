@@ -143,8 +143,10 @@ import {
  * v46 adds pulseFeed (personal named subsets of the Pulse stream).
  * v47 adds slackConnection.asksEnabled (Slack Asks intake from /asks and 🎫).
  * v48 adds initiativeUpdate (health plus narrative status posts on initiatives).
+ * v49 adds workspace.customerRequestsEnabled / customerDefaultTeamId /
+ * customerRevenueUnit / customerTiers.
  */
-export const CLIENT_SCHEMA = 48;
+export const CLIENT_SCHEMA = 49;
 
 /**
  * One database per workspace per schema version.

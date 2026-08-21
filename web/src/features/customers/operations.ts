@@ -112,3 +112,15 @@ export const ARCHIVE_CUSTOMER = /* GraphQL */ `
     }
   }
 `;
+
+export const MERGE_CUSTOMERS = /* GraphQL */ `
+  ${CUSTOMER_FIELDS}
+  mutation MergeCustomers($sourceId: UUID!, $intoId: UUID!) {
+    mergeCustomers(sourceId: $sourceId, intoId: $intoId) {
+      version
+      customer {
+        ...CustomerFields
+      }
+    }
+  }
+`;
