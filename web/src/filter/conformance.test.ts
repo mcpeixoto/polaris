@@ -76,6 +76,20 @@ interface FixtureSubscription {
   readonly unsubscribed: boolean;
 }
 
+interface FixtureCustomer {
+  readonly id: UUID;
+  readonly status: string;
+  readonly tier?: string;
+  readonly revenue?: number;
+  readonly size?: number;
+}
+
+interface FixtureCustomerRequest {
+  readonly issueId: UUID;
+  readonly customerId?: UUID;
+  readonly important: boolean;
+}
+
 interface Fixture {
   readonly evaluatedAt: Timestamp;
   readonly timezone: string;
@@ -87,6 +101,8 @@ interface Fixture {
   readonly issues: readonly FixtureIssue[];
   readonly relations: readonly FixtureRelation[];
   readonly subscriptions: readonly FixtureSubscription[];
+  readonly customers: readonly FixtureCustomer[];
+  readonly customerRequests: readonly FixtureCustomerRequest[];
   readonly cases: readonly {
     readonly name: string;
     readonly filter: unknown;
@@ -217,6 +233,45 @@ function collect(rows: Iterable<readonly [UUID, UUID]>): ReadonlyMap<UUID, Reado
   return out;
 }
 
+function addToSet(map: Map<UUID, Set<string>>, issueId: UUID, value: string): void {
+  const bucket = map.get(issueId);
+  if (bucket === undefined) map.set(issueId, new Set([value]));
+  else bucket.add(value);
+}
+
+const byCustomer = new Map(fixture.customers.map((row) => [row.id, row]));
+
+const customerMaps = (() => {
+  const customers = new Map<UUID, Set<UUID>>();
+  const counts = new Map<UUID, number>();
+  const statuses = new Map<UUID, Set<string>>();
+  const tiers = new Map<UUID, Set<string>>();
+  const revenues = new Map<UUID, number[]>();
+  const sizes = new Map<UUID, number[]>();
+  const important = new Set<UUID>();
+  for (const request of fixture.customerRequests ?? []) {
+    counts.set(request.issueId, (counts.get(request.issueId) ?? 0) + 1);
+    if (request.important) important.add(request.issueId);
+    if (request.customerId === undefined) continue;
+    const customer = byCustomer.get(request.customerId);
+    if (customer === undefined) continue;
+    addToSet(customers, request.issueId, customer.id);
+    addToSet(statuses, request.issueId, customer.status);
+    if (customer.tier !== undefined) addToSet(tiers, request.issueId, customer.tier);
+    if (customer.revenue !== undefined) {
+      const bucket = revenues.get(request.issueId);
+      if (bucket === undefined) revenues.set(request.issueId, [customer.revenue]);
+      else bucket.push(customer.revenue);
+    }
+    if (customer.size !== undefined) {
+      const bucket = sizes.get(request.issueId);
+      if (bucket === undefined) sizes.set(request.issueId, [customer.size]);
+      else bucket.push(customer.size);
+    }
+  }
+  return { customers, counts, statuses, tiers, revenues, sizes, important };
+})();
+
 const context: FilterContext = {
   time: { now: Date.parse(fixture.evaluatedAt), timezone: fixture.timezone },
   states,
@@ -239,6 +294,13 @@ const context: FilterContext = {
       .filter((row) => row.type === 'blocks')
       .map((row) => [row.issueId, row.relatedIssueId] as const),
   ),
+  customers: customerMaps.customers,
+  customerCount: customerMaps.counts,
+  customerStatus: customerMaps.statuses,
+  customerTier: customerMaps.tiers,
+  customerRevenue: customerMaps.revenues,
+  customerSize: customerMaps.sizes,
+  customerImportant: customerMaps.important,
   // The replica normally holds no deleted issues at all; the fixture supplies them the way
   // a trash view would, so that `deleted eq true` has something to find.
   deleted: new Set(

@@ -21,5 +21,5 @@ Workspace customers with unique domains, and requests that attach feedback to an
 - Workspace toggle / default feedback team / revenue tiers as settings — see `48-customer-request-settings.md`
 - Merge customers — see `48-customer-request-settings.md`
 - Slack channel link, Intercom/Zendesk/Front/Salesforce
-- Customer filter grammar and Insights slices
+- Customer Insights slices
 - Export CSV, page subscriptions, Ask/Gong automatic attribution

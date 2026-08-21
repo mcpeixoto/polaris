@@ -18,7 +18,6 @@ import {
   FILTER_FIELDS,
   isFilterField,
   isFilterOp,
-  isStateCategory,
   operatorApplies,
   takesNoValues,
   takesSingleValue,
@@ -206,11 +205,14 @@ function validateValue(value: string, field: FilterField, path: string): void {
     case 'number':
       if (!INTEGER_PATTERN.test(value)) throw new FilterError(path, `"${value}" is not a number`);
       return;
-    case 'enum':
-      if (!isStateCategory(value)) {
-        throw new FilterError(path, `"${value}" is not a state category`);
+    case 'enum': {
+      const allowed = FILTER_FIELDS[field].enums ?? [];
+      if (!allowed.includes(value)) {
+        const kind = field === 'customerStatus' ? 'a customer status' : 'a state category';
+        throw new FilterError(path, `"${value}" is not ${kind}`);
       }
       return;
+    }
     case 'boolean':
       if (value !== 'true' && value !== 'false') {
         throw new FilterError(path, `"${value}" is not a boolean`);
@@ -259,7 +261,7 @@ function describe(field: FilterField): string {
     case 'uuid':
       return 'an id';
     case 'enum':
-      return 'a state category';
+      return field === 'customerStatus' ? 'a customer status' : 'a state category';
     case 'number':
       return 'a number';
     case 'date':

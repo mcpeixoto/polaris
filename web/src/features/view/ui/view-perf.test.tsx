@@ -1,6 +1,6 @@
 import { act, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
@@ -19,6 +19,11 @@ import {
 import type { SyncEngine } from '~/sync/engine';
 
 import { useView } from './useView';
+
+vi.mock('~/hooks/useViewer', () => ({
+  useViewerId: () => 'user-ada',
+  useViewer: () => ({ id: 'user-ada', role: 'member' }),
+}));
 
 /**
  * Acceptance test 6 in docs/07-milestones/01-milestone-1.md:

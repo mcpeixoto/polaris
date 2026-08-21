@@ -15,10 +15,12 @@
  */
 
 export {
+  CUSTOMER_STATUSES,
   DEFAULT_DISPLAY,
   EMPTY_FILTER,
   FILTER_FIELDS,
   FILTER_OPS,
+  isCustomerStatus,
   isFilterClause,
   isFilterField,
   isFilterGroup,

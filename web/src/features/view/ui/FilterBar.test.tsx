@@ -10,6 +10,11 @@ import type { SyncEngine } from '~/sync/engine';
 
 import { FilterBar } from './FilterBar';
 
+vi.mock('~/hooks/useViewer', () => ({
+  useViewerId: () => ANA,
+  useViewer: () => ({ id: ANA, role: 'member' }),
+}));
+
 /**
  * The bar, driven the way it is used: against a real store, through the interface.
  *
