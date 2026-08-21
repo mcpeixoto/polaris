@@ -88,6 +88,9 @@ export function AppShell({
   const workspaceMenu = useMenuTrigger();
   const labelMenu = useMenuTrigger();
   const userMenu = useMenuTrigger();
+  const issueMenu = useMenuTrigger();
+  const projectMenu = useMenuTrigger();
+  const teamMenu = useMenuTrigger();
   const onProjects =
     pathname === '/projects' ||
     pathname.startsWith('/project/') ||
@@ -129,6 +132,28 @@ export function AppShell({
         .filter((user) => user.archivedAt === undefined && user.kind === 'human')
         .sort((a, b) => personName(a).localeCompare(personName(b))),
     ['user'],
+    [],
+  );
+  const gotoIssues = useLiveQuery(
+    (store: Store) =>
+      [...store.issues.values()]
+        .filter((issue) => issue.archivedAt === undefined)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .slice(0, 80)
+        .map((issue) => ({
+          id: issue.id,
+          label: `${store.identifierOf(issue)} ${issue.title}`,
+          href: `/issue/${store.identifierOf(issue)}`,
+        })),
+    ['issue', 'team'],
+    [],
+  );
+  const gotoProjects = useLiveQuery(
+    (store: Store) =>
+      [...store.projects.values()]
+        .filter((project) => project.archivedAt === undefined && project.deletedAt === undefined)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    ['project'],
     [],
   );
 
@@ -288,6 +313,27 @@ export function AppShell({
         run: () => userMenu.show(),
       },
       {
+        id: 'nav.openIssue',
+        title: 'Open issue',
+        keys: ['o i'],
+        group: 'Navigation',
+        run: () => issueMenu.show(),
+      },
+      {
+        id: 'nav.openProject',
+        title: 'Open project',
+        keys: ['o p'],
+        group: 'Navigation',
+        run: () => projectMenu.show(),
+      },
+      {
+        id: 'nav.openTeam',
+        title: 'Open team',
+        keys: ['o t'],
+        group: 'Navigation',
+        run: () => teamMenu.show(),
+      },
+      {
         id: 'nav.settings',
         title: 'Go to workspace settings',
         keys: ['g s'],
@@ -389,6 +435,9 @@ export function AppShell({
       workspaceMenu.show,
       labelMenu.show,
       userMenu.show,
+      issueMenu.show,
+      projectMenu.show,
+      teamMenu.show,
       showCustomers,
       showDashboards,
       showPulse,
@@ -462,6 +511,57 @@ export function AppShell({
                 label: personName(user),
                 onSelect: () => navigate(userViewPath(user.id)),
               }))}
+            />
+            <button type="button" className={styles.gotoTrigger} {...issueMenu.props}>
+              Open issue
+            </button>
+            <Menu
+              open={issueMenu.open}
+              onClose={issueMenu.hide}
+              trigger={issueMenu.ref}
+              label="Issues"
+              filterable
+              filterPlaceholder="Filter issues"
+              emptyLabel="No issues yet"
+              items={gotoIssues.map((item) => ({
+                id: item.id,
+                label: item.label,
+                onSelect: () => navigate(item.href),
+              }))}
+            />
+            <button type="button" className={styles.gotoTrigger} {...projectMenu.props}>
+              Open project
+            </button>
+            <Menu
+              open={projectMenu.open}
+              onClose={projectMenu.hide}
+              trigger={projectMenu.ref}
+              label="Projects"
+              filterable={gotoProjects.length > 8}
+              filterPlaceholder="Filter projects"
+              emptyLabel="No projects yet"
+              items={gotoProjects.map((project) => ({
+                id: project.id,
+                label: project.name,
+                onSelect: () => navigate(`/project/${project.id}`),
+              }))}
+            />
+            <button type="button" className={styles.gotoTrigger} {...teamMenu.props}>
+              Open team
+            </button>
+            <Menu
+              open={teamMenu.open}
+              onClose={teamMenu.hide}
+              trigger={teamMenu.ref}
+              label="Teams"
+              filterable={teams.length > 8}
+              filterPlaceholder="Filter teams"
+              emptyLabel="No teams yet"
+              items={teams.map((team) => ({
+                  id: team.id,
+                  label: `${team.key} ${team.name}`,
+                  onSelect: () => navigate(`/team/${team.key}`),
+                }))}
             />
           </div>
 

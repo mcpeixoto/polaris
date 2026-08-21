@@ -206,6 +206,7 @@ export function IssueDetail() {
     makeRecurring: () => {},
     submitComment: () => {},
     copyGitBranch: () => {},
+    copyModelUuid: () => {},
   });
 
   // Whether the confirmation is up. Held here rather than inside a component of its own so
@@ -310,6 +311,13 @@ export function IssueDetail() {
         group: 'Issues',
         run: () => commands.current.copyGitBranch(),
       },
+      {
+        id: 'issue.copyModelUuid',
+        title: 'Copy model UUID',
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.copyModelUuid(),
+      },
       ...(viewer !== null && viewer.role !== 'guest'
         ? [
             {
@@ -355,6 +363,9 @@ export function IssueDetail() {
     if (row === undefined) return;
     const name = gitBranchNameFor(engine.store, row, viewer?.displayName ?? '');
     void copyText(name);
+  };
+  commands.current.copyModelUuid = () => {
+    void copyText(issue.id);
   };
   commands.current.makeRecurring = () => {
     if (issue.recurring !== null) return;
@@ -749,6 +760,7 @@ interface DetailCommands {
   makeRecurring(): void;
   submitComment(): void;
   copyGitBranch(): void;
+  copyModelUuid(): void;
 }
 
 /**
