@@ -1,19 +1,28 @@
 /**
  * One customer — attributes and the requests attributed to them.
+ *
+ * Create asked for a name and domains. Status, owner, tier, revenue, size, logo, and
+ * archive already existed on the mutation and this page never offered them, so a customer
+ * stayed Active with whatever was typed at create for the rest of its life.
  */
 
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, EmptyState } from '~/components';
+import { Button, EmptyState, Input, Select } from '~/components';
+import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
 import {
+  archiveCustomer,
   formatCustomerStatus,
   toggleCustomerRequestImportant,
+  updateCustomer,
 } from '~/features/customers/mutations';
+import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { Store, UUID } from '~/store';
+import type { CustomerStatus, Store, UUID } from '~/store';
+import { ApiError } from '~/sync/api';
 import styles from './CustomerDetail.module.css';
 
 interface RequestRow {
@@ -24,11 +33,16 @@ interface RequestRow {
   readonly href: string;
 }
 
+const STATUSES: readonly CustomerStatus[] = ['active', 'prospect', 'churned'];
+
 export function CustomerDetail() {
   const navigate = useNavigate();
   const engine = useEngine();
   const { customerId = '' } = useParams<{ customerId: string }>();
   const [requestOpen, setRequestOpen] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   const customer = useLiveQuery(
     (store) => store.customers.get(customerId) ?? null,
@@ -36,11 +50,13 @@ export function CustomerDetail() {
     [customerId],
   );
 
-  const ownerName = useLiveQuery(
+  const people = useLiveQuery(
     (store) =>
-      customer?.ownerId === undefined ? null : (store.users.get(customer.ownerId)?.name ?? null),
-    ['user', 'customer'],
-    [customerId, customer?.ownerId ?? ''],
+      [...store.users.values()]
+        .filter((user) => user.archivedAt === undefined && user.status === 'active')
+        .map((user) => ({ id: user.id, name: user.displayName }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    ['user'],
   );
 
   const requests = useLiveQuery(
@@ -59,19 +75,159 @@ export function CustomerDetail() {
     );
   }
 
+  const save = (fields: Parameters<typeof updateCustomer>[2]) => {
+    updateCustomer(engine, customer.id, fields).catch(report);
+  };
+
+  const confirmArchive = () => {
+    setArchiveBusy(true);
+    setArchiveError(null);
+    archiveCustomer(engine, customer.id)
+      .then(() => {
+        setArchiveBusy(false);
+        setArchiving(false);
+        void navigate('/customers');
+      })
+      .catch((failure: unknown) => {
+        setArchiveBusy(false);
+        setArchiveError(
+          failure instanceof ApiError ? failure.message : 'That customer could not be archived.',
+        );
+      });
+  };
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
         <div className={styles.titleRow}>
           <h1 className={styles.title}>{customer.name}</h1>
           <span className={styles.status}>{formatCustomerStatus(customer.status)}</span>
-        </div>
-        <div className={styles.meta}>
-          {customer.domains.length > 0 && <span>{customer.domains.join(', ')}</span>}
-          {ownerName !== null && <span>Owner · {ownerName}</span>}
-          {customer.tier !== undefined && <span>Tier · {customer.tier}</span>}
+          <Button variant="ghost" onClick={() => setArchiving(true)}>
+            Archive
+          </Button>
         </div>
       </header>
+
+      <section className={styles.section} aria-labelledby="properties-heading">
+        <h2 className={styles.sectionTitle} id="properties-heading">
+          Properties
+        </h2>
+        <p className={styles.muted}>
+          Writes land as you leave a field. Status and owner are independent of the name.
+        </p>
+        <div className={styles.properties}>
+          <Input
+            label="Name"
+            defaultValue={customer.name}
+            key={`name:${customer.name}`}
+            onBlur={(event) => {
+              const name = event.target.value.trim();
+              if (name === '' || name === customer.name) return;
+              save({ name });
+            }}
+          />
+          <Input
+            label="Domains"
+            hint="Comma-separated, unique in this workspace."
+            defaultValue={customer.domains.join(', ')}
+            key={`domains:${customer.domains.join(',')}`}
+            onBlur={(event) => {
+              const domains = event.target.value
+                .split(/[\s,]+/)
+                .map((item) => item.trim())
+                .filter((item) => item !== '');
+              if (domains.join('\0') === customer.domains.join('\0')) return;
+              save({ domains });
+            }}
+          />
+          <Select
+            label="Status"
+            value={customer.status}
+            onChange={(event) => save({ status: event.target.value as CustomerStatus })}
+          >
+            {STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {formatCustomerStatus(status)}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="Owner"
+            value={customer.ownerId ?? ''}
+            onChange={(event) =>
+              save({ ownerId: event.target.value === '' ? null : event.target.value })
+            }
+          >
+            <option value="">No owner</option>
+            {people.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.name}
+              </option>
+            ))}
+          </Select>
+          <Input
+            label="Tier"
+            hint="A label you choose — Enterprise, Pro, self-serve."
+            defaultValue={customer.tier ?? ''}
+            key={`tier:${customer.tier ?? ''}`}
+            onBlur={(event) => {
+              const tier = event.target.value.trim();
+              const previous = customer.tier ?? '';
+              if (tier === previous) return;
+              save({ tier: tier === '' ? null : tier });
+            }}
+          />
+          <Input
+            label="Revenue"
+            type="number"
+            min={0}
+            hint="Whole units. Blank clears it."
+            defaultValue={customer.revenue === undefined ? '' : String(customer.revenue)}
+            key={`revenue:${customer.revenue === undefined ? '' : String(customer.revenue)}`}
+            onBlur={(event) => {
+              const raw = event.target.value.trim();
+              if (raw === '') {
+                if (customer.revenue === undefined) return;
+                save({ revenue: null });
+                return;
+              }
+              const revenue = Number(raw);
+              if (!Number.isFinite(revenue) || revenue === customer.revenue) return;
+              save({ revenue });
+            }}
+          />
+          <Input
+            label="Size"
+            type="number"
+            min={0}
+            hint="People at the organisation. Blank clears it."
+            defaultValue={customer.size === undefined ? '' : String(customer.size)}
+            key={`size:${customer.size === undefined ? '' : String(customer.size)}`}
+            onBlur={(event) => {
+              const raw = event.target.value.trim();
+              if (raw === '') {
+                if (customer.size === undefined) return;
+                save({ size: null });
+                return;
+              }
+              const size = Number(raw);
+              if (!Number.isFinite(size) || size === customer.size) return;
+              save({ size });
+            }}
+          />
+          <Input
+            label="Logo URL"
+            hint="A public image. Blank keeps the letter mark."
+            defaultValue={customer.logoUrl}
+            key={`logo:${customer.logoUrl}`}
+            onBlur={(event) => {
+              const logoUrl = event.target.value.trim();
+              if (logoUrl === customer.logoUrl) return;
+              save({ logoUrl });
+            }}
+          />
+        </div>
+      </section>
 
       <section className={styles.section}>
         <div className={styles.sectionHead}>
@@ -113,6 +269,22 @@ export function CustomerDetail() {
           onClose={() => setRequestOpen(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={archiving}
+        title={`Archive ${customer.name}?`}
+        consequence="It leaves the Customers list. Requests already attached to issues stay there. There is no archives page for customers yet, so bringing it back is an API call."
+        confirmLabel="Archive"
+        destructive
+        busy={archiveBusy}
+        error={archiveError ?? undefined}
+        onConfirm={confirmArchive}
+        onClose={() => {
+          if (archiveBusy) return;
+          setArchiving(false);
+          setArchiveError(null);
+        }}
+      />
     </div>
   );
 }

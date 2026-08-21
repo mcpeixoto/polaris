@@ -103,3 +103,12 @@ export const DELETE_CUSTOMER_REQUEST = /* GraphQL */ `
     }
   }
 `;
+
+export const ARCHIVE_CUSTOMER = /* GraphQL */ `
+  mutation ArchiveCustomer($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {
+    archiveCustomer(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {
+      version
+      id
+    }
+  }
+`;

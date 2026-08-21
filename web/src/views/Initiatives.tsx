@@ -6,6 +6,7 @@ import { Link } from 'react-router';
 
 import { useKeymap } from '~/app/keymap';
 import { Avatar, Button, EmptyState } from '~/components';
+import { formatInitiativeStatus } from '~/features/initiatives/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { InitiativeStatus, Store, UUID } from '~/store';
 import styles from './Initiatives.module.css';
@@ -59,7 +60,7 @@ export function Initiatives() {
                     <span className={styles.summary}>{row.description}</span>
                   )}
                 </span>
-                <span className={styles.status}>{formatStatus(row.status)}</span>
+                <span className={styles.status}>{formatInitiativeStatus(row.status)}</span>
                 {row.ownerName === null ? (
                   <span className={styles.ownerMuted}>No owner</span>
                 ) : (
@@ -109,8 +110,4 @@ function listInitiatives(store: Store): InitiativeRow[] {
         store.initiatives.get(b.id)?.sortOrder ?? '',
       ) || a.name.localeCompare(b.name),
   );
-}
-
-function formatStatus(status: InitiativeStatus): string {
-  return status.replace('_', ' ');
 }
