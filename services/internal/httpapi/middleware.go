@@ -170,6 +170,9 @@ func Authenticate(tokens *Tokens, svc *domain.Service) func(http.Handler) http.H
 			}
 
 			ctx := WithAccount(r.Context(), claims.AccountID)
+			if c, err := r.Cookie(refreshCookie); err == nil && c.Value != "" {
+				ctx = auth.WithRefreshTokenHash(ctx, auth.HashToken(c.Value))
+			}
 
 			if ws := workspaceFromRequest(r); ws != uuid.Nil {
 				principal, err := svc.ResolvePrincipal(ctx, claims.AccountID, ws)
