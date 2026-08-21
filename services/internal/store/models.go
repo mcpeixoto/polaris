@@ -571,6 +571,7 @@ type IssueTemplate struct {
 	EmailIntakeEnabled bool
 	EmailIntakeToken   *string
 	EmailIntakeAddress *string
+	SubIssues          json.RawMessage
 }
 
 type Label struct {

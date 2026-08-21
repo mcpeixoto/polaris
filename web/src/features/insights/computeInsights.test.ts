@@ -208,6 +208,7 @@ describe('buildInsights', () => {
         title: '',
         body: '',
         properties: {},
+        subIssues: [],
         position: 'a',
         createdAt: NOW,
         updatedAt: NOW,

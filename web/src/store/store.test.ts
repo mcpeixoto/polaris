@@ -305,6 +305,7 @@ function template(id: UUID, over: Partial<IssueTemplate> = {}): IssueTemplate {
     title: 'Bug: ',
     body: 'Steps to reproduce',
     properties: {},
+    subIssues: [],
     position: 'a0',
     createdAt: NOW,
     updatedAt: NOW,
