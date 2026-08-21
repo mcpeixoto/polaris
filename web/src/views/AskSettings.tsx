@@ -1,24 +1,28 @@
 /**
- * Workspace Asks: shareable forms that turn a submission into a team's triage issue.
+ * Workspace Asks: shareable forms and Slack intake that land in a team's triage.
  *
- * Slack and SAML-gated web forms stay out. v1 is the slack-less surface: a token URL
- * anybody can open, no account required.
+ * SAML-gated web forms stay out. Slack Asks reuses the workspace Slack install.
  */
 
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, EmptyState, Input, Select, Textarea } from '~/components';
+import { Button, Checkbox, EmptyState, Input, Select, Textarea } from '~/components';
 import { createAskForm, deleteAskForm } from '~/features/asks/mutations';
 import { copyText } from '~/features/github/copy';
 import { report } from '~/features/issue/mutations';
+import { setSlackAsksEnabled } from '~/features/slack/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewer } from '~/hooks/useViewer';
 import type { Store } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from '~/features/labels/LabelSettings.module.css';
 
 export function AskSettings() {
   const engine = useEngine();
+  const viewer = useViewer();
+  const isAdmin = viewer !== null && (viewer.role === 'owner' || viewer.role === 'admin');
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -40,6 +44,11 @@ export function AskSettings() {
       return [...store.askForms.values()].sort((a, b) => a.name.localeCompare(b.name));
     },
     ['askForm'],
+  );
+
+  const slack = useLiveQuery(
+    (store: Store) => [...store.slackConnections.values()][0] ?? null,
+    ['slackConnection'],
   );
 
   const fail = (failure: unknown) => {
@@ -85,10 +94,40 @@ export function AskSettings() {
           </p>
         )}
 
+        <section className={styles.section} aria-labelledby="asks-slack-heading">
+          <h2 className={styles.sectionTitle} id="asks-slack-heading">
+            Slack
+          </h2>
+          {slack === null ? (
+            <p className={styles.sectionHint}>
+              Connect Slack in <Link to="/settings/slack">Settings → Slack</Link>, then come back
+              here to file triage issues from <code>/asks</code> or a message that starts with 🎫.
+            </p>
+          ) : (
+            <>
+              <p className={styles.sectionHint}>
+                People without a Polaris account can file an Ask with <code>/asks Title</code> or by
+                starting a Slack message with 🎫. Issues land on the Slack connection&apos;s default
+                team, in triage when that team runs it.
+              </p>
+              <Checkbox
+                label="Create Asks from Slack"
+                checked={slack.asksEnabled}
+                disabled={!isAdmin || !slack.enabled}
+                onChange={(event) => {
+                  setError(null);
+                  setSlackAsksEnabled(engine, event.target.checked).catch(fail);
+                }}
+              />
+            </>
+          )}
+        </section>
+
         <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Forms</h2>
           <p className={styles.sectionHint}>
-            Share a link. Anyone who opens it can file an issue into that team's triage — they do
-            not need a Polaris account.
+            Share a link. Anyone who opens it can file an issue into that team&apos;s triage — they
+            do not need a Polaris account.
           </p>
 
           <form className={styles.create} onSubmit={onCreate}>

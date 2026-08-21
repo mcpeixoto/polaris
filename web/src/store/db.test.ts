@@ -394,6 +394,7 @@ function oneOfEach(): EntityRow[] {
         defaultTeamId: 't1',
         notifyIssues: true,
         notifyComments: true,
+        asksEnabled: false,
         createdAt: NOW,
         updatedAt: NOW,
       },

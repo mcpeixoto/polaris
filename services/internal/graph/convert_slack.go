@@ -17,6 +17,7 @@ func toSlackConnection(c model.SlackConnection) generated.SlackConnection {
 		ChannelName:    c.ChannelName,
 		NotifyIssues:   c.NotifyIssues,
 		NotifyComments: c.NotifyComments,
+		AsksEnabled:    c.AsksEnabled,
 		ConnectedAt:    c.ConnectedAt,
 		CreatedAt:      c.CreatedAt,
 		UpdatedAt:      c.UpdatedAt,

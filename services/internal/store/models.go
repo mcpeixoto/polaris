@@ -906,6 +906,7 @@ type SlackConnection struct {
 	ConnectedAt    *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	AsksEnabled    bool
 }
 
 type Team struct {
