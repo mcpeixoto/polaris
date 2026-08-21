@@ -4,7 +4,7 @@
 **Migration:** `000058_pulse` (no-op slot; 000059 already on main)  
 **Client schema:** 40 (unchanged — Pulse reads existing `projectUpdate` rows)
 
-Dense feed of project status updates from the replica. Linear Pulse without inbox digests, custom feeds, Popular, or audio. Cadence shipped in `36-pulse-cadence.md`.
+Dense feed of project status updates from the replica. Linear Pulse without inbox digests or audio. Cadence shipped in `36-pulse-cadence.md`. Custom feeds and Popular shipped in `38-pulse-feeds.md`.
 
 ## Scope
 
@@ -16,7 +16,5 @@ Dense feed of project status updates from the replica. Linear Pulse without inbo
 
 ## Deferred
 
-- Popular tab (emoji / comment engagement)
 - Initiative updates (no replica type yet)
-- Custom feeds
 - Pulse audio

@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -117,5 +118,69 @@ describe('Pulse', () => {
     expect(screen.getByText('Launch')).toBeTruthy();
     expect(screen.getByText('Slip this week.')).toBeTruthy();
     expect(screen.getByText('At risk')).toBeTruthy();
+  });
+
+  it('offers Popular, Recent, and New feed alongside For me', async () => {
+    const user = userEvent.setup();
+    renderPulse();
+    expect(screen.getByRole('tab', { name: 'For me' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Popular' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Recent' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'New feed' })).toBeTruthy();
+    await user.click(screen.getByRole('tab', { name: 'Popular' }));
+    expect(screen.getByText('Nothing popular yet')).toBeTruthy();
+  });
+
+  it('lists a personal feed as a tab and filters to its projects', async () => {
+    const user = userEvent.setup();
+    renderPulse([
+      upsert(4, 'project', {
+        id: 'p2',
+        workspaceId: 'w1',
+        name: 'Other',
+        description: '',
+        color: '#000',
+        statusId: 'st1',
+        priority: 0,
+        sortOrder: 'a0',
+        updateSchedule: 'default',
+        createdAt: AT,
+        updatedAt: AT,
+      }),
+      upsert(5, 'pulseFeed', {
+        id: 'f1',
+        workspaceId: 'w1',
+        userId: 'u1',
+        name: 'Shipping',
+        projectIds: ['p1'],
+        createdAt: AT,
+        updatedAt: AT,
+      }),
+      upsert(6, 'projectUpdate', {
+        id: 'u-1',
+        workspaceId: 'w1',
+        projectId: 'p1',
+        health: 'on_track',
+        body: 'Launch note.',
+        authorId: 'u1',
+        createdAt: AT,
+        updatedAt: AT,
+      }),
+      upsert(7, 'projectUpdate', {
+        id: 'u-2',
+        workspaceId: 'w1',
+        projectId: 'p2',
+        health: 'on_track',
+        body: 'Other note.',
+        authorId: 'u1',
+        createdAt: AT,
+        updatedAt: AT,
+      }),
+    ]);
+    expect(screen.getByRole('tab', { name: 'Shipping' })).toBeTruthy();
+    await user.click(screen.getByRole('tab', { name: 'Shipping' }));
+    expect(screen.getByText('Launch note.')).toBeTruthy();
+    expect(screen.queryByText('Other note.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Edit feed' })).toBeTruthy();
   });
 });

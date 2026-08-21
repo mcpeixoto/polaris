@@ -543,6 +543,21 @@ type ViewSubscription struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+// PulseFeed is one person's named subset of the Pulse stream.
+//
+// Popular ranks replica rows by comment engagement and needs no table. A custom feed is
+// a list of projects the owner chose, scoped to them the way an inbox row is: nobody
+// else's replica holds it.
+type PulseFeed struct {
+	ID          uuid.UUID   `json:"id"`
+	WorkspaceID uuid.UUID   `json:"workspaceId"`
+	UserID      uuid.UUID   `json:"userId"`
+	Name        string      `json:"name"`
+	ProjectIDs  []uuid.UUID `json:"projectIds"`
+	CreatedAt   time.Time   `json:"createdAt"`
+	UpdatedAt   time.Time   `json:"updatedAt"`
+}
+
 // ViewPreference remembers display options for the views that have no row of their own —
 // "Team issues", "My issues" and the rest. It lives on the server rather than in
 // localStorage because the grouping you chose has to follow you to your other machine.

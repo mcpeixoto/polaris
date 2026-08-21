@@ -503,7 +503,7 @@ function CycleCadence({
     [team.parentTeamId],
   );
   const inherited = inheritsCycleSchedule(team, parent);
-  const inheritedFrom = inherited && parent !== null ? parent : null;
+  const inheritedFrom = inherited && parent != null ? parent : null;
 
   return (
     <section className={styles.section} aria-labelledby="cycles-heading">

@@ -58,7 +58,7 @@ var replayedTypes = []string{
 	"label", "issueTemplate", "formTemplate", "formTemplateField",
 	"projectTemplate", "projectTemplateMilestone", "projectTemplateIssue",
 	"issue", "issueLabel", "issueRelation", "attachment", "comment", "issueSubscription",
-	"notification", "view", "viewPreference", "favorite",
+	"notification", "view", "viewPreference", "favorite", "pulseFeed",
 }
 
 func TestRestoreIssue_LeavesAReplayedReplicaHoldingWhatABootstrapWouldGive(t *testing.T) {

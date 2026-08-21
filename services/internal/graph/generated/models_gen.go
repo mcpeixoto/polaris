@@ -478,6 +478,11 @@ type CreateProjectUpdateInput struct {
 	Body      *string             `json:"body,omitempty"`
 }
 
+type CreatePulseFeedInput struct {
+	Name       string      `json:"name"`
+	ProjectIds []uuid.UUID `json:"projectIds"`
+}
+
 type CreateRecurringIssueInput struct {
 	TeamID     uuid.UUID       `json:"teamId"`
 	Title      string          `json:"title"`
@@ -1740,6 +1745,25 @@ type ProjectUpdatePayload struct {
 
 func (ProjectUpdatePayload) IsMutationResult() {}
 
+// One person's named Pulse feed. A subset of project updates, scoped to the owner
+// the way an inbox row is. Popular is replica-derived and is not a row here.
+type PulseFeed struct {
+	ID          uuid.UUID   `json:"id"`
+	WorkspaceID uuid.UUID   `json:"workspaceId"`
+	UserID      uuid.UUID   `json:"userId"`
+	Name        string      `json:"name"`
+	ProjectIds  []uuid.UUID `json:"projectIds"`
+	CreatedAt   time.Time   `json:"createdAt"`
+	UpdatedAt   time.Time   `json:"updatedAt"`
+}
+
+type PulseFeedPayload struct {
+	Version   int        `json:"version"`
+	PulseFeed *PulseFeed `json:"pulseFeed"`
+}
+
+func (PulseFeedPayload) IsMutationResult() {}
+
 // What a purge destroyed.
 //
 // A list of ids rather than a single one, and no entities: after this response the rows named
@@ -2333,6 +2357,12 @@ type UpdateProjectUpdateInput struct {
 	ID     uuid.UUID            `json:"id"`
 	Health *ProjectUpdateHealth `json:"health,omitempty"`
 	Body   *string              `json:"body,omitempty"`
+}
+
+type UpdatePulseFeedInput struct {
+	ID         uuid.UUID   `json:"id"`
+	Name       *string     `json:"name,omitempty"`
+	ProjectIds []uuid.UUID `json:"projectIds,omitempty"`
 }
 
 type UpdateRecurringIssueInput struct {

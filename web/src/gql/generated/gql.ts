@@ -171,6 +171,10 @@ type Documents = {
     "\n  fragment ProjectDependencyFields on ProjectDependency {\n    id\n    workspaceId\n    blockingProjectId\n    blockedProjectId\n    createdAt\n  }\n": typeof types.ProjectDependencyFieldsFragmentDoc,
     "\n  \n  mutation AddProjectDependency(\n    $blockingProjectId: UUID!\n    $blockedProjectId: UUID!\n    $clientId: UUID!\n    $opId: UUID!\n  ) {\n    addProjectDependency(\n      blockingProjectId: $blockingProjectId\n      blockedProjectId: $blockedProjectId\n      clientId: $clientId\n      opId: $opId\n    ) {\n      version\n      projectDependency {\n        ...ProjectDependencyFields\n      }\n    }\n  }\n": typeof types.AddProjectDependencyDocument,
     "\n  mutation RemoveProjectDependency($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    removeProjectDependency(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveProjectDependencyDocument,
+    "\n  fragment PulseFeedFields on PulseFeed {\n    id\n    workspaceId\n    userId\n    name\n    projectIds\n    createdAt\n    updatedAt\n  }\n": typeof types.PulseFeedFieldsFragmentDoc,
+    "\n  \n  mutation CreatePulseFeed($input: CreatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    createPulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n": typeof types.CreatePulseFeedDocument,
+    "\n  \n  mutation UpdatePulseFeed($input: UpdatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    updatePulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n": typeof types.UpdatePulseFeedDocument,
+    "\n  mutation DeletePulseFeed($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deletePulseFeed(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": typeof types.DeletePulseFeedDocument,
     "\n  fragment RecurringIssueFields on RecurringIssue {\n    id\n    workspaceId\n    teamId\n    title\n    body\n    properties\n    templateId\n    cadence\n    nextDueDate\n    lastCreatedAt\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.RecurringIssueFieldsFragmentDoc,
     "\n  \n  mutation CreateRecurringIssue($input: CreateRecurringIssueInput!) {\n    createRecurringIssue(input: $input) {\n      version\n      recurringIssue {\n        ...RecurringIssueFields\n      }\n    }\n  }\n": typeof types.CreateRecurringIssueDocument,
     "\n  \n  mutation UpdateRecurringIssue($input: UpdateRecurringIssueInput!) {\n    updateRecurringIssue(input: $input) {\n      version\n      recurringIssue {\n        ...RecurringIssueFields\n      }\n    }\n  }\n": typeof types.UpdateRecurringIssueDocument,
@@ -422,6 +426,10 @@ const documents: Documents = {
     "\n  fragment ProjectDependencyFields on ProjectDependency {\n    id\n    workspaceId\n    blockingProjectId\n    blockedProjectId\n    createdAt\n  }\n": types.ProjectDependencyFieldsFragmentDoc,
     "\n  \n  mutation AddProjectDependency(\n    $blockingProjectId: UUID!\n    $blockedProjectId: UUID!\n    $clientId: UUID!\n    $opId: UUID!\n  ) {\n    addProjectDependency(\n      blockingProjectId: $blockingProjectId\n      blockedProjectId: $blockedProjectId\n      clientId: $clientId\n      opId: $opId\n    ) {\n      version\n      projectDependency {\n        ...ProjectDependencyFields\n      }\n    }\n  }\n": types.AddProjectDependencyDocument,
     "\n  mutation RemoveProjectDependency($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    removeProjectDependency(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.RemoveProjectDependencyDocument,
+    "\n  fragment PulseFeedFields on PulseFeed {\n    id\n    workspaceId\n    userId\n    name\n    projectIds\n    createdAt\n    updatedAt\n  }\n": types.PulseFeedFieldsFragmentDoc,
+    "\n  \n  mutation CreatePulseFeed($input: CreatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    createPulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n": types.CreatePulseFeedDocument,
+    "\n  \n  mutation UpdatePulseFeed($input: UpdatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    updatePulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n": types.UpdatePulseFeedDocument,
+    "\n  mutation DeletePulseFeed($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deletePulseFeed(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n": types.DeletePulseFeedDocument,
     "\n  fragment RecurringIssueFields on RecurringIssue {\n    id\n    workspaceId\n    teamId\n    title\n    body\n    properties\n    templateId\n    cadence\n    nextDueDate\n    lastCreatedAt\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.RecurringIssueFieldsFragmentDoc,
     "\n  \n  mutation CreateRecurringIssue($input: CreateRecurringIssueInput!) {\n    createRecurringIssue(input: $input) {\n      version\n      recurringIssue {\n        ...RecurringIssueFields\n      }\n    }\n  }\n": types.CreateRecurringIssueDocument,
     "\n  \n  mutation UpdateRecurringIssue($input: UpdateRecurringIssueInput!) {\n    updateRecurringIssue(input: $input) {\n      version\n      recurringIssue {\n        ...RecurringIssueFields\n      }\n    }\n  }\n": types.UpdateRecurringIssueDocument,
@@ -1158,6 +1166,22 @@ export function graphql(source: "\n  \n  mutation AddProjectDependency(\n    $bl
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RemoveProjectDependency($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    removeProjectDependency(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RemoveProjectDependency($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    removeProjectDependency(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment PulseFeedFields on PulseFeed {\n    id\n    workspaceId\n    userId\n    name\n    projectIds\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment PulseFeedFields on PulseFeed {\n    id\n    workspaceId\n    userId\n    name\n    projectIds\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation CreatePulseFeed($input: CreatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    createPulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation CreatePulseFeed($input: CreatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    createPulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UpdatePulseFeed($input: UpdatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    updatePulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdatePulseFeed($input: UpdatePulseFeedInput!, $clientId: UUID!, $opId: UUID!) {\n    updatePulseFeed(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      pulseFeed {\n        ...PulseFeedFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeletePulseFeed($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deletePulseFeed(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeletePulseFeed($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    deletePulseFeed(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

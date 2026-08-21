@@ -762,6 +762,22 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 			return err
 		}
 
+		if err := streamPages(ctx, w, "pulseFeed",
+			func(ctx context.Context, after uuid.UUID) ([]store.PulseFeed, error) {
+				return q.StreamPulseFeedsForBootstrap(ctx, store.StreamPulseFeedsForBootstrapParams{
+					WorkspaceID: p.WorkspaceID,
+					UserID:      p.UserID,
+					AfterID:     after,
+					PageSize:    bootstrapPageSize,
+				})
+			},
+			func(row store.PulseFeed) (uuid.UUID, any) {
+				return row.ID, pulseFeedFromStream(row)
+			},
+		); err != nil {
+			return err
+		}
+
 		if err := streamPages(ctx, w, "projectDependency",
 			func(ctx context.Context, after uuid.UUID) ([]store.ProjectDependency, error) {
 				return q.StreamProjectDependenciesForBootstrap(ctx, store.StreamProjectDependenciesForBootstrapParams{
@@ -1148,7 +1164,8 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v43 adds cycleCalendarFeed (personal ICS token per team, no secrets).
 // v44 adds slackConnection (Slack webhook notify / slash / unfurls, no secrets).
 // v45 adds workspace.pulseEnabled and workspace.pulseDigestCadence.
-const ClientSchemaVersion = 45
+// v46 adds pulseFeed (personal named subsets of the Pulse stream).
+const ClientSchemaVersion = 46
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //

@@ -841,6 +841,16 @@ type PulseDigestCursor struct {
 	LastSentAt  time.Time
 }
 
+type PulseFeed struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	Name        string
+	ProjectIds  []uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type RecurringIssue struct {
 	ID            uuid.UUID
 	WorkspaceID   uuid.UUID

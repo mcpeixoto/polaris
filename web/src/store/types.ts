@@ -1083,6 +1083,20 @@ export interface ProjectUpdate {
   readonly updatedAt: Timestamp;
 }
 
+/**
+ * One person's named Pulse feed: a subset of project updates, visible only to the owner.
+ * Popular is ranked from replica rows and is not stored here.
+ */
+export interface PulseFeed {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly userId: UUID;
+  readonly name: string;
+  readonly projectIds: readonly UUID[];
+  readonly createdAt: Timestamp;
+  readonly updatedAt: Timestamp;
+}
+
 /** An end→start link: the blocking project must finish before the blocked may start. */
 export interface ProjectDependency {
   readonly id: UUID;
@@ -1180,6 +1194,7 @@ export interface EntityByType {
   initiative: Initiative;
   initiativeProject: InitiativeProject;
   projectUpdate: ProjectUpdate;
+  pulseFeed: PulseFeed;
   projectDependency: ProjectDependency;
   projectLabel: ProjectLabel;
   projectLabelLink: ProjectLabelLink;
@@ -1245,6 +1260,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'initiative',
   'initiativeProject',
   'projectUpdate',
+  'pulseFeed',
   'projectDependency',
   'projectLabel',
   'projectLabelLink',
