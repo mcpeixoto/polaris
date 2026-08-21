@@ -11,9 +11,10 @@
  * screen exist as components at all — the virtualiser owns the rest as arithmetic.
  *
  * **It has to be operable entirely from the keyboard.** Every command is a registered action
- * in the `list` context, so `J`, `K`, `X`, `S`, `A`, `P` and `E` appear in the help overlay
- * and the command menu without anybody maintaining a second list. No component here owns a
- * shortcut; see web/src/keys for why that is architecture rather than tidiness.
+ * in the `list` context, so `J`, `K`, `X`, `S`, `A`, `P`, `L`, `I`, `E` and the Shift
+ * chords appear in the help overlay and the command menu without anybody maintaining a
+ * second list. No component here owns a shortcut; see web/src/keys for why that is
+ * architecture rather than tidiness.
  *
  * **Selection has to survive the list changing underneath it.** Deltas arrive while the user
  * is holding shift: rows appear, move between groups and vanish. The selection is held by id
@@ -48,7 +49,13 @@ import {
 } from '~/components';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { issueIdsForAdhocList } from '~/features/issue/adhocList';
-import { archiveIssues, report, updateIssues } from '~/features/issue/mutations';
+import {
+  archiveIssues,
+  report,
+  setSubscribed,
+  updateIssueProperties,
+  updateIssues,
+} from '~/features/issue/mutations';
 import { liveIssueCountForTeam } from '~/features/team/issueLimit';
 import { TeamIssueLimitBanner } from '~/features/team/TeamIssueLimitBanner';
 import {
@@ -63,6 +70,10 @@ import { downloadCsv, exportCap, issuesToCsv, type ExportRole } from '~/features
 import { personName, subscribePrefs, getPrefs } from '~/features/prefs/prefs';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import { DueDatePicker, EstimatePicker } from '~/features/issue/properties';
+import { estimatesEnabled } from '~/features/estimate';
+import { applyLabel, removeLabel } from '~/features/labels/mutations';
+import { LabelPicker } from '~/features/labels/LabelPicker';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { Peek } from '~/features/peek/Peek';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
@@ -86,7 +97,7 @@ import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useSelection } from '~/hooks/useSelection';
 import { browserTimezone } from '~/features/locale';
 import { EMPTY_FILTER, isFilterGroup, parseDisplayParams, type FilterNode } from '~/filter';
-import type { Issue, StateCategory, Store, UUID } from '~/store';
+import type { DateOnly, DueDateSource, Issue, StateCategory, Store, UUID } from '~/store';
 import styles from './IssueList.module.css';
 
 /**
@@ -259,6 +270,11 @@ interface ListCommands {
   pickPriority(): void;
   pickProject(): void;
   pickCycle(): void;
+  pickLabels(): void;
+  pickEstimate(): void;
+  pickDue(): void;
+  assignToMe(): void;
+  toggleSubscribe(): void;
   peekOpen(): boolean;
   pressPeek(): void;
   togglePeek(): void;
@@ -429,6 +445,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const priority = useMenuTrigger();
   const project = useMenuTrigger();
   const cycle = useMenuTrigger();
+  const labelMenu = useMenuTrigger();
+  const estimate = useMenuTrigger();
+  const due = useMenuTrigger();
   const display = useMenuTrigger();
   const subscribe = useMenuTrigger();
   const share = useMenuTrigger();
@@ -495,6 +514,11 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     pickPriority: () => {},
     pickProject: () => {},
     pickCycle: () => {},
+    pickLabels: () => {},
+    pickEstimate: () => {},
+    pickDue: () => {},
+    assignToMe: () => {},
+    toggleSubscribe: () => {},
     peekOpen: () => false,
     pressPeek: () => {},
     togglePeek: () => {},
@@ -575,6 +599,30 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     pickPriority: priority.show,
     pickProject: project.show,
     pickCycle: cycle.show,
+    pickLabels: () => {
+      if (sameTeam(engine.store, targets) && targets.length > 0) labelMenu.show();
+    },
+    pickEstimate: () => {
+      if (!canEstimate(engine.store, targets)) return;
+      estimate.show();
+    },
+    pickDue: () => {
+      if (targets.length === 0 || !sameTeam(engine.store, targets)) return;
+      due.show();
+    },
+    assignToMe: () => {
+      if (viewerId === null || targets.length === 0) return;
+      updateIssues(engine, targets, { assigneeId: viewerId }).catch(report);
+    },
+    toggleSubscribe: () => {
+      if (viewerId === null || targets.length === 0) return;
+      const subscribe = !targets.every((id) => engine.store.subscriberIdsFor(id).has(viewerId));
+      for (const id of targets) {
+        setSubscribed(engine, { issueId: id, userId: viewerId, subscribed: subscribe }).catch(
+          report,
+        );
+      }
+    },
     peekOpen: () => peekOpenRef.current,
     pressPeek: () => {
       if (peekOpenRef.current) {
@@ -779,6 +827,48 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         run: () => commands.current.pickCycle(),
       },
       {
+        id: 'issueList.labels',
+        title: 'Add label',
+        keys: ['l'],
+        when: 'list',
+        group: 'Issues',
+        run: () => commands.current.pickLabels(),
+      },
+      {
+        id: 'issueList.assignToMe',
+        title: 'Assign to me',
+        keys: ['i'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => viewerId !== null && commands.current.hasRows(),
+        run: () => commands.current.assignToMe(),
+      },
+      {
+        id: 'issueList.estimate',
+        title: 'Set estimate',
+        keys: ['shift+e'],
+        when: 'list',
+        group: 'Issues',
+        run: () => commands.current.pickEstimate(),
+      },
+      {
+        id: 'issueList.dueDate',
+        title: 'Set due date',
+        keys: ['shift+d'],
+        when: 'list',
+        group: 'Issues',
+        run: () => commands.current.pickDue(),
+      },
+      {
+        id: 'issueList.subscribe',
+        title: 'Subscribe',
+        keys: ['shift+s'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => viewerId !== null && commands.current.hasRows(),
+        run: () => commands.current.toggleSubscribe(),
+      },
+      {
         id: 'issueList.triageAccept',
         title: 'Accept from triage',
         keys: ['1'],
@@ -863,7 +953,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         run: () => commands.current.copyViewLink(),
       },
     ],
-    [],
+    [viewerId],
   );
 
   const onOpenRow = useCallback(
@@ -934,6 +1024,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     priority.open ||
     project.open ||
     cycle.open ||
+    labelMenu.open ||
+    estimate.open ||
+    due.open ||
     duplicate.open ||
     snooze.open;
   const shared = picking ? sharedProperties(engine.store, targets) : NOTHING_SHARED;
@@ -1174,6 +1267,21 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             Cycle
           </Button>
         </Tooltip>
+        <Tooltip label="Add label" keys="l">
+          <Button {...labelMenu.props} disabled={!canSetStatus}>
+            Labels
+          </Button>
+        </Tooltip>
+        <Tooltip label="Set estimate" keys="shift+e">
+          <Button {...estimate.props} disabled={!canEstimate(engine.store, targets)}>
+            Estimate
+          </Button>
+        </Tooltip>
+        <Tooltip label="Set due date" keys="shift+d">
+          <Button {...due.props} disabled={!canSetStatus}>
+            Due date
+          </Button>
+        </Tooltip>
         {inTriage ? (
           <>
             <Tooltip label="Accept" keys="1">
@@ -1252,6 +1360,52 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         value={shared.cycleId}
         onSelect={(cycleId) => updateIssues(engine, targets, { cycleId }).catch(report)}
       />
+      <LabelPicker
+        open={labelMenu.open}
+        onClose={labelMenu.hide}
+        trigger={labelMenu.ref}
+        teamId={shared.teamId ?? null}
+        value={shared.labelIds}
+        onApply={(labelId, displaced) => {
+          for (const id of targets) {
+            applyLabel(engine, id, labelId, displaced).catch(report);
+          }
+        }}
+        onRemove={(labelId) => {
+          for (const id of targets) {
+            removeLabel(engine, id, labelId).catch(report);
+          }
+        }}
+      />
+      {shared.teamId !== undefined ? (
+        <EstimatePicker
+          open={estimate.open}
+          onClose={estimate.hide}
+          trigger={estimate.ref}
+          teamId={shared.teamId}
+          value={shared.estimate}
+          onSelect={(value) => {
+            for (const id of targets) {
+              updateIssueProperties(engine, id, { estimate: value }).catch(report);
+            }
+          }}
+        />
+      ) : null}
+      {shared.teamId !== undefined ? (
+        <DueDatePicker
+          open={due.open}
+          onClose={due.hide}
+          trigger={due.ref}
+          value={shared.dueDate ?? null}
+          source={shared.dueDateSource}
+          timezone={shared.timezone}
+          onSelect={(value) => {
+            for (const id of targets) {
+              updateIssueProperties(engine, id, { dueDate: value }).catch(report);
+            }
+          }}
+        />
+      ) : null}
       <DuplicatePicker
         open={duplicate.open}
         onClose={duplicate.hide}
@@ -1751,6 +1905,12 @@ interface SharedProperties {
   readonly teamId: UUID | undefined;
   readonly projectId: UUID | null | undefined;
   readonly cycleId: UUID | null | undefined;
+  readonly estimate: number | null | undefined;
+  readonly dueDate: DateOnly | null | undefined;
+  readonly dueDateSource: DueDateSource;
+  readonly timezone: string;
+  /** Intersection of labels on every targeted issue. */
+  readonly labelIds: readonly UUID[];
 }
 
 /** Nothing in common — which is also the right answer for an empty target set. */
@@ -1761,6 +1921,11 @@ const NOTHING_SHARED: SharedProperties = {
   priority: undefined,
   projectId: undefined,
   cycleId: undefined,
+  estimate: undefined,
+  dueDate: undefined,
+  dueDateSource: 'manual',
+  timezone: 'UTC',
+  labelIds: [],
 };
 
 /**
@@ -1780,11 +1945,17 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
   let teamId: UUID | undefined;
   let projectId: UUID | null | undefined;
   let cycleId: UUID | null | undefined;
+  let estimate: number | null | undefined;
+  let dueDate: DateOnly | null | undefined;
+  let dueDateSource: DueDateSource = 'manual';
+  let timezone = 'UTC';
+  let labelIds: UUID[] | undefined;
   let first = true;
 
   for (const id of targets) {
     const issue = store.issues.get(id);
     if (issue === undefined) continue;
+    const labels = [...store.labelIdsFor(id)];
     if (first) {
       stateId = issue.stateId;
       assigneeId = issue.assigneeId ?? null;
@@ -1792,6 +1963,11 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
       teamId = issue.teamId;
       projectId = issue.projectId ?? null;
       cycleId = issue.cycleId ?? null;
+      estimate = issue.estimate ?? null;
+      dueDate = issue.dueDate ?? null;
+      dueDateSource = issue.dueDateSource;
+      timezone = store.teams.get(issue.teamId)?.timezone ?? 'UTC';
+      labelIds = labels;
       first = false;
       continue;
     }
@@ -1801,8 +1977,36 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
     if (teamId !== issue.teamId) teamId = undefined;
     if (projectId !== (issue.projectId ?? null)) projectId = undefined;
     if (cycleId !== (issue.cycleId ?? null)) cycleId = undefined;
+    if (estimate !== (issue.estimate ?? null)) estimate = undefined;
+    if (dueDate !== (issue.dueDate ?? null)) dueDate = undefined;
+    if (dueDateSource !== issue.dueDateSource) dueDateSource = 'manual';
+    if (labelIds !== undefined) {
+      const held = new Set(labels);
+      labelIds = labelIds.filter((labelId) => held.has(labelId));
+    }
   }
-  return { stateId, assigneeId, priority, teamId, projectId, cycleId };
+  return {
+    stateId,
+    assigneeId,
+    priority,
+    teamId,
+    projectId,
+    cycleId,
+    estimate,
+    dueDate,
+    dueDateSource,
+    timezone,
+    labelIds: labelIds ?? [],
+  };
+}
+
+/** Estimate picker only when every targeted issue is in one team that estimates. */
+function canEstimate(store: Store, targets: readonly UUID[]): boolean {
+  if (targets.length === 0 || !sameTeam(store, targets)) return false;
+  const issue = store.issues.get(targets[0]!);
+  if (issue === undefined) return false;
+  const team = store.teams.get(issue.teamId);
+  return team !== undefined && estimatesEnabled(team);
 }
 
 function ArchiveGlyph() {
