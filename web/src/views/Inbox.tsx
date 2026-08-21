@@ -23,8 +23,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { useActions } from '~/app/keymap';
-import { Avatar, Button, Checkbox, EmptyState, Input, Menu, priorityLabel, type MenuNode } from '~/components';
+import { useActions, useKeyContext } from '~/app/keymap';
+import {
+  Avatar,
+  Button,
+  Checkbox,
+  EmptyState,
+  Input,
+  Menu,
+  priorityLabel,
+  type MenuNode,
+} from '~/components';
 import { browserTimezone } from '~/features/locale';
 import { when } from '~/features/time';
 import {
@@ -206,12 +215,24 @@ export function Inbox() {
     [engine, navigate],
   );
 
+  // The inbox is a list screen, and its shortcuts belong to the list context rather than to
+  // the whole application.
+  //
+  // Not a tidiness point. `inbox.find.clear` is bound to Escape, `app.dismiss` in the shell
+  // is bound to Escape with no guard, and the registry refuses two bindings on one key in
+  // one context when either of them is unguarded — so registering these in `global` threw
+  // during the effect that mounts them, took `AppShell` down with it, and left /inbox a
+  // blank page for everybody. Scoping them to `list` is what every other list screen in the
+  // product already does, and it is also what makes Escape fall through to the shell's
+  // dismiss when the find box is empty instead of racing it.
+  useKeyContext('list');
   useActions(
     [
       {
         id: 'inbox.next',
         title: 'Next notification',
         keys: ['j', 'ArrowDown'],
+        when: 'list',
         group: 'Inbox',
         run: () => setCursor((c) => Math.min(c + 1, Math.max(rows.length - 1, 0))),
       },
@@ -219,6 +240,7 @@ export function Inbox() {
         id: 'inbox.previous',
         title: 'Previous notification',
         keys: ['k', 'ArrowUp'],
+        when: 'list',
         group: 'Inbox',
         run: () => setCursor((c) => Math.max(c - 1, 0)),
       },
@@ -226,6 +248,7 @@ export function Inbox() {
         id: 'inbox.open',
         title: 'Open notification',
         keys: ['Enter'],
+        when: 'list',
         group: 'Inbox',
         run: () => open(current),
       },
@@ -233,6 +256,7 @@ export function Inbox() {
         id: 'inbox.toggleRead',
         title: 'Mark read or unread',
         keys: ['u', 'e'],
+        when: 'list',
         group: 'Inbox',
         run: () => {
           if (current === undefined) return;
@@ -243,6 +267,7 @@ export function Inbox() {
         id: 'inbox.snooze',
         title: 'Snooze notification',
         keys: ['h'],
+        when: 'list',
         group: 'Inbox',
         run: () => {
           if (current !== undefined) setSnoozeFor(current.id);
@@ -252,6 +277,7 @@ export function Inbox() {
         id: 'inbox.dismiss',
         title: 'Dismiss notification',
         keys: ['Backspace'],
+        when: 'list',
         group: 'Inbox',
         run: () => {
           if (current !== undefined) dismissNotification(engine, current.id).catch(report);
@@ -261,6 +287,7 @@ export function Inbox() {
         id: 'inbox.dismissRead',
         title: 'Dismiss all read',
         keys: ['shift+Backspace'],
+        when: 'list',
         group: 'Inbox',
         run: () => dismissReadNotifications(engine).catch(report),
       },
@@ -268,6 +295,7 @@ export function Inbox() {
         id: 'inbox.markAllRead',
         title: 'Mark everything read',
         keys: ['alt+u', 'shift+e'],
+        when: 'list',
         group: 'Inbox',
         run: () => markAllNotificationsRead(engine).catch(report),
       },
@@ -275,6 +303,7 @@ export function Inbox() {
         id: 'inbox.find',
         title: 'Find in inbox',
         keys: ['mod+f'],
+        when: 'list',
         group: 'Inbox',
         run: () => findRef.current?.focus(),
       },
@@ -282,6 +311,7 @@ export function Inbox() {
         id: 'inbox.find.clear',
         title: 'Clear inbox find',
         keys: ['Escape'],
+        when: 'list',
         group: 'Inbox',
         hidden: true,
         enabled: () => query.trim() !== '',
