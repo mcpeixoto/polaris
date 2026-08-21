@@ -98,3 +98,12 @@ export const REMOVE_INITIATIVE_PROJECT = /* GraphQL */ `
     }
   }
 `;
+
+export const ARCHIVE_INITIATIVE = /* GraphQL */ `
+  mutation ArchiveInitiative($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {
+    archiveInitiative(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {
+      version
+      id
+    }
+  }
+`;
