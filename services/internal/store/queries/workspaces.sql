@@ -5,14 +5,18 @@ RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
           plan_expires_at, seat_limit, plan_lapsed_at,
           project_update_reminder_interval_days, project_update_reminder_weekday,
-          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence;
+          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence,
+          customer_requests_enabled, customer_default_team_id, customer_revenue_unit,
+          customer_tiers;
 
 -- name: GetWorkspace :one
 SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
        plan_expires_at, seat_limit, plan_lapsed_at,
        project_update_reminder_interval_days, project_update_reminder_weekday,
-       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
+       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence,
+       customer_requests_enabled, customer_default_team_id, customer_revenue_unit,
+       customer_tiers
 FROM workspace
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -21,7 +25,9 @@ SELECT id, name, url_key, logo_url, settings, plan,
        archived_at, deleted_at, created_at, updated_at,
        plan_expires_at, seat_limit, plan_lapsed_at,
        project_update_reminder_interval_days, project_update_reminder_weekday,
-       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence
+       project_update_reminder_hour, pulse_enabled, pulse_digest_cadence,
+       customer_requests_enabled, customer_default_team_id, customer_revenue_unit,
+       customer_tiers
 FROM workspace
 WHERE url_key = $1 AND deleted_at IS NULL;
 
@@ -38,13 +44,23 @@ SET name     = COALESCE(sqlc.narg(name), name),
     project_update_reminder_hour = COALESCE(
         sqlc.narg(project_update_reminder_hour), project_update_reminder_hour),
     pulse_enabled = COALESCE(sqlc.narg(pulse_enabled), pulse_enabled),
-    pulse_digest_cadence = COALESCE(sqlc.narg(pulse_digest_cadence), pulse_digest_cadence)
+    pulse_digest_cadence = COALESCE(sqlc.narg(pulse_digest_cadence), pulse_digest_cadence),
+    customer_requests_enabled = COALESCE(
+        sqlc.narg(customer_requests_enabled), customer_requests_enabled),
+    customer_default_team_id = CASE
+        WHEN sqlc.arg(clear_customer_default_team)::boolean THEN NULL
+        ELSE COALESCE(sqlc.narg(customer_default_team_id), customer_default_team_id) END,
+    customer_revenue_unit = COALESCE(sqlc.narg(customer_revenue_unit), customer_revenue_unit),
+    customer_tiers = CASE WHEN sqlc.arg(set_customer_tiers)::boolean THEN sqlc.arg(customer_tiers)
+                          ELSE customer_tiers END
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, name, url_key, logo_url, settings, plan,
           archived_at, deleted_at, created_at, updated_at,
           plan_expires_at, seat_limit, plan_lapsed_at,
           project_update_reminder_interval_days, project_update_reminder_weekday,
-          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence;
+          project_update_reminder_hour, pulse_enabled, pulse_digest_cadence,
+          customer_requests_enabled, customer_default_team_id, customer_revenue_unit,
+          customer_tiers;
 
 -- CountWorkspaceSeats is the number the seat limit is checked against.
 --

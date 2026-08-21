@@ -380,6 +380,50 @@ func (q *Queries) ListCustomersInWorkspace(ctx context.Context, workspaceID uuid
 	return items, nil
 }
 
+const retargetCustomerRequests = `-- name: RetargetCustomerRequests :many
+UPDATE customer_request
+SET customer_id = $1
+WHERE customer_id = $2
+RETURNING id, workspace_id, customer_id, issue_id, project_id, body, important, creator_id,
+          created_at, updated_at
+`
+
+type RetargetCustomerRequestsParams struct {
+	IntoID   *uuid.UUID
+	SourceID *uuid.UUID
+}
+
+func (q *Queries) RetargetCustomerRequests(ctx context.Context, arg RetargetCustomerRequestsParams) ([]CustomerRequest, error) {
+	rows, err := q.db.Query(ctx, retargetCustomerRequests, arg.IntoID, arg.SourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CustomerRequest{}
+	for rows.Next() {
+		var i CustomerRequest
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.CustomerID,
+			&i.IssueID,
+			&i.ProjectID,
+			&i.Body,
+			&i.Important,
+			&i.CreatorID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const softDeleteCustomer = `-- name: SoftDeleteCustomer :one
 UPDATE customer
 SET deleted_at = now(), deleted_by = $1

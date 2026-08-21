@@ -120,7 +120,10 @@ export function AppShell({
   const viewer = useViewer();
   const engine = useEngine();
   useDesktopNotifications(engine, viewerId);
-  const showCustomers = viewer !== null && viewer.role !== 'guest';
+  const showCustomers =
+    viewer !== null &&
+    viewer.role !== 'guest' &&
+    (workspace === undefined || workspace.customerRequestsEnabled);
   const showDashboards = showCustomers;
   const showPulse =
     (viewer === null || viewer.role !== 'guest') &&
@@ -426,6 +429,12 @@ export function AppShell({
         title: 'Go to Asks',
         group: 'Navigation',
         run: () => navigate('/settings/asks'),
+      },
+      {
+        id: 'nav.customerRequests',
+        title: 'Go to Customer requests',
+        group: 'Navigation',
+        run: () => navigate('/settings/customers'),
       },
       {
         id: 'nav.search',
@@ -846,6 +855,10 @@ export function AppShell({
             <NavLink to="/settings/pulse" className={navClass}>
               <NavGlyph name="pulse" />
               <span className={styles.navLabel}>Pulse</span>
+            </NavLink>
+            <NavLink to="/settings/customers" className={navClass}>
+              <NavGlyph name="customer" />
+              <span className={styles.navLabel}>Customer requests</span>
             </NavLink>
             <NavLink to="/settings/slas" className={navClass}>
               <NavGlyph name="bell" />

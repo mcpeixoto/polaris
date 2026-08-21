@@ -1,5 +1,5 @@
 import { toWire } from '~/gql/enums';
-import type { EntityPatch, Workspace } from '~/store';
+import type { EntityPatch, UUID, Workspace } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
 import { UPDATE_WORKSPACE } from './operations';
@@ -13,6 +13,13 @@ export interface WorkspaceReminderFields {
 export interface WorkspacePulseFields {
   readonly pulseEnabled?: boolean | undefined;
   readonly pulseDigestCadence?: Workspace['pulseDigestCadence'] | undefined;
+}
+
+export interface WorkspaceCustomerFields {
+  readonly customerRequestsEnabled?: boolean | undefined;
+  readonly customerDefaultTeamId?: UUID | null | undefined;
+  readonly customerRevenueUnit?: string | undefined;
+  readonly customerTiers?: readonly string[] | undefined;
 }
 
 export interface WorkspaceGeneralFields {
@@ -34,6 +41,13 @@ export async function updateWorkspacePulse(
   return updateWorkspace(engine, fields);
 }
 
+export async function updateWorkspaceCustomers(
+  engine: SyncEngine,
+  fields: WorkspaceCustomerFields,
+): Promise<void> {
+  return updateWorkspace(engine, fields);
+}
+
 export async function updateWorkspaceGeneral(
   engine: SyncEngine,
   fields: WorkspaceGeneralFields,
@@ -43,7 +57,10 @@ export async function updateWorkspaceGeneral(
 
 async function updateWorkspace(
   engine: SyncEngine,
-  fields: WorkspaceReminderFields & WorkspacePulseFields & WorkspaceGeneralFields,
+  fields: WorkspaceReminderFields &
+    WorkspacePulseFields &
+    WorkspaceGeneralFields &
+    WorkspaceCustomerFields,
 ): Promise<void> {
   const before = engine.store.workspaces.get(engine.store.workspaceId);
   if (before === undefined) return;
@@ -70,6 +87,19 @@ async function updateWorkspace(
     ...(fields.pulseDigestCadence === undefined
       ? null
       : { pulseDigestCadence: fields.pulseDigestCadence }),
+    ...(fields.customerRequestsEnabled === undefined
+      ? null
+      : { customerRequestsEnabled: fields.customerRequestsEnabled }),
+    ...(fields.customerDefaultTeamId === undefined
+      ? null
+      : {
+          customerDefaultTeamId:
+            fields.customerDefaultTeamId === null ? undefined : fields.customerDefaultTeamId,
+        }),
+    ...(fields.customerRevenueUnit === undefined
+      ? null
+      : { customerRevenueUnit: fields.customerRevenueUnit }),
+    ...(fields.customerTiers === undefined ? null : { customerTiers: [...fields.customerTiers] }),
     updatedAt: new Date().toISOString(),
   };
 
@@ -94,6 +124,20 @@ async function updateWorkspace(
         ...(fields.pulseDigestCadence === undefined
           ? null
           : { pulseDigestCadence: toWire(fields.pulseDigestCadence) }),
+        ...(fields.customerRequestsEnabled === undefined
+          ? null
+          : { customerRequestsEnabled: fields.customerRequestsEnabled }),
+        ...(fields.customerDefaultTeamId === undefined
+          ? null
+          : fields.customerDefaultTeamId === null
+            ? { clearCustomerDefaultTeam: true }
+            : { customerDefaultTeamId: fields.customerDefaultTeamId }),
+        ...(fields.customerRevenueUnit === undefined
+          ? null
+          : { customerRevenueUnit: fields.customerRevenueUnit }),
+        ...(fields.customerTiers === undefined
+          ? null
+          : { customerTiers: [...fields.customerTiers] }),
       },
     },
     optimistic: [optimistic],

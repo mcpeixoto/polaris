@@ -1107,6 +1107,10 @@ type Workspace struct {
 	ProjectUpdateReminderHour         int16
 	PulseEnabled                      bool
 	PulseDigestCadence                string
+	CustomerRequestsEnabled           bool
+	CustomerDefaultTeamID             *uuid.UUID
+	CustomerRevenueUnit               string
+	CustomerTiers                     []string
 }
 
 type WorkspaceVersion struct {

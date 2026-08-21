@@ -129,6 +129,13 @@ RETURNING id, workspace_id, customer_id, issue_id, project_id, body, important, 
 -- name: ListCustomerRequestIDsForCustomer :many
 SELECT id FROM customer_request WHERE customer_id = $1;
 
+-- name: RetargetCustomerRequests :many
+UPDATE customer_request
+SET customer_id = sqlc.arg(into_id)
+WHERE customer_id = sqlc.arg(source_id)
+RETURNING id, workspace_id, customer_id, issue_id, project_id, body, important, creator_id,
+          created_at, updated_at;
+
 -- StreamCustomerRequestsForBootstrap: an issue-attached row follows the issue's team;
 -- a project-only row follows the project's teams. Guests never call this.
 --
