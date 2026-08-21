@@ -306,7 +306,16 @@ export function Board({
       {
         id: 'board.focusPreviousColumn',
         title: 'Focus the previous column',
-        keys: ['h', 'ArrowLeft'],
+        // Arrows only, and `h`/`l` deliberately not among them.
+        //
+        // The board mounts *inside* the issue list, so its bindings land in the same `list`
+        // context as the list's own — and `H` is snooze while `L` is add-label, both of them
+        // documented issue actions that work on the card under the cursor here just as they
+        // do on a row. Claiming those letters for column navigation is not a preference the
+        // registry can express: it rejects an unguarded second binding at registration, so
+        // mounting the board threw inside a passive effect and took the whole screen down to
+        // a blank page that a reload could not recover, because the layout is in the URL.
+        keys: ['ArrowLeft'],
         when: 'list',
         group: 'Board',
         run: () => commands.current.focusColumn(-1),
@@ -314,7 +323,7 @@ export function Board({
       {
         id: 'board.focusNextColumn',
         title: 'Focus the next column',
-        keys: ['l', 'ArrowRight'],
+        keys: ['ArrowRight'],
         when: 'list',
         group: 'Board',
         run: () => commands.current.focusColumn(1),

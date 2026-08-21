@@ -429,7 +429,7 @@ describe('Board', () => {
   it('walks the cursor across the columns', async () => {
     const { user, onFocus } = renderBoard({ cursorId: 'issue-2' });
 
-    await user.keyboard('l');
+    await user.keyboard('{ArrowRight}');
 
     // The second card of Todo has no counterpart in a column of one, so the cursor lands on
     // the last card there rather than nowhere.
@@ -439,7 +439,7 @@ describe('Board', () => {
   it('holds the cursor at the end of the board rather than wrapping', async () => {
     const { user, onFocus } = renderBoard({ cursorId: 'issue-3' });
 
-    await user.keyboard('l');
+    await user.keyboard('{ArrowRight}');
 
     expect(onFocus).not.toHaveBeenCalled();
   });

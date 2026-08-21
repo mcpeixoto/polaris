@@ -143,14 +143,14 @@ function GlobalDismiss({ onDismiss }: { onDismiss: () => void }) {
   return null;
 }
 
-function renderList() {
+function renderList(search = '') {
   const store = seeded();
   const mutate = vi.fn().mockResolvedValue({});
   const engine = { store, mutate } as unknown as SyncEngine;
   const dismissed = vi.fn();
 
   render(
-    <MemoryRouter initialEntries={['/team/ENG']}>
+    <MemoryRouter initialEntries={[`/team/ENG${search}`]}>
       <KeymapProvider>
         <EngineProvider engine={engine} status={{ phase: 'idle' }}>
           <GlobalDismiss onDismiss={dismissed} />
@@ -209,6 +209,22 @@ afterAll(() => {
 });
 
 describe('IssueList', () => {
+  /**
+   * The board mounts inside the list, so both register into the same `list` context — and
+   * the registry refuses a second unguarded binding on a key rather than letting one of
+   * them silently never fire. A board action that claimed `H` or `L` therefore threw inside
+   * a passive effect and took the screen down to a blank page, which the URL then made
+   * permanent: `?layout=board` crashed again on every reload.
+   */
+  it('renders the board layout without a keymap conflict', () => {
+    renderList('?layout=board');
+
+    // Two columns' worth of cards, so the assertion is that the board rendered rather
+    // than that anything at all survived.
+    expect(screen.getByText('Fix the flake')).toBeTruthy();
+    expect(screen.getByText('Rewrite the seeder')).toBeTruthy();
+  });
+
   it('groups the issues by status, in workflow order', () => {
     renderList();
 
