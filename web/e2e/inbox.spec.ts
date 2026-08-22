@@ -136,6 +136,61 @@ async function setStatus(page: Page, name: string): Promise<void> {
   await page.getByRole('menuitem', { name }).click();
 }
 
+/**
+ * The notification count once it has stopped moving.
+ *
+ * Two identical reads a second apart. Deliveries arrive in bursts on the worker's tick, so
+ * one read proves nothing about whether the burst is over.
+ */
+async function settled(page: Page): Promise<number> {
+  let previous = -1;
+  for (let i = 0; i < 20; i++) {
+    const current = await page.getByRole('option').count();
+    if (current === previous) return current;
+    previous = current;
+    await page.waitForTimeout(1_000);
+  }
+  return previous;
+}
+
+/**
+ * Waits until the browser's own replica agrees the subscription row says what the server
+ * says, by reading it out of IndexedDB.
+ *
+ * The server confirming an unsubscribe is only half of it. `⇧S` is a *toggle*, and it
+ * computes its direction from the local replica — so a press made before the delta lands
+ * sends the same direction twice and looks like the key did nothing. Waiting on the
+ * client, not just on the server, is what makes the next press mean what it says.
+ */
+async function replicaSaysUnsubscribed(page: Page, expected: boolean): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          const [info] = await indexedDB.databases();
+          if (!info?.name) return null;
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            const req = indexedDB.open(info.name!);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          });
+          if (!db.objectStoreNames.contains('issueSubscription')) return null;
+          const rows = await new Promise<{ unsubscribed: boolean }[]>((resolve) => {
+            const req = db
+              .transaction('issueSubscription')
+              .objectStore('issueSubscription')
+              .getAll();
+            req.onsuccess = () => resolve(req.result as { unsubscribed: boolean }[]);
+            req.onerror = () => resolve([]);
+          });
+          db.close();
+          return rows.some((row) => row.unsubscribed);
+        }),
+      { timeout: 20_000 },
+    )
+    .toBe(expected);
+}
+
 test.describe('inbox', () => {
   test('opens without throwing, even with nothing in it', async ({ browser, workspace }) => {
     const problems: string[] = [];
@@ -278,15 +333,29 @@ test.describe('inbox', () => {
     await expect(watcher.page.getByRole('heading', { name: title })).toBeVisible({
       timeout: 20_000,
     });
-    expect(await subscribers(workspace, identifier)).toContain('"unsubscribed":false');
+    // Polled, not read once: the subscription is written by the server in its own time,
+    // and the browser is told about it over the socket. A bare read here asserts that the
+    // round trip has already finished, which is true on a fast machine and a coin flip on
+    // a loaded runner.
+    await expect
+      .poll(() => subscribers(workspace, identifier), { timeout: 20_000 })
+      .toContain('"unsubscribed":false');
     await watcher.page.keyboard.press('Shift+S');
     await expect
       .poll(() => subscribers(workspace, identifier), { timeout: 20_000 })
       .toContain('"unsubscribed":true');
+    await replicaSaysUnsubscribed(watcher.page, true);
 
     await watcher.page.goto('/inbox');
     await watcher.page.getByRole('listbox', { name: /notifications/i }).waitFor();
-    const quiet = await watcher.page.getByRole('option').count();
+    // Settled, not merely present. This number is the baseline for "nothing new arrived",
+    // and everything before it is asynchronous: the fan-out runs on the worker's tick and
+    // reaches this page over the socket. Reading the count the moment the listbox exists
+    // can catch it mid-delivery, and then an *earlier* notification landing during the
+    // wait below reads as the unsubscribe having failed. That is a flake in the test, not
+    // in the product, and it fails only under load — which is exactly when nobody trusts
+    // the result.
+    const quiet = await settled(watcher.page);
 
     // Two more events on the issue. An unsubscribe silences all of them, including the
     // status change — the button says "unsubscribe from this issue" and has to mean it.
@@ -300,6 +369,7 @@ test.describe('inbox', () => {
     await expect(watcher.page.getByRole('heading', { name: title })).toBeVisible({
       timeout: 20_000,
     });
+    await replicaSaysUnsubscribed(watcher.page, true);
     await watcher.page.keyboard.press('Shift+S');
     await expect
       .poll(() => subscribers(workspace, identifier), { timeout: 20_000 })

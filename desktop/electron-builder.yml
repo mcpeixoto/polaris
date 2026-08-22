@@ -100,6 +100,11 @@ nsis:
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
 
+# electron-builder derives the executable name from package.json's `name`, which is the
+# scoped workspace name `@polaris/desktop` — and AppImage refuses a filename containing
+# `@` or `/`. Naming it here is the fix; the other two platforms take theirs from
+# productName and never hit this.
+executableName: polaris
 linux:
   target: [AppImage, deb]
   category: Development
