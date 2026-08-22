@@ -10,6 +10,11 @@
  * Both recovery routes are covered because they are different code paths: the toast holds a
  * closure over `restoreIssue` and has to outlive the navigation away from the deleted issue's
  * own page, while the trash screen re-reads the deleted list from the server.
+ *
+ * The bulk case is here for the same reason as the single one: `deleteIssues` has always taken
+ * a list, docs/01-features/02-issues.md has always said delete is a bulk action reachable from
+ * a list by `Cmd/Ctrl+Delete`, and until this test there was no call site that passed it more
+ * than one id — so "deleted three, undid three" was a path nothing had ever run.
  */
 
 import { createIssueViaApi, expect, openTeamList, signIn, test } from './fixtures';
@@ -69,5 +74,71 @@ test.describe('deleting an issue', () => {
 
     await openTeamList(page, workspace.teamKey);
     await expect(page.getByText('Deleted then restored')).toBeVisible({ timeout: 20_000 });
+  });
+});
+
+test.describe('deleting from a list', () => {
+  test('a selection goes together and comes back together', async ({ page, workspace }) => {
+    for (const title of ['Bulk alpha', 'Bulk beta', 'Bulk gamma']) {
+      await createIssueViaApi(workspace, title);
+    }
+    await signIn(page, workspace.account);
+    await openTeamList(page, workspace.teamKey);
+
+    // Shift-click selects the row it lands on and puts the cursor there; `X` extends.
+    await page.getByText('Bulk alpha').click({ modifiers: ['Shift'] });
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('x');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('x');
+    await expect(page.getByText('3 selected')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    const confirm = page.getByRole('dialog', { name: 'Delete 3 issues?' });
+    await expect(confirm).toBeVisible();
+    // The count is the thing worth checking before pressing the button, so it is in the
+    // question, in the consequence and on the button.
+    await expect(confirm).toContainText('restored from Trash for the next 30 days');
+    await confirm.getByRole('button', { name: 'Delete 3 issues' }).click();
+
+    await expect(page.getByText('Bulk alpha')).toBeHidden();
+    await expect(page.getByText('Bulk gamma')).toBeHidden();
+    await expect(page.getByRole('status').getByText('Deleted 3 issues')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    for (const title of ['Bulk alpha', 'Bulk beta', 'Bulk gamma']) {
+      await expect(page.getByText(title)).toBeVisible({ timeout: 20_000 });
+    }
+
+    // And really back: a reload rebuilds from the server rather than from this replica.
+    await page.reload();
+    await expect(page.getByText('Bulk alpha')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Bulk gamma')).toBeVisible();
+  });
+
+  test('the documented chord opens the dialogue, and the trash says who and when', async ({
+    page,
+    workspace,
+  }) => {
+    const issue = await createIssueViaApi(workspace, 'Chord deleted');
+    await signIn(page, workspace.account);
+    await openTeamList(page, workspace.teamKey);
+
+    await page.getByText('Chord deleted').click({ modifiers: ['Shift'] });
+    // `Cmd/Ctrl+Delete` in docs/01-features/02-issues.md; the key labelled Delete on an Apple
+    // keyboard reports as Backspace, which is what a Mac CI runner and a Linux one disagree
+    // about if only one of the two is bound.
+    await page.keyboard.press('ControlOrMeta+Backspace');
+    const confirm = page.getByRole('dialog', { name: `Delete ${issue.identifier}?` });
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole('button', { name: `Delete ${issue.identifier}` }).click();
+    await expect(page.getByText('Chord deleted')).toBeHidden();
+
+    await page.getByRole('link', { name: 'Trash', exact: true }).click();
+    const row = page.getByRole('row').filter({ hasText: 'Chord deleted' });
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    // Who put it here and when, both of which the screen used to say it could not know.
+    await expect(page.getByRole('columnheader', { name: 'Deleted by' })).toBeVisible();
+    await expect(row).toContainText(/Deleted /);
   });
 });

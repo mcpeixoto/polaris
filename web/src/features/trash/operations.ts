@@ -24,16 +24,24 @@ import { ISSUE_FIELDS } from '~/gql/operations';
 /**
  * The recycle bin: everything this caller could still restore, newest deletion first.
  *
- * The order is the server's (`ORDER BY deleted_at DESC`) and the screen keeps it. The only
- * question this listing is asked is "what did I just lose", and the answer to that is ordered
- * by when it was lost — which is an ordering the client cannot reproduce, because `deletedAt`
- * is not a field on the `Issue` type. See `mutations.ts`.
+ * The order is the server's (`ORDER BY deleted_at DESC`) and the screen keeps it, because the
+ * only question this listing is asked is "what did I just lose" and the answer to that is
+ * ordered by when it was lost.
+ *
+ * `deletedAt` and `deletedBy` are selected here and not in `IssueFields`, which is the shape
+ * every other issue read shares. On every one of those reads the two are null by contract —
+ * deleted rows are filtered out, so a non-null `deletedAt` anywhere else would mean the API
+ * had handed somebody a row out of the trash — and asking for a field that is always null is
+ * how a fragment starts describing something other than the thing it names. This is the one
+ * read where they are always set, so this is the one place that asks for them.
  */
 export const DELETED_ISSUES_QUERY = /* GraphQL */ `
   ${ISSUE_FIELDS}
   query DeletedIssues {
     deletedIssues {
       ...IssueFields
+      deletedAt
+      deletedBy
     }
   }
 `;

@@ -15,11 +15,20 @@
  * See features/trash/mutations for why that is not an oversight in the sync design but a
  * consequence of it.
  *
- * What it cannot say, and does not pretend to: *when* an issue was deleted, and by whom. The
- * `Issue` type carries no `deletedAt` and the database has no `deleted_by` column at all, so
- * the only honest ordering is the server's own — which is by deletion time, newest first — and
- * the only person the screen can name is the one who created the issue. Saying so out loud is
- * better than a column of blanks or, worse, a column that quietly shows the wrong person.
+ * It used to say, out loud, that it could not tell you *when* an issue was deleted or by whom,
+ * and it named the issue's creator instead with a sentence explaining that the deleter was not
+ * recorded. That was the honest rendering of a missing column. The column exists now —
+ * `000020_issue_deleted_by`, whose own comment says it was written for this screen — and
+ * `deletedAt` reaches the API on `deletedIssues`, the one read that returns deleted rows. Both
+ * are what the table shows: who put it here, and when. The creator is not named at all any
+ * more, because on a screen answering "where did my issue go" the person who filed it a month
+ * ago is the wrong person to point at.
+ *
+ * The empty case is still real and is still not filled in with a guess. `deleted_by` is
+ * nullable for two different reasons — a row deleted before the column existed has no answer,
+ * and the retention sweep deletes on a schedule rather than on somebody's instruction, so for
+ * its rows there is no person to name — and the screen says which of those it is looking at
+ * rather than showing a blank cell.
  */
 
 import { useEffect, useState } from 'react';
@@ -27,9 +36,14 @@ import { useEffect, useState } from 'react';
 import { useEngine } from '~/app/context';
 import { Badge, Button, EmptyState, Spinner } from '~/components';
 import { when } from '~/features/time';
-import { fetchDeletedIssues, RESTORE_WINDOW_DAYS, restoreIssue } from '~/features/trash/mutations';
+import {
+  type DeletedIssue,
+  fetchDeletedIssues,
+  RESTORE_WINDOW_DAYS,
+  restoreIssue,
+} from '~/features/trash/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { Issue, UUID } from '~/store';
+import type { UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './Trash.module.css';
 
@@ -42,7 +56,7 @@ import styles from './Trash.module.css';
  */
 type Load =
   | { readonly phase: 'loading' }
-  | { readonly phase: 'ready'; readonly issues: readonly Issue[] }
+  | { readonly phase: 'ready'; readonly issues: readonly DeletedIssue[] }
   | { readonly phase: 'failed'; readonly message: string };
 
 interface TrashRow {
@@ -50,9 +64,10 @@ interface TrashRow {
   readonly identifier: string;
   readonly title: string;
   readonly team: string;
-  /** The creator, not the person who deleted it — which nothing in the API records. */
-  readonly creator: string;
-  readonly updatedAt: string;
+  /** Who moved it here, or why nobody can be named for it. */
+  readonly deletedBy: string;
+  /** When it was moved here. Always set on a row this listing returned. */
+  readonly deletedAt?: string;
 }
 
 export function Trash() {
@@ -93,7 +108,7 @@ export function Trash() {
   /**
    * The names come from the replica even though the issues do not.
    *
-   * A deleted issue carries ids; the team it belonged to and the person who created it are
+   * A deleted issue carries ids; the team it belonged to and the person who deleted it are
    * still perfectly ordinary replicated rows. So this is a live query over those two entity
    * types with the fetched issues as its input — which also means a teammate being renamed in
    * another session corrects this table without it being reloaded.
@@ -101,8 +116,8 @@ export function Trash() {
   const rows = useLiveQuery(
     (store) =>
       (load.phase === 'ready' ? load.issues : []).map((issue): TrashRow => {
-        const creator =
-          issue.creatorId === undefined ? undefined : store.get('user', issue.creatorId);
+        const deleter =
+          issue.deletedBy === undefined ? undefined : store.get('user', issue.deletedBy);
         return {
           id: issue.id,
           identifier: issue.identifier,
@@ -110,8 +125,14 @@ export function Trash() {
           // The server only lists issues from teams the caller belongs to, so the team is in
           // the replica; the fallback is for the seconds before a fresh bootstrap finishes.
           team: store.get('team', issue.teamId)?.name ?? 'A team of yours',
-          creator: creator?.displayName ?? 'Somebody who has since left',
-          updatedAt: issue.updatedAt,
+          // Three distinct cases, and they are not the same sentence. No `deletedBy` at all
+          // means nobody was recorded — the retention sweep, or a deletion older than the
+          // column. A `deletedBy` the replica cannot resolve means the account is gone.
+          deletedBy:
+            issue.deletedBy === undefined
+              ? 'Not recorded'
+              : (deleter?.displayName ?? 'Somebody who has since left'),
+          deletedAt: issue.deletedAt,
         };
       }),
     ['team', 'user'],
@@ -160,8 +181,7 @@ export function Trash() {
         <p className={styles.intro}>
           A deleted issue is kept for {RESTORE_WINDOW_DAYS} days and can be restored from here with
           its comments and its links intact. After that it is removed for good, and no screen in
-          Polaris can bring it back. Nobody records who deleted an issue, so the person named below
-          is the one who created it.
+          Polaris can bring it back.
         </p>
 
         {/*
@@ -214,7 +234,7 @@ export function Trash() {
               <tr>
                 <th scope="col">Issue</th>
                 <th scope="col">Team</th>
-                <th scope="col">Created by</th>
+                <th scope="col">Deleted by</th>
                 <th scope="col">
                   <span className={styles.hidden}>Actions</span>
                 </th>
@@ -229,11 +249,13 @@ export function Trash() {
                   </th>
                   <td>{row.team}</td>
                   <td>
-                    <span className={styles.who}>{row.creator}</span>
-                    {/* The last edit, because the deletion's own time is not on the wire. It is
-                        still the most useful thing available for telling two similar rows
-                        apart. */}
-                    <span className={styles.secondary}>Last edited {when(row.updatedAt)}</span>
+                    <span className={styles.who}>{row.deletedBy}</span>
+                    {/* The deletion's own time, which is also what the server sorted on — so
+                        the column and the order the rows are in are the same fact, and a
+                        reader scanning down it is not being shown two different clocks. */}
+                    <span className={styles.secondary}>
+                      {row.deletedAt === undefined ? 'Deleted' : `Deleted ${when(row.deletedAt)}`}
+                    </span>
                   </td>
                   <td className={styles.actions}>
                     <Button

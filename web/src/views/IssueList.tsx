@@ -51,11 +51,15 @@ import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { issueIdsForAdhocList } from '~/features/issue/adhocList';
 import {
   archiveIssues,
+  deleteIssues,
   report,
   setSubscribed,
   updateIssueProperties,
   updateIssues,
 } from '~/features/issue/mutations';
+import { RESTORE_WINDOW_DAYS, restoreIssue } from '~/features/trash/mutations';
+import { offerUndo } from '~/features/undo/UndoToast';
+import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { liveIssueCountForTeam } from '~/features/team/issueLimit';
 import { TeamIssueLimitBanner } from '~/features/team/TeamIssueLimitBanner';
 import {
@@ -264,6 +268,7 @@ interface ListCommands {
   hasRows(): boolean;
   open(): void;
   archive(): void;
+  askDelete(): void;
   exportCsv(): void;
   pickStatus(): void;
   pickAssignee(): void;
@@ -460,6 +465,16 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
   const [insightsOpen, setInsightsOpen] = useState(false);
   const insightsOpenRef = useRef(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  /**
+   * The rows a confirmed delete would take, captured when the dialogue opens.
+   *
+   * Held rather than re-read from `targets` on confirmation, because the two are not the same
+   * set at the two moments. Opening the dialogue moves focus into it, a delta from another
+   * session can land while it is open, and the cursor fallback means an empty selection makes
+   * `targets` whatever row the keyboard happens to be on. The list the user was shown the
+   * count and the identifiers of is the list that gets deleted.
+   */
+  const [pendingDelete, setPendingDelete] = useState<readonly UUID[] | null>(null);
 
   const setInsights = (open: boolean) => {
     insightsOpenRef.current = open;
@@ -509,6 +524,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     hasRows: () => false,
     open: () => {},
     archive: () => {},
+    askDelete: () => {},
     exportCsv: () => {},
     pickStatus: () => {},
     pickAssignee: () => {},
@@ -574,6 +590,13 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     archive: () => {
       if (targets.length === 0) return;
       archiveIssues(engine, targets).catch(report);
+    },
+    // Unlike every other bulk action on this screen, this one asks first. Archiving hides
+    // work and `E` puts it back; this starts a thirty-day clock, and doing it to eleven rows
+    // because the selection was one row wider than it looked is the mistake worth a dialogue.
+    askDelete: () => {
+      if (targets.length === 0) return;
+      setPendingDelete(targets);
     },
     exportCsv: () => {
       const role: ExportRole = viewer?.role ?? 'member';
@@ -686,6 +709,57 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       void copyText(window.location.href);
     },
   };
+
+  /**
+   * Deletes what the dialogue named, and says how to get it back.
+   *
+   * The identifiers are read before the write, because a moment later they are not readable:
+   * the optimistic patch takes the rows out of the replica, so a label built afterwards would
+   * say "Deleted 3 issues" and mean nothing anybody could check.
+   *
+   * The undo restores all of them, and does it with `all` semantics rather than sequentially:
+   * each restore is its own idempotent mutation with its own opId, and one of them failing
+   * should not leave the rest in the trash. A partial failure surfaces through `report` like
+   * any other rejected mutation, and the rows that did come back have come back.
+   */
+  const confirmDelete = (ids: readonly UUID[]) => {
+    setPendingDelete(null);
+    if (ids.length === 0) return;
+
+    const identifiers = ids.flatMap((id) => {
+      const issue = engine.store.get('issue', id);
+      return issue === undefined ? [] : [engine.store.identifierOf(issue)];
+    });
+
+    const only = identifiers.length === 1 ? identifiers[0] : undefined;
+
+    deleteIssues(engine, ids).catch(report);
+    selection.clear();
+    offerUndo({
+      // One issue is named, because that is what the person is thinking of. Several are
+      // counted, because a toast listing eleven identifiers is a toast nobody reads — and the
+      // number is the thing worth checking before pressing the button.
+      label: only === undefined ? `Deleted ${issueCount(ids.length)}` : `Deleted ${only}`,
+      undo: async () => {
+        await Promise.all(ids.map((id) => restoreIssue(engine, id)));
+      },
+    });
+  };
+
+  /**
+   * The identifier to name in the confirmation, or null when there is more than one row.
+   *
+   * Read straight from the store rather than through a live query: the rows are still in the
+   * replica while the dialogue is open — nothing has been written yet — and a delta that took
+   * one of them away underneath an open confirmation is not something the dialogue's *title*
+   * should react to. `confirmDelete` re-reads at the moment of the write.
+   */
+  const deleteSubject = useMemo(() => {
+    if (pendingDelete === null || pendingDelete.length !== 1) return null;
+    const [id] = pendingDelete;
+    const issue = id === undefined ? undefined : engine.store.get('issue', id);
+    return issue === undefined ? null : engine.store.identifierOf(issue);
+  }, [pendingDelete, engine]);
 
   useKeyContext('list');
 
@@ -912,6 +986,24 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         when: 'list',
         group: 'Issues',
         run: () => commands.current.archive(),
+      },
+      {
+        /**
+         * A chord and not a letter, which is the same argument `issueDetail.delete` makes for
+         * having no binding at all. On that screen the neighbours are `s`, `a`, `p` and `e`
+         * and a single key would be a mis-hit away from an issue nobody can find. Here the
+         * action can take a whole selection, so it is worse — and it is also the one the
+         * product documents, so it is bound to the chord the documentation names rather than
+         * left unreachable. Both keys, because the key labelled Delete on an Apple keyboard
+         * reports as Backspace and the one on a PC keyboard does not.
+         */
+        id: 'issueList.delete',
+        title: 'Delete issue',
+        keys: ['mod+Backspace', 'mod+Delete'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => commands.current.hasRows(),
+        run: () => commands.current.askDelete(),
       },
       {
         id: 'issue.copyGitBranchName',
@@ -1321,6 +1413,14 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             Archive
           </Button>
         </Tooltip>
+        {/* Not `danger`, for the same reason the button on the issue's own page is not: this
+            is recoverable for thirty days and offers an undo for the next few seconds. Red is
+            for the things that are not. */}
+        <Tooltip label="Delete" keys="mod+Backspace">
+          <Button variant="ghost" disabled={!canAct} onClick={() => commands.current.askDelete()}>
+            Delete
+          </Button>
+        </Tooltip>
       </div>
 
       <StatusPicker
@@ -1427,6 +1527,28 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
           snooze.hide();
           snoozeIssues(engine, targets, until).catch(report);
         })}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={
+          deleteSubject === null
+            ? `Delete ${issueCount(pendingDelete?.length ?? 0)}?`
+            : `Delete ${deleteSubject}?`
+        }
+        consequence={
+          deleteSubject === null
+            ? `${issueCount(pendingDelete?.length ?? 0)} leave every list and board, for everybody. They keep their comments and their links, and they can be restored from Trash for the next ${RESTORE_WINDOW_DAYS} days — after that they are gone for good.`
+            : `${deleteSubject} leaves every list and board, for everybody. It keeps its comments and its links, and it can be restored from Trash for the next ${RESTORE_WINDOW_DAYS} days — after that it is gone for good.`
+        }
+        confirmLabel={
+          deleteSubject === null
+            ? `Delete ${issueCount(pendingDelete?.length ?? 0)}`
+            : `Delete ${deleteSubject}`
+        }
+        destructive
+        onConfirm={() => confirmDelete(pendingDelete ?? [])}
+        onClose={() => setPendingDelete(null)}
       />
 
       <div className={styles.body}>
@@ -2008,6 +2130,17 @@ function canEstimate(store: Store, targets: readonly UUID[]): boolean {
   if (issue === undefined) return false;
   const team = store.teams.get(issue.teamId);
   return team !== undefined && estimatesEnabled(team);
+}
+
+/**
+ * "3 issues", "1 issue".
+ *
+ * Trivial, and it is here rather than inlined because it is used in four places that must
+ * agree — the dialogue's question, its consequence, its button and the undo toast — and
+ * "Delete 1 issues" in any one of them is how somebody learns not to trust the count.
+ */
+function issueCount(n: number): string {
+  return n === 1 ? '1 issue' : `${n} issues`;
 }
 
 function ArchiveGlyph() {

@@ -420,6 +420,14 @@ export interface Issue {
   readonly completedAt?: Timestamp;
   readonly canceledAt?: Timestamp;
   readonly archivedAt?: Timestamp;
+  /*
+   * There is deliberately no `deletedAt` or `deletedBy` here, although both are on the wire.
+   * This interface is the shape of an issue *in the replica*, and a deleted issue is exactly
+   * what the replica does not hold: the sync stream carries a delete rather than the row, and
+   * every other read filters deleted issues out. A row that had either of them set would be
+   * one this client should already have dropped. The one read that returns deleted rows types
+   * them itself — see `DeletedIssue` in features/trash/mutations.
+   */
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
 }

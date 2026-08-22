@@ -63,7 +63,10 @@ Unsent comments also appear in Drafts.
 - Inline edit by clicking title/description; `E` enters edit mode.
 
 ### Moving an issue between teams
-`Cmd/Ctrl+Shift+M` for one; multi-select then move for bulk. `Cmd/Ctrl+Z` undoes (most fields restore; labels, subscribers, estimates, access-related assignments may not).
+`Cmd/Ctrl+Shift+M` for one; multi-select then move for bulk. `Cmd/Ctrl+Z` undoes **the move** —
+the move is the one structural action undo covers besides deletion, and what comes back is the
+move's own consequences, not whatever was edited afterwards (most fields restore; labels,
+subscribers, estimates and access-related assignments may not).
 
 Field effects on move:
 
@@ -87,9 +90,10 @@ Field effects on move:
 
 ## Deleting
 
-- `Cmd/Ctrl+Delete`, contextual menu, or command menu.
-- Undo with `Cmd/Ctrl+Z`; otherwise recover from Team archives → *Recently deleted issues* → select → `#` to restore.
+- `Cmd/Ctrl+Delete`, contextual menu, or command menu. Acts on the selection, or on the cursor row when nothing is selected, and asks first — naming the issue when there is one and the count when there are several.
+- Undo with `Cmd/Ctrl+Z`; a bulk delete is one undo and the whole selection comes back together. Otherwise recover from Team archives → *Recently deleted issues* → select → `#` to restore.
 - Recently deleted retained **30 days**, then permanent and unrecoverable (including by support).
+- The recovery listing records **who deleted each issue and when**. Both are blank for issues deleted by the retention sweep rather than by a person, and it says so rather than guessing.
 
 ## Auto-close
 
