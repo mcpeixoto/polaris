@@ -13,6 +13,7 @@ import {
   type Change,
   type Entity,
   type EntityType,
+  type FormTemplate,
   type IssueTemplate,
   type Label,
   type OptimisticPatch,
@@ -201,6 +202,26 @@ function answer(mutation: string, variables: Record<string, unknown>): unknown {
       },
     };
   }
+  if (mutation.includes('mutation CreateFormTemplateField')) {
+    const input = variables.input as Record<string, unknown>;
+    return {
+      createFormTemplateField: {
+        version: 2,
+        field: {
+          id: 'field-from-server',
+          workspaceId: WORKSPACE,
+          formTemplateId: input.formTemplateId as UUID,
+          fieldType: input.fieldType as string,
+          label: String(input.label),
+          required: input.required === true,
+          sortOrder: 'z',
+          config: (input.config ?? {}) as Record<string, unknown>,
+          createdAt: AT,
+          updatedAt: AT,
+        },
+      },
+    };
+  }
   return {};
 }
 
@@ -239,6 +260,19 @@ function sent(mutate: ReturnType<typeof engineFor>['mutate'], operation: string)
 /** A scope's section, found by the heading that names it. */
 function section(name: RegExp): HTMLElement {
   return screen.getByRole('region', { name });
+}
+
+function formTemplate(id: UUID, name: string, over: Partial<FormTemplate> = {}): FormTemplate {
+  return {
+    id,
+    workspaceId: WORKSPACE,
+    name,
+    properties: {},
+    position: 'a0',
+    createdAt: AT,
+    updatedAt: AT,
+    ...over,
+  };
 }
 
 /** A trigger and the template picker it opens, wired the way the create dialog wires them. */
@@ -785,5 +819,84 @@ describe('Templates and the create dialog', () => {
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'No template',
     ]);
+  });
+});
+
+/**
+ * The form field editor: the two things a field needs before it can be answered.
+ *
+ * `03-issue-properties.md` says any field can be marked required, and the fill renders a
+ * dropdown out of `config.options`. Neither was reachable from this screen — a required
+ * field could only be made over the API, and a dropdown created here offered nothing but
+ * "Choose…", which with `required` on is a form nobody can submit. Both are asserted on the
+ * mutation because that is what the server stores and what `FormFillFields` reads back.
+ */
+describe('Templates · form template fields', () => {
+  async function openFieldEditor() {
+    const store = storeWith([
+      ...TEAMS,
+      ['formTemplate', formTemplate('f-eng', 'Bug intake', { teamId: ENG })],
+    ]);
+    const mounted = mount(store, <Templates />);
+    await mounted.user.click(screen.getByRole('tab', { name: 'Form' }));
+    await mounted.user.click(within(section(/^Engineering/)).getByRole('button', { name: 'Edit' }));
+    return mounted;
+  }
+
+  it('marks a field required', async () => {
+    const { user, mutate } = await openFieldEditor();
+
+    await user.type(screen.getByLabelText('Field label'), 'Impact');
+    await user.click(screen.getByLabelText('Required'));
+    await user.click(screen.getByRole('button', { name: 'Add field' }));
+
+    await waitFor(() => expect(sent(mutate, 'mutation CreateFormTemplateField')).toBeTruthy());
+    const input = sent(mutate, 'mutation CreateFormTemplateField')!.variables.input as Record<
+      string,
+      unknown
+    >;
+    expect(input.label).toBe('Impact');
+    expect(input.required).toBe(true);
+  });
+
+  it('carries a dropdown’s options, one per line', async () => {
+    const { user, mutate } = await openFieldEditor();
+
+    // The options control appears only for the types that consume it: asking a text field
+    // for a list of choices would be asking for something nothing reads.
+    expect(screen.queryByLabelText('Options')).toBeNull();
+    await user.selectOptions(screen.getByLabelText('Field type'), 'dropdown');
+
+    await user.type(screen.getByLabelText('Field label'), 'Severity');
+    await user.type(screen.getByLabelText('Options'), 'Blocker\nMajor\n\nMinor');
+    await user.click(screen.getByRole('button', { name: 'Add field' }));
+
+    await waitFor(() => expect(sent(mutate, 'mutation CreateFormTemplateField')).toBeTruthy());
+    const input = sent(mutate, 'mutation CreateFormTemplateField')!.variables.input as Record<
+      string,
+      unknown
+    >;
+    expect(input.fieldType).toBe('dropdown');
+    // The blank line is not an option. A select with an empty entry in it is a choice the
+    // filer can make and nobody can read.
+    expect(input.config).toEqual({ options: ['Blocker', 'Major', 'Minor'] });
+  });
+
+  it('clears the add row after a field is added', async () => {
+    const { user } = await openFieldEditor();
+
+    await user.selectOptions(screen.getByLabelText('Field type'), 'dropdown');
+    await user.type(screen.getByLabelText('Field label'), 'Severity');
+    await user.type(screen.getByLabelText('Options'), 'Blocker');
+    await user.click(screen.getByLabelText('Required'));
+    await user.click(screen.getByRole('button', { name: 'Add field' }));
+
+    // A row that kept the last field's label and options is a row that adds the same field
+    // twice the moment somebody presses the button again.
+    await waitFor(() =>
+      expect((screen.getByLabelText('Field label') as HTMLInputElement).value).toBe(''),
+    );
+    expect((screen.getByLabelText('Options') as HTMLTextAreaElement).value).toBe('');
+    expect((screen.getByLabelText('Required') as HTMLInputElement).checked).toBe(false);
   });
 });
