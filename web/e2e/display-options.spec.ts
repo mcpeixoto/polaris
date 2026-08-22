@@ -86,8 +86,14 @@ test('a saved view carries a shared default, and a personal choice outranks it',
   await expect(panel.getByRole('button', { name: 'Set as default' })).toHaveCount(0);
   await page.keyboard.press('Escape');
 
-  await page.goto(`/team/${workspace.teamKey}?filter=priority.in(1,2)`);
+  // A filter that matches the seeded issue, not one that matches nothing: a filter which
+  // has excluded everything renders the "nothing matches this filter" state instead of the
+  // list, and this test wants a filter on so that Save view appears — not an empty screen
+  // to save. It also means the view saved below has an issue in it, so the grouping the
+  // rest of this exercises is grouping of something.
+  await page.goto(`/team/${workspace.teamKey}?filter=title.contains(Gamma)`);
   await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await expect(page.getByRole('option', { name: /Gamma/ })).toBeVisible();
   await page.getByRole('button', { name: 'Save view' }).click();
   const save = page.getByRole('dialog', { name: /save view/i });
   await save.getByLabel(/name/i).fill('Shared view');
