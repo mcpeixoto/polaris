@@ -72,24 +72,6 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
     setSummary(template.summary);
   };
 
-  useKeyContext('modal');
-  useActions(
-    [
-      {
-        id: 'project.create.submit',
-        title: 'Create project',
-        keys: ['mod+Enter'],
-        when: 'modal',
-        group: 'Projects',
-        hidden: true,
-        run: () => {
-          void save();
-        },
-      },
-    ],
-    [],
-  );
-
   const save = async () => {
     const trimmed = name.trim();
     if (trimmed === '') {
@@ -118,6 +100,29 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
       setSaveError(error instanceof ApiError ? error.message : 'Could not create the project');
     }
   };
+
+  // Read through a ref by the registered action below. An action's `run` closure is captured
+  // once, at registration, so an action calling `save` directly would submit the form as it
+  // stood when the dialogue opened — an empty name, and a chord that answers "a project needs
+  // a name" while the name is sitting in the field.
+  const submitRef = useRef<() => void>(() => {});
+  submitRef.current = () => void save();
+
+  useKeyContext('modal');
+  useActions(
+    [
+      {
+        id: 'project.create.submit',
+        title: 'Create project',
+        keys: ['mod+Enter'],
+        when: 'modal',
+        group: 'Projects',
+        hidden: true,
+        run: () => submitRef.current(),
+      },
+    ],
+    [],
+  );
 
   return (
     <Modal
