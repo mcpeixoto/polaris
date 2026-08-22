@@ -102,9 +102,13 @@ function Host(props: ComponentProps<typeof DescriptionEditor>) {
   return <DescriptionEditor {...props} />;
 }
 
-function mount(store: Store, description = 'The auth path is wrong.') {
+function mount(
+  store: Store,
+  description = 'The auth path is wrong.',
+  onSave: (next: string) => void = () => {},
+) {
   const { mutate, engine } = engineFor(store);
-  render(
+  const view = render(
     <KeymapProvider>
       <EngineProvider engine={engine} status={{ phase: 'idle' }}>
         <Host
@@ -113,12 +117,12 @@ function mount(store: Store, description = 'The auth path is wrong.') {
           names={{ [ADA]: 'Ada' }}
           viewerId={ADA}
           enterSubmits={false}
-          onSave={() => {}}
+          onSave={onSave}
         />
       </EngineProvider>
     </KeymapProvider>,
   );
-  return { store, mutate, user: userEvent.setup() };
+  return { store, mutate, view, user: userEvent.setup() };
 }
 
 describe('DescriptionEditor', () => {
@@ -211,5 +215,41 @@ describe('DescriptionEditor', () => {
         String((call[0] as { mutation: string }).mutation).includes('ResolveComment'),
       ),
     ).toBe(true);
+  });
+
+  it('saves an edit when the screen goes away without a blur', async () => {
+    const onSave = vi.fn();
+    const { user, view } = mount(storeWith([]), 'The auth path is wrong.', onSave);
+    const area = screen.getByLabelText('Description') as HTMLTextAreaElement;
+    await user.click(area);
+    await user.type(area, ' Probably.');
+
+    // The back button, a closed tab, a route change: the field is taken away mid-edit and
+    // never blurs. Dropping the text would lose the only copy of it.
+    view.unmount();
+
+    expect(onSave).toHaveBeenCalledWith('The auth path is wrong. Probably.');
+  });
+
+  it('saves an edit when the tab is hidden', async () => {
+    const onSave = vi.fn();
+    const { user } = mount(storeWith([]), 'The auth path is wrong.', onSave);
+    const area = screen.getByLabelText('Description') as HTMLTextAreaElement;
+    await user.click(area);
+    await user.type(area, ' Probably.');
+
+    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    fireEvent(document, new Event('visibilitychange'));
+    hidden.mockRestore();
+
+    expect(onSave).toHaveBeenCalledWith('The auth path is wrong. Probably.');
+  });
+
+  it('does not save when nothing was typed', async () => {
+    const onSave = vi.fn();
+    const { user, view } = mount(storeWith([]), 'The auth path is wrong.', onSave);
+    await user.click(screen.getByLabelText('Description'));
+    view.unmount();
+    expect(onSave).not.toHaveBeenCalled();
   });
 });
