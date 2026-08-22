@@ -10,7 +10,7 @@
  * link, the same thing somebody typed into the filter bar.
  */
 
-import { FILTER_PARAM, toFilterParam, type FilterNode } from '~/filter';
+import { FILTER_PARAM, filterSearchString, toFilterParam, type FilterNode } from '~/filter';
 import type { Store } from '~/store';
 
 const ACTIVE: FilterNode = {
@@ -46,5 +46,7 @@ function pathToFilteredTeam(store: Store, pathname: string, filter: FilterNode):
 
   const params = new URLSearchParams();
   params.set(FILTER_PARAM, toFilterParam(filter));
-  return `/team/${team.key}?${params.toString()}`;
+  // Not `params.toString()`: that escapes the grammar's own parentheses and commas, and the
+  // link this returns is one somebody copies out of the address bar.
+  return `/team/${team.key}${filterSearchString(params)}`;
 }

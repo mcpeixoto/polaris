@@ -1691,7 +1691,19 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       />
 
       <div className={styles.body}>
-        {rows.length === 0 ? (
+        {/*
+         * `rows` and not `view.count`, because an empty group is still a row and an empty
+         * column is information — "nothing is in review" is a fact somebody wants to see.
+         *
+         * But that padding is exactly what hid the other half of this. Grouping by status
+         * in a team-scoped view adds a group per status whether or not anything is in it,
+         * so `rows` was never empty there and the filtered message below was unreachable
+         * from the default view: four clauses that matched nothing left five zero-count
+         * headers, no explanation, and no way back. Grouping by assignee in the same view
+         * showed the message, which is worse than either answer on its own. So a filter
+         * that has excluded everything says so, wherever it is grouped.
+         */}
+        {rows.length === 0 || (filtered && view.count === 0) ? (
           <EmptyState
             className={styles.empty}
             title={
