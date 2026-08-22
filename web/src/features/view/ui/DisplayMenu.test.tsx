@@ -19,9 +19,20 @@ import { DisplayMenu } from './DisplayMenu';
  * and it is why every assertion below is on the argument rather than on the rendering.
  */
 
-function renderMenu(display: Partial<DisplayOptions> = {}, triage = false) {
+interface MenuOptions {
+  readonly triage?: boolean;
+  /** What this screen looks like fresh, when it is not the product's defaults. */
+  readonly defaults?: Partial<DisplayOptions>;
+  /** Present makes the screen one with a shared default to write — a saved view. */
+  readonly withSetDefault?: boolean;
+  readonly canSetDefault?: boolean;
+}
+
+function renderMenu(display: Partial<DisplayOptions> = {}, options: MenuOptions = {}) {
+  const { triage = false, defaults, withSetDefault = false, canSetDefault = true } = options;
   const onChange = vi.fn();
   const onClose = vi.fn();
+  const onSetDefault = vi.fn();
 
   function Harness() {
     // A real trigger, because the panel positions against it and hands focus back to it.
@@ -33,11 +44,14 @@ function renderMenu(display: Partial<DisplayOptions> = {}, triage = false) {
         </button>
         <DisplayMenu
           display={{ ...DEFAULT_DISPLAY, ...display }}
+          defaults={defaults === undefined ? undefined : { ...DEFAULT_DISPLAY, ...defaults }}
           onChange={onChange}
           open
           onClose={onClose}
           trigger={trigger}
           triage={triage}
+          onSetDefault={withSetDefault ? onSetDefault : undefined}
+          canSetDefault={canSetDefault}
         />
       </>
     );
@@ -49,7 +63,7 @@ function renderMenu(display: Partial<DisplayOptions> = {}, triage = false) {
     </KeymapProvider>,
   );
 
-  return { onChange, onClose, user: userEvent.setup() };
+  return { onChange, onClose, onSetDefault, user: userEvent.setup() };
 }
 
 describe('DisplayMenu', () => {
@@ -96,7 +110,7 @@ describe('DisplayMenu', () => {
   });
 
   it('writes show-snoozed from the triage inbox', async () => {
-    const { user, onChange } = renderMenu({}, true);
+    const { user, onChange } = renderMenu({}, { triage: true });
     await user.click(screen.getByRole('checkbox', { name: 'Show snoozed' }));
     expect(onChange).toHaveBeenCalledWith({ showSnoozed: true });
   });
@@ -173,6 +187,62 @@ describe('DisplayMenu', () => {
     renderMenu({ orderBy: 'manual', groupBy: 'state' });
 
     expect(screen.queryByRole('note')).toBeNull();
+  });
+
+  /**
+   * "Set as default" is about everybody else, so it only exists where there is a shared row
+   * to write it to. A team's issue list has none — drawing the button there and quietly
+   * writing a personal preference would leave the person who pressed it believing the team
+   * had been moved.
+   */
+  it('offers no "Set as default" on a screen with no shared default', () => {
+    renderMenu();
+    expect(screen.queryByRole('button', { name: 'Set as default' })).toBeNull();
+  });
+
+  it('saves the current options as the shared default when the screen has one', async () => {
+    const { user, onSetDefault } = renderMenu({ groupBy: 'assignee' }, { withSetDefault: true });
+
+    await user.click(screen.getByRole('button', { name: 'Set as default' }));
+
+    expect(onSetDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it('has nothing to save when the screen already matches its default', () => {
+    renderMenu({}, { withSetDefault: true, canSetDefault: false });
+
+    expect(screen.getByRole('button', { name: 'Set as default' }).hasAttribute('disabled')).toBe(
+      true,
+    );
+  });
+
+  /**
+   * On a saved view the product's defaults are not the ones the reader is being returned to,
+   * and a menu that named the wrong one would send somebody looking for a setting they never
+   * changed.
+   */
+  it("names the screen's own default rather than the product's", () => {
+    renderMenu({ groupBy: 'priority' }, { defaults: { groupBy: 'assignee' } });
+
+    expect(screen.getByText('1 changed')).toBeTruthy();
+    expect(screen.getByText('Default: Assignee')).toBeTruthy();
+  });
+
+  it("resets to the screen's own default", async () => {
+    const { user, onChange } = renderMenu(
+      { groupBy: 'priority' },
+      { defaults: { groupBy: 'assignee' } },
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Reset to default' }));
+
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_DISPLAY, groupBy: 'assignee' });
+  });
+
+  it('counts nothing as changed when the screen matches its own default', () => {
+    renderMenu({ groupBy: 'assignee' }, { defaults: { groupBy: 'assignee' } });
+
+    expect(screen.getByText('All defaults')).toBeTruthy();
   });
 
   it('closes on Escape through the keymap rather than a handler of its own', async () => {

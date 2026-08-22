@@ -6,6 +6,12 @@
  * way. Everything after that is the ordinary list — the same filter bar, the same display
  * menu, the same board.
  *
+ * The filter and nothing else. The view's saved *display* is handled a layer down, by
+ * `useView`, because it is only one of three possible answers there — below whatever the
+ * reader has remembered for this screen and below the URL. Seeding it from here as well made
+ * this effect and that fallback race to write the same parameters, and the shared default won
+ * on every visit.
+ *
  * The alternative was to pass the view's filter down as a prop and let the list render it
  * without touching the address bar. That is less code and it is wrong, for three reasons that
  * only show up later:
@@ -29,7 +35,7 @@
 import { useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 
-import { DISPLAY_PARAMS, FILTER_PARAM, toDisplayParams, toFilterParam } from '~/filter';
+import { FILTER_PARAM, toFilterParam } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 
@@ -43,7 +49,7 @@ export function SavedView() {
     (store) => {
       const view = store.views.get(viewId);
       if (view === undefined) return null;
-      return { filter: toFilterParam(view.filter), display: toDisplayParams(view.display) };
+      return { filter: toFilterParam(view.filter) };
     },
     ['view'],
     [viewId],
@@ -59,8 +65,6 @@ export function SavedView() {
 
     const next = new URLSearchParams(params);
     if (saved.filter !== '') next.set(FILTER_PARAM, saved.filter);
-    for (const name of Object.values(DISPLAY_PARAMS)) next.delete(name);
-    for (const [name, value] of Object.entries(saved.display)) next.set(name, value);
 
     // `replace`: arriving at a view and being sent to the same view with its filter spelled
     // out is one navigation from the user's point of view, and a back button that returns to

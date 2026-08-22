@@ -95,7 +95,12 @@ import { InsightsPanel } from '~/features/insights/InsightsPanel';
 import { Board } from '~/features/view/ui/Board';
 import { DisplayMenu } from '~/features/view/ui/DisplayMenu';
 import { FilterBar } from '~/features/view/ui/FilterBar';
-import { useView, type ViewGroup } from '~/features/view/ui/useView';
+import {
+  displayOverrides,
+  displaySignature,
+  useView,
+  type ViewGroup,
+} from '~/features/view/ui/useView';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useSelection } from '~/hooks/useSelection';
@@ -295,6 +300,9 @@ interface ListCommands {
   toggleInsights(): void;
   saveView(): void;
   copyViewLink(): void;
+  openDisplay(): void;
+  toggleLayout(): void;
+  canBoard(): boolean;
 }
 
 export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}) {
@@ -324,6 +332,19 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
                 : source.kind === 'adhoc'
                   ? `adhoc:${source.identifiers.join(',')}`
                   : `view:${source.viewId}`;
+
+  /**
+   * What this screen's display options are remembered under, or nothing.
+   *
+   * The source key already names the screen, so it is reused rather than invented a second
+   * time — two spellings of "the ENG issue list" would be two preferences, and the one you
+   * set would be the one you did not get.
+   *
+   * The ad-hoc list is excluded because its key *is* the set of identifiers in its URL: every
+   * link somebody opened would leave behind a row that can never apply to anything again, and
+   * the identifiers are unbounded where the server's key is not.
+   */
+  const preferenceKey = source.kind === 'adhoc' ? undefined : sourceKey;
   const includeCompleted = source.kind === 'assignee' && source.includeCompleted === true;
   const inTriage = source.kind === 'triage';
   const [searchParams] = useSearchParams();
@@ -353,7 +374,15 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       if (viewId === null) return null;
       const row = store.views.get(viewId);
       if (row === undefined) return null;
-      return { ownerId: row.ownerId, teamId: row.teamId };
+      return {
+        ownerId: row.ownerId,
+        teamId: row.teamId,
+        display: row.display,
+        // The saved display as its encoded form too, so "already the default" is one string
+        // comparison rather than a field-by-field walk that would have to be kept in step
+        // with `DisplayOptions` every time an option is added.
+        signature: displaySignature(row.display),
+      };
     },
     ['view'],
     [viewId],
@@ -413,7 +442,34 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     now: inTriage ? now : undefined,
     sourceFilter: inTriage ? TRIAGE_SOURCE_FILTER : undefined,
     teamId: scope.team?.id,
+    preferenceKey,
+    defaultDisplay: savedMeta?.display,
   });
+
+  /**
+   * Saves what is on screen as the view's own display options.
+   *
+   * The one "default" on this screen that is not merely personal: `View.display` is what
+   * `SavedView` seeds the URL from, so it is what *everybody* who opens the view gets. Every
+   * control in the display menu already remembers itself for the person using it, which is
+   * why this button is about other people or it is about nothing.
+   *
+   * Undefined — and so not drawn — on the screens that are routes rather than rows. A team's
+   * issue list, My Issues and a project's issues have nowhere shared to write it: the only
+   * store for remembered options is `ViewPreference`, which is unique per person by
+   * construction. A button there would promise a workspace default the schema cannot keep.
+   */
+  const setViewDefault = useMemo(
+    () =>
+      viewId === null || viewer === null || viewer.role === 'guest'
+        ? undefined
+        : () => {
+            void updateView(engine, viewId, {
+              display: displayOverrides(view.display),
+            }).catch(report);
+          },
+    [engine, viewId, viewer, view.display],
+  );
 
   const groups = view.groups;
   const rows = useMemo(() => rowsOf(groups), [groups]);
@@ -578,6 +634,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     toggleInsights: () => {},
     saveView: () => {},
     copyViewLink: () => {},
+    openDisplay: () => {},
+    toggleLayout: () => {},
+    canBoard: () => false,
   });
 
   const step = (delta: number): UUID | null => {
@@ -735,6 +794,12 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     copyViewLink: () => {
       void copyText(window.location.href);
     },
+    openDisplay: () => display.show(),
+    // The current layout is read here rather than closed over at registration, so the chord
+    // toggles rather than repeatedly setting whatever the layout happened to be on mount.
+    toggleLayout: () =>
+      view.setDisplay({ layout: view.display.layout === 'board' ? 'list' : 'board' }),
+    canBoard: () => !inTriage,
   };
 
   /**
@@ -1081,6 +1146,26 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         group: 'Views',
         run: () => commands.current.copyViewLink(),
       },
+      {
+        id: 'view.openDisplay',
+        title: 'Display options',
+        keys: ['shift+v'],
+        when: 'list',
+        group: 'Views',
+        run: () => commands.current.openDisplay(),
+      },
+      {
+        id: 'view.toggleLayout',
+        title: 'Toggle list / board layout',
+        keys: ['mod+b'],
+        when: 'list',
+        group: 'Views',
+        // Triage is a list because `H` snoozes the row under the cursor and a board has no
+        // cursor. Disabled rather than absent, so the chord still reports itself in the help
+        // overlay on every screen rather than appearing to be unbound on one of them.
+        enabled: () => commands.current.canBoard(),
+        run: () => commands.current.toggleLayout(),
+      },
     ],
     // `estimatesPossible` too, because it decides whether one of these actions is in the list
     // at all: a team turning estimates on has to re-register the keymap, or `⇧E` stays unbound
@@ -1264,11 +1349,14 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
 
       <DisplayMenu
         display={view.display}
+        defaults={view.defaults}
         onChange={view.setDisplay}
         open={display.open}
         onClose={display.hide}
         trigger={display.ref}
         triage={inTriage}
+        onSetDefault={setViewDefault}
+        canSetDefault={savedMeta !== null && savedMeta.signature !== displaySignature(view.display)}
       />
 
       {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (

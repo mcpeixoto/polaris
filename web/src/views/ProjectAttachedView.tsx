@@ -1,14 +1,15 @@
 /**
  * A project-attached view — the issue list scoped to the project and the saved filter.
  *
- * Same bargain as `SavedView`: on arrival with a bare URL, seed the filter and display from
- * the saved view row, then let `IssueList` read the URL like every other screen.
+ * Same bargain as `SavedView`: on arrival with a bare URL, seed the filter from the saved view
+ * row, then let `IssueList` read the URL like every other screen. The view's saved *display*
+ * is not seeded here — `useView` resolves it, below the reader's own remembered options.
  */
 
 import { useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 
-import { DISPLAY_PARAMS, FILTER_PARAM, toDisplayParams, toFilterParam } from '~/filter';
+import { FILTER_PARAM, toFilterParam } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 
@@ -22,7 +23,7 @@ export function ProjectAttachedView() {
     (store) => {
       const view = store.views.get(viewId);
       if (view === undefined || view.projectId !== projectId) return null;
-      return { filter: toFilterParam(view.filter), display: toDisplayParams(view.display) };
+      return { filter: toFilterParam(view.filter) };
     },
     ['view'],
     [viewId, projectId],
@@ -35,8 +36,6 @@ export function ProjectAttachedView() {
 
     const next = new URLSearchParams(params);
     if (saved.filter !== '') next.set(FILTER_PARAM, saved.filter);
-    for (const name of Object.values(DISPLAY_PARAMS)) next.delete(name);
-    for (const [name, value] of Object.entries(saved.display)) next.set(name, value);
 
     setParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
