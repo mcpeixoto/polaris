@@ -12,6 +12,7 @@ import { useActions } from '~/app/keymap';
 import { Button, IconButton, Input } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { formatSubtitle } from '~/features/attachments/tokens';
+import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Attachment, UUID } from '~/store';
 
@@ -53,7 +54,12 @@ export function Links({ issueId }: { issueId: UUID }) {
     event.preventDefault();
     const trimmed = url.trim();
     if (trimmed === '') return;
-    void createAttachment(engine, { issueId, url: trimmed, title: title.trim() || undefined });
+    // `report`, not `void`: the server refuses a URL it cannot parse and one over 2048
+    // characters, and a floating promise that rejects is an unhandled rejection nobody
+    // reads rather than a line in the console.
+    createAttachment(engine, { issueId, url: trimmed, title: title.trim() || undefined }).catch(
+      report,
+    );
     setUrl('');
     setTitle('');
   };
@@ -123,7 +129,7 @@ export function Links({ issueId }: { issueId: UUID }) {
         confirmLabel="Remove"
         destructive
         onConfirm={() => {
-          if (removing !== null) void deleteAttachment(engine, removing.id);
+          if (removing !== null) deleteAttachment(engine, removing.id).catch(report);
           setRemoving(null);
         }}
         onClose={() => setRemoving(null)}

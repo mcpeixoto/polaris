@@ -6,9 +6,8 @@
  * by a client-minted id that the server's response then replaces.
  */
 
-import { fromWire } from '~/gql/enums';
 import { CREATE_ATTACHMENT, DELETE_ATTACHMENT } from '~/gql/operations';
-import { uuidv7, type Attachment, type EntityOf, type EntityPatch, type UUID } from '~/store';
+import { uuidv7, type Attachment, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -35,7 +34,7 @@ export async function createAttachment(engine: SyncEngine, input: NewAttachment)
   };
 
   try {
-    const data = await engine.mutate<{ createAttachment: { attachment: Attachment } }>({
+    await engine.mutate<{ createAttachment: { attachment: Attachment } }>({
       mutation: CREATE_ATTACHMENT,
       variables: {
         input: {
@@ -47,16 +46,27 @@ export async function createAttachment(engine: SyncEngine, input: NewAttachment)
         },
       },
       optimistic: [{ type: 'attachment', id: provisional.id, before: null, after: provisional }],
+      // The API mints an attachment's id, so the stand-in has to be swapped for the real
+      // row — and the swap has to be reachable from somewhere other than this `await`.
+      // Doing it after the await only works when this call is still alive to see the
+      // response: leave the issue before it lands, or take a 429 or an offline blip that
+      // sends the mutation to the outbox, and nothing ever pairs the two. The stand-in is
+      // persisted like any other write, so it survives the reload, and the real row then
+      // arrives on the delta stream beside it — one link, two cards, for good. Declared
+      // rather than done, so `SyncEngine.settle` runs it from the outbox too.
+      reconcile: {
+        type: 'attachment',
+        provisionalId: provisional.id,
+        path: ['createAttachment', 'attachment'],
+        // And the same row off the delta stream, which usually gets here first — see
+        // `adopt`. Issue and URL are exactly the pair the server holds unique, so a match
+        // here is not a near-miss. It is a match on the URL *as typed*: the server lower
+        // cases the scheme and the host, so a link pasted in mixed case falls through to
+        // the response instead, which is the slower half of the same answer rather than a
+        // wrong one.
+        match: ['issueId', 'url'],
+      },
     });
-    const real = fromWire('attachment', data.createAttachment.attachment as EntityOf<'attachment'>);
-    const existing = store.get('attachment', real.id) ?? null;
-    const patch: EntityPatch[] = [
-      { type: 'attachment', id: real.id, before: existing, after: real },
-    ];
-    if (real.id !== provisional.id) {
-      patch.unshift({ type: 'attachment', id: provisional.id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
