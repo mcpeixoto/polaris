@@ -20,6 +20,7 @@ icon has to survive a Windows taskbar and a favicon.
 """
 
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -184,9 +185,17 @@ def main():
     for base in (16, 32, 128, 256, 512):
         icon.resize((base, base), Image.LANCZOS).save(iconset / f'icon_{base}x{base}.png')
         icon.resize((base * 2, base * 2), Image.LANCZOS).save(iconset / f'icon_{base}x{base}@2x.png')
-    subprocess.run(
-        ['iconutil', '-c', 'icns', str(iconset), '-o', str(HERE / 'icon.icns')], check=True,
-    )
+    # iconutil ships with Xcode and exists nowhere else, so the .icns is buildable only on
+    # macOS. The Linux and Windows runners need the .png and the .ico this script also
+    # writes, and electron-builder never reads an .icns on those platforms — so a missing
+    # iconutil is a skip, not a failure. It used to be `check=True` unconditionally, which
+    # failed the Desktop workflow on two of its three runners.
+    if shutil.which('iconutil'):
+        subprocess.run(
+            ['iconutil', '-c', 'icns', str(iconset), '-o', str(HERE / 'icon.icns')], check=True,
+        )
+    else:
+        print('iconutil not found — skipping icon.icns (macOS-only artefact)')
     for f in iconset.iterdir():
         f.unlink()
     iconset.rmdir()

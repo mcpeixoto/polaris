@@ -38,10 +38,16 @@ function collectPageErrors(page: Page): string[] {
   return errors;
 }
 
-/** ⌘K is the shell's keymap in one keystroke: if it answers, `registerAll` survived. */
+/**
+ * ⌘K is the shell's keymap in one keystroke: if it answers, `registerAll` survived.
+ *
+ * `ControlOrMeta` rather than `Meta`, because `Mod` in a key spec resolves to ⌘ only on
+ * Apple hardware and to Ctrl everywhere else — see matcher.ts. Pressing `Meta+k` on Linux
+ * therefore answers nothing at all, and this test read that as every screen being dead.
+ */
 async function commandMenuOpens(page: Page): Promise<boolean> {
   const menu = page.getByRole('dialog', { name: /command menu/i });
-  await page.keyboard.press('Meta+k');
+  await page.keyboard.press('ControlOrMeta+k');
   try {
     await expect(menu).toBeVisible({ timeout: 3000 });
   } catch {

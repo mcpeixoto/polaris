@@ -25,6 +25,7 @@ import {
   setWorkspace,
   type Workspace,
 } from '~/sync/api';
+import { prefetchViewerId } from '~/hooks/useViewer';
 import { shouldAttemptDevSession } from '~/sync/endpoint';
 import { SyncEngine, type EngineStatus } from '~/sync/engine';
 import { isOutdatedClientMessage } from '~/sync/outdated-client';
@@ -88,6 +89,11 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
 
     rememberWorkspace(workspace.id);
     setWorkspace(workspace.id);
+    // Ask who the viewer is now rather than when a screen first needs it. It is one
+    // request per workspace per session, and the screens that need it register their
+    // actions disabled until it answers — so asking late is a keystroke that silently
+    // does nothing on a page that looks ready.
+    prefetchViewerId(workspace.id);
 
     const engine = new SyncEngine(workspace.id, { onStatus: setStatus });
     engineRef.current = engine;

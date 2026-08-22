@@ -76,7 +76,12 @@ export async function setProjectSubscription(
       },
       optimistic: [{ type: 'projectSubscription', id: after.id, before, after }],
     });
-    swapRow(store, 'projectSubscription', after.id, data.setProjectSubscription.projectSubscription);
+    swapRow(
+      store,
+      'projectSubscription',
+      after.id,
+      data.setProjectSubscription.projectSubscription,
+    );
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -205,14 +210,21 @@ export async function setCustomerSubscription(
       },
       optimistic: [{ type: 'customerSubscription', id: after.id, before, after }],
     });
-    swapRow(store, 'customerSubscription', after.id, data.setCustomerSubscription.customerSubscription);
+    swapRow(
+      store,
+      'customerSubscription',
+      after.id,
+      data.setCustomerSubscription.customerSubscription,
+    );
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
   }
 }
 
-function swapRow<T extends 'projectSubscription' | 'initiativeSubscription' | 'customerSubscription'>(
+function swapRow<
+  T extends 'projectSubscription' | 'initiativeSubscription' | 'customerSubscription',
+>(
   store: SyncEngine['store'],
   type: T,
   provisionalId: UUID,

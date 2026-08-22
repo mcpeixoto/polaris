@@ -164,11 +164,10 @@ export function SlackSettings() {
             Channel notifications and slash commands
           </h2>
           <p className={styles.sectionHint}>
-            Paste a Slack incoming-webhook URL to post issue and comment events to a channel.
-            Slash commands create or comment on issues; <code>/asks</code> and a leading 🎫 file
-            a triage Ask when that is on in Settings → Asks. Link unfurls and magic-word linkbacks
-            need a Slack app. Bot token and signing secret live in process env, not in this
-            workspace.
+            Paste a Slack incoming-webhook URL to post issue and comment events to a channel. Slash
+            commands create or comment on issues; <code>/asks</code> and a leading 🎫 file a triage
+            Ask when that is on in Settings → Asks. Link unfurls and magic-word linkbacks need a
+            Slack app. Bot token and signing secret live in process env, not in this workspace.
           </p>
         </section>
 

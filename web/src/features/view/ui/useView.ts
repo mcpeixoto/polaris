@@ -251,11 +251,7 @@ function computeView(
 ): ViewResult {
   const combined =
     sourceFilter === undefined ? filter : { conj: 'and' as const, nodes: [sourceFilter, filter] };
-  const matched = filterIssues(
-    source,
-    combined,
-    filterContextFor(store, clock, { hideCustomers }),
-  );
+  const matched = filterIssues(source, combined, filterContextFor(store, clock, { hideCustomers }));
 
   let issues: Issue[] = [];
   for (const id of matched) {

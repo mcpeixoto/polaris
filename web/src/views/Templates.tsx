@@ -745,14 +745,18 @@ function TemplateEditor({ scope, template, onSave, onCancel }: TemplateEditorPro
             placeholder="Write the repro steps"
             autoComplete="off"
             onChange={(event) => setSubIssueDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter') return;
-              event.preventDefault();
-              const trimmed = subIssueDraft.trim();
-              if (trimmed === '') return;
-              setSubIssues([...subIssues, trimmed]);
-              setSubIssueDraft('');
-            }}
+            onKeyDown={
+              /* keymap-lint-allow: Enter adds a sub-issue instead of saving the enclosing form */ (
+                event,
+              ) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                const trimmed = subIssueDraft.trim();
+                if (trimmed === '') return;
+                setSubIssues([...subIssues, trimmed]);
+                setSubIssueDraft('');
+              }
+            }
           />
           <Button
             onClick={() => {

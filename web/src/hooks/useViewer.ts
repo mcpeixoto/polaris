@@ -32,12 +32,26 @@ interface ViewerResponse {
  */
 const pending = new Map<string, Promise<UUID | null>>();
 
+/**
+ * The answers that have already arrived, so a later mount is synchronous.
+ *
+ * Without this, every screen that needs the viewer starts life not knowing who it is —
+ * including on the tenth navigation of a session, long after the question was answered.
+ * Actions gated on it (`i`, `⇧S`) are registered disabled for that window and swallow the
+ * keystroke silently, on a screen that looks completely ready. It is a small window on a
+ * developer's machine and a wide one on a loaded CI runner, which is where it was caught.
+ */
+const resolved = new Map<string, UUID | null>();
+
 function viewerIdFor(workspaceId: string): Promise<UUID | null> {
   const existing = pending.get(workspaceId);
   if (existing !== undefined) return existing;
 
   const request = gql<ViewerResponse>(VIEWER_QUERY)
-    .then((data) => data.viewer.user.id)
+    .then((data) => {
+      resolved.set(workspaceId, data.viewer.user.id);
+      return data.viewer.user.id;
+    })
     .catch(() => {
       // A failure is not cached. The usual cause is the network, and a client that gave up
       // on knowing who it is for the rest of the session would keep posting comments signed
@@ -50,10 +64,22 @@ function viewerIdFor(workspaceId: string): Promise<UUID | null> {
   return request;
 }
 
+/**
+ * Asks for the viewer's id ahead of the screen that needs it.
+ *
+ * Called once the replica is open, so that the first render of the first screen already
+ * has an answer instead of racing one.
+ */
+export function prefetchViewerId(workspaceId: string): void {
+  void viewerIdFor(workspaceId);
+}
+
 /** The signed-in user's id, or null until the answer arrives. */
 export function useViewerId(): UUID | null {
   const workspaceId = currentWorkspace();
-  const [id, setId] = useState<UUID | null>(null);
+  const [id, setId] = useState<UUID | null>(() =>
+    workspaceId === null ? null : (resolved.get(workspaceId) ?? null),
+  );
 
   useEffect(() => {
     if (workspaceId === null) return;

@@ -14,7 +14,11 @@ import { Sessions } from './Sessions';
 
 vi.mock('~/sync/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('~/sync/api')>();
-  return { ...actual, gql: vi.fn(), auth: { ...actual.auth, logout: vi.fn().mockResolvedValue(undefined) } };
+  return {
+    ...actual,
+    gql: vi.fn(),
+    auth: { ...actual.auth, logout: vi.fn().mockResolvedValue(undefined) },
+  };
 });
 
 const sent = vi.mocked(gql);

@@ -154,8 +154,15 @@ jobs:
         run: |
           go build -o /tmp/polaris-api ./cmd/api
           go build -o /tmp/polaris-sync ./cmd/sync
-          /tmp/polaris-api  > /tmp/api.log  2>&1 &
-          /tmp/polaris-sync > /tmp/sync.log 2>&1 &
+          # The worker too. Inbox rows are not written by the mutation that causes them —
+          # domain.FanOutAll reads the change stream on a ticker in cmd/worker, and nothing
+          # else calls it. Without this process an inbox is empty forever, so every
+          # notification assertion in the suite failed here while passing on a developer's
+          # machine, where the whole stack is up.
+          go build -o /tmp/polaris-worker ./cmd/worker
+          /tmp/polaris-api    > /tmp/api.log    2>&1 &
+          /tmp/polaris-sync   > /tmp/sync.log   2>&1 &
+          /tmp/polaris-worker > /tmp/worker.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:8088/healthz && break
             sleep 1
@@ -166,7 +173,7 @@ jobs:
 
       - name: Server logs on failure
         if: failure()
-        run: tail -200 /tmp/api.log /tmp/sync.log
+        run: tail -200 /tmp/api.log /tmp/sync.log /tmp/worker.log
 
       - uses: actions/upload-artifact@v4
         if: failure()

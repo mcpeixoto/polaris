@@ -283,11 +283,13 @@ describe('buildInsights', () => {
       }),
     ]);
     const byCustomer = buildInsights(store, ['i1', 'i2'], 'count', 'customer');
-    expect(byCustomer.buckets.map((bucket) => [bucket.label, bucket.value, bucket.filter])).toEqual([
-      ['Acme', 1, { field: 'customer', op: 'eq', values: ['acme'] }],
-      ['Beta Co', 1, { field: 'customer', op: 'eq', values: ['beta'] }],
-      ['No customer', 1, { field: 'customerCount', op: 'eq', values: ['0'] }],
-    ]);
+    expect(byCustomer.buckets.map((bucket) => [bucket.label, bucket.value, bucket.filter])).toEqual(
+      [
+        ['Acme', 1, { field: 'customer', op: 'eq', values: ['acme'] }],
+        ['Beta Co', 1, { field: 'customer', op: 'eq', values: ['beta'] }],
+        ['No customer', 1, { field: 'customerCount', op: 'eq', values: ['0'] }],
+      ],
+    );
     const byTier = buildInsights(store, ['i1', 'i2'], 'count', 'customerTier');
     expect(byTier.buckets.map((bucket) => bucket.label).sort()).toEqual([
       'Enterprise',

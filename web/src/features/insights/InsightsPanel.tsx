@@ -50,10 +50,17 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
 
   const data = useLiveQuery(
     (store) =>
-      buildInsights(store, issueIds, measure, slices.includes(slice) ? slice : 'assignee', Date.now(), {
-        includeArchived,
-        burnPeriod,
-      }),
+      buildInsights(
+        store,
+        issueIds,
+        measure,
+        slices.includes(slice) ? slice : 'assignee',
+        Date.now(),
+        {
+          includeArchived,
+          burnPeriod,
+        },
+      ),
     [
       'issue',
       'team',

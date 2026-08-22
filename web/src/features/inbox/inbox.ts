@@ -336,11 +336,7 @@ export const DEFAULT_INBOX_DISPLAY: InboxDisplay = { showRead: true, showSnoozed
  * awake set, which is what the badge counts. `showRead` hides dealt-with rows so the
  * inbox can be worked as a queue rather than a log.
  */
-export function visibleNotificationIds(
-  store: Store,
-  now: number,
-  display: InboxDisplay,
-): UUID[] {
+export function visibleNotificationIds(store: Store, now: number, display: InboxDisplay): UUID[] {
   const rows: Notification[] = [];
   for (const row of store.notifications.values()) {
     if (row.readAt !== undefined && !display.showRead) continue;

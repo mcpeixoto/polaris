@@ -162,7 +162,11 @@ export function CustomerDetail() {
             <SubscribeBell
               menuLabel="Customer notifications"
               flags={[
-                { id: 'requestAdded', label: 'A request is added', on: watch?.requestAdded === true },
+                {
+                  id: 'requestAdded',
+                  label: 'A request is added',
+                  on: watch?.requestAdded === true,
+                },
                 {
                   id: 'requestImportant',
                   label: 'A request is marked important',

@@ -39,16 +39,14 @@ function team(id: string, key: string, name: string): Team {
 function storeWith(...teams: Team[]): Store {
   const store = new Store(WORKSPACE);
   store.applyChanges(
-    teams.map(
-      (row, index): Change => ({
-        v: index + 1,
-        type: 'team',
-        id: row.id,
-        op: 'upsert',
-        actor: { type: 'system' },
-        payload: row,
-      }),
-    ),
+    teams.map((row, index): Change => ({
+      v: index + 1,
+      type: 'team',
+      id: row.id,
+      op: 'upsert',
+      actor: { type: 'system' },
+      payload: row,
+    })),
   );
   return store;
 }

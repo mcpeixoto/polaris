@@ -100,8 +100,8 @@ export function AuthorisedApps() {
             Apps you have allowed
           </h2>
           <p className={styles.sectionHint}>
-            Each row is a third-party application you authorised in this workspace. Revoking
-            retires every live token you granted it. Tokens themselves never appear here.
+            Each row is a third-party application you authorised in this workspace. Revoking retires
+            every live token you granted it. Tokens themselves never appear here.
           </p>
         </section>
 

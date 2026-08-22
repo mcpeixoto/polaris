@@ -8,7 +8,8 @@
 
 import type { Store, UUID } from '~/store';
 
-export type ProjectCustomerFilter = 'all' | 'any' | 'none' | `customer:${string}` | `tier:${string}`;
+export type ProjectCustomerFilter =
+  'all' | 'any' | 'none' | `customer:${string}` | `tier:${string}`;
 
 export function matchesProjectCustomerFilter(
   store: Store,

@@ -47,7 +47,14 @@ export function ProjectTimeline({
       'customer',
       'customerRequest',
     ],
-    [teamId ?? '', depFilter, customerFilter, display.zoom, display.showMilestones, display.showDependencies],
+    [
+      teamId ?? '',
+      depFilter,
+      customerFilter,
+      display.zoom,
+      display.showMilestones,
+      display.showDependencies,
+    ],
   );
 
   if (data.bars.length === 0 && data.unscheduled.length === 0) {

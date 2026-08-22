@@ -107,7 +107,8 @@ function customerIndex(store: Store): {
     if (customer === undefined || customer.deletedAt !== undefined) continue;
     addToSet(customers, issueId, customer.id);
     addToSet(statuses, issueId, customer.status);
-    if (customer.tier !== undefined && customer.tier !== '') addToSet(tiers, issueId, customer.tier);
+    if (customer.tier !== undefined && customer.tier !== '')
+      addToSet(tiers, issueId, customer.tier);
     if (customer.revenue !== undefined) addNumber(revenues, issueId, customer.revenue);
     if (customer.size !== undefined) addNumber(sizes, issueId, customer.size);
   }

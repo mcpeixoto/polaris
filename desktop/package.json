@@ -3,6 +3,7 @@
   "productName": "Polaris",
   "description": "Polaris — the issue tracker for people who live in it.",
   "author": "Peixoto Labs",
+  "homepage": "https://github.com/mcpeixoto/polaris",
   "private": true,
   "version": "0.0.0",
   "license": "AGPL-3.0-only",
