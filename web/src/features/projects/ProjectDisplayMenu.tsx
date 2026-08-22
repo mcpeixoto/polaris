@@ -10,11 +10,11 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useActions, useKeyContext } from '~/app/keymap';
 import { Button, Checkbox, Select } from '~/components';
 import {
   changedProjectDisplayCount,
@@ -69,6 +69,42 @@ export function ProjectDisplayMenu({
 
   const changed = changedProjectDisplayCount(display);
 
+  /**
+   * What the registered Escape reads. The registry captures `run` once, at registration, so
+   * a closure over `onClose` would go on calling the callback the first render happened to
+   * pass — the same reason the issue list's display panel reaches its close through a ref.
+   */
+  const state = useRef({ open, close: onClose });
+  state.current = { open, close: onClose };
+
+  // The panel has taken the keyboard, so the list's own chords stop competing with the
+  // controls being tabbed through. `menu` is sealed, which is what makes that true.
+  useKeyContext('menu', open);
+
+  // This panel carries the same `role="dialog"` and the same "Display options" name as the
+  // issue list's, which closes on Escape — and it takes focus on open. Without this it had
+  // no keyboard way back out: a dialog dismissable only by clicking somewhere else is a
+  // trap for anyone not using a mouse.
+  useActions(
+    [
+      {
+        id: 'projects.closeDisplay',
+        title: 'Close the display menu',
+        keys: ['Escape'],
+        when: 'menu',
+        group: 'Projects',
+        // Not offered in the command menu: "close the thing you are looking at" is not
+        // something anybody searches for. It still appears in the help overlay.
+        hidden: true,
+        // Disabled reads as unbound, so with the panel shut Escape falls through to the
+        // shell's dismiss rather than being swallowed by a command with nothing to do.
+        enabled: () => state.current.open,
+        run: () => state.current.close(),
+      },
+    ],
+    [],
+  );
+
   useLayoutEffect(() => {
     if (!open) return;
     const triggerEl = trigger.current;
@@ -114,22 +150,6 @@ export function ProjectDisplayMenu({
 
   const reset = useCallback(() => onChange(DEFAULT_PROJECT_DISPLAY), [onChange]);
 
-  // The issue list's Display panel closes on Escape — its e2e spec presses it after every
-  // change — and this one carries the same `role="dialog"` and the same "Display options"
-  // name while taking focus on open. Without this it offered no keyboard way back out: a
-  // dialog dismissable only by clicking elsewhere is a trap for anyone not using a mouse.
-  // `stopPropagation` for the reason Modal gives: otherwise the window-level keymap sees
-  // the same press and one Escape closes this panel and whatever is behind it.
-  const onKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-    },
-    [onClose],
-  );
-
   const panelStyle: CSSProperties | undefined = position
     ? { top: position.top, left: position.left }
     : undefined;
@@ -145,7 +165,6 @@ export function ProjectDisplayMenu({
       role="dialog"
       aria-label="Display options"
       tabIndex={-1}
-      onKeyDown={onKeyDown}
     >
       <div className={styles.head}>
         <h2 className={styles.title}>Display</h2>
