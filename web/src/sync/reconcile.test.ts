@@ -14,9 +14,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { Store, type Change, type Entity, type Reconciliation } from '~/store';
+import { Outbox, Store, type Change, type Entity, type Reconciliation } from '~/store';
 
-import { settle } from './reconcile';
+import { adopt, settle } from './reconcile';
 
 const WORKSPACE = '01900000-0000-7000-8000-000000000001';
 const ISSUE = '01900000-0000-7000-8000-00000000000a';
@@ -117,6 +117,128 @@ describe('settle', () => {
     ]);
 
     settle(store, COMMENT_SPEC, { createComment: { comment: serverComment() } });
+
+    expect([...store.commentIdsFor(ISSUE)]).toEqual([REAL]);
+  });
+});
+
+/**
+ * The half of the same bug that no reload is involved in.
+ *
+ * The socket pushes the server's row the instant the mutation commits, so on a machine busy
+ * enough to slow the response down it lands first — and until the response gets back and
+ * `settle` runs, the replica holds the stand-in and the real row at once and the issue shows
+ * one comment twice. Holding the response by hand in `web/e2e/comments.spec.ts` turns that
+ * from one run in five into every run.
+ */
+describe('adopt', () => {
+  async function outboxWith(reconcile: Reconciliation | undefined): Promise<Outbox> {
+    const outbox = new Outbox();
+    await outbox.append({
+      mutation: 'CreateComment',
+      variables: {},
+      optimisticPatch: [
+        { type: 'comment', id: PROVISIONAL, before: null, after: provisionalComment() },
+      ],
+      reconcile,
+    });
+    return outbox;
+  }
+
+  function delta(payload: Record<string, unknown>, id = REAL): Change {
+    return {
+      v: 1,
+      type: 'comment',
+      id,
+      op: 'upsert',
+      actor: { type: 'user' },
+      payload,
+    } as unknown as Change;
+  }
+
+  const MATCHED: Reconciliation = { ...COMMENT_SPEC, match: ['issueId', 'parentId', 'body'] };
+
+  it('retires the stand-in when the delta carries the same row', async () => {
+    const store = storeWithStandIn();
+    const changes = [delta({ ...serverComment(), actor: { type: 'user' } })];
+    store.applyChanges(changes);
+
+    adopt(store, await outboxWith(MATCHED), changes);
+
+    expect(store.get('comment', PROVISIONAL)).toBeUndefined();
+    expect([...store.commentIdsFor(ISSUE)]).toEqual([REAL]);
+  });
+
+  it('pairs a root comment whose parent is undefined here and null on the wire', async () => {
+    const store = storeWithStandIn();
+    // Postgres spells an absent parent `null`; the stand-in was built in TypeScript, where
+    // it is `undefined`. A `===` between those is what would break every root comment.
+    const changes = [delta({ ...serverComment(), parentId: null, actor: { type: 'user' } })];
+    store.applyChanges(changes);
+
+    adopt(store, await outboxWith(MATCHED), changes);
+
+    expect(store.get('comment', PROVISIONAL)).toBeUndefined();
+  });
+
+  it('leaves somebody else’s comment alone', async () => {
+    const store = storeWithStandIn();
+    const changes = [
+      delta({ ...serverComment(), body: 'Something else', actor: { type: 'user' } }),
+    ];
+    store.applyChanges(changes);
+
+    adopt(store, await outboxWith(MATCHED), changes);
+
+    expect(store.get('comment', PROVISIONAL)?.body).toBe('First thing');
+  });
+
+  it('does nothing for a mutation that declared no pairing fields', async () => {
+    const store = storeWithStandIn();
+    const changes = [delta({ ...serverComment(), actor: { type: 'user' } })];
+    store.applyChanges(changes);
+
+    adopt(store, await outboxWith(COMMENT_SPEC), changes);
+
+    expect(store.get('comment', PROVISIONAL)?.body).toBe('First thing');
+  });
+
+  it('claims one stand-in per row, not every stand-in that looks alike', async () => {
+    // The same body twice in a row is a real thing people do — "+1", "same here" — and
+    // collapsing both onto the first delta would delete a comment that exists.
+    const second = '01900000-0000-7000-8000-0000000000f3';
+    const store = storeWithStandIn();
+    store.applyOptimistic([
+      { type: 'comment', id: second, before: null, after: { ...provisionalComment(), id: second } },
+    ]);
+
+    const outbox = new Outbox();
+    await outbox.append({
+      mutation: 'CreateComment',
+      variables: {},
+      reconcile: MATCHED,
+    });
+    await outbox.append({
+      mutation: 'CreateComment',
+      variables: {},
+      reconcile: { ...MATCHED, provisionalId: second },
+    });
+
+    const changes = [delta({ ...serverComment(), actor: { type: 'user' } })];
+    store.applyChanges(changes);
+    adopt(store, outbox, changes);
+
+    expect(store.get('comment', PROVISIONAL)).toBeUndefined();
+    expect(store.get('comment', second)?.body).toBe('First thing');
+  });
+
+  it('is inert once the response has already settled the pairing', async () => {
+    const store = storeWithStandIn();
+    settle(store, MATCHED, { createComment: { comment: serverComment() } });
+
+    const changes = [delta({ ...serverComment(), actor: { type: 'user' } })];
+    store.applyChanges(changes);
+    adopt(store, await outboxWith(MATCHED), changes);
 
     expect([...store.commentIdsFor(ISSUE)]).toEqual([REAL]);
   });
