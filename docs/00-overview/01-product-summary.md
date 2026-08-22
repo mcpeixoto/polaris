@@ -71,7 +71,7 @@ Ordered top to bottom, per Linear's own docs nav and app layout:
 | Peek (`Space`) | Hover-preview of the focused issue/project without navigating. Tap to pin, hold to preview, `↑/↓` to move, `Esc` to close. |
 | Selection (`X`, `Shift+X`, `Shift+click`, `Cmd/Ctrl+A`) | Multi-select then bulk-act via command menu/right-click/bulk toolbar. |
 | Contextual menu (right-click) | Everywhere: issues, projects, views, labels, sidebar items, board columns. |
-| Undo (`Cmd/Ctrl+Z`) | Applies to destructive and structural actions (delete issue, move team). |
+| Undo (`Cmd/Ctrl+Z`) | Applies to destructive and structural actions only: deleting issues — one, or a whole selection, which comes back together — and moving an issue between teams. It is deliberately **not** a general undo and never gains a redo: a field edit is taken back by editing it back, and a description by its version history. The offer lives in a toast for a few seconds and then lapses, because an Undo still on screen a minute later is pressed by somebody who has forgotten what it undoes. |
 | Favorites (`Alt+F`, star icon) | Personal sidebar shortcuts for issues, projects, views, documents, initiatives, cycles, labels, teams, customers, dashboards, PRs, releases. Folders supported. |
 
 ## Non-obvious product rules worth capturing early

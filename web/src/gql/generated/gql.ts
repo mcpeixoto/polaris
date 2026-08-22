@@ -19,8 +19,6 @@ type Documents = {
     "\n  mutation InviteToWorkspace($input: InviteInput!) {\n    inviteToWorkspace(input: $input) {\n      id\n      email\n      role\n      expiresAt\n      token\n    }\n  }\n": typeof types.InviteToWorkspaceDocument,
     "\n  mutation RevokeInvite($id: UUID!) {\n    revokeInvite(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.RevokeInviteDocument,
     "\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n": typeof types.RemoveUserDocument,
-    "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n": typeof types.DeletedIssuesDocument,
-    "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": typeof types.RestoreIssueDocument,
     "\n  fragment ApiKeyFields on ApiKey {\n    id\n    userId\n    name\n    prefix\n    scopes\n    lastUsedAt\n    expiresAt\n    revokedAt\n    createdAt\n  }\n": typeof types.ApiKeyFieldsFragmentDoc,
     "\n  \n  query ApiKeys {\n    apiKeys {\n      ...ApiKeyFields\n    }\n  }\n": typeof types.ApiKeysDocument,
     "\n  \n  mutation CreateApiKey($input: CreateApiKeyInput!) {\n    createApiKey(input: $input) {\n      version\n      created {\n        token\n        apiKey {\n          ...ApiKeyFields\n        }\n      }\n    }\n  }\n": typeof types.CreateApiKeyDocument,
@@ -244,6 +242,8 @@ type Documents = {
     "\n  \n  mutation UpdateIssueTemplate($input: UpdateIssueTemplateInput!) {\n    updateIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": typeof types.UpdateIssueTemplateDocument,
     "\n  mutation ArchiveIssueTemplate($id: UUID!, $archived: Boolean!) {\n    archiveIssueTemplate(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveIssueTemplateDocument,
     "\n  \n  mutation UpdateIssueTemplateEmailIntake($input: UpdateIssueTemplateEmailIntakeInput!) {\n    updateIssueTemplateEmailIntake(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": typeof types.UpdateIssueTemplateEmailIntakeDocument,
+    "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n      deletedAt\n      deletedBy\n    }\n  }\n": typeof types.DeletedIssuesDocument,
+    "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": typeof types.RestoreIssueDocument,
     "\n  fragment ViewFields on View {\n    id\n    workspaceId\n    teamId\n    projectId\n    ownerId\n    name\n    description\n    icon\n    color\n    filter\n    display\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": typeof types.ViewFieldsFragmentDoc,
     "\n  fragment ViewPreferenceFields on ViewPreference {\n    id\n    workspaceId\n    userId\n    viewKey\n    display\n    createdAt\n    updatedAt\n  }\n": typeof types.ViewPreferenceFieldsFragmentDoc,
     "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    folderId\n    name\n    position\n    createdAt\n    updatedAt\n  }\n": typeof types.FavoriteFieldsFragmentDoc,
@@ -311,8 +311,6 @@ const documents: Documents = {
     "\n  mutation InviteToWorkspace($input: InviteInput!) {\n    inviteToWorkspace(input: $input) {\n      id\n      email\n      role\n      expiresAt\n      token\n    }\n  }\n": types.InviteToWorkspaceDocument,
     "\n  mutation RevokeInvite($id: UUID!) {\n    revokeInvite(id: $id) {\n      version\n      id\n    }\n  }\n": types.RevokeInviteDocument,
     "\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n": types.RemoveUserDocument,
-    "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n": types.DeletedIssuesDocument,
-    "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": types.RestoreIssueDocument,
     "\n  fragment ApiKeyFields on ApiKey {\n    id\n    userId\n    name\n    prefix\n    scopes\n    lastUsedAt\n    expiresAt\n    revokedAt\n    createdAt\n  }\n": types.ApiKeyFieldsFragmentDoc,
     "\n  \n  query ApiKeys {\n    apiKeys {\n      ...ApiKeyFields\n    }\n  }\n": types.ApiKeysDocument,
     "\n  \n  mutation CreateApiKey($input: CreateApiKeyInput!) {\n    createApiKey(input: $input) {\n      version\n      created {\n        token\n        apiKey {\n          ...ApiKeyFields\n        }\n      }\n    }\n  }\n": types.CreateApiKeyDocument,
@@ -536,6 +534,8 @@ const documents: Documents = {
     "\n  \n  mutation UpdateIssueTemplate($input: UpdateIssueTemplateInput!) {\n    updateIssueTemplate(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": types.UpdateIssueTemplateDocument,
     "\n  mutation ArchiveIssueTemplate($id: UUID!, $archived: Boolean!) {\n    archiveIssueTemplate(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": types.ArchiveIssueTemplateDocument,
     "\n  \n  mutation UpdateIssueTemplateEmailIntake($input: UpdateIssueTemplateEmailIntakeInput!) {\n    updateIssueTemplateEmailIntake(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n": types.UpdateIssueTemplateEmailIntakeDocument,
+    "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n      deletedAt\n      deletedBy\n    }\n  }\n": types.DeletedIssuesDocument,
+    "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": types.RestoreIssueDocument,
     "\n  fragment ViewFields on View {\n    id\n    workspaceId\n    teamId\n    projectId\n    ownerId\n    name\n    description\n    icon\n    color\n    filter\n    display\n    position\n    createdBy\n    createdAt\n    updatedAt\n    archivedAt\n  }\n": types.ViewFieldsFragmentDoc,
     "\n  fragment ViewPreferenceFields on ViewPreference {\n    id\n    workspaceId\n    userId\n    viewKey\n    display\n    createdAt\n    updatedAt\n  }\n": types.ViewPreferenceFieldsFragmentDoc,
     "\n  fragment FavoriteFields on Favorite {\n    id\n    workspaceId\n    userId\n    kind\n    targetId\n    folderId\n    name\n    position\n    createdAt\n    updatedAt\n  }\n": types.FavoriteFieldsFragmentDoc,
@@ -632,14 +632,6 @@ export function graphql(source: "\n  mutation RevokeInvite($id: UUID!) {\n    re
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation RemoveUser($userId: UUID!) {\n    removeUser(userId: $userId) {\n      version\n      id\n    }\n  }\n"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n"): (typeof documents)["\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n    }\n  }\n"];
-/**
- * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
- */
-export function graphql(source: "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -1532,6 +1524,14 @@ export function graphql(source: "\n  mutation ArchiveIssueTemplate($id: UUID!, $
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  \n  mutation UpdateIssueTemplateEmailIntake($input: UpdateIssueTemplateEmailIntakeInput!) {\n    updateIssueTemplateEmailIntake(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateIssueTemplateEmailIntake($input: UpdateIssueTemplateEmailIntakeInput!) {\n    updateIssueTemplateEmailIntake(input: $input) {\n      version\n      template {\n        ...IssueTemplateFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n      deletedAt\n      deletedBy\n    }\n  }\n"): (typeof documents)["\n  \n  query DeletedIssues {\n    deletedIssues {\n      ...IssueFields\n      deletedAt\n      deletedBy\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

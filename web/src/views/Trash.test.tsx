@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
-import { Store, type Change, type Issue, type Team, type User } from '~/store';
+import type { DeletedIssue } from '~/features/trash/mutations';
+import { Store, type Change, type Team, type User } from '~/store';
 import { ApiError, gql } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -25,7 +26,9 @@ vi.mock('~/sync/api', async (importOriginal) => {
 const WORKSPACE = 'workspace-1';
 const TEAM = 'team-1';
 const ADA = 'user-ada';
+const GRACE = 'user-grace';
 const AT = '2026-01-01T00:00:00Z';
+const DELETED_AT = '2026-02-01T00:00:00Z';
 
 function team(): Team {
   return {
@@ -56,12 +59,12 @@ function team(): Team {
   };
 }
 
-function member(): User {
+function member(id: string, name: string, displayName: string): User {
   return {
-    id: ADA,
+    id,
     workspaceId: WORKSPACE,
-    name: 'ada',
-    displayName: 'Ada Lovelace',
+    name,
+    displayName,
     timezone: 'Europe/Lisbon',
     role: 'member',
     status: 'active',
@@ -71,8 +74,14 @@ function member(): User {
   };
 }
 
-/** A row as the server hands it back: an ordinary issue, minus the fact that it is deleted. */
-function deleted(number: number, title: string): Issue {
+/**
+ * A row as the server hands it back: an ordinary issue, plus how it got here.
+ *
+ * `deletedBy` is a parameter because its absence is a real case and not an oversight — the
+ * retention sweep deletes on a schedule, and rows older than `000020_issue_deleted_by` have
+ * nobody recorded — and the screen has to say something different for it.
+ */
+function deleted(number: number, title: string, deletedBy: string | null = GRACE): DeletedIssue {
   return {
     id: `issue-${number}`,
     workspaceId: WORKSPACE,
@@ -88,6 +97,8 @@ function deleted(number: number, title: string): Issue {
     dueDateSource: 'manual',
     createdAt: AT,
     updatedAt: AT,
+    deletedAt: DELETED_AT,
+    ...(deletedBy === null ? null : { deletedBy }),
   };
 }
 
@@ -101,7 +112,11 @@ function seeded(): Store {
   const store = new Store(WORKSPACE);
   const entities: [string, Team | User][] = [
     ['team', team()],
-    ['user', member()],
+    // Two people, and the issues below are created by one and deleted by the other. That is
+    // the whole point of the column: a screen that showed the creator would pass this test
+    // with Ada's name in it, so Ada must be the wrong answer.
+    ['user', member(ADA, 'ada', 'Ada Lovelace')],
+    ['user', member(GRACE, 'grace', 'Grace Hopper')],
   ];
   store.applyChanges(
     entities.map(([type, entity], index) => ({
@@ -151,13 +166,46 @@ describe('Trash', () => {
     renderTrash();
 
     expect(await screen.findByRole('button', { name: 'Restore ENG-9' })).toBeTruthy();
-    // Not re-sorted here, and it must not be: the client has no deletedAt to sort by, so any
-    // ordering this screen invented would be an ordering by something else entirely.
+    // Not re-sorted here, and it must not be: the server sorted on deleted_at with the same
+    // cutoff it enforces, and a second sort over the same column is a second chance to
+    // disagree with it.
     expect(rowTexts()).toEqual(['ENG-9Ship the importer', 'ENG-4Fix the flake']);
 
     // The ids the server sent, resolved against the replica.
     expect(screen.getAllByText('Engineering')).toHaveLength(2);
-    expect(screen.getAllByText('Ada Lovelace')).toHaveLength(2);
+    // The person who deleted it, which is the question this screen is asked. Ada created both
+    // rows and is deliberately not on screen: naming the creator is what this screen used to
+    // do, in prose, because the column did not exist.
+    expect(screen.getAllByText('Grace Hopper')).toHaveLength(2);
+    expect(screen.queryByText('Ada Lovelace')).toBeNull();
+  });
+
+  it('names who deleted each issue, and says so when nobody was recorded', async () => {
+    vi.mocked(gql).mockResolvedValue({
+      deletedIssues: [
+        deleted(9, 'Ship the importer'),
+        // No deleter: the retention sweep, or a deletion older than the column.
+        deleted(4, 'Fix the flake', null),
+      ],
+    });
+    renderTrash();
+    await screen.findByRole('button', { name: 'Restore ENG-9' });
+
+    expect(screen.getByText('Grace Hopper')).toBeTruthy();
+    // A blank cell would be indistinguishable from a bug, and a guessed name would be worse.
+    expect(screen.getByText('Not recorded')).toBeTruthy();
+  });
+
+  it('asks the server for when and by whom, which no other issue read carries', async () => {
+    vi.mocked(gql).mockResolvedValue({ deletedIssues: [deleted(9, 'Ship the importer')] });
+    renderTrash();
+    await screen.findByRole('button', { name: 'Restore ENG-9' });
+
+    // The document, not the rendering: a screen that displays a field it never asked for is
+    // one showing whatever the last shape of the fragment happened to include.
+    const [document] = vi.mocked(gql).mock.calls[0] ?? [];
+    expect(document).toContain('deletedAt');
+    expect(document).toContain('deletedBy');
   });
 
   it('says how long the window is, because that is the question it answers', async () => {

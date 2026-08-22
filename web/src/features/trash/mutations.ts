@@ -46,24 +46,53 @@ import { DELETED_ISSUES_QUERY, RESTORE_ISSUE } from './operations';
 export const RESTORE_WINDOW_DAYS = 30;
 
 /**
+ * An issue as the trash sees it: everything a replicated issue has, plus how it got here.
+ *
+ * A separate type rather than two more optional fields on `Issue`, because `Issue` is the
+ * shape of a row *in the replica* and these two are precisely the fields a replicated row
+ * never has. Widening it would also widen `IssueFields`, which every other read shares — see
+ * `gql/fragments.test.ts`, which enforces that a fragment selects exactly what its entity
+ * holds — and every one of those reads would then be asking for two columns that are null by
+ * contract. The rows this type describes never enter the store, so they are free to be a
+ * different shape from the ones that do.
+ *
+ * Both fields are optional, and for different reasons. `deletedAt` is always set on a row this
+ * listing returned — the server selects on it — and is optional only because a client cannot
+ * make the server's `Time` non-null. `deletedBy` is genuinely absent for two cases the screen
+ * has to tell apart from a name: an issue deleted before the column existed, and one taken by
+ * the retention sweep, which acts on a schedule rather than on somebody's instruction.
+ */
+export interface DeletedIssue extends Issue {
+  readonly deletedAt?: string;
+  readonly deletedBy?: UUID;
+}
+
+/**
  * Everything deleted within the window that this member is allowed to see.
  *
  * The server scopes it to the caller's teams and orders it by deletion time, newest first. The
- * order is kept exactly as it arrives and must not be re-sorted here: the client has no
- * `deletedAt` to sort by — the field is not on the `Issue` type — so any ordering this code
- * invented would be an ordering by something else wearing the label "recently deleted".
+ * order is kept exactly as it arrives and is not re-sorted here. `deletedAt` now comes back on
+ * these rows, so the client *could* sort — but the server is sorting on the same column with
+ * the same cutoff it enforces, and two sorts of one list are two chances to disagree about it.
+ * The field is here to be *shown*, which is the question the screen is actually asked.
  *
  * `signal` is taken so a screen that unmounts mid-flight can abandon the request rather than
  * setting state on a component that has gone.
  */
-export async function fetchDeletedIssues(signal?: AbortSignal): Promise<readonly Issue[]> {
-  const data = await gql<{ deletedIssues: Issue[] }>(DELETED_ISSUES_QUERY, undefined, { signal });
+export async function fetchDeletedIssues(signal?: AbortSignal): Promise<readonly DeletedIssue[]> {
+  const data = await gql<{ deletedIssues: DeletedIssue[] }>(DELETED_ISSUES_QUERY, undefined, {
+    signal,
+  });
   // These rows came over GraphQL, where an enumerated value is spelled in upper case, while
   // everything already in the replica arrived from the sync stream in the database's spelling.
   // No column on this screen reads an enum today — which is exactly why converting here rather
   // than at the one call site matters: the next reader inherits the fix instead of the bug.
   // See ~/gql/enums.
-  return data.deletedIssues.map((issue) => fromWire('issue', issue));
+  // The cast restores the type, not the data. `fromWire` is typed over the store's entity map
+  // so it narrows to `Issue`, but it copies the object it is given and only rewrites the keys
+  // it converts — including turning an explicit `null` into an absent key, which is what makes
+  // `deletedBy` on a sweep-deleted row read as "nobody" rather than as a user id of null.
+  return data.deletedIssues.map((issue) => fromWire('issue', issue) as DeletedIssue);
 }
 
 /**
