@@ -6,7 +6,15 @@
  * button) starts a thread; resolve lives on the root, same as an issue-thread comment.
  */
 
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 
 import { useActions, useKeyContext } from '~/app/keymap';
 import { useEngine } from '~/app/context';
@@ -54,6 +62,39 @@ export function DescriptionEditor({
   const [composerFocused, setComposerFocused] = useState(false);
 
   const text = draft ?? description;
+
+  /**
+   * The edit in flight, for the exits that are not a blur.
+   *
+   * Saving on blur is the model, and it holds for every way of leaving the field that moves
+   * focus first — clicking a link, tabbing out, opening the command menu. It does not hold
+   * for the ways that take the whole screen away without focusing anything else: the back
+   * button, a reload, closing the tab. Those left a typed description in a textarea that
+   * React then dropped, and the writer got no hint that anything was gone.
+   *
+   * The pending edit carries the save callback captured at the keystroke rather than the one
+   * this component happens to hold when the flush runs, so a flush triggered by a route
+   * change cannot write one issue's description onto the next one's.
+   */
+  const flight = useRef<{ text: string; base: string; save: (next: string) => void } | null>(null);
+
+  useEffect(() => {
+    const flush = () => {
+      const edit = flight.current;
+      flight.current = null;
+      if (edit !== null && edit.text !== edit.base) edit.save(edit.text);
+    };
+    // `hidden` fires on tab switch and, in every browser that matters, on the way out of the
+    // page — while the document is still alive enough to enqueue the write.
+    const onHidden = () => {
+      if (globalThis.document.visibilityState === 'hidden') flush();
+    };
+    globalThis.document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      globalThis.document.removeEventListener('visibilitychange', onHidden);
+      flush();
+    };
+  }, []);
 
   const comments = useLiveQuery(
     (store) =>
@@ -248,7 +289,11 @@ export function DescriptionEditor({
           placeholder="Add a description…"
           value={text}
           onFocus={() => setDraft(description)}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            const next = event.target.value;
+            setDraft(next);
+            flight.current = { text: next, base: description, save: onSave };
+          }}
           onSelect={() => setSelection(readSelection())}
           onMouseUp={() => {
             const span = readSelection();
@@ -265,6 +310,7 @@ export function DescriptionEditor({
           onBlur={() => {
             const next = draft;
             setDraft(null);
+            flight.current = null;
             if (next !== null && next !== description) onSave(next);
           }}
         />

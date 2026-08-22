@@ -28,15 +28,35 @@ export function DocumentDetail() {
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [dirty, setDirty] = useState(false);
+  const [titleDirty, setTitleDirty] = useState(false);
+  const [bodyDirty, setBodyDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const dirty = titleDirty || bodyDirty;
 
+  // Adopt what the store says — but never over the top of an unsaved edit to the field it
+  // would land in. Any change to this document re-runs the effect, including one that
+  // touches a field nobody here is typing in, and a teammate renaming the document used to
+  // wipe a half-written body out of the textarea mid-sentence with no way to get it back.
+  // Per field rather than per screen, so that rename still shows up in the title while the
+  // body being typed is left alone; Save is what reconciles a field somebody did edit.
+  //
+  // Moving to a *different* document reloads unconditionally: the fields belong to whatever
+  // the route points at, and carrying one document's draft onto another would save it there.
+  const loaded = useRef<string | null>(null);
   useEffect(() => {
     if (document === null) return;
-    setTitle(document.title);
-    setBody(document.body);
-    setDirty(false);
-  }, [document?.id, document?.title, document?.body, document]);
+    const switched = loaded.current !== document.id;
+    loaded.current = document.id;
+    if (switched) {
+      setTitle(document.title);
+      setBody(document.body);
+      setTitleDirty(false);
+      setBodyDirty(false);
+      return;
+    }
+    if (!titleDirty) setTitle(document.title);
+    if (!bodyDirty) setBody(document.body);
+  }, [document?.id, document?.title, document?.body, document, titleDirty, bodyDirty]);
 
   if (document === null) {
     return (
@@ -67,7 +87,8 @@ export function DocumentDetail() {
         title: trimmed,
         body,
       });
-      setDirty(false);
+      setTitleDirty(false);
+      setBodyDirty(false);
     } finally {
       setSaving(false);
     }
@@ -109,7 +130,7 @@ export function DocumentDetail() {
           value={title}
           onChange={(event) => {
             setTitle(event.target.value);
-            setDirty(true);
+            setTitleDirty(true);
           }}
           onBlur={() => void save()}
         />
@@ -124,7 +145,7 @@ export function DocumentDetail() {
         minRows={16}
         onChange={(event) => {
           setBody(event.target.value);
-          setDirty(true);
+          setBodyDirty(true);
         }}
         onBlur={() => void save()}
       />
