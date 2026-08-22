@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
-import { KeymapProvider, useActions } from '~/app/keymap';
+import { KeymapProvider, useActions, useKeymap } from '~/app/keymap';
 import { detectPlatform } from '~/keys';
 import { Store, type Change, type Issue, type Team, type WorkflowState } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
@@ -36,7 +36,7 @@ const MOD = detectPlatform() === 'mac' ? 'Meta' : 'Control';
 
 const AT = '2026-01-01T00:00:00Z';
 
-function team(): Team {
+function team(overrides: Partial<Team> = {}): Team {
   return {
     id: TEAM,
     workspaceId: WORKSPACE,
@@ -62,6 +62,7 @@ function team(): Team {
     autoCloseChildren: false,
     createdAt: AT,
     updatedAt: AT,
+    ...overrides,
   };
 }
 
@@ -99,10 +100,10 @@ function issue(number: number, title: string, stateId: string, sortOrder: string
   };
 }
 
-function seeded(): Store {
+function seeded(teamOverrides: Partial<Team> = {}): Store {
   const store = new Store(WORKSPACE);
   const entities: [string, Team | WorkflowState | Issue][] = [
-    ['team', team()],
+    ['team', team(teamOverrides)],
     ['workflowState', state('s-todo', 'Todo', 'unstarted')],
     ['workflowState', state('s-doing', 'In Progress', 'started')],
     ['issue', issue(1, 'Fix the flake', 's-todo', 'V')],
@@ -143,8 +144,23 @@ function GlobalDismiss({ onDismiss }: { onDismiss: () => void }) {
   return null;
 }
 
-function renderList(search = '') {
-  const store = seeded();
+/**
+ * Reads the registry the way the help overlay does: every action that is bound to a key.
+ *
+ * Assigned on render rather than returned, because the question is asked *after* the list's
+ * own effects have registered — and a value captured at render time would answer for an
+ * empty registry.
+ */
+let boundTitles: () => string[] = () => [];
+
+function KeymapProbe() {
+  const { registry } = useKeymap();
+  boundTitles = () => [...registry.byGroup().values()].flat().map((action) => action.title);
+  return null;
+}
+
+function renderList(search = '', teamOverrides: Partial<Team> = {}) {
+  const store = seeded(teamOverrides);
   const mutate = vi.fn().mockResolvedValue({});
   const engine = { store, mutate } as unknown as SyncEngine;
   const dismissed = vi.fn();
@@ -154,6 +170,7 @@ function renderList(search = '') {
       <KeymapProvider>
         <EngineProvider engine={engine} status={{ phase: 'idle' }}>
           <GlobalDismiss onDismiss={dismissed} />
+          <KeymapProbe />
           <Routes>
             <Route path="/team/:teamKey" element={<IssueList />} />
           </Routes>
@@ -234,6 +251,31 @@ describe('IssueList', () => {
       'ENG-2Ship the importer',
       'ENG-3Rewrite the seeder',
     ]);
+  });
+
+  /**
+   * A team whose scale is `none` has no state in which an estimate can be set, so the whole
+   * affordance goes: no button, and no `⇧E` in the registry.
+   *
+   * Registered-and-disabled is not good enough, and the difference only shows up in the help
+   * overlay. `enabled` is what the *matcher* asks, and it correctly leaves the key unbound —
+   * but the overlay lists every registered binding on purpose (that is what keeps Escape and
+   * ⌘⏎ on the sheet) and cannot ask whether one is runnable right now. So an action that is
+   * disabled for the lifetime of the team is a row in the keyboard reference that never works
+   * — which is the one thing a generated reference exists to prevent.
+   */
+  it('offers no estimate button and binds no key when the team does not estimate', () => {
+    renderList();
+
+    expect(screen.queryByRole('button', { name: 'Estimate' })).toBeNull();
+    expect(boundTitles()).not.toContain('Set estimate');
+  });
+
+  it('offers both again when the team turns a scale on', () => {
+    renderList('', { estimateScale: 'fibonacci' });
+
+    expect(screen.getByRole('button', { name: 'Estimate' })).toBeTruthy();
+    expect(boundTitles()).toContain('Set estimate');
   });
 
   it('starts with the cursor on the first row and moves it with j and k', async () => {

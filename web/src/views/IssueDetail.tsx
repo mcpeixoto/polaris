@@ -308,15 +308,33 @@ export function IssueDetail() {
         enabled: () => viewerId !== null,
         run: () => commands.current.assignToMe(),
       },
-      {
-        id: 'issueDetail.estimate',
-        title: 'Set estimate',
-        keys: ['shift+e'],
-        when: 'detail',
-        group: 'Issues',
-        enabled: () => issue?.estimatesEnabled === true,
-        run: () => commands.current.pickEstimate(),
-      },
+      /*
+       * Registered only where it can do something, rather than registered-and-disabled.
+       *
+       * `enabled` and "not registered" are the same thing to the matcher — both leave the key
+       * unbound — but they are not the same thing to the help overlay, which lists every
+       * *registered* binding and cannot ask whether it happens to be runnable right now
+       * (Escape-to-dismiss is disabled far more often than not, and a sheet that dropped it
+       * would be missing the shortcut people look up most). So a permanently-disabled action
+       * is a row in the keyboard reference that never works, on every issue in the team, for
+       * as long as the team declines to estimate — which is the one thing that overlay exists
+       * not to do.
+       *
+       * And the rail has already made this decision: the estimate row is absent for a team
+       * whose scale is `none`, not greyed out. The key follows the control it opens.
+       */
+      ...(issue?.estimatesEnabled === true
+        ? [
+            {
+              id: 'issueDetail.estimate',
+              title: 'Set estimate',
+              keys: ['shift+e'],
+              when: 'detail' as const,
+              group: 'Issues',
+              run: () => commands.current.pickEstimate(),
+            },
+          ]
+        : []),
       {
         id: 'issueDetail.dueDate',
         title: 'Set due date',
