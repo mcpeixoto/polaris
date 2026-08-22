@@ -106,9 +106,15 @@ test.describe('deleting from a list', () => {
     await expect(page.getByRole('status').getByText('Deleted 3 issues')).toBeVisible();
 
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
-    for (const title of ['Bulk alpha', 'Bulk beta', 'Bulk gamma']) {
-      await expect(page.getByText(title)).toBeVisible({ timeout: 20_000 });
-    }
+    // Awaited together rather than one after another. A restore has no optimistic patch — the
+    // row returns on a sync delta — so each of these is a wait on the server, and three waits
+    // taken in series on a loaded CI runner is three chances to spend the whole budget on the
+    // first one and time out on the second.
+    await Promise.all(
+      ['Bulk alpha', 'Bulk beta', 'Bulk gamma'].map((title) =>
+        expect(page.getByText(title)).toBeVisible({ timeout: 30_000 }),
+      ),
+    );
 
     // And really back: a reload rebuilds from the server rather than from this replica.
     await page.reload();

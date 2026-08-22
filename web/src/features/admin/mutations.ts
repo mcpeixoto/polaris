@@ -20,17 +20,11 @@
  * patch is what takes the person out of the directory on the click rather than on the reply.
  */
 
-import { fromWire, fromWireValue, toWire } from '~/gql/enums';
+import { fromWireValue, toWire } from '~/gql/enums';
 import { ApiError, gql } from '~/sync/api';
-import type { Issue, Store, User, UserRole, UUID } from '~/store';
+import type { Store, User, UserRole, UUID } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
-import {
-  INVITES_QUERY,
-  INVITE_TO_WORKSPACE,
-  REMOVE_USER,
-  RESTORE_ISSUE,
-  REVOKE_INVITE,
-} from './operations';
+import { INVITES_QUERY, INVITE_TO_WORKSPACE, REMOVE_USER, REVOKE_INVITE } from './operations';
 
 export interface InviteSummary {
   readonly id: UUID;
@@ -229,25 +223,7 @@ export async function removeUser(engine: SyncEngine, userId: UUID): Promise<void
   });
 }
 
-/**
- * Brings a deleted issue back.
- *
- * No optimistic patch, and it is the one write in the product that cannot have one: a
- * deleted issue is precisely what the replica threw away when the delete arrived, so there
- * is no `before` to hold and nothing local to put back. The server's upsert is what returns
- * it to the list, one delta later.
- */
-export async function restoreIssue(engine: SyncEngine, id: UUID): Promise<Issue> {
-  const data = await engine.mutate<{ restoreIssue: { issue: Issue } }>({
-    mutation: RESTORE_ISSUE,
-    variables: { id },
-  });
-  // Converted even though nothing here writes it to the store, because a caller that renders
-  // the returned issue would otherwise be the one place in the app reading `"MANUAL"` — and
-  // the next caller to put it in the store would reintroduce the bug rather than inherit the
-  // fix. See web/src/gql/enums.ts.
-  return fromWire('issue', data.restoreIssue.issue);
-}
+/* The restore lives in features/trash/mutations, which is the only copy. */
 
 /**
  * Why this person cannot be removed, or null when they can.

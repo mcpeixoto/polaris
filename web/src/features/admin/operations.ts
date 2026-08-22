@@ -15,8 +15,6 @@
  * anything that would authenticate as one.
  */
 
-import { ISSUE_FIELDS } from '~/gql/operations';
-
 /**
  * What this workspace's plan permits.
  *
@@ -113,31 +111,13 @@ export const REMOVE_USER = /* GraphQL */ `
   }
 `;
 
-/**
- * The recycle bin.
- *
- * A network read and not a store query, because a deleted issue is precisely what the replica
- * has thrown away: the server emits a delete for it, and the client keeps no residue by
- * design. Restoring one is therefore the only write in the product whose subject the client
- * does not hold when it is made.
+/*
+ * The trash's two documents used to be copied here as well as in features/trash/operations,
+ * byte for byte, and nothing imported this copy: the trash screen, the team archives screen
+ * and the undo offer all read the other one. Two identical documents are invisible to
+ * graphql-codegen — it deduplicates them and reports nothing — so the pair sat here until
+ * one of them was edited, at which point codegen failed with "not all operations have a
+ * unique name" and named a file that had never been part of the change. Deleted rather than
+ * kept in sync, because a second copy of a document is a second answer to what the client
+ * asks for.
  */
-export const DELETED_ISSUES_QUERY = /* GraphQL */ `
-  ${ISSUE_FIELDS}
-  query DeletedIssues {
-    deletedIssues {
-      ...IssueFields
-    }
-  }
-`;
-
-export const RESTORE_ISSUE = /* GraphQL */ `
-  ${ISSUE_FIELDS}
-  mutation RestoreIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {
-    restoreIssue(id: $id, clientId: $clientId, opId: $opId) {
-      version
-      issue {
-        ...IssueFields
-      }
-    }
-  }
-`;

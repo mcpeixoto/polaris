@@ -717,10 +717,12 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
    * the optimistic patch takes the rows out of the replica, so a label built afterwards would
    * say "Deleted 3 issues" and mean nothing anybody could check.
    *
-   * The undo restores all of them, and does it with `all` semantics rather than sequentially:
-   * each restore is its own idempotent mutation with its own opId, and one of them failing
-   * should not leave the rest in the trash. A partial failure surfaces through `report` like
-   * any other rejected mutation, and the rows that did come back have come back.
+   * The undo restores all of them at once, and settles rather than races: each restore is its
+   * own idempotent mutation with its own opId, so one being refused says nothing about the
+   * rest and must not abandon them — `Promise.all` would report the first failure while the
+   * others were still in flight and nobody was watching. The first reason is rethrown
+   * afterwards so `report` still learns that something went wrong. This mirrors `all` in
+   * features/issue/mutations, which the delete on the way out already goes through.
    */
   const confirmDelete = (ids: readonly UUID[]) => {
     setPendingDelete(null);
@@ -741,7 +743,9 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       // number is the thing worth checking before pressing the button.
       label: only === undefined ? `Deleted ${issueCount(ids.length)}` : `Deleted ${only}`,
       undo: async () => {
-        await Promise.all(ids.map((id) => restoreIssue(engine, id)));
+        const results = await Promise.allSettled(ids.map((id) => restoreIssue(engine, id)));
+        const failed = results.find((result) => result.status === 'rejected');
+        if (failed !== undefined) throw failed.reason;
       },
     });
   };
