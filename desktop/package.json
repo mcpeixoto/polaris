@@ -2,7 +2,10 @@
   "name": "@polaris/desktop",
   "productName": "Polaris",
   "description": "Polaris — the issue tracker for people who live in it.",
-  "author": "Peixoto Labs",
+  "author": {
+    "name": "Peixoto Labs",
+    "email": "polaris@peixotolabs.com"
+  },
   "homepage": "https://github.com/mcpeixoto/polaris",
   "private": true,
   "version": "0.0.0",
