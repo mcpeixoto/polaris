@@ -33,10 +33,11 @@
  * this issue is unblocked.
  */
 
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
+import { useActions } from '~/app/keymap';
 import { Badge, Button, IconButton, Input, Progress, Select, StateIcon } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -127,6 +128,29 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [detaching, setDetaching] = useState<Child | null>(null);
+
+  /**
+   * The documented way in from the keyboard.
+   *
+   * `Cmd/Ctrl+Shift+O` is listed as a creation entry point in 02-issues.md and in the
+   * shortcut reference, and was bound to nothing — which meant the only way to break an
+   * issue down was to find a button with a mouse. Registered here rather than on the
+   * screen because this component owns `adding`, which is the whole of what the action
+   * does; the same arrangement `Links` uses for `Cmd/Ctrl+Shift+U`.
+   */
+  useActions(
+    [
+      {
+        id: 'issueDetail.addSubIssue',
+        title: 'Add sub-issue',
+        keys: ['mod+shift+o'],
+        when: 'detail',
+        group: 'Issues',
+        run: () => setAdding(true),
+      },
+    ],
+    [],
+  );
 
   const view = useLiveQuery(
     (store) => {
@@ -328,6 +352,36 @@ const KIND_ORDER: readonly RelationKind[] = [
  */
 const ADDABLE: readonly RelationKind[] = ['blockedBy', 'blocking', 'related', 'duplicateOf'];
 
+/**
+ * The command-menu wording for each addable kind, and the chord the docs promise.
+ *
+ * `M` then `R`/`B`/`X` is in 03-issue-properties.md and in the shortcut reference, and was
+ * bound to nothing: every relation in the product was mouse-only, and none of the four was
+ * reachable from the command menu either. The titles are phrased as the sentence a person
+ * types into that menu — "mark as blocked by" — rather than as the section heading, because
+ * the heading is what the row is called afterwards and not what the act is called.
+ *
+ * `duplicateOf` gets a menu entry and no chord. The documented `MM` is a triage-view
+ * gesture, and inventing a detail-screen binding for it here would put a key in the product
+ * that no doc describes — the opposite of the problem this table exists to fix.
+ */
+const ADD_ACTIONS: readonly {
+  readonly kind: RelationKind;
+  readonly id: string;
+  readonly title: string;
+  readonly keys?: readonly string[];
+}[] = [
+  {
+    kind: 'blockedBy',
+    id: 'issueDetail.markBlockedBy',
+    title: 'Mark as blocked by…',
+    keys: ['m b'],
+  },
+  { kind: 'blocking', id: 'issueDetail.markBlocking', title: 'Mark as blocking…', keys: ['m x'] },
+  { kind: 'related', id: 'issueDetail.markRelated', title: 'Mark as related to…', keys: ['m r'] },
+  { kind: 'duplicateOf', id: 'issueDetail.markDuplicateOf', title: 'Mark as duplicate of…' },
+];
+
 interface NewLink {
   readonly issueId: UUID;
   readonly relatedIssueId: UUID;
@@ -397,6 +451,31 @@ export function Relations({ issueId, className }: RelationsProps) {
   const [adding, setAdding] = useState(false);
   const [kind, setKind] = useState<RelationKind>('blockedBy');
   const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * One action per addable kind, each opening the form with that kind already chosen.
+   *
+   * Opening the form is not enough on its own: the box `autoFocus`es when it mounts, so a
+   * second chord pressed while the form is already open would change the dropdown and leave
+   * the caret wherever it was. The explicit focus covers that, and is a no-op on the first
+   * press because the ref is not attached until the effect after this frame.
+   */
+  useActions(
+    ADD_ACTIONS.map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      ...(entry.keys === undefined ? null : { keys: [...entry.keys] }),
+      when: 'detail' as const,
+      group: 'Issues',
+      run: () => {
+        setKind(entry.kind);
+        setAdding(true);
+        searchRef.current?.focus();
+      },
+    })),
+    [],
+  );
 
   const rows = useLiveQuery(
     (store) => {
@@ -488,6 +567,7 @@ export function Relations({ issueId, className }: RelationsProps) {
           </Select>
 
           <Input
+            ref={searchRef}
             label="Search issues"
             placeholder="Identifier or title…"
             value={query}
