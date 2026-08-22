@@ -5,7 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_DISPLAY, EMPTY_FILTER, type FilterNode } from './types';
-import { parseDisplayParams, parseFilterParam, toDisplayParams, toFilterParam } from './url';
+import {
+  FILTER_PARAM,
+  filterSearchString,
+  parseDisplayParams,
+  parseFilterParam,
+  toDisplayParams,
+  toFilterParam,
+} from './url';
 
 describe('filter URLs', () => {
   // The whole reason this is a grammar and not base64: a link pasted into a chat is read
@@ -55,6 +62,28 @@ describe('filter URLs', () => {
     expect(parseFilterParam('assignee.isNull')).toEqual({
       conj: 'and',
       nodes: [{ field: 'assignee', op: 'isNull' }],
+    });
+  });
+
+  // The empty string is a legal text value meaning "matches everything", and it is what the
+  // filter bar puts in a freshly added — or freshly cleared — Title or Description clause.
+  // It encodes to nothing at all, so the same `()` that means "no values" for `in` has to
+  // mean "one empty value" for an operator that takes exactly one. Reading it back as zero
+  // values made the clause fail validation on its way out of the address bar, and the user's
+  // own filter came back as "this link carried a filter this build could not read".
+  it('round-trips a single empty value', () => {
+    for (const filter of [
+      { field: 'title', op: 'contains', values: [''] },
+      { field: 'description', op: 'notContains', values: [''] },
+    ] satisfies FilterNode[]) {
+      const url = toFilterParam(filter);
+      expect(parseFilterParam(url)).toEqual({ conj: 'and', nodes: [filter] });
+    }
+
+    // And the multi-valued operators keep meaning what they meant.
+    expect(parseFilterParam('label.in()')).toEqual({
+      conj: 'and',
+      nodes: [{ field: 'label', op: 'in', values: [] }],
     });
   });
 
@@ -167,6 +196,31 @@ describe('filter URLs', () => {
         expect(toFilterParam(back)).toBe(url);
       });
     }
+  });
+});
+
+describe('the query string a filter goes into', () => {
+  // `URLSearchParams.toString()` escapes the grammar's own punctuation, which turns a link
+  // somebody can read into one that says nothing. Every screen that writes a filter into the
+  // address bar has to go through this instead.
+  it('leaves the grammar readable', () => {
+    const params = new URLSearchParams();
+    params.set(FILTER_PARAM, 'priority.in(1,2),assignee.isNull');
+    expect(filterSearchString(params)).toBe('?filter=priority.in(1,2),assignee.isNull');
+  });
+
+  it('still escapes what would change the query string itself', () => {
+    const params = new URLSearchParams();
+    // `%` is load-bearing: the values inside a filter are already percent-encoded, so a raw
+    // `%` here would be unwrapped a second time by the URL's own decoder.
+    params.set(FILTER_PARAM, 'title.contains(a%20b&c#d)');
+    expect(filterSearchString(params)).toBe('?filter=title.contains(a%2520b%26c%23d)');
+  });
+
+  it('escapes everything that is not the filter, and returns nothing for nothing', () => {
+    const params = new URLSearchParams({ group: 'assignee', show: 'priority,labels' });
+    expect(filterSearchString(params)).toBe('?group=assignee&show=priority%2Clabels');
+    expect(filterSearchString(new URLSearchParams())).toBe('');
   });
 });
 

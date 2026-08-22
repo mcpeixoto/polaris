@@ -278,6 +278,32 @@ describe('IssueList', () => {
     expect(boundTitles()).toContain('Set estimate');
   });
 
+  /**
+   * Grouping by status pads the view with a group per status, so the row list is never
+   * empty in a team view however narrow the filter is. That made the "nothing matches"
+   * message unreachable from the default view: a filter that excluded everything left five
+   * zero-count headers on screen, no explanation, and no way back to the unfiltered list.
+   */
+  it('says so when a filter has excluded everything, even though the status groups remain', () => {
+    renderList('?filter=title.contains(nothing-matches-this)');
+
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+    expect(screen.getByText('Nothing matches this filter')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Clear the filter' })).toBeTruthy();
+  });
+
+  it('clears the filter from the empty state', async () => {
+    const { user } = renderList('?filter=title.contains(nothing-matches-this)');
+
+    await user.click(screen.getByRole('button', { name: 'Clear the filter' }));
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'ENG-1Fix the flake',
+      'ENG-2Ship the importer',
+      'ENG-3Rewrite the seeder',
+    ]);
+  });
+
   it('starts with the cursor on the first row and moves it with j and k', async () => {
     const { user } = renderList();
 

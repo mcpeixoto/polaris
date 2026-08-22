@@ -1,7 +1,7 @@
-import { useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 
 import { Avatar } from '~/components';
-import { FILTER_PARAM, toFilterParam } from '~/filter';
+import { FILTER_PARAM, filterSearchString, toFilterParam } from '~/filter';
 import type { CycleMemberShare } from './cycleDistribution';
 import styles from './CycleMembers.module.css';
 
@@ -12,7 +12,11 @@ export function CycleMembers({
   rows: readonly CycleMemberShare[];
   unitLabel: 'issues' | 'points';
 }) {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
+  // `useSearchParams`'s setter serialises through `URLSearchParams.toString()`, which
+  // escapes the filter grammar's parentheses and commas. `filterSearchString` is the
+  // writer that does not — see `~/filter/url`.
+  const navigate = useNavigate();
 
   if (rows.length === 0) {
     return (
@@ -42,7 +46,7 @@ export function CycleMembers({
                   const next = new URLSearchParams(params);
                   if (active) next.delete(FILTER_PARAM);
                   else next.set(FILTER_PARAM, filter);
-                  setParams(next);
+                  void navigate({ search: filterSearchString(next) });
                 }}
               >
                 {row.userId === null ? (

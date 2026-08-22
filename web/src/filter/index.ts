@@ -55,6 +55,7 @@ export type { FilterContext, IssuePredicate } from './evaluate';
 export {
   DISPLAY_PARAMS,
   FILTER_PARAM,
+  filterSearchString,
   parseDisplayParams,
   parseFilterParam,
   toDisplayParams,

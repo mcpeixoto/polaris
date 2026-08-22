@@ -55,6 +55,7 @@ import {
   filterIssues,
   parseDisplayParams,
   parseFilterParam,
+  filterSearchString,
   toDisplayParams,
   toFilterParam,
   type DisplayOptions,
@@ -349,7 +350,7 @@ export function useView({
       mutate(next);
       // `replace`, not push: a filter is refined a character at a time, and pushing each
       // keystroke fills the back button with states nobody wants to return to.
-      void navigate({ search: searchStringOf(next) }, { replace: true });
+      void navigate({ search: filterSearchString(next) }, { replace: true });
     },
     [navigate, params],
   );
@@ -419,7 +420,7 @@ export function useView({
     if (entries.length === 0) return;
     const next = new URLSearchParams(params);
     for (const [name, value] of entries) next.set(name, value);
-    void navigate({ search: searchStringOf(next) }, { replace: true });
+    void navigate({ search: filterSearchString(next) }, { replace: true });
   }, [urlDisplay, fallbackParams, params, navigate]);
 
   return {
@@ -527,45 +528,4 @@ function resolveDisplay(params: URLSearchParams): Required<DisplayOptions> {
     showSnoozed: parsed.showSnoozed ?? DEFAULT_DISPLAY.showSnoozed,
     properties: parsed.properties ?? DEFAULT_DISPLAY.properties,
   };
-}
-
-/**
- * The characters that would change what a query string means, and their escapes.
- *
- * `%` is the load-bearing one. `toFilterParam` percent-encodes the values inside a filter
- * — that is what makes a `contains` clause holding "a, b)" unambiguous — so writing its
- * output into the URL raw would let the URL's own decoder unwrap those escapes a second
- * time, and the clause would come back as three values. Doubling the `%` puts the escaping
- * back where it belongs. The rest are insurance: the grammar's field and operator names
- * cannot contain them today, and a link that breaks because one day they can is not a
- * failure anybody would trace back to here.
- */
-const QUERY_ESCAPES: Readonly<Record<string, string>> = {
-  '%': '%25',
-  '&': '%26',
-  '#': '%23',
-  '+': '%2B',
-  ' ': '%20',
-};
-
-/**
- * The query string, with the filter grammar's own punctuation left readable.
- *
- * `URLSearchParams.toString()` is the obvious way to do this and it is the wrong one: it
- * escapes the parentheses and commas the grammar is built from, so a shared view arrives
- * as `?filter=priority.in%281%2C2%29`. It parses — but "a link a human reads before they
- * click it" is the entire reason `url.ts` is a grammar rather than base64, and that link
- * says nothing at all. Every character `toFilterParam` leaves raw is legal in a query
- * component; the ones that are not are escaped above.
- */
-function searchStringOf(params: URLSearchParams): string {
-  const parts: string[] = [];
-  for (const [key, value] of params) {
-    parts.push(
-      key === FILTER_PARAM
-        ? `${key}=${value.replace(/[%&#+ ]/g, (char) => QUERY_ESCAPES[char] ?? char)}`
-        : `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
-    );
-  }
-  return parts.length === 0 ? '' : `?${parts.join('&')}`;
 }

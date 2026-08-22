@@ -33,9 +33,9 @@
  */
 
 import { useEffect } from 'react';
-import { useParams, useSearchParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 
-import { FILTER_PARAM, toFilterParam } from '~/filter';
+import { FILTER_PARAM, filterSearchString, toFilterParam } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 
@@ -43,7 +43,13 @@ import { IssueList, type IssueListSource } from './IssueList';
 
 export function SavedView() {
   const { viewId = '' } = useParams<{ viewId: string }>();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
+  // Not `useSearchParams`'s setter: it serialises through
+  // `URLSearchParams.toString()`, which escapes the parentheses and commas the filter
+  // grammar is built from — so opening a saved view produced
+  // `?filter=label.in%28…%29` and every link copied from it said nothing a reader
+  // could parse. `filterSearchString` is the writer that keeps the grammar readable.
+  const navigate = useNavigate();
 
   const saved = useLiveQuery(
     (store) => {
@@ -69,11 +75,11 @@ export function SavedView() {
     // `replace`: arriving at a view and being sent to the same view with its filter spelled
     // out is one navigation from the user's point of view, and a back button that returns to
     // the bare URL would immediately redirect forward again.
-    setParams(next, { replace: true });
+    void navigate({ search: filterSearchString(next) }, { replace: true });
     // `params` is deliberately absent: this must run when the view resolves or the URL turns
     // out to be bare, not on every search-param change — including the one it makes itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saved, untouched, setParams]);
+  }, [saved, untouched, navigate]);
 
   const source: IssueListSource = { kind: 'view', viewId: viewId as UUID };
   return <IssueList source={source} />;

@@ -35,6 +35,7 @@ import {
   isFilterGroup,
   isFilterOp,
   takesNoValues,
+  takesSingleValue,
   type Conjunction,
   type DisplayDirection,
   type DisplayGroupBy,
@@ -141,6 +142,54 @@ export function toDisplayParams(display: DisplayOptions): Record<string, string>
     if (value !== DEFAULT_DISPLAY.properties.join(',')) out[DISPLAY_PARAMS.properties] = value;
   }
   return out;
+}
+
+/**
+ * The characters that would change what a query string means, and their escapes.
+ *
+ * `%` is the load-bearing one. `toFilterParam` percent-encodes the values inside a filter
+ * — that is what makes a `contains` clause holding "a, b)" unambiguous — so writing its
+ * output into the URL raw would let the URL's own decoder unwrap those escapes a second
+ * time, and the clause would come back as three values. Doubling the `%` puts the escaping
+ * back where it belongs. The rest are insurance: the grammar's field and operator names
+ * cannot contain them today, and a link that breaks because one day they can is not a
+ * failure anybody would trace back to here.
+ */
+const QUERY_ESCAPES: Readonly<Record<string, string>> = {
+  '%': '%25',
+  '&': '%26',
+  '#': '%23',
+  '+': '%2B',
+  ' ': '%20',
+};
+
+/**
+ * A query string, with the filter grammar's own punctuation left readable.
+ *
+ * `URLSearchParams.toString()` is the obvious way to do this and it is the wrong one: it
+ * escapes the parentheses and commas the grammar is built from, so a shared view arrives
+ * as `?filter=priority.in%281%2C2%29`. It parses — but "a link a human reads before they
+ * click it" is the entire reason this module is a grammar rather than base64, and that link
+ * says nothing at all. Every character `toFilterParam` leaves raw is legal in a query
+ * component; the ones that are not are escaped above.
+ *
+ * It lives here rather than beside the one caller that first needed it because it is the
+ * other half of `toFilterParam`, and every screen that puts a filter in the address bar has
+ * to use it: opening a saved view, opening a project's attached view, `G A`, clicking a
+ * member in the cycle sidebar. Each of those went through react-router's own serialiser and
+ * produced the unreadable form, so the promise held for a filter typed into the bar and for
+ * nothing else — which is the half of the product where links are actually made.
+ */
+export function filterSearchString(params: URLSearchParams): string {
+  const parts: string[] = [];
+  for (const [key, value] of params) {
+    parts.push(
+      key === FILTER_PARAM
+        ? `${key}=${value.replace(/[%&#+ ]/g, (char) => QUERY_ESCAPES[char] ?? char)}`
+        : `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+    );
+  }
+  return parts.length === 0 ? '' : `?${parts.join('&')}`;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -341,6 +390,21 @@ class Parser {
       }
     }
     this.expect(')');
+
+    // `()` is two different things, and which one it is follows from the operator.
+    //
+    // For `in` and `notIn` it is an empty list, which is meaningful and must stay
+    // distinguishable from `isNull` — that is why the writer emits the parentheses at all.
+    // For an operator that takes exactly one value it cannot mean that, because a clause
+    // with no value is one the validator rejects outright: it can only be the one value
+    // that encodes to nothing, the empty string. That is not a hypothetical. The filter bar
+    // seeds a new Title or Description clause with `contains ''` — the empty string is a
+    // legal text value meaning "matches everything", which is what an untouched or cleared
+    // search box should do — and reading `title.contains()` back as zero values turned the
+    // user's own filter into "this link carried a filter this build could not read" the
+    // moment it reached the address bar.
+    if (values.length === 0 && takesSingleValue(op)) values.push('');
+
     return { field: word, op, values };
   }
 
