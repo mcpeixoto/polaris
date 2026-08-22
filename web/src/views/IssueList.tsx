@@ -364,6 +364,33 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     [scope.team?.id ?? ''],
   );
 
+  /**
+   * Whether estimating is possible anywhere in this list.
+   *
+   * Not the same question as `canEstimate`, which is about the rows targeted right now and
+   * changes with every cursor move — that one decides whether the button is *disabled*, and
+   * carries a tooltip saying why. This one decides whether the affordance exists at all,
+   * because a team that has turned estimates off has no state in which `⇧E` does anything,
+   * and a key that can never work is a key the help overlay should not be teaching. (The
+   * overlay lists every registered binding on purpose and cannot filter on `enabled`; see
+   * `HelpOverlay`.) The detail rail already draws this line — no estimate row for a team
+   * whose scale is `none` — and the list follows it.
+   *
+   * A cross-team list has no single answer, so it asks whether *any* team could: dropping
+   * the shortcut there would take it away from a selection that is in one estimating team,
+   * which is a real thing to do from My Issues.
+   */
+  const estimatesPossible = useLiveQuery(
+    (store) => {
+      const teamId = scope.team?.id;
+      if (teamId === undefined) return [...store.teams.values()].some(estimatesEnabled);
+      const team = store.teams.get(teamId);
+      return team !== undefined && estimatesEnabled(team);
+    },
+    ['team'],
+    [scope.team?.id ?? ''],
+  );
+
   const now = useTriageClock(scope.team?.id, inTriage);
 
   /**
@@ -844,14 +871,19 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         enabled: () => viewerId !== null && commands.current.hasRows(),
         run: () => commands.current.assignToMe(),
       },
-      {
-        id: 'issueList.estimate',
-        title: 'Set estimate',
-        keys: ['shift+e'],
-        when: 'list',
-        group: 'Issues',
-        run: () => commands.current.pickEstimate(),
-      },
+      // Only where a selection in this list could ever be estimated. See `estimatesPossible`.
+      ...(estimatesPossible
+        ? [
+            {
+              id: 'issueList.estimate',
+              title: 'Set estimate',
+              keys: ['shift+e'],
+              when: 'list' as const,
+              group: 'Issues',
+              run: () => commands.current.pickEstimate(),
+            },
+          ]
+        : []),
       {
         id: 'issueList.dueDate',
         title: 'Set due date',
@@ -954,7 +986,10 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         run: () => commands.current.copyViewLink(),
       },
     ],
-    [viewerId],
+    // `estimatesPossible` too, because it decides whether one of these actions is in the list
+    // at all: a team turning estimates on has to re-register the keymap, or `⇧E` stays unbound
+    // until the screen is remounted.
+    [viewerId, estimatesPossible],
   );
 
   const onOpenRow = useCallback(
@@ -1273,11 +1308,23 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             Labels
           </Button>
         </Tooltip>
-        <Tooltip label="Set estimate" keys="shift+e">
-          <Button {...estimate.props} disabled={!canEstimate(engine.store, targets)}>
-            Estimate
-          </Button>
-        </Tooltip>
+        {/* Absent, not disabled, where no selection in this list could ever be estimated —
+            the same call the detail rail makes about its estimate row. Still disabled, with a
+            reason, for the cases that are about *this* selection rather than about the team. */}
+        {estimatesPossible ? (
+          <Tooltip
+            label={
+              canAct && !canEstimate(engine.store, targets)
+                ? 'Those issues do not share a team that estimates, and a scale belongs to a team'
+                : 'Set estimate'
+            }
+            keys="shift+e"
+          >
+            <Button {...estimate.props} disabled={!canEstimate(engine.store, targets)}>
+              Estimate
+            </Button>
+          </Tooltip>
+        ) : null}
         <Tooltip label="Set due date" keys="shift+d">
           <Button {...due.props} disabled={!canSetStatus}>
             Due date

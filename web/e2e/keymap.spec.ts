@@ -110,7 +110,7 @@ test('the help overlay lists the shortcuts that are hidden from the command menu
   workspace,
 }) => {
   await signIn(page, workspace.account);
-  await createIssueViaApi(workspace, 'Help overlay probe');
+  const issue = await createIssueViaApi(workspace, 'Help overlay probe');
   await page.goto(`/team/${workspace.teamKey}`);
   await page.getByRole('listbox', { name: /issues/i }).waitFor();
 
@@ -124,8 +124,19 @@ test('the help overlay lists the shortcuts that are hidden from the command menu
   await expect(help.getByText('Move up', { exact: true })).toBeVisible();
   await expect(help.getByText('Dismiss', { exact: true })).toBeVisible();
 
+  // The other half of that bargain: everything registered is listed, so nothing may be
+  // registered that cannot run. A new team does not estimate, so `⇧E` is not bound on either
+  // screen — and this sheet is the only place a permanently-disabled binding is visible.
+  await expect(help.getByText('Set estimate', { exact: true })).toHaveCount(0);
+
   await page.keyboard.press('Escape');
   await expect(help).toBeHidden();
+
+  await page.goto(`/issue/${issue.identifier}`);
+  await page.getByRole('heading', { name: new RegExp(issue.identifier) }).waitFor();
+  await page.keyboard.press('?');
+  await expect(help).toBeVisible();
+  await expect(help.getByText('Set estimate', { exact: true })).toHaveCount(0);
 });
 
 /**
