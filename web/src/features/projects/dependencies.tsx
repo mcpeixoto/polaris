@@ -3,12 +3,13 @@
  * `mutations.ts`.
  */
 
-import { useRef, useState, type RefObject } from 'react';
+import { useMemo, useRef, useState, type RefObject } from 'react';
 import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
 import { Button, IconButton, Select } from '~/components';
+import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 
@@ -35,6 +36,8 @@ export function ProjectDependencies({ projectId, compact = false }: ProjectDepen
   const [pickerKind, setPickerKind] = useState<LinkKind | null>(null);
   const blockedByTrigger = useRef<HTMLButtonElement>(null);
   const blockingTrigger = useRef<HTMLButtonElement>(null);
+  const blockedByHead = useRef<HTMLDivElement>(null);
+  const blockingHead = useRef<HTMLDivElement>(null);
 
   useKeyContext('detail');
 
@@ -50,16 +53,23 @@ export function ProjectDependencies({ projectId, compact = false }: ProjectDepen
     [projectId],
   );
 
-  const linkedIds = useLiveQuery(
+  // A sorted array, and not the Set this wants to be, because the store decides whether a
+  // subscriber has anything new by comparing the old answer with the new one structurally —
+  // and a Set has no own enumerable properties, so two Sets always compare equal no matter
+  // what is in them. Returning one here meant this query answered once, at mount, and never
+  // again: the guard below went on offering a project that had just been linked, and the
+  // server refused the second link with an error the user never asked to see.
+  const linkedList = useLiveQuery(
     (store) => {
       const ids = new Set<UUID>([projectId]);
       for (const row of listBlockedBy(store, projectId)) ids.add(row.projectId);
       for (const row of listBlocking(store, projectId)) ids.add(row.projectId);
-      return ids;
+      return [...ids].sort();
     },
     ['projectDependency', 'project'],
     [projectId],
   );
+  const linkedIds = useMemo(() => new Set(linkedList), [linkedList]);
 
   // Registered by the compact panel only, and that is load-bearing rather than a preference.
   // A project's overview mounts this component twice at once — once in the properties
@@ -90,25 +100,40 @@ export function ProjectDependencies({ projectId, compact = false }: ProjectDepen
     [projectId, compact],
   );
 
-  const onSelect = async (otherId: UUID | null) => {
+  // `report` on every write, because these are click handlers and a registered command, and
+  // neither can await. The server refuses a link for reasons the panel cannot see coming —
+  // a cycle three projects long, a project somebody else linked a moment ago — and without
+  // this the refusal is an unhandled rejection: a red line in the console, and nothing at
+  // all on the screen the user is looking at.
+  const onSelect = (otherId: UUID | null) => {
     if (otherId === null || pickerKind === null || otherId === projectId) {
       setPickerKind(null);
       return;
     }
-    if (pickerKind === 'blockedBy') {
-      await addBlockedBy(engine, projectId, otherId);
-    } else {
-      await addBlocking(engine, projectId, otherId);
-    }
+    const write =
+      pickerKind === 'blockedBy'
+        ? addBlockedBy(engine, projectId, otherId)
+        : addBlocking(engine, projectId, otherId);
+    write.catch(report);
     setPickerKind(null);
   };
 
-  const onRemove = async (depId: UUID) => {
-    await removeProjectDependency(engine, depId);
+  const onRemove = (depId: UUID) => {
+    removeProjectDependency(engine, depId).catch(report);
   };
 
-  const pickerTrigger: RefObject<HTMLElement | null> =
-    pickerKind === 'blocking' ? blockingTrigger : blockedByTrigger;
+  // The compact panel draws no add buttons, so on the copy that owns the two commands there
+  // is no button to hang the picker off. A menu with no anchor is not positioned at all: it
+  // keeps the stylesheet's `top: 0; left: 0` and opens in the corner of the window, nowhere
+  // near the project whose dependencies it is about to change. The section heading is the
+  // thing that is always there, so it is what the picker points at.
+  const pickerTrigger: RefObject<HTMLElement | null> = compact
+    ? pickerKind === 'blocking'
+      ? blockingHead
+      : blockedByHead
+    : pickerKind === 'blocking'
+      ? blockingTrigger
+      : blockedByTrigger;
 
   return (
     <div className={compact ? styles.compact : styles.panel}>
@@ -119,6 +144,7 @@ export function ProjectDependencies({ projectId, compact = false }: ProjectDepen
         onRemove={onRemove}
         addLabel="Add blocker…"
         addRef={blockedByTrigger}
+        headRef={blockedByHead}
         onAdd={() => setPickerKind('blockedBy')}
         showAdd={!compact}
       />
@@ -129,6 +155,7 @@ export function ProjectDependencies({ projectId, compact = false }: ProjectDepen
         onRemove={onRemove}
         addLabel="Add blocked project…"
         addRef={blockingTrigger}
+        headRef={blockingHead}
         onAdd={() => setPickerKind('blocking')}
         showAdd={!compact}
       />
@@ -142,7 +169,7 @@ export function ProjectDependencies({ projectId, compact = false }: ProjectDepen
             setPickerKind(null);
             return;
           }
-          void onSelect(id);
+          onSelect(id);
         }}
       />
     </div>
@@ -156,6 +183,8 @@ interface SectionProps {
   readonly onRemove: (depId: UUID) => void;
   readonly addLabel: string;
   readonly addRef: RefObject<HTMLButtonElement | null>;
+  /** What the picker is anchored to when there is no add button to anchor it to. */
+  readonly headRef: RefObject<HTMLDivElement | null>;
   readonly onAdd: () => void;
   readonly showAdd: boolean;
 }
@@ -167,12 +196,13 @@ function DependencySection({
   onRemove,
   addLabel,
   addRef,
+  headRef,
   onAdd,
   showAdd,
 }: SectionProps) {
   return (
     <section className={styles.section}>
-      <div className={styles.sectionHead}>
+      <div ref={headRef} className={styles.sectionHead}>
         <h3 className={styles.sectionTitle}>{title}</h3>
         {showAdd && (
           <Button ref={addRef} variant="ghost" size="sm" onClick={onAdd}>
