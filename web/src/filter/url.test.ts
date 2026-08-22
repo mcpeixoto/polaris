@@ -210,4 +210,19 @@ describe('display options in a URL', () => {
     });
     expect(parseDisplayParams(params)).toEqual({ properties: ['priority', 'labels'] });
   });
+
+  // Turning every property off is a choice, and `show=` is what it encodes to. Reading that
+  // back as "nothing was said" put all five properties back, so the fifth tick in the menu
+  // silently undid the other four.
+  it('round-trips a row with no properties at all', () => {
+    const params = new URLSearchParams(toDisplayParams({ properties: [] }));
+    expect(params.get('show')).toBe('');
+    expect(parseDisplayParams(params)).toEqual({ properties: [] });
+  });
+
+  // Still graceful the other way: a value naming only properties this build has never heard
+  // of falls back to the defaults rather than leaving a row with nothing on it.
+  it('falls back to the defaults when nothing in the list is recognised', () => {
+    expect(parseDisplayParams(new URLSearchParams({ show: 'sla,sentry' }))).toEqual({});
+  });
 });

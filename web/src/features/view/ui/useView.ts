@@ -17,9 +17,35 @@
  * issues measures well under a millisecond against a 50 ms budget, so a debounce would add
  * latency to hide a cost that is not there — and the list would then lag the keystroke
  * that caused it, which is the one thing this product cannot look like.
+ *
+ * **Display options are also remembered per person, per screen** — `preferenceKey`. That is
+ * not a second copy of the state and must not become one: what is remembered is a *starting
+ * point* for the URL, written into it on arrival exactly the way `SavedView` seeds a saved
+ * view's filter, after which the search params are the only copy again.
+ *
+ * Four things can answer "how should this page look", and they are consulted in this order:
+ *
+ *   1. the URL, if it says anything at all about display;
+ *   2. this person's remembered options for this screen (`preferenceKey`);
+ *   3. the screen's own default, where it has one — a saved view's `display`;
+ *   4. `DEFAULT_DISPLAY`.
+ *
+ * The URL is first because the person opening a link has to see what the sender saw, and it
+ * is all-or-nothing rather than merged. A link reading `?layout=board` omits every option
+ * that is at its default, so filling the gaps from the reader's own preference would hand
+ * them the sender's layout under the reader's grouping — a view neither of them has ever
+ * looked at. Between 2 and 3, personal beats shared, because that is the only thing the word
+ * personal can mean.
+ *
+ * All four are resolved here rather than by the screens, which is a change worth knowing
+ * about: `SavedView` and `ProjectAttachedView` used to write the view's display into the URL
+ * themselves. Two components racing to set the same parameters were resolved by whichever
+ * effect React ran last, and that was the shared default — so the option somebody had chosen
+ * was quietly overwritten by the team's on every visit. They still seed the filter, which
+ * nothing else claims.
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 
 import {
@@ -34,10 +60,14 @@ import {
   type DisplayOptions,
   type FilterNode,
 } from '~/filter';
+import { useEngine } from '~/app/context';
 import { filterContextFor, groupIssues, type IssueGroup, type ViewClock } from '~/features/view';
+import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import { useViewer } from '~/hooks/useViewer';
+import { useViewer, useViewerId } from '~/hooks/useViewer';
 import type { Issue, Store, UUID } from '~/store';
+
+import { setViewPreference } from '../mutations';
 
 /**
  * One group, holding ids rather than issues.
@@ -55,6 +85,15 @@ export interface ViewState {
   readonly filter: FilterNode;
   /** Every option resolved, so no caller has to remember what absence means. */
   readonly display: Required<DisplayOptions>;
+  /**
+   * What this screen looks like fresh — `DEFAULT_DISPLAY`, or a saved view's own display.
+   *
+   * The display menu draws its "Default: …" hints and its Reset button from this rather than
+   * from `DEFAULT_DISPLAY`, because on a screen with a saved default the product's are not
+   * the ones the reader is being returned to, and a menu that named the wrong one would send
+   * somebody looking for a setting they had never changed.
+   */
+  readonly defaults: Required<DisplayOptions>;
   /** Set when the URL carried a filter this build could not read. See `parseFilterParam`. */
   readonly error: string | null;
   readonly groups: readonly ViewGroup[];
@@ -106,6 +145,32 @@ export interface UseViewOptions {
    * filter — `issues` already decided what the view is over.
    */
   readonly teamId?: UUID | undefined;
+  /**
+   * The name this screen's display options are remembered under, per person.
+   *
+   * A *screen*, not a team and not a view row: "the ENG issue list", "my issues", "this
+   * project's issues". Grouping is a decision about a page, and the same person wants their
+   * triage inbox and their team's backlog to look like different things — so `team:ENG` and
+   * `triage:<id>` are separate keys even though they are the same team's work.
+   *
+   * Left unset the screen remembers nothing, which is right for a list whose identity is not
+   * stable enough to be worth a row: the ad-hoc list's key would be the identifiers in its
+   * own URL, and every link somebody opened would leave a preference behind that could never
+   * apply to anything again.
+   */
+  readonly preferenceKey?: string | undefined;
+  /**
+   * How this screen looks to somebody who has never touched it — a saved view's own
+   * `display`, and nothing on a screen that is a route rather than a row.
+   *
+   * Below the personal preference and above `DEFAULT_DISPLAY`. That order is the point of
+   * threading it through here rather than letting the screen seed the URL itself, which is
+   * what `SavedView` used to do: two components racing to write the same parameters resolved
+   * by which one's effect React happened to run first, and it ran the view's default *after*
+   * the preference — so the option somebody had chosen was overwritten by the shared one on
+   * every visit. One fallback chain in one place cannot have that bug.
+   */
+  readonly defaultDisplay?: DisplayOptions | undefined;
 }
 
 /** The entity types the answer can depend on: the filter's inputs and the grouping's. */
@@ -122,7 +187,56 @@ const VIEW_DEPS = [
   'customerRequest',
 ] as const;
 
+/** The remembered options are one row, and nothing else can change them. */
+const PREFERENCE_DEPS = ['viewPreference'] as const;
+
 const NO_INPUTS: readonly unknown[] = [];
+
+/** Stands in for "nothing was said", so `resolveDisplay` has one shape to read. */
+const EMPTY_PARAMS = new URLSearchParams();
+
+/**
+ * The options that are not already the default — what a remembered preference holds.
+ *
+ * Round-tripped through the URL codec rather than compared field by field, so that the row
+ * and the address bar cannot disagree about what a choice is: the same encoder decides what
+ * counts as a departure from the default, and the same parser decides what is legible. A
+ * hand-written comparison here would be a second definition of both, and the day
+ * `DEFAULT_DISPLAY` changed, one of them would be updated.
+ */
+export function displayOverrides(display: DisplayOptions): DisplayOptions {
+  return parseDisplayParams(new URLSearchParams(toDisplayParams(display)));
+}
+
+/**
+ * A stored set of options as search params, or null when there is no such row at all.
+ *
+ * An *empty* one is not null, and the difference matters more than it looks. A preference
+ * holding no overrides is somebody who has looked at the menu and chosen the product's
+ * defaults — on a saved view whose own display says otherwise, that is a real choice and the
+ * only way to express it. Folding it in with "no row" would make the view's default
+ * unbeatable: every attempt to select it would encode to nothing and be read back as silence.
+ *
+ * `properties` is guarded because it is the one field `toDisplayParams` calls a method on,
+ * and the row is JSON the server stores without reading: a client that once wrote something
+ * else there would otherwise take the whole screen down on arrival.
+ */
+function storedDisplayParams(stored: DisplayOptions | null | undefined): URLSearchParams | null {
+  if (stored === null || stored === undefined) return null;
+  const safe = Array.isArray(stored.properties) ? stored : { ...stored, properties: undefined };
+  return new URLSearchParams(toDisplayParams(safe));
+}
+
+/**
+ * A set of options as one comparable string — what "is this already the default" asks.
+ *
+ * The encoded form rather than the objects, because that is the form the question is really
+ * about: options that serialise identically *are* the same view, however differently the two
+ * objects spell "at its default".
+ */
+export function displaySignature(display: DisplayOptions): string {
+  return storedDisplayParams(display)?.toString() ?? '';
+}
 
 export function useView({
   issues,
@@ -131,15 +245,66 @@ export function useView({
   now,
   sourceFilter,
   teamId,
+  preferenceKey,
+  defaultDisplay,
 }: UseViewOptions): ViewState {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const engine = useEngine();
   const viewer = useViewer();
+  const viewerId = useViewerId();
   const hideCustomers = viewer === null || viewer.role === 'guest';
 
   const raw = params.get(FILTER_PARAM);
   const { filter, error } = useMemo(() => readFilter(raw), [raw]);
-  const display = useMemo(() => resolveDisplay(params), [params]);
+
+  // Any one of them, not all of them: `toDisplayParams` omits everything already at its
+  // default, so a link that says only `layout=board` is still a complete statement about how
+  // the page should look, and the six it left out are not gaps for a preference to fill.
+  const urlDisplay = useMemo(
+    () => (Object.values(DISPLAY_PARAMS).some((name) => params.has(name)) ? params : null),
+    [params],
+  );
+
+  const stored = useLiveQuery(
+    (store) => {
+      if (preferenceKey === undefined || viewerId === null) return null;
+      const id = store.viewPreferenceIdFor(viewerId, preferenceKey);
+      return id === undefined ? null : (store.get('viewPreference', id)?.display ?? null);
+    },
+    PREFERENCE_DEPS,
+    [preferenceKey ?? '', viewerId ?? ''],
+  );
+
+  // Re-encoded and re-parsed rather than trusted. The row is JSON the server does not read,
+  // so it can hold a grouping this build has never heard of — a colleague on a newer client,
+  // or the same person before a downgrade. Running it back through the URL codec means the
+  // one validator the address bar already uses decides what is legible, and an option this
+  // build cannot draw falls back to the default instead of reaching a `<Select>` that has no
+  // such option and rendering blank.
+  const storedParams = useMemo(() => storedDisplayParams(stored), [stored]);
+  const defaultParams = useMemo(() => storedDisplayParams(defaultDisplay), [defaultDisplay]);
+
+  /**
+   * What the screen falls back to when the address bar says nothing: this person's
+   * remembered options, else the page's own default, else the product's.
+   *
+   * The `viewerId` guard is what stops the second from being used in place of the first.
+   * Who the viewer is arrives over the network — one query per session — and until it does,
+   * nobody's preferences can be looked up, so an unguarded chain would read "no preference"
+   * and seed the screen's shared default into the URL. The moment that lands the URL is no
+   * longer silent, so the preference that arrives a frame later is outranked by it: the
+   * choice is not lost, it is *shadowed*, on every cold load, and it looks like the setting
+   * never saved.
+   */
+  const preferenceSettled = preferenceKey === undefined || viewerId !== null;
+  const fallbackParams = storedParams ?? (preferenceSettled ? defaultParams : null);
+
+  const display = useMemo(
+    () => resolveDisplay(urlDisplay ?? fallbackParams ?? EMPTY_PARAMS),
+    [urlDisplay, fallbackParams],
+  );
+  const defaults = useMemo(() => resolveDisplay(defaultParams ?? EMPTY_PARAMS), [defaultParams]);
 
   const view = useLiveQuery(
     (store) =>
@@ -204,20 +369,63 @@ export function useView({
 
   const setDisplay = useCallback(
     (patch: Partial<DisplayOptions>) => {
-      const next = toDisplayParams({ ...display, ...patch });
+      const merged = { ...display, ...patch };
+      const next = toDisplayParams(merged);
       writeParams((search) => {
         // Cleared first: `toDisplayParams` omits every value that is already the default,
         // so a param left behind would pin a choice the user has just undone.
         for (const name of Object.values(DISPLAY_PARAMS)) search.delete(name);
         for (const [name, value] of Object.entries(next)) search.set(name, value);
       });
+      if (preferenceKey === undefined || viewerId === null) return;
+      // Fire and forget, and deliberately not awaited before the URL is written: the change
+      // is already on screen, and a grouping that waited for a round trip before it applied
+      // would make the menu feel like a form. `setViewPreference` swallows an offline
+      // failure by itself — the next change retries it.
+      //
+      // The overrides rather than the resolved options, for the same reason the URL omits
+      // defaults: a row restating today's defaults would pin them, and somebody who never
+      // touched sub-issues would keep the old default after it changed.
+      void setViewPreference(engine, viewerId, preferenceKey, displayOverrides(merged)).catch(
+        report,
+      );
     },
-    [writeParams, display],
+    [writeParams, display, engine, preferenceKey, viewerId],
   );
+
+  /**
+   * Writes a remembered preference into the address bar on arrival.
+   *
+   * Not because the view needs it — `display` already resolved from the same row — but
+   * because the URL is supposed to be the whole answer to "what am I looking at". A screen
+   * showing a board while its address bar says nothing about layout is a link that opens as
+   * something else for the person you sent it to, and the first place anyone notices is
+   * "Copy view link".
+   *
+   * `replace`, and only when the bar says nothing at all, so it cannot fight the params it
+   * has just written, and cannot leave a back button pointing at the bare URL that would
+   * immediately redirect forward again.
+   *
+   * `params` is a dependency, which looks like it should loop and does not: the write puts a
+   * display parameter in the bar, `urlDisplay` stops being null, and the guard closes. It
+   * has to be one, because this is not the only effect writing to the address bar on arrival
+   * — `SavedView` seeds the filter from the same commit, off its own copy of the params, and
+   * whichever of the two runs second overwrites what the first wrote. Re-running on the
+   * result is what lets the pair settle instead of racing.
+   */
+  useEffect(() => {
+    if (urlDisplay !== null || fallbackParams === null) return;
+    const entries = [...fallbackParams];
+    if (entries.length === 0) return;
+    const next = new URLSearchParams(params);
+    for (const [name, value] of entries) next.set(name, value);
+    void navigate({ search: searchStringOf(next) }, { replace: true });
+  }, [urlDisplay, fallbackParams, params, navigate]);
 
   return {
     filter,
     display,
+    defaults,
     error,
     groups: view.groups,
     count: view.count,

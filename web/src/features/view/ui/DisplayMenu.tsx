@@ -7,7 +7,17 @@
  * the view underneath is the preview, it re-renders inside the frame, and a dialog that
  * batches changes would put a modal step between somebody and a decision they are taking by
  * looking. `setDisplay` writes the URL with `replace`, so ticking four properties is one
- * history entry rather than four — see `useView`, which is where that bargain lives.
+ * history entry rather than four — see `useView`, which is where that bargain lives. The same
+ * call remembers the choice for the person who made it, on the server rather than in this
+ * browser, so there is no Save button here and there should not be one: a preference somebody
+ * has to confirm is a preference half of them will lose.
+ *
+ * **"Set as default" is about other people, and only appears when it can be.** Personal
+ * stickiness is already automatic, so the only thing left for a button to mean is "make this
+ * what everybody opening the page sees" — which needs a shared row to write, and today only a
+ * saved view has one. Drawing it everywhere and quietly having it write a personal preference
+ * on the screens that do not would be worse than not drawing it: the person who pressed it
+ * would go on believing the team had been moved.
  *
  * **A value that is not the default says so.** Display options are sticky in a way filters
  * are not: they arrive in a shared link, they survive a reload, and "why is this list
@@ -64,6 +74,14 @@ export interface DisplayMenuProps {
    */
   readonly display: Required<DisplayOptions>;
   /**
+   * What this screen looks like fresh, which is not always the product's defaults.
+   *
+   * A saved view carries its own display, and on that screen it is what "Reset to default"
+   * returns to and what each row's "Default: …" line has to name. Defaults to
+   * `DEFAULT_DISPLAY` so a screen with no saved default says nothing new.
+   */
+  readonly defaults?: Required<DisplayOptions> | undefined;
+  /**
    * One control's change, written straight through. A patch and not a whole options object,
    * so the call site can merge it over whatever the URL currently says rather than over the
    * copy this component was rendered with — see `useView.setDisplay`.
@@ -80,6 +98,21 @@ export interface DisplayMenuProps {
   readonly className?: string | undefined;
   /** The triage inbox: snoozed rows have a display toggle Linear documents as view options. */
   readonly triage?: boolean | undefined;
+  /**
+   * Saves what is on screen as the page's default for everybody who opens it.
+   *
+   * Offered only where a shared default has somewhere to live — a saved view, whose `display`
+   * is the starting point every reader gets. On a screen that has no such row the prop is
+   * absent and the button is not drawn, because a control that silently only changed *your*
+   * copy would be the most expensive kind of wrong: the person who pressed it would go on
+   * believing the team was looking at what they set up.
+   *
+   * Personal stickiness is not this button's job and never was — every control here already
+   * remembers itself for the person using it. See `useView`'s `preferenceKey`.
+   */
+  onSetDefault?: (() => void) | undefined;
+  /** False when the screen already matches the saved default, so there is nothing to save. */
+  readonly canSetDefault?: boolean | undefined;
 }
 
 /**
@@ -219,27 +252,33 @@ function sameProperties(a: readonly DisplayProperty[], b: readonly DisplayProper
 }
 
 /** How many of the seven options are not what a fresh view would have shown. */
-function changedCount(display: Required<DisplayOptions>): number {
+function changedCount(
+  display: Required<DisplayOptions>,
+  defaults: Required<DisplayOptions>,
+): number {
   let count = 0;
-  if (display.layout !== DEFAULT_DISPLAY.layout) count++;
-  if (display.groupBy !== DEFAULT_DISPLAY.groupBy) count++;
-  if (display.orderBy !== DEFAULT_DISPLAY.orderBy) count++;
-  if (display.direction !== DEFAULT_DISPLAY.direction) count++;
-  if (display.showSubIssues !== DEFAULT_DISPLAY.showSubIssues) count++;
-  if (display.showCompleted !== DEFAULT_DISPLAY.showCompleted) count++;
-  if (display.showSnoozed !== DEFAULT_DISPLAY.showSnoozed) count++;
-  if (!sameProperties(display.properties, DEFAULT_DISPLAY.properties)) count++;
+  if (display.layout !== defaults.layout) count++;
+  if (display.groupBy !== defaults.groupBy) count++;
+  if (display.orderBy !== defaults.orderBy) count++;
+  if (display.direction !== defaults.direction) count++;
+  if (display.showSubIssues !== defaults.showSubIssues) count++;
+  if (display.showCompleted !== defaults.showCompleted) count++;
+  if (display.showSnoozed !== defaults.showSnoozed) count++;
+  if (!sameProperties(display.properties, defaults.properties)) count++;
   return count;
 }
 
 export function DisplayMenu({
   display,
+  defaults = DEFAULT_DISPLAY,
   onChange,
   open,
   onClose,
   trigger,
   className,
   triage = false,
+  onSetDefault,
+  canSetDefault = true,
 }: DisplayMenuProps) {
   const baseId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -352,7 +391,7 @@ export function DisplayMenu({
     [onChange, properties],
   );
 
-  const changed = changedCount(display);
+  const changed = changedCount(display, defaults);
   const note = orderingNote(display.orderBy, display.groupBy);
 
   if (!open) return null;
@@ -381,11 +420,16 @@ export function DisplayMenu({
         <span className={styles.count}>
           {changed === 0 ? 'All defaults' : changed === 1 ? '1 changed' : `${changed} changed`}
         </span>
+        {onSetDefault === undefined ? null : (
+          <Button size="sm" variant="ghost" disabled={!canSetDefault} onClick={onSetDefault}>
+            Set as default
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
           disabled={changed === 0}
-          onClick={() => onChange({ ...DEFAULT_DISPLAY })}
+          onClick={() => onChange({ ...defaults })}
         >
           Reset to default
         </Button>
@@ -411,8 +455,8 @@ export function DisplayMenu({
             </Button>
           ))}
         </div>
-        {display.layout === DEFAULT_DISPLAY.layout ? null : (
-          <p className={styles.changed}>Default: {LAYOUT_LABELS[DEFAULT_DISPLAY.layout]}</p>
+        {display.layout === defaults.layout ? null : (
+          <p className={styles.changed}>Default: {LAYOUT_LABELS[defaults.layout]}</p>
         )}
       </div>
 
@@ -421,9 +465,9 @@ export function DisplayMenu({
         className={styles.section}
         value={display.groupBy}
         hint={
-          display.groupBy === DEFAULT_DISPLAY.groupBy
+          display.groupBy === defaults.groupBy
             ? undefined
-            : `Default: ${GROUP_LABELS[DEFAULT_DISPLAY.groupBy]}`
+            : `Default: ${GROUP_LABELS[defaults.groupBy]}`
         }
         onChange={(event) => {
           // Matched against the list this select was built from rather than cast: a cast
@@ -445,9 +489,9 @@ export function DisplayMenu({
         className={styles.section}
         value={display.orderBy}
         hint={
-          display.orderBy === DEFAULT_DISPLAY.orderBy
+          display.orderBy === defaults.orderBy
             ? undefined
-            : `Default: ${ORDER_LABELS[DEFAULT_DISPLAY.orderBy]}`
+            : `Default: ${ORDER_LABELS[defaults.orderBy]}`
         }
         onChange={(event) => {
           const next = ORDER_ORDER.find((candidate) => candidate === event.target.value);
@@ -484,8 +528,8 @@ export function DisplayMenu({
             </Button>
           ))}
         </div>
-        {display.direction === DEFAULT_DISPLAY.direction ? null : (
-          <p className={styles.changed}>Default: {DIRECTION_LABELS[DEFAULT_DISPLAY.direction]}</p>
+        {display.direction === defaults.direction ? null : (
+          <p className={styles.changed}>Default: {DIRECTION_LABELS[defaults.direction]}</p>
         )}
       </div>
 
@@ -495,10 +539,10 @@ export function DisplayMenu({
           checked={display.showSubIssues}
           onChange={(event) => onChange({ showSubIssues: event.target.checked })}
         />
-        {display.showSubIssues === DEFAULT_DISPLAY.showSubIssues ? null : (
+        {display.showSubIssues === defaults.showSubIssues ? null : (
           <p className={styles.changed}>
-            Default: {DEFAULT_DISPLAY.showSubIssues ? 'shown' : 'hidden'}. A child whose parent is
-            also in this view is hidden, so nothing is listed twice.
+            Default: {defaults.showSubIssues ? 'shown' : 'hidden'}. A child whose parent is also in
+            this view is hidden, so nothing is listed twice.
           </p>
         )}
         <Checkbox
@@ -506,10 +550,10 @@ export function DisplayMenu({
           checked={display.showCompleted}
           onChange={(event) => onChange({ showCompleted: event.target.checked })}
         />
-        {display.showCompleted === DEFAULT_DISPLAY.showCompleted ? null : (
+        {display.showCompleted === defaults.showCompleted ? null : (
           <p className={styles.changed}>
-            Default: {DEFAULT_DISPLAY.showCompleted ? 'shown' : 'hidden'}. Canceled work is not
-            affected either way — it is not finished work.
+            Default: {defaults.showCompleted ? 'shown' : 'hidden'}. Canceled work is not affected
+            either way — it is not finished work.
           </p>
         )}
         {triage ? (
@@ -519,7 +563,7 @@ export function DisplayMenu({
               checked={display.showSnoozed}
               onChange={(event) => onChange({ showSnoozed: event.target.checked })}
             />
-            {display.showSnoozed === DEFAULT_DISPLAY.showSnoozed ? null : (
+            {display.showSnoozed === defaults.showSnoozed ? null : (
               <p className={styles.changed}>
                 Default: hidden. Snoozed issues stay out of the queue until the time, or until
                 somebody edits or comments.
@@ -541,9 +585,9 @@ export function DisplayMenu({
             onChange={(event) => onProperty(value, event.target.checked)}
           />
         ))}
-        {sameProperties(display.properties, DEFAULT_DISPLAY.properties) ? null : (
+        {sameProperties(display.properties, defaults.properties) ? null : (
           <p className={styles.changed}>
-            Default: {DEFAULT_DISPLAY.properties.map((value) => PROPERTY_LABELS[value]).join(', ')}
+            Default: {defaults.properties.map((value) => PROPERTY_LABELS[value]).join(', ')}
           </p>
         )}
       </div>

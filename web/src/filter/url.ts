@@ -214,9 +214,16 @@ export function parseDisplayParams(params: URLSearchParams): DisplayOptions {
   if (snoozed === 'true' || snoozed === 'false') out.showSnoozed = snoozed === 'true';
 
   const properties = params.get(DISPLAY_PARAMS.properties);
-  if (properties !== null) {
+  if (properties === '') {
+    // Every property turned off, which is a choice and not an absence. `show=` is exactly
+    // what `toDisplayParams` writes for it, so reading it as "nothing was said" made the
+    // fifth tick in the Properties group silently restore the four already unticked.
+    out.properties = [];
+  } else if (properties !== null) {
     // Unknown property names are dropped rather than rejected: a link made by a newer build
-    // must still open in an older one, showing what it understands.
+    // must still open in an older one, showing what it understands. A value that is entirely
+    // unknown falls back to the defaults rather than to nothing, because the alternative is a
+    // row with no properties at all on a link whose author asked for five.
     const known = properties.split(',').filter(isDisplayProperty);
     if (known.length > 0) out.properties = known;
   }
