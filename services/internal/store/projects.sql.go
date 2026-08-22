@@ -134,6 +134,17 @@ func (q *Queries) CountProjectTeams(ctx context.Context, projectID uuid.UUID) (i
 	return count, err
 }
 
+const countProjectsInProjectStatus = `-- name: CountProjectsInProjectStatus :one
+SELECT count(*) FROM project WHERE status_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) CountProjectsInProjectStatus(ctx context.Context, statusID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countProjectsInProjectStatus, statusID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createProject = `-- name: CreateProject :one
 
 INSERT INTO project (id, workspace_id, name, summary, description, icon, color,

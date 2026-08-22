@@ -235,6 +235,7 @@ type Querier interface {
 	CountPendingWebhookDeliveries(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	CountProjectTeams(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountProjectsFromTemplate(ctx context.Context, projectTemplateID *uuid.UUID) (int64, error)
+	CountProjectsInProjectStatus(ctx context.Context, statusID uuid.UUID) (int64, error)
 	CountProjectsWithProjectLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
 	CountPulseFeedsForUser(ctx context.Context, arg CountPulseFeedsForUserParams) (int32, error)
 	// CountPulseForMeUpdatesSince is the Pulse "For me" predicate: lead, creator, or member.

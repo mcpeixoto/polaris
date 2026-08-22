@@ -62,6 +62,9 @@ WHERE id = sqlc.arg(id)
 RETURNING id, workspace_id, name, description, color, category, position, is_default,
           archived_at, created_at, updated_at;
 
+-- name: CountProjectsInProjectStatus :one
+SELECT count(*) FROM project WHERE status_id = $1 AND deleted_at IS NULL;
+
 -- name: ArchiveProjectStatus :exec
 UPDATE project_status SET archived_at = now() WHERE id = $1 AND archived_at IS NULL;
 

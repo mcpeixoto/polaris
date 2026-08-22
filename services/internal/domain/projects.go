@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -46,6 +47,19 @@ func validProjectCategory(c string) bool {
 	}
 	return false
 }
+
+// canHoldDefault mirrors project_status_default_category_check.
+//
+// The default is where a brand new project lands, so it may only be Backlog or Planned —
+// a project that is Completed before anybody has touched it is not a state the product
+// has. The database enforces it; without the same rule here the constraint surfaces as an
+// opaque "internal error" that the client treats as retriable and eventually drops on the
+// floor, so the promotion looks like it worked until the page is reloaded.
+func canHoldDefault(category string) bool {
+	return category == model.ProjectCategoryBacklog || category == model.ProjectCategoryPlanned
+}
+
+const defaultCategoryMessage = "only a Backlog or Planned status can be the workspace default"
 
 func validGranularity(g string) bool {
 	switch g {
@@ -879,6 +893,9 @@ func (s *Service) CreateProjectStatus(ctx context.Context, p *authz.Principal, i
 	if !validProjectCategory(in.Category) {
 		return model.ProjectStatus{}, 0, platform.Validation("category", "a project status is backlog, planned, started, completed or canceled")
 	}
+	if in.IsDefault && !canHoldDefault(in.Category) {
+		return model.ProjectStatus{}, 0, platform.Validation("isDefault", defaultCategoryMessage)
+	}
 	if !authz.Can(p, authz.ActionProjectStatusManage) {
 		return model.ProjectStatus{}, 0, platform.Forbidden("project status")
 	}
@@ -956,8 +973,24 @@ func (s *Service) UpdateProjectStatus(ctx context.Context, p *authz.Principal, i
 	var out model.ProjectStatus
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
-		if _, err := s.loadProjectStatus(ctx, q, p, in.ID); err != nil {
+		existing, err := s.loadProjectStatus(ctx, q, p, in.ID)
+		if err != nil {
 			return err
+		}
+		// What the row looks like once this update lands is what the constraint is
+		// checked against, so both halves of the pair have to be resolved before either
+		// is written: promoting a Started status and moving the default into Started are
+		// the same violation arriving from opposite directions.
+		category := existing.Category
+		if in.Category != nil {
+			category = *in.Category
+		}
+		isDefault := existing.IsDefault
+		if in.IsDefault != nil {
+			isDefault = *in.IsDefault
+		}
+		if isDefault && !canHoldDefault(category) {
+			return platform.Validation("isDefault", defaultCategoryMessage)
 		}
 		if in.IsDefault != nil && *in.IsDefault {
 			if err := q.ClearDefaultProjectStatuses(ctx, store.ClearDefaultProjectStatusesParams{
@@ -1000,6 +1033,20 @@ func (s *Service) ArchiveProjectStatus(ctx context.Context, p *authz.Principal, 
 		if archived {
 			if row.IsDefault {
 				return platform.Validation("id", "the default status cannot be archived")
+			}
+			// Same rule as ArchiveWorkflowState and ArchiveProjectLabel. `status_id` is
+			// NOT NULL and the archive is a soft one, so the projects would keep pointing
+			// at a row no client can see: every one of them renders as "No status", their
+			// category stops driving the timeline, the graph, staleness and auto-archive,
+			// and nothing on screen says a status was taken away. There is no restore in
+			// the UI either, so the loss reads as permanent.
+			count, err := q.CountProjectsInProjectStatus(ctx, id)
+			if err != nil {
+				return platform.Internal(err)
+			}
+			if count > 0 {
+				return platform.Conflict(fmt.Sprintf(
+					"%d projects still use this status; move them first", count))
 			}
 			if err := q.ArchiveProjectStatus(ctx, id); err != nil {
 				return platform.Internal(err)
