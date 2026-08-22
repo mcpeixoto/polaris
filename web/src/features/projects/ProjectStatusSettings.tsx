@@ -37,6 +37,15 @@ const CATEGORY_LABELS: Readonly<Record<ProjectStatusCategory, string>> = {
   canceled: 'Canceled',
 };
 
+/**
+ * Which categories may hold the workspace default.
+ *
+ * A new project lands in the default status, so the database only allows Backlog and
+ * Planned to be it (`project_status_default_category_check`). Offering "Make default"
+ * anywhere else is a button whose only outcome is an error, so it is not offered.
+ */
+const CAN_BE_DEFAULT: ReadonlySet<ProjectStatusCategory> = new Set(['backlog', 'planned']);
+
 /** Project "planned" is issue "unstarted": work that exists and has not begun. */
 const ICON_CATEGORY: Readonly<Record<ProjectStatusCategory, StateCategory>> = {
   backlog: 'backlog',
@@ -177,11 +186,11 @@ function StatusRow({
 
       {status.isDefault ? (
         <Badge tone="accent">Default</Badge>
-      ) : (
+      ) : CAN_BE_DEFAULT.has(status.category) ? (
         <Button size="sm" onClick={onMakeDefault}>
           Make default
         </Button>
-      )}
+      ) : null}
 
       <IconButton
         aria-label={`Retire ${status.name}`}
