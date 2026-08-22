@@ -123,7 +123,11 @@ export function buildProjectTimeline(
 
   const rangeDays = Math.max(1, daysBetween(rangeStart, rangeEnd) + 1);
   const totalWidth = Math.ceil(rangeDays * pxPerDay);
-  const rowCount = dated.length + (unscheduled.length > 0 ? unscheduled.length + 1 : 0);
+  // Must come out as exactly the height the label column renders, or the two panes have
+  // different scroll ranges and the shared vertical offset cannot reach the same bottom.
+  // The "Unscheduled" heading is a heading in the sidebar, not a row: it costs HEADER_HEIGHT.
+  const rowCount = dated.length + unscheduled.length;
+  const unscheduledHeader = unscheduled.length > 0 ? HEADER_HEIGHT : 0;
 
   const dayX = (day: string) => daysBetween(rangeStart, day) * pxPerDay;
 
@@ -195,7 +199,9 @@ export function buildProjectTimeline(
     pxPerDay,
     totalWidth,
     totalHeight:
-      rowCount === 0 ? HEADER_HEIGHT + ROW_HEIGHT : HEADER_HEIGHT + rowCount * ROW_HEIGHT,
+      rowCount === 0
+        ? HEADER_HEIGHT + ROW_HEIGHT
+        : HEADER_HEIGHT + unscheduledHeader + rowCount * ROW_HEIGHT,
     sidebarWidth: SIDEBAR_WIDTH,
     headerHeight: HEADER_HEIGHT,
     rowHeight: ROW_HEIGHT,
