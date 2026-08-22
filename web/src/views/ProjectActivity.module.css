@@ -33,3 +33,10 @@
   line-height: 1.5;
   white-space: pre-wrap;
 }
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}

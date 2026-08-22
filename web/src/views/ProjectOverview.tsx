@@ -6,11 +6,13 @@ import { useState, type FormEvent } from 'react';
 import { useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, Select } from '~/components';
+import { Button, IconButton, Select } from '~/components';
 import { ProjectGraph } from '~/features/projects/ProjectGraph';
 import { ProjectDependencies } from '~/features/projects/dependencies';
 import { createProjectUpdate } from '~/features/project-updates/mutations';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
+import { PencilGlyph } from '~/features/project-updates/glyphs';
+import { ProjectUpdateEditor } from '~/features/project-updates/ProjectUpdateEditor';
 import { latestProjectUpdate } from '~/features/project-updates/helpers';
 import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -31,6 +33,7 @@ export function ProjectOverview() {
   const [health, setHealth] = useState<ProjectUpdateHealth>('on_track');
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
+  const [editingLatest, setEditingLatest] = useState(false);
 
   const project = useLiveQuery(
     (store) => store.projects.get(projectId) ?? null,
@@ -85,44 +88,64 @@ export function ProjectOverview() {
             {latestAuthor !== null && (
               <span className={styles.metaText}>
                 {latestAuthor} · {formatWhen(latest.createdAt)}
+                {latest.editedAt === undefined ? '' : ' · edited'}
               </span>
             )}
+            {/* Author-only, because the server refuses anybody else's edit. */}
+            {viewerId === latest.authorId && !editingLatest && (
+              <IconButton
+                size="sm"
+                icon={<PencilGlyph />}
+                aria-label="Edit update"
+                tooltip="Edit update"
+                onClick={() => setEditingLatest(true)}
+              />
+            )}
           </div>
-          {latest.body !== '' && <p className={styles.body}>{latest.body}</p>}
+          {editingLatest ? (
+            <ProjectUpdateEditor update={latest} onDone={() => setEditingLatest(false)} />
+          ) : (
+            latest.body !== '' && <p className={styles.body}>{latest.body}</p>
+          )}
         </section>
       )}
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Post an update</h2>
-        <form className={styles.form} onSubmit={onSubmit}>
-          <Select
-            label="Health"
-            value={health}
-            onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
-          >
-            {HEALTH_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-          <label className={styles.field}>
-            <span className={styles.label}>Update</span>
-            <textarea
-              className={styles.textarea}
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              placeholder="What changed since the last update?"
-              rows={4}
-            />
-          </label>
-          <div className={styles.actions}>
-            <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
-              Post update
-            </Button>
-          </div>
-        </form>
-      </section>
+      {/* Correcting the last post and writing the next one are the same decision made
+          twice, so the composer stands down while the editor is open — which also keeps
+          one "Health" control on the screen rather than two identically named ones. */}
+      {editingLatest ? null : (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Post an update</h2>
+          <form className={styles.form} onSubmit={onSubmit}>
+            <Select
+              label="Health"
+              value={health}
+              onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
+            >
+              {HEALTH_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+            <label className={styles.field}>
+              <span className={styles.label}>Update</span>
+              <textarea
+                className={styles.textarea}
+                value={body}
+                onChange={(event) => setBody(event.target.value)}
+                placeholder="What changed since the last update?"
+                rows={4}
+              />
+            </label>
+            <div className={styles.actions}>
+              <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
+                Post update
+              </Button>
+            </div>
+          </form>
+        </section>
+      )}
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Dependencies</h2>
