@@ -2,6 +2,7 @@
  * Projects timeline — Gantt bars, milestones and dependency lines from the local replica.
  */
 
+import { useCallback, useRef } from 'react';
 import { Link } from 'react-router';
 
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -57,6 +58,31 @@ export function ProjectTimeline({
     ],
   );
 
+  // The label column and the date canvas are two scroll containers side by side, because
+  // only one of them scrolls sideways. That makes their vertical positions independent,
+  // which is wrong: a Gantt row is a name *and* a bar, and once the canvas has scrolled a
+  // row or two the name beside a bar is somebody else's project. Nothing about the drawing
+  // is off — the reader is simply told the wrong thing, which is worse than a visible
+  // glitch. So the two panes share one vertical offset, whichever of them was scrolled.
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Assigning `scrollTop` fires the other pane's scroll event, so the guard is what stops
+  // the two handlers bouncing a value between them forever.
+  const syncScroll = useCallback((from: HTMLDivElement | null, to: HTMLDivElement | null) => {
+    if (from === null || to === null) return;
+    if (to.scrollTop !== from.scrollTop) to.scrollTop = from.scrollTop;
+  }, []);
+
+  const onCanvasScroll = useCallback(
+    () => syncScroll(canvasRef.current, sidebarRef.current),
+    [syncScroll],
+  );
+  const onSidebarScroll = useCallback(
+    () => syncScroll(sidebarRef.current, canvasRef.current),
+    [syncScroll],
+  );
+
   if (data.bars.length === 0 && data.unscheduled.length === 0) {
     return (
       <p className={styles.empty}>
@@ -68,7 +94,7 @@ export function ProjectTimeline({
   return (
     <div className={styles.timeline} aria-label="Projects timeline">
       <div className={styles.body}>
-        <div className={styles.sidebar}>
+        <div ref={sidebarRef} className={styles.sidebar} onScroll={onSidebarScroll}>
           <div className={styles.sidebarHeader}>Project</div>
           {data.bars.map((bar) => (
             <Link
@@ -99,7 +125,7 @@ export function ProjectTimeline({
           )}
         </div>
 
-        <div className={styles.canvas}>
+        <div ref={canvasRef} className={styles.canvas} onScroll={onCanvasScroll}>
           <div
             className={styles.grid}
             style={{ width: data.totalWidth, minHeight: data.totalHeight }}
