@@ -393,6 +393,10 @@ export async function postComment(engine: SyncEngine, input: NewComment): Promis
         type: 'comment',
         provisionalId: provisional.id,
         path: ['createComment', 'comment'],
+        // And the same row off the delta stream, which usually gets here first — see
+        // `adopt`. Issue, parent and body are what the client chose, so they are what the
+        // pairing can be made on; the id is the one thing it did not know.
+        match: ['issueId', 'parentId', 'body'],
       },
     });
   } catch (error) {
@@ -620,6 +624,8 @@ export async function createRelation(engine: SyncEngine, input: NewRelation): Pr
         type: 'issueRelation',
         provisionalId: provisional.id,
         path: ['createIssueRelation', 'relation'],
+        // Both ends and the kind, which the server treats as unique anyway.
+        match: ['issueId', 'relatedIssueId', 'type'],
       },
     });
   } catch (error) {
@@ -709,6 +715,8 @@ export async function setSubscribed(engine: SyncEngine, input: SubscriptionChang
         type: 'issueSubscription',
         provisionalId: provisional.id,
         path: ['setIssueSubscription', 'subscription'],
+        // One subscription row per person per issue, so this pair is exact.
+        match: ['issueId', 'userId'],
       },
     });
   } catch (error) {

@@ -27,7 +27,7 @@ import {
 } from '~/store';
 import { ApiError, gql, setWorkspace } from './api';
 import { streamBootstrap } from './bootstrap';
-import { settle } from './reconcile';
+import { adopt, settle } from './reconcile';
 import {
   OUTDATED_CLIENT_MESSAGE,
   clearSchemaReloadAttempt,
@@ -314,6 +314,12 @@ export class SyncEngine {
     // The store advances its own version from the batch and schedules the durable write;
     // the socket only needs to know where to resume from.
     this.store.applyChanges(changes as unknown as StoreChange[]);
+    // A row in this batch may be the one a stand-in is standing in for. The socket pushes it
+    // the moment the mutation commits, which on a loaded machine is well before the response
+    // gets back here — and until something retires the stand-in the user is looking at their
+    // comment twice. Doing it here rather than waiting for `settle` is what makes the
+    // duplicate last a frame instead of a round trip, or forever when the response is lost.
+    adopt(this.store, this.outbox, changes);
     this.socket.setVersion(this.store.version);
   }
 

@@ -57,6 +57,25 @@ export interface Reconciliation {
   readonly provisionalId: UUID;
   /** Where the row sits in the mutation's response — `['createComment', 'comment']`. */
   readonly path: readonly string[];
+  /**
+   * The fields that say "this delta row and that stand-in are the same thing".
+   *
+   * The response is not the only way the server's row reaches this client. The sync socket
+   * carries it too, and it routinely wins the race: the delta is pushed the moment the
+   * mutation commits, while the response still has to travel back and be parsed by a main
+   * thread that is busy rendering. For the length of that gap the replica holds both rows
+   * and the issue shows one comment twice — and if the response never arrives at all, that
+   * gap lasts until the outbox is next drained, which may be never.
+   *
+   * A delta row cannot be paired with a stand-in by id, because the id is the one thing the
+   * client did not know. So it is paired on the fields the client *did* choose: for a
+   * comment its issue, its parent and its body; for a relation both ends and the kind. See
+   * `adopt` in ../sync/reconcile.ts.
+   *
+   * Absent means "do not pair from the delta stream" — the stand-in then waits for the
+   * response, which is the old behaviour and is correct, only slower to converge.
+   */
+  readonly match?: readonly string[];
 }
 
 /** A queued mutation, exactly as it is stored. */
