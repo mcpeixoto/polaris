@@ -5,8 +5,9 @@
  * upserts over the key the client already used and there is no pairing to make — and it is
  * the only input in the schema that does. Everything else has its id allocated by the API,
  * so the client renders a row under an id it invented and has to replace it when the real
- * one arrives. That was true of five features when the bug was found in them one at a time,
- * and of forty-one more call sites that nobody had reported at all.
+ * one arrives. Forty-six call sites declare one. The first handful were written after a user
+ * reported seeing a row twice, one feature at a time; the rest came out of an audit that
+ * read every `engine.mutate` in the client and found the same defect in all of them.
  *
  * The pairing used to be written at each call site, in the `await` that sent the mutation.
  * That works for exactly as long as the `await` does. A reload taken between the optimistic
