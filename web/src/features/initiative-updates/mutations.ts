@@ -1,11 +1,5 @@
 import { fromWire, toWire } from '~/gql/enums';
-import {
-  uuidv7,
-  type EntityOf,
-  type EntityPatch,
-  type ProjectUpdateHealth,
-  type UUID,
-} from '~/store';
+import { uuidv7, type EntityOf, type ProjectUpdateHealth, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -38,12 +32,15 @@ export async function createInitiativeUpdate(
   const store = engine.store;
   const id = uuidv7();
   const now = new Date().toISOString();
+  // Trimmed here because the server trims, and the stand-in is paired against the server's
+  // row on its body — a draft ending in a newline would otherwise never match itself.
+  const body = (input.body ?? '').trim();
   const provisional: InitiativeUpdate = {
     id,
     workspaceId: store.workspaceId,
     initiativeId: input.initiativeId,
     health: input.health,
-    body: input.body ?? '',
+    body,
     authorId: input.authorId ?? id,
     createdAt: now,
     updatedAt: now,
@@ -58,23 +55,26 @@ export async function createInitiativeUpdate(
         input: {
           initiativeId: input.initiativeId,
           health: toWire(input.health),
-          body: input.body ?? '',
+          body,
         },
       },
       optimistic: [{ type: 'initiativeUpdate', id, before: null, after: provisional }],
+      // The API mints an update's id, so the stand-in has to be retired when the real row
+      // arrives — on the response or, more often, on the socket first. Declared as data so
+      // it also survives a reload taken mid-flight. See `web/src/sync/reconcile.ts`.
+      reconcile: {
+        type: 'initiativeUpdate',
+        provisionalId: id,
+        path: ['createInitiativeUpdate', 'initiativeUpdate'],
+        // Initiative, author, health and body are what the client chose; the id is the one
+        // thing it did not know.
+        match: ['initiativeId', 'authorId', 'health', 'body'],
+      },
     });
-    const real = fromWire(
+    return fromWire(
       'initiativeUpdate',
       data.createInitiativeUpdate.initiativeUpdate as EntityOf<'initiativeUpdate'>,
-    );
-    const patch: EntityPatch[] = [
-      { type: 'initiativeUpdate', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'initiativeUpdate', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    ).id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;
