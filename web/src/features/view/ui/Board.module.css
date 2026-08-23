@@ -148,6 +148,10 @@
   font-size: var(--font-size-md);
   cursor: pointer;
   user-select: none;
+  transition:
+    background-color var(--duration-instant) var(--ease-out),
+    box-shadow var(--duration-instant) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
 }
 
 .card:hover {

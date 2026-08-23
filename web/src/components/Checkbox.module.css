@@ -69,12 +69,27 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+/*
+ * The tick grows into the box rather than being switched on. The box's own fill is already
+ * on a --duration-fast ramp above, and a mark that appeared instantly on top of a background
+ * that was still arriving read as two controls disagreeing about whether they had been
+ * pressed.
+ *
+ * The scale is faster than the fade on purpose: the mark should be the right size by the
+ * time it is dark enough to read, or it looks like it is still settling after the click.
+ */
 .mark {
   opacity: 0;
+  transform: scale(0.7);
+  transform-origin: center;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-instant) var(--ease-out);
 }
 
 .input:checked + .box .check {
   opacity: 1;
+  transform: scale(1);
 }
 
 /* After the checked rule: a tri-state control that is both checked and indeterminate shows
@@ -85,6 +100,7 @@
 
 .input:indeterminate + .box .dash {
   opacity: 1;
+  transform: scale(1);
 }
 
 .label {

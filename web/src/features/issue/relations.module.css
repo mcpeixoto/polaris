@@ -92,6 +92,7 @@
   height: var(--row-height);
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .row:hover {
@@ -217,6 +218,7 @@ form.addForm > *:first-child {
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .result:hover {

@@ -71,6 +71,9 @@
   font-weight: var(--font-weight-medium);
   text-decoration: none;
   white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .link:hover {
@@ -137,6 +140,12 @@
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
   line-height: var(--line-height-tight);
+  /* The comment above says the border and the surface "arrive on focus". Without a ramp they
+     did not arrive, they appeared — which made a heading look like it had been replaced by a
+     text box rather than revealed as one. */
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
 }
 
 .title:hover {
