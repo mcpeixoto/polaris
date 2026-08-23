@@ -27,7 +27,7 @@ type GitHubCommentPoster interface {
 }
 
 func (s *Service) postGitHubPRLinkback(ctx context.Context, p *authz.Principal, issue model.Issue, repo string, number int) {
-	body := s.gitHubLinkbackBody(ctx, p, issue)
+	body := s.gitHubLinkbackBody(ctx, issue)
 	if body == "" {
 		return
 	}
@@ -35,7 +35,7 @@ func (s *Service) postGitHubPRLinkback(ctx context.Context, p *authz.Principal, 
 }
 
 func (s *Service) postGitHubCommitLinkback(ctx context.Context, p *authz.Principal, issue model.Issue, c GitHubCommitInput) {
-	body := s.gitHubLinkbackBody(ctx, p, issue)
+	body := s.gitHubLinkbackBody(ctx, issue)
 	if body == "" {
 		return
 	}
@@ -61,14 +61,16 @@ func (s *Service) postGitHubLinkback(ctx context.Context, p *authz.Principal, co
 	}
 }
 
-func (s *Service) gitHubLinkbackBody(ctx context.Context, p *authz.Principal, issue model.Issue) string {
-	ws, err := s.db.Queries().GetWorkspace(ctx, p.WorkspaceID)
-	if err != nil {
+func (s *Service) gitHubLinkbackBody(ctx context.Context, issue model.Issue) string {
+	// The same path every other issue link the server mints uses — the digest, the
+	// outbound webhook, the Slack unfurl, the MCP tool. A `/<urlKey>/issue/…` prefix is
+	// deferred client work (docs/07-milestones/51-workspace-url-key.md), so minting it
+	// here puts an address into somebody else's pull request that this client cannot
+	// route: it falls through to the catch-all and lands on a team list instead of the
+	// issue. A comment on a PR is not editable after the fact, so it has to be right now.
+	url := issueURL(s.PublicURL, issue.Identifier)
+	if url == "" {
 		return ""
-	}
-	url := strings.TrimRight(s.PublicURL, "/") + "/" + ws.UrlKey + "/issue/" + issue.Identifier
-	if s.PublicURL == "" {
-		url = "/" + ws.UrlKey + "/issue/" + issue.Identifier
 	}
 	team, err := s.db.Queries().GetTeam(ctx, issue.TeamID)
 	if err != nil {

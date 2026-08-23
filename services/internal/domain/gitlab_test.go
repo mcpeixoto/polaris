@@ -353,8 +353,14 @@ func TestGitLabLinkback_PostedOnFirstMRLink(t *testing.T) {
 	if c.Project != "acme/app" || c.Number != 12 {
 		t.Fatalf("comment target: %+v", c)
 	}
-	if !strings.Contains(c.Body, "ENG-1: Importer") || !strings.Contains(c.Body, "/issue/ENG-1") {
-		t.Fatalf("public linkback must name the issue, got %q", c.Body)
+	// The exact address, not just a substring containing it. A linkback goes into
+	// somebody else's pull request and cannot be edited afterwards, so the URL has to be
+	// one this client can actually route — `/issue/ENG-1`, the same shape the digest, the
+	// outbound webhook and the Slack unfurl use. A `/<urlKey>/issue/ENG-1` prefix still
+	// contains "/issue/ENG-1", which is how the wrong shape went unnoticed.
+	const want = "ENG-1: Importer\nhttps://polaris.example/issue/ENG-1"
+	if c.Body != want {
+		t.Fatalf("linkback body:\n got %q\nwant %q", c.Body, want)
 	}
 
 	if _, _, err := svc.LinkGitLabMergeRequest(ctx, p, domain.LinkGitLabMergeRequestInput{

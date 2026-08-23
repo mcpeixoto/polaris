@@ -28,7 +28,7 @@ type GitLabCommentPoster interface {
 }
 
 func (s *Service) postGitLabMRLinkback(ctx context.Context, p *authz.Principal, issue model.Issue, project string, number int) {
-	body := s.gitLabLinkbackBody(ctx, p, issue)
+	body := s.gitLabLinkbackBody(ctx, issue)
 	if body == "" {
 		return
 	}
@@ -36,7 +36,7 @@ func (s *Service) postGitLabMRLinkback(ctx context.Context, p *authz.Principal, 
 }
 
 func (s *Service) postGitLabCommitLinkback(ctx context.Context, p *authz.Principal, issue model.Issue, c GitLabCommitInput) {
-	body := s.gitLabLinkbackBody(ctx, p, issue)
+	body := s.gitLabLinkbackBody(ctx, issue)
 	if body == "" {
 		return
 	}
@@ -62,14 +62,16 @@ func (s *Service) postGitLabLinkback(ctx context.Context, p *authz.Principal, co
 	}
 }
 
-func (s *Service) gitLabLinkbackBody(ctx context.Context, p *authz.Principal, issue model.Issue) string {
-	ws, err := s.db.Queries().GetWorkspace(ctx, p.WorkspaceID)
-	if err != nil {
+func (s *Service) gitLabLinkbackBody(ctx context.Context, issue model.Issue) string {
+	// The same path every other issue link the server mints uses — the digest, the
+	// outbound webhook, the Slack unfurl, the MCP tool. A `/<urlKey>/issue/…` prefix is
+	// deferred client work (docs/07-milestones/51-workspace-url-key.md), so minting it
+	// here puts an address into somebody else's pull request that this client cannot
+	// route: it falls through to the catch-all and lands on a team list instead of the
+	// issue. A comment on a PR is not editable after the fact, so it has to be right now.
+	url := issueURL(s.PublicURL, issue.Identifier)
+	if url == "" {
 		return ""
-	}
-	url := strings.TrimRight(s.PublicURL, "/") + "/" + ws.UrlKey + "/issue/" + issue.Identifier
-	if s.PublicURL == "" {
-		url = "/" + ws.UrlKey + "/issue/" + issue.Identifier
 	}
 	team, err := s.db.Queries().GetTeam(ctx, issue.TeamID)
 	if err != nil {
