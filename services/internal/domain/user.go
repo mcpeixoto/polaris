@@ -133,7 +133,11 @@ func (s *Service) SetUserRole(ctx context.Context, p *authz.Principal, userID uu
 		// Demoting the last admin locks everybody out of billing, security and member
 		// management with no way back in. Checked inside the transaction because two
 		// concurrent demotions would each see one remaining admin and both proceed.
-		if authz.Role(existing.Role).IsAdmin() && !authz.Role(role).IsAdmin() {
+		//
+		// Only an administrator the count includes is one this rule is about; see
+		// isCountedAdmin. Demoting a suspended admin cannot take the workspace's last
+		// administrator away, because a suspended one was never holding it up.
+		if isCountedAdmin(existing) && !authz.Role(role).IsAdmin() {
 			admins, err := q.CountActiveAdminsInWorkspace(ctx, p.WorkspaceID)
 			if err != nil {
 				return platform.Internal(err)
@@ -204,7 +208,9 @@ func (s *Service) SuspendUser(ctx context.Context, p *authz.Principal, userID uu
 			}
 		}
 
-		if suspended && authz.Role(existing.Role).IsAdmin() {
+		// Same rule, same target test: re-suspending somebody who is already suspended takes
+		// nothing away, so it must not be refused for taking away the last administrator.
+		if suspended && isCountedAdmin(existing) {
 			admins, err := q.CountActiveAdminsInWorkspace(ctx, p.WorkspaceID)
 			if err != nil {
 				return platform.Internal(err)

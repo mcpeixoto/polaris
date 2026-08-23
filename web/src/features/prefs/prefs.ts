@@ -49,10 +49,17 @@ const DEFAULTS: Omit<Preferences, 'theme'> = {
 
 const listeners = new Set<() => void>();
 
-function readBag(): Partial<Preferences> {
+function readRaw(): string | null {
   try {
-    const raw = globalThis.localStorage?.getItem(PREFS_STORAGE_KEY);
-    if (raw === null || raw === undefined) return {};
+    return globalThis.localStorage?.getItem(PREFS_STORAGE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function parseBag(raw: string | null): Partial<Preferences> {
+  if (raw === null) return {};
+  try {
     const parsed = JSON.parse(raw) as unknown;
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
     return parsed as Partial<Preferences>;
@@ -69,10 +76,40 @@ function writeBag(prefs: Omit<Preferences, 'theme'>): void {
   }
 }
 
+/**
+ * The last object `getPrefs` handed out, and the stored state it was built from.
+ *
+ * `getPrefs` is a `useSyncExternalStore` snapshot, and that hook compares snapshots by
+ * reference. Building a fresh object on every call therefore reads as "the store changed"
+ * on every commit: React re-renders, re-reads, sees another new object, and does it again
+ * until it gives up with "Maximum update depth exceeded" — which is not a slow render but
+ * a dead route, because the throw escapes past a Settings screen that has no error
+ * boundary and takes the whole tree with it. `Preferences` was the one component
+ * subscribing to the whole object rather than to one field of it, so `/settings/preferences`
+ * rendered an empty page and every preference below was unreachable.
+ *
+ * Keyed on the raw stored string rather than invalidated by `setPrefs`, so a write from
+ * another tab — or a test that pokes `localStorage` directly — still produces a new
+ * snapshot rather than a stale one.
+ */
+let snapshot: Preferences | null = null;
+let snapshotKey: string | null = null;
+
 export function getPrefs(): Preferences {
-  const stored = readBag();
+  const raw = readRaw();
+  const theme = getStoredTheme();
+  const key = `${theme} ${raw ?? ''}`;
+  if (snapshot !== null && snapshotKey === key) return snapshot;
+
+  snapshot = buildPrefs(raw, theme);
+  snapshotKey = key;
+  return snapshot;
+}
+
+function buildPrefs(raw: string | null, theme: ThemeName): Preferences {
+  const stored = parseBag(raw);
   return {
-    theme: getStoredTheme(),
+    theme,
     homeView: isHomeView(stored.homeView) ? stored.homeView : DEFAULTS.homeView,
     fullNames: typeof stored.fullNames === 'boolean' ? stored.fullNames : DEFAULTS.fullNames,
     weekStartsOn: stored.weekStartsOn === 'sunday' ? 'sunday' : DEFAULTS.weekStartsOn,
