@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 )
@@ -125,10 +126,10 @@ func (h *Hub) nudgeAllRooms() {
 // Register adds a session to its workspace's room, creating the room if needed.
 func (h *Hub) Register(s *Session) error {
 	h.mu.Lock()
-	r, ok := h.rooms[s.principal.WorkspaceID]
+	r, ok := h.rooms[s.Principal().WorkspaceID]
 	if !ok {
-		r = newRoom(h, s.principal.WorkspaceID)
-		h.rooms[s.principal.WorkspaceID] = r
+		r = newRoom(h, s.Principal().WorkspaceID)
+		h.rooms[s.Principal().WorkspaceID] = r
 		go r.run()
 	}
 	h.mu.Unlock()
@@ -140,7 +141,7 @@ func (h *Hub) Register(s *Session) error {
 // idle workspace costs nothing.
 func (h *Hub) Unregister(s *Session) {
 	h.mu.RLock()
-	r := h.rooms[s.principal.WorkspaceID]
+	r := h.rooms[s.Principal().WorkspaceID]
 	h.mu.RUnlock()
 	if r == nil {
 		return
@@ -149,8 +150,8 @@ func (h *Hub) Unregister(s *Session) {
 	if empty := r.remove(s); empty {
 		h.mu.Lock()
 		// Re-check under the write lock: somebody may have joined in the gap.
-		if cur, ok := h.rooms[s.principal.WorkspaceID]; ok && cur == r && cur.isEmpty() {
-			delete(h.rooms, s.principal.WorkspaceID)
+		if cur, ok := h.rooms[s.Principal().WorkspaceID]; ok && cur == r && cur.isEmpty() {
+			delete(h.rooms, s.Principal().WorkspaceID)
 			cur.stop()
 		}
 		h.mu.Unlock()
@@ -213,7 +214,7 @@ func (r *room) add(s *Session) error {
 	// newest is the window the person is looking at right now.
 	var mine []*Session
 	for existing := range r.sessions {
-		if existing.principal.UserID == s.principal.UserID {
+		if existing.Principal().UserID == s.Principal().UserID {
 			mine = append(mine, existing)
 		}
 	}
@@ -320,6 +321,10 @@ func (r *room) dispatch(ctx context.Context) {
 		}
 	}
 
+	// Whether anything in this dispatch could have changed who may see what. Teams and
+	// team memberships are the only two things a principal's team set is built from.
+	accessChanged := false
+
 	for lowest < current {
 		changes, err := r.hub.svc.ReadChanges(ctx, r.workspaceID, lowest, current, changeFetchPageSize)
 		if err != nil {
@@ -337,10 +342,81 @@ func (r *room) dispatch(ctx context.Context) {
 			return
 		}
 
+		for _, c := range changes {
+			if c.EntityType == "team" || c.EntityType == "teamMembership" {
+				accessChanged = true
+				break
+			}
+		}
+
 		for _, s := range behind {
 			s.offer(changes)
 		}
 
 		lowest = changes[len(changes)-1].Version
 	}
+
+	if accessChanged {
+		r.refreshPrincipals(ctx, behind)
+	}
+}
+
+// refreshPrincipals re-resolves each session's team set after something touched the
+// workspace's teams, and tells anybody whose set grew to bootstrap.
+//
+// After the batch, not before. The rows that tell a client to forget a team it has just
+// lost are in that batch, and a principal refreshed first would filter them out — leaving
+// the reader with a permanently stale, readable copy of a team they can no longer reach.
+//
+// Only a set that GREW needs a resync. Access that was taken away is already carried by the
+// revokes in the batch, and the new principal stops anything further from being sent; a
+// bootstrap on top of that would be a full re-download for no change in what the client
+// holds. Access that was GAINED cannot be delivered incrementally — the rows that would
+// have granted it were emitted while the reader still could not see them — so the only
+// honest answer is a fresh snapshot.
+func (r *room) refreshPrincipals(ctx context.Context, sessions []*Session) {
+	for _, s := range sessions {
+		old := s.Principal()
+		fresh, err := r.hub.svc.ResolvePrincipal(ctx, old.AccountID, old.WorkspaceID)
+		if err != nil {
+			// Suspended, or removed from the workspace outright. Either way this socket
+			// must stop being served; the client's reconnect will get the real refusal.
+			r.hub.log.Info("principal no longer resolvable, closing session",
+				"workspace", old.WorkspaceID, "user", old.UserID, "error", err)
+			s.closeWith(TypeError, "PERMISSIONS_CHANGED", "your access to this workspace changed")
+			continue
+		}
+		// Carried over rather than re-read: neither is derived from the team graph, and
+		// ResolvePrincipal does not know about the token this socket was opened with.
+		fresh.Scopes = old.Scopes
+		fresh.ActorType = old.ActorType
+		fresh.ApplicationID = old.ApplicationID
+		fresh.SharedEntities = old.SharedEntities
+
+		added, removed := teamSetDiff(old.Teams, fresh.Teams)
+		if !added && !removed {
+			continue
+		}
+		s.adoptPrincipal(fresh)
+		if added {
+			s.requestPermissionsResync()
+		}
+	}
+}
+
+// teamSetDiff reports whether after has teams before did not, and vice versa.
+func teamSetDiff(before, after authz.TeamSet) (added, removed bool) {
+	for id := range after {
+		if !before.Has(id) {
+			added = true
+			break
+		}
+	}
+	for id := range before {
+		if !after.Has(id) {
+			removed = true
+			break
+		}
+	}
+	return added, removed
 }

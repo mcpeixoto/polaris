@@ -130,7 +130,25 @@ func (s *Service) applyTeamParent(
 	}
 
 	if !child.Private && row.Private {
-		descChanges, err := s.privatizeTeamCleanup(ctx, q, row.ID, row.Key)
+		// Everything privatising a team does through Settings has to happen here too. A
+		// team can be made private in two ways — the visibility toggle, and being moved
+		// under a private parent — and only one of them used to clean up after itself.
+		revokes, err := s.revokeTeamContentsForNonMembers(ctx, q, p.WorkspaceID, row.ID)
+		if err != nil {
+			return store.Team{}, nil, err
+		}
+		changes = append(changes, revokes...)
+
+		cleanup, err := s.privatizeTeamCleanup(ctx, q, row.ID, row.Key)
+		if err != nil {
+			return store.Team{}, nil, err
+		}
+		changes = append(changes, cleanup...)
+
+		// The moved team may bring a sub-tree with it. Those teams are now under a private
+		// ancestor, and a public team under a private parent is a state UpdateTeam refuses
+		// to create on purpose: it is a hole straight through the privacy boundary.
+		descChanges, err := s.cascadePrivateToSubTeams(ctx, q, p, row.ID)
 		if err != nil {
 			return store.Team{}, nil, err
 		}
@@ -288,6 +306,14 @@ func (s *Service) cascadePrivateToSubTeams(
 			EntityType: "team", EntityID: id, Op: OpUpsert, TeamID: &id,
 			Scope: authz.TeamScope(id, true), Payload: toTeam(row),
 		})
+		// A descendant dragged private by its parent has to be taken off non-members'
+		// replicas as surely as the parent itself. The upsert above is private-scoped, so
+		// a non-member never sees it: without this they simply keep the sub-team they had.
+		revokes, err := s.revokeTeamContentsForNonMembers(ctx, q, p.WorkspaceID, id)
+		if err != nil {
+			return nil, err
+		}
+		changes = append(changes, revokes...)
 		cleanup, err := s.privatizeTeamCleanup(ctx, q, id, row.Key)
 		if err != nil {
 			return nil, err

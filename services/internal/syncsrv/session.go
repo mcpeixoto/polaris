@@ -21,13 +21,22 @@ import (
 // change stream.
 //
 // The cursor is the whole state. Everything else — which teams the user can see, which
-// entities were shared with them — was resolved once at connect time and does not change
-// while the socket is open. When it does change, the connection is torn down and rebuilt
-// rather than mutated, because a permission set that shifts mid-stream is a leak waiting
-// to happen: half a delta batch judged under the old rules and half under the new.
+// entities were shared with them — is resolved at connect time, and is re-resolved when
+// something happens in the workspace that could have changed it. Never mid-batch: the
+// swap happens between batches, so no delta batch is ever judged half under the old rules
+// and half under the new.
+//
+// It has to be re-resolved rather than left alone. A team set frozen for the life of a
+// socket means a person who was looking at a team when an admin made it private keeps
+// receiving that team's issues — titles, descriptions, every subsequent edit — for as long
+// as the tab stays open, because the filter still believes they are entitled to it. It
+// fails the other way too: a team created, un-privatised, or joined while the socket is up
+// stays invisible until the tab is reloaded.
 type Session struct {
-	conn      *websocket.Conn
-	principal *authz.Principal
+	conn *websocket.Conn
+	// principal is swapped, not mutated, so a reader always sees one coherent set.
+	// AccountID, UserID and WorkspaceID are the same in every value it ever holds.
+	principal atomic.Pointer[authz.Principal]
 	clientID  uuid.UUID
 	log       *slog.Logger
 
@@ -47,18 +56,25 @@ type Session struct {
 func newSession(conn *websocket.Conn, p *authz.Principal, clientID uuid.UUID, resume int64, log *slog.Logger) *Session {
 	s := &Session{
 		conn:      conn,
-		principal: p,
 		clientID:  clientID,
 		log:       log,
 		startedAt: time.Now(),
 		outbound:  make(chan []byte, MaxOutboundFrames),
 		closed:    make(chan struct{}),
 	}
+	s.principal.Store(p)
 	s.cursor.Store(resume)
 	return s
 }
 
 func (s *Session) Cursor() int64 { return s.cursor.Load() }
+
+// Principal is the caller as most recently resolved.
+func (s *Session) Principal() *authz.Principal { return s.principal.Load() }
+
+// adoptPrincipal installs a freshly resolved principal. Called only from the room's
+// dispatch goroutine, and only between batches.
+func (s *Session) adoptPrincipal(p *authz.Principal) { s.principal.Store(p) }
 
 // offer filters a shared batch of changes through this session's visibility set and
 // queues whatever survives.
@@ -68,13 +84,16 @@ func (s *Session) Cursor() int64 { return s.cursor.Load() }
 // team ends up in somebody else's replica.
 func (s *Session) offer(changes []domain.SyncChange) {
 	from := s.Cursor()
+	// Read once, so every row in this batch is judged by the same permission set even if
+	// the batch after this one is judged by a newer one.
+	principal := s.Principal()
 
 	visible := make([]Change, 0, len(changes))
 	for _, c := range changes {
 		if c.Version <= from {
 			continue
 		}
-		if !c.Visible(s.principal) {
+		if !c.Visible(principal) {
 			continue
 		}
 		visible = append(visible, Change{
@@ -139,6 +158,12 @@ func (s *Session) send(frame []byte) bool {
 	}
 }
 
+// Resync delays. See requestResync and requestPermissionsResync for why they differ.
+const (
+	fleetResyncJitter       = time.Minute
+	permissionsResyncJitter = 2 * time.Second
+)
+
 // requestResync tells the client to throw its replica away and bootstrap again.
 //
 // The jitter is not decoration. A bad deploy that changes clientSchema makes every
@@ -146,24 +171,44 @@ func (s *Session) send(frame []byte) bool {
 // difference between a slow minute and Postgres falling over — which would then look
 // like a database problem rather than a deploy problem.
 func (s *Session) requestResync(reason string) {
-	s.resyncOnce.Do(func() {
-		frame, err := json.Marshal(Resync{
-			Type:         TypeResync,
-			Reason:       reason,
-			RetryAfterMS: rand.IntN(60_000),
-		})
-		if err != nil {
-			return
-		}
-		select {
-		case s.outbound <- frame:
-		case <-s.closed:
-		default:
-			// Even the resync will not fit. Close, and let the client's reconnect logic
-			// take it from there.
-			s.close()
-		}
+	s.resyncOnce.Do(func() { s.sendResync(reason, fleetResyncJitter) })
+}
+
+// requestPermissionsResync tells the client its access changed and it must bootstrap.
+//
+// Deliberately outside resyncOnce. The once-gate is there so that one wedged socket or one
+// retention gap cannot produce a stream of resyncs, but a permission change is not a
+// symptom of the connection — it is news, and a second one on the same socket is as real as
+// the first. Being told once and then silently missing the team somebody added you to an
+// hour later is the failure the gate would cause.
+//
+// The delay is short where the other reasons take a minute. That minute exists to stop a
+// fleet-wide event — a deploy that bumps the client schema — from arriving at Postgres as
+// one spike. A permission change is not fleet-wide: it reaches the sessions of one
+// workspace, bounded by its seat count. Spreading those over a minute would only mean a
+// person sits looking at a sidebar that is missing the team somebody just added them to,
+// with nothing to click, for up to a minute.
+func (s *Session) requestPermissionsResync() {
+	s.sendResync(ReasonPermissionsChanged, permissionsResyncJitter)
+}
+
+func (s *Session) sendResync(reason string, jitter time.Duration) {
+	frame, err := json.Marshal(Resync{
+		Type:         TypeResync,
+		Reason:       reason,
+		RetryAfterMS: rand.IntN(int(jitter.Milliseconds())),
 	})
+	if err != nil {
+		return
+	}
+	select {
+	case s.outbound <- frame:
+	case <-s.closed:
+	default:
+		// Even the resync will not fit. Close, and let the client's reconnect logic
+		// take it from there.
+		s.close()
+	}
 }
 
 func (s *Session) closeWith(msgType, code, message string) {
@@ -260,8 +305,8 @@ func (s *Session) readPump(ctx context.Context) {
 			// server degrades rather than disconnects.
 
 		case TypeHello:
-			// Re-authenticating on a live socket would mean the visibility set changes
-			// under a stream that is already in flight. Reconnect instead.
+			// Re-authenticating on a live socket would mean a different identity behind a
+			// stream that is already in flight. Reconnect instead.
 			s.closeWith(TypeError, "ALREADY_CONNECTED", "open a new connection to change identity")
 			return
 

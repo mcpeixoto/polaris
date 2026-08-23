@@ -13,6 +13,7 @@ import (
 
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
+	"github.com/peixotolabs/polaris/services/internal/entitlement"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/syncsrv"
 	"github.com/peixotolabs/polaris/services/internal/testutil"
@@ -443,3 +444,99 @@ func TestSync_AClientAheadOfTheServerIsToldToResync(t *testing.T) {
 			frame["reason"], syncsrv.ReasonServerRewound)
 	}
 }
+
+// A team set resolved once, at connect, is a leak with a clock on it.
+//
+// The person in this test is looking at a workspace when an admin makes a team private. They
+// are not in that team. Their socket's filter is still working from the set it resolved when
+// they connected — which contained the team, because at that moment it was public — so every
+// issue written into the private team afterwards is judged visible and sent to them: titles,
+// descriptions, every subsequent edit, for as long as the tab stays open. Nothing errors, and
+// nothing in the interface admits it, because the client has already been told to forget the
+// team and simply files the rows away.
+func TestSync_PrivatisingATeamStopsItsDeltasReachingAConnectedNonMember(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.fixture.SetPlan(t, entitlement.PlanPro)
+
+	admin := principalFor(t, h, h.fixture.AccountID)
+	team, _, err := h.svc.CreateTeam(ctx, admin, domain.CreateTeamInput{Key: "OPS", Name: "Operations"})
+	if err != nil {
+		t.Fatalf("create team: %v", err)
+	}
+
+	// A workspace member who is not in OPS, watching from their own socket.
+	outsiderID := h.fixture.NewUser(t, "grace", "member", true)
+	h.verifier.accounts["grace"] = accountOf(t, h, outsiderID)
+	c := h.connect(t, "grace", 0)
+	if ready := c.next(5 * time.Second); ready["t"] != syncsrv.TypeReady {
+		t.Fatalf("expected ready, got %v", ready)
+	}
+
+	// While it is public they are entitled to it, and the test is worth nothing unless
+	// they really do receive it.
+	if _, _, err := h.svc.CreateIssue(ctx, admin, domain.CreateIssueInput{
+		TeamID: team.ID, Title: "Visible while the team is public",
+	}); err != nil {
+		t.Fatalf("public issue: %v", err)
+	}
+	if !awaitTitle(t, c, "Visible while the team is public", 10*time.Second) {
+		t.Fatal("the non-member never saw the public team's issue, so this test proves nothing")
+	}
+
+	if _, _, err := h.svc.UpdateTeam(ctx, admin, domain.UpdateTeamInput{
+		ID: team.ID, Private: boolPtr(true),
+	}); err != nil {
+		t.Fatalf("privatize: %v", err)
+	}
+	if _, _, err := h.svc.CreateIssue(ctx, admin, domain.CreateIssueInput{
+		TeamID: team.ID, Title: "Written after the team went private",
+	}); err != nil {
+		t.Fatalf("private issue: %v", err)
+	}
+	// A write they ARE entitled to, emitted last, so "nothing arrived" cannot be mistaken
+	// for "the leak was fixed".
+	if _, _, err := h.svc.CreateIssue(ctx, admin, domain.CreateIssueInput{
+		TeamID: h.fixture.TeamID, Title: "A public marker they may see",
+	}); err != nil {
+		t.Fatalf("marker issue: %v", err)
+	}
+
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		frame := c.next(time.Until(deadline))
+		if frame["t"] != syncsrv.TypeDelta {
+			continue
+		}
+		for _, ch := range changesIn(t, frame) {
+			payload, _ := ch["payload"].(map[string]any)
+			switch payload["title"] {
+			case "Written after the team went private":
+				t.Fatal("an issue from a private team reached a non-member's live socket")
+			case "A public marker they may see":
+				return
+			}
+		}
+	}
+	t.Fatal("the marker never arrived; the socket stopped delivering anything")
+}
+
+// awaitTitle reads deltas until one carries an entity with this title.
+func awaitTitle(t *testing.T, c *client, title string, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		frame := c.next(time.Until(deadline))
+		if frame["t"] != syncsrv.TypeDelta {
+			continue
+		}
+		for _, ch := range changesIn(t, frame) {
+			if payload, ok := ch["payload"].(map[string]any); ok && payload["title"] == title {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func boolPtr(b bool) *bool { return &b }
