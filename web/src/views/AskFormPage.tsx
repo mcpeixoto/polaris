@@ -15,9 +15,22 @@ interface PublicAskForm {
   teamName: string;
 }
 
+/**
+ * `missing` is the server saying this token is not a live form; `unreachable` is every
+ * other way the lookup can fail.
+ *
+ * Keeping them apart matters more here than anywhere else in the product. The requester is
+ * a stranger with one link and no account, so the page is the only thing that can tell them
+ * what to do next — and "the link may have been retired" is advice that ends the journey.
+ * Saying it because the request was rate limited, or because the server was restarting,
+ * sends somebody away from a form that works and would have worked again a second later.
+ */
+type LoadFailure = 'missing' | 'unreachable';
+
 export function AskFormPage() {
   const { token = '' } = useParams<{ token: string }>();
-  const [form, setForm] = useState<PublicAskForm | 'missing' | null>(null);
+  const [form, setForm] = useState<PublicAskForm | LoadFailure | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [requesterName, setRequesterName] = useState('');
@@ -32,18 +45,22 @@ export function AskFormPage() {
       return;
     }
     let cancelled = false;
+    setForm(null);
     asks
       .get(token)
       .then((body) => {
         if (!cancelled) setForm(body);
       })
-      .catch(() => {
-        if (!cancelled) setForm('missing');
+      .catch((failure: unknown) => {
+        if (cancelled) return;
+        setForm(
+          failure instanceof ApiError && failure.code === 'NOT_FOUND' ? 'missing' : 'unreachable',
+        );
       });
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, attempt]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -74,6 +91,17 @@ export function AskFormPage() {
         title="This form is no longer available"
         subtitle="The link may have been retired, or it was never valid. Ask whoever sent it for a new one."
       />
+    );
+  }
+
+  if (form === 'unreachable') {
+    return (
+      <AuthLayout
+        title="This form could not be loaded"
+        subtitle="The link is fine — we could not reach the server just now. Try again in a moment."
+      >
+        <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+      </AuthLayout>
     );
   }
 
