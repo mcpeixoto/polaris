@@ -408,24 +408,28 @@ export async function addProjectDependency(
   };
 
   try {
-    const data = await engine.mutate<{
+    await engine.mutate<{
       addProjectDependency: { projectDependency: ProjectDependency };
     }>({
       mutation: ADD_PROJECT_DEPENDENCY,
       variables: { blockingProjectId, blockedProjectId },
       optimistic: [{ type: 'projectDependency', id, before: null, after: provisional }],
+      // The API mints a dependency's id, so the stand-in drawn under a client id has to be
+      // swapped for the real row — and the swap has to be data on the outbox record rather
+      // than the tail of this `await`. Pairing it here would hold only for as long as this
+      // closure does: a reload taken while the request is out throws it away, the outbox
+      // replays the op, the server's idempotency table answers with the original row, and it
+      // lands beside a stand-in nothing is left holding. Both panels then show one blocker
+      // twice, on every reload, for good. `match` closes the same hole from the other side,
+      // for the delta that routinely beats the response in. See `web/src/sync/reconcile.ts`.
+      reconcile: {
+        type: 'projectDependency',
+        provisionalId: id,
+        path: ['addProjectDependency', 'projectDependency'],
+        // Both ends, which the server holds unique anyway (`project_dependency_unique`).
+        match: ['blockingProjectId', 'blockedProjectId'],
+      },
     });
-    const real = fromWire(
-      'projectDependency',
-      data.addProjectDependency.projectDependency as EntityOf<'projectDependency'>,
-    );
-    const patch: EntityPatch[] = [
-      { type: 'projectDependency', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'projectDependency', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
