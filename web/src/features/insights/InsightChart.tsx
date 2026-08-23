@@ -149,15 +149,23 @@ export function toLayout(data: InsightData): Layout | null {
   }
 
   if (data.chart === 'area') {
-    if (data.burn.length < 2) return null;
+    if (data.burn.length === 0) return null;
     const max = Math.max(...data.burn.map((point) => point.completed), 1);
     const last = data.burn.length - 1;
-    const x = (index: number) => pad + (index / last) * (width - pad * 2);
+    // A single period is the normal case, not an edge one: every workspace spends its
+    // first month there, and a weekly burn-up spends its first week there. Dividing by
+    // `last` would be a divide by zero, so span it instead — one period draws as a flat
+    // band at its cumulative total, which is what the total beside the chart already
+    // claims. Returning null here instead said "nothing to chart yet" next to a total
+    // reading "6 completed", and the user had just completed those six.
+    const x = (index: number) => (last === 0 ? pad : pad + (index / last) * (width - pad * 2));
     const y = (value: number) => height - pad - (value / max) * (height - pad * 2);
+    const right = width - pad;
     const line = data.burn
       .map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index)} ${y(point.completed)}`)
       .join(' ');
-    const path = `${line} L ${x(last)} ${height - pad} L ${x(0)} ${height - pad} Z`;
+    const flat = last === 0 ? ` L ${right} ${y(data.burn[0]!.completed)}` : '';
+    const path = `${line}${flat} L ${last === 0 ? right : x(last)} ${height - pad} L ${x(0)} ${height - pad} Z`;
     return { width, height, kind: 'area', bars: [], path, dots: [], lines: [] };
   }
 
