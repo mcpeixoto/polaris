@@ -54,6 +54,7 @@ export function groupIssues(
   orderBy: DisplayOrderBy,
   direction: DisplayDirection,
   teamId?: UUID,
+  admits?: (state: WorkflowState) => boolean,
 ): IssueGroup[] {
   if (groupBy === 'none') {
     return [{ key: 'all', label: '', issues: sortIssues([...issues], store, orderBy, direction) }];
@@ -112,12 +113,19 @@ export function groupIssues(
     // teams' columns on this team's board (three "Todo"s in a three-team workspace) for
     // issues that could never land in them. A view that spans teams has no one such set,
     // and falls back to the statuses of the teams its issues are actually in.
+    //
+    // `admits` narrows it the second way, for the same reason and by the same argument: a
+    // status the view's own filter can never let through is a column no work can reach.
+    // The triage inbox is the sharpest case — it is pinned to one status, and without this
+    // it drew a column for every other status the team has, six headers that could only
+    // ever read zero. A team's ordinary list is the mirror image: it hides triage by
+    // default, so a Triage column there says "0" while the queue behind it is full.
     const teams =
       teamId === undefined ? new Set(issues.map((issue) => issue.teamId)) : new Set([teamId]);
     for (const [id, state] of store.workflowStates) {
-      if (state.archivedAt === undefined && teams.has(state.teamId) && !buckets.has(id)) {
-        buckets.set(id, []);
-      }
+      if (state.archivedAt !== undefined || !teams.has(state.teamId) || buckets.has(id)) continue;
+      if (admits !== undefined && !admits(state)) continue;
+      buckets.set(id, []);
     }
   }
   if (groupBy === 'priority') {
