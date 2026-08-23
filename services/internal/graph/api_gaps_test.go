@@ -400,3 +400,105 @@ func TestIssueCycle_ResolveRatherThanComingBackNull(t *testing.T) {
 		t.Errorf("the detail read resolved cycle %v, want %s", one, current)
 	}
 }
+
+// TestIssueProject_ResolveRatherThanComingBackNull is the fifth of the same shape, and it
+// was found by the agent that fixed the fourth: `Issue.cycle` was hydrated in #85 while
+// `Issue.project` and `Issue.projectMilestone` — declared in the same block of
+// schema.graphql, beside the same kind of id column — were left exactly as they were.
+//
+// The cost is the same and lands on the same readers. A script asking which issues belong
+// to a project gets an id it must resolve itself, or a null it will believe.
+func TestIssueProject_ResolveRatherThanComingBackNull(t *testing.T) {
+	h := newHarness(t)
+	first, firstMilestone := h.newProject(t, "First")
+	second, _ := h.newProject(t, "Second")
+
+	filed := h.createIssue(t, generated.CreateIssueInput{
+		TeamID: h.f.TeamID, Title: "In the first project",
+		ProjectID: &first, ProjectMilestoneID: &firstMilestone,
+	})
+	// A second issue in a different project, so a fix that hands every row the same
+	// project cannot pass, and one in no project at all, so null still means null.
+	h.createIssue(t, generated.CreateIssueInput{
+		TeamID: h.f.TeamID, Title: "In the second project", ProjectID: &second,
+	})
+	h.createIssue(t, generated.CreateIssueInput{TeamID: h.f.TeamID, Title: "Unfiled"})
+
+	body := h.execute(t, `query Read($t: UUID!) {
+		issues(teamId: $t) {
+			title
+			projectId
+			project { id name }
+			projectMilestoneId
+			projectMilestone { id name }
+		}
+	}`, map[string]any{"t": h.f.TeamID.String()})
+	if errs, ok := body["errors"]; ok {
+		t.Fatalf("issues query failed: %v", errs)
+	}
+
+	rows := body["data"].(map[string]any)["issues"].([]any)
+	if len(rows) != 3 {
+		t.Fatalf("the team holds %d issues, want 3", len(rows))
+	}
+	seen := map[string]map[string]any{}
+	for _, r := range rows {
+		row := r.(map[string]any)
+		seen[row["title"].(string)] = row
+
+		projectID, _ := row["projectId"].(string)
+		nested, _ := row["project"].(map[string]any)
+		if projectID == "" {
+			if nested != nil {
+				t.Errorf("%q has no projectId but resolved project %v", row["title"], nested["id"])
+			}
+			continue
+		}
+		if nested == nil {
+			t.Fatalf("%q has projectId %s and Issue.project came back null.\n"+
+				"The schema declares `project: Project`, the query succeeds, and every API "+
+				"reader sees an issue that belongs to no project.", row["title"], projectID)
+		}
+		if nested["id"] != projectID {
+			t.Errorf("%q points at project %s and resolved %v", row["title"], projectID, nested["id"])
+		}
+		if nested["name"] == nil {
+			t.Errorf("%q resolved a project with holes in it: %v", row["title"], nested)
+		}
+	}
+
+	if seen["Unfiled"]["project"] != nil {
+		t.Errorf("an issue in no project resolved %v", seen["Unfiled"]["project"])
+	}
+	inFirst, _ := seen["In the first project"]["project"].(map[string]any)
+	inSecond, _ := seen["In the second project"]["project"].(map[string]any)
+	if inFirst == nil || inSecond == nil || inFirst["id"] == inSecond["id"] {
+		t.Errorf("two issues in two different projects resolved %v and %v", inFirst, inSecond)
+	}
+
+	// The milestone is the same failure in the same row, and it is the one a roadmap view
+	// reads: an issue can carry a milestone id whose object never resolves.
+	ms, _ := seen["In the first project"]["projectMilestone"].(map[string]any)
+	if ms == nil {
+		t.Fatalf("an issue carrying projectMilestoneId %s resolved Issue.projectMilestone "+
+			"as null", firstMilestone)
+	}
+	if ms["id"] != firstMilestone.String() {
+		t.Errorf("resolved milestone %v, want %s", ms["id"], firstMilestone)
+	}
+	if seen["In the second project"]["projectMilestone"] != nil {
+		t.Errorf("an issue with no milestone resolved %v", seen["In the second project"]["projectMilestone"])
+	}
+
+	// The same fields on the single-issue read, which is the shape a detail view uses.
+	body = h.execute(t, `query Read($id: UUID!) {
+		issue(id: $id) { project { id } projectMilestone { id } }
+	}`, map[string]any{"id": filed.Issue.ID.String()})
+	if errs, ok := body["errors"]; ok {
+		t.Fatalf("issue query failed: %v", errs)
+	}
+	one := body["data"].(map[string]any)["issue"].(map[string]any)
+	if one["project"] == nil || one["projectMilestone"] == nil {
+		t.Fatalf("the detail read resolved project=%v milestone=%v", one["project"], one["projectMilestone"])
+	}
+}

@@ -87,11 +87,22 @@ type Loaders struct {
 	labels      batch[labelIndex]
 	memberships batch[membershipIndex]
 
-	// mu guards the states and cycles maps only. The fetches themselves run outside it, so
-	// a slow query for one team does not hold up another.
-	mu     sync.Mutex
-	states map[uuid.UUID]*batch[stateIndex]
-	cycles map[uuid.UUID]*batch[*model.Cycle]
+	// mu guards the states, cycles, projects and milestone maps only. The fetches
+	// themselves run outside it, so a slow query for one team does not hold up another.
+	mu         sync.Mutex
+	states     map[uuid.UUID]*batch[stateIndex]
+	cycles     map[uuid.UUID]*batch[*model.Cycle]
+	projects   map[uuid.UUID]*batch[*model.Project]
+	milestones map[uuid.UUID]*batch[milestoneIndex]
+}
+
+// milestoneIndex is one project's milestones, keyed by id.
+//
+// Read per project rather than per milestone because there is no read-one verb for a
+// milestone, and a project holds a handful of them: one list answers every issue filed
+// against that project.
+type milestoneIndex struct {
+	byID map[uuid.UUID]model.ProjectMilestone
 }
 
 type loadersKey struct{}
@@ -356,6 +367,72 @@ func (s selection) childOrNone(field, typeName string) selection {
 func (s selection) has(field string) bool {
 	_, ok := s.child(field, "")
 	return ok
+}
+
+// projectByID reads one project, once per project per request.
+//
+// Keyed by project for the same reason cycleByID is keyed by cycle: a team's issues
+// cluster onto a few projects, so deduplicating on the id turns "one lookup per issue"
+// into "one per project". A project the reader cannot see comes back nil rather than as
+// an error — the reference stays on the row and the nested object is absent, which is what
+// a deleted assignee already does.
+func (l *Loaders) projectByID(
+	ctx context.Context, p *authz.Principal, id uuid.UUID,
+) (*model.Project, error) {
+	l.mu.Lock()
+	if l.projects == nil {
+		l.projects = make(map[uuid.UUID]*batch[*model.Project])
+	}
+	b, ok := l.projects[id]
+	if !ok {
+		b = &batch[*model.Project]{}
+		l.projects[id] = b
+	}
+	l.mu.Unlock()
+
+	return b.load(func() (*model.Project, error) {
+		pr, err := l.svc.GetProject(ctx, p, id)
+		if err != nil {
+			// GetProject answers "you may not see it" with the same not-found the missing
+			// row gets, on purpose, so this branch covers both.
+			if platform.CodeOf(err) == platform.CodeNotFound {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return &pr, nil
+	})
+}
+
+// milestonesFor reads one project's milestones, once per project per request.
+func (l *Loaders) milestonesFor(
+	ctx context.Context, p *authz.Principal, projectID uuid.UUID,
+) (milestoneIndex, error) {
+	l.mu.Lock()
+	if l.milestones == nil {
+		l.milestones = make(map[uuid.UUID]*batch[milestoneIndex])
+	}
+	b, ok := l.milestones[projectID]
+	if !ok {
+		b = &batch[milestoneIndex]{}
+		l.milestones[projectID] = b
+	}
+	l.mu.Unlock()
+
+	return b.load(func() (milestoneIndex, error) {
+		ms, err := l.svc.ListProjectMilestones(ctx, p, projectID)
+		if err != nil {
+			if platform.CodeOf(err) == platform.CodeNotFound {
+				return milestoneIndex{byID: map[uuid.UUID]model.ProjectMilestone{}}, nil
+			}
+			return milestoneIndex{}, err
+		}
+		idx := milestoneIndex{byID: make(map[uuid.UUID]model.ProjectMilestone, len(ms))}
+		for _, m := range ms {
+			idx.byID[m.ID] = m
+		}
+		return idx, nil
+	})
 }
 
 // --- assembling the nested fields -----------------------------------------------
@@ -699,6 +776,48 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 			}
 			g := toCycle(*c)
 			out[k].Cycle = &g
+		}
+	}
+
+	// The project an issue is filed against, and the milestone inside it. Same shape as
+	// the cycle above, and left out of this function for the same length of time: the id
+	// column was populated, the nested object was null, and only a reader who already knew
+	// the answer could tell.
+	if sel.has("project") || sel.has("projectMilestone") {
+		wantProject := sel.has("project")
+		wantMilestone := sel.has("projectMilestone")
+		for k, i := range issues {
+			if i.ProjectID == nil {
+				continue
+			}
+			if wantProject {
+				pr, err := l.projectByID(ctx, p, *i.ProjectID)
+				if err != nil {
+					return nil, err
+				}
+				if pr != nil {
+					g, err := toProject(*pr)
+					if err != nil {
+						return nil, err
+					}
+					out[k].Project = &g
+				}
+			}
+			if !wantMilestone || i.ProjectMilestoneID == nil {
+				continue
+			}
+			ms, err := l.milestonesFor(ctx, p, *i.ProjectID)
+			if err != nil {
+				return nil, err
+			}
+			m, ok := ms.byID[*i.ProjectMilestoneID]
+			if !ok {
+				// A milestone the reader cannot see, or one deleted while the row still
+				// names it. Absent rather than an error, like every other reference here.
+				continue
+			}
+			g := toProjectMilestone(m)
+			out[k].ProjectMilestone = &g
 		}
 	}
 
