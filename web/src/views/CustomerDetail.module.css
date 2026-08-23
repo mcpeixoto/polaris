@@ -138,3 +138,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.requestActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}

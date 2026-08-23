@@ -10,17 +10,20 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, EmptyState, Input, Select } from '~/components';
+import { Button, EmptyState, IconButton, Input, Select } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
+import { CustomerRequestEditor } from '~/features/customers/CustomerRequestEditor';
 import {
   archiveCustomer,
+  deleteCustomerRequest,
   formatCustomerStatus,
   mergeCustomers,
   toggleCustomerRequestImportant,
   updateCustomer,
 } from '~/features/customers/mutations';
 import { report } from '~/features/issue/mutations';
+import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { setCustomerSubscription } from '~/features/subscriptions/mutations';
 import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -45,6 +48,8 @@ export function CustomerDetail() {
   const { customerId = '' } = useParams<{ customerId: string }>();
   const viewer = useViewer();
   const [requestOpen, setRequestOpen] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<UUID | null>(null);
+  const [removingRequest, setRemovingRequest] = useState<UUID | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
@@ -394,10 +399,36 @@ export function CustomerDetail() {
                 >
                   ▲
                 </button>
-                <Link to={row.href} className={styles.requestBody}>
-                  <span className={styles.requestTarget}>{row.target}</span>
-                  {row.body !== '' && <span className={styles.requestText}>{row.body}</span>}
-                </Link>
+                {editingRequest === row.id ? (
+                  <CustomerRequestEditor
+                    requestId={row.id}
+                    body={row.body}
+                    onDone={() => setEditingRequest(null)}
+                  />
+                ) : (
+                  <>
+                    <Link to={row.href} className={styles.requestBody}>
+                      <span className={styles.requestTarget}>{row.target}</span>
+                      {row.body !== '' && <span className={styles.requestText}>{row.body}</span>}
+                    </Link>
+                    <span className={styles.requestActions}>
+                      <IconButton
+                        size="sm"
+                        icon={<PencilGlyph />}
+                        aria-label={`Edit request on ${row.target}`}
+                        tooltip="Edit request"
+                        onClick={() => setEditingRequest(row.id)}
+                      />
+                      <IconButton
+                        size="sm"
+                        icon={<TrashGlyph />}
+                        aria-label={`Remove request on ${row.target}`}
+                        tooltip="Remove request"
+                        onClick={() => setRemovingRequest(row.id)}
+                      />
+                    </span>
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -410,6 +441,22 @@ export function CustomerDetail() {
           onClose={() => setRequestOpen(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={removingRequest !== null}
+        title="Remove this request?"
+        consequence="The feedback stops counting towards this customer's demand, and its issue or project loses it from every view that filters by customer. The issue itself stays."
+        confirmLabel="Remove request"
+        destructive
+        onConfirm={() => {
+          if (removingRequest !== null) {
+            if (editingRequest === removingRequest) setEditingRequest(null);
+            deleteCustomerRequest(engine, removingRequest).catch(report);
+          }
+          setRemovingRequest(null);
+        }}
+        onClose={() => setRemovingRequest(null)}
+      />
 
       <ConfirmDialog
         open={archiving}
