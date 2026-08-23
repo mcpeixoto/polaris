@@ -238,21 +238,48 @@ export async function createCustomerRequest(
   }
 }
 
-export async function toggleCustomerRequestImportant(
+export interface CustomerRequestFields {
+  readonly body?: string | undefined;
+  readonly important?: boolean | undefined;
+}
+
+/**
+ * Corrects a request that is already attached.
+ *
+ * Feedback arrives half-quoted and gets context added afterwards, so the words have to stay
+ * editable in the place they are read. It is the same post either way: a second request
+ * saying the same thing with a typo fixed would count twice in every roll-up the customer
+ * page and the `customerCount` filter are built on.
+ */
+export async function updateCustomerRequest(
   engine: SyncEngine,
   id: UUID,
-  important: boolean,
+  fields: CustomerRequestFields,
 ): Promise<void> {
+  // The server refuses an update that names no field, and an empty patch is a caller's
+  // no-op rather than something to make it answer for.
+  if (fields.body === undefined && fields.important === undefined) return;
   const store = engine.store;
   const before = store.get('customerRequest', id);
   if (before === undefined) return;
-  const after: CustomerRequest = { ...before, important, updatedAt: new Date().toISOString() };
+  const after: CustomerRequest = {
+    ...before,
+    ...(fields.body === undefined ? null : { body: fields.body }),
+    ...(fields.important === undefined ? null : { important: fields.important }),
+    updatedAt: new Date().toISOString(),
+  };
   try {
     const data = await engine.mutate<{
       updateCustomerRequest: { customerRequest: CustomerRequest };
     }>({
       mutation: UPDATE_CUSTOMER_REQUEST,
-      variables: { input: { id, important } },
+      variables: {
+        input: {
+          id,
+          ...(fields.body === undefined ? null : { body: fields.body }),
+          ...(fields.important === undefined ? null : { important: fields.important }),
+        },
+      },
       optimistic: [{ type: 'customerRequest', id, before, after }],
     });
     const real = fromWire(
@@ -264,6 +291,14 @@ export async function toggleCustomerRequestImportant(
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
   }
+}
+
+export function toggleCustomerRequestImportant(
+  engine: SyncEngine,
+  id: UUID,
+  important: boolean,
+): Promise<void> {
+  return updateCustomerRequest(engine, id, { important });
 }
 
 export async function deleteCustomerRequest(engine: SyncEngine, id: UUID): Promise<void> {

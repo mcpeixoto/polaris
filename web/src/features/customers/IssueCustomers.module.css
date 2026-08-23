@@ -79,3 +79,10 @@
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
 }
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}

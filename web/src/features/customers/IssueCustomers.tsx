@@ -1,14 +1,28 @@
 /**
- * Customer requests attached to one issue.
+ * Customer requests attached to one issue or project.
+ *
+ * Drawn only where the workspace has customer requests switched on. Everywhere else the
+ * admin toggle already decides — the sidebar entry, the command palette's two actions and
+ * the customer list all disappear with it — and this section was the one that stayed, so
+ * turning the feature off still offered an "Add request" button whose dialogue the server
+ * answers with "customer requests are turned off" after the feedback has been typed out.
+ * Existing requests are not deleted by the toggle; they come back with it.
  */
 
 import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button } from '~/components';
+import { Button, IconButton } from '~/components';
+import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
-import { toggleCustomerRequestImportant } from '~/features/customers/mutations';
+import { CustomerRequestEditor } from '~/features/customers/CustomerRequestEditor';
+import {
+  deleteCustomerRequest,
+  toggleCustomerRequestImportant,
+} from '~/features/customers/mutations';
+import { report } from '~/features/issue/mutations';
+import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewer } from '~/hooks/useViewer';
 import type { Store, UUID } from '~/store';
@@ -23,7 +37,15 @@ export function IssueCustomers({
 }) {
   const engine = useEngine();
   const viewer = useViewer();
+  // `undefined` while the replica is still opening: matching the shell's own reading of
+  // this flag keeps the section from blinking out of an issue on every cold load.
+  const enabled = useLiveQuery(
+    (store) => store.workspaces.get(store.workspaceId)?.customerRequestsEnabled ?? true,
+    ['workspace'],
+  );
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<UUID | null>(null);
+  const [removing, setRemoving] = useState<UUID | null>(null);
   const rows = useLiveQuery(
     (store) =>
       issueId !== undefined
@@ -35,7 +57,7 @@ export function IssueCustomers({
     [issueId ?? '', projectId ?? ''],
   );
 
-  if (viewer === null || viewer.role === 'guest') return null;
+  if (viewer === null || viewer.role === 'guest' || !enabled) return null;
 
   return (
     <section className={styles.section} aria-label="Customers">
@@ -64,16 +86,42 @@ export function IssueCustomers({
               >
                 ▲
               </button>
-              <span className={styles.body}>
-                {row.customerHref === null ? (
-                  <span className={styles.name}>{row.customerName}</span>
-                ) : (
-                  <Link to={row.customerHref} className={styles.name}>
-                    {row.customerName}
-                  </Link>
-                )}
-                {row.body !== '' && <span className={styles.text}>{row.body}</span>}
-              </span>
+              {editing === row.id ? (
+                <CustomerRequestEditor
+                  requestId={row.id}
+                  body={row.body}
+                  onDone={() => setEditing(null)}
+                />
+              ) : (
+                <span className={styles.body}>
+                  {row.customerHref === null ? (
+                    <span className={styles.name}>{row.customerName}</span>
+                  ) : (
+                    <Link to={row.customerHref} className={styles.name}>
+                      {row.customerName}
+                    </Link>
+                  )}
+                  {row.body !== '' && <span className={styles.text}>{row.body}</span>}
+                </span>
+              )}
+              {editing === row.id ? null : (
+                <span className={styles.rowActions}>
+                  <IconButton
+                    size="sm"
+                    icon={<PencilGlyph />}
+                    aria-label={`Edit request from ${row.customerName}`}
+                    tooltip="Edit request"
+                    onClick={() => setEditing(row.id)}
+                  />
+                  <IconButton
+                    size="sm"
+                    icon={<TrashGlyph />}
+                    aria-label={`Remove request from ${row.customerName}`}
+                    tooltip="Remove request"
+                    onClick={() => setRemoving(row.id)}
+                  />
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -85,6 +133,22 @@ export function IssueCustomers({
           onClose={() => setOpen(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={removing !== null}
+        title="Remove this request?"
+        consequence="The feedback stops counting towards this customer's demand, and the issue loses it from every view that filters by customer. The issue itself stays."
+        confirmLabel="Remove request"
+        destructive
+        onConfirm={() => {
+          if (removing !== null) {
+            if (editing === removing) setEditing(null);
+            deleteCustomerRequest(engine, removing).catch(report);
+          }
+          setRemoving(null);
+        }}
+        onClose={() => setRemoving(null)}
+      />
     </section>
   );
 }
