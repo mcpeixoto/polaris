@@ -117,6 +117,16 @@ func (s *Service) RestoreTeam(ctx context.Context, p *authz.Principal, id uuid.U
 			if store.IsNotFound(err) {
 				return platform.NotFound("team")
 			}
+			// The key uniqueness index is partial — `WHERE deleted_at IS NULL` — so deleting a
+			// team frees its key for the next one, and restoring it thirty days later can find
+			// somebody standing in its place. That is a thing a workspace does to itself, not a
+			// fault: without this it surfaced on the Recently deleted teams screen as the word
+			// "internal error", which tells the person who has to fix it nothing about what to
+			// fix.
+			if store.IsUniqueViolation(err, "team_workspace_key_key") {
+				return platform.Conflict(
+					"another team has taken this team's key — rename that team before restoring this one")
+			}
 			return platform.Internal(err)
 		}
 		if row.WorkspaceID != p.WorkspaceID {

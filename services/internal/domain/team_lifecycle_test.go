@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -190,5 +191,53 @@ func TestListDeletedTeams_ScopedToOwners(t *testing.T) {
 	}
 	if len(memberList) != 0 {
 		t.Fatalf("non-owner member sees %d deleted teams, want 0", len(memberList))
+	}
+}
+
+// Deleting a team frees its key, because the uniqueness index skips deleted rows. A
+// workspace that then spends the key has to be told what stands in the way of the restore,
+// rather than being handed the word "internal error" on the recently-deleted screen.
+func TestRestoreTeam_RefusesWhenTheKeyWasTakenAgain(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	team, _, err := svc.CreateTeam(ctx, p, domain.CreateTeamInput{Key: "TMP", Name: "Temporary"})
+	if err != nil {
+		t.Fatalf("create team: %v", err)
+	}
+	if _, err := svc.DeleteTeam(ctx, p, team.ID); err != nil {
+		t.Fatalf("delete team: %v", err)
+	}
+
+	successor, _, err := svc.CreateTeam(ctx, p, domain.CreateTeamInput{Key: "TMP", Name: "Temporary II"})
+	if err != nil {
+		t.Fatalf("the key should be free once the team holding it is deleted: %v", err)
+	}
+
+	_, _, err = svc.RestoreTeam(ctx, p, team.ID)
+	if err == nil {
+		t.Fatal("restore into a key another team holds should fail")
+	}
+	if platform.CodeOf(err) != platform.CodeConflict {
+		t.Fatalf("restore code = %s, want CONFLICT (%v)", platform.CodeOf(err), err)
+	}
+	if !strings.Contains(err.Error(), "key") {
+		t.Fatalf("refusal should name the key: %q", err.Error())
+	}
+
+	// Freeing the key again makes the restore work, which is the advice the message gives.
+	freed := "FREE"
+	if _, _, err := svc.UpdateTeam(ctx, p, domain.UpdateTeamInput{ID: successor.ID, Key: &freed}); err != nil {
+		t.Fatalf("rename successor: %v", err)
+	}
+	restored, _, err := svc.RestoreTeam(ctx, p, team.ID)
+	if err != nil {
+		t.Fatalf("restore after the key was freed: %v", err)
+	}
+	if restored.Key != "TMP" {
+		t.Fatalf("restored key = %q, want TMP", restored.Key)
 	}
 }
