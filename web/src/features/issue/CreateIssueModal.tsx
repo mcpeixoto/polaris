@@ -187,6 +187,28 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const submitted = useRef(false);
   /** A resumed saved draft is deleted by the first create, not by every one after it. */
   const draftCleared = useRef(false);
+  /**
+   * `C` pressed while the create is still in flight: file this one and stay open.
+   *
+   * The dialog does not close on click, it closes when the server answers, and that is a
+   * real window — tens of milliseconds against a server on this machine, a few hundred
+   * against one over a network. Somebody filing a run of issues presses `C` inside it
+   * constantly, and until this ref existed the press was consumed by the shell's
+   * `issue.create`, which set a flag that was already set; the create then resolved and
+   * closed the dialog on top of it. The keystroke matched, ran, and left no trace, which is
+   * the worst version of a shortcut failing.
+   */
+  const stayOpen = useRef(false);
+  /**
+   * Whether a create is in the air, as a ref rather than as `saving`.
+   *
+   * `saving` is state, and state is a frame late: the click handler runs `save` synchronously
+   * up to its `await`, so a `C` arriving in the same tick would find `saving` still false,
+   * this action disabled, and the chord back with the shell — which would answer it by
+   * opening a composer that is already open. The ref flips in the same statement as the
+   * state, so the window the chord is claimed for is the window the create is actually in.
+   */
+  const inFlight = useRef(false);
 
   // The team the user is looking at, read from the path rather than passed in. This modal is
   // mounted by the shell, above the route that knows which team is on screen, so `useParams`
@@ -529,6 +551,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     }
 
     setSaving(true);
+    inFlight.current = true;
     setTitleError(null);
     setSaveError(null);
     try {
@@ -587,7 +610,11 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
         draftCleared.current = true;
         void deleteDraft(seed.draftId);
       }
-      if (another) {
+      // `another` is the chord that said so up front; `stayOpen` is the `C` that said so
+      // while this create was in the air. They mean the same thing and take the same path.
+      if (another || stayOpen.current) {
+        stayOpen.current = false;
+        inFlight.current = false;
         setSaving(false);
         // Back to the template's own prompt rather than to blank, when there is one. A
         // template is one of the properties being kept, and keeping it while throwing away
@@ -600,10 +627,17 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
         return;
       }
       submitted.current = true;
+      // Released before the close, so a `C` in the sliver between the two goes back to the
+      // shell rather than being claimed by a dialog that has stopped listening.
+      inFlight.current = false;
       // Closed without waiting for anything else: the issue is already in the list, and the
       // outbox owns the rest of the story.
       onClose();
     } catch (failure) {
+      // The dialog stays open with the error either way, so a `C` pressed during a create
+      // that then failed has nothing left to ask for.
+      stayOpen.current = false;
+      inFlight.current = false;
       setSaving(false);
       setSaveError(
         failure instanceof ApiError ? failure.message : 'The issue could not be created.',
@@ -622,7 +656,11 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   copyRef.current = copyCreateUrl;
 
   // Everything the dialog covers belongs to the dialog: `J` must not scroll the list behind
-  // it, and `C` must not open a second one.
+  // it, and `C` must not open a second one. Sealing the context is not what does the second
+  // one — a chain always ends at `global`, which is what keeps ⌘K and Escape working in here
+  // — so `C` does reach the shell's `issue.create`, which drops the request rather than
+  // throwing away a half-written issue. That is the right answer except while a create is in
+  // flight, which is what `issue.createDuringSave` below is for.
   useKeyContext('modal');
 
   useActions(
@@ -648,6 +686,21 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
         // command, it is a sentence about one.
         hidden: true,
         run: () => submitAnotherRef.current(),
+      },
+      {
+        id: 'issue.createDuringSave',
+        title: 'Start another issue',
+        keys: ['c'],
+        when: 'modal',
+        group: 'Issues',
+        // Hidden, and live only while a create is in flight. Outside that window `C` is not
+        // this dialog's to claim: the shell's `issue.create` gets it and finds the dialog
+        // already open, which is the right answer to asking for something you have.
+        hidden: true,
+        enabled: () => inFlight.current,
+        run: () => {
+          stayOpen.current = true;
+        },
       },
       {
         id: 'issue.copyComposerUrl',

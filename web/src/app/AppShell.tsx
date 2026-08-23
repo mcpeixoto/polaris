@@ -8,8 +8,10 @@
  */
 
 import {
+  Fragment,
   useCallback,
   useMemo,
+  useRef,
   useState,
   type DragEvent,
   type FormEvent,
@@ -80,6 +82,32 @@ export function AppShell({
   const [helpOpen, setHelpOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createSeed, setCreateSeed] = useState<IssueComposerSeed | undefined>();
+  /**
+   * Which sitting of the composer is on screen, and which one is allowed to close it.
+   *
+   * A boolean was not enough. The composer does not close when its button is clicked, it
+   * closes when the create resolves, and `C` pressed inside that window used to reach this
+   * shell, set `createOpen` to the `true` it already held, and vanish — the pending close
+   * then landed on top of it. Reversed, it is no better: an open arriving between the close
+   * and its commit collapses into the same boolean and leaves the previous sitting on
+   * screen, still holding the title of the issue just filed.
+   *
+   * Counting the sittings makes both orders come out right. Opening always starts a new one,
+   * which the `key` below turns into a fresh dialog rather than the old one's leftovers, and
+   * closing only closes the sitting it belongs to — so a resolve that arrives after the user
+   * has already asked for the next issue is ignored rather than shutting the door on them.
+   */
+  const [sitting, setSitting] = useState(0);
+  const currentSitting = useRef(0);
+  /**
+   * Whether a composer is up, tracked synchronously alongside `createOpen`.
+   *
+   * The state is a frame behind at exactly the moment this has to be read: a close is queued
+   * from the resolve of a create, and the chord asking for the next issue arrives before
+   * React has committed it. Reading the state there would say "still open" and refuse to
+   * start the next sitting, which is the original bug wearing a different hat.
+   */
+  const composerUp = useRef(false);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [createInitiativeOpen, setCreateInitiativeOpen] = useState(false);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
@@ -195,6 +223,7 @@ export function AppShell({
   const closeAll = useCallback(() => {
     setCommandOpen(false);
     setHelpOpen(false);
+    composerUp.current = false;
     setCreateOpen(false);
     setCreateSeed(undefined);
     setCreateProjectOpen(false);
@@ -205,17 +234,32 @@ export function AppShell({
   }, []);
 
   const openCreate = useCallback((seed?: IssueComposerSeed) => {
+    // Asking for a composer that is already up is asking for something you have. Starting a
+    // new sitting here would throw away a half-written issue, so the request is dropped and
+    // the dialog on screen keeps the floor. The dialog itself claims the chord for the one
+    // case where that is the wrong answer — a create already in flight.
+    if (composerUp.current) return;
+    composerUp.current = true;
+    currentSitting.current += 1;
+    setSitting(currentSitting.current);
     setCreateSeed(seed);
     setCreateOpen(true);
   }, []);
 
-  const closeCreate = useCallback(() => {
-    setCreateOpen(false);
-    setCreateSeed(undefined);
-    if (pathname === '/new' || /\/team\/[^/]+\/new$/.test(pathname)) {
-      void navigate('/');
-    }
-  }, [navigate, pathname]);
+  const closeCreate = useCallback(
+    (closing: number) => {
+      // A create that resolved after the filer had already started the next issue. The
+      // dialog they are looking at is not the one asking to close.
+      if (closing !== currentSitting.current) return;
+      composerUp.current = false;
+      setCreateOpen(false);
+      setCreateSeed(undefined);
+      if (pathname === '/new' || /\/team\/[^/]+\/new$/.test(pathname)) {
+        void navigate('/');
+      }
+    },
+    [navigate, pathname],
+  );
 
   useActions(
     [
@@ -956,7 +1000,13 @@ export function AppShell({
 
         <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
         <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
-        {createOpen && renderCreateIssue?.({ onClose: closeCreate, seed: createSeed })}
+        {createOpen && (
+          // Keyed by the sitting: asking for a new issue while one is on screen replaces the
+          // dialog rather than leaving the filed issue's title sitting in the field.
+          <Fragment key={sitting}>
+            {renderCreateIssue?.({ onClose: () => closeCreate(sitting), seed: createSeed })}
+          </Fragment>
+        )}
         {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
         {createInitiativeOpen &&
           renderCreateInitiative?.({ onClose: () => setCreateInitiativeOpen(false) })}
