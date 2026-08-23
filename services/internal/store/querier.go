@@ -181,7 +181,15 @@ type Querier interface {
 	// at scan time, at runtime, on the one row nobody has in their test fixture.
 	//
 	ClaimNotificationsForEmail(ctx context.Context, arg ClaimNotificationsForEmailParams) ([]ClaimNotificationsForEmailRow, error)
-	ClearDefaultProjectStatuses(ctx context.Context, arg ClearDefaultProjectStatusesParams) error
+	// ClearDefaultProjectStatuses must run immediately before setting a new default, in the
+	// same transaction: project_status_workspace_default_key is a partial unique index, so
+	// doing it the other way round fails.
+	//
+	// It returns what it demoted. The promotion reaches every client as a delta carrying the
+	// promoted row; without the demoted one beside it the old default stays drawn as the
+	// default in every replica that did not perform the write.
+	//
+	ClearDefaultProjectStatuses(ctx context.Context, arg ClearDefaultProjectStatusesParams) ([]ProjectStatus, error)
 	// ClearDefaultWorkflowState must run immediately before setting a new default, in the
 	// same transaction: workflow_state_team_default_key is a partial unique index, so doing
 	// it the other way round fails.
@@ -235,6 +243,7 @@ type Querier interface {
 	CountPendingWebhookDeliveries(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	CountProjectTeams(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountProjectsFromTemplate(ctx context.Context, projectTemplateID *uuid.UUID) (int64, error)
+	CountProjectsInProjectStatus(ctx context.Context, statusID uuid.UUID) (int64, error)
 	CountProjectsWithProjectLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
 	CountPulseFeedsForUser(ctx context.Context, arg CountPulseFeedsForUserParams) (int32, error)
 	// CountPulseForMeUpdatesSince is the Pulse "For me" predicate: lead, creator, or member.

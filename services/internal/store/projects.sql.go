@@ -108,9 +108,11 @@ func (q *Queries) ArchiveProjectStatus(ctx context.Context, id uuid.UUID) error 
 	return err
 }
 
-const clearDefaultProjectStatuses = `-- name: ClearDefaultProjectStatuses :exec
+const clearDefaultProjectStatuses = `-- name: ClearDefaultProjectStatuses :many
 UPDATE project_status SET is_default = false
 WHERE workspace_id = $1 AND is_default AND id <> $2
+RETURNING id, workspace_id, name, description, color, category, position, is_default,
+          archived_at, created_at, updated_at
 `
 
 type ClearDefaultProjectStatusesParams struct {
@@ -118,9 +120,43 @@ type ClearDefaultProjectStatusesParams struct {
 	ExceptID    uuid.UUID
 }
 
-func (q *Queries) ClearDefaultProjectStatuses(ctx context.Context, arg ClearDefaultProjectStatusesParams) error {
-	_, err := q.db.Exec(ctx, clearDefaultProjectStatuses, arg.WorkspaceID, arg.ExceptID)
-	return err
+// ClearDefaultProjectStatuses must run immediately before setting a new default, in the
+// same transaction: project_status_workspace_default_key is a partial unique index, so
+// doing it the other way round fails.
+//
+// It returns what it demoted. The promotion reaches every client as a delta carrying the
+// promoted row; without the demoted one beside it the old default stays drawn as the
+// default in every replica that did not perform the write.
+func (q *Queries) ClearDefaultProjectStatuses(ctx context.Context, arg ClearDefaultProjectStatusesParams) ([]ProjectStatus, error) {
+	rows, err := q.db.Query(ctx, clearDefaultProjectStatuses, arg.WorkspaceID, arg.ExceptID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProjectStatus{}
+	for rows.Next() {
+		var i ProjectStatus
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Description,
+			&i.Color,
+			&i.Category,
+			&i.Position,
+			&i.IsDefault,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const countProjectTeams = `-- name: CountProjectTeams :one
@@ -129,6 +165,17 @@ SELECT count(*) FROM project_team WHERE project_id = $1
 
 func (q *Queries) CountProjectTeams(ctx context.Context, projectID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countProjectTeams, projectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countProjectsInProjectStatus = `-- name: CountProjectsInProjectStatus :one
+SELECT count(*) FROM project WHERE status_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) CountProjectsInProjectStatus(ctx context.Context, statusID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countProjectsInProjectStatus, statusID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err

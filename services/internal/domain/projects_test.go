@@ -10,6 +10,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
 	"github.com/peixotolabs/polaris/services/internal/platform"
+	"github.com/peixotolabs/polaris/services/internal/store"
 	"github.com/peixotolabs/polaris/services/internal/testutil"
 )
 
@@ -228,5 +229,179 @@ func TestDeleteProject_RestoresInsideTheWindow(t *testing.T) {
 	}
 	if restored.Name != "Oops" {
 		t.Fatalf("restored name %q, want Oops", restored.Name)
+	}
+}
+
+// The workspace default is where a new project lands, so the database only lets a Backlog
+// or Planned status hold it. Without the same rule here the constraint arrives as
+// platform.Internal — which the web client treats as retriable, so the promotion is retried
+// five times and then dropped, having looked on screen like it worked the whole time.
+func TestUpdateProjectStatus_DefaultMustBeBacklogOrPlanned(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	statuses, err := svc.ListProjectStatuses(ctx, p)
+	if err != nil {
+		t.Fatalf("list statuses: %v", err)
+	}
+	byCategory := map[string]model.ProjectStatus{}
+	for _, s := range statuses {
+		byCategory[s.Category] = s
+	}
+
+	for _, category := range []string{
+		model.ProjectCategoryStarted, model.ProjectCategoryCompleted, model.ProjectCategoryCanceled,
+	} {
+		status, ok := byCategory[category]
+		if !ok {
+			t.Fatalf("no seeded %s status", category)
+		}
+		yes := true
+		_, _, err := svc.UpdateProjectStatus(ctx, p, domain.UpdateProjectStatusInput{
+			ID: status.ID, IsDefault: &yes,
+		})
+		if platform.CodeOf(err) != platform.CodeValidation {
+			t.Fatalf("promoting a %s status: want validation, got %v", category, err)
+		}
+	}
+
+	// Moving the default into a category that cannot hold it is the same violation from
+	// the other side, and is refused too.
+	backlog := byCategory[model.ProjectCategoryBacklog]
+	started := model.ProjectCategoryStarted
+	if _, _, err := svc.UpdateProjectStatus(ctx, p, domain.UpdateProjectStatusInput{
+		ID: backlog.ID, Category: &started,
+	}); platform.CodeOf(err) != platform.CodeValidation {
+		t.Fatalf("moving the default into started: want validation, got %v", err)
+	}
+
+	// Planned is allowed, and it really does demote the old default.
+	planned := byCategory[model.ProjectCategoryPlanned]
+	yes := true
+	before, err := latestChangeVersion(ctx, t, db, f.WorkspaceID)
+	if err != nil {
+		t.Fatalf("read version: %v", err)
+	}
+	if _, _, err := svc.UpdateProjectStatus(ctx, p, domain.UpdateProjectStatusInput{
+		ID: planned.ID, IsDefault: &yes,
+	}); err != nil {
+		t.Fatalf("promoting the planned status: %v", err)
+	}
+	after, err := svc.ListProjectStatuses(ctx, p)
+	if err != nil {
+		t.Fatalf("list statuses: %v", err)
+	}
+	for _, s := range after {
+		want := s.ID == planned.ID
+		if s.IsDefault != want {
+			t.Fatalf("%s isDefault = %v, want %v", s.Name, s.IsDefault, want)
+		}
+	}
+
+	// The demotion has to reach the stream too. A client that did not perform this write
+	// only ever hears about the promoted row, so without the pair it goes on drawing the
+	// old default as the default.
+	rows, err := db.Queries().ReadChangesSince(ctx, store.ReadChangesSinceParams{
+		WorkspaceID:    f.WorkspaceID,
+		AfterVersion:   before,
+		ThroughVersion: 1 << 40,
+		PageSize:       100,
+	})
+	if err != nil {
+		t.Fatalf("read changes: %v", err)
+	}
+	published := map[uuid.UUID]bool{}
+	for _, r := range rows {
+		if r.EntityType == "projectStatus" {
+			published[r.EntityID] = true
+		}
+	}
+	if !published[planned.ID] {
+		t.Fatalf("no delta for the promoted status %s", planned.Name)
+	}
+	if !published[backlog.ID] {
+		t.Fatalf("no delta for the demoted status %s: every other client keeps two defaults", backlog.Name)
+	}
+}
+
+func latestChangeVersion(ctx context.Context, t *testing.T, db *store.DB, ws uuid.UUID) (int64, error) {
+	t.Helper()
+	rows, err := db.Queries().ReadChangesSince(ctx, store.ReadChangesSinceParams{
+		WorkspaceID:    ws,
+		AfterVersion:   0,
+		ThroughVersion: 1 << 40,
+		PageSize:       10000,
+	})
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	return rows[len(rows)-1].Version, nil
+}
+
+// project.status_id is NOT NULL and archiving is soft, so a retired status that projects
+// still point at is not a tidy-up — it is a row no client can see, and every project in it
+// renders as "No status" with no way back. Same rule as ArchiveWorkflowState.
+func TestArchiveProjectStatus_RefusesWhileProjectsUseIt(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	statuses, err := svc.ListProjectStatuses(ctx, p)
+	if err != nil {
+		t.Fatalf("list statuses: %v", err)
+	}
+	var backlog, planned, canceled model.ProjectStatus
+	for _, s := range statuses {
+		switch s.Category {
+		case model.ProjectCategoryBacklog:
+			backlog = s
+		case model.ProjectCategoryPlanned:
+			planned = s
+		case model.ProjectCategoryCanceled:
+			canceled = s
+		}
+	}
+
+	project, _, err := svc.CreateProject(ctx, p, domain.CreateProjectInput{
+		Name: "Search", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if project.StatusID != backlog.ID {
+		t.Fatalf("new project status = %v, want the seeded default %v", project.StatusID, backlog.ID)
+	}
+
+	// Hand the default to another status so the refusal under test is the one about
+	// projects rather than the one about the default.
+	yes := true
+	if _, _, err := svc.UpdateProjectStatus(ctx, p, domain.UpdateProjectStatusInput{
+		ID: planned.ID, IsDefault: &yes,
+	}); err != nil {
+		t.Fatalf("promote planned: %v", err)
+	}
+
+	if _, err := svc.ArchiveProjectStatus(ctx, p, backlog.ID, true); platform.CodeOf(err) != platform.CodeConflict {
+		t.Fatalf("archiving a status in use: want conflict, got %v", err)
+	}
+	still, err := svc.GetProject(ctx, p, project.ID)
+	if err != nil {
+		t.Fatalf("get project: %v", err)
+	}
+	if still.StatusID != backlog.ID {
+		t.Fatalf("project status = %v, want it untouched at %v", still.StatusID, backlog.ID)
+	}
+
+	// An empty status still retires.
+	if _, err := svc.ArchiveProjectStatus(ctx, p, canceled.ID, true); err != nil {
+		t.Fatalf("archiving an unused status: %v", err)
 	}
 }
