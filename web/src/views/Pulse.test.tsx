@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
@@ -12,8 +12,18 @@ import { Pulse } from './Pulse';
 
 const AT = '2026-08-20T12:00:00.000Z';
 
+/**
+ * The role is a `let` because one test needs a guest.
+ *
+ * It is deliberately NOT taken from the `useViewer` profile below: a guest's replica holds
+ * no `user` rows at all, so the profile is null for exactly the person Pulse must exclude,
+ * and a gate that reads it can never fire. `useViewerRole` answers from the session query.
+ */
+let role = 'member';
+
 vi.mock('~/hooks/useViewer', () => ({
   useViewerId: () => 'u1',
+  useViewerRole: () => role,
   useViewer: () => ({
     id: 'u1',
     workspaceId: 'w1',
@@ -99,6 +109,28 @@ function renderPulse(extra: readonly Change[] = []) {
 }
 
 describe('Pulse', () => {
+  afterEach(() => {
+    role = 'member';
+  });
+
+  it('sends a guest away instead of rendering the feed', () => {
+    role = 'guest';
+    renderPulse([
+      upsert(4, 'projectUpdate', {
+        id: 'u-1',
+        workspaceId: 'w1',
+        projectId: 'p1',
+        health: 'at_risk',
+        body: 'Not for a guest.',
+        authorId: 'u1',
+        createdAt: AT,
+        updatedAt: AT,
+      }),
+    ]);
+    expect(screen.queryByRole('heading', { name: 'Pulse' })).toBeNull();
+    expect(screen.queryByText('Not for a guest.')).toBeNull();
+  });
+
   it('renders a heading and empty copy when nothing has been posted', () => {
     renderPulse();
     expect(screen.getByRole('heading', { name: 'Pulse' })).toBeTruthy();

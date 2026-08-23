@@ -14,13 +14,14 @@
 
 import { useEffect, useState } from 'react';
 
+import { fromWireValue } from '~/gql/enums';
 import { VIEWER_QUERY } from '~/gql/operations';
-import type { User, UUID } from '~/store';
+import type { User, UserRole, UUID } from '~/store';
 import { currentWorkspace, gql } from '~/sync/api';
 import { useLiveQuery } from './useLiveQuery';
 
 interface ViewerResponse {
-  readonly viewer: { readonly user: { readonly id: UUID } };
+  readonly viewer: { readonly user: { readonly id: UUID; readonly role: string } };
 }
 
 /**
@@ -31,6 +32,20 @@ interface ViewerResponse {
  * request between them instead of three.
  */
 const pending = new Map<string, Promise<UUID | null>>();
+
+/**
+ * The viewer's role, kept beside the id rather than read back out of the replica.
+ *
+ * `useViewer` reads the profile from `store.users`, and a guest's replica has no `user`
+ * rows at all — the directory is workspace-scoped and guests are not handed it (see
+ * `sync.go`, "guests do not receive the directory"). So for the one person a role check
+ * exists to exclude, `useViewer()` is permanently `null`, and every gate written as
+ * "viewer is loaded and is not a guest" silently reads as "unknown" forever.
+ *
+ * The answer is already on the wire: `VIEWER_QUERY` selects the whole user, role
+ * included. Keeping it here makes the role knowable for everybody, including the guest.
+ */
+const roles = new Map<string, UserRole>();
 
 /**
  * The answers that have already arrived, so a later mount is synchronous.
@@ -50,6 +65,7 @@ function viewerIdFor(workspaceId: string): Promise<UUID | null> {
   const request = gql<ViewerResponse>(VIEWER_QUERY)
     .then((data) => {
       resolved.set(workspaceId, data.viewer.user.id);
+      roles.set(workspaceId, fromWireValue(data.viewer.user.role) as UserRole);
       return data.viewer.user.id;
     })
     .catch(() => {
@@ -93,6 +109,34 @@ export function useViewerId(): UUID | null {
   }, [workspaceId]);
 
   return id;
+}
+
+/**
+ * The signed-in user's role, or null until the session query has answered.
+ *
+ * Use this — never `useViewer()?.role` — for anything that has to be withheld from a
+ * guest. The profile comes from the replica and a guest's replica holds no users, so a
+ * guest reads as "not loaded yet" for the whole session there; this comes from the
+ * session query, which answers for everybody.
+ */
+export function useViewerRole(): UserRole | null {
+  const workspaceId = currentWorkspace();
+  const [role, setRole] = useState<UserRole | null>(() =>
+    workspaceId === null ? null : (roles.get(workspaceId) ?? null),
+  );
+
+  useEffect(() => {
+    if (workspaceId === null) return;
+    let live = true;
+    void viewerIdFor(workspaceId).then(() => {
+      if (live) setRole(roles.get(workspaceId) ?? null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [workspaceId]);
+
+  return role;
 }
 
 /**
