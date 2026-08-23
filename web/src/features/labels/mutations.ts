@@ -57,11 +57,13 @@ export interface NewLabel {
  * Creates a label and returns the id it has locally.
  *
  * The id is the server's, not the client's: `CreateLabelInput` has no `id` field, so the
- * local row is a stand-in swapped for the real one when the reply lands — the same trade
- * `createStatus` makes, and for the same reason it is acceptable here. A label is created on
- * a settings screen by somebody who is watching, not queued behind an hour of tunnel, so the
- * one case where the stand-in is visible for longer than a frame is rare and self-heals on
- * the next delta.
+ * local row is a stand-in and something has to put the real row in its place. That used to
+ * be a line after the `await`, on the reasoning that a label is created on a settings screen
+ * by somebody who is watching, so the stand-in is on screen for a frame — and that a stray
+ * one would heal on the next delta. It does not heal. The stand-in is persisted, the delta
+ * brings the server's row to sit *beside* it, and the list shows the label twice from then
+ * on. `web/e2e/labels.spec.ts` reproduces it in nine seconds. The pairing is declared below
+ * instead, where a reload can still reach it.
  */
 export async function createLabel(engine: SyncEngine, input: NewLabel): Promise<UUID> {
   const store = engine.store;

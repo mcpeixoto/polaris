@@ -192,8 +192,9 @@ export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<
   //
   // Written in the same patch as the issue rather than left for the server's delta, so the
   // chips are on the row in the frame the issue appears in. Their ids are provisional — the
-  // server mints an `issue_label` id per application — and the delta replaces them, which is
-  // the same trade `addLabel` makes and is invisible for the same reason.
+  // server mints an `issue_label` id per application — and the delta does not replace them,
+  // it arrives *beside* them, which is why each one is paired below rather than left to
+  // sort itself out.
   const applications: EntityPatch[] = (input.labelIds ?? []).map((labelId) => {
     const application: IssueLabel = {
       id: uuidv7(),
