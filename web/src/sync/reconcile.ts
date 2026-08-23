@@ -6,7 +6,7 @@
  * the only input in the schema that does. Everything else has its id allocated by the API,
  * so the client renders a row under an id it invented and has to replace it when the real
  * one arrives. That was true of five features when the bug was found in them one at a time,
- * and of thirty-five more that nobody had reported yet.
+ * and of forty-one more call sites that nobody had reported at all.
  *
  * The pairing used to be written at each call site, in the `await` that sent the mutation.
  * That works for exactly as long as the `await` does. A reload taken between the optimistic
