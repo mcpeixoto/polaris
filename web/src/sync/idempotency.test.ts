@@ -47,15 +47,15 @@ describe('the documents the sync engine can replay', () => {
   const idempotent = idempotentMutations(readFileSync(SCHEMA, 'utf8'));
   const files = sourceFiles(SRC);
   const documents = collectDocuments(files);
-  const replayable = collectCallSites(files, documents).filter((site) => idempotent.has(site.field));
+  const replayable = collectCallSites(files, documents).filter((site) =>
+    idempotent.has(site.field),
+  );
 
   it('finds the schema, the documents and the call sites at all', () => {
     // Guards on the guard. Each of these three lookups is a regex over a file layout, and
     // any of them returning nothing would leave the assertion below passing vacuously —
     // which is the one outcome worse than not having written it.
-    expect(idempotent.size, 'no @idempotent mutations found in schema.graphql').toBeGreaterThan(
-      90,
-    );
+    expect(idempotent.size, 'no @idempotent mutations found in schema.graphql').toBeGreaterThan(90);
     expect(documents.size, 'no GraphQL documents found under web/src').toBeGreaterThan(100);
     expect(
       replayable.length,
@@ -93,7 +93,9 @@ function idempotentMutations(schema: string): ReadonlySet<string> {
 }
 
 /** `export const NAME = /* GraphQL *\/ \`…\`` → NAME → the document text. */
-function collectDocuments(files: readonly string[]): ReadonlyMap<string, { text: string; where: string }> {
+function collectDocuments(
+  files: readonly string[],
+): ReadonlyMap<string, { text: string; where: string }> {
   const documents = new Map<string, { text: string; where: string }>();
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
@@ -131,9 +133,10 @@ function collectCallSites(
     const document = documents.get(constant);
     if (document === undefined) continue;
 
-    const root = /\bmutation\s+[A-Za-z0-9_]+\s*(\([\s\S]*?\))?\s*\{\s*([a-zA-Z_][A-Za-z0-9_]*)\s*(\([\s\S]*?\))?\s*\{/.exec(
-      document.text,
-    );
+    const root =
+      /\bmutation\s+[A-Za-z0-9_]+\s*(\([\s\S]*?\))?\s*\{\s*([a-zA-Z_][A-Za-z0-9_]*)\s*(\([\s\S]*?\))?\s*\{/.exec(
+        document.text,
+      );
     if (root?.[2] === undefined) continue;
 
     const variables = root[1] ?? '';
