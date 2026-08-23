@@ -173,7 +173,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
           )}
           {grouped(rows).flatMap((section) => {
             const header = (
-              <li key={`group-${section.group}`} className={styles.groupHeader} role="presentation">
+              <li key={`group-${section.key}`} className={styles.groupHeader} role="presentation">
                 {section.group}
               </li>
             );
@@ -209,12 +209,26 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   );
 }
 
-function grouped(rows: readonly Row[]): { group: string; rows: Row[] }[] {
-  const sections: { group: string; rows: Row[] }[] = [];
+/**
+ * Runs of rows that share a group, in the order they were ranked.
+ *
+ * Adjacent runs only, deliberately: the ranking decides what the reader sees first, and
+ * hoisting a later row up to join an earlier heading of the same name would reorder the
+ * results to tidy the headings. So one group CAN legitimately appear more than once —
+ * `Issues` as a command group and `Issues` as matched issues is the common case.
+ *
+ * Which is why each section carries a key rather than being keyed by its name at the call
+ * site. Two sections named `Issues` gave two `group-Issues` keys, and React answered with
+ * "Encountered two children with the same key" on every keystroke that produced one.
+ */
+export function grouped<T extends { group: string }>(
+  rows: readonly T[],
+): { key: string; group: string; rows: T[] }[] {
+  const sections: { key: string; group: string; rows: T[] }[] = [];
   for (const row of rows) {
     const last = sections[sections.length - 1];
     if (last !== undefined && last.group === row.group) last.rows.push(row);
-    else sections.push({ group: row.group, rows: [row] });
+    else sections.push({ key: `${sections.length}-${row.group}`, group: row.group, rows: [row] });
   }
   return sections;
 }
