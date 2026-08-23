@@ -10,21 +10,25 @@ import { useState } from 'react';
 
 import { useEngine } from '~/app/context';
 import { Button, EmptyState } from '~/components';
-import { downloadCsv, exportCap, issuesToCsv, type ExportRole } from '~/features/export/csv';
-import { useViewer } from '~/hooks/useViewer';
+import { downloadCsv, exportCap, issuesToCsv } from '~/features/export/csv';
+import { useViewerRole } from '~/hooks/useViewer';
 import styles from './ExportSettings.module.css';
 
 export function ExportSettings() {
   const engine = useEngine();
-  const viewer = useViewer();
+  const viewerRole = useViewerRole();
   const [message, setMessage] = useState<string | null>(null);
 
-  const role: ExportRole = viewer?.role ?? 'member';
-  const cap = exportCap(role, 'issues');
+  // The role is asked of the session, not of the replica. It used to be
+  // `useViewer()?.role ?? 'member'`, and a guest's replica holds no `user` rows at all —
+  // the directory is workspace-scoped and guests are not handed it — so for the one person
+  // this page has an answer for, the profile never arrived and the screen sat on "Loading
+  // export" for the whole session. `null` here is genuinely "not answered yet".
+  const cap = viewerRole === null ? null : exportCap(viewerRole, 'issues');
 
   const exportWorkspace = () => {
     setMessage(null);
-    if (cap === 0) {
+    if (cap === null || cap === 0) {
       setMessage('Guests cannot export.');
       return;
     }
@@ -42,7 +46,7 @@ export function ExportSettings() {
     }
   };
 
-  if (viewer === null) {
+  if (cap === null) {
     return (
       <div className={styles.screen}>
         <EmptyState

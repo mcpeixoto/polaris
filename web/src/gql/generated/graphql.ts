@@ -3787,6 +3787,10 @@ export type Query = {
   teams: Array<Team>;
   unreadNotificationCount: Scalars['Int']['output'];
   user?: Maybe<User>;
+  /**
+   * The workspace directory. A guest receives only their own row: the directory is
+   * workspace-scoped and the sync bootstrap does not hand it to guests either.
+   */
   users: Array<User>;
   view?: Maybe<View>;
   viewPreferences: Array<ViewPreference>;
@@ -5140,6 +5144,7 @@ export type Workspace = {
   updatedAt: Scalars['Time']['output'];
   /** The address segment: /<urlKey>/issue/ENG-1. */
   urlKey: Scalars['String']['output'];
+  /** The workspace directory. A guest receives only their own row — see Query.users. */
   users: Array<User>;
 };
 

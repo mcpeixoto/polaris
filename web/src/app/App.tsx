@@ -6,9 +6,10 @@
  * routing of its own — it translates the URL and hands it to the router here.
  */
 
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 
+import { useViewerRole } from '~/hooks/useViewer';
 import { onDeepLink } from '~/platform/runtime';
 import { hasServer } from '~/sync/endpoint';
 import { LabelSettings } from '~/features/labels/LabelSettings';
@@ -197,15 +198,43 @@ function SignedInShell() {
         <Route path="/drafts" element={<Drafts />} />
         <Route path="/new" element={<CreateIssueFromUrl />} />
         <Route path="/projects" element={<Projects />} />
-        <Route path="/initiatives" element={<Initiatives />} />
-        <Route path="/initiative/:initiativeId" element={<InitiativeShell />}>
+        <Route
+          path="/initiatives"
+          element={
+            <MembersOnly>
+              <Initiatives />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/initiative/:initiativeId"
+          element={
+            <MembersOnly>
+              <InitiativeShell />
+            </MembersOnly>
+          }
+        >
           <Route index element={<InitiativeDetail />} />
           <Route path="activity" element={<InitiativeActivity />} />
         </Route>
         <Route path="/customers" element={<Customers />} />
         <Route path="/customer/:customerId" element={<CustomerDetail />} />
-        <Route path="/dashboards" element={<Dashboards />} />
-        <Route path="/dashboard/:dashboardId" element={<DashboardDetail />} />
+        <Route
+          path="/dashboards"
+          element={
+            <MembersOnly>
+              <Dashboards />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/dashboard/:dashboardId"
+          element={
+            <MembersOnly>
+              <DashboardDetail />
+            </MembersOnly>
+          }
+        />
         <Route path="/view/:viewId" element={<SavedView />} />
         <Route path="/label/:labelId" element={<LabelView />} />
         <Route path="/user/:userId" element={<UserView />} />
@@ -229,42 +258,243 @@ function SignedInShell() {
         <Route path="/project/:projectId/documents" element={<Documents />} />
         <Route path="/document/:documentId" element={<DocumentDetail />} />
         <Route path="/cycle/:cycleId" element={<CycleDetail />} />
-        <Route path="/settings" element={<WorkspaceSettings />} />
-        <Route path="/settings/workspace" element={<WorkspaceSettings />} />
+        <Route
+          path="/settings"
+          element={
+            <MembersOnly>
+              <WorkspaceSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/workspace"
+          element={
+            <MembersOnly>
+              <WorkspaceSettings />
+            </MembersOnly>
+          }
+        />
         <Route path="/settings/profile" element={<ProfileSettings />} />
-        <Route path="/settings/members" element={<MemberSettings />} />
-        <Route path="/settings/labels" element={<LabelSettings />} />
-        <Route path="/settings/project-labels" element={<ProjectLabelSettings />} />
-        <Route path="/settings/initiative-labels" element={<InitiativeLabelSettings />} />
-        <Route path="/settings/project-statuses" element={<ProjectStatusSettings />} />
-        <Route path="/settings/project-updates" element={<ProjectUpdateSettings />} />
-        <Route path="/settings/pulse" element={<PulseSettings />} />
-        <Route path="/settings/customers" element={<CustomerRequestSettings />} />
-        <Route path="/settings/slas" element={<SlaSettings />} />
+        <Route
+          path="/settings/members"
+          element={
+            <MembersOnly>
+              <MemberSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/labels"
+          element={
+            <MembersOnly>
+              <LabelSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/project-labels"
+          element={
+            <MembersOnly>
+              <ProjectLabelSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/initiative-labels"
+          element={
+            <MembersOnly>
+              <InitiativeLabelSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/project-statuses"
+          element={
+            <MembersOnly>
+              <ProjectStatusSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/project-updates"
+          element={
+            <MembersOnly>
+              <ProjectUpdateSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/pulse"
+          element={
+            <MembersOnly>
+              <PulseSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/customers"
+          element={
+            <MembersOnly>
+              <CustomerRequestSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/slas"
+          element={
+            <MembersOnly>
+              <SlaSettings />
+            </MembersOnly>
+          }
+        />
         <Route path="/settings/notifications" element={<NotificationSettings />} />
         <Route path="/settings/preferences" element={<Preferences />} />
-        <Route path="/settings/templates" element={<Templates />} />
-        <Route path="/settings/api-keys" element={<ApiKeys />} />
+        <Route
+          path="/settings/templates"
+          element={
+            <MembersOnly>
+              <Templates />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/api-keys"
+          element={
+            <MembersOnly>
+              <ApiKeys />
+            </MembersOnly>
+          }
+        />
         <Route path="/settings/sessions" element={<Sessions />} />
         <Route path="/settings/authorised-apps" element={<AuthorisedApps />} />
-        <Route path="/settings/mcp" element={<McpSettings />} />
-        <Route path="/settings/asks" element={<AskSettings />} />
-        <Route path="/settings/oauth-apps" element={<OAuthApps />} />
-        <Route path="/settings/integrations" element={<IntegrationDirectory />} />
-        <Route path="/settings/webhooks" element={<Webhooks />} />
-        <Route path="/settings/github" element={<GitHubSettings />} />
-        <Route path="/settings/gitlab" element={<GitLabSettings />} />
-        <Route path="/settings/sentry" element={<SentrySettings />} />
-        <Route path="/settings/slack" element={<SlackSettings />} />
-        <Route path="/settings/export" element={<ExportSettings />} />
-        <Route path="/settings/trash" element={<Trash />} />
-        <Route path="/settings/deleted-teams" element={<DeletedTeams />} />
+        <Route
+          path="/settings/mcp"
+          element={
+            <MembersOnly>
+              <McpSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/asks"
+          element={
+            <MembersOnly>
+              <AskSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/oauth-apps"
+          element={
+            <MembersOnly>
+              <OAuthApps />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/integrations"
+          element={
+            <MembersOnly>
+              <IntegrationDirectory />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/webhooks"
+          element={
+            <MembersOnly>
+              <Webhooks />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/github"
+          element={
+            <MembersOnly>
+              <GitHubSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/gitlab"
+          element={
+            <MembersOnly>
+              <GitLabSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/sentry"
+          element={
+            <MembersOnly>
+              <SentrySettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/slack"
+          element={
+            <MembersOnly>
+              <SlackSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/export"
+          element={
+            <MembersOnly>
+              <ExportSettings />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/trash"
+          element={
+            <MembersOnly>
+              <Trash />
+            </MembersOnly>
+          }
+        />
+        <Route
+          path="/settings/deleted-teams"
+          element={
+            <MembersOnly>
+              <DeletedTeams />
+            </MembersOnly>
+          }
+        />
         {/* Unknown paths go somewhere useful rather than to a dead end. A stale
             bookmark to a renamed team should land the user in their own work. */}
         <Route path="*" element={<HomeRedirect />} />
       </Routes>
     </AppShell>
   );
+}
+
+/**
+ * A screen the workspace has and a guest does not.
+ *
+ * A guest is team-scoped: no workspace-wide surfaces — initiatives, dashboards, customers,
+ * Pulse — and no settings beyond their own account. See
+ * `docs/01-features/17-admin-security-permissions.md`, "Guests".
+ *
+ * The role is asked of the session and never of the replica. A guest's replica carries no
+ * `user` rows at all — the directory is workspace-scoped and `sync.go` does not hand it to
+ * guests — so `useViewer()` is permanently null for exactly the person these gates exist
+ * to exclude, and the three leaks fixed before this one were all that null being read as
+ * "not a guest". `useViewerRole` answers from the session query, which answers for
+ * everybody.
+ *
+ * `null` renders the screen rather than redirecting: it means the session has not answered
+ * yet, and bouncing a member off Settings for the width of one round trip would be a bug
+ * of its own. The nav that points here reads the same unknown the other way, as closed, so
+ * nothing offers the door until the answer is in — this is the second lock on a URL typed
+ * by hand, and the server is the third.
+ */
+function MembersOnly({ children }: { children: ReactNode }) {
+  const role = useViewerRole();
+  if (role === 'guest') return <Navigate to="/" replace />;
+  return <>{children}</>;
 }
 
 /**

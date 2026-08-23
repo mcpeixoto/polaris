@@ -455,7 +455,12 @@ export function MemberSettings() {
                 <MemberRow
                   key={member.id}
                   member={member}
-                  isViewer={member.id === viewerId}
+                  // `viewerId` is a second answer from the same query, and unknown here
+                  // reads as "this might be you": `member.id === null` is false for every
+                  // row, so an unknown viewer would put Suspend and Remove on the admin's
+                  // own row, in a table where those buttons look identical everywhere
+                  // else. The server refuses it, which is the wrong place to find out.
+                  isViewer={viewerId === null || member.id === viewerId}
                   manageable={canAdminister === true}
                   onRole={(role) => run(setRole(engine, member.id, role))}
                   onSuspend={(suspended) => {

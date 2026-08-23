@@ -164,13 +164,23 @@ export function AppShell({
   const showCustomers = notGuest && customersOn;
   const showDashboards = showCustomers;
   const showPulse = notGuest && (workspace === undefined || workspace.pulseEnabled);
+  // Initiatives and the administration half of Settings are the same reading. A guest is
+  // team-scoped: no workspace-wide surfaces, and no settings beyond their own account —
+  // `docs/01-features/17-admin-security-permissions.md`, "Guests". The server already
+  // refuses every write behind these, so what was on screen was a list of doors rather
+  // than a way through one; a nav that names Members, API keys, OAuth apps, Webhooks,
+  // Export and Trash to somebody who may open none of them is still telling them what the
+  // workspace has.
+  const showInitiatives = notGuest;
+  const showAdminSettings = notGuest;
   // A create action reads it as *open*, because holding one back is what breaks. These
   // pages draw a create button that reaches its dialogue through the keymap, so an action
   // registered only once the role is known makes the first click land on nothing and stay
   // landed on nothing — nothing retries it. Offering the action to somebody whose role has
   // not arrived costs a refusal from the server at worst, and it is withdrawn the moment
   // the session answers "guest".
-  const mayCreateCustomers = viewerRole !== 'guest' && customersOn;
+  const mayCreate = viewerRole !== 'guest';
+  const mayCreateCustomers = mayCreate && customersOn;
   const views = useLiveQuery(
     (store) => (viewerId === null ? [] : visibleViews(store, viewerId)),
     ['view', 'favorite'],
@@ -308,18 +318,22 @@ export function AppShell({
         group: 'Issues',
         run: () => openCreate(),
       },
-      {
-        id: 'project.create',
-        title: 'Create project',
-        group: 'Projects',
-        run: () => setCreateProjectOpen(true),
-      },
-      {
-        id: 'initiative.create',
-        title: 'Create initiative',
-        group: 'Initiatives',
-        run: () => setCreateInitiativeOpen(true),
-      },
+      ...(mayCreate
+        ? [
+            {
+              id: 'project.create',
+              title: 'Create project',
+              group: 'Projects',
+              run: () => setCreateProjectOpen(true),
+            },
+            {
+              id: 'initiative.create',
+              title: 'Create initiative',
+              group: 'Initiatives',
+              run: () => setCreateInitiativeOpen(true),
+            },
+          ]
+        : []),
       ...(mayCreateCustomers
         ? [
             {
@@ -458,25 +472,33 @@ export function AppShell({
             },
           ]
         : []),
-      {
-        id: 'nav.settings',
-        title: 'Go to workspace settings',
-        keys: ['g s'],
-        group: 'Navigation',
-        run: () => navigate('/settings/workspace'),
-      },
+      ...(showAdminSettings
+        ? [
+            {
+              id: 'nav.settings',
+              title: 'Go to workspace settings',
+              keys: ['g s'],
+              group: 'Navigation',
+              run: () => navigate('/settings/workspace'),
+            },
+          ]
+        : []),
       {
         id: 'nav.profile',
         title: 'Go to Profile',
         group: 'Navigation',
         run: () => navigate('/settings/profile'),
       },
-      {
-        id: 'nav.projectStatuses',
-        title: 'Go to Project statuses',
-        group: 'Navigation',
-        run: () => navigate('/settings/project-statuses'),
-      },
+      ...(showAdminSettings
+        ? [
+            {
+              id: 'nav.projectStatuses',
+              title: 'Go to Project statuses',
+              group: 'Navigation',
+              run: () => navigate('/settings/project-statuses'),
+            },
+          ]
+        : []),
       {
         id: 'nav.sessions',
         title: 'Go to Sessions',
@@ -489,24 +511,28 @@ export function AppShell({
         group: 'Navigation',
         run: () => navigate('/settings/authorised-apps'),
       },
-      {
-        id: 'nav.mcp',
-        title: 'Go to MCP',
-        group: 'Navigation',
-        run: () => navigate('/settings/mcp'),
-      },
-      {
-        id: 'nav.asks',
-        title: 'Go to Asks',
-        group: 'Navigation',
-        run: () => navigate('/settings/asks'),
-      },
-      {
-        id: 'nav.customerRequests',
-        title: 'Go to Customer requests',
-        group: 'Navigation',
-        run: () => navigate('/settings/customers'),
-      },
+      ...(showAdminSettings
+        ? [
+            {
+              id: 'nav.mcp',
+              title: 'Go to MCP',
+              group: 'Navigation',
+              run: () => navigate('/settings/mcp'),
+            },
+            {
+              id: 'nav.asks',
+              title: 'Go to Asks',
+              group: 'Navigation',
+              run: () => navigate('/settings/asks'),
+            },
+            {
+              id: 'nav.customerRequests',
+              title: 'Go to Customer requests',
+              group: 'Navigation',
+              run: () => navigate('/settings/customers'),
+            },
+          ]
+        : []),
       {
         id: 'nav.search',
         title: 'Search',
@@ -539,12 +565,16 @@ export function AppShell({
         group: 'Navigation',
         run: () => navigate(pathToBacklogIssues(engine.store, pathname)),
       },
-      {
-        id: 'nav.initiatives',
-        title: 'Go to Initiatives',
-        group: 'Navigation',
-        run: () => navigate('/initiatives'),
-      },
+      ...(showInitiatives
+        ? [
+            {
+              id: 'nav.initiatives',
+              title: 'Go to Initiatives',
+              group: 'Navigation',
+              run: () => navigate('/initiatives'),
+            },
+          ]
+        : []),
       ...(showCustomers
         ? [
             {
@@ -587,12 +617,16 @@ export function AppShell({
         group: 'Navigation',
         run: () => navigate(archivesPath),
       },
-      {
-        id: 'nav.trash',
-        title: 'Go to trash',
-        group: 'Navigation',
-        run: () => navigate('/settings/trash'),
-      },
+      ...(showAdminSettings
+        ? [
+            {
+              id: 'nav.trash',
+              title: 'Go to trash',
+              group: 'Navigation',
+              run: () => navigate('/settings/trash'),
+            },
+          ]
+        : []),
     ],
     [
       navigate,
@@ -613,8 +647,11 @@ export function AppShell({
       customerMenu.show,
       showCustomers,
       showDashboards,
+      mayCreate,
       mayCreateCustomers,
       showPulse,
+      showInitiatives,
+      showAdminSettings,
       engine,
       pathname,
     ],
@@ -838,10 +875,12 @@ export function AppShell({
               <NavGlyph name="project" />
               <span className={styles.navLabel}>Projects</span>
             </NavLink>
-            <NavLink to="/initiatives" className={() => navClass({ isActive: onInitiatives })}>
-              <NavGlyph name="initiative" />
-              <span className={styles.navLabel}>Initiatives</span>
-            </NavLink>
+            {showInitiatives && (
+              <NavLink to="/initiatives" className={() => navClass({ isActive: onInitiatives })}>
+                <NavGlyph name="initiative" />
+                <span className={styles.navLabel}>Initiatives</span>
+              </NavLink>
+            )}
             {showCustomers && (
               <NavLink to="/customers" className={() => navClass({ isActive: onCustomers })}>
                 <NavGlyph name="customer" />
@@ -898,58 +937,66 @@ export function AppShell({
               <NavGlyph name="prefs" />
               <span className={styles.navLabel}>Preferences</span>
             </NavLink>
-            <NavLink to="/settings/workspace" className={navClass}>
-              <NavGlyph name="apps" />
-              <span className={styles.navLabel}>Workspace</span>
-            </NavLink>
-            <NavLink to="/settings/members" className={navClass}>
-              <NavGlyph name="members" />
-              <span className={styles.navLabel}>Members</span>
-            </NavLink>
-            <NavLink to="/settings/labels" className={navClass}>
-              <NavGlyph name="labels" />
-              <span className={styles.navLabel}>Labels</span>
-            </NavLink>
-            <NavLink to="/settings/project-labels" className={navClass}>
-              <NavGlyph name="labels" />
-              <span className={styles.navLabel}>Project labels</span>
-            </NavLink>
-            <NavLink to="/settings/initiative-labels" className={navClass}>
-              <NavGlyph name="labels" />
-              <span className={styles.navLabel}>Initiative labels</span>
-            </NavLink>
-            <NavLink to="/settings/project-statuses" className={navClass}>
-              <NavGlyph name="project" />
-              <span className={styles.navLabel}>Project statuses</span>
-            </NavLink>
-            <NavLink to="/settings/project-updates" className={navClass}>
-              <NavGlyph name="bell" />
-              <span className={styles.navLabel}>Project updates</span>
-            </NavLink>
-            <NavLink to="/settings/pulse" className={navClass}>
-              <NavGlyph name="pulse" />
-              <span className={styles.navLabel}>Pulse</span>
-            </NavLink>
-            <NavLink to="/settings/customers" className={navClass}>
-              <NavGlyph name="customer" />
-              <span className={styles.navLabel}>Customer requests</span>
-            </NavLink>
-            <NavLink to="/settings/slas" className={navClass}>
-              <NavGlyph name="bell" />
-              <span className={styles.navLabel}>SLAs</span>
-            </NavLink>
+            {showAdminSettings && (
+              <>
+                <NavLink to="/settings/workspace" className={navClass}>
+                  <NavGlyph name="apps" />
+                  <span className={styles.navLabel}>Workspace</span>
+                </NavLink>
+                <NavLink to="/settings/members" className={navClass}>
+                  <NavGlyph name="members" />
+                  <span className={styles.navLabel}>Members</span>
+                </NavLink>
+                <NavLink to="/settings/labels" className={navClass}>
+                  <NavGlyph name="labels" />
+                  <span className={styles.navLabel}>Labels</span>
+                </NavLink>
+                <NavLink to="/settings/project-labels" className={navClass}>
+                  <NavGlyph name="labels" />
+                  <span className={styles.navLabel}>Project labels</span>
+                </NavLink>
+                <NavLink to="/settings/initiative-labels" className={navClass}>
+                  <NavGlyph name="labels" />
+                  <span className={styles.navLabel}>Initiative labels</span>
+                </NavLink>
+                <NavLink to="/settings/project-statuses" className={navClass}>
+                  <NavGlyph name="project" />
+                  <span className={styles.navLabel}>Project statuses</span>
+                </NavLink>
+                <NavLink to="/settings/project-updates" className={navClass}>
+                  <NavGlyph name="bell" />
+                  <span className={styles.navLabel}>Project updates</span>
+                </NavLink>
+                <NavLink to="/settings/pulse" className={navClass}>
+                  <NavGlyph name="pulse" />
+                  <span className={styles.navLabel}>Pulse</span>
+                </NavLink>
+                <NavLink to="/settings/customers" className={navClass}>
+                  <NavGlyph name="customer" />
+                  <span className={styles.navLabel}>Customer requests</span>
+                </NavLink>
+                <NavLink to="/settings/slas" className={navClass}>
+                  <NavGlyph name="bell" />
+                  <span className={styles.navLabel}>SLAs</span>
+                </NavLink>
+              </>
+            )}
             <NavLink to="/settings/notifications" className={navClass}>
               <NavGlyph name="bell" />
               <span className={styles.navLabel}>Notifications</span>
             </NavLink>
-            <NavLink to="/settings/templates" className={navClass}>
-              <NavGlyph name="template" />
-              <span className={styles.navLabel}>Templates</span>
-            </NavLink>
-            <NavLink to="/settings/api-keys" className={navClass}>
-              <NavGlyph name="key" />
-              <span className={styles.navLabel}>API keys</span>
-            </NavLink>
+            {showAdminSettings && (
+              <>
+                <NavLink to="/settings/templates" className={navClass}>
+                  <NavGlyph name="template" />
+                  <span className={styles.navLabel}>Templates</span>
+                </NavLink>
+                <NavLink to="/settings/api-keys" className={navClass}>
+                  <NavGlyph name="key" />
+                  <span className={styles.navLabel}>API keys</span>
+                </NavLink>
+              </>
+            )}
             <NavLink to="/settings/sessions" className={navClass}>
               <NavGlyph name="key" />
               <span className={styles.navLabel}>Sessions</span>
@@ -958,54 +1005,58 @@ export function AppShell({
               <NavGlyph name="key" />
               <span className={styles.navLabel}>Authorised apps</span>
             </NavLink>
-            <NavLink to="/settings/mcp" className={navClass}>
-              <NavGlyph name="key" />
-              <span className={styles.navLabel}>MCP</span>
-            </NavLink>
-            <NavLink to="/settings/asks" className={navClass}>
-              <NavGlyph name="template" />
-              <span className={styles.navLabel}>Asks</span>
-            </NavLink>
-            <NavLink to="/settings/oauth-apps" className={navClass}>
-              <NavGlyph name="apps" />
-              <span className={styles.navLabel}>OAuth apps</span>
-            </NavLink>
-            <NavLink to="/settings/integrations" className={navClass}>
-              <NavGlyph name="apps" />
-              <span className={styles.navLabel}>Integrations</span>
-            </NavLink>
-            <NavLink to="/settings/webhooks" className={navClass}>
-              <NavGlyph name="webhook" />
-              <span className={styles.navLabel}>Webhooks</span>
-            </NavLink>
-            <NavLink to="/settings/github" className={navClass}>
-              <NavGlyph name="github" />
-              <span className={styles.navLabel}>GitHub</span>
-            </NavLink>
-            <NavLink to="/settings/gitlab" className={navClass}>
-              <NavGlyph name="gitlab" />
-              <span className={styles.navLabel}>GitLab</span>
-            </NavLink>
-            <NavLink to="/settings/sentry" className={navClass}>
-              <NavGlyph name="sentry" />
-              <span className={styles.navLabel}>Sentry</span>
-            </NavLink>
-            <NavLink to="/settings/slack" className={navClass}>
-              <NavGlyph name="slack" />
-              <span className={styles.navLabel}>Slack</span>
-            </NavLink>
-            <NavLink to="/settings/export" className={navClass}>
-              <NavGlyph name="export" />
-              <span className={styles.navLabel}>Export</span>
-            </NavLink>
-            <NavLink to="/settings/trash" className={navClass}>
-              <NavGlyph name="trash" />
-              <span className={styles.navLabel}>Trash</span>
-            </NavLink>
-            <NavLink to="/settings/deleted-teams" className={navClass}>
-              <NavGlyph name="trash" />
-              <span className={styles.navLabel}>Deleted teams</span>
-            </NavLink>
+            {showAdminSettings && (
+              <>
+                <NavLink to="/settings/mcp" className={navClass}>
+                  <NavGlyph name="key" />
+                  <span className={styles.navLabel}>MCP</span>
+                </NavLink>
+                <NavLink to="/settings/asks" className={navClass}>
+                  <NavGlyph name="template" />
+                  <span className={styles.navLabel}>Asks</span>
+                </NavLink>
+                <NavLink to="/settings/oauth-apps" className={navClass}>
+                  <NavGlyph name="apps" />
+                  <span className={styles.navLabel}>OAuth apps</span>
+                </NavLink>
+                <NavLink to="/settings/integrations" className={navClass}>
+                  <NavGlyph name="apps" />
+                  <span className={styles.navLabel}>Integrations</span>
+                </NavLink>
+                <NavLink to="/settings/webhooks" className={navClass}>
+                  <NavGlyph name="webhook" />
+                  <span className={styles.navLabel}>Webhooks</span>
+                </NavLink>
+                <NavLink to="/settings/github" className={navClass}>
+                  <NavGlyph name="github" />
+                  <span className={styles.navLabel}>GitHub</span>
+                </NavLink>
+                <NavLink to="/settings/gitlab" className={navClass}>
+                  <NavGlyph name="gitlab" />
+                  <span className={styles.navLabel}>GitLab</span>
+                </NavLink>
+                <NavLink to="/settings/sentry" className={navClass}>
+                  <NavGlyph name="sentry" />
+                  <span className={styles.navLabel}>Sentry</span>
+                </NavLink>
+                <NavLink to="/settings/slack" className={navClass}>
+                  <NavGlyph name="slack" />
+                  <span className={styles.navLabel}>Slack</span>
+                </NavLink>
+                <NavLink to="/settings/export" className={navClass}>
+                  <NavGlyph name="export" />
+                  <span className={styles.navLabel}>Export</span>
+                </NavLink>
+                <NavLink to="/settings/trash" className={navClass}>
+                  <NavGlyph name="trash" />
+                  <span className={styles.navLabel}>Trash</span>
+                </NavLink>
+                <NavLink to="/settings/deleted-teams" className={navClass}>
+                  <NavGlyph name="trash" />
+                  <span className={styles.navLabel}>Deleted teams</span>
+                </NavLink>
+              </>
+            )}
           </div>
         </nav>
 

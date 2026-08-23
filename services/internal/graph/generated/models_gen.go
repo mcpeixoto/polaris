@@ -2999,8 +2999,9 @@ type Workspace struct {
 	UpdatedAt     time.Time  `json:"updatedAt"`
 	ArchivedAt    *time.Time `json:"archivedAt,omitempty"`
 	Teams         []Team     `json:"teams"`
-	Users         []User     `json:"users"`
-	Labels        []Label    `json:"labels"`
+	// The workspace directory. A guest receives only their own row — see Query.users.
+	Users  []User  `json:"users"`
+	Labels []Label `json:"labels"`
 	// What this workspace's plan permits, resolved by one service rather than scattered plan checks.
 	Entitlements *Entitlements `json:"entitlements"`
 }
