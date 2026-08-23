@@ -161,8 +161,8 @@ describe('Project status settings', () => {
     const promotions = screen.getAllByRole('button', { name: 'Make default' });
     expect(promotions).toHaveLength(1);
     // The one on offer belongs to Planned, not to the Started row.
-    expect(
-      screen.getByRole('group', { name: 'Planned status' }).contains(promotions[0]!),
-    ).toBe(true);
+    expect(screen.getByRole('group', { name: 'Planned status' }).contains(promotions[0]!)).toBe(
+      true,
+    );
   });
 });
