@@ -70,7 +70,13 @@ import {
 } from '~/features/labels/labelView';
 import { setViewSubscription, updateView } from '~/features/view/mutations';
 import { SaveViewModal } from '~/features/view/SaveViewModal';
-import { downloadCsv, exportCap, issuesToCsv, type ExportRole } from '~/features/export/csv';
+import {
+  downloadCsv,
+  exportCap,
+  exportCapNote,
+  issuesToCsv,
+  type ExportRole,
+} from '~/features/export/csv';
 import { personName, subscribePrefs, getPrefs } from '~/features/prefs/prefs';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
@@ -559,6 +565,16 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
    */
   const [pendingDelete, setPendingDelete] = useState<readonly UUID[] | null>(null);
 
+  /**
+   * What the last export left out, or null.
+   *
+   * Kept on the screen rather than shown as a toast, and not cleared on the next store
+   * delta, because it is the only record that the file in the downloads folder is a
+   * fragment. A notice about a file the user is about to open in a spreadsheet has to
+   * outlive the three seconds a toast lasts; it goes when they export again or leave.
+   */
+  const [exportNote, setExportNote] = useState<string | null>(null);
+
   const setInsights = (open: boolean) => {
     insightsOpenRef.current = open;
     setInsightsOpen(open);
@@ -688,16 +704,19 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       const role: ExportRole = viewer?.role ?? 'member';
       const cap = exportCap(role, 'issues');
       if (cap === 0) return;
+      // De-duplicated over the whole view before the cap, not up to it: grouping by label
+      // lists an issue once per label it carries, so stopping the walk at the cap would
+      // count the same issue twice towards it and both the file and the note would be short.
       const unique: UUID[] = [];
       const seen = new Set<UUID>();
       for (const id of ids) {
         if (seen.has(id)) continue;
         seen.add(id);
         unique.push(id);
-        if (unique.length >= cap) break;
       }
       const slug = (scope.heading ?? 'issues').toLowerCase().replaceAll(/[^a-z0-9]+/g, '-');
-      downloadCsv(`${slug || 'issues'}.csv`, issuesToCsv(engine.store, unique));
+      downloadCsv(`${slug || 'issues'}.csv`, issuesToCsv(engine.store, unique.slice(0, cap)));
+      setExportNote(exportCapNote(unique.length, cap, 'issues'));
     },
     // Guarded here rather than only on the button, because the button and the `S` shortcut
     // are two doors into the same room: disabling one and not the other is how a keyboard
@@ -1335,6 +1354,15 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       </header>
 
       {team === null ? null : <TeamIssueLimitBanner team={team} liveCount={liveCount} />}
+
+      {exportNote === null ? null : (
+        <div className={styles.exportNote} role="status">
+          <p className={styles.exportNoteCopy}>{exportNote}</p>
+          <Button size="sm" variant="ghost" onClick={() => setExportNote(null)}>
+            Dismiss
+          </Button>
+        </div>
+      )}
 
       <FilterBar
         filter={view.filter}
