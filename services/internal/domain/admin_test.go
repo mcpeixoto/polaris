@@ -514,3 +514,59 @@ func TestEntitlements_HonourASeatOverrideAndReportALapseWithoutHidingThePlan(t *
 		t.Errorf("a lapsed workspace must keep the features the free tier includes: %v", err)
 	}
 }
+
+// A suspended administrator is not one of the administrators the workspace is relying on, so
+// none of the three routes out of that state may be refused for taking the last one away.
+//
+// This is the shape the bug had: an active admin and a suspended one, the count correctly
+// reporting a single active administrator, and the guard testing the *target's* role alone —
+// so the suspended row could not be demoted, could not be removed, and could not leave, and
+// the refusal named them the workspace's last owner while the actual last owner was the
+// person pressing the button. The only escape was to restore them, taking a seat back,
+// change the role, and suspend them again.
+func TestLastAdministratorGuard_IgnoresASuspendedAdmin(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	// f's own user is the active admin throughout; these are the ones being acted on.
+	demote := f.NewUser(t, "demote", "admin", true)
+	remove := f.NewUser(t, "remove", "admin", true)
+	leave := f.NewUser(t, "leave", "admin", true)
+
+	for _, id := range []uuid.UUID{demote, remove, leave} {
+		if _, _, err := svc.SuspendUser(ctx, f.Principal(), id, true); err != nil {
+			t.Fatalf("suspend %s: %v", id, err)
+		}
+	}
+
+	// One active administrator remains: the fixture's. That is what the count says, and it
+	// is what the rule is protecting — none of the three below reduce it.
+	admins, err := db.Queries().CountActiveAdminsInWorkspace(ctx, f.WorkspaceID)
+	if err != nil {
+		t.Fatalf("count admins: %v", err)
+	}
+	if admins != 1 {
+		t.Fatalf("active admins = %d, want 1 — the premise of this test", admins)
+	}
+
+	if _, _, err := svc.SetUserRole(ctx, f.Principal(), demote, "member"); err != nil {
+		t.Errorf("demoting a suspended admin must be allowed: %v", err)
+	}
+
+	if _, _, err := svc.RemoveUser(ctx, f.Principal(), remove); err != nil {
+		t.Errorf("removing a suspended admin must be allowed: %v", err)
+	}
+
+	pLeave := f.PrincipalFor(leave, authz.RoleAdmin, f.TeamID)
+	if _, _, err := svc.LeaveWorkspace(ctx, pLeave); err != nil {
+		t.Errorf("a suspended admin must be able to leave: %v", err)
+	}
+
+	// And the rule itself is untouched: the one active administrator still cannot go.
+	if _, _, err := svc.RemoveUser(ctx, f.Principal(), f.UserID); platform.CodeOf(err) != platform.CodeConflict {
+		t.Errorf("code = %s, want %s — the last active admin is still protected (err = %v)",
+			platform.CodeOf(err), platform.CodeConflict, err)
+	}
+}
