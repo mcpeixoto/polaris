@@ -67,6 +67,7 @@ export function KeymapProvider({ children }: { children: ReactNode }) {
       // ⌘Enter to submit — because a user typing a comment still needs to close the modal
       // they are typing in.
       if (isTypingTarget(event.target) && !isGlobalChord(event)) return;
+      if (isActivationOnControl(event)) return;
 
       const chord = chordFromEvent(event);
       const actionCtx: ActionContext = {
@@ -84,6 +85,7 @@ export function KeymapProvider({ children }: { children: ReactNode }) {
 
     const onKeyUp = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target) && !isGlobalChord(event)) return;
+      if (isActivationOnControl(event)) return;
       const chord = chordFromEvent(event);
       const actionCtx: ActionContext = {
         source: 'key',
@@ -195,6 +197,31 @@ function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+}
+
+/** What a focused control activates on, and therefore what the registry must not also see. */
+const ACTIVATABLE = 'button, summary, a[href], [role="button"], [role="link"]';
+
+/**
+ * Enter or Space aimed at a control that activates on it.
+ *
+ * A focused button consumes those two keys itself — that is what makes it operable
+ * without a mouse. Letting them reach the registry as well means one keystroke does two
+ * things, and the second one is usually the surprising one: on a team's issue list,
+ * pressing Enter on the Insights panel's own bar filtered the view *and* ran the list's
+ * Enter-to-open, dropping the user on an unrelated issue. The same keystroke on the
+ * header's Insights or Display buttons did it too.
+ *
+ * The list keeps its Enter. Focus there lives on the `role="listbox"` scroller and the
+ * cursor is an `aria-activedescendant`, not a focused element, so nothing matches here.
+ *
+ * Modified chords are not activation: ⌘Enter still submits from a button, and the
+ * text-field rule above still runs first.
+ */
+function isActivationOnControl(event: KeyboardEvent): boolean {
+  if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return false;
+  if (event.metaKey || event.ctrlKey || event.altKey) return false;
+  return event.target instanceof Element && event.target.closest(ACTIVATABLE) !== null;
 }
 
 /** The chords that must reach the registry even from inside a text field. */
