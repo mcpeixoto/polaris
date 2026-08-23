@@ -22,7 +22,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useDesktopNotifications, useUnreadBadge } from '~/features/inbox/desktop';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
-import { useViewer, useViewerId, useViewerRole } from '~/hooks/useViewer';
+import { useViewerId, useViewerRole } from '~/hooks/useViewer';
 import { Menu } from '~/components';
 import { gotoLabelItems, labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { personName } from '~/features/prefs/prefs';
@@ -145,29 +145,32 @@ export function AppShell({
   const archivesPath = useQuery((store) => pathToArchives(store), ['team']);
 
   const viewerId = useViewerId();
-  const viewer = useViewer();
   const viewerRole = useViewerRole();
   const engine = useEngine();
   useDesktopNotifications(engine, viewerId);
   useUnreadBadge();
-  // A viewer the replica has not produced yet is unknown, not a guest — the same reading
-  // the workspace half of each of these already takes, and the one `showPulse` takes of
-  // the viewer. Reading unknown as "no" leaves `dashboard.create` and `customer.create`
-  // unregistered for as long as the boot takes, and both pages put a create button on
-  // screen before then: `registry.invoke` finds no action, returns false, and the click
-  // is gone. Nothing retries it, so the button stays dead until the user thinks to press
-  // it again.
-  const showCustomers =
-    viewer?.role !== 'guest' && (workspace === undefined || workspace.customerRequestsEnabled);
+  // Two readings of the same unknown, because the two things being gated fail in opposite
+  // directions.
+  //
+  // The role comes from the session rather than from the replica: a guest's replica carries
+  // no `user` rows at all — the directory is workspace-scoped and guests are not handed it
+  // — so `useViewer()` is permanently null for exactly the person a role check exists to
+  // exclude, and `viewer?.role !== 'guest'` read that as "not a guest".
+  //
+  // What a guest must never be shown reads unknown as *closed*, the way `showPulse` does:
+  // the sidebar entries and the menus that list the workspace's customers.
+  const notGuest = viewerRole !== null && viewerRole !== 'guest';
+  const customersOn = workspace === undefined || workspace.customerRequestsEnabled;
+  const showCustomers = notGuest && customersOn;
   const showDashboards = showCustomers;
-  // The role from the session, not from the replica: a guest's replica carries no user
-  // rows, so `viewer` never loads for them and `viewer === null || …` read as "show it"
-  // for the one person Pulse is meant to exclude. Closed while the role is unknown, the
-  // same way Customers above is.
-  const showPulse =
-    viewerRole !== null &&
-    viewerRole !== 'guest' &&
-    (workspace === undefined || workspace.pulseEnabled);
+  const showPulse = notGuest && (workspace === undefined || workspace.pulseEnabled);
+  // A create action reads it as *open*, because holding one back is what breaks. These
+  // pages draw a create button that reaches its dialogue through the keymap, so an action
+  // registered only once the role is known makes the first click land on nothing and stay
+  // landed on nothing — nothing retries it. Offering the action to somebody whose role has
+  // not arrived costs a refusal from the server at worst, and it is withdrawn the moment
+  // the session answers "guest".
+  const mayCreateCustomers = viewerRole !== 'guest' && customersOn;
   const views = useLiveQuery(
     (store) => (viewerId === null ? [] : visibleViews(store, viewerId)),
     ['view', 'favorite'],
@@ -317,7 +320,7 @@ export function AppShell({
         group: 'Initiatives',
         run: () => setCreateInitiativeOpen(true),
       },
-      ...(showCustomers
+      ...(mayCreateCustomers
         ? [
             {
               id: 'customer.create',
@@ -333,7 +336,7 @@ export function AppShell({
             },
           ]
         : []),
-      ...(showDashboards
+      ...(mayCreateCustomers
         ? [
             {
               id: 'dashboard.create',
@@ -610,6 +613,7 @@ export function AppShell({
       customerMenu.show,
       showCustomers,
       showDashboards,
+      mayCreateCustomers,
       showPulse,
       engine,
       pathname,

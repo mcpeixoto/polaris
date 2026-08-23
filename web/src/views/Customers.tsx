@@ -2,12 +2,13 @@
  * Workspace customers — organisations whose feedback attaches to issues and projects.
  */
 
-import { Link } from 'react-router';
+import { Link, Navigate } from 'react-router';
 
 import { useKeymap } from '~/app/keymap';
 import { Avatar, Button, EmptyState } from '~/components';
 import { formatCustomerStatus } from '~/features/customers/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewerRole } from '~/hooks/useViewer';
 import type { CustomerStatus, Store, UUID } from '~/store';
 import styles from './Customers.module.css';
 
@@ -23,6 +24,7 @@ interface CustomerRow {
 
 export function Customers() {
   const { registry, context } = useKeymap();
+  const viewerRole = useViewerRole();
   const create = () => registry.invoke('customer.create', { source: 'menu', context });
 
   const workspace = useLiveQuery(
@@ -34,6 +36,13 @@ export function Customers() {
     (store) => listCustomers(store),
     ['customer', 'customerRequest', 'user'],
   );
+
+  // A guest sees nothing customer-shaped, the sidebar link included — so the URL typed in
+  // by hand has to say so too. The role comes from the session because a guest's replica
+  // holds no `user` rows to read a profile out of.
+  if (viewerRole === 'guest') {
+    return <Navigate to="/" replace />;
+  }
 
   if (workspace !== null && !workspace.customerRequestsEnabled) {
     return (
