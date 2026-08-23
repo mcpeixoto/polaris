@@ -160,6 +160,32 @@ test('turning on email intake does not make a team look retired', async ({ page,
   await expect(page.getByLabel('Intake address')).toHaveCount(0);
 });
 
+test('restoring into a key another team has taken says which way out', async ({
+  page,
+  workspace,
+}) => {
+  await createTeam(workspace, 'OPS', 'Operations');
+  await signIn(page, workspace.account);
+
+  await page.goto('/team/ENG/settings');
+  await page.getByRole('button', { name: 'Delete team' }).first().click();
+  await page.getByRole('button', { name: 'Delete team' }).last().click();
+  await expect(page).not.toHaveURL(/\/team\/ENG\/settings$/);
+
+  // The uniqueness index on a team key skips deleted rows, so the key is free the moment
+  // the team holding it goes — and thirty days is long enough for somebody to spend it.
+  await createTeam(workspace, 'ENG', 'Engineering II');
+
+  await page.goto('/settings/deleted-teams');
+  await expect(page.getByRole('cell', { name: 'Engineering' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Restore' }).first().click();
+
+  await expect(page.getByRole('alert')).toContainText(/another team has taken this team's key/);
+  await expect(page.getByRole('alert')).not.toContainText(/internal error/);
+  // The row stays, because the team is still there to be restored once the key is free.
+  await expect(page.getByRole('cell', { name: 'Engineering' }).first()).toBeVisible();
+});
+
 test('a deleted team is restorable from recently deleted teams', async ({ page, workspace }) => {
   await createTeam(workspace, 'OPS', 'Operations');
   await createIssue(workspace, 'Goes down with the team');
