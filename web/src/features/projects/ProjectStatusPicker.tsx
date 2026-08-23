@@ -12,32 +12,13 @@ import type { RefObject } from 'react';
 
 import { Menu, StateIcon, type MenuNode, type MenuPlacement } from '~/components';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { ProjectStatus, ProjectStatusCategory, StateCategory, Store, UUID } from '~/store';
+import type { ProjectStatus, ProjectStatusCategory, Store, UUID } from '~/store';
 
-const CATEGORIES: readonly ProjectStatusCategory[] = [
-  'backlog',
-  'planned',
-  'started',
-  'completed',
-  'canceled',
-];
-
-const CATEGORY_LABELS: Readonly<Record<ProjectStatusCategory, string>> = {
-  backlog: 'Backlog',
-  planned: 'Planned',
-  started: 'Started',
-  completed: 'Completed',
-  canceled: 'Canceled',
-};
-
-/** Project "planned" is issue "unstarted": work that exists and has not begun. */
-export const PROJECT_STATUS_ICON: Readonly<Record<ProjectStatusCategory, StateCategory>> = {
-  backlog: 'backlog',
-  planned: 'unstarted',
-  started: 'started',
-  completed: 'completed',
-  canceled: 'canceled',
-};
+import {
+  PROJECT_STATUS_CATEGORIES,
+  PROJECT_STATUS_CATEGORY_LABELS,
+  PROJECT_STATUS_ICON,
+} from './statusCategories';
 
 export interface ProjectStatusPickerProps {
   open: boolean;
@@ -66,13 +47,13 @@ export function ProjectStatusPicker({
   let previous: ProjectStatusCategory | null = null;
   for (const status of statuses) {
     if (status.category !== previous) {
-      items.push({ kind: 'heading', label: CATEGORY_LABELS[status.category] });
+      items.push({ kind: 'heading', label: PROJECT_STATUS_CATEGORY_LABELS[status.category] });
       previous = status.category;
     }
     items.push({
       id: status.id,
       label: status.name,
-      text: `${CATEGORY_LABELS[status.category]} ${status.name}`,
+      text: `${PROJECT_STATUS_CATEGORY_LABELS[status.category]} ${status.name}`,
       icon: (
         <StateIcon
           category={PROJECT_STATUS_ICON[status.category]}
@@ -108,7 +89,7 @@ export function ProjectStatusPicker({
  * having no status at all.
  */
 function offerings(store: Store, current: UUID | undefined): ProjectStatus[] {
-  const rank = new Map(CATEGORIES.map((category, index) => [category, index]));
+  const rank = new Map(PROJECT_STATUS_CATEGORIES.map((category, index) => [category, index]));
   return [...store.projectStatuses.values()]
     .filter((status) => status.archivedAt === undefined || status.id === current)
     .sort(

@@ -17,7 +17,8 @@ import { Select } from '~/components';
 import type { ProjectUpdateSchedule } from '~/store';
 import { updateProject } from './mutations';
 import { ProjectDependencies } from './dependencies';
-import { ProjectStatusPicker, PROJECT_STATUS_ICON } from './ProjectStatusPicker';
+import { ProjectStatusPicker } from './ProjectStatusPicker';
+import { PROJECT_STATUS_ICON } from './statusCategories';
 import styles from './properties.module.css';
 
 interface ProjectPropertiesProps {
@@ -32,20 +33,20 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
 
   useKeyContext('detail');
 
-  const project = useLiveQuery(
-    (store) => store.projects.get(projectId) ?? null,
-    ['project'],
-    [projectId],
-  );
-
-  const currentStatus = useLiveQuery(
+  // The row and the status it points at in one query rather than two: they are read
+  // together on every render of this panel, and a second subscription over the same row
+  // buys nothing but another render for the store to schedule.
+  const row = useLiveQuery(
     (store) => {
-      const row = store.projects.get(projectId);
-      return row === undefined ? null : (store.projectStatuses.get(row.statusId) ?? null);
+      const found = store.projects.get(projectId);
+      if (found === undefined) return null;
+      return { project: found, status: store.projectStatuses.get(found.statusId) ?? null };
     },
     ['project', 'projectStatus'],
     [projectId],
   );
+  const project = row?.project ?? null;
+  const currentStatus = row?.status ?? null;
 
   const labelIds = useLiveQuery(
     (store) => [...store.projectLabelIdsFor(projectId)],
