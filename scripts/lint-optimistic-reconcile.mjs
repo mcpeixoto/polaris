@@ -125,6 +125,10 @@ for (const path of sources(SRC)) {
     if (optimistic === '') continue;
     const variables = field(call.body, 'variables');
     const reconcile = field(call.body, 'reconcile');
+    // A `reconcile` built by an expression rather than written as a literal — `.map` over
+    // the same list the patch came from, say. There is nothing here to read the ids out of,
+    // so this hands the call over to `mutate`'s assertion, which sees the real values.
+    if (reconcile === '' && /\breconcile\s*:/.test(call.body)) continue;
 
     for (const entry of elements(optimistic)) {
       const flat = entry.replace(/\s+/g, ' ');
