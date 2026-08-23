@@ -1,3 +1,15 @@
+/*
+ * Peek is toggled by Space and re-targeted by J and K while it is open, so the panel is on
+ * the keyboard path twice over and is held to --duration-fast. It slides in from the edge
+ * it is attached to rather than fading in place: the panel is a drawer, and a drawer that
+ * materialises in the middle of the window does not read as having come from the right-hand
+ * side of the screen.
+ *
+ * The transform is safe here in a way it is not in Menu — nothing measures this element —
+ * and it costs no layout: a transformed flex item still occupies its untransformed 22rem,
+ * so the list beside it settles to its final width on the first frame instead of being
+ * reflowed for the length of the animation.
+ */
 .panel {
   display: flex;
   flex-direction: column;
@@ -9,6 +21,14 @@
   padding: var(--space-4);
   border-left: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
+  animation: peekIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes peekIn {
+  from {
+    opacity: 0;
+    transform: translateX(var(--space-3));
+  }
 }
 
 .header {

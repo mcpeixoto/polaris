@@ -27,6 +27,20 @@
   border-radius: var(--radius-lg);
   background-color: var(--bg-primary);
   box-shadow: var(--shadow-lg);
+  animation: panelIn var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * Vertical only. DisplayMenu.tsx measures this panel's rect to work out how far it has to be
+ * pulled back from the right edge of the window, and that measurement reads `left`, `right`
+ * and `width` — so a keyframe may move the panel down the screen freely, but must not touch
+ * anything horizontal. A scale would, which is why there is not one.
+ */
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 
 /* The panel takes focus on opening so the keyboard arrives inside it, but it is a container

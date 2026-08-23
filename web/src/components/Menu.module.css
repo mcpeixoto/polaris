@@ -24,6 +24,26 @@
   background-color: var(--bg-elevated);
   box-shadow: var(--shadow-lg);
   font-family: var(--font-sans);
+  animation: surfaceIn var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * Opacity and nothing else, and that is a constraint rather than a preference.
+ *
+ * Menu.tsx measures this element's rendered rect in a layout effect — twice, to decide
+ * whether to flip to the other side of the trigger and how far to shift it back on screen —
+ * and that measurement lands on the same frame the animation starts. A keyframe that moved
+ * or scaled the surface would therefore be measured mid-flight, and the flip heuristic
+ * would answer a question about a box that is not where the box comes to rest. Opacity is
+ * the one property that changes nothing `getBoundingClientRect` can see.
+ *
+ * --duration-fast, not --duration-normal: every picker in this product is opened from the
+ * keyboard — S, A, P — and tokens.css says nothing on that path may outlast a keystroke.
+ */
+@keyframes surfaceIn {
+  from {
+    opacity: 0;
+  }
 }
 
 /*
@@ -133,6 +153,10 @@
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
+  /* The highlight is moved by the arrow keys as often as by the pointer, so it is held to
+   * --duration-instant: long enough that crossing a ten-item list does not strobe, short
+   * enough that a held-down J never runs ahead of the mark it is supposed to be moving. */
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 /*

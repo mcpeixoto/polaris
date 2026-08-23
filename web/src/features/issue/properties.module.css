@@ -58,6 +58,19 @@
   border-radius: var(--radius-lg);
   background-color: var(--bg-elevated);
   box-shadow: var(--shadow-md);
+  animation: panelIn var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * Vertical only, for the reason DisplayMenu gives at length: the component measures this
+ * panel's rect to pull it back from the right edge of the window, and that measurement reads
+ * the horizontal sides. Moving it down the screen is free; scaling it is not.
+ */
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 
 .note {
@@ -105,6 +118,7 @@
   line-height: var(--line-height-none);
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .relative:hover {
