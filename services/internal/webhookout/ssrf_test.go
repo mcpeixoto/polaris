@@ -34,10 +34,42 @@ func TestValidateHTTPSURL_RefusesTheShapesThatAreAnSSRF(t *testing.T) {
 	}
 }
 
+// inet_aton reads all four of these as 127.0.0.1, and getaddrinfo goes through it — but
+// net.ParseIP refuses every one of them, so the literal-address branch never sees them.
+// Delivery still refuses them on the post-DNS pin; this is the row never existing.
+func TestValidateHTTPSURL_RefusesLoopbackWearingANumericDisguise(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{
+		"https://2130706433/hooks",   // decimal
+		"https://0x7f000001/hooks",   // hex
+		"https://017700000001/hooks", // octal
+		"https://127.1/hooks",        // short form
+		"https://1.2.3.4.5/hooks",    // not an address and not a hostname either
+	} {
+		err := ValidateHTTPSURL(raw)
+		if err == nil {
+			t.Errorf("%q: accepted, want a private-host refusal", raw)
+			continue
+		}
+		if !strings.Contains(err.Error(), "private") {
+			t.Errorf("%q: error %q, want it to mention private", raw, err.Error())
+		}
+	}
+}
+
 func TestValidateHTTPSURL_AcceptsAPublicHTTPSEndpoint(t *testing.T) {
 	t.Parallel()
-	if err := ValidateHTTPSURL("https://hooks.example.com/polaris"); err != nil {
-		t.Fatal(err)
+	// The trailing-dot and punycode forms are ordinary public hostnames and must survive
+	// the numeric-disguise check above.
+	for _, raw := range []string{
+		"https://hooks.example.com/polaris",
+		"https://hooks.example.com./polaris",
+		"https://hooks.example.xn--p1ai/polaris",
+		"https://127.0.0.1.nip.io/polaris", // a real DNS name; the delivery pin owns this one
+	} {
+		if err := ValidateHTTPSURL(raw); err != nil {
+			t.Errorf("%q: %v", raw, err)
+		}
 	}
 }
 

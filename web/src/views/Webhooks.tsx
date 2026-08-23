@@ -217,6 +217,7 @@ function CreateWebhookDialog({
   onCreated: () => void;
 }) {
   const urlRef = useRef<HTMLInputElement>(null);
+  const copiedRef = useRef<HTMLButtonElement>(null);
   const formId = useId();
   const teams = useLiveQuery(
     (store) => [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key)),
@@ -234,6 +235,14 @@ function CreateWebhookDialog({
   const [nudged, setNudged] = useState(false);
 
   useKeyContext('modal');
+
+  // Creating swaps the whole dialog body — the form and its submit button are unmounted —
+  // which drops focus to <body>. Modal's Escape and Tab handling is a React handler on the
+  // dialog element, so from the body neither fires: the secret screen becomes a keyboard
+  // dead end. Put focus on the one button that screen has.
+  useEffect(() => {
+    if (created !== null) copiedRef.current?.focus();
+  }, [created]);
 
   const close = () => {
     setCreated(null);
@@ -308,13 +317,13 @@ function CreateWebhookDialog({
       }}
       footer={
         created ? (
-          <Button variant="primary" onClick={close}>
+          <Button ref={copiedRef} variant="primary" onClick={close}>
             I have copied the secret
           </Button>
         ) : (
           <>
             <Button onClick={close}>Cancel</Button>
-            <Button variant="primary" form={formId} disabled={saving}>
+            <Button type="submit" form={formId} variant="primary" loading={saving}>
               Create webhook
             </Button>
           </>
