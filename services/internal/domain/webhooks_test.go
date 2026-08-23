@@ -11,6 +11,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/platform"
+	"github.com/peixotolabs/polaris/services/internal/store"
 	"github.com/peixotolabs/polaris/services/internal/testutil"
 	"github.com/peixotolabs/polaris/services/internal/webhookout"
 )
@@ -229,6 +230,50 @@ func TestDeliverDueWebhooks_A200ClearsTheRow(t *testing.T) {
 	}
 	if n != 0 {
 		t.Fatal("a delivered row must not be posted again")
+	}
+}
+
+// The documented backoff is 1 minute, 1 hour, 6 hours. The test above proves the ladder
+// ends in a disable but would pass just as happily on any three intervals, and the numbers
+// are a published contract that consumers plan retries around.
+func TestDeliverDueWebhooks_BacksOffOnTheDocumentedSchedule(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateWebhook(ctx, p, domain.CreateWebhookInput{
+		URL: "https://hooks.example.com/polaris", AllPublicTeams: true, ResourceTypes: []string{"Issue"},
+	}); err != nil {
+		t.Fatalf("webhook: %v", err)
+	}
+	if _, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Ping"}); err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if _, err := svc.FanOutWebhooks(ctx, f.WorkspaceID, "https://app.example"); err != nil {
+		t.Fatalf("fanout: %v", err)
+	}
+
+	sender := &scriptedSender{status: 500}
+	now := time.Now()
+	for i, want := range []time.Duration{time.Minute, time.Hour, 6 * time.Hour} {
+		if _, err := svc.DeliverDueWebhooks(ctx, sender, now); err != nil {
+			t.Fatalf("attempt %d: %v", i+1, err)
+		}
+		rows, err := db.Queries().ListDueWebhookDeliveries(ctx, store.ListDueWebhookDeliveriesParams{
+			Now: now.Add(365 * 24 * time.Hour), PageSize: 10,
+		})
+		if err != nil {
+			t.Fatalf("attempt %d: read pending: %v", i+1, err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("attempt %d: %d rows pending, want 1", i+1, len(rows))
+		}
+		if got := rows[0].NextAttemptAt.Sub(now).Round(time.Second); got != want {
+			t.Errorf("attempt %d retries in %v, want %v", i+1, got, want)
+		}
+		now = now.Add(want)
 	}
 }
 

@@ -64,8 +64,34 @@ func rejectHost(host string) error {
 		if ForbiddenIP(ip) {
 			return fmt.Errorf("webhook URLs may not target a private or link-local host")
 		}
+		return nil
+	}
+	// Not an IP by Go's strict reading — but inet_aton is not strict, and getaddrinfo goes
+	// through it. "127.1", "2130706433", "0x7f000001" and "017700000001" are all 127.0.0.1
+	// to the C resolver and all sail past net.ParseIP, so the loopback check above never
+	// sees them. Delivery still refuses them on the post-DNS pin, but a row that can only
+	// ever fail should not be creatable: it queues deliveries and disables itself hours
+	// later, which reads as "webhooks are broken" rather than "that URL was refused".
+	if !hasHostname(host) {
+		return fmt.Errorf("webhook URLs may not target a private or link-local host")
 	}
 	return nil
+}
+
+// hasHostname reports whether host looks like a DNS name rather than a numeric address in
+// disguise. Every public hostname ends in an alphabetic top-level label (punycode ones
+// begin "xn--"); none of inet_aton's numeric forms do.
+func hasHostname(host string) bool {
+	host = strings.TrimSuffix(host, ".")
+	last := host
+	if i := strings.LastIndex(host, "."); i >= 0 {
+		last = host[i+1:]
+	}
+	if last == "" {
+		return false
+	}
+	c := last[0]
+	return c >= 'a' && c <= 'z'
 }
 
 // ForbiddenIP is true for loopback, link-local, RFC1918, unique-local IPv6, and the

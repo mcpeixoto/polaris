@@ -150,7 +150,7 @@ func (s *Server) initialize() map[string]any {
 			"version": "1",
 			"title":   "Polaris",
 		},
-		"instructions": "Polaris issue tracker. Use list_issue / get_issue to read, create_issue and update_issue to write. Identifiers like ENG-123 work anywhere an id is accepted.",
+		"instructions": "Polaris issue tracker. Use list_issues / get_issue to read, create_issue and update_issue to write. Identifiers like ENG-123 work anywhere an id is accepted.",
 	}
 }
 
