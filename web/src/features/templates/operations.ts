@@ -55,8 +55,8 @@ export const ISSUE_TEMPLATE_FIELDS = /* GraphQL */ `
 
 export const CREATE_ISSUE_TEMPLATE = /* GraphQL */ `
   ${ISSUE_TEMPLATE_FIELDS}
-  mutation CreateIssueTemplate($input: CreateIssueTemplateInput!) {
-    createIssueTemplate(input: $input) {
+  mutation CreateIssueTemplate($input: CreateIssueTemplateInput!, $clientId: UUID!, $opId: UUID!) {
+    createIssueTemplate(input: $input, clientId: $clientId, opId: $opId) {
       version
       template {
         ...IssueTemplateFields

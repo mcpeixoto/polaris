@@ -1226,13 +1226,13 @@ func (r *mutationResolver) DeletePulseFeed(ctx context.Context, id uuid.UUID, cl
 }
 
 // CreateTeam is the resolver for the createTeam field.
-func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.CreateTeamInput) (*generated.TeamPayload, error) {
+func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.CreateTeamInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.TeamPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
 
-	team, version, err := r.Svc.CreateTeam(ctx, p, domain.CreateTeamInput{
+	in := domain.CreateTeamInput{
 		Key:          input.Key,
 		Name:         input.Name,
 		Description:  input.Description,
@@ -1241,7 +1241,11 @@ func (r *mutationResolver) CreateTeam(ctx context.Context, input generated.Creat
 		Timezone:     deref(input.Timezone),
 		Private:      deref(input.Private),
 		ParentTeamID: input.ParentTeamID,
-	})
+	}
+	team, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Team, int64, error) {
+			return r.Svc.CreateTeam(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -1419,7 +1423,7 @@ func (r *mutationResolver) RemoveTeamMember(ctx context.Context, teamID uuid.UUI
 }
 
 // CreateWorkflowState is the resolver for the createWorkflowState field.
-func (r *mutationResolver) CreateWorkflowState(ctx context.Context, input generated.CreateWorkflowStateInput) (*generated.WorkflowStatePayload, error) {
+func (r *mutationResolver) CreateWorkflowState(ctx context.Context, input generated.CreateWorkflowStateInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.WorkflowStatePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
@@ -1429,14 +1433,18 @@ func (r *mutationResolver) CreateWorkflowState(ctx context.Context, input genera
 		return nil, PresentError(ctx, err)
 	}
 
-	state, version, err := r.Svc.CreateWorkflowState(ctx, p, domain.CreateWorkflowStateInput{
+	in := domain.CreateWorkflowStateInput{
 		TeamID:       input.TeamID,
 		Name:         input.Name,
 		Category:     category,
 		Color:        deref(input.Color),
 		Description:  input.Description,
 		AfterStateID: input.AfterStateID,
-	})
+	}
+	state, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.WorkflowState, int64, error) {
+			return r.Svc.CreateWorkflowState(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -2181,7 +2189,7 @@ func (r *mutationResolver) RemoveIssueLabel(ctx context.Context, issueID uuid.UU
 }
 
 // CreateProjectLabel is the resolver for the createProjectLabel field.
-func (r *mutationResolver) CreateProjectLabel(ctx context.Context, input generated.CreateProjectLabelInput) (*generated.ProjectLabelPayload, error) {
+func (r *mutationResolver) CreateProjectLabel(ctx context.Context, input generated.CreateProjectLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectLabelPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
@@ -2195,7 +2203,10 @@ func (r *mutationResolver) CreateProjectLabel(ctx context.Context, input generat
 		Color:        input.Color,
 		AfterLabelID: input.AfterLabelID,
 	}
-	label, version, err := r.Svc.CreateProjectLabel(ctx, p, in)
+	label, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.ProjectLabel, int64, error) {
+			return r.Svc.CreateProjectLabel(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -2271,7 +2282,7 @@ func (r *mutationResolver) RemoveProjectLabel(ctx context.Context, projectID uui
 }
 
 // CreateInitiativeLabel is the resolver for the createInitiativeLabel field.
-func (r *mutationResolver) CreateInitiativeLabel(ctx context.Context, input generated.CreateInitiativeLabelInput) (*generated.InitiativeLabelPayload, error) {
+func (r *mutationResolver) CreateInitiativeLabel(ctx context.Context, input generated.CreateInitiativeLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.InitiativeLabelPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
@@ -2285,7 +2296,10 @@ func (r *mutationResolver) CreateInitiativeLabel(ctx context.Context, input gene
 		Color:        input.Color,
 		AfterLabelID: input.AfterLabelID,
 	}
-	label, version, err := r.Svc.CreateInitiativeLabel(ctx, p, in)
+	label, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.InitiativeLabel, int64, error) {
+			return r.Svc.CreateInitiativeLabel(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -2498,13 +2512,13 @@ func (r *mutationResolver) DeleteNotification(ctx context.Context, id uuid.UUID)
 }
 
 // CreateView is the resolver for the createView field.
-func (r *mutationResolver) CreateView(ctx context.Context, input generated.CreateViewInput) (*generated.ViewPayload, error) {
+func (r *mutationResolver) CreateView(ctx context.Context, input generated.CreateViewInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ViewPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
 
-	view, version, err := r.Svc.CreateView(ctx, p, domain.CreateViewInput{
+	in := domain.CreateViewInput{
 		TeamID:      input.TeamID,
 		ProjectID:   input.ProjectID,
 		Private:     deref(input.Private),
@@ -2514,7 +2528,11 @@ func (r *mutationResolver) CreateView(ctx context.Context, input generated.Creat
 		Color:       input.Color,
 		Filter:      input.Filter,
 		Display:     input.Display,
-	})
+	}
+	view, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.View, int64, error) {
+			return r.Svc.CreateView(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -2744,12 +2762,16 @@ func (r *mutationResolver) RemoveFavorite(ctx context.Context, kind generated.Fa
 }
 
 // CreateFavoriteFolder is the resolver for the createFavoriteFolder field.
-func (r *mutationResolver) CreateFavoriteFolder(ctx context.Context, name string, afterFavoriteID *uuid.UUID) (*generated.FavoritePayload, error) {
+func (r *mutationResolver) CreateFavoriteFolder(ctx context.Context, name string, afterFavoriteID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.FavoritePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	favorite, version, err := r.Svc.CreateFavoriteFolder(ctx, p, name, afterFavoriteID)
+	favorite, version, err := idempotent(ctx, r.Svc, p, clientID, opID,
+		map[string]any{"name": name, "afterFavoriteId": afterFavoriteID},
+		func(ctx context.Context) (model.Favorite, int64, error) {
+			return r.Svc.CreateFavoriteFolder(ctx, p, name, afterFavoriteID)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -2801,13 +2823,13 @@ func (r *mutationResolver) MoveFavorite(ctx context.Context, input generated.Mov
 }
 
 // CreateIssueTemplate is the resolver for the createIssueTemplate field.
-func (r *mutationResolver) CreateIssueTemplate(ctx context.Context, input generated.CreateIssueTemplateInput) (*generated.IssueTemplatePayload, error) {
+func (r *mutationResolver) CreateIssueTemplate(ctx context.Context, input generated.CreateIssueTemplateInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssueTemplatePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
 
-	template, version, err := r.Svc.CreateIssueTemplate(ctx, p, domain.CreateIssueTemplateInput{
+	in := domain.CreateIssueTemplateInput{
 		TeamID:      input.TeamID,
 		Name:        input.Name,
 		Description: input.Description,
@@ -2815,7 +2837,11 @@ func (r *mutationResolver) CreateIssueTemplate(ctx context.Context, input genera
 		Body:        input.Body,
 		Properties:  input.Properties,
 		SubIssues:   templateSubIssuesFromInput(input.SubIssues),
-	})
+	}
+	template, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.IssueTemplate, int64, error) {
+			return r.Svc.CreateIssueTemplate(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -2867,17 +2893,21 @@ func (r *mutationResolver) ArchiveIssueTemplate(ctx context.Context, id uuid.UUI
 }
 
 // CreateFormTemplate is the resolver for the createFormTemplate field.
-func (r *mutationResolver) CreateFormTemplate(ctx context.Context, input generated.CreateFormTemplateInput) (*generated.FormTemplatePayload, error) {
+func (r *mutationResolver) CreateFormTemplate(ctx context.Context, input generated.CreateFormTemplateInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.FormTemplatePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	template, version, err := r.Svc.CreateFormTemplate(ctx, p, domain.CreateFormTemplateInput{
+	in := domain.CreateFormTemplateInput{
 		TeamID:      input.TeamID,
 		Name:        input.Name,
 		Description: input.Description,
 		Properties:  input.Properties,
-	})
+	}
+	template, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.FormTemplate, int64, error) {
+			return r.Svc.CreateFormTemplate(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -2918,19 +2948,23 @@ func (r *mutationResolver) ArchiveFormTemplate(ctx context.Context, id uuid.UUID
 }
 
 // CreateFormTemplateField is the resolver for the createFormTemplateField field.
-func (r *mutationResolver) CreateFormTemplateField(ctx context.Context, input generated.CreateFormTemplateFieldInput) (*generated.FormTemplateFieldPayload, error) {
+func (r *mutationResolver) CreateFormTemplateField(ctx context.Context, input generated.CreateFormTemplateFieldInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.FormTemplateFieldPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	field, version, err := r.Svc.CreateFormTemplateField(ctx, p, domain.CreateFormTemplateFieldInput{
+	in := domain.CreateFormTemplateFieldInput{
 		FormTemplateID: input.FormTemplateID,
 		FieldType:      model.FormTemplateFieldType(input.FieldType),
 		Label:          input.Label,
 		Description:    input.Description,
 		Required:       deref(input.Required),
 		Config:         input.Config,
-	})
+	}
+	field, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.FormTemplateField, int64, error) {
+			return r.Svc.CreateFormTemplateField(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -2979,19 +3013,23 @@ func (r *mutationResolver) DeleteFormTemplateField(ctx context.Context, id uuid.
 }
 
 // CreateProjectTemplate is the resolver for the createProjectTemplate field.
-func (r *mutationResolver) CreateProjectTemplate(ctx context.Context, input generated.CreateProjectTemplateInput) (*generated.ProjectTemplatePayload, error) {
+func (r *mutationResolver) CreateProjectTemplate(ctx context.Context, input generated.CreateProjectTemplateInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectTemplatePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	template, version, err := r.Svc.CreateProjectTemplate(ctx, p, domain.CreateProjectTemplateInput{
+	in := domain.CreateProjectTemplateInput{
 		TeamID:      input.TeamID,
 		Name:        input.Name,
 		Description: input.Description,
 		Summary:     deref(input.Summary),
 		Body:        deref(input.Body),
 		Properties:  input.Properties,
-	})
+	}
+	template, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.ProjectTemplate, int64, error) {
+			return r.Svc.CreateProjectTemplate(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -3034,17 +3072,21 @@ func (r *mutationResolver) ArchiveProjectTemplate(ctx context.Context, id uuid.U
 }
 
 // CreateProjectTemplateMilestone is the resolver for the createProjectTemplateMilestone field.
-func (r *mutationResolver) CreateProjectTemplateMilestone(ctx context.Context, input generated.CreateProjectTemplateMilestoneInput) (*generated.ProjectTemplateMilestonePayload, error) {
+func (r *mutationResolver) CreateProjectTemplateMilestone(ctx context.Context, input generated.CreateProjectTemplateMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectTemplateMilestonePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	milestone, version, err := r.Svc.CreateProjectTemplateMilestone(ctx, p, domain.CreateProjectTemplateMilestoneInput{
+	in := domain.CreateProjectTemplateMilestoneInput{
 		ProjectTemplateID: input.ProjectTemplateID,
 		Name:              input.Name,
 		Description:       input.Description,
 		TargetDate:        toDate(input.TargetDate),
-	})
+	}
+	milestone, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.ProjectTemplateMilestone, int64, error) {
+			return r.Svc.CreateProjectTemplateMilestone(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -3086,18 +3128,22 @@ func (r *mutationResolver) DeleteProjectTemplateMilestone(ctx context.Context, i
 }
 
 // CreateProjectTemplateIssue is the resolver for the createProjectTemplateIssue field.
-func (r *mutationResolver) CreateProjectTemplateIssue(ctx context.Context, input generated.CreateProjectTemplateIssueInput) (*generated.ProjectTemplateIssuePayload, error) {
+func (r *mutationResolver) CreateProjectTemplateIssue(ctx context.Context, input generated.CreateProjectTemplateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectTemplateIssuePayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	issue, version, err := r.Svc.CreateProjectTemplateIssue(ctx, p, domain.CreateProjectTemplateIssueInput{
+	in := domain.CreateProjectTemplateIssueInput{
 		ProjectTemplateID: input.ProjectTemplateID,
 		ParentID:          input.ParentID,
 		Title:             input.Title,
 		Description:       deref(input.Description),
 		Properties:        input.Properties,
-	})
+	}
+	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.ProjectTemplateIssue, int64, error) {
+			return r.Svc.CreateProjectTemplateIssue(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -3450,7 +3496,7 @@ func (r *mutationResolver) DeleteProjectMilestone(ctx context.Context, id uuid.U
 }
 
 // CreateProjectStatus is the resolver for the createProjectStatus field.
-func (r *mutationResolver) CreateProjectStatus(ctx context.Context, input generated.CreateProjectStatusInput) (*generated.ProjectStatusPayload, error) {
+func (r *mutationResolver) CreateProjectStatus(ctx context.Context, input generated.CreateProjectStatusInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ProjectStatusPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
@@ -3459,7 +3505,10 @@ func (r *mutationResolver) CreateProjectStatus(ctx context.Context, input genera
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	status, version, err := r.Svc.CreateProjectStatus(ctx, p, in)
+	status, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.ProjectStatus, int64, error) {
+			return r.Svc.CreateProjectStatus(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -3810,17 +3859,22 @@ func (r *mutationResolver) CreateOauthAuthorization(ctx context.Context, input g
 }
 
 // CreateGitHubConnection is the resolver for the createGitHubConnection field.
-func (r *mutationResolver) CreateGitHubConnection(ctx context.Context, input generated.CreateGitHubConnectionInput) (*generated.GitHubConnectionPayload, error) {
+func (r *mutationResolver) CreateGitHubConnection(ctx context.Context, input generated.CreateGitHubConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.GitHubConnectionPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	conn, _, version, err := r.Svc.CreateGitHubConnection(ctx, p, domain.CreateGitHubConnectionInput{
+	in := domain.CreateGitHubConnectionInput{
 		OrgLogin:         input.OrgLogin,
 		BranchNameFormat: input.BranchNameFormat,
 		LinkCommits:      input.LinkCommits,
 		Linkbacks:        input.Linkbacks,
-	})
+	}
+	conn, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.GitHubConnection, int64, error) {
+			conn, _, version, err := r.Svc.CreateGitHubConnection(ctx, p, in)
+			return conn, version, err
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -3862,14 +3916,18 @@ func (r *mutationResolver) DeleteGitHubConnection(ctx context.Context) (*generat
 }
 
 // CreateGitHubUserLink is the resolver for the createGitHubUserLink field.
-func (r *mutationResolver) CreateGitHubUserLink(ctx context.Context, input generated.CreateGitHubUserLinkInput) (*generated.GitHubUserLinkPayload, error) {
+func (r *mutationResolver) CreateGitHubUserLink(ctx context.Context, input generated.CreateGitHubUserLinkInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.GitHubUserLinkPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	link, version, err := r.Svc.CreateGitHubUserLink(ctx, p, domain.CreateGitHubUserLinkInput{
+	in := domain.CreateGitHubUserLinkInput{
 		GitHubLogin: input.GithubLogin,
-	})
+	}
+	link, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.GitHubUserLink, int64, error) {
+			return r.Svc.CreateGitHubUserLink(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -3950,18 +4008,23 @@ func (r *mutationResolver) DeleteGitHubTeamAutomation(ctx context.Context, teamI
 }
 
 // CreateGitLabConnection is the resolver for the createGitLabConnection field.
-func (r *mutationResolver) CreateGitLabConnection(ctx context.Context, input generated.CreateGitLabConnectionInput) (*generated.GitLabConnectionPayload, error) {
+func (r *mutationResolver) CreateGitLabConnection(ctx context.Context, input generated.CreateGitLabConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.GitLabConnectionPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	conn, _, version, err := r.Svc.CreateGitLabConnection(ctx, p, domain.CreateGitLabConnectionInput{
+	in := domain.CreateGitLabConnectionInput{
 		InstanceURL:      input.InstanceURL,
 		AccessToken:      input.AccessToken,
 		BranchNameFormat: input.BranchNameFormat,
 		LinkCommits:      input.LinkCommits,
 		Linkbacks:        input.Linkbacks,
-	})
+	}
+	conn, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.GitLabConnection, int64, error) {
+			conn, _, version, err := r.Svc.CreateGitLabConnection(ctx, p, in)
+			return conn, version, err
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -4004,14 +4067,18 @@ func (r *mutationResolver) DeleteGitLabConnection(ctx context.Context) (*generat
 }
 
 // CreateGitLabUserLink is the resolver for the createGitLabUserLink field.
-func (r *mutationResolver) CreateGitLabUserLink(ctx context.Context, input generated.CreateGitLabUserLinkInput) (*generated.GitLabUserLinkPayload, error) {
+func (r *mutationResolver) CreateGitLabUserLink(ctx context.Context, input generated.CreateGitLabUserLinkInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.GitLabUserLinkPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	link, version, err := r.Svc.CreateGitLabUserLink(ctx, p, domain.CreateGitLabUserLinkInput{
+	in := domain.CreateGitLabUserLinkInput{
 		GitLabUsername: input.GitlabUsername,
-	})
+	}
+	link, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.GitLabUserLink, int64, error) {
+			return r.Svc.CreateGitLabUserLink(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -4092,15 +4159,20 @@ func (r *mutationResolver) DeleteGitLabTeamAutomation(ctx context.Context, teamI
 }
 
 // CreateSentryConnection is the resolver for the createSentryConnection field.
-func (r *mutationResolver) CreateSentryConnection(ctx context.Context, input generated.CreateSentryConnectionInput) (*generated.SentryConnectionPayload, error) {
+func (r *mutationResolver) CreateSentryConnection(ctx context.Context, input generated.CreateSentryConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.SentryConnectionPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	conn, _, version, err := r.Svc.CreateSentryConnection(ctx, p, domain.CreateSentryConnectionInput{
+	in := domain.CreateSentryConnectionInput{
 		DefaultTeamID:    input.DefaultTeamID,
 		OrganizationSlug: input.OrganizationSlug,
-	})
+	}
+	conn, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.SentryConnection, int64, error) {
+			conn, _, version, err := r.Svc.CreateSentryConnection(ctx, p, in)
+			return conn, version, err
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -4178,18 +4250,22 @@ func (r *mutationResolver) LinkSentryIssue(ctx context.Context, input generated.
 }
 
 // CreateSlackConnection is the resolver for the createSlackConnection field.
-func (r *mutationResolver) CreateSlackConnection(ctx context.Context, input generated.CreateSlackConnectionInput) (*generated.SlackConnectionPayload, error) {
+func (r *mutationResolver) CreateSlackConnection(ctx context.Context, input generated.CreateSlackConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.SlackConnectionPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	conn, version, err := r.Svc.CreateSlackConnection(ctx, p, domain.CreateSlackConnectionInput{
+	in := domain.CreateSlackConnectionInput{
 		DefaultTeamID:  input.DefaultTeamID,
 		ChannelName:    input.ChannelName,
 		WebhookURL:     input.WebhookURL,
 		NotifyIssues:   input.NotifyIssues,
 		NotifyComments: input.NotifyComments,
-	})
+	}
+	conn, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.SlackConnection, int64, error) {
+			return r.Svc.CreateSlackConnection(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -4294,16 +4370,20 @@ func (r *mutationResolver) SubmitIntegration(ctx context.Context, input generate
 }
 
 // CreateDraft is the resolver for the createDraft field.
-func (r *mutationResolver) CreateDraft(ctx context.Context, input generated.CreateDraftInput) (*generated.DraftPayload, error) {
+func (r *mutationResolver) CreateDraft(ctx context.Context, input generated.CreateDraftInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DraftPayload, error) {
 	p, err := principalFrom(ctx)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	draft, version, err := r.Svc.CreateDraft(ctx, p, domain.CreateDraftInput{
+	in := domain.CreateDraftInput{
 		ID:      input.ID,
 		Kind:    draftKindFromWire(input.Kind),
 		Payload: input.Payload,
-	})
+	}
+	draft, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (model.Draft, int64, error) {
+			return r.Svc.CreateDraft(ctx, p, in)
+		})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}

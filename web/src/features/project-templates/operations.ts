@@ -47,8 +47,12 @@ export const PROJECT_TEMPLATE_ISSUE_FIELDS = /* GraphQL */ `
 
 export const CREATE_PROJECT_TEMPLATE = /* GraphQL */ `
   ${PROJECT_TEMPLATE_FIELDS}
-  mutation CreateProjectTemplate($input: CreateProjectTemplateInput!) {
-    createProjectTemplate(input: $input) {
+  mutation CreateProjectTemplate(
+    $input: CreateProjectTemplateInput!
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    createProjectTemplate(input: $input, clientId: $clientId, opId: $opId) {
       version
       template {
         ...ProjectTemplateFields
@@ -80,8 +84,12 @@ export const ARCHIVE_PROJECT_TEMPLATE = /* GraphQL */ `
 
 export const CREATE_PROJECT_TEMPLATE_MILESTONE = /* GraphQL */ `
   ${PROJECT_TEMPLATE_MILESTONE_FIELDS}
-  mutation CreateProjectTemplateMilestone($input: CreateProjectTemplateMilestoneInput!) {
-    createProjectTemplateMilestone(input: $input) {
+  mutation CreateProjectTemplateMilestone(
+    $input: CreateProjectTemplateMilestoneInput!
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    createProjectTemplateMilestone(input: $input, clientId: $clientId, opId: $opId) {
       version
       milestone {
         ...ProjectTemplateMilestoneFields
@@ -113,8 +121,12 @@ export const DELETE_PROJECT_TEMPLATE_MILESTONE = /* GraphQL */ `
 
 export const CREATE_PROJECT_TEMPLATE_ISSUE = /* GraphQL */ `
   ${PROJECT_TEMPLATE_ISSUE_FIELDS}
-  mutation CreateProjectTemplateIssue($input: CreateProjectTemplateIssueInput!) {
-    createProjectTemplateIssue(input: $input) {
+  mutation CreateProjectTemplateIssue(
+    $input: CreateProjectTemplateIssueInput!
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    createProjectTemplateIssue(input: $input, clientId: $clientId, opId: $opId) {
       version
       issue {
         ...ProjectTemplateIssueFields

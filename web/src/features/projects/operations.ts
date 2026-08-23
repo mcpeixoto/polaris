@@ -188,8 +188,8 @@ export const REMOVE_PROJECT_DEPENDENCY = /* GraphQL */ `
 
 export const CREATE_PROJECT_STATUS = /* GraphQL */ `
   ${PROJECT_STATUS_FIELDS}
-  mutation CreateProjectStatus($input: CreateProjectStatusInput!) {
-    createProjectStatus(input: $input) {
+  mutation CreateProjectStatus($input: CreateProjectStatusInput!, $clientId: UUID!, $opId: UUID!) {
+    createProjectStatus(input: $input, clientId: $clientId, opId: $opId) {
       version
       status {
         ...ProjectStatusFields

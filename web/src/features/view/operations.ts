@@ -70,8 +70,8 @@ export const FAVORITE_FIELDS = /* GraphQL */ `
 
 export const CREATE_VIEW = /* GraphQL */ `
   ${VIEW_FIELDS}
-  mutation CreateView($input: CreateViewInput!) {
-    createView(input: $input) {
+  mutation CreateView($input: CreateViewInput!, $clientId: UUID!, $opId: UUID!) {
+    createView(input: $input, clientId: $clientId, opId: $opId) {
       version
       view {
         ...ViewFields
@@ -149,8 +149,18 @@ export const REMOVE_FAVORITE = /* GraphQL */ `
 
 export const CREATE_FAVORITE_FOLDER = /* GraphQL */ `
   ${FAVORITE_FIELDS}
-  mutation CreateFavoriteFolder($name: String!, $afterFavoriteId: UUID) {
-    createFavoriteFolder(name: $name, afterFavoriteId: $afterFavoriteId) {
+  mutation CreateFavoriteFolder(
+    $name: String!
+    $afterFavoriteId: UUID
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    createFavoriteFolder(
+      name: $name
+      afterFavoriteId: $afterFavoriteId
+      clientId: $clientId
+      opId: $opId
+    ) {
       version
       favorite {
         ...FavoriteFields

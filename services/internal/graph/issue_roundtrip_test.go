@@ -174,7 +174,7 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 	template, err := h.Mutation().CreateIssueTemplate(h.ctx, generated.CreateIssueTemplateInput{
 		TeamID: &h.f.TeamID,
 		Name:   "Bug report",
-	})
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("create a template to file from: %v", err)
 	}
@@ -182,7 +182,7 @@ func issueRoundTripTable(t *testing.T, h *harness) ([]issueField, uuid.UUID) {
 	formTemplate, err := h.Mutation().CreateFormTemplate(h.ctx, generated.CreateFormTemplateInput{
 		TeamID: &h.f.TeamID,
 		Name:   "Intake",
-	})
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("create a form template to file from: %v", err)
 	}

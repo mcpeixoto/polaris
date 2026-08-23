@@ -28,8 +28,12 @@ export const INITIATIVE_LABEL_LINK_FIELDS = /* GraphQL */ `
 
 export const CREATE_INITIATIVE_LABEL = /* GraphQL */ `
   ${INITIATIVE_LABEL_FIELDS}
-  mutation CreateInitiativeLabel($input: CreateInitiativeLabelInput!) {
-    createInitiativeLabel(input: $input) {
+  mutation CreateInitiativeLabel(
+    $input: CreateInitiativeLabelInput!
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    createInitiativeLabel(input: $input, clientId: $clientId, opId: $opId) {
       version
       initiativeLabel {
         ...InitiativeLabelFields
