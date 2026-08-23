@@ -484,8 +484,14 @@ func TestGitHubLinkback_PostedOnFirstPRLink(t *testing.T) {
 	if c.Repo != "acme/app" || c.Number != 12 {
 		t.Fatalf("comment target: %+v", c)
 	}
-	if !strings.Contains(c.Body, "ENG-1: Importer") || !strings.Contains(c.Body, "/issue/ENG-1") {
-		t.Fatalf("public linkback must name the issue, got %q", c.Body)
+	// The exact address, not just a substring containing it. A linkback goes into
+	// somebody else's pull request and cannot be edited afterwards, so the URL has to be
+	// one this client can actually route — `/issue/ENG-1`, the same shape the digest, the
+	// outbound webhook and the Slack unfurl use. A `/<urlKey>/issue/ENG-1` prefix still
+	// contains "/issue/ENG-1", which is how the wrong shape went unnoticed.
+	const want = "ENG-1: Importer\nhttps://polaris.example/issue/ENG-1"
+	if c.Body != want {
+		t.Fatalf("linkback body:\n got %q\nwant %q", c.Body, want)
 	}
 
 	if _, _, err := svc.LinkGitHubPullRequest(ctx, p, domain.LinkGitHubPullRequestInput{
@@ -555,8 +561,8 @@ func TestGitHubLinkback_PrivateTeamIsLinkOnly(t *testing.T) {
 	if strings.Contains(poster.comments[0].Body, "Secret work") {
 		t.Fatalf("a private team must not leak the title onto GitHub, got %q", poster.comments[0].Body)
 	}
-	if !strings.Contains(poster.comments[0].Body, "/issue/ENG-1") {
-		t.Fatalf("private linkback is still the URL, got %q", poster.comments[0].Body)
+	if poster.comments[0].Body != "https://polaris.example/issue/ENG-1" {
+		t.Fatalf("private linkback is the bare routable URL, got %q", poster.comments[0].Body)
 	}
 }
 
