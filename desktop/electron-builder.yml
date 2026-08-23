@@ -110,12 +110,19 @@ linux:
   category: Development
 
 # The same unlabelled-x64 problem the mac block describes, in the one Linux target that has
-# it. A .deb always carries its architecture — Debian's own naming requires it, and
-# electron-builder's default (`${name}_${version}_${arch}.deb`) already obeys that, so it is
-# left alone. An AppImage does not: the default drops the arch for x64 and keeps it for
-# arm64, so the plain file is the one that will not run on an arm64 machine.
+# it. An AppImage's default drops the arch for x64 and keeps it for arm64, so the plain
+# file is the one that will not run on an arm64 machine.
 appImage:
   artifactName: ${productName}-${version}-linux-${arch}.${ext}
+
+# The .deb needs naming too, which is less obvious: its default is
+# `${name}_${version}_${arch}.deb`, and `name` is package.json's — here the *scoped*
+# `@polaris/desktop`. The slash in it is read as a directory, so fpm tries to write into
+# `release/@polaris/` and dies with "Parent directory does not exist" rather than anything
+# about the name. Debian's own convention is a lowercase package name and an explicit
+# architecture, which is what this is; `arch` resolves to `amd64`/`arm64` for this target.
+deb:
+  artifactName: polaris_${version}_${arch}.${ext}
 
 # The update feed, and the destination of `--publish always`.
 #
