@@ -156,9 +156,10 @@ export function Sessions() {
             Where you are signed in
           </h2>
           <p className={styles.sectionHint}>
-            Each row is a browser or device holding a live login. Revoking one signs that device out
-            on its next request. Revoking the others keeps this browser and kills everything else —
-            the move after a stolen laptop or a hotel wifi you no longer trust.
+            Each row is a browser or device holding a live login. Revoking one stops that device
+            renewing its login, so it is signed out within a few minutes and cannot get back in
+            without your password. Revoking the others keeps this browser and kills everything else
+            — the move after a stolen laptop or a hotel wifi you no longer trust.
           </p>
         </section>
 

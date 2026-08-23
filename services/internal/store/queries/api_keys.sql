@@ -10,11 +10,20 @@ VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(user_id), sqlc.arg(name),
 RETURNING id, workspace_id, user_id, name, prefix, scopes, last_used_at, expires_at,
           revoked_at, created_at, updated_at;
 
+-- ListAPIKeysForUser is the listing, and it deliberately includes retired keys.
+--
+-- Revoked keys are not filtered out here, and that is the screen's promise rather than an
+-- oversight: its caption says revoked and expired keys stay in the list so that a key which
+-- stopped working can still be accounted for, and the client already sorts them to the
+-- bottom and draws them with a Revoked badge. Hiding them made a key vanish the moment it
+-- was retired, which is the opposite of what somebody auditing "when did this stop working"
+-- needs — and left a person who had just revoked the wrong key with no evidence they had.
+--
 -- name: ListAPIKeysForUser :many
 SELECT id, workspace_id, user_id, name, prefix, scopes, last_used_at, expires_at,
        revoked_at, created_at, updated_at
 FROM api_key
-WHERE user_id = $1 AND revoked_at IS NULL
+WHERE user_id = $1
 ORDER BY created_at DESC;
 
 -- GetAPIKeyByTokenHash is the authentication path.

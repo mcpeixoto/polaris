@@ -697,6 +697,15 @@ type Querier interface {
 	LastProjectSortOrderForPriority(ctx context.Context, arg LastProjectSortOrderForPriorityParams) (string, error)
 	LastProjectStatusPosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastSlaRulePosition(ctx context.Context, workspaceID uuid.UUID) (string, error)
+	// ListAPIKeysForUser is the listing, and it deliberately includes retired keys.
+	//
+	// Revoked keys are not filtered out here, and that is the screen's promise rather than an
+	// oversight: its caption says revoked and expired keys stay in the list so that a key which
+	// stopped working can still be accounted for, and the client already sorts them to the
+	// bottom and draws them with a Revoked badge. Hiding them made a key vanish the moment it
+	// was retired, which is the opposite of what somebody auditing "when did this stop working"
+	// needs — and left a person who had just revoked the wrong key with no evidence they had.
+	//
 	ListAPIKeysForUser(ctx context.Context, userID uuid.UUID) ([]ListAPIKeysForUserRow, error)
 	ListActiveRecurringIssues(ctx context.Context) ([]ListActiveRecurringIssuesRow, error)
 	ListArchivedCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
@@ -1238,6 +1247,21 @@ type Querier interface {
 	//
 	RotateCycleCalendarFeedToken(ctx context.Context, arg RotateCycleCalendarFeedTokenParams) (RotateCycleCalendarFeedTokenRow, error)
 	RotateOauthApplicationSecret(ctx context.Context, arg RotateOauthApplicationSecretParams) (RotateOauthApplicationSecretRow, error)
+	// RotateSessionToken swaps a session's refresh token without changing which session it is.
+	//
+	// Rotation used to be a revoke and an insert, which made a session a different row every
+	// fifteen minutes. That is what broke the Sessions screen: the id it drew a Revoke button
+	// for stopped existing the moment the device it named refreshed, so pressing Revoke on any
+	// live device answered "session not found" and left it signed in — the one flow the screen
+	// exists for. Updating in place keeps the id stable for the life of the login, which is what
+	// lets somebody point at a device and kill it.
+	//
+	// The security property is unchanged: the old token's digest is overwritten, so replaying it
+	// finds no row and is 401, exactly as revoking it was. created_at survives, so the "Signed
+	// in" column finally shows when the person actually signed in rather than when their browser
+	// last refreshed; user_agent, ip and country survive for the same reason.
+	//
+	RotateSessionToken(ctx context.Context, arg RotateSessionTokenParams) (AccountSession, error)
 	SetAccountPassword(ctx context.Context, arg SetAccountPasswordParams) error
 	SetCommentResolution(ctx context.Context, arg SetCommentResolutionParams) (Comment, error)
 	SetDefaultWorkflowState(ctx context.Context, id uuid.UUID) error

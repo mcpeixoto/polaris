@@ -32,7 +32,15 @@ export function revocationConsequence(session: AccountSessionSummary): string {
   if (session.current) {
     return `This browser will be signed out. You will have to sign in again to keep working here. Other devices are not affected.`;
   }
-  return `${session.label} will have to sign in again. Anything it was doing as you stops on its next request. This cannot be undone.`;
+  // Deliberately "within a few minutes" rather than "immediately".
+  //
+  // Revoking kills the session's ability to mint new access tokens, and the one it is already
+  // holding is a short-lived JWT the API does not re-check against the session on every
+  // request. So the device stops the next time it refreshes — on its next page load, or when
+  // its current token expires, whichever comes first. Saying "immediately" would be the one
+  // lie a security screen must not tell: somebody acting on a stolen laptop needs to know
+  // there is a window, not to be reassured there is none.
+  return `${session.label} will stop working within a few minutes — as soon as its current access token runs out or it loads a page — and will have to sign in again. This cannot be undone.`;
 }
 
 export function revokeOthersConsequence(count: number): string {
