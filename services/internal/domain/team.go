@@ -293,7 +293,7 @@ func (s *Service) UpdateTeam(ctx context.Context, p *authz.Principal, in UpdateT
 		// is not a member has to be told to forget it, or they keep a readable local copy
 		// of a team they can no longer reach.
 		if !before.Private && out.Private {
-			revokes, err := s.revokeTeamContentsForNonMembers(ctx, q, out.ID)
+			revokes, err := s.revokeTeamContentsForNonMembers(ctx, q, p.WorkspaceID, out.ID)
 			if err != nil {
 				return err
 			}
@@ -508,16 +508,51 @@ func (s *Service) revokeTeamContentsFor(
 
 // revokeTeamContentsForNonMembers is the same idea for a team that has just become
 // private: everybody who is not in it must forget it.
+//
+// One revoke per non-member, addressed to that person, rather than a single team-scoped
+// row. A team-scoped revoke is judged by the reader's team set, and a team set is resolved
+// once — when a socket connects, or when a request arrives. So a team-scoped revoke of a
+// team that has just gone private is delivered to precisely the readers who do not need it
+// (sessions open across the flip, which also still hold the team) and withheld from the
+// ones who do: anybody offline at the moment of the flip comes back, resumes from their
+// cursor with a freshly resolved principal that no longer contains the team, and the revoke
+// is filtered out as belonging to a team they cannot see. Their replica keeps the team and
+// every issue in it, readable, for good. It also reached team members, whose replicas then
+// deleted the private team's issues on the strength of a row meant for other people.
+//
+// authz.UserScope depends on no team set at all, so it survives both: it is delivered on
+// resume however long the reader was away, and it never lands on a member.
+//
+// The cost is one change row per non-member of the team, on an action an admin takes rarely.
+// That is bounded by the workspace's seat count, unlike enumerating the team's issues, which
+// is what this deliberately does not do.
 func (s *Service) revokeTeamContentsForNonMembers(
-	ctx context.Context, q *store.Queries, teamID uuid.UUID,
+	ctx context.Context, q *store.Queries, workspaceID, teamID uuid.UUID,
 ) ([]Change, error) {
-	// A team-scoped revoke reaches exactly the sessions that could previously see the
-	// team; those that are still members re-acquire it from the upsert emitted alongside,
-	// which carries a private scope they satisfy.
-	return []Change{
-		{EntityType: "team", EntityID: teamID, Op: OpRevoke, TeamID: &teamID,
-			Scope: authz.TeamScope(teamID, false)},
-	}, nil
+	users, err := q.ListUsersInWorkspace(ctx, workspaceID)
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	members, err := q.ListTeamMembers(ctx, teamID)
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	inTeam := make(map[uuid.UUID]struct{}, len(members))
+	for _, m := range members {
+		inTeam[m.UserID] = struct{}{}
+	}
+
+	changes := make([]Change, 0, len(users))
+	for _, u := range users {
+		if _, ok := inTeam[u.ID]; ok {
+			continue
+		}
+		changes = append(changes, Change{
+			EntityType: "team", EntityID: teamID, Op: OpRevoke, TeamID: &teamID,
+			Scope: authz.UserScope(u.ID),
+		})
+	}
+	return changes, nil
 }
 
 // privatizeTeamCleanup strips non-member assignees and unsubscribes non-member watchers
