@@ -27,11 +27,17 @@ import (
 
 func toWorkspace(w model.Workspace) generated.Workspace {
 	return generated.Workspace{
-		ID:                                w.ID,
-		Name:                              w.Name,
-		URLKey:                            w.URLKey,
-		LogoURL:                           w.LogoURL,
-		Plan:                              w.Plan,
+		ID:      w.ID,
+		Name:    w.Name,
+		URLKey:  w.URLKey,
+		LogoURL: w.LogoURL,
+		Plan:    w.Plan,
+		// The three plan facts a settings screen reads beside the matrix. They were absent
+		// here, so `planLapsedAt` came back null on a workspace whose billing had failed and
+		// the client — which treats null as "not lapsed" — kept every gated control live.
+		PlanExpiresAt:                     w.PlanExpiresAt,
+		PlanLapsedAt:                      w.PlanLapsedAt,
+		SeatLimit:                         w.SeatLimit,
 		ProjectUpdateReminderIntervalDays: w.ProjectUpdateReminderIntervalDays,
 		ProjectUpdateReminderWeekday:      w.ProjectUpdateReminderWeekday,
 		ProjectUpdateReminderHour:         w.ProjectUpdateReminderHour,
