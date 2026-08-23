@@ -50,6 +50,15 @@
   line-height: var(--line-height-none);
 }
 
+.workspaceLogo {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  /* Cover rather than contain: the box is 18px square and a letterboxed logo inside it is
+     three or four pixels of artwork surrounded by accent colour. */
+  object-fit: cover;
+}
+
 .workspaceSwitch {
   flex: 1;
   min-width: 0;

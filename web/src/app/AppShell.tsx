@@ -641,9 +641,7 @@ export function AppShell({
               {...workspaceMenu.props}
               aria-label="Switch workspace"
             >
-              <span className={styles.workspaceMark} aria-hidden="true">
-                {(workspace?.name ?? 'P').slice(0, 1).toUpperCase()}
-              </span>
+              <WorkspaceMark name={workspace?.name ?? 'Polaris'} logoUrl={workspace?.logoUrl} />
               <span className={styles.workspaceName}>{workspace?.name ?? 'Polaris'}</span>
             </button>
             <ConnectionIndicator />
@@ -1730,6 +1728,40 @@ function visibleViews(store: Store, userId: UUID): readonly View[] {
  * stops matching exactly when somebody wants to look at it. The label says which region this
  * is; the contents say what it currently reports.
  */
+/**
+ * The square beside the workspace name: its logo if it has one, its initial otherwise.
+ *
+ * The letter is not a placeholder waiting for an upload — most workspaces never set a logo,
+ * and it is what Settings → Workspace promises is kept when the field is blank. Which makes
+ * the image the exception, and the fallback the thing that has to be right: a URL that
+ * 404s, or one that pointed at an image somebody has since deleted, falls back to the letter
+ * rather than leaving a broken-image glyph in the corner of every screen.
+ *
+ * Keyed by url rather than by a boolean, as `Avatar` is, so replacing a broken logo with a
+ * working one is not ignored for the rest of the session.
+ */
+function WorkspaceMark({ name, logoUrl }: { name: string; logoUrl?: string | undefined }) {
+  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
+  const usable = logoUrl !== undefined && logoUrl !== '' && logoUrl !== brokenSrc;
+
+  return (
+    <span className={styles.workspaceMark} aria-hidden="true">
+      {usable ? (
+        // Empty alt, and the wrapper is already hidden: the workspace's name is written
+        // immediately beside this, and naming it twice helps nobody.
+        <img
+          className={styles.workspaceLogo}
+          src={logoUrl}
+          alt=""
+          onError={() => setBrokenSrc(logoUrl)}
+        />
+      ) : (
+        [...name][0]?.toUpperCase()
+      )}
+    </span>
+  );
+}
+
 function ConnectionIndicator() {
   const status = useSyncStatus();
   // `polite`, not `assertive`: reconnecting is worth knowing and not worth interrupting
