@@ -1,10 +1,12 @@
 /**
  * Pairing the server's row with the stand-in that stood for it while the request was out.
  *
- * Most entities need nothing here: the client mints their id, so the response upserts over
- * the same key and there is no pairing to make. A few — a comment, an issue relation, an
- * issue subscription — still have their id allocated by the API, and for those the client
- * renders a row under an id it invented and has to replace it when the real one arrives.
+ * Almost every entity needs one. `CreateIssueInput` takes an `id`, so an issue's response
+ * upserts over the key the client already used and there is no pairing to make — and it is
+ * the only input in the schema that does. Everything else has its id allocated by the API,
+ * so the client renders a row under an id it invented and has to replace it when the real
+ * one arrives. That was true of five features when the bug was found in them one at a time,
+ * and of thirty-five more that nobody had reported yet.
  *
  * The pairing used to be written at each call site, in the `await` that sent the mutation.
  * That works for exactly as long as the `await` does. A reload taken between the optimistic
@@ -28,6 +30,11 @@
  *
  * So `adopt` below closes the same hole from the other side: a delta row that *is* the
  * stand-in retires it on arrival, without waiting for a response that may never come.
+ *
+ * And `unpairedCreates` at the bottom is what stops the next feature writing the original
+ * mistake again. It is called from `SyncEngine.mutate` in dev builds and mirrored by
+ * `scripts/lint-optimistic-reconcile.mjs` in CI: an optimistic create under an id the server
+ * never sees, with no pairing declared for it, is refused rather than shipped.
  */
 
 import {

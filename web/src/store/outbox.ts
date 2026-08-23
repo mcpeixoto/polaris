@@ -37,9 +37,9 @@ export type OptimisticPatch = readonly EntityPatch[];
 /**
  * How to pair the row the server allocated an id for with the stand-in that stood for it.
  *
- * Only the entities whose ids the API still mints need one — a comment, a relation, an
- * issue subscription. Issues carry a client-minted id, so their response upserts over the
- * same key and there is nothing to pair.
+ * Every entity whose id the API mints needs one, which in this schema is every entity but
+ * the issue: `CreateIssueInput` takes an `id` and nothing else does, so an issue's response
+ * upserts over the key the client already used and there is nothing to pair.
  *
  * It is *stored*, alongside the mutation, and that is the whole point. Reconciling in the
  * `await` that sent the mutation works only for as long as that `await` survives: a reload
