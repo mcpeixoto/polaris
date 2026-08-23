@@ -898,7 +898,7 @@ type ComplexityRoot struct {
 		ArchiveProjectLabel            func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveProjectStatus           func(childComplexity int, id uuid.UUID, archived bool) int
 		ArchiveProjectTemplate         func(childComplexity int, id uuid.UUID, archived bool) int
-		ArchiveRecurringIssue          func(childComplexity int, id uuid.UUID, archived bool) int
+		ArchiveRecurringIssue          func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveWorkflowState           func(childComplexity int, id uuid.UUID, archived bool) int
 		BulkUpdateIssues               func(childComplexity int, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		ClearIssueSLA                  func(childComplexity int, issueID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -937,7 +937,7 @@ type ComplexityRoot struct {
 		CreateProjectTemplateMilestone func(childComplexity int, input CreateProjectTemplateMilestoneInput) int
 		CreateProjectUpdate            func(childComplexity int, input CreateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreatePulseFeed                func(childComplexity int, input CreatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateRecurringIssue           func(childComplexity int, input CreateRecurringIssueInput) int
+		CreateRecurringIssue           func(childComplexity int, input CreateRecurringIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateSLARule                  func(childComplexity int, input CreateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateSentryConnection         func(childComplexity int, input CreateSentryConnectionInput) int
 		CreateSlackConnection          func(childComplexity int, input CreateSlackConnectionInput) int
@@ -1071,7 +1071,7 @@ type ComplexityRoot struct {
 		UpdateProjectTemplateMilestone func(childComplexity int, input UpdateProjectTemplateMilestoneInput) int
 		UpdateProjectUpdate            func(childComplexity int, input UpdateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdatePulseFeed                func(childComplexity int, input UpdatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		UpdateRecurringIssue           func(childComplexity int, input UpdateRecurringIssueInput) int
+		UpdateRecurringIssue           func(childComplexity int, input UpdateRecurringIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateSLARule                  func(childComplexity int, input UpdateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateSentryConnection         func(childComplexity int, input UpdateSentryConnectionInput) int
 		UpdateSlackConnection          func(childComplexity int, input UpdateSlackConnectionInput) int
@@ -2047,9 +2047,9 @@ type MutationResolver interface {
 	CreateProjectTemplateIssue(ctx context.Context, input CreateProjectTemplateIssueInput) (*ProjectTemplateIssuePayload, error)
 	UpdateProjectTemplateIssue(ctx context.Context, input UpdateProjectTemplateIssueInput) (*ProjectTemplateIssuePayload, error)
 	DeleteProjectTemplateIssue(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
-	CreateRecurringIssue(ctx context.Context, input CreateRecurringIssueInput) (*RecurringIssuePayload, error)
-	UpdateRecurringIssue(ctx context.Context, input UpdateRecurringIssueInput) (*RecurringIssuePayload, error)
-	ArchiveRecurringIssue(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
+	CreateRecurringIssue(ctx context.Context, input CreateRecurringIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*RecurringIssuePayload, error)
+	UpdateRecurringIssue(ctx context.Context, input UpdateRecurringIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*RecurringIssuePayload, error)
+	ArchiveRecurringIssue(ctx context.Context, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateProject(ctx context.Context, input CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectPayload, error)
 	UpdateProject(ctx context.Context, input UpdateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectPayload, error)
 	DeleteProject(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
@@ -6005,7 +6005,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.ArchiveRecurringIssue(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool)), true
+		return e.ComplexityRoot.Mutation.ArchiveRecurringIssue(childComplexity, args["id"].(uuid.UUID), args["archived"].(bool), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.archiveWorkflowState":
 		if e.ComplexityRoot.Mutation.ArchiveWorkflowState == nil {
 			break
@@ -6434,7 +6434,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateRecurringIssue(childComplexity, args["input"].(CreateRecurringIssueInput)), true
+		return e.ComplexityRoot.Mutation.CreateRecurringIssue(childComplexity, args["input"].(CreateRecurringIssueInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createSlaRule":
 		if e.ComplexityRoot.Mutation.CreateSLARule == nil {
 			break
@@ -7863,7 +7863,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateRecurringIssue(childComplexity, args["input"].(UpdateRecurringIssueInput)), true
+		return e.ComplexityRoot.Mutation.UpdateRecurringIssue(childComplexity, args["input"].(UpdateRecurringIssueInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.updateSlaRule":
 		if e.ComplexityRoot.Mutation.UpdateSLARule == nil {
 			break
@@ -15657,10 +15657,10 @@ type Mutation {
   updateProjectTemplateIssue(input: UpdateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
   deleteProjectTemplateIssue(id: UUID!): DeletePayload!
 
-  createRecurringIssue(input: CreateRecurringIssueInput!): RecurringIssuePayload!
-  updateRecurringIssue(input: UpdateRecurringIssueInput!): RecurringIssuePayload!
+  createRecurringIssue(input: CreateRecurringIssueInput!, clientId: UUID, opId: UUID): RecurringIssuePayload! @idempotent
+  updateRecurringIssue(input: UpdateRecurringIssueInput!, clientId: UUID, opId: UUID): RecurringIssuePayload! @idempotent
   """Retires a schedule, or brings one back. Does not archive the issues it already minted."""
-  archiveRecurringIssue(id: UUID!, archived: Boolean!): DeletePayload!
+  archiveRecurringIssue(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   # ---- projects
 
@@ -19796,6 +19796,22 @@ func (ec *executionContext) field_Mutation_archiveRecurringIssue_args(ctx contex
 		return nil, err
 	}
 	args["archived"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
 	return args, nil
 }
 
@@ -20678,6 +20694,22 @@ func (ec *executionContext) field_Mutation_createRecurringIssue_args(ctx context
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -23524,6 +23556,22 @@ func (ec *executionContext) field_Mutation_updateRecurringIssue_args(ctx context
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -46031,9 +46079,22 @@ func (ec *executionContext) _Mutation_createRecurringIssue(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateRecurringIssue(ctx, fc.Args["input"].(CreateRecurringIssueInput))
+			return ec.Resolvers.Mutation().CreateRecurringIssue(ctx, fc.Args["input"].(CreateRecurringIssueInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *RecurringIssuePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *RecurringIssuePayload) graphql.Marshaler {
 			return ec.marshalNRecurringIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssuePayload(ctx, selections, v)
 		},
@@ -46075,9 +46136,22 @@ func (ec *executionContext) _Mutation_updateRecurringIssue(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateRecurringIssue(ctx, fc.Args["input"].(UpdateRecurringIssueInput))
+			return ec.Resolvers.Mutation().UpdateRecurringIssue(ctx, fc.Args["input"].(UpdateRecurringIssueInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *RecurringIssuePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *RecurringIssuePayload) graphql.Marshaler {
 			return ec.marshalNRecurringIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringIssuePayload(ctx, selections, v)
 		},
@@ -46119,9 +46193,22 @@ func (ec *executionContext) _Mutation_archiveRecurringIssue(ctx context.Context,
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ArchiveRecurringIssue(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool))
+			return ec.Resolvers.Mutation().ArchiveRecurringIssue(ctx, fc.Args["id"].(uuid.UUID), fc.Args["archived"].(bool), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
 			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
 		},

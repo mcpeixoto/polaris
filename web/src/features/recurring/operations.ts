@@ -25,8 +25,12 @@ export const RECURRING_ISSUE_FIELDS = /* GraphQL */ `
 
 export const CREATE_RECURRING_ISSUE = /* GraphQL */ `
   ${RECURRING_ISSUE_FIELDS}
-  mutation CreateRecurringIssue($input: CreateRecurringIssueInput!) {
-    createRecurringIssue(input: $input) {
+  mutation CreateRecurringIssue(
+    $input: CreateRecurringIssueInput!
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    createRecurringIssue(input: $input, clientId: $clientId, opId: $opId) {
       version
       recurringIssue {
         ...RecurringIssueFields
@@ -37,8 +41,12 @@ export const CREATE_RECURRING_ISSUE = /* GraphQL */ `
 
 export const UPDATE_RECURRING_ISSUE = /* GraphQL */ `
   ${RECURRING_ISSUE_FIELDS}
-  mutation UpdateRecurringIssue($input: UpdateRecurringIssueInput!) {
-    updateRecurringIssue(input: $input) {
+  mutation UpdateRecurringIssue(
+    $input: UpdateRecurringIssueInput!
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    updateRecurringIssue(input: $input, clientId: $clientId, opId: $opId) {
       version
       recurringIssue {
         ...RecurringIssueFields
@@ -48,8 +56,8 @@ export const UPDATE_RECURRING_ISSUE = /* GraphQL */ `
 `;
 
 export const ARCHIVE_RECURRING_ISSUE = /* GraphQL */ `
-  mutation ArchiveRecurringIssue($id: UUID!, $archived: Boolean!) {
-    archiveRecurringIssue(id: $id, archived: $archived) {
+  mutation ArchiveRecurringIssue($id: UUID!, $archived: Boolean!, $clientId: UUID!, $opId: UUID!) {
+    archiveRecurringIssue(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {
       version
       id
     }

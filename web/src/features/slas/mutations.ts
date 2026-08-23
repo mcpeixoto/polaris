@@ -46,6 +46,13 @@ export async function createSlaRule(engine: SyncEngine, input: NewSlaRule): Prom
         type: 'slaRule',
         provisionalId: id,
         path: ['createSlaRule', 'slaRule'],
+        // And from the delta stream, which on a loaded machine arrives first: the socket
+        // pushes the row the moment the mutation commits while the response is still being
+        // parsed. Without a match the stand-in sits beside it until `settle` runs, and
+        // "Load defaults" — three creates chained one after another — shows a rule twice for
+        // as long as that takes. Action and duration, because the third field is a filter
+        // object and `adopt` compares with `===`.
+        match: ['action', 'durationMinutes'],
       },
     });
     return data.createSlaRule.slaRule.id;
