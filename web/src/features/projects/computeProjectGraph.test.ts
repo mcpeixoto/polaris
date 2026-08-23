@@ -149,6 +149,81 @@ describe('buildProjectGraph', () => {
     expect(data!.assignees.length).toBeGreaterThan(0);
   });
 
+  it('keeps its data for a project too young to plot, rather than reporting no graph', () => {
+    // `null` is the view's "there is nothing here yet, do something" answer, and it names
+    // the two things to do: start the project, file an issue. A project started today with
+    // an issue on it has done both, so answering `null` tells the person to repeat work
+    // they have already done — and hides the honest line the view has for this case.
+    const store = new Store('w');
+    const today = new Date().toISOString();
+    const status: ProjectStatus = {
+      id: 'ps1',
+      workspaceId: 'w',
+      name: 'In progress',
+      color: '#5e6ad2',
+      category: 'started',
+      position: 'a',
+      isDefault: false,
+      createdAt: today,
+      updatedAt: today,
+    };
+    const project: Project = {
+      id: 'p1',
+      workspaceId: 'w',
+      name: 'Fresh',
+      description: '',
+      color: '#5e6ad2',
+      statusId: 'ps1',
+      priority: 0,
+      sortOrder: 'a',
+      updateSchedule: 'default',
+      createdAt: today,
+      updatedAt: today,
+    };
+    const state: WorkflowState = {
+      id: 's1',
+      workspaceId: 'w',
+      teamId: 't1',
+      name: 'Todo',
+      color: '#888',
+      category: 'unstarted',
+      position: 'a',
+      isDefault: true,
+      isSystem: true,
+      createdAt: today,
+      updatedAt: today,
+    };
+    const issue: Issue = {
+      id: 'i1',
+      workspaceId: 'w',
+      teamId: 't1',
+      number: 1,
+      identifier: 'ENG-1',
+      title: 'First',
+      description: '',
+      stateId: 's1',
+      priority: 0,
+      sortOrder: 'a',
+      dueDateSource: 'manual',
+      projectId: 'p1',
+      createdAt: today,
+      updatedAt: today,
+    };
+    store.applyChanges([
+      upsert(1, 'team', team('t1')),
+      upsert(2, 'projectStatus', status),
+      upsert(3, 'project', project),
+      upsert(4, 'workflowState', state),
+      upsert(5, 'issue', issue),
+    ]);
+
+    const data = buildProjectGraph(store, 'p1');
+    expect(data).not.toBeNull();
+    expect(data!.weeks).toHaveLength(1);
+    expect(data!.totalScope).toBe(1);
+    expect(data!.prediction).toBeUndefined();
+  });
+
   it('returns null for backlog projects', () => {
     const store = new Store('w');
     const status: ProjectStatus = {

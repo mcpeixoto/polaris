@@ -1,9 +1,9 @@
 /**
- * Project properties — priority, labels, dependencies on the shell sidebar.
+ * Project properties — status, priority, labels, dependencies on the shell sidebar.
  */
 
 import { useActions, useKeyContext } from '~/app/keymap';
-import { LabelChip, PriorityIcon, priorityLabel } from '~/components';
+import { LabelChip, PriorityIcon, priorityLabel, StateIcon } from '~/components';
 import { PriorityPicker } from '~/features/issue/pickers';
 import { useEngine } from '~/app/context';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -17,6 +17,7 @@ import { Select } from '~/components';
 import type { ProjectUpdateSchedule } from '~/store';
 import { updateProject } from './mutations';
 import { ProjectDependencies } from './dependencies';
+import { ProjectStatusPicker, PROJECT_STATUS_ICON } from './ProjectStatusPicker';
 import styles from './properties.module.css';
 
 interface ProjectPropertiesProps {
@@ -25,6 +26,7 @@ interface ProjectPropertiesProps {
 
 export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
   const engine = useEngine();
+  const status = useMenuTrigger();
   const priority = useMenuTrigger();
   const labels = useMenuTrigger();
 
@@ -33,6 +35,15 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
   const project = useLiveQuery(
     (store) => store.projects.get(projectId) ?? null,
     ['project'],
+    [projectId],
+  );
+
+  const currentStatus = useLiveQuery(
+    (store) => {
+      const row = store.projects.get(projectId);
+      return row === undefined ? null : (store.projectStatuses.get(row.statusId) ?? null);
+    },
+    ['project', 'projectStatus'],
     [projectId],
   );
 
@@ -55,6 +66,14 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
 
   useActions(
     [
+      {
+        id: 'projectDetail.status',
+        title: 'Set status',
+        keys: ['s'],
+        when: 'detail',
+        group: 'Projects',
+        run: () => status.show(),
+      },
       {
         id: 'projectDetail.priority',
         title: 'Set priority',
@@ -79,6 +98,28 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
 
   return (
     <div className={styles.panel}>
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Status</h3>
+        <button
+          type="button"
+          className={styles.propertyButton}
+          {...status.props}
+          aria-label="Set status"
+        >
+          {currentStatus === null ? (
+            'Set status'
+          ) : (
+            <>
+              <StateIcon
+                category={PROJECT_STATUS_ICON[currentStatus.category]}
+                color={currentStatus.color}
+                decorative
+              />
+              {currentStatus.name}
+            </>
+          )}
+        </button>
+      </section>
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Priority</h3>
         <button
@@ -147,6 +188,16 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
         )}
       </section>
       <ProjectDependencies projectId={project.id} compact />
+      <ProjectStatusPicker
+        open={status.open}
+        onClose={status.hide}
+        trigger={status.ref}
+        value={project.statusId}
+        onSelect={(statusId) => {
+          status.hide();
+          updateProject(engine, project.id, { statusId }).catch(report);
+        }}
+      />
       <PriorityPicker
         open={priority.open}
         onClose={priority.hide}
