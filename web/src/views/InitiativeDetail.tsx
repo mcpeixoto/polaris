@@ -30,6 +30,7 @@ import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { InitiativeLabel, InitiativeStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
+import { ApiError } from '~/sync/api';
 import styles from './InitiativeDetail.module.css';
 
 interface ProjectLinkRow {
@@ -70,6 +71,9 @@ export function InitiativeDetail() {
   const [health, setHealth] = useState<ProjectUpdateHealth>('on_track');
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
+  const [nestError, setNestError] = useState<string | null>(null);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   const labelsMenu = useMenuTrigger();
 
   useKeyContext('detail');
@@ -216,40 +220,74 @@ export function InitiativeDetail() {
   };
 
   const onAddProject = async () => {
-    if (chosenProject === '') return;
-    await addInitiativeProject(engine, initiative.id, chosenProject);
+    const projectId = chosenProject;
+    if (projectId === '') return;
+    setProjectError(null);
+    // Cleared now rather than after the round trip: the picker belongs to whoever is
+    // looking at it, and a person adding a second project has usually chosen it before the
+    // first add lands. Clearing on the way back wipes that choice and greys out Add.
     setChosenProject('');
+    try {
+      await addInitiativeProject(engine, initiative.id, projectId);
+    } catch (failure) {
+      setChosenProject((current) => (current === '' ? projectId : current));
+      setProjectError(refusal(failure, 'That project could not be added.'));
+    }
   };
 
   const onRemoveProject = async (projectId: UUID) => {
-    await removeInitiativeProject(engine, initiative.id, projectId);
+    setProjectError(null);
+    try {
+      await removeInitiativeProject(engine, initiative.id, projectId);
+    } catch (failure) {
+      setProjectError(refusal(failure, 'That project could not be removed.'));
+    }
   };
 
   const onNestExisting = async () => {
-    if (chosenChild === '') return;
-    await addInitiativeRelation(engine, initiative.id, chosenChild);
+    const childId = chosenChild;
+    if (childId === '') return;
+    setNestError(null);
     setChosenChild('');
+    try {
+      await addInitiativeRelation(engine, initiative.id, childId);
+    } catch (failure) {
+      setChosenChild((current) => (current === '' ? childId : current));
+      setNestError(refusal(failure, 'That initiative could not be nested.'));
+    }
   };
 
   const onCreateNested = async () => {
     const name = nestedName.trim();
     if (name === '') return;
-    await createInitiative(engine, {
-      name,
-      ownerId: viewerId ?? undefined,
-      parentInitiativeId: initiative.id,
-    });
+    setNestError(null);
     setNestedName('');
+    try {
+      await createInitiative(engine, {
+        name,
+        ownerId: viewerId ?? undefined,
+        parentInitiativeId: initiative.id,
+      });
+    } catch (failure) {
+      setNestedName((current) => (current === '' ? name : current));
+      setNestError(refusal(failure, 'That sub-initiative could not be created.'));
+    }
   };
 
   const onUnnest = async (childId: UUID) => {
-    await removeInitiativeRelation(engine, initiative.id, childId);
+    setNestError(null);
+    try {
+      await removeInitiativeRelation(engine, initiative.id, childId);
+    } catch (failure) {
+      setNestError(refusal(failure, 'That initiative could not be un-nested.'));
+    }
   };
 
   const onSubmitUpdate = async (event: FormEvent) => {
     event.preventDefault();
     if (posting || viewerId === null) return;
     setPosting(true);
+    setUpdateError(null);
     try {
       await createInitiativeUpdate(engine, {
         initiativeId: initiative.id,
@@ -258,6 +296,8 @@ export function InitiativeDetail() {
         authorId: viewerId,
       });
       setBody('');
+    } catch (failure) {
+      setUpdateError(refusal(failure, 'That update could not be posted.'));
     } finally {
       setPosting(false);
     }
@@ -304,6 +344,11 @@ export function InitiativeDetail() {
               rows={4}
             />
           </label>
+          {updateError === null ? null : (
+            <p className={styles.error} role="alert">
+              {updateError}
+            </p>
+          )}
           <div className={styles.addRow}>
             <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
               Post update
@@ -475,6 +520,11 @@ export function InitiativeDetail() {
             ))}
           </ul>
         )}
+        {nestError === null ? null : (
+          <p className={styles.error} role="alert">
+            {nestError}
+          </p>
+        )}
         <div className={styles.addRow}>
           <Input
             label="New sub-initiative"
@@ -528,6 +578,11 @@ export function InitiativeDetail() {
             ))}
           </ul>
         )}
+        {projectError === null ? null : (
+          <p className={styles.error} role="alert">
+            {projectError}
+          </p>
+        )}
         <div className={styles.addRow}>
           <Select
             label="Project to add"
@@ -550,6 +605,17 @@ export function InitiativeDetail() {
       </section>
     </div>
   );
+}
+
+/**
+ * The server's own words when it has them.
+ *
+ * These sections talk to a domain that refuses things for reasons only it knows — a sixth
+ * level of nesting, a nest that would close a cycle — and "something went wrong" would
+ * leave the person guessing at a rule the API just named for them.
+ */
+function refusal(failure: unknown, fallback: string): string {
+  return failure instanceof ApiError ? failure.message : fallback;
 }
 
 function formatWhen(iso: string): string {

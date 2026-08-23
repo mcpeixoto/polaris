@@ -206,6 +206,16 @@
   gap: var(--space-1);
 }
 
+.error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  color: var(--priority-urgent);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
 @media (max-width: 720px) {
   .properties {
     grid-template-columns: minmax(0, 1fr);

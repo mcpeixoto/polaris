@@ -1,7 +1,6 @@
 import { fromWire } from '~/gql/enums';
 import {
   uuidv7,
-  type EntityPatch,
   type InitiativeLabel,
   type InitiativeLabelLink,
   type Store,
@@ -66,12 +65,22 @@ export async function createInitiativeLabel(
       optimistic: [
         { type: 'initiativeLabel', id: provisional.id, before: null, after: provisional },
       ],
+      // The API mints a label's id, so the stand-in has to be retired when the real row
+      // turns up — on the response, or on the socket, which usually gets here first.
+      // Declared as data so it survives a reload taken mid-flight; see
+      // `web/src/sync/reconcile.ts`.
+      reconcile: {
+        type: 'initiativeLabel',
+        provisionalId: provisional.id,
+        path: ['createInitiativeLabel', 'initiativeLabel'],
+        // Name and group are what the client chose; the id is the one thing it did not
+        // know. Two labels of one name in one group are refused anyway.
+        match: ['workspaceId', 'name', 'parentId'],
+      },
     },
   );
 
-  const real = data.createInitiativeLabel.initiativeLabel;
-  swapLabel(store, provisional.id, real);
-  return real.id;
+  return fromWire('initiativeLabel', data.createInitiativeLabel.initiativeLabel).id;
 }
 
 export interface InitiativeLabelFields {
@@ -146,16 +155,20 @@ export async function addInitiativeLabel(
   };
 
   try {
-    const data = await engine.mutate<{
-      addInitiativeLabel: { initiativeLabelLink: InitiativeLabelLink };
-    }>({
+    await engine.mutate<{ addInitiativeLabel: { initiativeLabelLink: InitiativeLabelLink } }>({
       mutation: ADD_INITIATIVE_LABEL,
       variables: { initiativeId, labelId },
       optimistic: [
         { type: 'initiativeLabelLink', id: provisional.id, before: null, after: provisional },
       ],
+      reconcile: {
+        type: 'initiativeLabelLink',
+        provisionalId: provisional.id,
+        path: ['addInitiativeLabel', 'initiativeLabelLink'],
+        // One application row per initiative and label, so this pairing is exact.
+        match: ['initiativeId', 'labelId'],
+      },
     });
-    swapApplication(store, provisional.id, data.addInitiativeLabel.initiativeLabelLink);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -204,38 +217,6 @@ function applicationOf(
     if (row !== undefined && row.labelId === labelId) return row;
   }
   return undefined;
-}
-
-function swapApplication(store: Store, provisionalId: UUID, wire: InitiativeLabelLink): void {
-  const real = fromWire('initiativeLabelLink', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'initiativeLabelLink',
-      id: real.id,
-      before: store.get('initiativeLabelLink', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'initiativeLabelLink', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-}
-
-function swapLabel(store: Store, provisionalId: UUID, wire: InitiativeLabel): void {
-  const real = fromWire('initiativeLabel', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'initiativeLabel',
-      id: real.id,
-      before: store.get('initiativeLabel', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'initiativeLabel', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
 }
 
 function lastPositionIn(store: Store): string {

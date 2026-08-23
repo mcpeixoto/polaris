@@ -1,5 +1,5 @@
 import { fromWire, toWire } from '~/gql/enums';
-import { uuidv7, type EntityOf, type EntityPatch, type InitiativeStatus, type UUID } from '~/store';
+import { uuidv7, type EntityOf, type InitiativeStatus, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -54,16 +54,20 @@ export async function createInitiative(engine: SyncEngine, input: NewInitiative)
         },
       },
       optimistic: [{ type: 'initiative', id, before: null, after: provisional }],
+      // The API mints an initiative's id, so the stand-in above has to be retired when the
+      // real row turns up — by either route. Declared rather than swapped in the `await`
+      // below: that closure does not survive a reload, and the stand-in does. See
+      // `web/src/sync/reconcile.ts`.
+      reconcile: {
+        type: 'initiative',
+        provisionalId: id,
+        path: ['createInitiative', 'initiative'],
+        // The name is what the client chose, and two initiatives are rarely opened under
+        // one name in the same second.
+        match: ['workspaceId', 'name'],
+      },
     });
-    const real = fromWire('initiative', data.createInitiative.initiative as EntityOf<'initiative'>);
-    const patch: EntityPatch[] = [
-      { type: 'initiative', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'initiative', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    return fromWire('initiative', data.createInitiative.initiative as EntityOf<'initiative'>).id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;
@@ -193,24 +197,18 @@ export async function addInitiativeProject(
   };
 
   try {
-    const data = await engine.mutate<{
-      addInitiativeProject: { initiativeProject: InitiativeProject };
-    }>({
+    await engine.mutate<{ addInitiativeProject: { initiativeProject: InitiativeProject } }>({
       mutation: ADD_INITIATIVE_PROJECT,
       variables: { initiativeId, projectId },
       optimistic: [{ type: 'initiativeProject', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'initiativeProject',
+        provisionalId: id,
+        path: ['addInitiativeProject', 'initiativeProject'],
+        // One link row per pair, so this pairing is exact.
+        match: ['initiativeId', 'projectId'],
+      },
     });
-    const real = fromWire(
-      'initiativeProject',
-      data.addInitiativeProject.initiativeProject as EntityOf<'initiativeProject'>,
-    );
-    const patch: EntityPatch[] = [
-      { type: 'initiativeProject', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'initiativeProject', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -259,24 +257,20 @@ export async function addInitiativeRelation(
   };
 
   try {
-    const data = await engine.mutate<{
+    await engine.mutate<{
       addInitiativeRelation: { initiativeRelation: EntityOf<'initiativeRelation'> };
     }>({
       mutation: ADD_INITIATIVE_RELATION,
       variables: { parentInitiativeId, childInitiativeId },
       optimistic: [{ type: 'initiativeRelation', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'initiativeRelation',
+        provisionalId: id,
+        path: ['addInitiativeRelation', 'initiativeRelation'],
+        // One nest per parent/child pair, which the server treats as unique anyway.
+        match: ['parentInitiativeId', 'childInitiativeId'],
+      },
     });
-    const real = fromWire(
-      'initiativeRelation',
-      data.addInitiativeRelation.initiativeRelation as EntityOf<'initiativeRelation'>,
-    );
-    const patch: EntityPatch[] = [
-      { type: 'initiativeRelation', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'initiativeRelation', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
