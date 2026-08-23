@@ -3681,10 +3681,10 @@ type Mutation {
   updateProjectTemplateIssue(input: UpdateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
   deleteProjectTemplateIssue(id: UUID!): DeletePayload!
 
-  createRecurringIssue(input: CreateRecurringIssueInput!): RecurringIssuePayload!
-  updateRecurringIssue(input: UpdateRecurringIssueInput!): RecurringIssuePayload!
+  createRecurringIssue(input: CreateRecurringIssueInput!, clientId: UUID, opId: UUID): RecurringIssuePayload! @idempotent
+  updateRecurringIssue(input: UpdateRecurringIssueInput!, clientId: UUID, opId: UUID): RecurringIssuePayload! @idempotent
   """Retires a schedule, or brings one back. Does not archive the issues it already minted."""
-  archiveRecurringIssue(id: UUID!, archived: Boolean!): DeletePayload!
+  archiveRecurringIssue(id: UUID!, archived: Boolean!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
   # ---- projects
 
