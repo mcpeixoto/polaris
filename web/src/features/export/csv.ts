@@ -26,6 +26,31 @@ export function exportCap(role: ExportRole, kind: 'issues' | 'projects'): number
   return role === 'member' ? MEMBER_ISSUE_CAP : ADMIN_ISSUE_CAP;
 }
 
+/**
+ * The sentence to show when the cap took rows out of the file, or null when it did not.
+ *
+ * Lives here, beside `exportCap`, because the cap and the admission that it applied are one
+ * fact. The workspace page told people ("Exported the first 250 issues…") and the two
+ * command-menu exports — the view and the project list, which are where most exports
+ * actually happen — silently handed back a short file: a member exporting a 300-issue view
+ * received 250 rows, no message, no toast, nothing on screen. A truncated export that says
+ * nothing is worse than a refused one, because the file looks complete and is acted on.
+ *
+ * `total` is the number of rows the caller *would* have written, not the size of the
+ * replica: counting rows that were never candidates announces a truncation that did not
+ * happen.
+ */
+export function exportCapNote(
+  total: number,
+  cap: number,
+  noun: 'issues' | 'projects',
+): string | null {
+  if (total <= cap) return null;
+  const shown = cap.toLocaleString('en-US');
+  const all = total.toLocaleString('en-US');
+  return `Exported the first ${shown} of ${all} ${noun}. Narrow the list with a filter and export again for the rest.`;
+}
+
 export function csvEscape(value: string): string {
   if (/[",\n\r]/.test(value)) return `"${value.replaceAll('"', '""')}"`;
   return value;

@@ -243,3 +243,25 @@
 .empty {
   flex: 1;
 }
+
+/* The cap notice, in the banner slot under the header — the same shape as the team issue
+   limit banner, because it is the same kind of statement: something about this list is
+   truncated and the user has to act if they want the rest. */
+.exportNote {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+}
+
+.exportNoteCopy {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

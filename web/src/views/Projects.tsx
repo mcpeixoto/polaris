@@ -22,7 +22,13 @@ import {
   priorityLabel,
   Select,
 } from '~/components';
-import { downloadCsv, exportCap, projectsToCsv, type ExportRole } from '~/features/export/csv';
+import {
+  downloadCsv,
+  exportCap,
+  exportCapNote,
+  projectsToCsv,
+  type ExportRole,
+} from '~/features/export/csv';
 import { report } from '~/features/issue/mutations';
 import {
   matchesProjectCustomerFilter,
@@ -84,6 +90,8 @@ export function Projects() {
   const [customerFilter, setCustomerFilter] = useState<ProjectCustomerFilter>('all');
   const [draggingId, setDraggingId] = useState<UUID | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  /** What the last export left out, or null. See the banner below the header. */
+  const [exportNote, setExportNote] = useState<string | null>(null);
 
   const display = useMemo(() => resolveProjectDisplay(searchParams), [searchParams]);
   const displayChanges = useMemo(() => {
@@ -198,12 +206,10 @@ export function Projects() {
           const role: ExportRole = viewer?.role ?? 'member';
           const cap = exportCap(role, 'projects');
           if (cap === 0) return;
-          const ids = groups
-            .flatMap((group) => group.rows)
-            .slice(0, cap)
-            .map((row) => row.id);
+          const ids = groups.flatMap((group) => group.rows).map((row) => row.id);
           const slug = heading.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-');
-          downloadCsv(`${slug || 'projects'}.csv`, projectsToCsv(engine.store, ids));
+          downloadCsv(`${slug || 'projects'}.csv`, projectsToCsv(engine.store, ids.slice(0, cap)));
+          setExportNote(exportCapNote(ids.length, cap, 'projects'));
         },
       },
     ],
@@ -253,6 +259,18 @@ export function Projects() {
           </Button>
         </div>
       </header>
+
+      {/* What the last export left out. On the screen rather than in a toast: it is the only
+          record that the file in the downloads folder is a fragment, and it has to outlive
+          the seconds a toast lasts. */}
+      {exportNote === null ? null : (
+        <div className={styles.exportNote} role="status">
+          <p className={styles.exportNoteCopy}>{exportNote}</p>
+          <Button size="sm" variant="ghost" onClick={() => setExportNote(null)}>
+            Dismiss
+          </Button>
+        </div>
+      )}
 
       <ProjectDisplayMenu
         display={display}

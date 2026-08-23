@@ -10,7 +10,7 @@ import { useState } from 'react';
 
 import { useEngine } from '~/app/context';
 import { Button, EmptyState } from '~/components';
-import { downloadCsv, exportCap, issuesToCsv } from '~/features/export/csv';
+import { downloadCsv, exportCap, exportCapNote, issuesToCsv } from '~/features/export/csv';
 import { useViewerRole } from '~/hooks/useViewer';
 import styles from './ExportSettings.module.css';
 
@@ -32,18 +32,17 @@ export function ExportSettings() {
       setMessage('Guests cannot export.');
       return;
     }
+    // Every candidate, then the cap — rather than stopping the walk at the cap — because the
+    // note has to compare what was written against what there was. Stopping early leaves
+    // only `store.issues.size` to compare with, which counts archived rows this loop
+    // deliberately skips, and so claims a truncation that did not happen.
     const ids: string[] = [];
     for (const issue of engine.store.issues.values()) {
       if (issue.archivedAt !== undefined) continue;
       ids.push(issue.id);
-      if (ids.length >= cap) break;
     }
-    downloadCsv('issues.csv', issuesToCsv(engine.store, ids));
-    if (engine.store.issues.size > cap) {
-      setMessage(
-        `Exported the first ${cap} issues. Narrow a view and export from there for the rest.`,
-      );
-    }
+    downloadCsv('issues.csv', issuesToCsv(engine.store, ids.slice(0, cap)));
+    setMessage(exportCapNote(ids.length, cap, 'issues'));
   };
 
   if (cap === null) {
