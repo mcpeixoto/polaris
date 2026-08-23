@@ -94,6 +94,64 @@ describe('useActions', () => {
     expect(ran).toHaveBeenCalledTimes(1);
   });
 
+  it('lets a focused control keep Enter and Space to itself', async () => {
+    const opened = vi.fn();
+    const activated = vi.fn();
+    const user = userEvent.setup();
+
+    function List() {
+      useKeyContext('list');
+      useActions(
+        [
+          {
+            id: 'probe.open',
+            title: 'Open issue',
+            keys: ['Enter'],
+            when: 'list',
+            group: 'Probe',
+            run: () => opened(),
+          },
+          {
+            id: 'probe.peek',
+            title: 'Peek',
+            keys: ['space'],
+            when: 'list',
+            group: 'Probe',
+            run: () => opened(),
+          },
+        ],
+        [],
+      );
+      return (
+        <>
+          <button onClick={() => activated()}>Filter by E2E</button>
+          {/* What the issue list is: focus on the scroller, cursor as an activedescendant. */}
+          <div role="listbox" aria-label="issues" tabIndex={0} />
+        </>
+      );
+    }
+
+    render(
+      <KeymapProvider>
+        <List />
+      </KeymapProvider>,
+    );
+
+    screen.getByRole('button', { name: 'Filter by E2E' }).focus();
+    await user.keyboard('{Enter}');
+    expect(activated).toHaveBeenCalledTimes(1);
+    expect(opened).not.toHaveBeenCalled();
+
+    await user.keyboard(' ');
+    expect(activated).toHaveBeenCalledTimes(2);
+    expect(opened).not.toHaveBeenCalled();
+
+    // The list itself is untouched: nothing focusable is under the cursor there.
+    screen.getByRole('listbox').focus();
+    await user.keyboard('{Enter}');
+    expect(opened).toHaveBeenCalledTimes(1);
+  });
+
   it('leaves an action with no `enabled` unguarded, so conflict detection still bites', () => {
     // Two unguarded actions on one key in one context must still throw at registration. If
     // the forwarder handed the registry an `enabled` the caller never wrote, every binding
