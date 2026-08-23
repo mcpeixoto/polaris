@@ -310,3 +310,93 @@ func principalOf(t *testing.T, h *harness) *authz.Principal {
 	}
 	return p
 }
+
+// TestIssueCycle_ResolveRatherThanComingBackNull is the fourth of the same shape.
+//
+// `Issue.cycle` is declared in schema.graphql next to `cycleId`, and hydrateIssues filled in
+// every other reference on the row — status, team, assignee, creator, parent, labels — but
+// not this one. So `issues { cycleId cycle { name } }` returned an id and a null beside it:
+// the query succeeded, nothing logged, and the only way to notice was to already know the
+// issue was in a cycle. Anything reading the API rather than the replica — the MCP server,
+// an integration, a script — saw every issue as belonging to no cycle.
+func TestIssueCycle_ResolveRatherThanComingBackNull(t *testing.T) {
+	h := newHarness(t)
+	current, next := h.newCycles(t)
+
+	filed := h.createIssue(t, generated.CreateIssueInput{
+		TeamID: h.f.TeamID, Title: "In the current window", CycleID: &current,
+	})
+	// A second issue in a different window, so a fix that hands every row the same cycle
+	// cannot pass, and one in no window at all, so null still means null.
+	h.createIssue(t, generated.CreateIssueInput{
+		TeamID: h.f.TeamID, Title: "In the next window", CycleID: &next,
+	})
+	h.createIssue(t, generated.CreateIssueInput{TeamID: h.f.TeamID, Title: "Unscheduled"})
+
+	body := h.execute(t, `query Read($t: UUID!) {
+		issues(teamId: $t) { title cycleId cycle { id name teamId startsAt endsAt } }
+	}`, map[string]any{"t": h.f.TeamID.String()})
+	if errs, ok := body["errors"]; ok {
+		t.Fatalf("issues query failed: %v", errs)
+	}
+
+	rows := body["data"].(map[string]any)["issues"].([]any)
+	if len(rows) != 3 {
+		t.Fatalf("the team holds %d issues, want 3", len(rows))
+	}
+	seen := map[string]any{}
+	for _, r := range rows {
+		row := r.(map[string]any)
+		seen[row["title"].(string)] = row["cycle"]
+
+		// The nested object and the id column must never disagree: one of them being the
+		// truth and the other being null is the failure this test is named for.
+		cycleID, _ := row["cycleId"].(string)
+		nested, _ := row["cycle"].(map[string]any)
+		if cycleID == "" {
+			if nested != nil {
+				t.Errorf("%q has no cycleId but resolved cycle %v", row["title"], nested["id"])
+			}
+			continue
+		}
+		if nested == nil {
+			t.Fatalf("%q has cycleId %s and Issue.cycle came back null.\n"+
+				"That is what the field did for the whole of the cycles milestone: the schema "+
+				"declares `cycle: Cycle`, the query succeeds, and every API reader sees an "+
+				"issue that belongs to no cycle.", row["title"], cycleID)
+		}
+		if nested["id"] != cycleID {
+			t.Errorf("%q points at cycle %s and resolved %v", row["title"], cycleID, nested["id"])
+		}
+		if nested["teamId"] != h.f.TeamID.String() {
+			t.Errorf("%q resolved a cycle on team %v, not %s", row["title"], nested["teamId"], h.f.TeamID)
+		}
+		if nested["name"] == nil || nested["startsAt"] == nil || nested["endsAt"] == nil {
+			t.Errorf("%q resolved a cycle with holes in it: %v", row["title"], nested)
+		}
+	}
+
+	if seen["Unscheduled"] != nil {
+		t.Errorf("an issue in no cycle resolved %v", seen["Unscheduled"])
+	}
+	inCurrent, _ := seen["In the current window"].(map[string]any)
+	inNext, _ := seen["In the next window"].(map[string]any)
+	if inCurrent == nil || inNext == nil || inCurrent["id"] == inNext["id"] {
+		t.Errorf("two issues in two different windows resolved %v and %v", inCurrent, inNext)
+	}
+
+	// The same field on the single-issue read, which is the shape a detail view uses.
+	body = h.execute(t, `query Read($id: UUID!) { issue(id: $id) { cycle { id } } }`,
+		map[string]any{"id": filed.Issue.ID.String()})
+	if errs, ok := body["errors"]; ok {
+		t.Fatalf("issue query failed: %v", errs)
+	}
+	one := body["data"].(map[string]any)["issue"].(map[string]any)["cycle"]
+	if one == nil {
+		t.Fatalf("Issue.cycle is null on the single-issue read, which is the query a detail " +
+			"panel makes")
+	}
+	if one.(map[string]any)["id"] != current.String() {
+		t.Errorf("the detail read resolved cycle %v, want %s", one, current)
+	}
+}
