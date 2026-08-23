@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Issue, StateCategory, UUID, WorkflowState } from '~/store/types';
 
-import { compileFilter, filterIssues, type FilterContext } from './evaluate';
+import { admitsStatus, compileFilter, filterIssues, type FilterContext } from './evaluate';
 import type { FilterNode } from './types';
 import { validateFilter } from './validate';
 
@@ -441,5 +441,96 @@ describe('customer fields', () => {
         customerCount: new Map(),
       }),
     ).toEqual([]);
+  });
+});
+
+/**
+ * The question a list asks before it draws an empty column.
+ *
+ * Every case here was a column somebody could see on screen: the triage inbox drew one per
+ * status its team had, and a team's ordinary list drew a Triage column that read zero
+ * while the queue behind it was full.
+ */
+describe('admitsStatus', () => {
+  const TRIAGE = id('c9');
+  const triage = state(TRIAGE, 'triage');
+  const todo = state(TODO, 'unstarted');
+  const done = state(DONE, 'completed');
+
+  it('hides triage from a filter that names no status, and keeps everything else', () => {
+    const admits = admitsStatus({ conj: 'and', nodes: [] });
+    expect(admits(triage)).toBe(false);
+    expect(admits(todo)).toBe(true);
+    expect(admits(done)).toBe(true);
+  });
+
+  it('admits only the categories a stateCategory clause names', () => {
+    const admits = admitsStatus({ field: 'stateCategory', op: 'eq', values: ['triage'] });
+    expect(admits(triage)).toBe(true);
+    expect(admits(todo)).toBe(false);
+    expect(admits(done)).toBe(false);
+  });
+
+  it('admits only the status a state clause names', () => {
+    const admits = admitsStatus({ field: 'state', op: 'in', values: [TODO, DONE] });
+    expect(admits(todo)).toBe(true);
+    expect(admits(done)).toBe(true);
+    expect(admits(triage)).toBe(false);
+  });
+
+  it('reads a negation as the complement rather than as silence', () => {
+    const admits = admitsStatus({ field: 'stateCategory', op: 'neq', values: ['completed'] });
+    expect(admits(todo)).toBe(true);
+    expect(admits(done)).toBe(false);
+    // Naming a status at all turns the default hide off, exactly as compileFilter does.
+    expect(admits(triage)).toBe(true);
+  });
+
+  it('treats every other field as satisfiable, so a column is never hidden by a stale roster', () => {
+    const admits = admitsStatus({
+      conj: 'and',
+      nodes: [
+        { field: 'assignee', op: 'eq', values: [ADA] },
+        { field: 'stateCategory', op: 'in', values: ['unstarted', 'triage'] },
+      ],
+    });
+    expect(admits(todo)).toBe(true);
+    expect(admits(triage)).toBe(true);
+    expect(admits(done)).toBe(false);
+  });
+
+  it('takes either side of an OR', () => {
+    const admits = admitsStatus({
+      conj: 'or',
+      nodes: [
+        { field: 'state', op: 'eq', values: [TODO] },
+        { field: 'stateCategory', op: 'eq', values: ['completed'] },
+      ],
+    });
+    expect(admits(todo)).toBe(true);
+    expect(admits(done)).toBe(true);
+    expect(admits(triage)).toBe(false);
+  });
+
+  it('agrees with the compiled filter about which statuses can pass it', () => {
+    const states = new Map([
+      [TODO, todo],
+      [DONE, done],
+      [TRIAGE, triage],
+    ]);
+    const filters: FilterNode[] = [
+      { conj: 'and', nodes: [] },
+      { field: 'stateCategory', op: 'eq', values: ['triage'] },
+      { field: 'state', op: 'neq', values: [DONE] },
+      { conj: 'or', nodes: [{ field: 'state', op: 'eq', values: [TRIAGE] }] },
+    ];
+    for (const filter of filters) {
+      const admits = admitsStatus(filter);
+      for (const [stateId, candidate] of states) {
+        const passes = matching(filter, [issue('e1', { stateId })], { states }).length === 1;
+        // One direction only: a status the filter lets through must have a column.
+        if (passes) expect(admits(candidate)).toBe(true);
+      }
+    }
   });
 });

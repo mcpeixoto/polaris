@@ -190,6 +190,29 @@ describe('grouping', () => {
     expect(groups.every((g) => g.userId !== GRACE)).toBe(true);
   });
 
+  /**
+   * The triage inbox is the case that named this: it is pinned to one status, and without
+   * a say in the padding it drew a column for every other status the team had — six
+   * headers that could only ever read zero. A team's ordinary list is the mirror image.
+   */
+  it('leaves out the statuses the view could never show', () => {
+    const groups = groupIssues(
+      [issue({ id: 'i1' })],
+      store,
+      'state',
+      'manual',
+      'asc',
+      TEAM,
+      (candidate) => candidate.id === TODO,
+    );
+    expect(groups.map((g) => g.label)).toEqual(['Todo']);
+  });
+
+  it('still pads every status when nothing narrows them', () => {
+    const groups = groupIssues([issue({ id: 'i1' })], store, 'state', 'manual', 'asc', TEAM);
+    expect(groups.map((g) => g.label)).toEqual(['Todo', 'Doing', 'Done']);
+  });
+
   it('puts everything in one group when grouping is off', () => {
     const groups = groupIssues(
       [issue({ id: 'i1' }), issue({ id: 'i2', stateId: DONE })],

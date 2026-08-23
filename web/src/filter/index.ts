@@ -49,7 +49,7 @@ export type {
 
 export { FilterError, isValidFilter, validateFilter } from './validate';
 
-export { compileFilter, filterIssues } from './evaluate';
+export { admitsStatus, compileFilter, filterIssues } from './evaluate';
 export type { FilterContext, IssuePredicate } from './evaluate';
 
 export {

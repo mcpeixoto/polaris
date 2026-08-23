@@ -49,6 +49,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 
 import {
+  admitsStatus,
   DEFAULT_DISPLAY,
   DISPLAY_PARAMS,
   FILTER_PARAM,
@@ -502,6 +503,9 @@ function computeView(
       display.orderBy,
       display.direction,
       teamId,
+      // The same filter the rows went through, so an empty status column is only drawn
+      // where a row could actually arrive in it.
+      admitsStatus(combined),
     ).map(toViewGroup),
   };
 }

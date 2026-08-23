@@ -105,6 +105,76 @@ export function compileFilter(filter: FilterNode, context: FilterContext): Issue
 }
 
 /**
+ * Compiles the question a list asks before it draws an empty status column: could a row in
+ * this status ever arrive here.
+ *
+ * Not "does any issue in this view have that status" — the buckets already say that. This
+ * is the prior question, and only the status gates answer it. Every clause on another
+ * field is treated as satisfiable, because "nothing is assigned to Ada today" is not a
+ * reason to stop offering the column she would put something in.
+ *
+ * The rules are the two `compileFilter` applies to statuses, read in the same order: the
+ * default hide, which keeps triage out of any view that does not name a status, and then
+ * whatever the filter itself says about `state` and `stateCategory`. An OR is satisfiable
+ * if either side is, and relaxing the other fields is what makes that the right reading
+ * rather than an optimistic one.
+ *
+ * Operators this cannot decide from a status alone answer "possible". Wrong in that
+ * direction leaves a column somebody has to ignore; wrong in the other hides the column
+ * their work is sitting in.
+ *
+ * Compiled like everything else here: `collectFields` walks the tree once, not once per
+ * status, because a board asks this for every status its team has on every keystroke.
+ */
+export function admitsStatus(filter: FilterNode): (state: WorkflowState) => boolean {
+  const mentioned = new Set<FilterField>();
+  collectFields(filter, mentioned);
+  const named = mentioned.has('state') || mentioned.has('stateCategory');
+  return (state) => {
+    if (!named && state.category === 'triage') return false;
+    return satisfiableFor(filter, state);
+  };
+}
+
+function satisfiableFor(node: FilterNode, state: WorkflowState): boolean {
+  if (!isFilterClause(node)) {
+    const nodes = node.nodes ?? [];
+    // An AND over nothing is vacuously true and an OR over nothing vacuously false — the
+    // same arithmetic `compileNode` does.
+    if (node.conj === 'or') return nodes.some((child) => satisfiableFor(child, state));
+    return nodes.every((child) => satisfiableFor(child, state));
+  }
+  if (node.field === 'state') return matchesStatusValue(node, state.id);
+  if (node.field === 'stateCategory') return matchesStatusValue(node, state.category);
+  return true;
+}
+
+/**
+ * The equality operators, over the one value a status clause can be compared against.
+ *
+ * Compared exactly, because `state` and `stateCategory` compile through `asText`: an id
+ * and a category are tokens rather than prose, and folding them here would answer a
+ * question the evaluator never asks.
+ */
+function matchesStatusValue(clause: FilterClause, value: string): boolean {
+  const listed = (clause.values ?? []).includes(value);
+  switch (clause.op) {
+    case 'eq':
+    case 'in':
+      return listed;
+    case 'neq':
+    case 'notIn':
+      return !listed;
+    case 'isNull':
+      return false;
+    case 'isNotNull':
+      return true;
+    default:
+      return true;
+  }
+}
+
+/**
  * The ids matching a filter, in the order the source yields them.
  *
  * Ordering is a display option and is applied separately — mixing the two here would make
