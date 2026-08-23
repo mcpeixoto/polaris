@@ -611,9 +611,9 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     }
   };
 
-  // Read through a ref by the registered action below. An action's `run` closure is captured
-  // once at registration, so an action calling `save` directly would go on submitting the
-  // form as it stood when the dialog opened.
+  // Read through refs by the registered actions below. `useActions` forwards through the
+  // latest render, so this is no longer what makes the chords correct; it stays because the
+  // two submit paths differ only by an argument and read better side by side.
   const submitRef = useRef<() => void>(() => {});
   submitRef.current = () => void save();
   const submitAnotherRef = useRef<() => void>(() => {});

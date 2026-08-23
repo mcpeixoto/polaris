@@ -101,10 +101,9 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
     }
   };
 
-  // Read through a ref by the registered action below. An action's `run` closure is captured
-  // once, at registration, so an action calling `save` directly would submit the form as it
-  // stood when the dialogue opened — an empty name, and a chord that answers "a project needs
-  // a name" while the name is sitting in the field.
+  // Read through a ref by the registered action below. `useActions` forwards through the
+  // latest render, so calling `save` directly would work too — this stays as the shape
+  // project-create.spec.ts describes, and costs nothing.
   const submitRef = useRef<() => void>(() => {});
   submitRef.current = () => void save();
 

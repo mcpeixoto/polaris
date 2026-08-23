@@ -121,6 +121,21 @@ export function useKeymap(): KeymapValue {
  * Screen-local actions live with their screen so that "Change status" is only bound while
  * something is selected — and so the command menu offers exactly what is available now,
  * rather than a list of things that will fail if chosen.
+ *
+ * What the registry is handed is a *forwarder*, not the caller's object. The registry
+ * stores what it is given and dispatches through it forever, so an action written the
+ * obvious way —
+ *
+ *     run: () => void save()          // `save` closes over this render's state
+ *
+ * — would run the first render's `save` for the life of the screen: the chord fires, the
+ * mutation is correct, and the values it sends are the ones on screen when the surface
+ * mounted. That is silent by construction, which is why it was written five separate times
+ * before anybody noticed. Forwarding through the ref removes the hazard here, once,
+ * instead of asking every call site to remember a ref of its own.
+ *
+ * `deps` still re-registers, for the case refs cannot cover: a call site whose *set* of
+ * actions changes, where the registry has to learn ids and keys it has never parsed.
  */
 export function useActions(actions: readonly Action[], deps: readonly unknown[] = []): void {
   const { registry } = useKeymap();
@@ -128,10 +143,38 @@ export function useActions(actions: readonly Action[], deps: readonly unknown[] 
   actionsRef.current = actions;
 
   useEffect(
-    () => registry.registerAll(actionsRef.current),
+    () => registry.registerAll(actionsRef.current.map((action) => forwarder(actionsRef, action))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [registry, ...deps],
   );
+}
+
+/**
+ * A stable stand-in for one action, whose behaviour is looked up fresh at dispatch.
+ *
+ * Only the callbacks are forwarded. `keys`, `when` and `id` are parsed into bindings once
+ * at registration and cannot change without re-registering, and the display fields go with
+ * them so the command menu and the help overlay keep reading one consistent object.
+ *
+ * `enabled` and `keyup` are forwarded only when the registered action declared them,
+ * because the registry reads `=== undefined` on both as a fact about the action:
+ * `assertNoConflict` lets two *guarded* bindings share a key, so a forwarder that always
+ * carried an `enabled` would make every binding in the product look guarded and quietly
+ * retire the duplicate-key check.
+ */
+function forwarder(ref: { current: readonly Action[] }, action: Action): Action {
+  // By id rather than by index: a call site whose list is built conditionally can change
+  // length between renders, and the id is the identity the registry itself uses. An id the
+  // current render no longer offers falls back to the registered object — that action is
+  // no longer rendered, and unregistering it needs a `deps` change, not a ref.
+  const latest = (): Action => ref.current.find((c) => c.id === action.id) ?? action;
+  const { enabled, keyup } = action;
+  return {
+    ...action,
+    run: (ctx) => latest().run(ctx),
+    ...(enabled === undefined ? null : { enabled: (ctx) => (latest().enabled ?? enabled)(ctx) }),
+    ...(keyup === undefined ? null : { keyup: (ctx) => (latest().keyup ?? keyup)(ctx) }),
+  };
 }
 
 /**
