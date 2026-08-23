@@ -7,6 +7,10 @@
  *
  * The target line is even distribution of current total scope across weekdays, flattened
  * over weekends, matching Linear.
+ *
+ * Reading it is the view's job, and so is deciding whether there is anything to read: this
+ * returns the window and the issue count beside the series precisely so the view can say
+ * "not yet" without having to ask the store a second question.
  */
 
 import { effortOf } from '~/features/estimate';
@@ -31,6 +35,10 @@ export interface CycleGraphAssigneeRow {
 
 export interface CycleGraphData {
   readonly points: readonly CycleGraphPoint[];
+  /** The window's start, so the view can tell a planned cycle from a running one. */
+  readonly startsAt: string;
+  /** Issues in the cycle, which is not `totalScope`: a zero-point issue still counts. */
+  readonly issueCount: number;
   readonly successPercent: number;
   readonly unitLabel: 'issues' | 'points';
   readonly totalScope: number;
@@ -106,6 +114,8 @@ export function buildCycleGraph(store: Store, cycleId: UUID): CycleGraphData | n
 
   return {
     points,
+    startsAt: cycle.startsAt,
+    issueCount: issues.length,
     successPercent: cycleSuccess(issues, store, pointValue),
     unitLabel: team.estimateScale === 'none' ? 'issues' : 'points',
     totalScope,
