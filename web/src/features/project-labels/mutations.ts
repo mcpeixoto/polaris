@@ -59,6 +59,10 @@ export async function createProjectLabel(
       type: 'projectLabel',
       provisionalId: provisional.id,
       path: ['createProjectLabel', 'projectLabel'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // A project label's group and name; workspace-scoped, so there is no team.
+      match: ['parentId', 'name'],
     },
   });
 

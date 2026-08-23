@@ -1,6 +1,6 @@
 import type { EntityRef, PolarisDB } from './db';
 import { drainJournal, journalForget, journalWrite } from './journal';
-import type { Entity, EntityType, Timestamp, UUID } from './types';
+import type { Entity, EntityOf, EntityType, Timestamp, UUID } from './types';
 
 /**
  * The outbox: every mutation the user has made and the server has not yet confirmed.
@@ -51,8 +51,21 @@ export type OptimisticPatch = readonly EntityPatch[];
  *
  * Plain data for the same reason: an IndexedDB value cannot hold a function.
  */
-export interface Reconciliation {
-  readonly type: EntityType;
+export type Reconciliation = { [T in EntityType]: ReconciliationOf<T> }[EntityType];
+
+/**
+ * One pairing, for one entity type.
+ *
+ * A per-type shape rather than one loose interface so that `match` can be checked against
+ * the entity it will be compared on. A field name that is not on the row is not a typo the
+ * type system would otherwise catch and the runtime would: `adopt` compares `a ?? null`
+ * against `b ?? null`, so a misspelt field reads `null === null` on every row it is offered
+ * and the match silently becomes "anything of this type" — which retires the wrong stand-in
+ * rather than none. `keyof EntityOf<T>` makes the misspelling a compile error, and the
+ * `type` field is what narrows this union to the member that knows which keys those are.
+ */
+export interface ReconciliationOf<T extends EntityType> {
+  readonly type: T;
   /** The id the client invented while it waited. */
   readonly provisionalId: UUID;
   /**
@@ -82,7 +95,7 @@ export interface Reconciliation {
    * Absent means "do not pair from the delta stream" — the stand-in then waits for the
    * response, which is the old behaviour and is correct, only slower to converge.
    */
-  readonly match?: readonly string[];
+  readonly match?: readonly (keyof EntityOf<T> & string)[];
   /**
    * Stand-ins written beside this one that point AT it and cannot outlive it.
    *

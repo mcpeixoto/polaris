@@ -42,6 +42,10 @@ export async function createAskForm(engine: SyncEngine, input: NewAskForm): Prom
         type: 'askForm',
         provisionalId: id,
         path: ['createAskForm', 'askForm'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // A form's name is unique within its team on the server.
+        match: ['teamId', 'name'],
       },
     });
     return data.createAskForm.askForm.id;

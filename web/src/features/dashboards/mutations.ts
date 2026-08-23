@@ -58,6 +58,10 @@ export async function createDashboard(engine: SyncEngine, input: NewDashboard): 
         type: 'dashboard',
         provisionalId: id,
         path: ['createDashboard', 'dashboard'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // Scope and name.
+        match: ['teamId', 'name'],
       },
     });
     return data.createDashboard.dashboard.id;
@@ -152,6 +156,10 @@ export async function createDashboardTile(
         type: 'dashboardTile',
         provisionalId: id,
         path: ['createDashboardTile', 'dashboardTile'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // The dashboard and the tile's title.
+        match: ['dashboardId', 'title'],
       },
     });
     return data.createDashboardTile.dashboardTile.id;

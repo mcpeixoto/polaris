@@ -116,6 +116,10 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
         // find them, because the field that would identify them is the id that changed.
         // The server's own rows arrive on the delta stream keyed to the real project.
         dependents: teamRows.map((patch) => ({ type: patch.type, id: patch.id })),
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // The name, which is what the person typed and what the list shows.
+        match: ['name'],
       },
     });
     return data.createProject.project.id;
@@ -301,6 +305,10 @@ export async function createProjectStatus(
       type: 'projectStatus',
       provisionalId: provisional.id,
       path: ['createProjectStatus', 'status'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // Statuses are workspace-wide and named uniquely by hand.
+      match: ['name'],
     },
   });
 }

@@ -54,6 +54,10 @@ export async function createCustomer(engine: SyncEngine, input: NewCustomer): Pr
         type: 'customer',
         provisionalId: id,
         path: ['createCustomer', 'customer'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // A workspace holds one customer per name.
+        match: ['name'],
       },
     });
     return data.createCustomer.customer.id;
@@ -221,6 +225,10 @@ export async function createCustomerRequest(
         type: 'customerRequest',
         provisionalId: id,
         path: ['createCustomerRequest', 'customerRequest'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // The customer and the words typed, which nobody sends twice in one second by accident.
+        match: ['customerId', 'body'],
       },
     });
     return data.createCustomerRequest.customerRequest.id;

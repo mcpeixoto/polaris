@@ -117,6 +117,10 @@ export async function createProjectTemplate(
       type: 'projectTemplate',
       provisionalId: provisional.id,
       path: ['createProjectTemplate', 'template'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // Scope and name.
+      match: ['teamId', 'name'],
     },
   });
 
@@ -245,6 +249,10 @@ export async function createProjectTemplateMilestone(
       type: 'projectTemplateMilestone',
       provisionalId: provisional.id,
       path: ['createProjectTemplateMilestone', 'milestone'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // The template and the milestone's name.
+      match: ['projectTemplateId', 'name'],
     },
   });
 
@@ -304,6 +312,10 @@ export async function createProjectTemplateIssue(
         type: 'projectTemplateIssue',
         provisionalId: provisional.id,
         path: ['createProjectTemplateIssue', 'issue'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // The template and the issue's title.
+        match: ['projectTemplateId', 'title'],
       },
     },
   );

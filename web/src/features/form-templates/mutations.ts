@@ -93,6 +93,10 @@ export async function createFormTemplate(
       type: 'formTemplate',
       provisionalId: provisional.id,
       path: ['createFormTemplate', 'template'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // Scope and name.
+      match: ['teamId', 'name'],
     },
   });
 
@@ -201,6 +205,10 @@ export async function createFormTemplateField(
       type: 'formTemplateField',
       provisionalId: provisional.id,
       path: ['createFormTemplateField', 'field'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // The form and the field's label.
+      match: ['formTemplateId', 'label'],
     },
   });
 

@@ -260,6 +260,10 @@ export async function createStatus(engine: SyncEngine, input: NewStatus): Promis
       type: 'workflowState',
       provisionalId: provisional.id,
       path: ['createWorkflowState', 'state'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // A team's statuses are named uniquely by hand.
+      match: ['teamId', 'name'],
     },
   });
 }

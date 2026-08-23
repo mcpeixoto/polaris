@@ -225,6 +225,10 @@ export async function createRecurringIssue(
       type: 'recurringIssue',
       provisionalId: id,
       path: ['createRecurringIssue', 'recurringIssue'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // Team and title.
+      match: ['teamId', 'title'],
     },
   });
 

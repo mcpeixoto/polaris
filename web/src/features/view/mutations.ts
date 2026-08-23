@@ -140,6 +140,10 @@ export async function createView(engine: SyncEngine, input: NewView): Promise<UU
         type: 'view',
         provisionalId: provisional.id,
         path: ['createView', 'view'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // Scope and name.
+        match: ['teamId', 'projectId', 'name'],
       },
     });
     return data.createView.view.id;

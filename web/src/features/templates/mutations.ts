@@ -126,6 +126,10 @@ export async function createTemplate(engine: SyncEngine, input: NewTemplate): Pr
       type: 'issueTemplate',
       provisionalId: provisional.id,
       path: ['createIssueTemplate', 'template'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // Scope and name.
+      match: ['teamId', 'name'],
     },
   });
 

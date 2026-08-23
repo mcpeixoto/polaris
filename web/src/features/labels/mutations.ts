@@ -107,6 +107,13 @@ export async function createLabel(engine: SyncEngine, input: NewLabel): Promise<
       type: 'label',
       provisionalId: provisional.id,
       path: ['createLabel', 'label'],
+      // And from the delta stream, which usually gets here first: the socket pushes the row
+      // the moment the mutation commits, while the response is still travelling. Scope and
+      // name are what the server holds unique — one workspace cannot hold two labels called
+      // `regression` — so a match here is not a near-miss. Without it the settings list
+      // shows the label twice for the length of the round trip, and for good if the answer
+      // never comes back.
+      match: ['teamId', 'name'],
     },
   });
 

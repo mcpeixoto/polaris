@@ -47,6 +47,10 @@ export async function createPulseFeed(engine: SyncEngine, input: NewPulseFeed): 
         type: 'pulseFeed',
         provisionalId: id,
         path: ['createPulseFeed', 'pulseFeed'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // Whose feed and what they called it.
+        match: ['userId', 'name'],
       },
     });
     return data.createPulseFeed.pulseFeed.id;

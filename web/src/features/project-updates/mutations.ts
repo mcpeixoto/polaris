@@ -54,6 +54,10 @@ export async function createProjectUpdate(
         type: 'projectUpdate',
         provisionalId: id,
         path: ['createProjectUpdate', 'projectUpdate'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // The project and the words posted.
+        match: ['projectId', 'body'],
       },
     });
     return data.createProjectUpdate.projectUpdate.id;

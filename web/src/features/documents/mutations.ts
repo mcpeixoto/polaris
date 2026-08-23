@@ -52,6 +52,10 @@ export async function createDocument(engine: SyncEngine, input: NewDocument): Pr
         type: 'document',
         provisionalId: id,
         path: ['createDocument', 'document'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // Where it was filed and what it is called.
+        match: ['teamId', 'projectId', 'title'],
       },
     });
     return data.createDocument.document.id;
