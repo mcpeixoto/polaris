@@ -64,8 +64,12 @@ export function buildProjectGraph(store: Store, projectId: UUID): ProjectGraphDa
   const pointValue = (issue: Issue) => issuePoints(issue, store.teams.get(issue.teamId));
   const rangeStart = graphStart(project, issues);
   const rangeEnd = graphEnd(project);
+  // A project younger than two buckets is not "no graph yet", it is "no history yet", and
+  // the two say different things to the person reading them. `null` is reserved for the
+  // three answers that ask for an action — put the project in progress, file an issue,
+  // pick a project that still exists — so a week-old project keeps its data here and the
+  // view says the one true thing it can: come back when there is a second week to plot.
   const weekStarts = weeksInRange(rangeStart, rangeEnd);
-  if (weekStarts.length < 2) return null;
 
   const weeks: ProjectGraphWeek[] = [];
   let previousCompleted = 0;
