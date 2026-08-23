@@ -87,10 +87,11 @@ type Loaders struct {
 	labels      batch[labelIndex]
 	memberships batch[membershipIndex]
 
-	// mu guards the states map only. The fetches themselves run outside it, so a slow
-	// query for one team does not hold up another.
+	// mu guards the states and cycles maps only. The fetches themselves run outside it, so
+	// a slow query for one team does not hold up another.
 	mu     sync.Mutex
 	states map[uuid.UUID]*batch[stateIndex]
+	cycles map[uuid.UUID]*batch[*model.Cycle]
 }
 
 type loadersKey struct{}
@@ -224,6 +225,41 @@ func (l *Loaders) statesFor(ctx context.Context, p *authz.Principal, teamID uuid
 			idx.byID[s.ID] = s
 		}
 		return idx, nil
+	})
+}
+
+// cycleByID reads one cycle, once per cycle per request.
+//
+// Keyed by cycle rather than by team because a list clusters onto very few windows — a
+// team view is one current cycle plus whatever the rollover has not caught up with — so
+// deduplicating on the id is what turns "one lookup per issue" into "one per window". A
+// cycle the reader cannot see comes back nil rather than as an error, the same way a
+// deleted assignee does: the reference stays on the row, the nested object is absent.
+func (l *Loaders) cycleByID(
+	ctx context.Context, p *authz.Principal, id uuid.UUID,
+) (*model.Cycle, error) {
+	l.mu.Lock()
+	if l.cycles == nil {
+		l.cycles = make(map[uuid.UUID]*batch[*model.Cycle])
+	}
+	b, ok := l.cycles[id]
+	if !ok {
+		b = &batch[*model.Cycle]{}
+		l.cycles[id] = b
+	}
+	l.mu.Unlock()
+
+	return b.load(func() (*model.Cycle, error) {
+		c, err := l.svc.GetCycle(ctx, p, id)
+		if err != nil {
+			// GetCycle answers "you may not see it" with the same not-found the missing
+			// row gets, on purpose, so this branch covers both.
+			if platform.CodeOf(err) == platform.CodeNotFound {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return &c, nil
 	})
 }
 
@@ -642,6 +678,27 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 			if out[k].Subscribers, err = toIssueSubscriptions(subscribers[i.ID]); err != nil {
 				return nil, err
 			}
+		}
+	}
+
+	// The cycle an issue is filed into. Read by id rather than from the team's list,
+	// because a team's list stops at the live windows and an issue keeps pointing at a
+	// cycle after it is archived — resolving that to null would say the issue is in no
+	// cycle, which is a different fact from the one the column holds.
+	if sel.has("cycle") {
+		for k, i := range issues {
+			if i.CycleID == nil {
+				continue
+			}
+			c, err := l.cycleByID(ctx, p, *i.CycleID)
+			if err != nil {
+				return nil, err
+			}
+			if c == nil {
+				continue
+			}
+			g := toCycle(*c)
+			out[k].Cycle = &g
 		}
 	}
 
