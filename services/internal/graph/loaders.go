@@ -1083,5 +1083,24 @@ func (r *Resolver) hydrateWorkspace(ctx context.Context, p *authz.Principal, sel
 		}
 	}
 
+	// `Workspace.entitlements` is non-null in the schema and nothing filled it, so gqlgen
+	// failed the whole `workspace` field the moment a client selected it — which the client
+	// does on every load, in the one query the administration screens have. The response was
+	// `data: null` with "the requested element is null which the schema does not allow", and
+	// the client's documented fallback for an unanswerable matrix is to leave gated controls
+	// live and let the server refuse them. So SLAs, private teams, sub-teams, SSO and the
+	// audit log rendered as available on every plan, on every deployment, and a Free
+	// workspace only learned otherwise from the error a write came back with.
+	//
+	// `toEntitlements` sat here fully written with no caller — the resolver was never wired.
+	if sel.has("entitlements") {
+		set, err := r.Svc.EntitlementSet(ctx, p)
+		if err != nil {
+			return generated.Workspace{}, err
+		}
+		entitlements := toEntitlements(set.Features(), string(set.Plan()), set.SeatsUsed(), set.Lapsed())
+		out.Entitlements = &entitlements
+	}
+
 	return out, nil
 }
