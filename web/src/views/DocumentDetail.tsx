@@ -12,6 +12,7 @@ import { useEngine } from '~/app/context';
 import { Button, EmptyState, Input, Textarea } from '~/components';
 import { archiveDocument, deleteDocument, updateDocument } from '~/features/documents/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { ApiError } from '~/sync/api';
 import styles from './DocumentDetail.module.css';
 
 export function DocumentDetail() {
@@ -35,6 +36,7 @@ export function DocumentDetail() {
   const [titleDirty, setTitleDirty] = useState(false);
   const [bodyDirty, setBodyDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const dirty = titleDirty || bodyDirty;
 
   // The fields as they stand *now*, readable from a callback that has been waiting on the
@@ -95,6 +97,7 @@ export function DocumentDetail() {
       return;
     }
     setSaving(true);
+    setFailure(null);
     try {
       await updateDocument(engine, {
         id: document.id,
@@ -109,17 +112,30 @@ export function DocumentDetail() {
       // keeps it on the screen and keeps Save live to send it.
       if (showing.current.title === sentTitle) setTitleDirty(false);
       if (showing.current.body === sentBody) setBodyDirty(false);
+    } catch (error) {
+      // A refusal has to be said out loud. The server rejects a title over its limit, and
+      // an uncaught rejection here left the page looking as though nothing had happened —
+      // the text still on the screen, Save still lit, and the only account of why it did
+      // not stick in the browser console. The edit stays put and stays dirty, so saying so
+      // is all that is missing.
+      setFailure(messageFor(error, 'That could not be saved just now.'));
     } finally {
       setSaving(false);
     }
   };
 
   const onArchive = () => {
-    void archiveDocument(engine, document.id, true).then(() => navigate(backTo));
+    setFailure(null);
+    void archiveDocument(engine, document.id, true)
+      .then(() => navigate(backTo))
+      .catch((error: unknown) => setFailure(messageFor(error, 'That could not be archived.')));
   };
 
   const onDelete = () => {
-    void deleteDocument(engine, document.id).then(() => navigate(backTo));
+    setFailure(null);
+    void deleteDocument(engine, document.id)
+      .then(() => navigate(backTo))
+      .catch((error: unknown) => setFailure(messageFor(error, 'That could not be deleted.')));
   };
 
   return (
@@ -140,6 +156,12 @@ export function DocumentDetail() {
           </Button>
         </div>
       </header>
+
+      {failure === null ? null : (
+        <p className={styles.error} role="alert">
+          {failure}
+        </p>
+      )}
 
       <h1 className={styles.title}>
         <Input
@@ -171,6 +193,12 @@ export function DocumentDetail() {
       />
     </article>
   );
+}
+
+/** The server's own words where there are any, and a plain sentence where there are not. */
+function messageFor(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.message !== '') return error.message;
+  return fallback;
 }
 
 function teamKeyOf(store: import('~/store').Store, teamId: string): string {
