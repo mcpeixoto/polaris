@@ -57,6 +57,17 @@ export function TeamHome() {
 
   const { team, members, openCount, projectCount } = view;
   const create = () => registry.invoke('issue.create', { source: 'menu', context });
+  /*
+   * A retired team is frozen, and this page has to say so before it offers anything.
+   *
+   * The sidebar hides retired teams, but this URL is a bookmark and a link out of team
+   * settings, so it is reachable — and it rendered a retired team as an ordinary one, down
+   * to a primary "New issue" button. That button was worse than a refusal: the composer
+   * drops retired teams from its picker and falls back to the first team in the workspace,
+   * so pressing it here filed the issue into a different team than the page you pressed it
+   * on, with nothing but a small select to say so.
+   */
+  const retired = team.retiredAt !== undefined;
 
   return (
     <div className={styles.screen}>
@@ -65,12 +76,21 @@ export function TeamHome() {
           <span className={styles.key}>{team.key}</span>
           {team.name}
         </h1>
-        <Button variant="primary" onClick={create}>
-          New issue
-        </Button>
+        {retired ? null : (
+          <Button variant="primary" onClick={create}>
+            New issue
+          </Button>
+        )}
       </header>
 
       <div className={styles.body}>
+        {retired ? (
+          <p className={styles.retired} role="status">
+            This team is retired. Its issues and settings are read-only until somebody restores it
+            from <Link to={`/team/${team.key}/settings`}>team settings</Link>.
+          </p>
+        ) : null}
+
         <p className={styles.lede}>
           {openCount === 0
             ? 'No open issues. File one, or check the backlog.'
