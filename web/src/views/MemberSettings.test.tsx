@@ -520,6 +520,34 @@ describe('MemberSettings · somebody who is not an admin', () => {
   });
 });
 
+/**
+ * Who is at the keyboard arrives from the session, one round trip after the table it has to
+ * be compared against — and `member.id === null` is false for every row, so for that frame
+ * an admin's own row offered Suspend and Remove on themselves, next to rows where the same
+ * buttons mean something entirely different. The server refuses it, which is not where
+ * somebody should find that out.
+ */
+describe('MemberSettings · before the session says who you are', () => {
+  it('offers no row the destructive controls while the viewer is unknown', async () => {
+    viewer.current = null;
+    renderScreen([person(ADA, 'Ada Lovelace', { role: 'owner' }), person(GRACE, 'Grace Hopper')]);
+
+    expect(await screen.findByText('Ada Lovelace')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Suspend' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
+  });
+
+  it('offers them on everybody else the moment it knows', async () => {
+    viewer.current = { id: ADA, role: 'owner' };
+    renderScreen([person(ADA, 'Ada Lovelace', { role: 'owner' }), person(GRACE, 'Grace Hopper')]);
+
+    await screen.findByText('Grace Hopper');
+    // One each: Grace's. Ada is looking at her own row and is not offered them there.
+    expect(screen.getAllByRole('button', { name: 'Suspend' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1);
+  });
+});
+
 describe('MemberSettings · creating an invitation', () => {
   async function openDialog(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole('button', { name: 'Invite people' }));

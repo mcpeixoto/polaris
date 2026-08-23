@@ -1120,6 +1120,12 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         title: 'Export this view as CSV',
         when: 'list',
         group: 'Issues',
+        // Guests cannot export — `docs/01-features/17-admin-security-permissions.md`. The
+        // cap below already refuses them, silently, which is the wrong way round: a
+        // command offered and then doing nothing reads as a broken product rather than a
+        // permission. Lazily evaluated, like `saveView` below, so an unknown role during
+        // the bootstrap withdraws nothing permanently.
+        enabled: () => viewer !== null && viewer.role !== 'guest',
         run: () => commands.current.exportCsv(),
       },
       {

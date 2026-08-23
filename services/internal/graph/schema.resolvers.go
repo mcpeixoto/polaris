@@ -4510,12 +4510,12 @@ func (r *queryResolver) Users(ctx context.Context) ([]generated.User, error) {
 		return nil, PresentError(ctx, err)
 	}
 
-	users, err := r.loaders(ctx).allUsers(ctx, p)
+	users, err := r.loaders(ctx).workspaceDirectory(ctx, p)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
 
-	out, err := toUsers(users.all)
+	out, err := toUsers(users)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}

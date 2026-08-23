@@ -14,14 +14,14 @@
 
 import { useEffect, useState } from 'react';
 
-import { fromWireValue } from '~/gql/enums';
+import { fromWire, fromWireValue } from '~/gql/enums';
 import { VIEWER_QUERY } from '~/gql/operations';
 import type { User, UserRole, UUID } from '~/store';
 import { currentWorkspace, gql } from '~/sync/api';
 import { useLiveQuery } from './useLiveQuery';
 
 interface ViewerResponse {
-  readonly viewer: { readonly user: { readonly id: UUID; readonly role: string } };
+  readonly viewer: { readonly user: User };
 }
 
 /**
@@ -48,6 +48,19 @@ const pending = new Map<string, Promise<UUID | null>>();
 const roles = new Map<string, UserRole>();
 
 /**
+ * The viewer's own profile, from the same answer, for when the replica has no row for it.
+ *
+ * `useViewer` reads `store.users`, and a guest's replica has none — so a guest could not
+ * open their own Profile screen, which rendered `null` and left them on a blank page for
+ * the whole session. Their own row is the one row the withholding was never about: the
+ * directory is what a guest is not handed, and this is not the directory.
+ *
+ * The replica still wins where it has an answer, so a rename made in another session shows
+ * up here without asking anybody. This is only the fallback.
+ */
+const profiles = new Map<string, User>();
+
+/**
  * The answers that have already arrived, so a later mount is synchronous.
  *
  * Without this, every screen that needs the viewer starts life not knowing who it is —
@@ -64,9 +77,11 @@ function viewerIdFor(workspaceId: string): Promise<UUID | null> {
 
   const request = gql<ViewerResponse>(VIEWER_QUERY)
     .then((data) => {
-      resolved.set(workspaceId, data.viewer.user.id);
-      roles.set(workspaceId, fromWireValue(data.viewer.user.role) as UserRole);
-      return data.viewer.user.id;
+      const user = fromWire('user', data.viewer.user);
+      resolved.set(workspaceId, user.id);
+      roles.set(workspaceId, fromWireValue(user.role) as UserRole);
+      profiles.set(workspaceId, user);
+      return user.id;
     })
     .catch(() => {
       // A failure is not cached. The usual cause is the network, and a client that gave up
@@ -141,13 +156,21 @@ export function useViewerRole(): UserRole | null {
 
 /**
  * The signed-in user's profile, read from the replica so a rename made in another session
- * shows up here without asking anybody.
+ * shows up here without asking anybody, and from the session query when the replica has no
+ * row — which for a guest is always, and for everybody else is the width of a bootstrap.
+ *
+ * Still not the thing to gate a role check on: this answers a moment later than
+ * `useViewerRole`, and a gate that reads "loaded and not a guest" reads the gap as
+ * "unknown". Use `useViewerRole` for those.
  */
 export function useViewer(): User | null {
+  const workspaceId = currentWorkspace();
   const id = useViewerId();
-  return useLiveQuery(
+  const fromReplica = useLiveQuery(
     (store) => (id === null ? null : (store.users.get(id) ?? null)),
     ['user'],
     [id],
   );
+  if (fromReplica !== null) return fromReplica;
+  return workspaceId === null ? null : (profiles.get(workspaceId) ?? null);
 }

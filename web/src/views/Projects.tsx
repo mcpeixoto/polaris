@@ -191,6 +191,9 @@ export function Projects() {
         id: 'projects.exportCsv',
         title: 'Export projects as CSV',
         group: 'Projects',
+        // Guests cannot export. The cap refuses them anyway; this is so the command is not
+        // offered and then found to do nothing.
+        enabled: () => viewer !== null && viewer.role !== 'guest',
         run: () => {
           const role: ExportRole = viewer?.role ?? 'member';
           const cap = exportCap(role, 'projects');

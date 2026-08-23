@@ -83,6 +83,7 @@ type Loaders struct {
 	svc *domain.Service
 
 	users       batch[userIndex]
+	directory   batch[[]model.User]
 	teams       batch[teamIndex]
 	labels      batch[labelIndex]
 	memberships batch[membershipIndex]
@@ -146,6 +147,17 @@ func (l *Loaders) allUsers(ctx context.Context, p *authz.Principal) (userIndex, 
 			idx.byID[u.ID] = u
 		}
 		return idx, nil
+	})
+}
+
+// workspaceDirectory reads "who is in this workspace", once — the answer behind
+// `Query.users` and `Workspace.users`.
+//
+// Deliberately not allUsers, which is the wider hydration set every assignee and creator
+// resolves through. See domain.ListDirectory for why the two are not the same list.
+func (l *Loaders) workspaceDirectory(ctx context.Context, p *authz.Principal) ([]model.User, error) {
+	return l.directory.load(func() ([]model.User, error) {
+		return l.svc.ListDirectory(ctx, p)
 	})
 }
 
@@ -1074,11 +1086,11 @@ func (r *Resolver) hydrateWorkspace(ctx context.Context, p *authz.Principal, sel
 	}
 
 	if sel.has("users") {
-		users, err := l.allUsers(ctx, p)
+		users, err := l.workspaceDirectory(ctx, p)
 		if err != nil {
 			return generated.Workspace{}, err
 		}
-		if out.Users, err = toUsers(users.all); err != nil {
+		if out.Users, err = toUsers(users); err != nil {
 			return generated.Workspace{}, err
 		}
 	}

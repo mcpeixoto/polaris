@@ -38,6 +38,37 @@ func (s *Service) ListUsers(ctx context.Context, p *authz.Principal) ([]model.Us
 	return out, nil
 }
 
+// ListDirectory answers "who is in this workspace" — `Query.users` and `Workspace.users`.
+//
+// Separate from ListUsers, which is also the hydration source behind every assignee,
+// creator and project member on the graph. Those have to keep resolving for a guest: the
+// rows carrying them are rows the guest is already allowed to read, and blanking the name
+// off an issue in their own team would break the screen without withholding anything.
+//
+// The directory itself is another matter. It is workspace-scoped, and a guest does not
+// receive it: `sync.go` withholds `user` from a guest's bootstrap for exactly this reason,
+// so a guest's replica holds no directory at all. The API said otherwise — a guest could
+// ask `{ users { id name username role } }` and receive every person in the workspace,
+// which on a real install is the staff list. Two answers to one question is how the
+// deliberate one stops being the one that matters.
+//
+// So a guest is handed their own row and nothing else, which is what their replica holds.
+func (s *Service) ListDirectory(ctx context.Context, p *authz.Principal) ([]model.User, error) {
+	users, err := s.ListUsers(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	if authz.Visible(p, authz.WorkspaceScope()) {
+		return users, nil
+	}
+	for _, u := range users {
+		if u.ID == p.UserID {
+			return []model.User{u}, nil
+		}
+	}
+	return []model.User{}, nil
+}
+
 func (s *Service) GetUser(ctx context.Context, p *authz.Principal, id uuid.UUID) (model.User, error) {
 	row, err := s.db.Queries().GetUser(ctx, id)
 	if err != nil {

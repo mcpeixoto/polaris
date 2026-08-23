@@ -12166,6 +12166,7 @@ type Workspace {
   archivedAt: Time
 
   teams: [Team!]!
+  """The workspace directory. A guest receives only their own row — see Query.users."""
   users: [User!]!
   labels: [Label!]!
   """What this workspace's plan permits, resolved by one service rather than scattered plan checks."""
@@ -15220,6 +15221,10 @@ type Query {
   team(id: UUID!): Team
   teamByKey(key: String!): Team
 
+  """
+  The workspace directory. A guest receives only their own row: the directory is
+  workspace-scoped and the sync bootstrap does not hand it to guests either.
+  """
   users: [User!]!
   user(id: UUID!): User
 
