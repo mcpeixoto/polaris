@@ -1,10 +1,12 @@
 /**
  * A saved view, rendered as the issue list it is.
  *
- * The interesting decision here is one line long: on arrival, if the URL carries no filter of
+ * The interesting decision here is one hook long: on arrival, if the URL carries no filter of
  * its own, this screen *writes the view's saved filter into the URL* and then gets out of the
  * way. Everything after that is the ordinary list — the same filter bar, the same display
- * menu, the same board.
+ * menu, the same board. `useSavedFilter` holds it, shared with `ProjectAttachedView`, along
+ * with the rule that makes it survivable: it has its say once, so clearing the filter bar
+ * clears it rather than being undone by the effect that seeded it.
  *
  * The filter and nothing else. The view's saved *display* is handled a layer down, by
  * `useView`, because it is only one of three possible answers there — below whatever the
@@ -32,54 +34,17 @@
  * in a team you cannot see is the second case.
  */
 
-import { useEffect } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useParams } from 'react-router';
 
-import { FILTER_PARAM, filterSearchString, toFilterParam } from '~/filter';
-import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useSavedFilter } from '~/features/view/ui/useSavedFilter';
 import type { UUID } from '~/store';
 
 import { IssueList, type IssueListSource } from './IssueList';
 
 export function SavedView() {
   const { viewId = '' } = useParams<{ viewId: string }>();
-  const [params] = useSearchParams();
-  // Not `useSearchParams`'s setter: it serialises through
-  // `URLSearchParams.toString()`, which escapes the parentheses and commas the filter
-  // grammar is built from — so opening a saved view produced
-  // `?filter=label.in%28…%29` and every link copied from it said nothing a reader
-  // could parse. `filterSearchString` is the writer that keeps the grammar readable.
-  const navigate = useNavigate();
 
-  const saved = useLiveQuery(
-    (store) => {
-      const view = store.views.get(viewId);
-      if (view === undefined) return null;
-      return { filter: toFilterParam(view.filter) };
-    },
-    ['view'],
-    [viewId],
-  );
-
-  // Only when the URL says nothing. A link to a view *with* a filter in it is somebody's
-  // refinement of that view, and overwriting it on arrival would make the refinement
-  // unshareable — which is the whole reason this is a redirect rather than a prop.
-  const untouched = !params.has(FILTER_PARAM);
-
-  useEffect(() => {
-    if (saved === null || !untouched) return;
-
-    const next = new URLSearchParams(params);
-    if (saved.filter !== '') next.set(FILTER_PARAM, saved.filter);
-
-    // `replace`: arriving at a view and being sent to the same view with its filter spelled
-    // out is one navigation from the user's point of view, and a back button that returns to
-    // the bare URL would immediately redirect forward again.
-    void navigate({ search: filterSearchString(next) }, { replace: true });
-    // `params` is deliberately absent: this must run when the view resolves or the URL turns
-    // out to be bare, not on every search-param change — including the one it makes itself.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saved, untouched, navigate]);
+  useSavedFilter(viewId);
 
   const source: IssueListSource = { kind: 'view', viewId: viewId as UUID };
   return <IssueList source={source} />;
