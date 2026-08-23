@@ -61,6 +61,23 @@ func canHoldDefault(category string) bool {
 
 const defaultCategoryMessage = "only a Backlog or Planned status can be the workspace default"
 
+// demotionChanges turns the rows ClearDefaultProjectStatuses gave up into deltas.
+//
+// Promoting a status is two writes, and only one of them used to be published. Clients
+// that did not perform the write never heard the old default was demoted, so they went on
+// drawing two defaults until something else dropped their replica — and the client that
+// did perform it was only right because its own optimistic patch happened to survive.
+func demotionChanges(rows []store.ProjectStatus) []Change {
+	out := make([]Change, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, Change{
+			EntityType: "projectStatus", EntityID: row.ID, Op: OpUpsert,
+			Scope: authz.WorkspaceScope(), Payload: toProjectStatus(row),
+		})
+	}
+	return out
+}
+
 func validGranularity(g string) bool {
 	switch g {
 	case model.GranularityDay, model.GranularityMonth, model.GranularityQuarter,
@@ -912,12 +929,15 @@ func (s *Service) CreateProjectStatus(ctx context.Context, p *authz.Principal, i
 		if err != nil {
 			return platform.Internal(err)
 		}
+		var demoted []Change
 		if in.IsDefault {
-			if err := q.ClearDefaultProjectStatuses(ctx, store.ClearDefaultProjectStatusesParams{
+			cleared, err := q.ClearDefaultProjectStatuses(ctx, store.ClearDefaultProjectStatusesParams{
 				WorkspaceID: p.WorkspaceID, ExceptID: id,
-			}); err != nil {
+			})
+			if err != nil {
 				return platform.Internal(err)
 			}
+			demoted = demotionChanges(cleared)
 		}
 		row, err := q.CreateProjectStatus(ctx, store.CreateProjectStatusParams{
 			ID:          id,
@@ -936,10 +956,10 @@ func (s *Service) CreateProjectStatus(ctx context.Context, p *authz.Principal, i
 			return platform.Internal(err)
 		}
 		out = toProjectStatus(row)
-		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), append(demoted, Change{
 			EntityType: "projectStatus", EntityID: id, Op: OpUpsert,
 			Scope: authz.WorkspaceScope(), Payload: out,
-		})
+		})...)
 		return err
 	})
 	return out, version, err
@@ -992,12 +1012,15 @@ func (s *Service) UpdateProjectStatus(ctx context.Context, p *authz.Principal, i
 		if isDefault && !canHoldDefault(category) {
 			return platform.Validation("isDefault", defaultCategoryMessage)
 		}
+		var demoted []Change
 		if in.IsDefault != nil && *in.IsDefault {
-			if err := q.ClearDefaultProjectStatuses(ctx, store.ClearDefaultProjectStatusesParams{
+			cleared, err := q.ClearDefaultProjectStatuses(ctx, store.ClearDefaultProjectStatusesParams{
 				WorkspaceID: p.WorkspaceID, ExceptID: in.ID,
-			}); err != nil {
+			})
+			if err != nil {
 				return platform.Internal(err)
 			}
+			demoted = demotionChanges(cleared)
 		}
 		row, err := q.UpdateProjectStatus(ctx, store.UpdateProjectStatusParams{
 			ID:          in.ID,
@@ -1011,10 +1034,10 @@ func (s *Service) UpdateProjectStatus(ctx context.Context, p *authz.Principal, i
 			return platform.Internal(err)
 		}
 		out = toProjectStatus(row)
-		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), append(demoted, Change{
 			EntityType: "projectStatus", EntityID: in.ID, Op: OpUpsert,
 			Scope: authz.WorkspaceScope(), Payload: out,
-		})
+		})...)
 		return err
 	})
 	return out, version, err

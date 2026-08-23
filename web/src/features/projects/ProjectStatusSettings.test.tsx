@@ -71,6 +71,17 @@ function seeded(): Store {
       createdAt: AT,
       updatedAt: AT,
     }),
+    upsert(4, 'projectStatus', {
+      id: 'ps-planned',
+      workspaceId: WORKSPACE,
+      name: 'Planned',
+      color: '#e2e2e2',
+      category: 'planned',
+      position: 'c',
+      isDefault: false,
+      createdAt: AT,
+      updatedAt: AT,
+    }),
   ]);
   return store;
 }
@@ -111,7 +122,8 @@ describe('Project status settings', () => {
     expect(screen.getByRole('heading', { name: 'Project statuses' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Backlog' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Started' })).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Planned' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Planned' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Canceled' })).toBeNull();
   });
 
   it('creates a status in the chosen category', async () => {
@@ -134,7 +146,23 @@ describe('Project status settings', () => {
     const input = mutate.mock.calls[0]![0] as {
       variables: { input: { id?: string; isDefault?: boolean } };
     };
-    expect(input.variables.input.id).toBe('ps-started');
+    expect(input.variables.input.id).toBe('ps-planned');
     expect(input.variables.input.isDefault).toBe(true);
+  });
+
+  /**
+   * A new project lands in the default, so `project_status_default_category_check` only
+   * lets Backlog and Planned hold it. The promotion used to be offered everywhere, where
+   * it reached the constraint as an internal error the outbox retried five times and then
+   * dropped — with the row drawn as the default the whole time.
+   */
+  it('does not offer the promotion where the category cannot hold it', () => {
+    renderPage();
+    const promotions = screen.getAllByRole('button', { name: 'Make default' });
+    expect(promotions).toHaveLength(1);
+    // The one on offer belongs to Planned, not to the Started row.
+    expect(
+      screen.getByRole('group', { name: 'Planned status' }).contains(promotions[0]!),
+    ).toBe(true);
   });
 });

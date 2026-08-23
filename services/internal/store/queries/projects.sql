@@ -71,9 +71,19 @@ UPDATE project_status SET archived_at = now() WHERE id = $1 AND archived_at IS N
 -- name: UnarchiveProjectStatus :exec
 UPDATE project_status SET archived_at = NULL WHERE id = $1;
 
--- name: ClearDefaultProjectStatuses :exec
+-- ClearDefaultProjectStatuses must run immediately before setting a new default, in the
+-- same transaction: project_status_workspace_default_key is a partial unique index, so
+-- doing it the other way round fails.
+--
+-- It returns what it demoted. The promotion reaches every client as a delta carrying the
+-- promoted row; without the demoted one beside it the old default stays drawn as the
+-- default in every replica that did not perform the write.
+--
+-- name: ClearDefaultProjectStatuses :many
 UPDATE project_status SET is_default = false
-WHERE workspace_id = $1 AND is_default AND id <> sqlc.arg(except_id);
+WHERE workspace_id = $1 AND is_default AND id <> sqlc.arg(except_id)
+RETURNING id, workspace_id, name, description, color, category, position, is_default,
+          archived_at, created_at, updated_at;
 
 -- ---------------------------------------------------------------------------------------
 -- project

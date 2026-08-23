@@ -10,6 +10,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
 	"github.com/peixotolabs/polaris/services/internal/platform"
+	"github.com/peixotolabs/polaris/services/internal/store"
 	"github.com/peixotolabs/polaris/services/internal/testutil"
 )
 
@@ -280,6 +281,10 @@ func TestUpdateProjectStatus_DefaultMustBeBacklogOrPlanned(t *testing.T) {
 	// Planned is allowed, and it really does demote the old default.
 	planned := byCategory[model.ProjectCategoryPlanned]
 	yes := true
+	before, err := latestChangeVersion(ctx, t, db, f.WorkspaceID)
+	if err != nil {
+		t.Fatalf("read version: %v", err)
+	}
 	if _, _, err := svc.UpdateProjectStatus(ctx, p, domain.UpdateProjectStatusInput{
 		ID: planned.ID, IsDefault: &yes,
 	}); err != nil {
@@ -295,6 +300,48 @@ func TestUpdateProjectStatus_DefaultMustBeBacklogOrPlanned(t *testing.T) {
 			t.Fatalf("%s isDefault = %v, want %v", s.Name, s.IsDefault, want)
 		}
 	}
+
+	// The demotion has to reach the stream too. A client that did not perform this write
+	// only ever hears about the promoted row, so without the pair it goes on drawing the
+	// old default as the default.
+	rows, err := db.Queries().ReadChangesSince(ctx, store.ReadChangesSinceParams{
+		WorkspaceID:    f.WorkspaceID,
+		AfterVersion:   before,
+		ThroughVersion: 1 << 40,
+		PageSize:       100,
+	})
+	if err != nil {
+		t.Fatalf("read changes: %v", err)
+	}
+	published := map[uuid.UUID]bool{}
+	for _, r := range rows {
+		if r.EntityType == "projectStatus" {
+			published[r.EntityID] = true
+		}
+	}
+	if !published[planned.ID] {
+		t.Fatalf("no delta for the promoted status %s", planned.Name)
+	}
+	if !published[backlog.ID] {
+		t.Fatalf("no delta for the demoted status %s: every other client keeps two defaults", backlog.Name)
+	}
+}
+
+func latestChangeVersion(ctx context.Context, t *testing.T, db *store.DB, ws uuid.UUID) (int64, error) {
+	t.Helper()
+	rows, err := db.Queries().ReadChangesSince(ctx, store.ReadChangesSinceParams{
+		WorkspaceID:    ws,
+		AfterVersion:   0,
+		ThroughVersion: 1 << 40,
+		PageSize:       10000,
+	})
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	return rows[len(rows)-1].Version, nil
 }
 
 // project.status_id is NOT NULL and archiving is soft, so a retired status that projects
