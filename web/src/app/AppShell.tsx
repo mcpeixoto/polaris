@@ -22,7 +22,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useDesktopNotifications, useUnreadBadge } from '~/features/inbox/desktop';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
-import { useViewer, useViewerId } from '~/hooks/useViewer';
+import { useViewer, useViewerId, useViewerRole } from '~/hooks/useViewer';
 import { Menu } from '~/components';
 import { gotoLabelItems, labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { personName } from '~/features/prefs/prefs';
@@ -146,6 +146,7 @@ export function AppShell({
 
   const viewerId = useViewerId();
   const viewer = useViewer();
+  const viewerRole = useViewerRole();
   const engine = useEngine();
   useDesktopNotifications(engine, viewerId);
   useUnreadBadge();
@@ -154,8 +155,13 @@ export function AppShell({
     viewer.role !== 'guest' &&
     (workspace === undefined || workspace.customerRequestsEnabled);
   const showDashboards = showCustomers;
+  // The role from the session, not from the replica: a guest's replica carries no user
+  // rows, so `viewer` never loads for them and `viewer === null || …` read as "show it"
+  // for the one person Pulse is meant to exclude. Closed while the role is unknown, the
+  // same way Customers above is.
   const showPulse =
-    (viewer === null || viewer.role !== 'guest') &&
+    viewerRole !== null &&
+    viewerRole !== 'guest' &&
     (workspace === undefined || workspace.pulseEnabled);
   const views = useLiveQuery(
     (store) => (viewerId === null ? [] : visibleViews(store, viewerId)),

@@ -19,7 +19,7 @@ import { createPulseFeed, deletePulseFeed, updatePulseFeed } from '~/features/pu
 import { feedIdOf, listPulse, listPulseFeeds, type PulseTab } from '~/features/pulse/pulse';
 import { when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import { useViewer, useViewerId } from '~/hooks/useViewer';
+import { useViewerId, useViewerRole } from '~/hooks/useViewer';
 import type { Project, PulseFeed, Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 
@@ -27,7 +27,7 @@ import styles from './Pulse.module.css';
 
 export function Pulse() {
   const navigate = useNavigate();
-  const viewer = useViewer();
+  const viewerRole = useViewerRole();
   const viewerId = useViewerId();
   const timezone = browserTimezone();
   const [tab, setTab] = useState<PulseTab>('for-me');
@@ -107,7 +107,16 @@ export function Pulse() {
     [cursor, flat.length, active, navigate],
   );
 
-  if (viewer !== null && viewer.role === 'guest') {
+  /**
+   * Guests never see Pulse, and the role has to come from the session to say so.
+   *
+   * This read the profile out of the replica, and a guest's replica holds no `user` rows —
+   * the directory is workspace-scoped and guests are not handed it. So `viewer` was
+   * permanently null for exactly the person this gate is for, the condition never fired,
+   * and a guest was served the whole feed along with a sidebar link to it. The session
+   * query answers for everybody.
+   */
+  if (viewerRole === 'guest') {
     return <Navigate to="/" replace />;
   }
 

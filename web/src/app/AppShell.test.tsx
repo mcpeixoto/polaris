@@ -52,6 +52,9 @@ vi.mock('./Boot', () => ({
 vi.mock('~/hooks/useViewer', () => ({
   useViewerId: () => VIEWER,
   useViewer: () => null,
+  // The role comes from the session query rather than the replica, so it is answered here
+  // even though `useViewer` is not: the sidebar's guest gates read this one.
+  useViewerRole: () => 'member',
 }));
 
 function seeded(extra: readonly [string, Entity][] = []): Store {
