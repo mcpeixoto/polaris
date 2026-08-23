@@ -408,17 +408,28 @@ export function useView({
    * immediately redirect forward again.
    *
    * `params` is a dependency, which looks like it should loop and does not: the write puts a
-   * display parameter in the bar, `urlDisplay` stops being null, and the guard closes. It
-   * has to be one, because this is not the only effect writing to the address bar on arrival
-   * — `SavedView` seeds the filter from the same commit, off its own copy of the params, and
-   * whichever of the two runs second overwrites what the first wrote. Re-running on the
-   * result is what lets the pair settle instead of racing.
+   * display parameter in the bar, `urlDisplay` stops being null, and the guard closes.
+   *
+   * The write itself merges over `window.location.search` rather than over the `params` this
+   * render closed on, and that is the part that has to be read carefully. This is not the
+   * only effect writing to the address bar on arrival: `useSavedFilter` seeds the saved
+   * filter from the same commit, off its own copy of the params, and it says its one thing
+   * per view and never again. So if this effect ran second off a snapshot taken before that
+   * seeding, it wrote a search string with no `filter` in it, the seeded filter was gone,
+   * and nothing was left to put it back — the guard here had already closed. Which of the
+   * two effects runs second depends on how the tree happened to commit, so it changed with
+   * an unrelated subscription added three components away, and the loser was a saved view
+   * that opened unfiltered.
+   *
+   * `navigate` replaces the history entry synchronously, so by the time either effect runs
+   * the location already carries whatever the other one just wrote. Merging over it makes
+   * the pair commutative instead of ordered.
    */
   useEffect(() => {
     if (urlDisplay !== null || fallbackParams === null) return;
     const entries = [...fallbackParams];
     if (entries.length === 0) return;
-    const next = new URLSearchParams(params);
+    const next = new URLSearchParams(window.location.search);
     for (const [name, value] of entries) next.set(name, value);
     void navigate({ search: filterSearchString(next) }, { replace: true });
   }, [urlDisplay, fallbackParams, params, navigate]);

@@ -81,7 +81,12 @@ export function useSavedFilter(viewId: string, projectId?: string): void {
       // An empty saved filter is a view over everything, and `?filter=` in a shared link
       // says "filtered" about a view that is not.
       if (encoded !== '') {
-        const next = new URLSearchParams(params);
+        // Over the live location, not the `params` this render closed on: `useView` writes
+        // the reader's remembered display options into the same bar on the same arrival, and
+        // a snapshot taken before that write would drop them. See the long note on that
+        // effect — between them the two writes have to be commutative, because which one
+        // commits second is not something either can see.
+        const next = new URLSearchParams(window.location.search);
         next.set(FILTER_PARAM, encoded);
         // `replace`: arriving at a view and being sent to the same view with its filter
         // spelled out is one navigation from the user's point of view, and a back button
