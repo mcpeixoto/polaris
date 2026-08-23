@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, Navigate, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { Button, EmptyState, IconButton, Input, Select } from '~/components';
@@ -27,7 +27,7 @@ import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { setCustomerSubscription } from '~/features/subscriptions/mutations';
 import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import { useViewer } from '~/hooks/useViewer';
+import { useViewer, useViewerRole } from '~/hooks/useViewer';
 import type { CustomerStatus, Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './CustomerDetail.module.css';
@@ -47,6 +47,7 @@ export function CustomerDetail() {
   const engine = useEngine();
   const { customerId = '' } = useParams<{ customerId: string }>();
   const viewer = useViewer();
+  const viewerRole = useViewerRole();
   const [requestOpen, setRequestOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<UUID | null>(null);
   const [removingRequest, setRemovingRequest] = useState<UUID | null>(null);
@@ -105,6 +106,12 @@ export function CustomerDetail() {
     ['customerRequest', 'issue', 'project', 'team'],
     [customerId],
   );
+
+  // Same gate as the list: a guest reaching a customer page by its id sees the workspace
+  // home instead, and the role is read from the session rather than the replica.
+  if (viewerRole === 'guest') {
+    return <Navigate to="/" replace />;
+  }
 
   if (customer === null) {
     return (
