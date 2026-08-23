@@ -190,11 +190,12 @@ export function TeamSettings() {
     return groups;
   }, [team]);
 
-  const run = (work: Promise<unknown>, onSuccess?: () => void) => {
+  const run = (work: Promise<unknown>, onSuccess?: () => void, onFailure?: () => void) => {
     setError(null);
     work
       .then(() => onSuccess?.())
       .catch((failure: unknown) => {
+        onFailure?.();
         setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
       });
   };
@@ -246,7 +247,28 @@ export function TeamSettings() {
         ) : null}
 
         <fieldset className={styles.fieldset} disabled={readOnly}>
-          <TeamForm team={team} onSave={(fields) => run(updateTeam(engine, team.id, fields))} />
+          <TeamForm
+            team={team}
+            onSave={(fields) => {
+              /*
+               * The route is keyed by the team's key, so a key change moves this screen.
+               *
+               * `updateTeam` patches the team optimistically, which means `readTeam` stops
+               * matching the key in the path on the very next frame: a save that worked
+               * replaced itself with "No such team. Nothing in this workspace has the key
+               * ENG." on a URL that stayed broken across a reload. The redirect therefore
+               * has to happen with the optimistic patch rather than after the server
+               * answers, and be walked back if the server refuses — which it does whenever
+               * the new key is already another team's.
+               */
+              const from = team.key;
+              const moving = fields.key !== '' && fields.key !== from;
+              if (moving) void navigate(`/team/${fields.key}/settings`, { replace: true });
+              run(updateTeam(engine, team.id, fields), undefined, () => {
+                if (moving) void navigate(`/team/${from}/settings`, { replace: true });
+              });
+            }}
+          />
 
           <VisibilitySettings
             team={team}
@@ -343,6 +365,7 @@ export function TeamSettings() {
 
         <ParentTeamSettings
           team={team}
+          readOnly={readOnly}
           onMove={(parentTeamId) => run(moveTeam(engine, team.id, parentTeamId))}
         />
 
@@ -1431,12 +1454,20 @@ function Chevron({ up = false }: { up?: boolean }) {
 
 /**
  * Nest this team under a parent, or make it top-level again.
+ *
+ * Sits outside the fieldset the rest of the screen is disabled by, because it is next to the
+ * danger zone rather than inside the settings form — which is why `readOnly` has to be
+ * threaded in by hand. Without it a retired team offered a live "Move under" and a live
+ * "Save parent" three inches under a banner saying its settings are read-only, and the
+ * refusal only arrived from the server, as the sentence the server tells itself.
  */
 function ParentTeamSettings({
   team,
+  readOnly,
   onMove,
 }: {
   team: TeamView;
+  readOnly: boolean;
   onMove: (parentTeamId: UUID | null) => void;
 }) {
   const candidates = useLiveQuery(
@@ -1492,11 +1523,17 @@ function ParentTeamSettings({
         <p className={styles.sectionHint}>This is a top-level team.</p>
       )}
 
+      {readOnly ? (
+        <p className={styles.sectionHint} role="status">
+          A retired team cannot be moved. Restore it first.
+        </p>
+      ) : null}
+
       <div className={styles.parentFields}>
         <Select
           label="Move under"
           value={parentId}
-          disabled={block !== null}
+          disabled={readOnly || block !== null}
           onChange={(event) => setParentId(event.target.value)}
         >
           <option value="">Top level (no parent)</option>
@@ -1508,7 +1545,7 @@ function ParentTeamSettings({
         </Select>
         <Button
           onClick={() => onMove(parentId === '' ? null : (parentId as UUID))}
-          disabled={block !== null || parentId === (team.parentTeamId ?? '')}
+          disabled={readOnly || block !== null || parentId === (team.parentTeamId ?? '')}
           title={block ?? undefined}
         >
           Save parent
