@@ -115,6 +115,16 @@ export function IssueDetail() {
     [identifier],
   );
 
+  // The team the identifier names, whether or not the issue itself is in the replica. An
+  // archived issue is a delete as far as the replica is concerned, so `E` on this screen
+  // and then Back lands here — and until this was resolved the page said the issue may
+  // belong to a team you are not in, which is the one thing that had not happened.
+  const namedTeamKey = useLiveQuery(
+    (store) => teamKeyIn(store, identifier),
+    ['team'],
+    [identifier],
+  );
+
   const issue = useLiveQuery(
     (store) => {
       if (issueId === null) return null;
@@ -430,8 +440,23 @@ export function IssueDetail() {
       <div className={styles.screen}>
         <EmptyState
           title="No such issue"
-          description={`Nothing in this workspace is called ${identifier}. It may have been deleted, or it may belong to a team you are not in.`}
-          action={<Button onClick={() => navigate(-1)}>Go back</Button>}
+          description={
+            namedTeamKey === null
+              ? `Nothing in this workspace is called ${identifier}. It may have been deleted, or it may belong to a team you are not in.`
+              : `Nothing open in ${namedTeamKey} is called ${identifier}. Archiving and deleting both take an issue out of every view, and ${namedTeamKey}'s archives is where both end up — restore it there and this link works again.`
+          }
+          action={
+            <>
+              {namedTeamKey === null ? null : (
+                <Button onClick={() => void navigate(`/team/${namedTeamKey}/archives`)}>
+                  Open {namedTeamKey} archives
+                </Button>
+              )}
+              <Button variant="ghost" onClick={() => navigate(-1)}>
+                Go back
+              </Button>
+            </>
+          }
         />
       </div>
     );
@@ -1298,6 +1323,22 @@ function locate(store: Store, identifier: string): UUID | null {
     if (issue !== undefined && issue.number === number) return id;
   }
   return null;
+}
+
+/**
+ * The key of the team an identifier names, or null when no team in the replica claims it.
+ *
+ * Deliberately independent of `locate`: an archived or deleted issue has left the replica
+ * while its team has not, and that difference is what tells somebody holding a stale link
+ * where to look.
+ */
+function teamKeyIn(store: Store, identifier: string): string | null {
+  const dash = identifier.lastIndexOf('-');
+  if (dash <= 0) return null;
+  const key = identifier.slice(0, dash).toUpperCase();
+  if (!Number.isInteger(Number.parseInt(identifier.slice(dash + 1), 10))) return null;
+  const team = [...store.teams.values()].find((candidate) => candidate.key.toUpperCase() === key);
+  return team?.key ?? null;
 }
 
 function actorName(actor: Actor, names: Record<string, string>): string {

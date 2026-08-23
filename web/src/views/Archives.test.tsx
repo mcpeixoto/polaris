@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -124,5 +125,26 @@ describe('Archives', () => {
     vi.mocked(gql).mockResolvedValue({ archivedIssues: [] });
     renderArchives();
     expect(await screen.findByText('No archived issues')).toBeTruthy();
+  });
+
+  it('takes the restore confirmation away when the tab changes', async () => {
+    // The confirmation is a live region. Left standing across a tab change it is announced
+    // again, on a screen that no longer holds the row it is about to name.
+    vi.mocked(gql).mockImplementation((query: string) =>
+      Promise.resolve(
+        query.includes('ArchivedIssues')
+          ? { archivedIssues: [archived(9, 'Old importer')] }
+          : { archivedCycles: [] },
+      ),
+    );
+    const user = userEvent.setup();
+    renderArchives();
+
+    await user.click(await screen.findByRole('button', { name: 'Restore ENG-9' }));
+    expect(await screen.findByText('Issue restored.')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Cycles' }));
+    expect(await screen.findByText('No archived cycles')).toBeTruthy();
+    expect(screen.queryByText('Issue restored.')).toBeNull();
   });
 });

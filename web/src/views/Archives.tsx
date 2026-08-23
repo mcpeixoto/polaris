@@ -68,6 +68,9 @@ export function Archives() {
     const controller = new AbortController();
     setSelected(null);
     setError(null);
+    // The confirmation names a row that is about to leave the screen, so it has to go with
+    // it. Left standing, "Issue restored." is read out again on a tab that holds cycles.
+    setRestored(null);
 
     if (tab === 'issues') {
       setIssues({ phase: 'loading' });
@@ -225,9 +228,9 @@ export function Archives() {
 
       <div className={styles.body}>
         <p className={styles.intro}>
-          Archived work is still searchable and its links still open, but it has to be restored
-          before it can be edited. Restore with #. Recently deleted issues stay here for thirty
-          days, then they are gone.
+          Archiving takes work out of every list, board, search and filter — this page is where it
+          goes, and a link to an archived issue will not open until it is back. Restore with #.
+          Recently deleted issues stay here for thirty days, then they are gone.
         </p>
 
         <p className={styles.restored} role="status" aria-live="polite">
