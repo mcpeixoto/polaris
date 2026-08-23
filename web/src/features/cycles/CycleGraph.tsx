@@ -1,5 +1,11 @@
 /**
  * Cycle burn-up — scope, started, completed, and a weekday-flattened target.
+ *
+ * Two of the three things this can say are "not yet", and both have to be reachable. A
+ * cycle that has not started cannot have burnt anything down — the graph is generated once
+ * a cycle begins, and until then the capacity dial is the answer — and a cycle with no
+ * issues in it has nothing to plot, however long its window is. Drawing either anyway puts
+ * a flat line and a *Cycle success 0%* verdict on work nobody could have done yet.
  */
 
 import { useMemo } from 'react';
@@ -23,11 +29,18 @@ export function CycleGraph({ cycleId }: CycleGraphProps) {
 
   const layout = useMemo(() => (data === null ? null : toLayout(data)), [data]);
 
-  if (data === null || layout === null || data.points.length < 2) {
+  if (data !== null && Date.parse(data.startsAt) > Date.now()) {
+    return <p className={styles.muted}>The graph appears once this cycle begins.</p>;
+  }
+
+  if (data === null || layout === null || data.issueCount === 0 || data.points.length < 2) {
     return <p className={styles.muted}>Not enough data to chart this cycle yet.</p>;
   }
 
   const unit = data.unitLabel === 'issues' ? 'issues' : 'points';
+  // A count of one reads as a count, not as a ratio, so it needs the singular.
+  const startedUnit =
+    data.totalStarted === 1 ? (data.unitLabel === 'issues' ? 'issue' : 'point') : unit;
 
   return (
     <section className={styles.panel} aria-label="Cycle graph">
@@ -40,7 +53,7 @@ export function CycleGraph({ cycleId }: CycleGraphProps) {
         </span>
         {data.totalStarted > 0 && (
           <span className={styles.stat}>
-            In progress <strong>{data.totalStarted}</strong> {unit}
+            In progress <strong>{data.totalStarted}</strong> {startedUnit}
           </span>
         )}
       </div>

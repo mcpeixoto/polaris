@@ -169,6 +169,30 @@ describe('buildCycleGraph', () => {
     expect(data!.totalScope).toBe(6);
   });
 
+  it('reports the window and the issue count, so the view can say "not yet"', () => {
+    const store = new Store('w');
+    store.applyChanges([
+      upsert(1, 'team', team('t1', 'fibonacci')),
+      upsert(2, 'workflowState', state('s1', 't1', 'unstarted', 'Todo')),
+      upsert(3, 'cycle', cycle('cy1', 't1')),
+    ]);
+
+    // An empty cycle is not a null graph — the window is real, there is simply nothing on
+    // it. `totalScope` cannot answer this on its own: a zero-point issue weighs nothing.
+    const empty = buildCycleGraph(store, 'cy1');
+    expect(empty).not.toBeNull();
+    expect(empty!.issueCount).toBe(0);
+    expect(empty!.startsAt).toBe('2026-01-01T00:00:00.000Z');
+
+    store.applyChanges([
+      upsert(4, 'issue', issue('i1', 't1', 'cy1', 's1', { estimate: 0 })),
+      upsert(5, 'issue', issue('i2', 't1', 'cy1', 's1', { estimate: 0 })),
+    ]);
+    const zeroPoint = buildCycleGraph(store, 'cy1');
+    expect(zeroPoint!.issueCount).toBe(2);
+    expect(zeroPoint!.totalScope).toBe(0);
+  });
+
   it('breaks work down per assignee', () => {
     const store = new Store('w');
     const user: User = {
