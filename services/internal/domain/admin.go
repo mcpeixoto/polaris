@@ -52,6 +52,25 @@ func (s *Service) LeaveWorkspace(ctx context.Context, p *authz.Principal) (uuid.
 	return s.archiveWorkspaceMember(ctx, p, p.UserID)
 }
 
+// isCountedAdmin reports whether this row is one of the administrators the workspace is
+// actually relying on right now.
+//
+// Every last-administrator refusal in the product compares against
+// CountActiveAdminsInWorkspace, whose WHERE clause is `role IN ('owner','admin') AND status =
+// 'active' AND archived_at IS NULL`. So the question the guard has to ask about its target is
+// the same three-part one, and asking only about the role made every suspended administrator
+// a person the rule protected without ever having counted them.
+//
+// The consequence was a workspace with one active admin and one suspended one, where the
+// suspended row could not be demoted, could not be removed, and could not leave: the count
+// came back 1 — correctly, the active admin — the target "was an admin", and the refusal
+// announced that the workspace's last owner was being taken away while the actual last owner
+// was the person pressing the button. The only way out was to restore them, which takes a
+// seat back, change the role, and suspend them again.
+func isCountedAdmin(u store.User) bool {
+	return authz.Role(u.Role).IsAdmin() && u.Status == "active" && u.ArchivedAt == nil
+}
+
 func (s *Service) archiveWorkspaceMember(ctx context.Context, p *authz.Principal, userID uuid.UUID) (uuid.UUID, int64, error) {
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
@@ -80,7 +99,7 @@ func (s *Service) archiveWorkspaceMember(ctx context.Context, p *authz.Principal
 		// The count runs inside the transaction that does the archiving, against the rows it
 		// is about to change, and it is the same rule and the same query SetUserRole and
 		// SuspendUser apply to the other two routes to the same state.
-		if authz.Role(existing.Role).IsAdmin() {
+		if isCountedAdmin(existing) {
 			admins, err := q.CountActiveAdminsInWorkspace(ctx, p.WorkspaceID)
 			if err != nil {
 				return platform.Internal(err)

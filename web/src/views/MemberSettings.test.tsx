@@ -553,3 +553,55 @@ describe('MemberSettings · creating an invitation', () => {
     expect(within(dialog).getByText(/earlier link stops working/)).toBeTruthy();
   });
 });
+
+/**
+ * The role picker.
+ *
+ * `SetUserRole` refuses `OWNER` unconditionally — `platform.Validation("role", "the owner
+ * role is not available on this plan")`, on every plan, with no branch that ever allows it —
+ * and nothing in this repository's workspace creation hands anybody the role either. So an
+ * Owner option was a control that could only fail: it moved the row optimistically, was
+ * rolled back, and explained itself with a sentence about a plan. `InviteDialog` leaves
+ * `owner` out of its own list for exactly this reason and says so; this is the other half.
+ */
+describe('MemberSettings · the role picker', () => {
+  it('offers only the roles the server will accept', async () => {
+    viewer.current = { id: ADA, role: 'admin' };
+    renderScreen([
+      person(ADA, 'Ada Lovelace', { role: 'admin' }),
+      person(GRACE, 'Grace Hopper', { role: 'member' }),
+    ]);
+
+    const select = (await screen.findByRole('combobox', {
+      name: 'Role for Grace Hopper',
+    })) as HTMLSelectElement;
+
+    expect([...select.options].map((option) => option.value)).toEqual(['admin', 'member', 'guest']);
+  });
+
+  /**
+   * A role that cannot be assigned can still be held — the server is the authority on what is
+   * stored, not this list — and a `<select>` whose value matches no option falls back to
+   * rendering its first one. Dropping Owner outright would therefore have shown an owner as
+   * an Admin, and saved that the next time anybody touched the picker.
+   */
+  it('keeps a role somebody actually holds, so the row does not misreport it', async () => {
+    viewer.current = { id: GRACE, role: 'admin' };
+    renderScreen([
+      person(ADA, 'Ada Lovelace', { role: 'owner' }),
+      person(GRACE, 'Grace Hopper', { role: 'admin' }),
+    ]);
+
+    const select = (await screen.findByRole('combobox', {
+      name: 'Role for Ada Lovelace',
+    })) as HTMLSelectElement;
+
+    expect(select.value).toBe('owner');
+    expect([...select.options].map((option) => option.value)).toEqual([
+      'owner',
+      'admin',
+      'member',
+      'guest',
+    ]);
+  });
+});
