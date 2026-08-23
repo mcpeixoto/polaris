@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
 import { Store, type Change, type Entity, type OptimisticPatch } from '~/store';
+import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
 import { DocumentDetail } from './DocumentDetail';
@@ -112,6 +113,12 @@ function renderDetail() {
   return { mutate, ...mount(store, { store, mutate } as unknown as SyncEngine) };
 }
 
+function renderDetailWithRefusal(message: string) {
+  const store = seeded();
+  const mutate = vi.fn().mockRejectedValue(new ApiError('VALIDATION', message));
+  return { mutate, ...mount(store, { store, mutate } as unknown as SyncEngine) };
+}
+
 function renderDetailWithSlowSave() {
   const store = seeded();
   const { engine, mutate, release } = gatedEngine(store);
@@ -187,6 +194,24 @@ describe('DocumentDetail', () => {
 
     await waitFor(() => expect(saveButton().disabled).toBe(true));
     expect((screen.getByLabelText('Body') as HTMLTextAreaElement).value).toBe('all of it');
+  });
+
+  it('says so when the server refuses the edit', async () => {
+    const { user } = renderDetailWithRefusal('that title is too long');
+
+    const title = screen.getByLabelText('Title') as HTMLInputElement;
+    await user.clear(title);
+    await user.type(title, 'Something the server will not have');
+    await user.click(saveButton());
+
+    // The server's own words, rather than an uncaught rejection in the console and a screen
+    // that looks as though the click did nothing.
+    expect((await screen.findByRole('alert')).textContent).toBe('that title is too long');
+    // The edit is still on the screen and still sendable.
+    expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe(
+      'Something the server will not have',
+    );
+    expect(saveButton().disabled).toBe(false);
   });
 
   it('adopts a remote body while nothing is being typed', () => {
