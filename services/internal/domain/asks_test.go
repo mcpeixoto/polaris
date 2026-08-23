@@ -192,3 +192,32 @@ func TestDeleteAskForm_DropsThePublicLink(t *testing.T) {
 		t.Fatalf("got %v, want not found", err)
 	}
 }
+
+func TestGetPublicAskForm_RetiredTeamIsNotFound(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+	form, _, err := svc.CreateAskForm(ctx, p, domain.CreateAskFormInput{
+		TeamID: f.TeamID, Name: "IT",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.RetireTeam(ctx, p, f.TeamID); err != nil {
+		t.Fatal(err)
+	}
+
+	// A retired team is read-only, so the form cannot file anything. Showing it anyway would
+	// mean a stranger writes out a request and only then learns it went nowhere.
+	if _, err := svc.GetPublicAskForm(ctx, form.Token); platform.CodeOf(err) != platform.CodeNotFound {
+		t.Fatalf("get: got %v, want not found", err)
+	}
+	err = svc.SubmitAsk(ctx, domain.SubmitAskInput{
+		Token: form.Token, Title: "Hello", RequesterName: "Ada", RequesterEmail: "ada@example.com",
+	})
+	if platform.CodeOf(err) != platform.CodeNotFound {
+		t.Fatalf("submit: got %v, want not found", err)
+	}
+}

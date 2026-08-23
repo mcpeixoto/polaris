@@ -209,16 +209,9 @@ func (s *Service) DeleteAskForm(
 }
 
 func (s *Service) GetPublicAskForm(ctx context.Context, token string) (PublicAskForm, error) {
-	row, err := s.lookupLiveAskForm(ctx, token)
+	row, team, err := s.lookupLiveAskTarget(ctx, token)
 	if err != nil {
 		return PublicAskForm{}, err
-	}
-	team, err := s.db.Queries().GetTeam(ctx, row.TeamID)
-	if err != nil {
-		if store.IsNotFound(err) {
-			return PublicAskForm{}, platform.NotFound("askForm")
-		}
-		return PublicAskForm{}, platform.Internal(err)
 	}
 	return PublicAskForm{
 		Name:        row.Name,
@@ -228,7 +221,7 @@ func (s *Service) GetPublicAskForm(ctx context.Context, token string) (PublicAsk
 }
 
 func (s *Service) SubmitAsk(ctx context.Context, in SubmitAskInput) error {
-	row, err := s.lookupLiveAskForm(ctx, in.Token)
+	row, _, err := s.lookupLiveAskTarget(ctx, in.Token)
 	if err != nil {
 		return err
 	}
@@ -270,6 +263,33 @@ func (s *Service) SubmitAsk(ctx context.Context, in SubmitAskInput) error {
 		SkipDefaultTemplate: true,
 	})
 	return err
+}
+
+// lookupLiveAskTarget resolves a public token to a form that can actually file an issue.
+//
+// Both public entry points go through it, so the page and the submit agree on what "live"
+// means. Three things can make a token dead and all three answer the same way: the form was
+// deleted or archived, its team was deleted, or its team was retired. A retired team is
+// read-only, so a form pointing at one is a door onto a wall — and answering not-found is
+// both the honest reply and the one that says nothing about a team the caller cannot see.
+func (s *Service) lookupLiveAskTarget(
+	ctx context.Context, token string,
+) (store.AskForm, store.Team, error) {
+	row, err := s.lookupLiveAskForm(ctx, token)
+	if err != nil {
+		return store.AskForm{}, store.Team{}, err
+	}
+	team, err := s.db.Queries().GetTeam(ctx, row.TeamID)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return store.AskForm{}, store.Team{}, platform.NotFound("askForm")
+		}
+		return store.AskForm{}, store.Team{}, platform.Internal(err)
+	}
+	if team.RetiredAt != nil {
+		return store.AskForm{}, store.Team{}, platform.NotFound("askForm")
+	}
+	return row, team, nil
 }
 
 func (s *Service) lookupLiveAskForm(ctx context.Context, token string) (store.AskForm, error) {
