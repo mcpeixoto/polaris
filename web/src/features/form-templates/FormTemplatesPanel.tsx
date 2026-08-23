@@ -5,7 +5,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
-import { Badge, Button, EmptyState, Input, Select, Textarea } from '~/components';
+import { Badge, Button, Checkbox, EmptyState, Input, Select, Textarea } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import {
   archiveFormTemplate,
@@ -44,6 +44,40 @@ const FIELD_TYPES: readonly { value: FormTemplateFieldType; label: string }[] = 
   { value: 'title', label: 'Title' },
   { value: 'due_date', label: 'Due date' },
 ];
+
+/**
+ * The two field types whose whole job is to offer a fixed set of answers.
+ *
+ * They are the only ones that need `config.options`, and a dropdown or a checkbox list
+ * created without any is not a degraded control but an unanswerable one: the fill renders
+ * a select whose only entry is "Choose…", and if the field is also required the composer
+ * refuses every submission with no way for the filer to satisfy it. So the editor asks for
+ * the options at the moment the type is chosen, rather than leaving them to an API call.
+ */
+function takesOptions(type: FormTemplateFieldType): boolean {
+  return type === 'dropdown' || type === 'checkboxes';
+}
+
+/** One option per line, blanks dropped — the shape `FormFillFields` reads back. */
+function optionsFrom(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+}
+
+function optionsOf(field: FormTemplateField): string[] {
+  const raw = field.config.options;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item): item is string => typeof item === 'string');
+}
+
+/** What the add-field row collects beyond the type: everything a field needs to work. */
+interface NewFieldDraft {
+  readonly label: string;
+  readonly required: boolean;
+  readonly config?: Record<string, unknown>;
+}
 
 interface Scope {
   readonly id: string;
@@ -127,8 +161,18 @@ export function FormTemplatesPanel() {
     setEditing(null);
   };
 
-  const addField = async (templateId: UUID, fieldType: FormTemplateFieldType, label: string) => {
-    await createFormTemplateField(engine, { formTemplateId: templateId, fieldType, label });
+  const addField = async (
+    templateId: UUID,
+    fieldType: FormTemplateFieldType,
+    draft: NewFieldDraft,
+  ) => {
+    await createFormTemplateField(engine, {
+      formTemplateId: templateId,
+      fieldType,
+      label: draft.label,
+      required: draft.required,
+      ...(draft.config === undefined ? null : { config: draft.config }),
+    });
   };
 
   const confirmArchive = () => {
@@ -193,7 +237,7 @@ export function FormTemplatesPanel() {
                       template={row}
                       onSave={(draft) => save(scope, row, draft)}
                       onCancel={() => setEditing(null)}
-                      onAddField={(type, label) => addField(row.id, type, label)}
+                      onAddField={(type, draft) => addField(row.id, type, draft)}
                       onDeleteField={(fieldId) => deleteFormTemplateField(engine, fieldId)}
                     />
                   </li>
@@ -259,13 +303,15 @@ function FormTemplateEditor({
   template: FormTemplateRow | null;
   onSave: (draft: { name: string; description: string }) => void;
   onCancel: () => void;
-  onAddField?: (type: FormTemplateFieldType, label: string) => void;
+  onAddField?: (type: FormTemplateFieldType, draft: NewFieldDraft) => void;
   onDeleteField?: (fieldId: UUID) => void;
 }) {
   const [name, setName] = useState(template?.name ?? '');
   const [description, setDescription] = useState(template?.description ?? '');
   const [fieldType, setFieldType] = useState<FormTemplateFieldType>('text');
   const [fieldLabel, setFieldLabel] = useState('');
+  const [fieldRequired, setFieldRequired] = useState(false);
+  const [fieldOptions, setFieldOptions] = useState('');
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -275,8 +321,15 @@ function FormTemplateEditor({
   const addField = (event: FormEvent) => {
     event.preventDefault();
     if (onAddField === undefined || fieldLabel.trim() === '') return;
-    onAddField(fieldType, fieldLabel.trim());
+    const options = optionsFrom(fieldOptions);
+    onAddField(fieldType, {
+      label: fieldLabel.trim(),
+      required: fieldRequired,
+      ...(takesOptions(fieldType) && options.length > 0 ? { config: { options } } : null),
+    });
     setFieldLabel('');
+    setFieldRequired(false);
+    setFieldOptions('');
   };
 
   return (
@@ -298,6 +351,9 @@ function FormTemplateEditor({
                 <span>
                   {field.label} <Badge tone="neutral">{field.fieldType.replace('_', ' ')}</Badge>
                   {field.required ? <Badge tone="accent">Required</Badge> : null}
+                  {optionsOf(field).length === 0 ? null : (
+                    <span className={styles.rowDescription}>{optionsOf(field).join(', ')}</span>
+                  )}
                 </span>
                 {onDeleteField === undefined ? null : (
                   <Button type="button" variant="ghost" onClick={() => onDeleteField(field.id)}>
@@ -324,6 +380,20 @@ function FormTemplateEditor({
                 label="Field label"
                 value={fieldLabel}
                 onChange={(e) => setFieldLabel(e.target.value)}
+              />
+              {takesOptions(fieldType) ? (
+                <Textarea
+                  label="Options"
+                  value={fieldOptions}
+                  onChange={(e) => setFieldOptions(e.target.value)}
+                  minRows={2}
+                  hint="One per line. A dropdown or checkbox list with no options offers nothing to choose."
+                />
+              ) : null}
+              <Checkbox
+                label="Required"
+                checked={fieldRequired}
+                onChange={(e) => setFieldRequired(e.target.checked)}
               />
               <Button type="button" onClick={addField}>
                 Add field
