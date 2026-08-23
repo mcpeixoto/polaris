@@ -71,7 +71,14 @@ test('a guest gets neither the Pulse feed nor a link to it', async ({
     'a guest was served the Pulse feed',
   ).toHaveCount(0, { timeout: 10_000 });
   await expect(guest.getByText('An update a guest must not read.')).toHaveCount(0);
-  expect(guest.url(), 'a guest was left on /pulse').not.toContain('/pulse');
+  // Polled rather than read once. The guard sends the guest away only after the session
+  // answers, which is a round trip — locally about a quarter of a second, longer on a CI
+  // runner sharing itself between two workers. The two assertions above pass the instant
+  // the page has no feed on it, including before the app has decided anything, so a single
+  // read of the address here races the redirect and fails on the slower machine only.
+  await expect
+    .poll(() => guest.url(), { message: 'a guest was left on /pulse' })
+    .not.toContain('/pulse');
 
   expect(errors, errors.join('\n')).toEqual([]);
   await guestContext.close();
