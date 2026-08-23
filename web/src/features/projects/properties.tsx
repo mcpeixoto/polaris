@@ -193,10 +193,7 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
         onClose={status.hide}
         trigger={status.ref}
         value={project.statusId}
-        onSelect={(statusId) => {
-          status.hide();
-          updateProject(engine, project.id, { statusId }).catch(report);
-        }}
+        onSelect={(statusId) => updateProject(engine, project.id, { statusId }).catch(report)}
       />
       <PriorityPicker
         open={priority.open}
