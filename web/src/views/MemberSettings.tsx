@@ -90,8 +90,31 @@ interface MemberView {
   readonly protectedBy: string | null;
 }
 
-/** The roles a workspace has, most authority first, as the picker offers them. */
-const ROLES: readonly UserRole[] = ['owner', 'admin', 'member', 'guest'];
+/**
+ * The roles this picker may assign, most authority first.
+ *
+ * `owner` is not among them, for the reason `InviteDialog` gives about its own list: the
+ * server refuses it outright — `SetUserRole` answers `VALIDATION` on `role`, "the owner role
+ * is not available on this plan", for every value of every plan — so offering it is exactly
+ * the fixed list that fails when chosen that the command menu's entry above is registered
+ * conditionally to avoid. Choosing it optimistically moved the row to Owner and then rolled
+ * it back with a message about a plan, which reads as a billing problem rather than as a
+ * control that was never going to work.
+ */
+const ASSIGNABLE_ROLES: readonly UserRole[] = ['admin', 'member', 'guest'];
+
+/**
+ * The options one row's picker shows.
+ *
+ * A role that cannot be assigned can still be *held* — nothing here is the authority on what
+ * the server has already stored — and a `<select>` whose value matches no option renders as
+ * its first option instead, which would show an owner as an admin and offer to save that on
+ * the next change. So a role outside the assignable set is kept, at the front where its
+ * authority puts it, for as long as somebody holds it.
+ */
+function rolesFor(current: UserRole): readonly UserRole[] {
+  return ASSIGNABLE_ROLES.includes(current) ? ASSIGNABLE_ROLES : [current, ...ASSIGNABLE_ROLES];
+}
 
 const ROLE_LABELS: Readonly<Record<UserRole, string>> = {
   owner: 'Owner',
@@ -575,7 +598,7 @@ function MemberRow({ member, isViewer, onRole, onSuspend, onRemove }: MemberRowP
           disabled={isViewer}
           onChange={(event) => onRole(event.target.value as UserRole)}
         >
-          {ROLES.map((role) => (
+          {rolesFor(member.role).map((role) => (
             <option key={role} value={role}>
               {ROLE_LABELS[role]}
             </option>
