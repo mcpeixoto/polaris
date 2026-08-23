@@ -28,8 +28,8 @@ export const PROJECT_LABEL_LINK_FIELDS = /* GraphQL */ `
 
 export const CREATE_PROJECT_LABEL = /* GraphQL */ `
   ${PROJECT_LABEL_FIELDS}
-  mutation CreateProjectLabel($input: CreateProjectLabelInput!) {
-    createProjectLabel(input: $input) {
+  mutation CreateProjectLabel($input: CreateProjectLabelInput!, $clientId: UUID!, $opId: UUID!) {
+    createProjectLabel(input: $input, clientId: $clientId, opId: $opId) {
       version
       projectLabel {
         ...ProjectLabelFields

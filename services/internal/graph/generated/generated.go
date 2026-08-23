@@ -911,40 +911,40 @@ type ComplexityRoot struct {
 		CreateDashboard                func(childComplexity int, input CreateDashboardInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateDashboardTile            func(childComplexity int, input CreateDashboardTileInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateDocument                 func(childComplexity int, input CreateDocumentInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateDraft                    func(childComplexity int, input CreateDraftInput) int
-		CreateFavoriteFolder           func(childComplexity int, name string, afterFavoriteID *uuid.UUID) int
-		CreateFormTemplate             func(childComplexity int, input CreateFormTemplateInput) int
-		CreateFormTemplateField        func(childComplexity int, input CreateFormTemplateFieldInput) int
-		CreateGitHubConnection         func(childComplexity int, input CreateGitHubConnectionInput) int
-		CreateGitHubUserLink           func(childComplexity int, input CreateGitHubUserLinkInput) int
-		CreateGitLabConnection         func(childComplexity int, input CreateGitLabConnectionInput) int
-		CreateGitLabUserLink           func(childComplexity int, input CreateGitLabUserLinkInput) int
+		CreateDraft                    func(childComplexity int, input CreateDraftInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateFavoriteFolder           func(childComplexity int, name string, afterFavoriteID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateFormTemplate             func(childComplexity int, input CreateFormTemplateInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateFormTemplateField        func(childComplexity int, input CreateFormTemplateFieldInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateGitHubConnection         func(childComplexity int, input CreateGitHubConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateGitHubUserLink           func(childComplexity int, input CreateGitHubUserLinkInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateGitLabConnection         func(childComplexity int, input CreateGitLabConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateGitLabUserLink           func(childComplexity int, input CreateGitLabUserLinkInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateInitiative               func(childComplexity int, input CreateInitiativeInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateInitiativeLabel          func(childComplexity int, input CreateInitiativeLabelInput) int
+		CreateInitiativeLabel          func(childComplexity int, input CreateInitiativeLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateInitiativeUpdate         func(childComplexity int, input CreateInitiativeUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssue                    func(childComplexity int, input CreateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateIssueRelation            func(childComplexity int, issueID uuid.UUID, relatedIssueID uuid.UUID, typeArg RelationType, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateIssueTemplate            func(childComplexity int, input CreateIssueTemplateInput) int
+		CreateIssueTemplate            func(childComplexity int, input CreateIssueTemplateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateLabel                    func(childComplexity int, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateOauthAuthorization       func(childComplexity int, input CreateOauthAuthorizationInput) int
 		CreateOauthClient              func(childComplexity int, input CreateOauthClientInput) int
 		CreateProject                  func(childComplexity int, input CreateProjectInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateProjectLabel             func(childComplexity int, input CreateProjectLabelInput) int
+		CreateProjectLabel             func(childComplexity int, input CreateProjectLabelInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateProjectMilestone         func(childComplexity int, input CreateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateProjectStatus            func(childComplexity int, input CreateProjectStatusInput) int
-		CreateProjectTemplate          func(childComplexity int, input CreateProjectTemplateInput) int
-		CreateProjectTemplateIssue     func(childComplexity int, input CreateProjectTemplateIssueInput) int
-		CreateProjectTemplateMilestone func(childComplexity int, input CreateProjectTemplateMilestoneInput) int
+		CreateProjectStatus            func(childComplexity int, input CreateProjectStatusInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateProjectTemplate          func(childComplexity int, input CreateProjectTemplateInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateProjectTemplateIssue     func(childComplexity int, input CreateProjectTemplateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateProjectTemplateMilestone func(childComplexity int, input CreateProjectTemplateMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateProjectUpdate            func(childComplexity int, input CreateProjectUpdateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreatePulseFeed                func(childComplexity int, input CreatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateRecurringIssue           func(childComplexity int, input CreateRecurringIssueInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateSLARule                  func(childComplexity int, input CreateSLARuleInput, clientID *uuid.UUID, opID *uuid.UUID) int
-		CreateSentryConnection         func(childComplexity int, input CreateSentryConnectionInput) int
-		CreateSlackConnection          func(childComplexity int, input CreateSlackConnectionInput) int
-		CreateTeam                     func(childComplexity int, input CreateTeamInput) int
-		CreateView                     func(childComplexity int, input CreateViewInput) int
+		CreateSentryConnection         func(childComplexity int, input CreateSentryConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateSlackConnection          func(childComplexity int, input CreateSlackConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateTeam                     func(childComplexity int, input CreateTeamInput, clientID *uuid.UUID, opID *uuid.UUID) int
+		CreateView                     func(childComplexity int, input CreateViewInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		CreateWebhook                  func(childComplexity int, input CreateWebhookInput) int
-		CreateWorkflowState            func(childComplexity int, input CreateWorkflowStateInput) int
+		CreateWorkflowState            func(childComplexity int, input CreateWorkflowStateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeclineTriageIssue             func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteAskForm                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteAttachment               func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -1952,7 +1952,7 @@ type MutationResolver interface {
 	CreatePulseFeed(ctx context.Context, input CreatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) (*PulseFeedPayload, error)
 	UpdatePulseFeed(ctx context.Context, input UpdatePulseFeedInput, clientID *uuid.UUID, opID *uuid.UUID) (*PulseFeedPayload, error)
 	DeletePulseFeed(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
-	CreateTeam(ctx context.Context, input CreateTeamInput) (*TeamPayload, error)
+	CreateTeam(ctx context.Context, input CreateTeamInput, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
 	UpdateTeam(ctx context.Context, input UpdateTeamInput) (*TeamPayload, error)
 	MoveTeam(ctx context.Context, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
 	RetireTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
@@ -1961,7 +1961,7 @@ type MutationResolver interface {
 	RestoreTeam(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*TeamPayload, error)
 	AddTeamMember(ctx context.Context, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) (*TeamMembershipPayload, error)
 	RemoveTeamMember(ctx context.Context, teamID uuid.UUID, userID uuid.UUID) (*DeletePayload, error)
-	CreateWorkflowState(ctx context.Context, input CreateWorkflowStateInput) (*WorkflowStatePayload, error)
+	CreateWorkflowState(ctx context.Context, input CreateWorkflowStateInput, clientID *uuid.UUID, opID *uuid.UUID) (*WorkflowStatePayload, error)
 	UpdateWorkflowState(ctx context.Context, input UpdateWorkflowStateInput) (*WorkflowStatePayload, error)
 	ArchiveWorkflowState(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
 	UpdateProfile(ctx context.Context, input UpdateProfileInput) (*UserPayload, error)
@@ -1995,12 +1995,12 @@ type MutationResolver interface {
 	MergeLabels(ctx context.Context, sourceID uuid.UUID, intoID uuid.UUID) (*LabelPayload, error)
 	AddIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssueLabelPayload, error)
 	RemoveIssueLabel(ctx context.Context, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
-	CreateProjectLabel(ctx context.Context, input CreateProjectLabelInput) (*ProjectLabelPayload, error)
+	CreateProjectLabel(ctx context.Context, input CreateProjectLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectLabelPayload, error)
 	UpdateProjectLabel(ctx context.Context, input UpdateProjectLabelInput) (*ProjectLabelPayload, error)
 	ArchiveProjectLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
 	AddProjectLabel(ctx context.Context, projectID uuid.UUID, labelID uuid.UUID) (*ProjectLabelLinkPayload, error)
 	RemoveProjectLabel(ctx context.Context, projectID uuid.UUID, labelID uuid.UUID) (*DeletePayload, error)
-	CreateInitiativeLabel(ctx context.Context, input CreateInitiativeLabelInput) (*InitiativeLabelPayload, error)
+	CreateInitiativeLabel(ctx context.Context, input CreateInitiativeLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*InitiativeLabelPayload, error)
 	UpdateInitiativeLabel(ctx context.Context, input UpdateInitiativeLabelInput) (*InitiativeLabelPayload, error)
 	ArchiveInitiativeLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
 	AddInitiativeLabel(ctx context.Context, initiativeID uuid.UUID, labelID uuid.UUID) (*InitiativeLabelLinkPayload, error)
@@ -2012,7 +2012,7 @@ type MutationResolver interface {
 	MarkAllNotificationsRead(ctx context.Context) (*NotificationsPayload, error)
 	SnoozeNotification(ctx context.Context, id uuid.UUID, until *time.Time) (*NotificationPayload, error)
 	DeleteNotification(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
-	CreateView(ctx context.Context, input CreateViewInput) (*ViewPayload, error)
+	CreateView(ctx context.Context, input CreateViewInput, clientID *uuid.UUID, opID *uuid.UUID) (*ViewPayload, error)
 	UpdateView(ctx context.Context, input UpdateViewInput) (*ViewPayload, error)
 	DeleteView(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 	SetViewPreference(ctx context.Context, viewKey string, display json.RawMessage) (*ViewPreferencePayload, error)
@@ -2026,25 +2026,25 @@ type MutationResolver interface {
 	DeleteCustomerSubscription(ctx context.Context, customerID uuid.UUID) (*DeletePayload, error)
 	AddFavorite(ctx context.Context, kind FavoriteKind, targetID uuid.UUID, afterFavoriteID *uuid.UUID) (*FavoritePayload, error)
 	RemoveFavorite(ctx context.Context, kind FavoriteKind, targetID uuid.UUID) (*DeletePayload, error)
-	CreateFavoriteFolder(ctx context.Context, name string, afterFavoriteID *uuid.UUID) (*FavoritePayload, error)
+	CreateFavoriteFolder(ctx context.Context, name string, afterFavoriteID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*FavoritePayload, error)
 	UpdateFavoriteFolder(ctx context.Context, id uuid.UUID, name string) (*FavoritePayload, error)
 	MoveFavorite(ctx context.Context, input MoveFavoriteInput) (*FavoritePayload, error)
-	CreateIssueTemplate(ctx context.Context, input CreateIssueTemplateInput) (*IssueTemplatePayload, error)
+	CreateIssueTemplate(ctx context.Context, input CreateIssueTemplateInput, clientID *uuid.UUID, opID *uuid.UUID) (*IssueTemplatePayload, error)
 	UpdateIssueTemplate(ctx context.Context, input UpdateIssueTemplateInput) (*IssueTemplatePayload, error)
 	ArchiveIssueTemplate(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
-	CreateFormTemplate(ctx context.Context, input CreateFormTemplateInput) (*FormTemplatePayload, error)
+	CreateFormTemplate(ctx context.Context, input CreateFormTemplateInput, clientID *uuid.UUID, opID *uuid.UUID) (*FormTemplatePayload, error)
 	UpdateFormTemplate(ctx context.Context, input UpdateFormTemplateInput) (*FormTemplatePayload, error)
 	ArchiveFormTemplate(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
-	CreateFormTemplateField(ctx context.Context, input CreateFormTemplateFieldInput) (*FormTemplateFieldPayload, error)
+	CreateFormTemplateField(ctx context.Context, input CreateFormTemplateFieldInput, clientID *uuid.UUID, opID *uuid.UUID) (*FormTemplateFieldPayload, error)
 	UpdateFormTemplateField(ctx context.Context, input UpdateFormTemplateFieldInput) (*FormTemplateFieldPayload, error)
 	DeleteFormTemplateField(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
-	CreateProjectTemplate(ctx context.Context, input CreateProjectTemplateInput) (*ProjectTemplatePayload, error)
+	CreateProjectTemplate(ctx context.Context, input CreateProjectTemplateInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectTemplatePayload, error)
 	UpdateProjectTemplate(ctx context.Context, input UpdateProjectTemplateInput) (*ProjectTemplatePayload, error)
 	ArchiveProjectTemplate(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
-	CreateProjectTemplateMilestone(ctx context.Context, input CreateProjectTemplateMilestoneInput) (*ProjectTemplateMilestonePayload, error)
+	CreateProjectTemplateMilestone(ctx context.Context, input CreateProjectTemplateMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectTemplateMilestonePayload, error)
 	UpdateProjectTemplateMilestone(ctx context.Context, input UpdateProjectTemplateMilestoneInput) (*ProjectTemplateMilestonePayload, error)
 	DeleteProjectTemplateMilestone(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
-	CreateProjectTemplateIssue(ctx context.Context, input CreateProjectTemplateIssueInput) (*ProjectTemplateIssuePayload, error)
+	CreateProjectTemplateIssue(ctx context.Context, input CreateProjectTemplateIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectTemplateIssuePayload, error)
 	UpdateProjectTemplateIssue(ctx context.Context, input UpdateProjectTemplateIssueInput) (*ProjectTemplateIssuePayload, error)
 	DeleteProjectTemplateIssue(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 	CreateRecurringIssue(ctx context.Context, input CreateRecurringIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*RecurringIssuePayload, error)
@@ -2061,7 +2061,7 @@ type MutationResolver interface {
 	CreateProjectMilestone(ctx context.Context, input CreateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectMilestonePayload, error)
 	UpdateProjectMilestone(ctx context.Context, input UpdateProjectMilestoneInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectMilestonePayload, error)
 	DeleteProjectMilestone(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
-	CreateProjectStatus(ctx context.Context, input CreateProjectStatusInput) (*ProjectStatusPayload, error)
+	CreateProjectStatus(ctx context.Context, input CreateProjectStatusInput, clientID *uuid.UUID, opID *uuid.UUID) (*ProjectStatusPayload, error)
 	UpdateProjectStatus(ctx context.Context, input UpdateProjectStatusInput) (*ProjectStatusPayload, error)
 	ArchiveProjectStatus(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
 	InviteToWorkspace(ctx context.Context, input InviteInput) (*InvitePayload, error)
@@ -2079,33 +2079,33 @@ type MutationResolver interface {
 	RotateOauthClientSecret(ctx context.Context, id uuid.UUID) (*OauthClientSecretPayload, error)
 	DeleteOauthClient(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 	CreateOauthAuthorization(ctx context.Context, input CreateOauthAuthorizationInput) (*OauthAuthorizationPayload, error)
-	CreateGitHubConnection(ctx context.Context, input CreateGitHubConnectionInput) (*GitHubConnectionPayload, error)
+	CreateGitHubConnection(ctx context.Context, input CreateGitHubConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) (*GitHubConnectionPayload, error)
 	UpdateGitHubConnection(ctx context.Context, input UpdateGitHubConnectionInput) (*GitHubConnectionPayload, error)
 	DeleteGitHubConnection(ctx context.Context) (*DeletePayload, error)
-	CreateGitHubUserLink(ctx context.Context, input CreateGitHubUserLinkInput) (*GitHubUserLinkPayload, error)
+	CreateGitHubUserLink(ctx context.Context, input CreateGitHubUserLinkInput, clientID *uuid.UUID, opID *uuid.UUID) (*GitHubUserLinkPayload, error)
 	DeleteGitHubUserLink(ctx context.Context) (*DeletePayload, error)
 	LinkGitHubPullRequest(ctx context.Context, input LinkGitHubPullRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*GitHubLinkPayload, error)
 	UpdateGitHubTeamAutomation(ctx context.Context, input UpdateGitHubTeamAutomationInput) (*GitHubTeamAutomationPayload, error)
 	DeleteGitHubTeamAutomation(ctx context.Context, teamID uuid.UUID) (*GitHubTeamAutomationPayload, error)
-	CreateGitLabConnection(ctx context.Context, input CreateGitLabConnectionInput) (*GitLabConnectionPayload, error)
+	CreateGitLabConnection(ctx context.Context, input CreateGitLabConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) (*GitLabConnectionPayload, error)
 	UpdateGitLabConnection(ctx context.Context, input UpdateGitLabConnectionInput) (*GitLabConnectionPayload, error)
 	DeleteGitLabConnection(ctx context.Context) (*DeletePayload, error)
-	CreateGitLabUserLink(ctx context.Context, input CreateGitLabUserLinkInput) (*GitLabUserLinkPayload, error)
+	CreateGitLabUserLink(ctx context.Context, input CreateGitLabUserLinkInput, clientID *uuid.UUID, opID *uuid.UUID) (*GitLabUserLinkPayload, error)
 	DeleteGitLabUserLink(ctx context.Context) (*DeletePayload, error)
 	LinkGitLabMergeRequest(ctx context.Context, input LinkGitLabMergeRequestInput, clientID *uuid.UUID, opID *uuid.UUID) (*GitLabLinkPayload, error)
 	UpdateGitLabTeamAutomation(ctx context.Context, input UpdateGitLabTeamAutomationInput) (*GitLabTeamAutomationPayload, error)
 	DeleteGitLabTeamAutomation(ctx context.Context, teamID uuid.UUID) (*GitLabTeamAutomationPayload, error)
-	CreateSentryConnection(ctx context.Context, input CreateSentryConnectionInput) (*SentryConnectionPayload, error)
+	CreateSentryConnection(ctx context.Context, input CreateSentryConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) (*SentryConnectionPayload, error)
 	UpdateSentryConnection(ctx context.Context, input UpdateSentryConnectionInput) (*SentryConnectionPayload, error)
 	DeleteSentryConnection(ctx context.Context) (*DeletePayload, error)
 	LinkSentryIssue(ctx context.Context, input LinkSentryIssueInput, clientID *uuid.UUID, opID *uuid.UUID) (*SentryLinkPayload, error)
-	CreateSlackConnection(ctx context.Context, input CreateSlackConnectionInput) (*SlackConnectionPayload, error)
+	CreateSlackConnection(ctx context.Context, input CreateSlackConnectionInput, clientID *uuid.UUID, opID *uuid.UUID) (*SlackConnectionPayload, error)
 	UpdateSlackConnection(ctx context.Context, input UpdateSlackConnectionInput) (*SlackConnectionPayload, error)
 	DeleteSlackConnection(ctx context.Context) (*DeletePayload, error)
 	EnsureCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedPayload, error)
 	RotateCycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedPayload, error)
 	SubmitIntegration(ctx context.Context, input SubmitIntegrationInput) (*IntegrationSubmissionPayload, error)
-	CreateDraft(ctx context.Context, input CreateDraftInput) (*DraftPayload, error)
+	CreateDraft(ctx context.Context, input CreateDraftInput, clientID *uuid.UUID, opID *uuid.UUID) (*DraftPayload, error)
 	UpdateDraft(ctx context.Context, input UpdateDraftInput) (*DraftPayload, error)
 	DeleteDraft(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 }
@@ -6148,7 +6148,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateDraft(childComplexity, args["input"].(CreateDraftInput)), true
+		return e.ComplexityRoot.Mutation.CreateDraft(childComplexity, args["input"].(CreateDraftInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createFavoriteFolder":
 		if e.ComplexityRoot.Mutation.CreateFavoriteFolder == nil {
 			break
@@ -6159,7 +6159,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateFavoriteFolder(childComplexity, args["name"].(string), args["afterFavoriteId"].(*uuid.UUID)), true
+		return e.ComplexityRoot.Mutation.CreateFavoriteFolder(childComplexity, args["name"].(string), args["afterFavoriteId"].(*uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createFormTemplate":
 		if e.ComplexityRoot.Mutation.CreateFormTemplate == nil {
 			break
@@ -6170,7 +6170,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateFormTemplate(childComplexity, args["input"].(CreateFormTemplateInput)), true
+		return e.ComplexityRoot.Mutation.CreateFormTemplate(childComplexity, args["input"].(CreateFormTemplateInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createFormTemplateField":
 		if e.ComplexityRoot.Mutation.CreateFormTemplateField == nil {
 			break
@@ -6181,7 +6181,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateFormTemplateField(childComplexity, args["input"].(CreateFormTemplateFieldInput)), true
+		return e.ComplexityRoot.Mutation.CreateFormTemplateField(childComplexity, args["input"].(CreateFormTemplateFieldInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createGitHubConnection":
 		if e.ComplexityRoot.Mutation.CreateGitHubConnection == nil {
 			break
@@ -6192,7 +6192,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateGitHubConnection(childComplexity, args["input"].(CreateGitHubConnectionInput)), true
+		return e.ComplexityRoot.Mutation.CreateGitHubConnection(childComplexity, args["input"].(CreateGitHubConnectionInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createGitHubUserLink":
 		if e.ComplexityRoot.Mutation.CreateGitHubUserLink == nil {
 			break
@@ -6203,7 +6203,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateGitHubUserLink(childComplexity, args["input"].(CreateGitHubUserLinkInput)), true
+		return e.ComplexityRoot.Mutation.CreateGitHubUserLink(childComplexity, args["input"].(CreateGitHubUserLinkInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createGitLabConnection":
 		if e.ComplexityRoot.Mutation.CreateGitLabConnection == nil {
 			break
@@ -6214,7 +6214,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateGitLabConnection(childComplexity, args["input"].(CreateGitLabConnectionInput)), true
+		return e.ComplexityRoot.Mutation.CreateGitLabConnection(childComplexity, args["input"].(CreateGitLabConnectionInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createGitLabUserLink":
 		if e.ComplexityRoot.Mutation.CreateGitLabUserLink == nil {
 			break
@@ -6225,7 +6225,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateGitLabUserLink(childComplexity, args["input"].(CreateGitLabUserLinkInput)), true
+		return e.ComplexityRoot.Mutation.CreateGitLabUserLink(childComplexity, args["input"].(CreateGitLabUserLinkInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createInitiative":
 		if e.ComplexityRoot.Mutation.CreateInitiative == nil {
 			break
@@ -6247,7 +6247,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateInitiativeLabel(childComplexity, args["input"].(CreateInitiativeLabelInput)), true
+		return e.ComplexityRoot.Mutation.CreateInitiativeLabel(childComplexity, args["input"].(CreateInitiativeLabelInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createInitiativeUpdate":
 		if e.ComplexityRoot.Mutation.CreateInitiativeUpdate == nil {
 			break
@@ -6291,7 +6291,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateIssueTemplate(childComplexity, args["input"].(CreateIssueTemplateInput)), true
+		return e.ComplexityRoot.Mutation.CreateIssueTemplate(childComplexity, args["input"].(CreateIssueTemplateInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createLabel":
 		if e.ComplexityRoot.Mutation.CreateLabel == nil {
 			break
@@ -6346,7 +6346,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateProjectLabel(childComplexity, args["input"].(CreateProjectLabelInput)), true
+		return e.ComplexityRoot.Mutation.CreateProjectLabel(childComplexity, args["input"].(CreateProjectLabelInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createProjectMilestone":
 		if e.ComplexityRoot.Mutation.CreateProjectMilestone == nil {
 			break
@@ -6368,7 +6368,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateProjectStatus(childComplexity, args["input"].(CreateProjectStatusInput)), true
+		return e.ComplexityRoot.Mutation.CreateProjectStatus(childComplexity, args["input"].(CreateProjectStatusInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createProjectTemplate":
 		if e.ComplexityRoot.Mutation.CreateProjectTemplate == nil {
 			break
@@ -6379,7 +6379,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateProjectTemplate(childComplexity, args["input"].(CreateProjectTemplateInput)), true
+		return e.ComplexityRoot.Mutation.CreateProjectTemplate(childComplexity, args["input"].(CreateProjectTemplateInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createProjectTemplateIssue":
 		if e.ComplexityRoot.Mutation.CreateProjectTemplateIssue == nil {
 			break
@@ -6390,7 +6390,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateProjectTemplateIssue(childComplexity, args["input"].(CreateProjectTemplateIssueInput)), true
+		return e.ComplexityRoot.Mutation.CreateProjectTemplateIssue(childComplexity, args["input"].(CreateProjectTemplateIssueInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createProjectTemplateMilestone":
 		if e.ComplexityRoot.Mutation.CreateProjectTemplateMilestone == nil {
 			break
@@ -6401,7 +6401,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateProjectTemplateMilestone(childComplexity, args["input"].(CreateProjectTemplateMilestoneInput)), true
+		return e.ComplexityRoot.Mutation.CreateProjectTemplateMilestone(childComplexity, args["input"].(CreateProjectTemplateMilestoneInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createProjectUpdate":
 		if e.ComplexityRoot.Mutation.CreateProjectUpdate == nil {
 			break
@@ -6456,7 +6456,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateSentryConnection(childComplexity, args["input"].(CreateSentryConnectionInput)), true
+		return e.ComplexityRoot.Mutation.CreateSentryConnection(childComplexity, args["input"].(CreateSentryConnectionInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createSlackConnection":
 		if e.ComplexityRoot.Mutation.CreateSlackConnection == nil {
 			break
@@ -6467,7 +6467,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateSlackConnection(childComplexity, args["input"].(CreateSlackConnectionInput)), true
+		return e.ComplexityRoot.Mutation.CreateSlackConnection(childComplexity, args["input"].(CreateSlackConnectionInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createTeam":
 		if e.ComplexityRoot.Mutation.CreateTeam == nil {
 			break
@@ -6478,7 +6478,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateTeam(childComplexity, args["input"].(CreateTeamInput)), true
+		return e.ComplexityRoot.Mutation.CreateTeam(childComplexity, args["input"].(CreateTeamInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createView":
 		if e.ComplexityRoot.Mutation.CreateView == nil {
 			break
@@ -6489,7 +6489,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateView(childComplexity, args["input"].(CreateViewInput)), true
+		return e.ComplexityRoot.Mutation.CreateView(childComplexity, args["input"].(CreateViewInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.createWebhook":
 		if e.ComplexityRoot.Mutation.CreateWebhook == nil {
 			break
@@ -6511,7 +6511,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateWorkflowState(childComplexity, args["input"].(CreateWorkflowStateInput)), true
+		return e.ComplexityRoot.Mutation.CreateWorkflowState(childComplexity, args["input"].(CreateWorkflowStateInput), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.declineTriageIssue":
 		if e.ComplexityRoot.Mutation.DeclineTriageIssue == nil {
 			break
@@ -15472,7 +15472,7 @@ type Mutation {
   updatePulseFeed(input: UpdatePulseFeedInput!, clientId: UUID, opId: UUID): PulseFeedPayload! @idempotent
   deletePulseFeed(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
-  createTeam(input: CreateTeamInput!): TeamPayload!
+  createTeam(input: CreateTeamInput!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
   updateTeam(input: UpdateTeamInput!): TeamPayload!
   """Nest under a parent, or pass null to make a top-level team."""
   moveTeam(teamId: UUID!, parentTeamId: UUID, clientId: UUID, opId: UUID): TeamPayload! @idempotent
@@ -15487,7 +15487,7 @@ type Mutation {
   addTeamMember(teamId: UUID!, userId: UUID!, role: TeamRole): TeamMembershipPayload!
   removeTeamMember(teamId: UUID!, userId: UUID!): DeletePayload!
 
-  createWorkflowState(input: CreateWorkflowStateInput!): WorkflowStatePayload!
+  createWorkflowState(input: CreateWorkflowStateInput!, clientId: UUID, opId: UUID): WorkflowStatePayload! @idempotent
   updateWorkflowState(input: UpdateWorkflowStateInput!): WorkflowStatePayload!
   """
   Retires a status, or brings one back. ` + "`" + `archived: false` + "`" + ` is the way back; without it the
@@ -15578,7 +15578,7 @@ type Mutation {
 
   # ---- project labels
 
-  createProjectLabel(input: CreateProjectLabelInput!): ProjectLabelPayload!
+  createProjectLabel(input: CreateProjectLabelInput!, clientId: UUID, opId: UUID): ProjectLabelPayload! @idempotent
   updateProjectLabel(input: UpdateProjectLabelInput!): ProjectLabelPayload!
   archiveProjectLabel(id: UUID!, archived: Boolean!): DeletePayload!
   addProjectLabel(projectId: UUID!, labelId: UUID!): ProjectLabelLinkPayload!
@@ -15586,7 +15586,7 @@ type Mutation {
 
   # ---- initiative labels
 
-  createInitiativeLabel(input: CreateInitiativeLabelInput!): InitiativeLabelPayload!
+  createInitiativeLabel(input: CreateInitiativeLabelInput!, clientId: UUID, opId: UUID): InitiativeLabelPayload! @idempotent
   updateInitiativeLabel(input: UpdateInitiativeLabelInput!): InitiativeLabelPayload!
   archiveInitiativeLabel(id: UUID!, archived: Boolean!): DeletePayload!
   addInitiativeLabel(initiativeId: UUID!, labelId: UUID!): InitiativeLabelLinkPayload!
@@ -15607,7 +15607,7 @@ type Mutation {
 
   # ---- views, preferences and favourites
 
-  createView(input: CreateViewInput!): ViewPayload!
+  createView(input: CreateViewInput!, clientId: UUID, opId: UUID): ViewPayload! @idempotent
   updateView(input: UpdateViewInput!): ViewPayload!
   deleteView(id: UUID!): DeletePayload!
   setViewPreference(viewKey: String!, display: JSON!): ViewPreferencePayload!
@@ -15630,7 +15630,7 @@ type Mutation {
 
   addFavorite(kind: FavoriteKind!, targetId: UUID!, afterFavoriteId: UUID): FavoritePayload!
   removeFavorite(kind: FavoriteKind!, targetId: UUID!): DeletePayload!
-  createFavoriteFolder(name: String!, afterFavoriteId: UUID): FavoritePayload!
+  createFavoriteFolder(name: String!, afterFavoriteId: UUID, clientId: UUID, opId: UUID): FavoritePayload! @idempotent
   updateFavoriteFolder(id: UUID!, name: String!): FavoritePayload!
   """
   Move a favourite into a folder, out of one, or along the sidebar. ` + "`" + `clearFolder` + "`" + `
@@ -15640,25 +15640,25 @@ type Mutation {
 
   # ---- templates
 
-  createIssueTemplate(input: CreateIssueTemplateInput!): IssueTemplatePayload!
+  createIssueTemplate(input: CreateIssueTemplateInput!, clientId: UUID, opId: UUID): IssueTemplatePayload! @idempotent
   updateIssueTemplate(input: UpdateIssueTemplateInput!): IssueTemplatePayload!
   """Retires a template, or brings one back."""
   archiveIssueTemplate(id: UUID!, archived: Boolean!): DeletePayload!
 
-  createFormTemplate(input: CreateFormTemplateInput!): FormTemplatePayload!
+  createFormTemplate(input: CreateFormTemplateInput!, clientId: UUID, opId: UUID): FormTemplatePayload! @idempotent
   updateFormTemplate(input: UpdateFormTemplateInput!): FormTemplatePayload!
   archiveFormTemplate(id: UUID!, archived: Boolean!): DeletePayload!
-  createFormTemplateField(input: CreateFormTemplateFieldInput!): FormTemplateFieldPayload!
+  createFormTemplateField(input: CreateFormTemplateFieldInput!, clientId: UUID, opId: UUID): FormTemplateFieldPayload! @idempotent
   updateFormTemplateField(input: UpdateFormTemplateFieldInput!): FormTemplateFieldPayload!
   deleteFormTemplateField(id: UUID!): DeletePayload!
 
-  createProjectTemplate(input: CreateProjectTemplateInput!): ProjectTemplatePayload!
+  createProjectTemplate(input: CreateProjectTemplateInput!, clientId: UUID, opId: UUID): ProjectTemplatePayload! @idempotent
   updateProjectTemplate(input: UpdateProjectTemplateInput!): ProjectTemplatePayload!
   archiveProjectTemplate(id: UUID!, archived: Boolean!): DeletePayload!
-  createProjectTemplateMilestone(input: CreateProjectTemplateMilestoneInput!): ProjectTemplateMilestonePayload!
+  createProjectTemplateMilestone(input: CreateProjectTemplateMilestoneInput!, clientId: UUID, opId: UUID): ProjectTemplateMilestonePayload! @idempotent
   updateProjectTemplateMilestone(input: UpdateProjectTemplateMilestoneInput!): ProjectTemplateMilestonePayload!
   deleteProjectTemplateMilestone(id: UUID!): DeletePayload!
-  createProjectTemplateIssue(input: CreateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
+  createProjectTemplateIssue(input: CreateProjectTemplateIssueInput!, clientId: UUID, opId: UUID): ProjectTemplateIssuePayload! @idempotent
   updateProjectTemplateIssue(input: UpdateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
   deleteProjectTemplateIssue(id: UUID!): DeletePayload!
 
@@ -15683,7 +15683,7 @@ type Mutation {
   updateProjectMilestone(input: UpdateProjectMilestoneInput!, clientId: UUID, opId: UUID): ProjectMilestonePayload! @idempotent
   deleteProjectMilestone(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
-  createProjectStatus(input: CreateProjectStatusInput!): ProjectStatusPayload!
+  createProjectStatus(input: CreateProjectStatusInput!, clientId: UUID, opId: UUID): ProjectStatusPayload! @idempotent
   updateProjectStatus(input: UpdateProjectStatusInput!): ProjectStatusPayload!
   archiveProjectStatus(id: UUID!, archived: Boolean!): DeletePayload!
 
@@ -15719,30 +15719,30 @@ type Mutation {
   """Consent: issues an authorization code and returns the redirect the browser should follow."""
   createOauthAuthorization(input: CreateOauthAuthorizationInput!): OauthAuthorizationPayload!
 
-  createGitHubConnection(input: CreateGitHubConnectionInput!): GitHubConnectionPayload!
+  createGitHubConnection(input: CreateGitHubConnectionInput!, clientId: UUID, opId: UUID): GitHubConnectionPayload! @idempotent
   updateGitHubConnection(input: UpdateGitHubConnectionInput!): GitHubConnectionPayload!
   deleteGitHubConnection: DeletePayload!
-  createGitHubUserLink(input: CreateGitHubUserLinkInput!): GitHubUserLinkPayload!
+  createGitHubUserLink(input: CreateGitHubUserLinkInput!, clientId: UUID, opId: UUID): GitHubUserLinkPayload! @idempotent
   deleteGitHubUserLink: DeletePayload!
   linkGitHubPullRequest(input: LinkGitHubPullRequestInput!, clientId: UUID, opId: UUID): GitHubLinkPayload! @idempotent
   updateGitHubTeamAutomation(input: UpdateGitHubTeamAutomationInput!): GitHubTeamAutomationPayload!
   deleteGitHubTeamAutomation(teamId: UUID!): GitHubTeamAutomationPayload!
 
-  createGitLabConnection(input: CreateGitLabConnectionInput!): GitLabConnectionPayload!
+  createGitLabConnection(input: CreateGitLabConnectionInput!, clientId: UUID, opId: UUID): GitLabConnectionPayload! @idempotent
   updateGitLabConnection(input: UpdateGitLabConnectionInput!): GitLabConnectionPayload!
   deleteGitLabConnection: DeletePayload!
-  createGitLabUserLink(input: CreateGitLabUserLinkInput!): GitLabUserLinkPayload!
+  createGitLabUserLink(input: CreateGitLabUserLinkInput!, clientId: UUID, opId: UUID): GitLabUserLinkPayload! @idempotent
   deleteGitLabUserLink: DeletePayload!
   linkGitLabMergeRequest(input: LinkGitLabMergeRequestInput!, clientId: UUID, opId: UUID): GitLabLinkPayload! @idempotent
   updateGitLabTeamAutomation(input: UpdateGitLabTeamAutomationInput!): GitLabTeamAutomationPayload!
   deleteGitLabTeamAutomation(teamId: UUID!): GitLabTeamAutomationPayload!
 
-  createSentryConnection(input: CreateSentryConnectionInput!): SentryConnectionPayload!
+  createSentryConnection(input: CreateSentryConnectionInput!, clientId: UUID, opId: UUID): SentryConnectionPayload! @idempotent
   updateSentryConnection(input: UpdateSentryConnectionInput!): SentryConnectionPayload!
   deleteSentryConnection: DeletePayload!
   linkSentryIssue(input: LinkSentryIssueInput!, clientId: UUID, opId: UUID): SentryLinkPayload! @idempotent
 
-  createSlackConnection(input: CreateSlackConnectionInput!): SlackConnectionPayload!
+  createSlackConnection(input: CreateSlackConnectionInput!, clientId: UUID, opId: UUID): SlackConnectionPayload! @idempotent
   updateSlackConnection(input: UpdateSlackConnectionInput!): SlackConnectionPayload!
   deleteSlackConnection: DeletePayload!
 
@@ -15756,7 +15756,7 @@ type Mutation {
 
   # ---- drafts (personal, on-demand; not replicated)
 
-  createDraft(input: CreateDraftInput!): DraftPayload!
+  createDraft(input: CreateDraftInput!, clientId: UUID, opId: UUID): DraftPayload! @idempotent
   updateDraft(input: UpdateDraftInput!): DraftPayload!
   deleteDraft(id: UUID!): DeletePayload!
 }
@@ -20167,6 +20167,22 @@ func (ec *executionContext) field_Mutation_createDraft_args(ctx context.Context,
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20189,6 +20205,22 @@ func (ec *executionContext) field_Mutation_createFavoriteFolder_args(ctx context
 		return nil, err
 	}
 	args["afterFavoriteId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
 	return args, nil
 }
 
@@ -20203,6 +20235,22 @@ func (ec *executionContext) field_Mutation_createFormTemplateField_args(ctx cont
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20217,6 +20265,22 @@ func (ec *executionContext) field_Mutation_createFormTemplate_args(ctx context.C
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20231,6 +20295,22 @@ func (ec *executionContext) field_Mutation_createGitHubConnection_args(ctx conte
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20245,6 +20325,22 @@ func (ec *executionContext) field_Mutation_createGitHubUserLink_args(ctx context
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20259,6 +20355,22 @@ func (ec *executionContext) field_Mutation_createGitLabConnection_args(ctx conte
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20273,6 +20385,22 @@ func (ec *executionContext) field_Mutation_createGitLabUserLink_args(ctx context
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20287,6 +20415,22 @@ func (ec *executionContext) field_Mutation_createInitiativeLabel_args(ctx contex
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20407,6 +20551,22 @@ func (ec *executionContext) field_Mutation_createIssueTemplate_args(ctx context.
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20509,6 +20669,22 @@ func (ec *executionContext) field_Mutation_createProjectLabel_args(ctx context.C
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20553,6 +20729,22 @@ func (ec *executionContext) field_Mutation_createProjectStatus_args(ctx context.
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20567,6 +20759,22 @@ func (ec *executionContext) field_Mutation_createProjectTemplateIssue_args(ctx c
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20581,6 +20789,22 @@ func (ec *executionContext) field_Mutation_createProjectTemplateMilestone_args(c
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20595,6 +20819,22 @@ func (ec *executionContext) field_Mutation_createProjectTemplate_args(ctx contex
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20729,6 +20969,22 @@ func (ec *executionContext) field_Mutation_createSentryConnection_args(ctx conte
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20773,6 +21029,22 @@ func (ec *executionContext) field_Mutation_createSlackConnection_args(ctx contex
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20787,6 +21059,22 @@ func (ec *executionContext) field_Mutation_createTeam_args(ctx context.Context, 
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20801,6 +21089,22 @@ func (ec *executionContext) field_Mutation_createView_args(ctx context.Context, 
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -20829,6 +21133,22 @@ func (ec *executionContext) field_Mutation_createWorkflowState_args(ctx context.
 		return nil, err
 	}
 	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
 	return args, nil
 }
 
@@ -41655,9 +41975,22 @@ func (ec *executionContext) _Mutation_createTeam(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateTeam(ctx, fc.Args["input"].(CreateTeamInput))
+			return ec.Resolvers.Mutation().CreateTeam(ctx, fc.Args["input"].(CreateTeamInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *TeamPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *TeamPayload) graphql.Marshaler {
 			return ec.marshalNTeamPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐTeamPayload(ctx, selections, v)
 		},
@@ -42116,9 +42449,22 @@ func (ec *executionContext) _Mutation_createWorkflowState(ctx context.Context, f
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateWorkflowState(ctx, fc.Args["input"].(CreateWorkflowStateInput))
+			return ec.Resolvers.Mutation().CreateWorkflowState(ctx, fc.Args["input"].(CreateWorkflowStateInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *WorkflowStatePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *WorkflowStatePayload) graphql.Marshaler {
 			return ec.marshalNWorkflowStatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐWorkflowStatePayload(ctx, selections, v)
 		},
@@ -43782,9 +44128,22 @@ func (ec *executionContext) _Mutation_createProjectLabel(ctx context.Context, fi
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateProjectLabel(ctx, fc.Args["input"].(CreateProjectLabelInput))
+			return ec.Resolvers.Mutation().CreateProjectLabel(ctx, fc.Args["input"].(CreateProjectLabelInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *ProjectLabelPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *ProjectLabelPayload) graphql.Marshaler {
 			return ec.marshalNProjectLabelPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectLabelPayload(ctx, selections, v)
 		},
@@ -44002,9 +44361,22 @@ func (ec *executionContext) _Mutation_createInitiativeLabel(ctx context.Context,
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateInitiativeLabel(ctx, fc.Args["input"].(CreateInitiativeLabelInput))
+			return ec.Resolvers.Mutation().CreateInitiativeLabel(ctx, fc.Args["input"].(CreateInitiativeLabelInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *InitiativeLabelPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *InitiativeLabelPayload) graphql.Marshaler {
 			return ec.marshalNInitiativeLabelPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeLabelPayload(ctx, selections, v)
 		},
@@ -44544,9 +44916,22 @@ func (ec *executionContext) _Mutation_createView(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateView(ctx, fc.Args["input"].(CreateViewInput))
+			return ec.Resolvers.Mutation().CreateView(ctx, fc.Args["input"].(CreateViewInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *ViewPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *ViewPayload) graphql.Marshaler {
 			return ec.marshalNViewPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐViewPayload(ctx, selections, v)
 		},
@@ -45160,9 +45545,22 @@ func (ec *executionContext) _Mutation_createFavoriteFolder(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateFavoriteFolder(ctx, fc.Args["name"].(string), fc.Args["afterFavoriteId"].(*uuid.UUID))
+			return ec.Resolvers.Mutation().CreateFavoriteFolder(ctx, fc.Args["name"].(string), fc.Args["afterFavoriteId"].(*uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *FavoritePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *FavoritePayload) graphql.Marshaler {
 			return ec.marshalNFavoritePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFavoritePayload(ctx, selections, v)
 		},
@@ -45292,9 +45690,22 @@ func (ec *executionContext) _Mutation_createIssueTemplate(ctx context.Context, f
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateIssueTemplate(ctx, fc.Args["input"].(CreateIssueTemplateInput))
+			return ec.Resolvers.Mutation().CreateIssueTemplate(ctx, fc.Args["input"].(CreateIssueTemplateInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *IssueTemplatePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *IssueTemplatePayload) graphql.Marshaler {
 			return ec.marshalNIssueTemplatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssueTemplatePayload(ctx, selections, v)
 		},
@@ -45424,9 +45835,22 @@ func (ec *executionContext) _Mutation_createFormTemplate(ctx context.Context, fi
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateFormTemplate(ctx, fc.Args["input"].(CreateFormTemplateInput))
+			return ec.Resolvers.Mutation().CreateFormTemplate(ctx, fc.Args["input"].(CreateFormTemplateInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *FormTemplatePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *FormTemplatePayload) graphql.Marshaler {
 			return ec.marshalNFormTemplatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplatePayload(ctx, selections, v)
 		},
@@ -45556,9 +45980,22 @@ func (ec *executionContext) _Mutation_createFormTemplateField(ctx context.Contex
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateFormTemplateField(ctx, fc.Args["input"].(CreateFormTemplateFieldInput))
+			return ec.Resolvers.Mutation().CreateFormTemplateField(ctx, fc.Args["input"].(CreateFormTemplateFieldInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *FormTemplateFieldPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *FormTemplateFieldPayload) graphql.Marshaler {
 			return ec.marshalNFormTemplateFieldPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐFormTemplateFieldPayload(ctx, selections, v)
 		},
@@ -45688,9 +46125,22 @@ func (ec *executionContext) _Mutation_createProjectTemplate(ctx context.Context,
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateProjectTemplate(ctx, fc.Args["input"].(CreateProjectTemplateInput))
+			return ec.Resolvers.Mutation().CreateProjectTemplate(ctx, fc.Args["input"].(CreateProjectTemplateInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *ProjectTemplatePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplatePayload) graphql.Marshaler {
 			return ec.marshalNProjectTemplatePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplatePayload(ctx, selections, v)
 		},
@@ -45820,9 +46270,22 @@ func (ec *executionContext) _Mutation_createProjectTemplateMilestone(ctx context
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateProjectTemplateMilestone(ctx, fc.Args["input"].(CreateProjectTemplateMilestoneInput))
+			return ec.Resolvers.Mutation().CreateProjectTemplateMilestone(ctx, fc.Args["input"].(CreateProjectTemplateMilestoneInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *ProjectTemplateMilestonePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplateMilestonePayload) graphql.Marshaler {
 			return ec.marshalNProjectTemplateMilestonePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateMilestonePayload(ctx, selections, v)
 		},
@@ -45952,9 +46415,22 @@ func (ec *executionContext) _Mutation_createProjectTemplateIssue(ctx context.Con
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateProjectTemplateIssue(ctx, fc.Args["input"].(CreateProjectTemplateIssueInput))
+			return ec.Resolvers.Mutation().CreateProjectTemplateIssue(ctx, fc.Args["input"].(CreateProjectTemplateIssueInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *ProjectTemplateIssuePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *ProjectTemplateIssuePayload) graphql.Marshaler {
 			return ec.marshalNProjectTemplateIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectTemplateIssuePayload(ctx, selections, v)
 		},
@@ -46882,9 +47358,22 @@ func (ec *executionContext) _Mutation_createProjectStatus(ctx context.Context, f
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateProjectStatus(ctx, fc.Args["input"].(CreateProjectStatusInput))
+			return ec.Resolvers.Mutation().CreateProjectStatus(ctx, fc.Args["input"].(CreateProjectStatusInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *ProjectStatusPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *ProjectStatusPayload) graphql.Marshaler {
 			return ec.marshalNProjectStatusPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐProjectStatusPayload(ctx, selections, v)
 		},
@@ -47662,9 +48151,22 @@ func (ec *executionContext) _Mutation_createGitHubConnection(ctx context.Context
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateGitHubConnection(ctx, fc.Args["input"].(CreateGitHubConnectionInput))
+			return ec.Resolvers.Mutation().CreateGitHubConnection(ctx, fc.Args["input"].(CreateGitHubConnectionInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *GitHubConnectionPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *GitHubConnectionPayload) graphql.Marshaler {
 			return ec.marshalNGitHubConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubConnectionPayload(ctx, selections, v)
 		},
@@ -47782,9 +48284,22 @@ func (ec *executionContext) _Mutation_createGitHubUserLink(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateGitHubUserLink(ctx, fc.Args["input"].(CreateGitHubUserLinkInput))
+			return ec.Resolvers.Mutation().CreateGitHubUserLink(ctx, fc.Args["input"].(CreateGitHubUserLinkInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *GitHubUserLinkPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *GitHubUserLinkPayload) graphql.Marshaler {
 			return ec.marshalNGitHubUserLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitHubUserLinkPayload(ctx, selections, v)
 		},
@@ -48003,9 +48518,22 @@ func (ec *executionContext) _Mutation_createGitLabConnection(ctx context.Context
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateGitLabConnection(ctx, fc.Args["input"].(CreateGitLabConnectionInput))
+			return ec.Resolvers.Mutation().CreateGitLabConnection(ctx, fc.Args["input"].(CreateGitLabConnectionInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *GitLabConnectionPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *GitLabConnectionPayload) graphql.Marshaler {
 			return ec.marshalNGitLabConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitLabConnectionPayload(ctx, selections, v)
 		},
@@ -48123,9 +48651,22 @@ func (ec *executionContext) _Mutation_createGitLabUserLink(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateGitLabUserLink(ctx, fc.Args["input"].(CreateGitLabUserLinkInput))
+			return ec.Resolvers.Mutation().CreateGitLabUserLink(ctx, fc.Args["input"].(CreateGitLabUserLinkInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *GitLabUserLinkPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *GitLabUserLinkPayload) graphql.Marshaler {
 			return ec.marshalNGitLabUserLinkPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐGitLabUserLinkPayload(ctx, selections, v)
 		},
@@ -48344,9 +48885,22 @@ func (ec *executionContext) _Mutation_createSentryConnection(ctx context.Context
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateSentryConnection(ctx, fc.Args["input"].(CreateSentryConnectionInput))
+			return ec.Resolvers.Mutation().CreateSentryConnection(ctx, fc.Args["input"].(CreateSentryConnectionInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *SentryConnectionPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *SentryConnectionPayload) graphql.Marshaler {
 			return ec.marshalNSentryConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSentryConnectionPayload(ctx, selections, v)
 		},
@@ -48521,9 +49075,22 @@ func (ec *executionContext) _Mutation_createSlackConnection(ctx context.Context,
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateSlackConnection(ctx, fc.Args["input"].(CreateSlackConnectionInput))
+			return ec.Resolvers.Mutation().CreateSlackConnection(ctx, fc.Args["input"].(CreateSlackConnectionInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *SlackConnectionPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *SlackConnectionPayload) graphql.Marshaler {
 			return ec.marshalNSlackConnectionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐSlackConnectionPayload(ctx, selections, v)
 		},
@@ -48773,9 +49340,22 @@ func (ec *executionContext) _Mutation_createDraft(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateDraft(ctx, fc.Args["input"].(CreateDraftInput))
+			return ec.Resolvers.Mutation().CreateDraft(ctx, fc.Args["input"].(CreateDraftInput), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
 		},
-		nil,
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DraftPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
 		func(ctx context.Context, selections ast.SelectionSet, v *DraftPayload) graphql.Marshaler {
 			return ec.marshalNDraftPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDraftPayload(ctx, selections, v)
 		},

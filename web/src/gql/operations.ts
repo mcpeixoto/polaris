@@ -493,8 +493,8 @@ export const SNOOZE_ISSUE = /* GraphQL */ `
 
 export const CREATE_WORKFLOW_STATE = /* GraphQL */ `
   ${STATE_FIELDS}
-  mutation CreateWorkflowState($input: CreateWorkflowStateInput!) {
-    createWorkflowState(input: $input) {
+  mutation CreateWorkflowState($input: CreateWorkflowStateInput!, $clientId: UUID!, $opId: UUID!) {
+    createWorkflowState(input: $input, clientId: $clientId, opId: $opId) {
       version
       state {
         ...StateFields

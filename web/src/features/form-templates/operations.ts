@@ -32,8 +32,8 @@ export const FORM_TEMPLATE_FIELD_FIELDS = /* GraphQL */ `
 
 export const CREATE_FORM_TEMPLATE = /* GraphQL */ `
   ${FORM_TEMPLATE_FIELDS}
-  mutation CreateFormTemplate($input: CreateFormTemplateInput!) {
-    createFormTemplate(input: $input) {
+  mutation CreateFormTemplate($input: CreateFormTemplateInput!, $clientId: UUID!, $opId: UUID!) {
+    createFormTemplate(input: $input, clientId: $clientId, opId: $opId) {
       version
       template {
         ...FormTemplateFields
@@ -65,8 +65,12 @@ export const ARCHIVE_FORM_TEMPLATE = /* GraphQL */ `
 
 export const CREATE_FORM_TEMPLATE_FIELD = /* GraphQL */ `
   ${FORM_TEMPLATE_FIELD_FIELDS}
-  mutation CreateFormTemplateField($input: CreateFormTemplateFieldInput!) {
-    createFormTemplateField(input: $input) {
+  mutation CreateFormTemplateField(
+    $input: CreateFormTemplateFieldInput!
+    $clientId: UUID!
+    $opId: UUID!
+  ) {
+    createFormTemplateField(input: $input, clientId: $clientId, opId: $opId) {
       version
       field {
         ...FormTemplateFieldFields

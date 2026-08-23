@@ -3496,7 +3496,7 @@ type Mutation {
   updatePulseFeed(input: UpdatePulseFeedInput!, clientId: UUID, opId: UUID): PulseFeedPayload! @idempotent
   deletePulseFeed(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
-  createTeam(input: CreateTeamInput!): TeamPayload!
+  createTeam(input: CreateTeamInput!, clientId: UUID, opId: UUID): TeamPayload! @idempotent
   updateTeam(input: UpdateTeamInput!): TeamPayload!
   """Nest under a parent, or pass null to make a top-level team."""
   moveTeam(teamId: UUID!, parentTeamId: UUID, clientId: UUID, opId: UUID): TeamPayload! @idempotent
@@ -3511,7 +3511,7 @@ type Mutation {
   addTeamMember(teamId: UUID!, userId: UUID!, role: TeamRole): TeamMembershipPayload!
   removeTeamMember(teamId: UUID!, userId: UUID!): DeletePayload!
 
-  createWorkflowState(input: CreateWorkflowStateInput!): WorkflowStatePayload!
+  createWorkflowState(input: CreateWorkflowStateInput!, clientId: UUID, opId: UUID): WorkflowStatePayload! @idempotent
   updateWorkflowState(input: UpdateWorkflowStateInput!): WorkflowStatePayload!
   """
   Retires a status, or brings one back. `archived: false` is the way back; without it the
@@ -3602,7 +3602,7 @@ type Mutation {
 
   # ---- project labels
 
-  createProjectLabel(input: CreateProjectLabelInput!): ProjectLabelPayload!
+  createProjectLabel(input: CreateProjectLabelInput!, clientId: UUID, opId: UUID): ProjectLabelPayload! @idempotent
   updateProjectLabel(input: UpdateProjectLabelInput!): ProjectLabelPayload!
   archiveProjectLabel(id: UUID!, archived: Boolean!): DeletePayload!
   addProjectLabel(projectId: UUID!, labelId: UUID!): ProjectLabelLinkPayload!
@@ -3610,7 +3610,7 @@ type Mutation {
 
   # ---- initiative labels
 
-  createInitiativeLabel(input: CreateInitiativeLabelInput!): InitiativeLabelPayload!
+  createInitiativeLabel(input: CreateInitiativeLabelInput!, clientId: UUID, opId: UUID): InitiativeLabelPayload! @idempotent
   updateInitiativeLabel(input: UpdateInitiativeLabelInput!): InitiativeLabelPayload!
   archiveInitiativeLabel(id: UUID!, archived: Boolean!): DeletePayload!
   addInitiativeLabel(initiativeId: UUID!, labelId: UUID!): InitiativeLabelLinkPayload!
@@ -3631,7 +3631,7 @@ type Mutation {
 
   # ---- views, preferences and favourites
 
-  createView(input: CreateViewInput!): ViewPayload!
+  createView(input: CreateViewInput!, clientId: UUID, opId: UUID): ViewPayload! @idempotent
   updateView(input: UpdateViewInput!): ViewPayload!
   deleteView(id: UUID!): DeletePayload!
   setViewPreference(viewKey: String!, display: JSON!): ViewPreferencePayload!
@@ -3654,7 +3654,7 @@ type Mutation {
 
   addFavorite(kind: FavoriteKind!, targetId: UUID!, afterFavoriteId: UUID): FavoritePayload!
   removeFavorite(kind: FavoriteKind!, targetId: UUID!): DeletePayload!
-  createFavoriteFolder(name: String!, afterFavoriteId: UUID): FavoritePayload!
+  createFavoriteFolder(name: String!, afterFavoriteId: UUID, clientId: UUID, opId: UUID): FavoritePayload! @idempotent
   updateFavoriteFolder(id: UUID!, name: String!): FavoritePayload!
   """
   Move a favourite into a folder, out of one, or along the sidebar. `clearFolder`
@@ -3664,25 +3664,25 @@ type Mutation {
 
   # ---- templates
 
-  createIssueTemplate(input: CreateIssueTemplateInput!): IssueTemplatePayload!
+  createIssueTemplate(input: CreateIssueTemplateInput!, clientId: UUID, opId: UUID): IssueTemplatePayload! @idempotent
   updateIssueTemplate(input: UpdateIssueTemplateInput!): IssueTemplatePayload!
   """Retires a template, or brings one back."""
   archiveIssueTemplate(id: UUID!, archived: Boolean!): DeletePayload!
 
-  createFormTemplate(input: CreateFormTemplateInput!): FormTemplatePayload!
+  createFormTemplate(input: CreateFormTemplateInput!, clientId: UUID, opId: UUID): FormTemplatePayload! @idempotent
   updateFormTemplate(input: UpdateFormTemplateInput!): FormTemplatePayload!
   archiveFormTemplate(id: UUID!, archived: Boolean!): DeletePayload!
-  createFormTemplateField(input: CreateFormTemplateFieldInput!): FormTemplateFieldPayload!
+  createFormTemplateField(input: CreateFormTemplateFieldInput!, clientId: UUID, opId: UUID): FormTemplateFieldPayload! @idempotent
   updateFormTemplateField(input: UpdateFormTemplateFieldInput!): FormTemplateFieldPayload!
   deleteFormTemplateField(id: UUID!): DeletePayload!
 
-  createProjectTemplate(input: CreateProjectTemplateInput!): ProjectTemplatePayload!
+  createProjectTemplate(input: CreateProjectTemplateInput!, clientId: UUID, opId: UUID): ProjectTemplatePayload! @idempotent
   updateProjectTemplate(input: UpdateProjectTemplateInput!): ProjectTemplatePayload!
   archiveProjectTemplate(id: UUID!, archived: Boolean!): DeletePayload!
-  createProjectTemplateMilestone(input: CreateProjectTemplateMilestoneInput!): ProjectTemplateMilestonePayload!
+  createProjectTemplateMilestone(input: CreateProjectTemplateMilestoneInput!, clientId: UUID, opId: UUID): ProjectTemplateMilestonePayload! @idempotent
   updateProjectTemplateMilestone(input: UpdateProjectTemplateMilestoneInput!): ProjectTemplateMilestonePayload!
   deleteProjectTemplateMilestone(id: UUID!): DeletePayload!
-  createProjectTemplateIssue(input: CreateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
+  createProjectTemplateIssue(input: CreateProjectTemplateIssueInput!, clientId: UUID, opId: UUID): ProjectTemplateIssuePayload! @idempotent
   updateProjectTemplateIssue(input: UpdateProjectTemplateIssueInput!): ProjectTemplateIssuePayload!
   deleteProjectTemplateIssue(id: UUID!): DeletePayload!
 
@@ -3707,7 +3707,7 @@ type Mutation {
   updateProjectMilestone(input: UpdateProjectMilestoneInput!, clientId: UUID, opId: UUID): ProjectMilestonePayload! @idempotent
   deleteProjectMilestone(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
-  createProjectStatus(input: CreateProjectStatusInput!): ProjectStatusPayload!
+  createProjectStatus(input: CreateProjectStatusInput!, clientId: UUID, opId: UUID): ProjectStatusPayload! @idempotent
   updateProjectStatus(input: UpdateProjectStatusInput!): ProjectStatusPayload!
   archiveProjectStatus(id: UUID!, archived: Boolean!): DeletePayload!
 
@@ -3743,30 +3743,30 @@ type Mutation {
   """Consent: issues an authorization code and returns the redirect the browser should follow."""
   createOauthAuthorization(input: CreateOauthAuthorizationInput!): OauthAuthorizationPayload!
 
-  createGitHubConnection(input: CreateGitHubConnectionInput!): GitHubConnectionPayload!
+  createGitHubConnection(input: CreateGitHubConnectionInput!, clientId: UUID, opId: UUID): GitHubConnectionPayload! @idempotent
   updateGitHubConnection(input: UpdateGitHubConnectionInput!): GitHubConnectionPayload!
   deleteGitHubConnection: DeletePayload!
-  createGitHubUserLink(input: CreateGitHubUserLinkInput!): GitHubUserLinkPayload!
+  createGitHubUserLink(input: CreateGitHubUserLinkInput!, clientId: UUID, opId: UUID): GitHubUserLinkPayload! @idempotent
   deleteGitHubUserLink: DeletePayload!
   linkGitHubPullRequest(input: LinkGitHubPullRequestInput!, clientId: UUID, opId: UUID): GitHubLinkPayload! @idempotent
   updateGitHubTeamAutomation(input: UpdateGitHubTeamAutomationInput!): GitHubTeamAutomationPayload!
   deleteGitHubTeamAutomation(teamId: UUID!): GitHubTeamAutomationPayload!
 
-  createGitLabConnection(input: CreateGitLabConnectionInput!): GitLabConnectionPayload!
+  createGitLabConnection(input: CreateGitLabConnectionInput!, clientId: UUID, opId: UUID): GitLabConnectionPayload! @idempotent
   updateGitLabConnection(input: UpdateGitLabConnectionInput!): GitLabConnectionPayload!
   deleteGitLabConnection: DeletePayload!
-  createGitLabUserLink(input: CreateGitLabUserLinkInput!): GitLabUserLinkPayload!
+  createGitLabUserLink(input: CreateGitLabUserLinkInput!, clientId: UUID, opId: UUID): GitLabUserLinkPayload! @idempotent
   deleteGitLabUserLink: DeletePayload!
   linkGitLabMergeRequest(input: LinkGitLabMergeRequestInput!, clientId: UUID, opId: UUID): GitLabLinkPayload! @idempotent
   updateGitLabTeamAutomation(input: UpdateGitLabTeamAutomationInput!): GitLabTeamAutomationPayload!
   deleteGitLabTeamAutomation(teamId: UUID!): GitLabTeamAutomationPayload!
 
-  createSentryConnection(input: CreateSentryConnectionInput!): SentryConnectionPayload!
+  createSentryConnection(input: CreateSentryConnectionInput!, clientId: UUID, opId: UUID): SentryConnectionPayload! @idempotent
   updateSentryConnection(input: UpdateSentryConnectionInput!): SentryConnectionPayload!
   deleteSentryConnection: DeletePayload!
   linkSentryIssue(input: LinkSentryIssueInput!, clientId: UUID, opId: UUID): SentryLinkPayload! @idempotent
 
-  createSlackConnection(input: CreateSlackConnectionInput!): SlackConnectionPayload!
+  createSlackConnection(input: CreateSlackConnectionInput!, clientId: UUID, opId: UUID): SlackConnectionPayload! @idempotent
   updateSlackConnection(input: UpdateSlackConnectionInput!): SlackConnectionPayload!
   deleteSlackConnection: DeletePayload!
 
@@ -3780,7 +3780,7 @@ type Mutation {
 
   # ---- drafts (personal, on-demand; not replicated)
 
-  createDraft(input: CreateDraftInput!): DraftPayload!
+  createDraft(input: CreateDraftInput!, clientId: UUID, opId: UUID): DraftPayload! @idempotent
   updateDraft(input: UpdateDraftInput!): DraftPayload!
   deleteDraft(id: UUID!): DeletePayload!
 }
