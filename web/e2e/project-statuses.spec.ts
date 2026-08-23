@@ -62,10 +62,22 @@ test('a status projects are using cannot be retired', async ({ page, workspace }
 
   // Promote another one first: the default is refused for its own reason, and this test is
   // about the projects sitting in the status rather than about the default.
-  await page
-    .getByRole('group', { name: 'Planned status' })
-    .getByRole('button', { name: 'Make default' })
-    .click();
+  //
+  // Waiting for the reply rather than for the badge, because the badge is the optimistic
+  // patch and appears before the server has committed anything. Retiring Backlog on the
+  // strength of it races the promotion, and the server — still holding Backlog as the
+  // default — answers the other refusal entirely.
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().includes('/graphql') &&
+        (response.request().postData() ?? '').includes('UpdateProjectStatus'),
+    ),
+    page
+      .getByRole('group', { name: 'Planned status' })
+      .getByRole('button', { name: 'Make default' })
+      .click(),
+  ]);
   await expect(page.getByRole('group', { name: 'Planned status' })).toContainText('Default');
 
   await page
