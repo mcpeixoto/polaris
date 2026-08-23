@@ -135,3 +135,9 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+.empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}

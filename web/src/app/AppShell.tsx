@@ -149,10 +149,15 @@ export function AppShell({
   const engine = useEngine();
   useDesktopNotifications(engine, viewerId);
   useUnreadBadge();
+  // A viewer the replica has not produced yet is unknown, not a guest — the same reading
+  // the workspace half of each of these already takes, and the one `showPulse` takes of
+  // the viewer. Reading unknown as "no" leaves `dashboard.create` and `customer.create`
+  // unregistered for as long as the boot takes, and both pages put a create button on
+  // screen before then: `registry.invoke` finds no action, returns false, and the click
+  // is gone. Nothing retries it, so the button stays dead until the user thinks to press
+  // it again.
   const showCustomers =
-    viewer !== null &&
-    viewer.role !== 'guest' &&
-    (workspace === undefined || workspace.customerRequestsEnabled);
+    viewer?.role !== 'guest' && (workspace === undefined || workspace.customerRequestsEnabled);
   const showDashboards = showCustomers;
   const showPulse =
     (viewer === null || viewer.role !== 'guest') &&

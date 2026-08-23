@@ -165,6 +165,10 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
   );
 
   const title = tile.title !== '' ? tile.title : MEASURE_LABELS[TILE_MEASURE[tile.measure]];
+  // A burn-up is rows of periods and everything else is rows of buckets. Counted here so
+  // the table can say it has nothing rather than rendering as a blank space under the
+  // controls — which is what a measure with nothing eligible used to look like.
+  const rows = data.chart === 'area' ? data.burn.length : data.buckets.length;
 
   return (
     <article className={styles.tile} aria-label={title}>
@@ -231,7 +235,10 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
         <p className={styles.metric}>{formatTotal(data.total, data.unit)}</p>
       )}
       {tile.display === 'chart' && <InsightChart data={data} />}
-      {tile.display === 'table' && data.chart === 'area' && (
+      {tile.display === 'table' && rows === 0 && (
+        <p className={styles.empty}>Nothing in this view to list yet.</p>
+      )}
+      {tile.display === 'table' && rows > 0 && data.chart === 'area' && (
         <table className={styles.table}>
           <thead>
             <tr>
@@ -249,7 +256,7 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
           </tbody>
         </table>
       )}
-      {tile.display === 'table' && data.chart !== 'area' && data.buckets.length > 0 && (
+      {tile.display === 'table' && rows > 0 && data.chart !== 'area' && (
         <table className={styles.table}>
           <thead>
             <tr>
