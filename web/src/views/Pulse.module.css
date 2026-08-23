@@ -40,6 +40,9 @@
   font-size: var(--font-size-sm);
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .tab:hover {
@@ -69,6 +72,9 @@
   font-size: var(--font-size-sm);
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .tabAdd:hover {
@@ -154,6 +160,7 @@
   padding: var(--space-3) var(--space-4);
   color: inherit;
   text-decoration: none;
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .row:hover {

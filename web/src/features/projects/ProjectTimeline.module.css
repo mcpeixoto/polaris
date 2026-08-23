@@ -43,6 +43,7 @@
   text-decoration: none;
   font-size: var(--font-size-sm);
   border-bottom: 1px solid var(--border-subtle);
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .sidebarRow:hover {

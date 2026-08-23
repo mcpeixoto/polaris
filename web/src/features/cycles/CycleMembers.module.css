@@ -46,6 +46,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .row:hover,

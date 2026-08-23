@@ -87,6 +87,9 @@
   background: none;
   color: var(--text-tertiary);
   cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .remove svg {

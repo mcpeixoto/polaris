@@ -62,6 +62,7 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .name:hover {

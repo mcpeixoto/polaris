@@ -43,6 +43,7 @@
 
 .barClick {
   cursor: pointer;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .barClick:hover,
@@ -111,6 +112,7 @@
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .filter:hover {

@@ -21,6 +21,7 @@
   font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .back:hover {
