@@ -30,7 +30,7 @@ export {
   SetIndex,
 } from './indexes';
 
-export { Outbox, uuidv7 } from './outbox';
+export { Outbox, reconciliations, uuidv7 } from './outbox';
 export type {
   EntityPatch,
   OptimisticPatch,

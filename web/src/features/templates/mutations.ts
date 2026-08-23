@@ -36,10 +36,8 @@
  */
 
 import { estimatesEnabled } from '~/features/estimate';
-import { fromWire } from '~/gql/enums';
 import {
   uuidv7,
-  type EntityPatch,
   type IssueTemplate,
   type Store,
   type TemplateProperties,
@@ -124,11 +122,14 @@ export async function createTemplate(engine: SyncEngine, input: NewTemplate): Pr
       },
     },
     optimistic: [{ type: 'issueTemplate', id: provisional.id, before: null, after: provisional }],
+    reconcile: {
+      type: 'issueTemplate',
+      provisionalId: provisional.id,
+      path: ['createIssueTemplate', 'template'],
+    },
   });
 
-  const real = data.createIssueTemplate.template;
-  swapTemplate(store, provisional.id, real);
-  return real.id;
+  return data.createIssueTemplate.template.id;
 }
 
 export interface TemplateFields {
@@ -359,33 +360,6 @@ export function templateDefaults(
     subIssues: [...(template.subIssues ?? [])],
     dropped,
   };
-}
-
-/**
- * Puts the server's row in place of the stand-in, in one store write.
- *
- * One write rather than two because every subscribed row re-renders between them otherwise,
- * and a template that vanishes for a frame on its way to being replaced by itself is the
- * exact flicker the optimistic patch exists to prevent. See `swapLabel`, which this mirrors.
- */
-function swapTemplate(store: Store, provisionalId: UUID, wire: IssueTemplate): void {
-  // `issueTemplate` carries no enumerated field today, so this returns its argument
-  // untouched. It is here anyway, so that "a GraphQL response goes through fromWire before it
-  // reaches the store" is a rule with no exceptions to remember — the exceptions are what let
-  // `"BLOCKS"` into the store in the first place. See web/src/gql/enums.ts.
-  const real = fromWire('issueTemplate', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'issueTemplate',
-      id: real.id,
-      before: store.get('issueTemplate', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'issueTemplate', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
 }
 
 /**

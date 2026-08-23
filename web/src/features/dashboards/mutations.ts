@@ -1,5 +1,5 @@
 import { fromWire, toWire } from '~/gql/enums';
-import { uuidv7, type EntityOf, type EntityPatch, type UUID } from '~/store';
+import { uuidv7, type EntityOf, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 import type { FilterNode } from '~/filter';
@@ -54,16 +54,13 @@ export async function createDashboard(engine: SyncEngine, input: NewDashboard): 
         },
       },
       optimistic: [{ type: 'dashboard', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'dashboard',
+        provisionalId: id,
+        path: ['createDashboard', 'dashboard'],
+      },
     });
-    const real = fromWire('dashboard', data.createDashboard.dashboard as EntityOf<'dashboard'>);
-    const patch: EntityPatch[] = [
-      { type: 'dashboard', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'dashboard', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    return data.createDashboard.dashboard.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;
@@ -151,19 +148,13 @@ export async function createDashboardTile(
         },
       },
       optimistic: [{ type: 'dashboardTile', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'dashboardTile',
+        provisionalId: id,
+        path: ['createDashboardTile', 'dashboardTile'],
+      },
     });
-    const real = fromWire(
-      'dashboardTile',
-      data.createDashboardTile.dashboardTile as EntityOf<'dashboardTile'>,
-    );
-    const patch: EntityPatch[] = [
-      { type: 'dashboardTile', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'dashboardTile', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    return data.createDashboardTile.dashboardTile.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;

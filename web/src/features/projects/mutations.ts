@@ -106,6 +106,11 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
         { type: 'project', id: provisional.id, before: null, after: provisional },
         ...teamRows,
       ],
+      reconcile: {
+        type: 'project',
+        provisionalId: provisional.id,
+        path: ['createProject', 'project'],
+      },
     });
     const created = swapProject(store, provisional.id, data.createProject.project);
     return created;
@@ -276,7 +281,7 @@ export async function createProjectStatus(
     updatedAt: now,
   };
 
-  const data = await engine.mutate<{ createProjectStatus: { status: ProjectStatus } }>({
+  await engine.mutate<{ createProjectStatus: { status: ProjectStatus } }>({
     mutation: CREATE_PROJECT_STATUS,
     variables: {
       input: {
@@ -286,21 +291,12 @@ export async function createProjectStatus(
       },
     },
     optimistic: [{ type: 'projectStatus', id: provisional.id, before: null, after: provisional }],
-  });
-
-  const real = fromWire('projectStatus', data.createProjectStatus.status);
-  const patch: EntityPatch[] = [
-    {
+    reconcile: {
       type: 'projectStatus',
-      id: real.id,
-      before: store.get('projectStatus', real.id) ?? null,
-      after: real,
+      provisionalId: provisional.id,
+      path: ['createProjectStatus', 'status'],
     },
-  ];
-  if (real.id !== provisional.id) {
-    patch.unshift({ type: 'projectStatus', id: provisional.id, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
+  });
 }
 
 export interface ProjectStatusFields {

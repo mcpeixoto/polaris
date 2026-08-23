@@ -136,8 +136,13 @@ export async function createView(engine: SyncEngine, input: NewView): Promise<UU
         },
       },
       optimistic: [{ type: 'view', id: provisional.id, before: null, after: provisional }],
+      reconcile: {
+        type: 'view',
+        provisionalId: provisional.id,
+        path: ['createView', 'view'],
+      },
     });
-    return swapView(store, provisional.id, data.createView.view);
+    return data.createView.view.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return provisional.id;
     throw error;
@@ -352,14 +357,18 @@ export async function addFavorite(
   };
 
   try {
-    const data = await engine.mutate<{ addFavorite: { favorite: Favorite } }>({
+    await engine.mutate<{ addFavorite: { favorite: Favorite } }>({
       mutation: ADD_FAVORITE,
       // `toWire`: the argument is declared `FavoriteKind!`, whose values are `VIEW`, `TEAM`,
       // `ISSUE`, `LABEL`. A GraphQL enum value is case-sensitive.
       variables: { kind: toWire(kind), targetId, afterFavoriteId: null },
       optimistic: [{ type: 'favorite', id: provisional.id, before: null, after: provisional }],
+      reconcile: {
+        type: 'favorite',
+        provisionalId: provisional.id,
+        path: ['addFavorite', 'favorite'],
+      },
     });
-    swapFavorite(store, provisional.id, data.addFavorite.favorite);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -421,12 +430,16 @@ export async function createFavoriteFolder(
   };
 
   try {
-    const data = await engine.mutate<{ createFavoriteFolder: { favorite: Favorite } }>({
+    await engine.mutate<{ createFavoriteFolder: { favorite: Favorite } }>({
       mutation: CREATE_FAVORITE_FOLDER,
       variables: { name: trimmed, afterFavoriteId: null },
       optimistic: [{ type: 'favorite', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'favorite',
+        provisionalId: id,
+        path: ['createFavoriteFolder', 'favorite'],
+      },
     });
-    swapFavorite(store, id, data.createFavoriteFolder.favorite);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -505,36 +518,6 @@ function favoriteOf(
     if (row !== undefined && row.userId === userId && row.kind === kind) return row;
   }
   return undefined;
-}
-
-/**
- * Puts the server's row in place of the stand-in, in one store write.
- *
- * One write rather than two because every subscribed row re-renders between them otherwise,
- * and a sidebar entry that vanishes for a frame on its way to being replaced by itself is the
- * exact flicker an optimistic create is supposed to prevent.
- */
-function swapView(store: Store, provisionalId: UUID, wire: View): UUID {
-  const real = fromWire('view', wire);
-  const patch: EntityPatch[] = [
-    { type: 'view', id: real.id, before: store.get('view', real.id) ?? null, after: real },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'view', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-  return real.id;
-}
-
-function swapFavorite(store: Store, provisionalId: UUID, wire: Favorite): void {
-  const real = fromWire('favorite', wire);
-  const patch: EntityPatch[] = [
-    { type: 'favorite', id: real.id, before: store.get('favorite', real.id) ?? null, after: real },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'favorite', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
 }
 
 function swapPreference(store: Store, provisionalId: UUID, wire: ViewPreference): void {

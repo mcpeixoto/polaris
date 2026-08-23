@@ -1,5 +1,4 @@
-import { fromWire } from '~/gql/enums';
-import { uuidv7, type EntityOf, type EntityPatch, type UUID } from '~/store';
+import { uuidv7, type EntityOf, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -39,16 +38,13 @@ export async function createAskForm(engine: SyncEngine, input: NewAskForm): Prom
         },
       },
       optimistic: [{ type: 'askForm', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'askForm',
+        provisionalId: id,
+        path: ['createAskForm', 'askForm'],
+      },
     });
-    const real = fromWire('askForm', data.createAskForm.askForm as EntityOf<'askForm'>);
-    const patch: EntityPatch[] = [
-      { type: 'askForm', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'askForm', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    return data.createAskForm.askForm.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;

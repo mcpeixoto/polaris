@@ -1,4 +1,4 @@
-import type { PolarisDB } from './db';
+import type { EntityRef, PolarisDB } from './db';
 import { drainJournal, journalForget, journalWrite } from './journal';
 import type { Entity, EntityType, Timestamp, UUID } from './types';
 
@@ -55,8 +55,15 @@ export interface Reconciliation {
   readonly type: EntityType;
   /** The id the client invented while it waited. */
   readonly provisionalId: UUID;
-  /** Where the row sits in the mutation's response — `['createComment', 'comment']`. */
-  readonly path: readonly string[];
+  /**
+   * Where the row sits in the mutation's response — `['createComment', 'comment']`.
+   *
+   * Optional, because not every stand-in is answered for. `createIssue` writes an
+   * `issueLabel` row per label the create carries and the response returns only the issue,
+   * so those rows have nothing to read and pair from `match` alone. Absent means exactly
+   * that: pair from the delta stream, which carries every row the server wrote either way.
+   */
+  readonly path?: readonly string[];
   /**
    * The fields that say "this delta row and that stand-in are the same thing".
    *
@@ -76,6 +83,36 @@ export interface Reconciliation {
    * response, which is the old behaviour and is correct, only slower to converge.
    */
   readonly match?: readonly string[];
+  /**
+   * Stand-ins written beside this one that point AT it and cannot outlive it.
+   *
+   * `createProject` is the case. It writes the project and a `project_team` row per team,
+   * so the new project is in its teams' lists in the frame it appears in — and those rows
+   * carry the project's *provisional* id. When the real project arrives it brings real
+   * `project_team` rows keyed to the real project, and the stand-ins are then joins to a
+   * project that no longer exists: invisible to every screen, indistinguishable from real
+   * rows in IndexedDB, and impossible to pair by `match` because the one field that would
+   * identify them is the id that changed.
+   *
+   * So they are named here, as plain refs, and retired with the row they hang off. Refs
+   * rather than a scan because the caller already has the ids: they are in the same
+   * optimistic patch, minted three lines earlier.
+   */
+  readonly dependents?: readonly EntityRef[];
+}
+
+/**
+ * The pairings on a record, however they were written and however old the record is.
+ *
+ * One function rather than a normalisation at the boundary because the boundary is
+ * IndexedDB: a record written by yesterday's build holds a bare object, is replayed by
+ * today's, and must not be silently ignored for having the older shape.
+ */
+export function reconciliations(
+  spec: Reconciliation | readonly Reconciliation[] | undefined,
+): readonly Reconciliation[] {
+  if (spec === undefined) return [];
+  return Array.isArray(spec) ? spec : [spec as Reconciliation];
 }
 
 /** A queued mutation, exactly as it is stored. */
@@ -86,8 +123,15 @@ export interface OutboxRecord {
   readonly mutation: string;
   readonly variables: Readonly<Record<string, unknown>>;
   readonly optimisticPatch: OptimisticPatch;
-  /** How to pair the response's row with the stand-in. Absent for client-minted ids. */
-  readonly reconcile?: Reconciliation | undefined;
+  /**
+   * How to pair the server's rows with the stand-ins. Absent for client-minted ids.
+   *
+   * A list because one mutation can write more than one stand-in: `createIssue` carries
+   * its labels, and each application is a row the server allocates an id for. Stored as
+   * written — a single spec stays a single spec — so a record queued by an older build
+   * still replays; `reconciliations` below is the only thing that reads it.
+   */
+  readonly reconcile?: Reconciliation | readonly Reconciliation[] | undefined;
   /** Send attempts so far. Persisted, so a poison op cannot be retried forever across reloads. */
   readonly attempts: number;
   readonly createdAt: Timestamp;
@@ -97,7 +141,7 @@ export interface OutboxAppend {
   readonly mutation: string;
   readonly variables: Readonly<Record<string, unknown>>;
   readonly optimisticPatch?: OptimisticPatch | undefined;
-  readonly reconcile?: Reconciliation | undefined;
+  readonly reconcile?: Reconciliation | readonly Reconciliation[] | undefined;
   /** Supplied only by tests and by a caller that minted the id before rendering. */
   readonly opId?: UUID | undefined;
 }

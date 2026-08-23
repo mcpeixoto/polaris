@@ -30,14 +30,16 @@
  * stand-in retires it on arrival, without waiting for a response that may never come.
  */
 
-import type {
-  Entity,
-  EntityOf,
-  EntityPatch,
-  EntityType,
-  Outbox,
-  Reconciliation,
-  Store,
+import {
+  reconciliations,
+  type Entity,
+  type EntityOf,
+  type EntityPatch,
+  type EntityType,
+  type OptimisticPatch,
+  type Outbox,
+  type Reconciliation,
+  type Store,
 } from '~/store';
 import { fromWire } from '~/gql/enums';
 import type { Change } from './socket';
@@ -58,7 +60,18 @@ import type { Change } from './socket';
  * rather than guessed at: the delta stream carries the authoritative row either way, and the
  * stand-in is the user's own write, which must not be deleted on a hunch.
  */
-export function settle(store: Store, spec: Reconciliation, data: unknown): void {
+export function settle(
+  store: Store,
+  spec: Reconciliation | readonly Reconciliation[] | undefined,
+  data: unknown,
+): void {
+  for (const one of reconciliations(spec)) settleOne(store, one, data);
+}
+
+function settleOne(store: Store, spec: Reconciliation, data: unknown): void {
+  // No path means the response never carried this row — an `issueLabel` written beside a
+  // created issue, say. Those pair from the delta stream and from nowhere else.
+  if (spec.path === undefined) return;
   let node: unknown = data;
   for (const key of spec.path) {
     if (typeof node !== 'object' || node === null) return;
@@ -76,10 +89,25 @@ export function settle(store: Store, spec: Reconciliation, data: unknown): void 
       after: real,
     },
   ];
-  if (real.id !== spec.provisionalId) {
-    patch.unshift({ type: spec.type, id: spec.provisionalId, before: null, after: null });
-  }
+  if (real.id !== spec.provisionalId) patch.unshift(...retire(spec));
   store.applyOptimistic(patch);
+}
+
+/**
+ * The writes that take a stand-in and everything hanging off it out of the replica.
+ *
+ * `before: null, after: null` rather than the row's real `before`, because this is not an
+ * undo: the stand-in is being superseded, not rejected, and a patch that could restore it
+ * is a patch something might.
+ */
+function retire(spec: Reconciliation): EntityPatch[] {
+  const drops: EntityPatch[] = [
+    { type: spec.type, id: spec.provisionalId, before: null, after: null },
+  ];
+  for (const dependent of spec.dependents ?? []) {
+    drops.push({ type: dependent.type, id: dependent.id, before: null, after: null });
+  }
+  return drops;
 }
 
 /**
@@ -108,7 +136,10 @@ export function adopt(store: Store, outbox: Outbox, changes: readonly Change[]):
   // The overwhelmingly common case: nothing is waiting, and this runs on every delta batch
   // the socket delivers. Checking the size first keeps that path free of an array copy.
   if (outbox.size === 0) return;
-  const pending = outbox.list().filter((record) => record.reconcile?.match !== undefined);
+  const pending = outbox
+    .list()
+    .flatMap((record) => reconciliations(record.reconcile))
+    .filter((spec) => spec.match !== undefined);
   if (pending.length === 0) return;
 
   const drops: EntityPatch[] = [];
@@ -119,9 +150,8 @@ export function adopt(store: Store, outbox: Outbox, changes: readonly Change[]):
     const row = change.payload;
     if (typeof row !== 'object' || row === null) continue;
 
-    for (const record of pending) {
-      const spec = record.reconcile;
-      if (spec?.match === undefined) continue;
+    for (const spec of pending) {
+      if (spec.match === undefined) continue;
       if (spec.type !== change.type || spec.provisionalId === change.id) continue;
       if (claimed.has(spec.provisionalId)) continue;
 
@@ -130,7 +160,7 @@ export function adopt(store: Store, outbox: Outbox, changes: readonly Change[]):
       if (!spec.match.every((field) => same(standIn, row as Entity, field))) continue;
 
       claimed.add(spec.provisionalId);
-      drops.push({ type: spec.type, id: spec.provisionalId, before: null, after: null });
+      drops.push(...retire(spec));
       break;
     }
   }
@@ -150,4 +180,74 @@ function same(standIn: Entity, row: Entity, field: string): boolean {
   const a = (standIn as unknown as Record<string, unknown>)[field] ?? null;
   const b = (row as unknown as Record<string, unknown>)[field] ?? null;
   return a === b;
+}
+
+/**
+ * The optimistic creates in a mutation that nothing will ever pair with the server's row.
+ *
+ * This is the check that stops the bug at the top of this file being written a sixth time.
+ * Five features shipped it independently — comments, relations, issue subscriptions,
+ * attachments, project dependencies — and every one was found by a user seeing a row twice,
+ * because nothing about writing it wrong looks wrong. The call site reads perfectly: mint a
+ * stand-in, render it, await the mutation, swap in the real row. The defect is what happens
+ * when the `await` does not come back, and no reviewer sees an absence.
+ *
+ * So it is derived rather than declared, from two things the call site cannot fake:
+ *
+ *   - an optimistic entry with `before: null` is a create, and its `id` is a stand-in;
+ *   - if that id is not somewhere in `variables`, the server never saw it, which means the
+ *     server is minting its own and the two rows will not share a key.
+ *
+ * A create that satisfies both and declares no `reconcile` for that id has no way back. It
+ * is not a race and not a rare path: it is every reload, every navigation, every 429, every
+ * dropped response. Whereas an `id` the client sent is by definition the id the row will
+ * have, and needs nothing.
+ *
+ * Derived, so it needs no registry of which entities the API mints ids for — a list that
+ * would be correct on the day it was written and quietly wrong after the next schema change.
+ * `createIssue` passes because it sends its id, and would start failing the moment somebody
+ * stopped sending it, which is exactly the change that would reintroduce the bug.
+ */
+export function unpairedCreates(input: {
+  readonly variables: Readonly<Record<string, unknown>>;
+  readonly optimistic?: OptimisticPatch | undefined;
+  readonly reconcile?: Reconciliation | readonly Reconciliation[] | undefined;
+}): readonly EntityPatch[] {
+  const creates = (input.optimistic ?? []).filter(
+    (entry) => entry.before === null && entry.after !== null,
+  );
+  if (creates.length === 0) return [];
+
+  const declared = new Set<string>();
+  for (const spec of reconciliations(input.reconcile)) declared.add(spec.provisionalId);
+  for (const spec of reconciliations(input.reconcile)) {
+    for (const dependent of spec.dependents ?? []) declared.add(dependent.id);
+  }
+
+  const sent = new Set<string>();
+  collectStrings(input.variables, sent);
+
+  return creates.filter((entry) => !declared.has(entry.id) && !sent.has(entry.id));
+}
+
+/**
+ * Every string anywhere in the mutation's variables.
+ *
+ * Whole-value equality against the stand-in's id, so this cannot be fooled by an id that
+ * merely appears inside a longer string, and a depth cap because these are hand-written
+ * variable objects and a cycle here would hang a keystroke.
+ */
+function collectStrings(value: unknown, into: Set<string>, depth = 0): void {
+  if (depth > 8) return;
+  if (typeof value === 'string') {
+    into.add(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectStrings(item, into, depth + 1);
+    return;
+  }
+  if (typeof value === 'object' && value !== null) {
+    for (const item of Object.values(value)) collectStrings(item, into, depth + 1);
+  }
 }

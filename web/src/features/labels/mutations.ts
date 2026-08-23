@@ -28,15 +28,7 @@
  * mutations, which is the one console line the M0 shell can offer.
  */
 
-import { fromWire } from '~/gql/enums';
-import {
-  uuidv7,
-  type EntityPatch,
-  type IssueLabel,
-  type Label,
-  type Store,
-  type UUID,
-} from '~/store';
+import { uuidv7, type IssueLabel, type Label, type Store, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -109,11 +101,14 @@ export async function createLabel(engine: SyncEngine, input: NewLabel): Promise<
       },
     },
     optimistic: [{ type: 'label', id: provisional.id, before: null, after: provisional }],
+    reconcile: {
+      type: 'label',
+      provisionalId: provisional.id,
+      path: ['createLabel', 'label'],
+    },
   });
 
-  const real = data.createLabel.label;
-  swapLabel(store, provisional.id, real);
-  return real.id;
+  return data.createLabel.label.id;
 }
 
 export interface LabelFields {
@@ -247,12 +242,17 @@ export async function addLabel(engine: SyncEngine, issueId: UUID, labelId: UUID)
   };
 
   try {
-    const data = await engine.mutate<{ addIssueLabel: { issueLabel: IssueLabel } }>({
+    await engine.mutate<{ addIssueLabel: { issueLabel: IssueLabel } }>({
       mutation: ADD_ISSUE_LABEL,
       variables: { issueId, labelId },
       optimistic: [{ type: 'issueLabel', id: provisional.id, before: null, after: provisional }],
+      reconcile: {
+        type: 'issueLabel',
+        provisionalId: provisional.id,
+        path: ['addIssueLabel', 'issueLabel'],
+        match: ['issueId', 'labelId'],
+      },
     });
-    swapApplication(store, provisional.id, data.addIssueLabel.issueLabel);
   } catch (error) {
     // Queued rather than refused. The chip is on the issue, the outbox holds the mutation,
     // and the row the server eventually mints replaces the stand-in on the next delta — the
@@ -326,45 +326,6 @@ function applicationOf(store: Store, issueId: UUID, labelId: UUID): IssueLabel |
     if (row !== undefined && row.labelId === labelId) return row;
   }
   return undefined;
-}
-
-/**
- * Puts the server's row in place of the stand-in, in one store write.
- *
- * One write rather than two because every subscribed row re-renders between them otherwise,
- * and a chip that disappears for a frame on its way to being replaced by itself is the exact
- * flicker an optimistic add is supposed to prevent.
- */
-function swapApplication(store: Store, provisionalId: UUID, wire: IssueLabel): void {
-  // Neither of these two entities carries an enumerated field today, so `fromWire` returns
-  // its argument untouched. It is here anyway, so that "a response goes through fromWire
-  // before it reaches the store" is a rule with no exceptions to remember — the exceptions
-  // are what let `"BLOCKS"` into the store in the first place. See web/src/gql/enums.ts.
-  const real = fromWire('issueLabel', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'issueLabel',
-      id: real.id,
-      before: store.get('issueLabel', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'issueLabel', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-}
-
-/** The same swap for a created label. See `swapApplication`. */
-function swapLabel(store: Store, provisionalId: UUID, wire: Label): void {
-  const real = fromWire('label', wire);
-  const patch: EntityPatch[] = [
-    { type: 'label', id: real.id, before: store.get('label', real.id) ?? null, after: real },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'label', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
 }
 
 /**

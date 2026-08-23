@@ -244,6 +244,13 @@ describe('createStatus', () => {
     });
 
     expect(mutate.mock.calls[0]?.[0].variables.input.category).toBe('STARTED');
+
+    // The pairing is declared, not done after the await, so `settle` is what puts the
+    // server's row in — from the outbox as readily as from this call. And it converts the
+    // response's `STARTED` back to the spelling every reader in the client compares against.
+    const spec = mutate.mock.calls[0]?.[0].reconcile as Reconciliation;
+    expect(spec.path).toEqual(['createWorkflowState', 'state']);
+    settle(store, spec, await mutate.mock.results[0]?.value);
     expect(store.get('workflowState', created)?.category).toBe('started');
   });
 });
