@@ -69,9 +69,20 @@ export function settle(
 }
 
 function settleOne(store: Store, spec: Reconciliation, data: unknown): void {
-  // No path means the response never carried this row — an `issueLabel` written beside a
-  // created issue, say. Those pair from the delta stream and from nowhere else.
-  if (spec.path === undefined) return;
+  // No path means the response never carried this row: an `issueLabel` written beside a
+  // created issue, a duplicate link written beside a triaged one. The mutation has just
+  // been confirmed, so the server holds the real row and the delta stream is carrying it —
+  // usually it has already arrived and `adopt` has retired this stand-in, which is why the
+  // `get` below is the common answer. What is left is the case where the response won the
+  // race, and there the stand-in has to go now rather than wait: once the op leaves the
+  // outbox nothing is holding this pairing, and a stand-in that outlives it is a row on
+  // the screen for good.
+  if (spec.path === undefined) {
+    if (store.get(spec.type, spec.provisionalId) !== undefined) {
+      store.applyOptimistic(retire(spec));
+    }
+    return;
+  }
   let node: unknown = data;
   for (const key of spec.path) {
     if (typeof node !== 'object' || node === null) return;

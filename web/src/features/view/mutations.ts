@@ -25,7 +25,7 @@
  * the value is present, plausible and equal to nothing any reader compares against.
  */
 
-import { fromWire, toWire } from '~/gql/enums';
+import { toWire } from '~/gql/enums';
 import {
   uuidv7,
   type EntityPatch,
@@ -248,12 +248,21 @@ export async function setViewPreference(
   };
 
   try {
-    const data = await engine.mutate<{ setViewPreference: { preference: ViewPreference } }>({
+    await engine.mutate<{ setViewPreference: { preference: ViewPreference } }>({
       mutation: SET_VIEW_PREFERENCE,
       variables: { viewKey, display },
       optimistic: [{ type: 'viewPreference', id: after.id, before, after }],
+      // Declared unconditionally, because this call is an upsert and only the store knows
+      // which it turned out to be. On an update `after.id` is already the server's, so the
+      // pairing is a write over the same key and costs nothing; on a first write it is the
+      // stand-in, and this is the only thing that ever replaces it.
+      reconcile: {
+        type: 'viewPreference',
+        provisionalId: after.id,
+        path: ['setViewPreference', 'preference'],
+        match: ['userId', 'viewKey'],
+      },
     });
-    swapPreference(store, after.id, data.setViewPreference.preference);
   } catch (error) {
     // Swallowed rather than surfaced: this is a preference, written as a side effect of
     // changing a menu the user is already looking at. A toast saying the grouping could not
@@ -309,7 +318,7 @@ export async function setViewSubscription(
   };
 
   try {
-    const data = await engine.mutate<{
+    await engine.mutate<{
       setViewSubscription: { viewSubscription: ViewSubscription };
     }>({
       mutation: SET_VIEW_SUBSCRIPTION,
@@ -317,8 +326,13 @@ export async function setViewSubscription(
         input: { viewId: input.viewId, added: input.added, completed: input.completed },
       },
       optimistic: [{ type: 'viewSubscription', id: after.id, before, after }],
+      reconcile: {
+        type: 'viewSubscription',
+        provisionalId: after.id,
+        path: ['setViewSubscription', 'viewSubscription'],
+        match: ['viewId', 'userId'],
+      },
     });
-    swapViewSubscription(store, after.id, data.setViewSubscription.viewSubscription);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -518,38 +532,6 @@ function favoriteOf(
     if (row !== undefined && row.userId === userId && row.kind === kind) return row;
   }
   return undefined;
-}
-
-function swapPreference(store: Store, provisionalId: UUID, wire: ViewPreference): void {
-  const real = fromWire('viewPreference', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'viewPreference',
-      id: real.id,
-      before: store.get('viewPreference', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'viewPreference', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-}
-
-function swapViewSubscription(store: Store, provisionalId: UUID, wire: ViewSubscription): void {
-  const real = fromWire('viewSubscription', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'viewSubscription',
-      id: real.id,
-      before: store.get('viewSubscription', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'viewSubscription', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
 }
 
 /**

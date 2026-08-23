@@ -1,8 +1,6 @@
-import { fromWire } from '~/gql/enums';
 import {
   uuidv7,
   type CustomerSubscription,
-  type EntityPatch,
   type InitiativeSubscription,
   type ProjectSubscription,
   type UUID,
@@ -62,7 +60,7 @@ export async function setProjectSubscription(
   };
 
   try {
-    const data = await engine.mutate<{
+    await engine.mutate<{
       setProjectSubscription: { projectSubscription: ProjectSubscription };
     }>({
       mutation: SET_PROJECT_SUBSCRIPTION,
@@ -75,13 +73,17 @@ export async function setProjectSubscription(
         },
       },
       optimistic: [{ type: 'projectSubscription', id: after.id, before, after }],
+      // Declared unconditionally, because this call is an upsert and only the store knows
+      // which it turned out to be. Turning a subscription on for the first time mints a
+      // stand-in under an id the API does not take; changing one already on reuses the
+      // server's, and pairing that with itself is a write over the same key.
+      reconcile: {
+        type: 'projectSubscription',
+        provisionalId: after.id,
+        path: ['setProjectSubscription', 'projectSubscription'],
+        match: ['projectId', 'userId'],
+      },
     });
-    swapRow(
-      store,
-      'projectSubscription',
-      after.id,
-      data.setProjectSubscription.projectSubscription,
-    );
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -129,7 +131,7 @@ export async function setInitiativeSubscription(
   };
 
   try {
-    const data = await engine.mutate<{
+    await engine.mutate<{
       setInitiativeSubscription: { initiativeSubscription: InitiativeSubscription };
     }>({
       mutation: SET_INITIATIVE_SUBSCRIPTION,
@@ -142,13 +144,17 @@ export async function setInitiativeSubscription(
         },
       },
       optimistic: [{ type: 'initiativeSubscription', id: after.id, before, after }],
+      // Declared unconditionally, because this call is an upsert and only the store knows
+      // which it turned out to be. Turning a subscription on for the first time mints a
+      // stand-in under an id the API does not take; changing one already on reuses the
+      // server's, and pairing that with itself is a write over the same key.
+      reconcile: {
+        type: 'initiativeSubscription',
+        provisionalId: after.id,
+        path: ['setInitiativeSubscription', 'initiativeSubscription'],
+        match: ['initiativeId', 'userId'],
+      },
     });
-    swapRow(
-      store,
-      'initiativeSubscription',
-      after.id,
-      data.setInitiativeSubscription.initiativeSubscription,
-    );
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -196,7 +202,7 @@ export async function setCustomerSubscription(
   };
 
   try {
-    const data = await engine.mutate<{
+    await engine.mutate<{
       setCustomerSubscription: { customerSubscription: CustomerSubscription };
     }>({
       mutation: SET_CUSTOMER_SUBSCRIPTION,
@@ -209,38 +215,19 @@ export async function setCustomerSubscription(
         },
       },
       optimistic: [{ type: 'customerSubscription', id: after.id, before, after }],
+      // Declared unconditionally, because this call is an upsert and only the store knows
+      // which it turned out to be. Turning a subscription on for the first time mints a
+      // stand-in under an id the API does not take; changing one already on reuses the
+      // server's, and pairing that with itself is a write over the same key.
+      reconcile: {
+        type: 'customerSubscription',
+        provisionalId: after.id,
+        path: ['setCustomerSubscription', 'customerSubscription'],
+        match: ['customerId', 'userId'],
+      },
     });
-    swapRow(
-      store,
-      'customerSubscription',
-      after.id,
-      data.setCustomerSubscription.customerSubscription,
-    );
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
   }
-}
-
-function swapRow<
-  T extends 'projectSubscription' | 'initiativeSubscription' | 'customerSubscription',
->(
-  store: SyncEngine['store'],
-  type: T,
-  provisionalId: UUID,
-  wire: Parameters<typeof fromWire<T>>[1],
-): void {
-  const real = fromWire(type, wire);
-  const patch: EntityPatch[] = [
-    {
-      type,
-      id: real.id,
-      before: store.get(type, real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type, id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
 }

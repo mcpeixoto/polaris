@@ -34,7 +34,11 @@ function engineWithOutbox(): { engine: InstanceType<typeof SyncEngine>; outbox: 
   const engine = new SyncEngine(WORKSPACE);
   const outbox = new Outbox(null);
   engine.outbox = outbox;
-  engine.store = { revertOptimistic: vi.fn(), applyOptimistic: vi.fn() } as unknown as Store;
+  engine.store = {
+    revertOptimistic: vi.fn(),
+    applyOptimistic: vi.fn(),
+    get: vi.fn(),
+  } as unknown as Store;
   return { engine, outbox };
 }
 
@@ -124,5 +128,77 @@ describe('draining the outbox', () => {
 
     expect(outbox.size).toBe(0);
     expect(gql).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * The dev-build assertion that makes the pairing bug unshippable rather than unnoticed.
+ *
+ * It refuses the mutation instead of warning about it, because the alternative has been
+ * tried: five features rendered an optimistic create under a stand-in id and paired it in
+ * the tail of their own `await`, five reviewers read code that looked correct, and every one
+ * of them was found by a user seeing their own comment twice. A console line would have been
+ * the sixth thing nobody read.
+ */
+describe('an optimistic create with nothing to pair it', () => {
+  beforeEach(() => {
+    gql.mockReset();
+  });
+
+  const CREATE = 'mutation CreateComment($input: CreateCommentInput!) { createComment { id } }';
+  const standIn = {
+    type: 'comment' as const,
+    id: '01920000-0000-7000-8000-0000000000aa' as UUID,
+    before: null,
+    after: { id: '01920000-0000-7000-8000-0000000000aa' } as never,
+  };
+
+  it('is refused before it can be written or sent', async () => {
+    const { engine } = engineWithOutbox();
+    gql.mockResolvedValue({ createComment: { comment: { id: 'real' } } });
+
+    await expect(
+      engine.mutate({
+        mutation: CREATE,
+        variables: { input: { issueId: 'i1', body: 'hello' } },
+        optimistic: [standIn],
+      }),
+    ).rejects.toThrow(/CreateComment.*reconcile/s);
+
+    // Nothing was written and nothing was sent: the mistake is in the call site, and
+    // letting it half-happen would leave the replica holding the row it complains about.
+    expect(engine.store.applyOptimistic).not.toHaveBeenCalled();
+    expect(gql).not.toHaveBeenCalled();
+  });
+
+  it('is allowed once the pairing is declared', async () => {
+    const { engine } = engineWithOutbox();
+    gql.mockResolvedValue({ createComment: { comment: { id: 'real' } } });
+
+    await expect(
+      engine.mutate({
+        mutation: CREATE,
+        variables: { input: { issueId: 'i1', body: 'hello' } },
+        optimistic: [standIn],
+        reconcile: {
+          type: 'comment',
+          provisionalId: standIn.id,
+          path: ['createComment', 'comment'],
+        },
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('is allowed when the client minted the id and sent it', async () => {
+    const { engine } = engineWithOutbox();
+    gql.mockResolvedValue({ createIssue: { issue: { id: standIn.id } } });
+
+    await expect(
+      engine.mutate({
+        mutation: 'mutation CreateIssue($input: CreateIssueInput!) { createIssue { id } }',
+        variables: { input: { id: standIn.id, title: 'Ship it' } },
+        optimistic: [{ ...standIn, type: 'issue' }],
+      }),
+    ).resolves.toBeDefined();
   });
 });

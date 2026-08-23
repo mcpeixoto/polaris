@@ -11,7 +11,7 @@
  * from a settings screen or a convert dialog, not queued behind an hour of tunnel.
  */
 
-import { fromWire, toWire } from '~/gql/enums';
+import { toWire } from '~/gql/enums';
 import { UPDATE_TEAM_TEMPLATES } from '~/gql/operations';
 import {
   uuidv7,
@@ -217,14 +217,43 @@ export async function createRecurringIssue(
       },
     },
     optimistic,
+    // The API mints a schedule's id, so this row is a stand-in and the pairing has to be
+    // reachable from somewhere other than this `await` — a reload between the write and the
+    // reply would otherwise leave the stand-in in the replica beside the server's row, both
+    // of them real as far as anything reading them is concerned.
+    reconcile: {
+      type: 'recurringIssue',
+      provisionalId: id,
+      path: ['createRecurringIssue', 'recurringIssue'],
+    },
   });
 
-  return swapRecurring(
-    engine.store,
-    id,
-    data.createRecurringIssue.recurringIssue,
-    input.sourceIssueId,
-  );
+  const real = data.createRecurringIssue.recurringIssue;
+  // The source issue's `recurringIssueId` was written pointing at the stand-in. Re-point it
+  // here while this call is still standing; if it is not, the server's own delta for that
+  // issue carries the real id and repairs it a moment later. Either way the reference is
+  // the server's to state — this only shortens the window.
+  relinkSource(engine.store, input.sourceIssueId, real);
+  return real.id;
+}
+
+/** Moves a converted issue's `recurringIssueId` from the stand-in to the schedule's real id. */
+function relinkSource(store: Store, sourceIssueId: UUID | undefined, wire: RecurringIssue): void {
+  if (sourceIssueId === undefined) return;
+  const issue = store.get('issue', sourceIssueId);
+  if (issue === undefined || issue.recurringIssueId === wire.id) return;
+  store.applyOptimistic([
+    {
+      type: 'issue',
+      id: issue.id,
+      before: issue,
+      after: {
+        ...issue,
+        recurringIssueId: wire.id,
+        ...(issue.dueDate === undefined ? { dueDate: wire.nextDueDate } : null),
+      },
+    },
+  ]);
 }
 
 export async function archiveRecurringIssue(engine: SyncEngine, id: UUID): Promise<void> {
@@ -234,53 +263,4 @@ export async function archiveRecurringIssue(engine: SyncEngine, id: UUID): Promi
     variables: { id, archived: true },
     optimistic: before === undefined ? [] : [{ type: 'recurringIssue', id, before, after: null }],
   });
-}
-
-/**
- * Puts the server's row in place of the stand-in, in one store write.
- *
- * One write rather than two because every subscribed row re-renders between them otherwise,
- * and a schedule that vanishes for a frame on its way to being replaced by itself is the
- * exact flicker the optimistic patch exists to prevent. See `swapTemplate`.
- *
- * When the schedule was converted from an existing issue, the issue's `recurringIssueId` is
- * rewritten onto the server's id in the same write — the optimistic patch pointed at the
- * stand-in, and leaving it there would make `issue.recurringIssueId` a dangling reference
- * the moment the stand-in was dropped.
- */
-function swapRecurring(
-  store: Store,
-  provisionalId: UUID,
-  wire: RecurringIssue,
-  sourceIssueId: UUID | undefined,
-): UUID {
-  const real = fromWire('recurringIssue', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'recurringIssue',
-      id: real.id,
-      before: store.get('recurringIssue', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'recurringIssue', id: provisionalId, before: null, after: null });
-  }
-  if (sourceIssueId !== undefined) {
-    const issue = store.get('issue', sourceIssueId);
-    if (issue !== undefined) {
-      patch.push({
-        type: 'issue',
-        id: issue.id,
-        before: issue,
-        after: {
-          ...issue,
-          recurringIssueId: real.id,
-          ...(issue.dueDate === undefined ? { dueDate: real.nextDueDate } : null),
-        },
-      });
-    }
-  }
-  store.applyOptimistic(patch);
-  return real.id;
 }

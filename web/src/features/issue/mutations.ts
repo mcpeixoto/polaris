@@ -212,6 +212,18 @@ export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<
       mutation: CREATE_ISSUE,
       variables: { input: createInputOf(input, state, id) },
       optimistic: [{ type: 'issue', id, before: null, after: provisional }, ...applications],
+      // The issue keeps the id it was minted with, so it pairs with itself and needs
+      // nothing. The label applications do not: the server allocates an `issue_label` id
+      // per label and the response returns only the issue, so there is no path to read them
+      // out of. They pair off the delta stream, on the issue and the label, which is the
+      // pair the server holds unique — and if the response gets back first, `settle` retires
+      // them there instead. Without either, the chips are written twice, once here and once
+      // by the server, and the second copy is a real row that no reload clears.
+      reconcile: applications.map((patch) => ({
+        type: 'issueLabel' as const,
+        provisionalId: patch.id,
+        match: ['issueId', 'labelId'],
+      })),
     });
     // Same id, so this is an upsert rather than a swap: the number and identifier settle
     // in place and the row never leaves the list.

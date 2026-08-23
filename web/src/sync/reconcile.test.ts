@@ -14,9 +14,16 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { Outbox, Store, type Change, type Entity, type Reconciliation } from '~/store';
+import {
+  Outbox,
+  Store,
+  type Change,
+  type Entity,
+  type EntityPatch,
+  type Reconciliation,
+} from '~/store';
 
-import { adopt, settle } from './reconcile';
+import { adopt, settle, unpairedCreates } from './reconcile';
 
 const WORKSPACE = '01900000-0000-7000-8000-000000000001';
 const ISSUE = '01900000-0000-7000-8000-00000000000a';
@@ -241,5 +248,146 @@ describe('adopt', () => {
     adopt(store, await outboxWith(MATCHED), changes);
 
     expect([...store.commentIdsFor(ISSUE)]).toEqual([REAL]);
+  });
+});
+
+/**
+ * The check that stops a sixth feature shipping the fifth feature's bug.
+ *
+ * It reads what the call site actually did rather than what it says it did: an optimistic
+ * create is `before: null`, and an id the server never saw is one that is nowhere in the
+ * variables. A create that is both and declares no pairing has no way back — not on a race,
+ * but on every reload, every navigation and every response that does not come.
+ */
+describe('unpairedCreates', () => {
+  const standIn = {
+    type: 'comment',
+    id: PROVISIONAL,
+    before: null,
+    after: provisionalComment(),
+  } as const satisfies EntityPatch;
+
+  it('flags a create under an id the server never sees', () => {
+    const loose = unpairedCreates({
+      variables: { input: { issueId: ISSUE, body: 'First thing' } },
+      optimistic: [standIn],
+    });
+    expect(loose.map((entry) => entry.id)).toEqual([PROVISIONAL]);
+  });
+
+  it('accepts it once the pairing is declared', () => {
+    expect(
+      unpairedCreates({
+        variables: { input: { issueId: ISSUE, body: 'First thing' } },
+        optimistic: [standIn],
+        reconcile: COMMENT_SPEC,
+      }),
+    ).toEqual([]);
+  });
+
+  it('accepts one spec out of a list, and each id in it', () => {
+    const second = { ...standIn, id: REAL, after: { ...provisionalComment(), id: REAL } };
+    expect(
+      unpairedCreates({
+        variables: {},
+        optimistic: [standIn, second],
+        reconcile: [COMMENT_SPEC, { ...COMMENT_SPEC, provisionalId: REAL }],
+      }),
+    ).toEqual([]);
+    // …and still flags the one the list forgot.
+    expect(
+      unpairedCreates({ variables: {}, optimistic: [standIn, second], reconcile: [COMMENT_SPEC] }),
+    ).toHaveLength(1);
+  });
+
+  it('accepts a create whose id the client minted and sent', () => {
+    // `createIssue`. Nothing to pair, because the response upserts over the same key — and
+    // this is what would start failing the day somebody stopped sending the id.
+    expect(
+      unpairedCreates({
+        variables: { input: { id: PROVISIONAL, title: 'Ship it' } },
+        optimistic: [standIn],
+      }),
+    ).toEqual([]);
+  });
+
+  it('accepts a dependent named by the spec it hangs off', () => {
+    const join = {
+      type: 'issueLabel',
+      id: REAL,
+      before: null,
+      after: { id: REAL } as Entity,
+    } as const satisfies EntityPatch;
+    expect(
+      unpairedCreates({
+        variables: {},
+        optimistic: [standIn, join],
+        reconcile: { ...COMMENT_SPEC, dependents: [{ type: 'issueLabel', id: REAL }] },
+      }),
+    ).toEqual([]);
+  });
+
+  it('says nothing about an update or a delete', () => {
+    expect(
+      unpairedCreates({
+        variables: {},
+        optimistic: [
+          { type: 'comment', id: PROVISIONAL, before: provisionalComment(), after: null },
+          {
+            type: 'comment',
+            id: PROVISIONAL,
+            before: provisionalComment(),
+            after: provisionalComment(),
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('settle, for a stand-in the response does not carry', () => {
+  const DELTA_ONLY: Reconciliation = {
+    type: 'comment',
+    provisionalId: PROVISIONAL,
+    match: ['issueId', 'body'],
+  };
+
+  // A path-less spec pairs off the delta stream — but the window in which it can do that
+  // closes when the op leaves the outbox. So a confirmed mutation retires the stand-in
+  // itself: the server holds the real row, the stream is carrying it, and a stand-in that
+  // outlives the pairing is a row on the screen for good.
+  it('retires the stand-in when the mutation is confirmed', () => {
+    const store = storeWithStandIn();
+    settle(store, DELTA_ONLY, { createIssue: { issue: { id: REAL } } });
+    expect(store.get('comment', PROVISIONAL)).toBeUndefined();
+  });
+
+  it('does nothing when the delta already retired it', () => {
+    const store = new Store(WORKSPACE);
+    settle(store, DELTA_ONLY, {});
+    expect(store.get('comment', PROVISIONAL)).toBeUndefined();
+  });
+
+  it('takes the rows hanging off a stand-in with it', () => {
+    const store = storeWithStandIn();
+    const join = '01900000-0000-7000-8000-0000000000f9';
+    store.applyOptimistic([
+      {
+        type: 'issueLabel',
+        id: join,
+        before: null,
+        after: { id: join, workspaceId: WORKSPACE, issueId: ISSUE } as Entity,
+      },
+    ]);
+
+    settle(
+      store,
+      { ...COMMENT_SPEC, dependents: [{ type: 'issueLabel', id: join }] },
+      { createComment: { comment: serverComment() } },
+    );
+
+    expect(store.get('comment', PROVISIONAL)).toBeUndefined();
+    expect(store.get('issueLabel', join)).toBeUndefined();
+    expect(store.get('comment', REAL)?.id).toBe(REAL);
   });
 });
