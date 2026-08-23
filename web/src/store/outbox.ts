@@ -1,6 +1,6 @@
-import type { PolarisDB } from './db';
+import type { EntityRef, PolarisDB } from './db';
 import { drainJournal, journalForget, journalWrite } from './journal';
-import type { Entity, EntityType, Timestamp, UUID } from './types';
+import type { Entity, EntityOf, EntityType, Timestamp, UUID } from './types';
 
 /**
  * The outbox: every mutation the user has made and the server has not yet confirmed.
@@ -37,9 +37,9 @@ export type OptimisticPatch = readonly EntityPatch[];
 /**
  * How to pair the row the server allocated an id for with the stand-in that stood for it.
  *
- * Only the entities whose ids the API still mints need one — a comment, a relation, an
- * issue subscription. Issues carry a client-minted id, so their response upserts over the
- * same key and there is nothing to pair.
+ * Every entity whose id the API mints needs one, which in this schema is every entity but
+ * the issue: `CreateIssueInput` takes an `id` and nothing else does, so an issue's response
+ * upserts over the key the client already used and there is nothing to pair.
  *
  * It is *stored*, alongside the mutation, and that is the whole point. Reconciling in the
  * `await` that sent the mutation works only for as long as that `await` survives: a reload
@@ -51,12 +51,32 @@ export type OptimisticPatch = readonly EntityPatch[];
  *
  * Plain data for the same reason: an IndexedDB value cannot hold a function.
  */
-export interface Reconciliation {
-  readonly type: EntityType;
+export type Reconciliation = { [T in EntityType]: ReconciliationOf<T> }[EntityType];
+
+/**
+ * One pairing, for one entity type.
+ *
+ * A per-type shape rather than one loose interface so that `match` can be checked against
+ * the entity it will be compared on. A field name that is not on the row is not a typo the
+ * type system would otherwise catch and the runtime would: `adopt` compares `a ?? null`
+ * against `b ?? null`, so a misspelt field reads `null === null` on every row it is offered
+ * and the match silently becomes "anything of this type" — which retires the wrong stand-in
+ * rather than none. `keyof EntityOf<T>` makes the misspelling a compile error, and the
+ * `type` field is what narrows this union to the member that knows which keys those are.
+ */
+export interface ReconciliationOf<T extends EntityType> {
+  readonly type: T;
   /** The id the client invented while it waited. */
   readonly provisionalId: UUID;
-  /** Where the row sits in the mutation's response — `['createComment', 'comment']`. */
-  readonly path: readonly string[];
+  /**
+   * Where the row sits in the mutation's response — `['createComment', 'comment']`.
+   *
+   * Optional, because not every stand-in is answered for. `createIssue` writes an
+   * `issueLabel` row per label the create carries and the response returns only the issue,
+   * so those rows have nothing to read and pair from `match` alone. Absent means exactly
+   * that: pair from the delta stream, which carries every row the server wrote either way.
+   */
+  readonly path?: readonly string[];
   /**
    * The fields that say "this delta row and that stand-in are the same thing".
    *
@@ -75,7 +95,37 @@ export interface Reconciliation {
    * Absent means "do not pair from the delta stream" — the stand-in then waits for the
    * response, which is the old behaviour and is correct, only slower to converge.
    */
-  readonly match?: readonly string[];
+  readonly match?: readonly (keyof EntityOf<T> & string)[];
+  /**
+   * Stand-ins written beside this one that point AT it and cannot outlive it.
+   *
+   * `createProject` is the case. It writes the project and a `project_team` row per team,
+   * so the new project is in its teams' lists in the frame it appears in — and those rows
+   * carry the project's *provisional* id. When the real project arrives it brings real
+   * `project_team` rows keyed to the real project, and the stand-ins are then joins to a
+   * project that no longer exists: invisible to every screen, indistinguishable from real
+   * rows in IndexedDB, and impossible to pair by `match` because the one field that would
+   * identify them is the id that changed.
+   *
+   * So they are named here, as plain refs, and retired with the row they hang off. Refs
+   * rather than a scan because the caller already has the ids: they are in the same
+   * optimistic patch, minted three lines earlier.
+   */
+  readonly dependents?: readonly EntityRef[];
+}
+
+/**
+ * The pairings on a record, however they were written and however old the record is.
+ *
+ * One function rather than a normalisation at the boundary because the boundary is
+ * IndexedDB: a record written by yesterday's build holds a bare object, is replayed by
+ * today's, and must not be silently ignored for having the older shape.
+ */
+export function reconciliations(
+  spec: Reconciliation | readonly Reconciliation[] | undefined,
+): readonly Reconciliation[] {
+  if (spec === undefined) return [];
+  return Array.isArray(spec) ? spec : [spec as Reconciliation];
 }
 
 /** A queued mutation, exactly as it is stored. */
@@ -86,8 +136,15 @@ export interface OutboxRecord {
   readonly mutation: string;
   readonly variables: Readonly<Record<string, unknown>>;
   readonly optimisticPatch: OptimisticPatch;
-  /** How to pair the response's row with the stand-in. Absent for client-minted ids. */
-  readonly reconcile?: Reconciliation | undefined;
+  /**
+   * How to pair the server's rows with the stand-ins. Absent for client-minted ids.
+   *
+   * A list because one mutation can write more than one stand-in: `createIssue` carries
+   * its labels, and each application is a row the server allocates an id for. Stored as
+   * written — a single spec stays a single spec — so a record queued by an older build
+   * still replays; `reconciliations` below is the only thing that reads it.
+   */
+  readonly reconcile?: Reconciliation | readonly Reconciliation[] | undefined;
   /** Send attempts so far. Persisted, so a poison op cannot be retried forever across reloads. */
   readonly attempts: number;
   readonly createdAt: Timestamp;
@@ -97,7 +154,7 @@ export interface OutboxAppend {
   readonly mutation: string;
   readonly variables: Readonly<Record<string, unknown>>;
   readonly optimisticPatch?: OptimisticPatch | undefined;
-  readonly reconcile?: Reconciliation | undefined;
+  readonly reconcile?: Reconciliation | readonly Reconciliation[] | undefined;
   /** Supplied only by tests and by a caller that minted the id before rendering. */
   readonly opId?: UUID | undefined;
 }

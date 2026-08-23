@@ -1,12 +1,4 @@
-import { fromWire } from '~/gql/enums';
-import {
-  uuidv7,
-  type EntityPatch,
-  type ProjectLabel,
-  type ProjectLabelLink,
-  type Store,
-  type UUID,
-} from '~/store';
+import { uuidv7, type ProjectLabel, type ProjectLabelLink, type Store, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -63,11 +55,18 @@ export async function createProjectLabel(
       },
     },
     optimistic: [{ type: 'projectLabel', id: provisional.id, before: null, after: provisional }],
+    reconcile: {
+      type: 'projectLabel',
+      provisionalId: provisional.id,
+      path: ['createProjectLabel', 'projectLabel'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // A project label's group and name; workspace-scoped, so there is no team.
+      match: ['parentId', 'name'],
+    },
   });
 
-  const real = data.createProjectLabel.projectLabel;
-  swapLabel(store, provisional.id, real);
-  return real.id;
+  return data.createProjectLabel.projectLabel.id;
 }
 
 export interface ProjectLabelFields {
@@ -142,14 +141,19 @@ export async function addProjectLabel(
   };
 
   try {
-    const data = await engine.mutate<{ addProjectLabel: { projectLabelLink: ProjectLabelLink } }>({
+    await engine.mutate<{ addProjectLabel: { projectLabelLink: ProjectLabelLink } }>({
       mutation: ADD_PROJECT_LABEL,
       variables: { projectId, labelId },
       optimistic: [
         { type: 'projectLabelLink', id: provisional.id, before: null, after: provisional },
       ],
+      reconcile: {
+        type: 'projectLabelLink',
+        provisionalId: provisional.id,
+        path: ['addProjectLabel', 'projectLabelLink'],
+        match: ['projectId', 'labelId'],
+      },
     });
-    swapApplication(store, provisional.id, data.addProjectLabel.projectLabelLink);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -194,38 +198,6 @@ function applicationOf(store: Store, projectId: UUID, labelId: UUID): ProjectLab
     if (row !== undefined && row.labelId === labelId) return row;
   }
   return undefined;
-}
-
-function swapApplication(store: Store, provisionalId: UUID, wire: ProjectLabelLink): void {
-  const real = fromWire('projectLabelLink', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'projectLabelLink',
-      id: real.id,
-      before: store.get('projectLabelLink', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'projectLabelLink', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-}
-
-function swapLabel(store: Store, provisionalId: UUID, wire: ProjectLabel): void {
-  const real = fromWire('projectLabel', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'projectLabel',
-      id: real.id,
-      before: store.get('projectLabel', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'projectLabel', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
 }
 
 function lastPositionIn(store: Store): string {

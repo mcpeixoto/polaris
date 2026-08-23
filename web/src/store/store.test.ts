@@ -497,6 +497,83 @@ describe('sameResult', () => {
     ).toBe(true);
     expect(sameResult({ ids: ['a'] }, { ids: ['a'], groups: [] })).toBe(false);
   });
+
+  // `Object.keys(new Set(['a']))` is `[]`, so the structural walk used to report "no keys
+  // on either side, therefore equal" for every pair of Sets in existence. A live query
+  // answering with one was told it had not changed at every notify for the rest of the
+  // session.
+  it('compares Sets by their members, not by their (absent) own properties', () => {
+    expect(sameResult(new Set(['a', 'b']), new Set(['b', 'a']))).toBe(true);
+    expect(sameResult(new Set(['a']), new Set(['b']))).toBe(false);
+    expect(sameResult(new Set(['a']), new Set(['a', 'b']))).toBe(false);
+    expect(sameResult(new Set(), new Set(['a']))).toBe(false);
+    expect(sameResult(new Set(['a']), new Set())).toBe(false);
+    // Nested one level down, which is where a grouped answer would put it.
+    expect(sameResult({ blocked: new Set(['a']) }, { blocked: new Set(['b']) })).toBe(false);
+  });
+
+  it('compares Maps by their entries', () => {
+    expect(
+      sameResult(
+        new Map([
+          ['a', 1],
+          ['b', 2],
+        ]),
+        new Map([
+          ['b', 2],
+          ['a', 1],
+        ]),
+      ),
+    ).toBe(true);
+    expect(sameResult(new Map([['a', 1]]), new Map([['a', 2]]))).toBe(false);
+    expect(sameResult(new Map([['a', 1]]), new Map([['b', 1]]))).toBe(false);
+    expect(sameResult(new Map([['a', 1]]), new Map())).toBe(false);
+    // A key present with `undefined` is not the same answer as a key that is absent.
+    expect(sameResult(new Map([['a', undefined]]), new Map())).toBe(false);
+    expect(sameResult(new Map([['a', ['x']]]), new Map([['a', ['x']]]))).toBe(true);
+  });
+
+  it('does not confuse a Set with a Map or with a plain object', () => {
+    expect(sameResult(new Set(['a']), new Map([['a', 1]]))).toBe(false);
+    expect(sameResult(new Set(), {})).toBe(false);
+    expect(sameResult(new Map(), {})).toBe(false);
+    expect(sameResult(new Set(['a']), ['a'])).toBe(false);
+  });
+
+  // Everything with behaviour of its own falls out UNEQUAL rather than being walked as if
+  // its own properties were its contents. One render too many, never one too few.
+  it('reports anything it cannot compare as changed rather than as unchanged', () => {
+    expect(sameResult(new Date(1), new Date(1))).toBe(true);
+    expect(sameResult(new Date(1), new Date(2))).toBe(false);
+    expect(sameResult(/a/, /a/)).toBe(false);
+    class Answer {}
+    expect(sameResult(new Answer(), new Answer())).toBe(false);
+  });
+});
+
+describe('a live query that answers with a Set', () => {
+  // The regression this pins: with the old comparison the subscriber was never told about
+  // any of the changes below, because every Set equalled every other Set.
+  it('is notified when its members change', async () => {
+    const store = await seeded();
+    const seen: ReadonlySet<string>[] = [];
+    const unsubscribe = store.subscribe<ReadonlySet<string>>({
+      select: (current) => new Set([...current.issues.keys()]),
+      onChange: (result) => seen.push(result),
+      deps: ['issue'],
+    });
+
+    store.applyChanges([upsert(101, 'issue', issue('i9', { teamId: 't1', stateId: 's1' }))]);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.has('i9')).toBe(true);
+
+    store.applyChanges([remove(102, 'issue', 'i9')]);
+    expect(seen).toHaveLength(2);
+    expect(seen[1]?.has('i9')).toBe(false);
+
+    unsubscribe();
+    await store.close();
+  });
 });
 
 describe('Store bootstrap', () => {

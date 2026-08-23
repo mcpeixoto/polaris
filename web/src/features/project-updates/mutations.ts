@@ -1,11 +1,5 @@
 import { fromWire, toWire } from '~/gql/enums';
-import {
-  uuidv7,
-  type EntityOf,
-  type EntityPatch,
-  type ProjectUpdateHealth,
-  type UUID,
-} from '~/store';
+import { uuidv7, type EntityOf, type ProjectUpdateHealth, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -56,19 +50,17 @@ export async function createProjectUpdate(
         },
       },
       optimistic: [{ type: 'projectUpdate', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'projectUpdate',
+        provisionalId: id,
+        path: ['createProjectUpdate', 'projectUpdate'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // The project and the words posted.
+        match: ['projectId', 'body'],
+      },
     });
-    const real = fromWire(
-      'projectUpdate',
-      data.createProjectUpdate.projectUpdate as EntityOf<'projectUpdate'>,
-    );
-    const patch: EntityPatch[] = [
-      { type: 'projectUpdate', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'projectUpdate', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    return data.createProjectUpdate.projectUpdate.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;

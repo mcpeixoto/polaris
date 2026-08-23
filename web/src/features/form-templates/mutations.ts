@@ -1,4 +1,3 @@
-import { fromWire } from '~/gql/enums';
 import {
   uuidv7,
   type EntityPatch,
@@ -90,11 +89,18 @@ export async function createFormTemplate(
       },
     },
     optimistic: [{ type: 'formTemplate', id: provisional.id, before: null, after: provisional }],
+    reconcile: {
+      type: 'formTemplate',
+      provisionalId: provisional.id,
+      path: ['createFormTemplate', 'template'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // Scope and name.
+      match: ['teamId', 'name'],
+    },
   });
 
-  const real = data.createFormTemplate.template;
-  swapFormTemplate(store, provisional.id, real);
-  return real.id;
+  return data.createFormTemplate.template.id;
 }
 
 export async function updateFormTemplate(
@@ -195,11 +201,18 @@ export async function createFormTemplateField(
     optimistic: [
       { type: 'formTemplateField', id: provisional.id, before: null, after: provisional },
     ],
+    reconcile: {
+      type: 'formTemplateField',
+      provisionalId: provisional.id,
+      path: ['createFormTemplateField', 'field'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // The form and the field's label.
+      match: ['formTemplateId', 'label'],
+    },
   });
 
-  const real = data.createFormTemplateField.field;
-  swapFormTemplateField(store, provisional.id, real);
-  return real.id;
+  return data.createFormTemplateField.field.id;
 }
 
 export async function deleteFormTemplateField(engine: SyncEngine, fieldId: UUID): Promise<void> {
@@ -258,38 +271,6 @@ export function formTemplatesForTeam(store: Store, teamId: UUID): FormTemplate[]
   return offered.sort((a, b) =>
     a.position < b.position ? -1 : a.position > b.position ? 1 : a.name.localeCompare(b.name),
   );
-}
-
-function swapFormTemplate(store: Store, provisionalId: UUID, wire: FormTemplate): void {
-  const real = fromWire('formTemplate', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'formTemplate',
-      id: real.id,
-      before: store.get('formTemplate', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'formTemplate', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-}
-
-function swapFormTemplateField(store: Store, provisionalId: UUID, wire: FormTemplateField): void {
-  const real = fromWire('formTemplateField', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'formTemplateField',
-      id: real.id,
-      before: store.get('formTemplateField', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'formTemplateField', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
 }
 
 export function fieldsForFormTemplate(store: Store, formTemplateId: UUID): FormTemplateField[] {

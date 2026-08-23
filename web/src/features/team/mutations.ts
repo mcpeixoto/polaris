@@ -17,7 +17,7 @@
  * expressible. See `moveStatus`.
  */
 
-import { fromWire, toWire } from '~/gql/enums';
+import { toWire } from '~/gql/enums';
 import {
   ARCHIVE_WORKFLOW_STATE,
   CREATE_WORKFLOW_STATE,
@@ -217,9 +217,9 @@ export interface NewStatus {
 /**
  * Adds a status at the end of its category.
  *
- * Like every create in this client the local row is a stand-in with an id the server did not
- * mint, swapped for the real one when the reply lands. See `features/issue/mutations` for the
- * full account of that trade and the one case where it shows.
+ * The local row is a stand-in under an id the server did not mint, paired with the real one
+ * by the `reconcile` below rather than by anything after the `await`. See
+ * `web/src/sync/reconcile.ts` for why that distinction is the whole of it.
  */
 export async function createStatus(engine: SyncEngine, input: NewStatus): Promise<void> {
   const store = engine.store;
@@ -238,7 +238,7 @@ export async function createStatus(engine: SyncEngine, input: NewStatus): Promis
     updatedAt: now,
   };
 
-  const data = await engine.mutate<{ createWorkflowState: { state: WorkflowState } }>({
+  await engine.mutate<{ createWorkflowState: { state: WorkflowState } }>({
     mutation: CREATE_WORKFLOW_STATE,
     variables: {
       input: {
@@ -253,23 +253,19 @@ export async function createStatus(engine: SyncEngine, input: NewStatus): Promis
       },
     },
     optimistic: [{ type: 'workflowState', id: provisional.id, before: null, after: provisional }],
-  });
-
-  // And back the other way: the response spells the category in upper case, while every
-  // reader in the client compares against the lower-case union.
-  const real = fromWire('workflowState', data.createWorkflowState.state);
-  const patch: EntityPatch[] = [
-    {
+    // And back the other way: the response spells the category in upper case, while every
+    // reader in the client compares against the lower-case union — which `settle` does,
+    // through `fromWire`, wherever it runs the pairing from.
+    reconcile: {
       type: 'workflowState',
-      id: real.id,
-      before: store.get('workflowState', real.id) ?? null,
-      after: real,
+      provisionalId: provisional.id,
+      path: ['createWorkflowState', 'state'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // A team's statuses are named uniquely by hand.
+      match: ['teamId', 'name'],
     },
-  ];
-  if (real.id !== provisional.id) {
-    patch.unshift({ type: 'workflowState', id: provisional.id, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
+  });
 }
 
 /**

@@ -1,6 +1,6 @@
 import { fromWire, toWire } from '~/gql/enums';
 import type { FilterNode } from '~/filter';
-import { uuidv7, type EntityOf, type EntityPatch, type Issue, type UUID } from '~/store';
+import { uuidv7, type EntityOf, type Issue, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -42,16 +42,13 @@ export async function createSlaRule(engine: SyncEngine, input: NewSlaRule): Prom
         },
       },
       optimistic: [{ type: 'slaRule', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'slaRule',
+        provisionalId: id,
+        path: ['createSlaRule', 'slaRule'],
+      },
     });
-    const real = fromWire('slaRule', data.createSlaRule.slaRule as EntityOf<'slaRule'>);
-    const patch: EntityPatch[] = [
-      { type: 'slaRule', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'slaRule', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    return data.createSlaRule.slaRule.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;

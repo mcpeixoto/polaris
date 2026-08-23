@@ -25,7 +25,7 @@
  * the value is present, plausible and equal to nothing any reader compares against.
  */
 
-import { fromWire, toWire } from '~/gql/enums';
+import { toWire } from '~/gql/enums';
 import {
   uuidv7,
   type EntityPatch,
@@ -136,8 +136,17 @@ export async function createView(engine: SyncEngine, input: NewView): Promise<UU
         },
       },
       optimistic: [{ type: 'view', id: provisional.id, before: null, after: provisional }],
+      reconcile: {
+        type: 'view',
+        provisionalId: provisional.id,
+        path: ['createView', 'view'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // Scope and name.
+        match: ['teamId', 'projectId', 'name'],
+      },
     });
-    return swapView(store, provisional.id, data.createView.view);
+    return data.createView.view.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return provisional.id;
     throw error;
@@ -243,12 +252,21 @@ export async function setViewPreference(
   };
 
   try {
-    const data = await engine.mutate<{ setViewPreference: { preference: ViewPreference } }>({
+    await engine.mutate<{ setViewPreference: { preference: ViewPreference } }>({
       mutation: SET_VIEW_PREFERENCE,
       variables: { viewKey, display },
       optimistic: [{ type: 'viewPreference', id: after.id, before, after }],
+      // Declared unconditionally, because this call is an upsert and only the store knows
+      // which it turned out to be. On an update `after.id` is already the server's, so the
+      // pairing is a write over the same key and costs nothing; on a first write it is the
+      // stand-in, and this is the only thing that ever replaces it.
+      reconcile: {
+        type: 'viewPreference',
+        provisionalId: after.id,
+        path: ['setViewPreference', 'preference'],
+        match: ['userId', 'viewKey'],
+      },
     });
-    swapPreference(store, after.id, data.setViewPreference.preference);
   } catch (error) {
     // Swallowed rather than surfaced: this is a preference, written as a side effect of
     // changing a menu the user is already looking at. A toast saying the grouping could not
@@ -304,7 +322,7 @@ export async function setViewSubscription(
   };
 
   try {
-    const data = await engine.mutate<{
+    await engine.mutate<{
       setViewSubscription: { viewSubscription: ViewSubscription };
     }>({
       mutation: SET_VIEW_SUBSCRIPTION,
@@ -312,8 +330,13 @@ export async function setViewSubscription(
         input: { viewId: input.viewId, added: input.added, completed: input.completed },
       },
       optimistic: [{ type: 'viewSubscription', id: after.id, before, after }],
+      reconcile: {
+        type: 'viewSubscription',
+        provisionalId: after.id,
+        path: ['setViewSubscription', 'viewSubscription'],
+        match: ['viewId', 'userId'],
+      },
     });
-    swapViewSubscription(store, after.id, data.setViewSubscription.viewSubscription);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -352,14 +375,18 @@ export async function addFavorite(
   };
 
   try {
-    const data = await engine.mutate<{ addFavorite: { favorite: Favorite } }>({
+    await engine.mutate<{ addFavorite: { favorite: Favorite } }>({
       mutation: ADD_FAVORITE,
       // `toWire`: the argument is declared `FavoriteKind!`, whose values are `VIEW`, `TEAM`,
       // `ISSUE`, `LABEL`. A GraphQL enum value is case-sensitive.
       variables: { kind: toWire(kind), targetId, afterFavoriteId: null },
       optimistic: [{ type: 'favorite', id: provisional.id, before: null, after: provisional }],
+      reconcile: {
+        type: 'favorite',
+        provisionalId: provisional.id,
+        path: ['addFavorite', 'favorite'],
+      },
     });
-    swapFavorite(store, provisional.id, data.addFavorite.favorite);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -421,12 +448,16 @@ export async function createFavoriteFolder(
   };
 
   try {
-    const data = await engine.mutate<{ createFavoriteFolder: { favorite: Favorite } }>({
+    await engine.mutate<{ createFavoriteFolder: { favorite: Favorite } }>({
       mutation: CREATE_FAVORITE_FOLDER,
       variables: { name: trimmed, afterFavoriteId: null },
       optimistic: [{ type: 'favorite', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'favorite',
+        provisionalId: id,
+        path: ['createFavoriteFolder', 'favorite'],
+      },
     });
-    swapFavorite(store, id, data.createFavoriteFolder.favorite);
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return;
     throw error;
@@ -505,68 +536,6 @@ function favoriteOf(
     if (row !== undefined && row.userId === userId && row.kind === kind) return row;
   }
   return undefined;
-}
-
-/**
- * Puts the server's row in place of the stand-in, in one store write.
- *
- * One write rather than two because every subscribed row re-renders between them otherwise,
- * and a sidebar entry that vanishes for a frame on its way to being replaced by itself is the
- * exact flicker an optimistic create is supposed to prevent.
- */
-function swapView(store: Store, provisionalId: UUID, wire: View): UUID {
-  const real = fromWire('view', wire);
-  const patch: EntityPatch[] = [
-    { type: 'view', id: real.id, before: store.get('view', real.id) ?? null, after: real },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'view', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-  return real.id;
-}
-
-function swapFavorite(store: Store, provisionalId: UUID, wire: Favorite): void {
-  const real = fromWire('favorite', wire);
-  const patch: EntityPatch[] = [
-    { type: 'favorite', id: real.id, before: store.get('favorite', real.id) ?? null, after: real },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'favorite', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-}
-
-function swapPreference(store: Store, provisionalId: UUID, wire: ViewPreference): void {
-  const real = fromWire('viewPreference', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'viewPreference',
-      id: real.id,
-      before: store.get('viewPreference', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'viewPreference', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-}
-
-function swapViewSubscription(store: Store, provisionalId: UUID, wire: ViewSubscription): void {
-  const real = fromWire('viewSubscription', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'viewSubscription',
-      id: real.id,
-      before: store.get('viewSubscription', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'viewSubscription', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
 }
 
 /**

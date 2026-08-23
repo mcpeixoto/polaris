@@ -89,6 +89,11 @@ jobs:
       - run: npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "desktop/src/**/*.{ts,cts}"
       - run: pnpm -C web typecheck
       - run: pnpm -C web lint
+      # An optimistic create under a stand-in id that nothing can pair with the server's row.
+      # Five features shipped that independently and each was found by a user seeing their
+      # own comment twice. `SyncEngine.mutate` asserts the same rule at runtime; this is the
+      # half that reaches code no test runs.
+      - run: node scripts/lint-optimistic-reconcile.mjs
       - run: pnpm -C web test -- --run
 
   e2e:

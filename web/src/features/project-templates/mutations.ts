@@ -1,4 +1,3 @@
-import { fromWire } from '~/gql/enums';
 import {
   uuidv7,
   type EntityPatch,
@@ -114,11 +113,18 @@ export async function createProjectTemplate(
       },
     },
     optimistic: [{ type: 'projectTemplate', id: provisional.id, before: null, after: provisional }],
+    reconcile: {
+      type: 'projectTemplate',
+      provisionalId: provisional.id,
+      path: ['createProjectTemplate', 'template'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // Scope and name.
+      match: ['teamId', 'name'],
+    },
   });
 
-  const real = data.createProjectTemplate.template;
-  swapProjectTemplate(store, provisional.id, real);
-  return real.id;
+  return data.createProjectTemplate.template.id;
 }
 
 export async function updateProjectTemplate(
@@ -239,11 +245,18 @@ export async function createProjectTemplateMilestone(
     optimistic: [
       { type: 'projectTemplateMilestone', id: provisional.id, before: null, after: provisional },
     ],
+    reconcile: {
+      type: 'projectTemplateMilestone',
+      provisionalId: provisional.id,
+      path: ['createProjectTemplateMilestone', 'milestone'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // The template and the milestone's name.
+      match: ['projectTemplateId', 'name'],
+    },
   });
 
-  const real = data.createProjectTemplateMilestone.milestone;
-  swapProjectTemplateMilestone(store, provisional.id, real);
-  return real.id;
+  return data.createProjectTemplateMilestone.milestone.id;
 }
 
 export async function deleteProjectTemplateMilestone(
@@ -295,12 +308,19 @@ export async function createProjectTemplateIssue(
       optimistic: [
         { type: 'projectTemplateIssue', id: provisional.id, before: null, after: provisional },
       ],
+      reconcile: {
+        type: 'projectTemplateIssue',
+        provisionalId: provisional.id,
+        path: ['createProjectTemplateIssue', 'issue'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // The template and the issue's title.
+        match: ['projectTemplateId', 'title'],
+      },
     },
   );
 
-  const real = data.createProjectTemplateIssue.issue;
-  swapProjectTemplateIssue(store, provisional.id, real);
-  return real.id;
+  return data.createProjectTemplateIssue.issue.id;
 }
 
 export async function deleteProjectTemplateIssue(engine: SyncEngine, issueId: UUID): Promise<void> {
@@ -355,65 +375,4 @@ export function issuesForTemplate(store: Store, projectTemplateId: UUID): Projec
   return issues.sort((a, b) =>
     a.sortOrder < b.sortOrder ? -1 : a.sortOrder > b.sortOrder ? 1 : a.title.localeCompare(b.title),
   );
-}
-
-function swapProjectTemplate(store: Store, provisionalId: UUID, wire: ProjectTemplate): void {
-  const real = fromWire('projectTemplate', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'projectTemplate',
-      id: real.id,
-      before: store.get('projectTemplate', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'projectTemplate', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-}
-
-function swapProjectTemplateMilestone(
-  store: Store,
-  provisionalId: UUID,
-  wire: ProjectTemplateMilestone,
-): void {
-  const real = fromWire('projectTemplateMilestone', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'projectTemplateMilestone',
-      id: real.id,
-      before: store.get('projectTemplateMilestone', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({
-      type: 'projectTemplateMilestone',
-      id: provisionalId,
-      before: null,
-      after: null,
-    });
-  }
-  store.applyOptimistic(patch);
-}
-
-function swapProjectTemplateIssue(
-  store: Store,
-  provisionalId: UUID,
-  wire: ProjectTemplateIssue,
-): void {
-  const real = fromWire('projectTemplateIssue', wire);
-  const patch: EntityPatch[] = [
-    {
-      type: 'projectTemplateIssue',
-      id: real.id,
-      before: store.get('projectTemplateIssue', real.id) ?? null,
-      after: real,
-    },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'projectTemplateIssue', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
 }

@@ -27,7 +27,7 @@ import {
 } from '~/store';
 import { ApiError, gql, setWorkspace } from './api';
 import { streamBootstrap } from './bootstrap';
-import { adopt, settle } from './reconcile';
+import { adopt, settle, unpairedCreates } from './reconcile';
 import {
   OUTDATED_CLIENT_MESSAGE,
   clearSchemaReloadAttempt,
@@ -79,6 +79,11 @@ export interface EngineOptions {
  * forever, silently.
  */
 const MAX_ATTEMPTS = 5;
+
+/** `mutation CreateComment(...)` → `CreateComment`, so a thrown error names the call site. */
+function operationName(document: string): string {
+  return /\bmutation\s+([A-Za-z0-9_]+)/.exec(document)?.[1] ?? 'a mutation';
+}
 
 /**
  * Whether a failure the server *answered* with is worth queueing behind.
@@ -189,10 +194,40 @@ export class SyncEngine {
     mutation: string;
     variables: Record<string, unknown>;
     optimistic?: OptimisticPatch;
-    /** How to pair the response's row with the stand-in, for server-allocated ids. */
-    reconcile?: Reconciliation;
+    /**
+     * How to pair the response's rows with the stand-ins, for server-allocated ids.
+     *
+     * A list when one mutation writes more than one stand-in. Required in practice rather
+     * than by the type — see the check below, which knows what the type cannot.
+     */
+    reconcile?: Reconciliation | readonly Reconciliation[];
   }): Promise<T> {
     const opId = uuidv7();
+
+    // Dev only, and it throws rather than warns.
+    //
+    // The failure it catches is invisible by inspection and invisible at runtime until a
+    // user reports seeing their own comment twice — an optimistic create under a stand-in
+    // id, paired only inside the `await`, which a reload discards. Five features shipped
+    // it, each fixed alone, none of them stopping the sixth. A console warning would have
+    // been read by nobody: this is the same class of mistake as forgetting to await, and
+    // the only enforcement that works on it is the kind that stops the screen.
+    //
+    // Dev covers it because every unit test and every e2e run is a dev build, so a call
+    // site written wrong fails in CI on the first test that reaches it — while a user in
+    // production is never shown an error for a mistake that is ours.
+    if (import.meta.env.DEV) {
+      const loose = unpairedCreates(input);
+      if (loose.length > 0) {
+        const rows = loose.map((entry) => `${entry.type} ${entry.id}`).join(', ');
+        throw new Error(
+          `[sync] ${operationName(input.mutation)} renders ${rows} optimistically under an id ` +
+            `it never sends, and declares no \`reconcile\` for it. The server will mint its own ` +
+            `id, its row will arrive beside the stand-in, and the user will see the thing twice ` +
+            `for good. Declare \`reconcile\` (see web/src/sync/reconcile.ts) or send the id.`,
+        );
+      }
+    }
 
     if (input.optimistic) this.store.applyOptimistic(input.optimistic);
 
@@ -211,7 +246,7 @@ export class SyncEngine {
         clientId: this.clientId,
         opId,
       });
-      if (input.reconcile) settle(this.store, input.reconcile, data);
+      settle(this.store, input.reconcile, data);
       await this.outbox.resolve(opId);
       this.publishStatus();
       return data;
@@ -271,7 +306,7 @@ export class SyncEngine {
           // The replay carries the original result, so this is the same pairing the
           // first attempt would have done — and the only chance to do it, because the
           // caller that was awaiting the first attempt is gone.
-          if (record.reconcile) settle(this.store, record.reconcile, data);
+          settle(this.store, record.reconcile, data);
           await this.outbox.resolve(record.opId);
         } catch (err) {
           if (err instanceof ApiError && err.isOffline) {

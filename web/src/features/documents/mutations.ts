@@ -1,5 +1,5 @@
 import { fromWire } from '~/gql/enums';
-import { uuidv7, type EntityOf, type EntityPatch, type UUID } from '~/store';
+import { uuidv7, type EntityOf, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -48,16 +48,17 @@ export async function createDocument(engine: SyncEngine, input: NewDocument): Pr
         },
       },
       optimistic: [{ type: 'document', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'document',
+        provisionalId: id,
+        path: ['createDocument', 'document'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // Where it was filed and what it is called.
+        match: ['teamId', 'projectId', 'title'],
+      },
     });
-    const real = fromWire('document', data.createDocument.document as EntityOf<'document'>);
-    const patch: EntityPatch[] = [
-      { type: 'document', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'document', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    return data.createDocument.document.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;

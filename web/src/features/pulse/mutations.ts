@@ -1,5 +1,5 @@
 import { fromWire } from '~/gql/enums';
-import { uuidv7, type EntityOf, type EntityPatch, type UUID } from '~/store';
+import { uuidv7, type EntityOf, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -43,16 +43,17 @@ export async function createPulseFeed(engine: SyncEngine, input: NewPulseFeed): 
         },
       },
       optimistic: [{ type: 'pulseFeed', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'pulseFeed',
+        provisionalId: id,
+        path: ['createPulseFeed', 'pulseFeed'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // Whose feed and what they called it.
+        match: ['userId', 'name'],
+      },
     });
-    const real = fromWire('pulseFeed', data.createPulseFeed.pulseFeed as EntityOf<'pulseFeed'>);
-    const patch: EntityPatch[] = [
-      { type: 'pulseFeed', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'pulseFeed', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    return data.createPulseFeed.pulseFeed.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;

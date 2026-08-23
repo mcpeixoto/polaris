@@ -147,28 +147,79 @@ interface Subscriber {
  * recursive walk is both correct and cheap: comparing five thousand ids costs five
  * thousand `Object.is` calls, which is nothing next to the render it prevents. A
  * selector returning anything richer should bring its own `equals`.
+ *
+ * The walk used to be `Object.keys` and nothing else, and that is a trap for exactly the
+ * values a query naturally wants to return. `Object.keys(new Set(['a']))` is `[]` — a Set
+ * keeps its contents in internal slots, not in own properties — so two Sets always agreed
+ * on "no keys, same count, every key equal" and compared EQUAL. Every Set equalled every
+ * other Set, `Map` the same, and a live query answering with one was told at every notify
+ * that nothing had changed: it rendered once at mount and then froze, silently, for the
+ * life of the view. `features/projects/dependencies` shipped with that (fixed in #76 by
+ * returning a sorted array), and nothing stopped the next selector doing it again.
+ *
+ * So Set, Map and Date are compared on their contents, and anything else exotic — a class
+ * instance, a RegExp, a boxed primitive — is reported UNEQUAL rather than walked. That is
+ * the safe direction to be wrong in: an unequal answer costs one render that was not
+ * needed, an equal one costs every render that was. A view that re-renders too often is
+ * something a profiler finds; a view that stopped updating looks like the data is missing.
  */
 export function sameResult(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
-  if (Array.isArray(a) && Array.isArray(b)) {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
       if (!sameResult(a[i], b[i])) return false;
     }
     return true;
   }
-  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
-    const left = a as Record<string, unknown>;
-    const right = b as Record<string, unknown>;
-    const keys = Object.keys(left);
-    if (keys.length !== Object.keys(right).length) return false;
-    for (const key of keys) {
-      if (!Object.prototype.hasOwnProperty.call(right, key)) return false;
-      if (!sameResult(left[key], right[key])) return false;
+  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false;
+
+  // Membership is SameValueZero, so a Set of ids compares by value and a Set of objects
+  // compares by identity. The second is conservative in the harmless direction: rebuilt
+  // objects read as changed, which re-renders, rather than as unchanged, which freezes.
+  if (a instanceof Set || b instanceof Set) {
+    if (!(a instanceof Set) || !(b instanceof Set) || a.size !== b.size) return false;
+    for (const value of a) {
+      if (!b.has(value)) return false;
     }
     return true;
   }
-  return false;
+
+  if (a instanceof Map || b instanceof Map) {
+    if (!(a instanceof Map) || !(b instanceof Map) || a.size !== b.size) return false;
+    for (const [key, value] of a) {
+      // `has` before `get`, so a key held with an `undefined` value is not confused with
+      // a key that is absent.
+      if (!b.has(key)) return false;
+      if (!sameResult(value, b.get(key))) return false;
+    }
+    return true;
+  }
+
+  if (a instanceof Date || b instanceof Date) {
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+  }
+
+  // Own enumerable properties are the whole of a plain object and none of anything else,
+  // which is why the walk below is only run on plain objects.
+  if (!isPlainObject(a) || !isPlainObject(b)) return false;
+
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(right, key)) return false;
+    if (!sameResult(left[key], right[key])) return false;
+  }
+  return true;
+}
+
+/** An object literal or an `Object.create(null)` bag — nothing with behaviour of its own. */
+function isPlainObject(value: object): boolean {
+  const proto = Object.getPrototypeOf(value) as object | null;
+  return proto === Object.prototype || proto === null;
 }
 
 export class Store {

@@ -7,7 +7,7 @@
  * two people adding different teams a second apart must both survive.
  */
 
-import { fromWire, toWire } from '~/gql/enums';
+import { toWire } from '~/gql/enums';
 import {
   uuidv7,
   type EntityOf,
@@ -106,25 +106,27 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
         { type: 'project', id: provisional.id, before: null, after: provisional },
         ...teamRows,
       ],
+      reconcile: {
+        type: 'project',
+        provisionalId: provisional.id,
+        path: ['createProject', 'project'],
+        // The `project_team` rows go with it. They were written so the project is in its
+        // teams' lists in the frame it appears in, and they carry the project's provisional
+        // id — so once the real project is here they join nothing, and no `match` could
+        // find them, because the field that would identify them is the id that changed.
+        // The server's own rows arrive on the delta stream keyed to the real project.
+        dependents: teamRows.map((patch) => ({ type: patch.type, id: patch.id })),
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // The name, which is what the person typed and what the list shows.
+        match: ['name'],
+      },
     });
-    const created = swapProject(store, provisional.id, data.createProject.project);
-    return created;
+    return data.createProject.project.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return provisional.id;
     throw error;
   }
-}
-
-function swapProject(store: Store, provisionalId: UUID, wire: Project): UUID {
-  const real = fromWire('project', wire);
-  const patch: EntityPatch[] = [
-    { type: 'project', id: real.id, before: store.get('project', real.id) ?? null, after: real },
-  ];
-  if (real.id !== provisionalId) {
-    patch.unshift({ type: 'project', id: provisionalId, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
-  return real.id;
 }
 
 export interface ProjectFields {
@@ -220,6 +222,13 @@ export async function addProjectTeam(
     mutation: ADD_PROJECT_TEAM,
     variables: { projectId, teamId },
     optimistic: [{ type: 'projectTeam', id: row.id, before: null, after: row }],
+    reconcile: {
+      type: 'projectTeam',
+      provisionalId: row.id,
+      path: ['addProjectTeam', 'projectTeam'],
+      // The pair the server holds unique, and both halves are the caller's own arguments.
+      match: ['projectId', 'teamId'],
+    },
   });
 }
 
@@ -240,6 +249,12 @@ export async function addProjectMember(
     mutation: ADD_PROJECT_MEMBER,
     variables: { projectId, userId },
     optimistic: [{ type: 'projectMember', id: row.id, before: null, after: row }],
+    reconcile: {
+      type: 'projectMember',
+      provisionalId: row.id,
+      path: ['addProjectMember', 'projectMember'],
+      match: ['projectId', 'userId'],
+    },
   });
 }
 
@@ -276,7 +291,7 @@ export async function createProjectStatus(
     updatedAt: now,
   };
 
-  const data = await engine.mutate<{ createProjectStatus: { status: ProjectStatus } }>({
+  await engine.mutate<{ createProjectStatus: { status: ProjectStatus } }>({
     mutation: CREATE_PROJECT_STATUS,
     variables: {
       input: {
@@ -286,21 +301,16 @@ export async function createProjectStatus(
       },
     },
     optimistic: [{ type: 'projectStatus', id: provisional.id, before: null, after: provisional }],
-  });
-
-  const real = fromWire('projectStatus', data.createProjectStatus.status);
-  const patch: EntityPatch[] = [
-    {
+    reconcile: {
       type: 'projectStatus',
-      id: real.id,
-      before: store.get('projectStatus', real.id) ?? null,
-      after: real,
+      provisionalId: provisional.id,
+      path: ['createProjectStatus', 'status'],
+      // And from the delta stream, which usually gets here first — the socket pushes the
+      // row the moment the mutation commits, while the response is still travelling back.
+      // Statuses are workspace-wide and named uniquely by hand.
+      match: ['name'],
     },
-  ];
-  if (real.id !== provisional.id) {
-    patch.unshift({ type: 'projectStatus', id: provisional.id, before: null, after: null });
-  }
-  store.applyOptimistic(patch);
+  });
 }
 
 export interface ProjectStatusFields {

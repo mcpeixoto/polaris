@@ -1,5 +1,5 @@
 import { fromWire, toWire } from '~/gql/enums';
-import { uuidv7, type CustomerStatus, type EntityOf, type EntityPatch, type UUID } from '~/store';
+import { uuidv7, type CustomerStatus, type EntityOf, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -50,16 +50,17 @@ export async function createCustomer(engine: SyncEngine, input: NewCustomer): Pr
         },
       },
       optimistic: [{ type: 'customer', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'customer',
+        provisionalId: id,
+        path: ['createCustomer', 'customer'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // A workspace holds one customer per name.
+        match: ['name'],
+      },
     });
-    const real = fromWire('customer', data.createCustomer.customer as EntityOf<'customer'>);
-    const patch: EntityPatch[] = [
-      { type: 'customer', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'customer', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    return data.createCustomer.customer.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;
@@ -220,19 +221,17 @@ export async function createCustomerRequest(
         },
       },
       optimistic: [{ type: 'customerRequest', id, before: null, after: provisional }],
+      reconcile: {
+        type: 'customerRequest',
+        provisionalId: id,
+        path: ['createCustomerRequest', 'customerRequest'],
+        // And from the delta stream, which usually gets here first — the socket pushes the
+        // row the moment the mutation commits, while the response is still travelling back.
+        // The customer and the words typed, which nobody sends twice in one second by accident.
+        match: ['customerId', 'body'],
+      },
     });
-    const real = fromWire(
-      'customerRequest',
-      data.createCustomerRequest.customerRequest as EntityOf<'customerRequest'>,
-    );
-    const patch: EntityPatch[] = [
-      { type: 'customerRequest', id: real.id, before: provisional, after: real },
-    ];
-    if (real.id !== id) {
-      patch.unshift({ type: 'customerRequest', id, before: null, after: null });
-    }
-    store.applyOptimistic(patch);
-    return real.id;
+    return data.createCustomerRequest.customerRequest.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;

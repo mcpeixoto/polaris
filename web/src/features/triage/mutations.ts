@@ -117,6 +117,16 @@ export async function markIssueDuplicate(
       { type: 'issue', id, before, after },
       { type: 'issueRelation', id: relation.id, before: null, after: relation },
     ],
+    // The issue keeps its own id and needs nothing. The relation does not: the server mints
+    // that id and the response carries only the issue, so there is no path to read it from
+    // and the stand-in is paired off the delta stream instead — on both ends and the kind,
+    // which is what the server holds unique. Without this the duplicate link is written
+    // twice, once by the client and once by the server, and the second one never goes.
+    reconcile: {
+      type: 'issueRelation',
+      provisionalId: relation.id,
+      match: ['issueId', 'relatedIssueId', 'type'],
+    },
   });
 }
 
