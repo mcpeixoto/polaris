@@ -54,7 +54,7 @@ import {
 import { setRole, setSuspended } from '~/features/members/mutations';
 import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import { useViewer, useViewerId } from '~/hooks/useViewer';
+import { useViewerId, useViewerRole } from '~/hooks/useViewer';
 import type { UserRole, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './MemberSettings.module.css';
@@ -126,7 +126,7 @@ const ROLE_LABELS: Readonly<Record<UserRole, string>> = {
 export function MemberSettings() {
   const engine = useEngine();
   const viewerId = useViewerId();
-  const viewer = useViewer();
+
   const entitlements = useEntitlements();
 
   const [error, setError] = useState<string | null>(null);
@@ -139,20 +139,29 @@ export function MemberSettings() {
   const [revoked, setRevoked] = useState<string | null>(null);
 
   /**
-   * Whether the person looking may invite, according to the replica.
+   * Whether the person looking may administer anybody here.
    *
-   * `null` while their own row has not arrived yet, which is not the same as `false` and must
-   * not be read as it: an unknown answer hides nothing, because guessing "no" would take the
-   * invite button away from an admin for the first frame of every visit.
+   * One question, because the server asks one: `ActionMemberInvite`, `ActionMemberSetRole`,
+   * `ActionMemberSuspend` and `ActionMemberRemove` are all `role.IsAdmin()`, which is owner or
+   * admin and nothing else. This restates that rule rather than replacing it, so the controls
+   * are already absent on the first frame instead of appearing and being taken away when a
+   * request answers 403 — the server's own refusal is still handled, in the `forbidden` phase
+   * below and in `run` beside every write.
    *
-   * This restates the server's rule rather than replacing it — `authz.Can(p,
-   * ActionMemberInvite)` is `role.IsAdmin()`, which is owner or admin and nothing else — and it
-   * exists so the invite controls are already absent on the first frame instead of appearing
-   * and then being taken away when the query answers 403. The server's own refusal is still
-   * handled, in the `forbidden` phase below; the two are belt and braces for one question and
-   * can only disagree for as long as a role change takes to reach this replica.
+   * `null` while the session query is still out, which is not the same as `false` and must not
+   * be read as it: guessing "no" would take the invite button away from an admin for the first
+   * frame of every visit. Controls appear on `true` and on nothing else, so an unknown answer
+   * shows no administrative control it might have to withdraw.
+   *
+   * Asked of the session and not of the replica. `useViewer()` reads the profile out of
+   * `store.users`, and a guest's replica holds no users at all — the directory is
+   * workspace-scoped and guests are not sent it — so for the one role this gate exists to
+   * exclude, the replica's answer is permanently "not loaded yet". `useViewerRole` comes from
+   * `VIEWER_QUERY`, which answers for everybody. See the note on it.
    */
-  const canInvite = viewer === null ? null : viewer.role === 'owner' || viewer.role === 'admin';
+  const viewerRole = useViewerRole();
+  const canAdminister =
+    viewerRole === null ? null : viewerRole === 'owner' || viewerRole === 'admin';
 
   const members = useLiveQuery(
     (store) =>
@@ -241,7 +250,7 @@ export function MemberSettings() {
   // chosen", and an entry reading "Invite somebody to the workspace" that answers with the
   // server's 403 is precisely the fixed list that fails when chosen.
   useActions(
-    canInvite === true
+    canAdminister === true
       ? [
           {
             id: 'members.invite',
@@ -253,7 +262,7 @@ export function MemberSettings() {
           },
         ]
       : [],
-    [canInvite],
+    [canAdminister],
   );
 
   /**
@@ -330,7 +339,7 @@ export function MemberSettings() {
             a permission gate is not — telling somebody "only admins can invite people" beside
             a button they will never be allowed to press is an explanation of somebody else's
             feature. */}
-        {canInvite === true ? (
+        {canAdminister === true ? (
           <Tooltip label="Invite somebody" keys="i">
             <Button variant="primary" disabled={seats !== null} onClick={() => setInviting(true)}>
               Invite people
@@ -362,7 +371,7 @@ export function MemberSettings() {
             "Pending invitations" appear and then be taken away when the 403 lands; the
             server's answer is the authoritative one, and covers the moment after somebody's
             role has been changed in another session but the delta has not reached here. */}
-        {invites.phase === 'forbidden' || canInvite === false ? null : (
+        {invites.phase === 'forbidden' || canAdminister === false ? null : (
           <section className={styles.section} aria-labelledby="invites-heading">
             <h2 className={styles.sectionTitle} id="invites-heading">
               Pending invitations
@@ -447,6 +456,7 @@ export function MemberSettings() {
                   key={member.id}
                   member={member}
                   isViewer={member.id === viewerId}
+                  manageable={canAdminister === true}
                   onRole={(role) => run(setRole(engine, member.id, role))}
                   onSuspend={(suspended) => {
                     if (suspended && member.protectedBy !== null) {
@@ -542,12 +552,26 @@ interface MemberRowProps {
   member: MemberView;
   /** The person doing the looking. They may not change their own authority. */
   isViewer: boolean;
+  /**
+   * Whether the person looking may act on anybody, which is `role.IsAdmin()` and nothing else.
+   *
+   * Without it the roster was the administration screen for everybody who could reach it: a
+   * plain member got a live role picker and Suspend and Remove on every colleague's row, each
+   * of which answered `only admins can change roles` / `only admins can suspend people` when
+   * pressed. That is the fixed list that fails when chosen, which is the thing this screen
+   * registers its command-menu entry conditionally to avoid.
+   *
+   * The roster itself stays readable, because a member knowing who is here and who is an admin
+   * is something the product offers on purpose — "View workspace admins" is a command any
+   * member may run. What goes is every control the server was only ever going to refuse.
+   */
+  manageable: boolean;
   onRole: (role: UserRole) => void;
   onSuspend: (suspended: boolean) => void;
   onRemove: () => void;
 }
 
-function MemberRow({ member, isViewer, onRole, onSuspend, onRemove }: MemberRowProps) {
+function MemberRow({ member, isViewer, manageable, onRole, onSuspend, onRemove }: MemberRowProps) {
   return (
     <tr className={member.suspended ? styles.suspendedRow : undefined}>
       <th scope="row" className={styles.person}>
@@ -589,27 +613,34 @@ function MemberRow({ member, isViewer, onRole, onSuspend, onRemove }: MemberRowP
       </th>
 
       <td>
-        <Select
-          label={`Role for ${member.name}`}
-          hideLabel
-          value={member.role}
-          // Changing your own role is how an owner locks themselves out of their own
-          // workspace. The server refuses it; the screen agrees rather than offering it.
-          disabled={isViewer}
-          onChange={(event) => onRole(event.target.value as UserRole)}
-        >
-          {rolesFor(member.role).map((role) => (
-            <option key={role} value={role}>
-              {ROLE_LABELS[role]}
-            </option>
-          ))}
-        </Select>
+        {/* Stated rather than offered to somebody who cannot change it. A disabled picker
+            would say the same thing less clearly and invite the question of what it takes to
+            enable it — the answer being "be an admin", which is not an upgrade prompt. */}
+        {manageable ? (
+          <Select
+            label={`Role for ${member.name}`}
+            hideLabel
+            value={member.role}
+            // Changing your own role is how an owner locks themselves out of their own
+            // workspace. The server refuses it; the screen agrees rather than offering it.
+            disabled={isViewer}
+            onChange={(event) => onRole(event.target.value as UserRole)}
+          >
+            {rolesFor(member.role).map((role) => (
+              <option key={role} value={role}>
+                {ROLE_LABELS[role]}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Badge>{ROLE_LABELS[member.role]}</Badge>
+        )}
       </td>
 
       <td>{member.suspended ? <Badge tone="warning">Suspended</Badge> : <Badge>Active</Badge>}</td>
 
       <td className={styles.actions}>
-        {isViewer ? null : (
+        {isViewer || !manageable ? null : (
           <>
             {member.suspended ? (
               <Button size="sm" onClick={() => onSuspend(false)}>

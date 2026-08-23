@@ -51,6 +51,9 @@ const viewer = vi.hoisted(() => ({
 vi.mock('~/hooks/useViewer', () => ({
   useViewerId: () => viewer.current?.id ?? null,
   useViewer: () => viewer.current,
+  // The screen asks the session for the role and the replica for nothing, because a guest's
+  // replica holds no users at all. Mocked here from the same fixture so the two cannot drift.
+  useViewerRole: () => viewer.current?.role ?? null,
 }));
 
 const sent = vi.mocked(gql);
@@ -464,6 +467,56 @@ describe('MemberSettings · somebody who is not an admin', () => {
 
     expect(await screen.findByRole('button', { name: 'Invite people' })).toBeTruthy();
     expect(invitations()).toBeTruthy();
+  });
+
+  /**
+   * The rest of the screen, which used to be the administration screen for anybody who could
+   * reach it.
+   *
+   * `ActionMemberSetRole`, `ActionMemberSuspend` and `ActionMemberRemove` are all
+   * `role.IsAdmin()`, so a member got a live role picker and Suspend and Remove on every
+   * colleague's row and a refusal from the server on each — `only admins can change roles`,
+   * `only admins can suspend people` — which is the fixed list that fails when chosen.
+   */
+  it('shows a member the roster and none of the controls that would be refused', async () => {
+    viewer.current = { id: GRACE, role: 'member' };
+    inviteFailures = [new ApiError('FORBIDDEN', 'only admins can see pending invitations')];
+    renderScreen([
+      person(ADA, 'Ada Lovelace', { role: 'admin' }),
+      person(GRACE, 'Grace Hopper', { role: 'member' }),
+    ]);
+
+    // Who is here and what they are is a member's to read; "View workspace admins" is a
+    // command any member may run.
+    const header = await screen.findByRole('rowheader', { name: /Ada Lovelace/ });
+    const row = within(header.closest('tr') as HTMLElement);
+    expect(row.getByText('Admin')).toBeTruthy();
+
+    expect(screen.queryByRole('combobox', { name: 'Role for Ada Lovelace' })).toBeNull();
+    expect(row.queryByRole('button', { name: 'Suspend' })).toBeNull();
+    expect(row.queryByRole('button', { name: 'Remove' })).toBeNull();
+  });
+
+  it('gives an admin the controls on everybody but themselves', async () => {
+    viewer.current = { id: ADA, role: 'admin' };
+    renderScreen([
+      person(ADA, 'Ada Lovelace', { role: 'admin' }),
+      person(GRACE, 'Grace Hopper', { role: 'member' }),
+    ]);
+
+    const header = await screen.findByRole('rowheader', { name: /Grace Hopper/ });
+    const row = within(header.closest('tr') as HTMLElement);
+    expect(row.getByRole('combobox', { name: 'Role for Grace Hopper' })).toBeTruthy();
+    expect(row.getByRole('button', { name: 'Suspend' })).toBeTruthy();
+    expect(row.getByRole('button', { name: 'Remove' })).toBeTruthy();
+
+    // Their own row keeps the picker — disabled, because the server refuses a self-demotion —
+    // and offers neither destructive action.
+    const own = within(
+      (await screen.findByRole('rowheader', { name: /Ada Lovelace/ })).closest('tr') as HTMLElement,
+    );
+    expect(own.queryByRole('button', { name: 'Suspend' })).toBeNull();
+    expect(own.queryByRole('button', { name: 'Remove' })).toBeNull();
   });
 });
 
