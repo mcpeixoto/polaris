@@ -12,6 +12,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/auth"
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
+	"github.com/peixotolabs/polaris/services/internal/domain/model"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/store"
 	"github.com/peixotolabs/polaris/services/internal/testutil"
@@ -157,13 +158,25 @@ func TestApiKey_ARevokedKeyStopsAuthenticating(t *testing.T) {
 			code, platform.CodeUnauthorized)
 	}
 
-	// And it leaves the listing, so the settings screen shows live credentials only.
+	// And it stays in the listing, marked revoked.
+	//
+	// This assertion used to be the opposite, and the opposite is what the SQL did — which
+	// made the screen's own caption false. It tells the reader that "revoked and expired ones
+	// stay in the list, at the bottom, so that a key which stopped working can still be
+	// accounted for", the client ranks revoked keys last, draws them with a Revoked badge and
+	// withholds their Revoke button, and the documents beside those components say the row
+	// comes back marked rather than disappearing. A key that vanishes the instant it is
+	// retired is the one thing an audit of "when did this stop working" cannot use, and it
+	// leaves somebody who has just revoked the wrong key with nothing on screen to say so.
 	listed, err := svc.ListApiKeys(ctx, f.Principal())
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(listed) != 0 {
-		t.Errorf("a revoked key is still listed: %+v", listed)
+	if len(listed) != 1 {
+		t.Fatalf("got %d keys, want the revoked one still listed: %+v", len(listed), listed)
+	}
+	if listed[0].RevokedAt == nil {
+		t.Error("the key is listed without a revokedAt, so nothing can draw it as revoked")
 	}
 }
 
@@ -419,5 +432,56 @@ func TestAuthenticateApiKey_RejectsGarbageWithoutTouchingAnything(t *testing.T) 
 			t.Errorf("token %q gave %s, want %s — every failure must look the same",
 				token, code, platform.CodeUnauthorized)
 		}
+	}
+}
+
+// A retired key stays in the listing.
+//
+// The screen's caption promises it — "revoked and expired ones stay in the list, at the
+// bottom, so that a key which stopped working can still be accounted for" — and the client
+// already ranks them last and draws them with a Revoked badge. Filtering them out in SQL made
+// the row vanish the instant it was retired, which is the opposite of what an audit of "when
+// did this stop working" needs, and left somebody who had revoked the wrong key with nothing
+// on screen to tell them so.
+func TestListApiKeys_KeepsRevokedKeysInTheListing(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	live, _, _, err := svc.CreateApiKey(ctx, p, domain.CreateApiKeyInput{Name: "still in use"})
+	if err != nil {
+		t.Fatalf("create live: %v", err)
+	}
+	retired, _, _, err := svc.CreateApiKey(ctx, p, domain.CreateApiKeyInput{Name: "retired"})
+	if err != nil {
+		t.Fatalf("create retired: %v", err)
+	}
+	if _, _, err := svc.RevokeApiKey(ctx, p, retired.ID); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+
+	listed, err := svc.ListApiKeys(ctx, p)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	byID := map[uuid.UUID]model.APIKey{}
+	for _, k := range listed {
+		byID[k.ID] = k
+	}
+	if _, ok := byID[live.ID]; !ok {
+		t.Error("the live key is missing from the listing")
+	}
+	row, ok := byID[retired.ID]
+	if !ok {
+		t.Fatal("the revoked key vanished from the listing — the screen promises it stays")
+	}
+	if row.RevokedAt == nil {
+		t.Error("the revoked key is listed without a revokedAt, so nothing can draw it as revoked")
+	}
+	// And still nothing that could authenticate as one.
+	if row.Prefix == "" || len(row.Prefix) != len("plk_")+8 {
+		t.Errorf("prefix %q is not the label the listing is meant to carry", row.Prefix)
 	}
 }

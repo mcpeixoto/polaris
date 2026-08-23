@@ -456,15 +456,44 @@ func (s *Service) RefreshSession(ctx context.Context, refreshToken string) (uuid
 		}
 		accountID = existing.AccountID
 
-		if err := q.RevokeSession(ctx, existing.ID); err != nil {
+		// Rotated in place rather than revoked and re-issued.
+		//
+		// A refresh has to change the token — a refresh token that survives its own use is a
+		// replay waiting to happen — but it must not change which session this is. It used to
+		// do both: the old row was revoked and a new one inserted, so every live device became
+		// a different session id every fifteen minutes. The Sessions screen draws a Revoke
+		// button per id, so pressing it on any device that had refreshed since the list loaded
+		// answered "session not found" and left that device signed in and refreshing happily —
+		// which is the whole of what that screen is for.
+		//
+		// Nothing is weakened by keeping the row: the previous digest is overwritten, so the
+		// old token authenticates nothing, exactly as revoking it did. What is gained is a
+		// stable identity for the login, and with it a truthful created_at, user_agent, ip and
+		// country instead of values that were re-derived (or lost) on every refresh.
+		plain, hash, err := auth.NewOpaqueToken()
+		if err != nil {
+			return err
+		}
+		row, err := q.RotateSessionToken(ctx, store.RotateSessionTokenParams{
+			ID:        existing.ID,
+			TokenHash: hash,
+			ExpiresAt: time.Now().Add(s.refreshTTL()),
+		})
+		if err != nil {
+			if store.IsNotFound(err) {
+				// Revoked between the lookup above and this update: somebody pressed Revoke on
+				// this very device a moment ago, and the answer they are owed is that it is gone.
+				return platform.Unauthorized("session expired, please sign in again")
+			}
 			return platform.Internal(err)
 		}
-		var ua string
-		if existing.UserAgent != nil {
-			ua = *existing.UserAgent
+		session = Session{
+			SessionID:    row.ID,
+			AccountID:    row.AccountID,
+			RefreshToken: plain,
+			ExpiresAt:    row.ExpiresAt,
 		}
-		session, err = s.issueSession(ctx, q, existing.AccountID, ua, existing.Ip)
-		return err
+		return nil
 	})
 	return accountID, session, err
 }

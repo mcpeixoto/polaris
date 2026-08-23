@@ -202,3 +202,144 @@ func mintSession(t *testing.T, db *store.DB, accountID uuid.UUID, ua string) (st
 	}
 	return row, hash
 }
+
+// A refresh must not change which session a device is.
+//
+// It used to: the old row was revoked and a new one inserted, so an id the Sessions screen
+// had just drawn a Revoke button for stopped existing the moment that device refreshed. The
+// consequence was the one failure that screen cannot have — pressing Revoke on a live device
+// answered "session not found" and left it signed in.
+func TestRefreshSession_KeepsTheSessionIdentityStable(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	const ua = "Mozilla/5.0 (X11; Linux x86_64; rv:129.0) Gecko/20100101 Firefox/129.0"
+	first := mintSessionWithToken(t, db, f.AccountID, ua)
+
+	listedBefore, err := svc.ListAccountSessions(ctx, f.Principal(), auth.HashToken(first.RefreshToken))
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var before domain.AccountSession
+	for _, row := range listedBefore {
+		if row.ID == first.SessionID {
+			before = row
+		}
+	}
+	if before.ID == uuid.Nil {
+		t.Fatal("the session just minted is not in the listing")
+	}
+
+	_, rotated, err := svc.RefreshSession(ctx, first.RefreshToken)
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if rotated.SessionID != first.SessionID {
+		t.Fatalf("refresh moved the session from %s to %s — the Revoke button on the sessions "+
+			"screen names the old id and would answer not-found", first.SessionID, rotated.SessionID)
+	}
+	if rotated.RefreshToken == first.RefreshToken {
+		t.Fatal("the refresh token must change on every use — one that survives its own use is a replay")
+	}
+
+	// The old token is dead, exactly as it was when rotation revoked the row.
+	if _, _, err := svc.RefreshSession(ctx, first.RefreshToken); err == nil {
+		t.Fatal("the previous refresh token still works after rotation")
+	}
+
+	// And the id the screen is holding still revokes.
+	if _, _, err := svc.RevokeAccountSession(ctx, f.Principal(), before.ID); err != nil {
+		t.Fatalf("revoking the id the listing showed: %v", err)
+	}
+	if _, _, err := svc.RefreshSession(ctx, rotated.RefreshToken); err == nil {
+		t.Fatal("the revoked device can still refresh — revoking it did nothing")
+	}
+}
+
+// created_at is the moment somebody signed in, not the moment their browser last refreshed.
+func TestRefreshSession_PreservesTheSignInFacts(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+	first := mintSessionWithToken(t, db, f.AccountID, ua)
+	before, err := svc.ListAccountSessions(ctx, f.Principal(), auth.HashToken(first.RefreshToken))
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+
+	_, rotated, err := svc.RefreshSession(ctx, first.RefreshToken)
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	after, err := svc.ListAccountSessions(ctx, f.Principal(), auth.HashToken(rotated.RefreshToken))
+	if err != nil {
+		t.Fatalf("list after: %v", err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("refreshing turned %d sessions into %d — a live device must stay one row",
+			len(before), len(after))
+	}
+	if !after[0].CreatedAt.Equal(before[0].CreatedAt) {
+		t.Errorf("created_at moved from %s to %s — the Signed in column would show the last "+
+			"refresh rather than the sign-in", before[0].CreatedAt, after[0].CreatedAt)
+	}
+	if after[0].Label != before[0].Label {
+		t.Errorf("device label changed across a refresh: %q then %q", before[0].Label, after[0].Label)
+	}
+	if !after[0].Current {
+		t.Error("the rotated cookie must still mark its own row current")
+	}
+}
+
+// Revoking a session must stop it refreshing, and must not be undone by a race with one.
+func TestRefreshSession_RefusesARevokedSession(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	first := mintSessionWithToken(t, db, f.AccountID, "probe")
+	if _, _, err := svc.RevokeAccountSession(ctx, f.Principal(), first.SessionID); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	_, _, err := svc.RefreshSession(ctx, first.RefreshToken)
+	if err == nil {
+		t.Fatal("a revoked session refreshed itself back to life")
+	}
+	if platform.CodeOf(err) != platform.CodeUnauthorized {
+		t.Errorf("code %v, want unauthorized", platform.CodeOf(err))
+	}
+}
+
+// mintSessionWithToken is mintSession plus the plaintext, which the refresh path needs and
+// the listing path never does.
+func mintSessionWithToken(t *testing.T, db *store.DB, accountID uuid.UUID, ua string) domain.Session {
+	t.Helper()
+	plain, hash, err := auth.NewOpaqueToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	ip := netip.MustParseAddr("203.0.113.10")
+	row, err := db.Queries().CreateSession(context.Background(), store.CreateSessionParams{
+		ID:        uuid.Must(uuid.NewV7()),
+		AccountID: accountID,
+		TokenHash: hash,
+		UserAgent: &ua,
+		Ip:        &ip,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	return domain.Session{
+		SessionID:    row.ID,
+		AccountID:    row.AccountID,
+		RefreshToken: plain,
+		ExpiresAt:    row.ExpiresAt,
+	}
+}

@@ -184,6 +184,25 @@ func (s *Service) SetUserRole(ctx context.Context, p *authz.Principal, userID uu
 		}
 		out = toUser(row)
 
+		// Demoting somebody to guest takes their API keys with them.
+		//
+		// A guest may not create a personal key — CreateApiKey refuses one outright, because a
+		// key acts as its owner and outlives the session, which is the opposite of what a
+		// guest's access is meant to be. Leaving the keys they minted as a member alive would
+		// make demotion the one way to end up a guest holding exactly the credential the
+		// product says a guest may not have, and it would keep every unattended script they
+		// had wired up running with no review. Suspension and removal already sever the
+		// credential; this is the third door to the same room.
+		//
+		// Only on the way down. A member promoted to admin keeps their keys, because nothing
+		// about their access has been taken away — and the keys would not widen anyway: a key
+		// carries no role of its own and resolves its owner's permissions on every request.
+		if authz.Role(role) == authz.RoleGuest && authz.Role(existing.Role) != authz.RoleGuest {
+			if _, err := q.RevokeAPIKeysForUser(ctx, userID); err != nil {
+				return platform.Internal(err)
+			}
+		}
+
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "user", EntityID: out.ID, Op: OpUpsert,
 			Scope: authz.WorkspaceScope(), Payload: out,

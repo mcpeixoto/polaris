@@ -277,6 +277,53 @@ func (q *Queries) RevokeSessionForAccount(ctx context.Context, arg RevokeSession
 	return result.RowsAffected(), nil
 }
 
+const rotateSessionToken = `-- name: RotateSessionToken :one
+UPDATE account_session
+SET token_hash = $1,
+    expires_at = $2,
+    last_seen_at = now()
+WHERE id = $3 AND revoked_at IS NULL
+RETURNING id, account_id, token_hash, user_agent, ip, country, expires_at, revoked_at, last_seen_at, created_at, updated_at
+`
+
+type RotateSessionTokenParams struct {
+	TokenHash []byte
+	ExpiresAt time.Time
+	ID        uuid.UUID
+}
+
+// RotateSessionToken swaps a session's refresh token without changing which session it is.
+//
+// Rotation used to be a revoke and an insert, which made a session a different row every
+// fifteen minutes. That is what broke the Sessions screen: the id it drew a Revoke button
+// for stopped existing the moment the device it named refreshed, so pressing Revoke on any
+// live device answered "session not found" and left it signed in — the one flow the screen
+// exists for. Updating in place keeps the id stable for the life of the login, which is what
+// lets somebody point at a device and kill it.
+//
+// The security property is unchanged: the old token's digest is overwritten, so replaying it
+// finds no row and is 401, exactly as revoking it was. created_at survives, so the "Signed
+// in" column finally shows when the person actually signed in rather than when their browser
+// last refreshed; user_agent, ip and country survive for the same reason.
+func (q *Queries) RotateSessionToken(ctx context.Context, arg RotateSessionTokenParams) (AccountSession, error) {
+	row := q.db.QueryRow(ctx, rotateSessionToken, arg.TokenHash, arg.ExpiresAt, arg.ID)
+	var i AccountSession
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.TokenHash,
+		&i.UserAgent,
+		&i.Ip,
+		&i.Country,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const setAccountPassword = `-- name: SetAccountPassword :exec
 UPDATE account SET password_hash = $1
 WHERE id = $2

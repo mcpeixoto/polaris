@@ -570,3 +570,60 @@ func TestLastAdministratorGuard_IgnoresASuspendedAdmin(t *testing.T) {
 			platform.CodeOf(err), platform.CodeConflict, err)
 	}
 }
+
+// Demotion to guest severs the API keys the person minted as a member.
+//
+// A guest cannot create one — CreateApiKey refuses outright — so leaving the old keys alive
+// would make demotion the one route to a guest holding exactly the credential the product
+// says a guest may not have, with every unattended script they wired up still running.
+func TestSetUserRole_RevokesApiKeysOnConvertToGuest(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	member := f.NewUser(t, "contractor", "member", true)
+	pMember := f.PrincipalFor(member, authz.RoleMember, f.TeamID)
+	pMember.AccountID = f.AccountID
+
+	_, token, _, err := svc.CreateApiKey(ctx, pMember, domain.CreateApiKeyInput{Name: "member key"})
+	if err != nil {
+		t.Fatalf("create key: %v", err)
+	}
+	if _, err := svc.AuthenticateApiKey(ctx, token); err != nil {
+		t.Fatalf("the key does not work before the demotion: %v", err)
+	}
+
+	if _, _, err := svc.SetUserRole(ctx, f.Principal(), member, "guest"); err != nil {
+		t.Fatalf("demote: %v", err)
+	}
+
+	if _, err := svc.AuthenticateApiKey(ctx, token); err == nil {
+		t.Fatal("the key minted as a member still authenticates after the demotion to guest")
+	} else if code := platform.CodeOf(err); code != platform.CodeUnauthorized {
+		t.Errorf("code = %s, want %s", code, platform.CodeUnauthorized)
+	}
+}
+
+// Promotion is not demotion: nothing has been taken away, so nothing is severed.
+func TestSetUserRole_KeepsApiKeysOnPromotion(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	member := f.NewUser(t, "engineer", "member", true)
+	pMember := f.PrincipalFor(member, authz.RoleMember, f.TeamID)
+	pMember.AccountID = f.AccountID
+
+	_, token, _, err := svc.CreateApiKey(ctx, pMember, domain.CreateApiKeyInput{Name: "deploy bot"})
+	if err != nil {
+		t.Fatalf("create key: %v", err)
+	}
+	if _, _, err := svc.SetUserRole(ctx, f.Principal(), member, "admin"); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+	if _, err := svc.AuthenticateApiKey(ctx, token); err != nil {
+		t.Fatalf("promotion broke a working key: %v", err)
+	}
+}
