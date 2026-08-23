@@ -26,12 +26,24 @@ export function DocumentDetail() {
     [documentId],
   );
 
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  // Seeded from the replica rather than from empty strings. The effect below fills the
+  // fields a frame later, which is a frame in which the screen claims the document has no
+  // title and no body — and a frame in which anything typed is thrown away by the very
+  // first run of that effect, because a document nobody has loaded yet counts as switched.
+  const [title, setTitle] = useState(document?.title ?? '');
+  const [body, setBody] = useState(document?.body ?? '');
   const [titleDirty, setTitleDirty] = useState(false);
   const [bodyDirty, setBodyDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const dirty = titleDirty || bodyDirty;
+
+  // The fields as they stand *now*, readable from a callback that has been waiting on the
+  // network. `save` closes over the values it sent, which are not necessarily the values on
+  // the screen by the time the server answers.
+  const showing = useRef({ title, body });
+  useEffect(() => {
+    showing.current = { title, body };
+  }, [title, body]);
 
   // Adopt what the store says — but never over the top of an unsaved edit to the field it
   // would land in. Any change to this document re-runs the effect, including one that
@@ -42,7 +54,7 @@ export function DocumentDetail() {
   //
   // Moving to a *different* document reloads unconditionally: the fields belong to whatever
   // the route points at, and carrying one document's draft onto another would save it there.
-  const loaded = useRef<string | null>(null);
+  const loaded = useRef<string | null>(document?.id ?? null);
   useEffect(() => {
     if (document === null) return;
     const switched = loaded.current !== document.id;
@@ -75,7 +87,9 @@ export function DocumentDetail() {
 
   const save = async () => {
     if (saving || !dirty) return;
-    const trimmed = title.trim();
+    const sentTitle = title;
+    const sentBody = body;
+    const trimmed = sentTitle.trim();
     if (trimmed === '') {
       titleRef.current?.focus();
       return;
@@ -85,10 +99,16 @@ export function DocumentDetail() {
       await updateDocument(engine, {
         id: document.id,
         title: trimmed,
-        body,
+        body: sentBody,
       });
-      setTitleDirty(false);
-      setBodyDirty(false);
+      // Only a field that has not moved since the request left is clean. Typing does not
+      // stop while a save is in flight — a slow connection is when it is most likely to
+      // carry on — and clearing the flag for a field that did move hands the effect above
+      // permission to replace those keystrokes with the value that was sent, silently, with
+      // Save going disabled as if the newer text had been written. Leaving the field dirty
+      // keeps it on the screen and keeps Save live to send it.
+      if (showing.current.title === sentTitle) setTitleDirty(false);
+      if (showing.current.body === sentBody) setBodyDirty(false);
     } finally {
       setSaving(false);
     }

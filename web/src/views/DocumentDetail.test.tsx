@@ -7,14 +7,14 @@
  * textarea, which is the one thing on the screen that exists nowhere else yet.
  */
 
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
-import { Store, type Change, type Entity } from '~/store';
+import { Store, type Change, type Entity, type OptimisticPatch } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
 import { DocumentDetail } from './DocumentDetail';
@@ -62,10 +62,36 @@ function seeded(): Store {
   return store;
 }
 
-function renderDetail() {
-  const store = seeded();
-  const mutate = vi.fn().mockResolvedValue({});
-  const engine = { store, mutate } as unknown as SyncEngine;
+interface MutateInput {
+  readonly mutation: string;
+  readonly variables: Record<string, unknown>;
+  readonly optimistic?: OptimisticPatch;
+}
+
+/**
+ * A server that answers when it is told to, so a test can act during the gap.
+ *
+ * The gap is the point: a save is not instant, the person's hands do not stop while it is
+ * open, and what the screen does when the reply finally lands is the behaviour under test.
+ */
+function gatedEngine(store: Store) {
+  let release = () => {};
+  const opened = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const mutate = vi.fn(async (input: MutateInput) => {
+    await opened;
+    if (input.optimistic !== undefined) store.applyOptimistic(input.optimistic);
+    return { updateDocument: { document: input.optimistic?.[0]?.after } };
+  });
+  return { mutate, release: () => release(), engine: { store, mutate } as unknown as SyncEngine };
+}
+
+function saveButton(): HTMLButtonElement {
+  return screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+}
+
+function mount(store: Store, engine: SyncEngine) {
   render(
     <MemoryRouter initialEntries={[`/document/${DOC}`]}>
       <KeymapProvider>
@@ -77,7 +103,19 @@ function renderDetail() {
       </KeymapProvider>
     </MemoryRouter>,
   );
-  return { store, mutate, user: userEvent.setup() };
+  return { store, user: userEvent.setup() };
+}
+
+function renderDetail() {
+  const store = seeded();
+  const mutate = vi.fn().mockResolvedValue({});
+  return { mutate, ...mount(store, { store, mutate } as unknown as SyncEngine) };
+}
+
+function renderDetailWithSlowSave() {
+  const store = seeded();
+  const { engine, mutate, release } = gatedEngine(store);
+  return { mutate, release, ...mount(store, engine) };
 }
 
 describe('DocumentDetail', () => {
@@ -109,6 +147,46 @@ describe('DocumentDetail', () => {
     expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe(
       'Renamed by somebody else',
     );
+  });
+
+  it('keeps what was typed while the save was in flight', async () => {
+    const { user, release } = renderDetailWithSlowSave();
+
+    const body = () => screen.getByLabelText('Body') as HTMLTextAreaElement;
+    await user.click(body());
+    await user.type(body(), 'first half');
+    await user.click(saveButton());
+
+    // The connection is slow and the writing continues; the request that is open carries
+    // "first half" and knows nothing about the rest.
+    await user.click(body());
+    await user.type(body(), ' and second half');
+    expect(body().value).toBe('first half and second half');
+
+    await act(async () => {
+      release();
+    });
+
+    // The reply is about a body that is already out of date. Adopting it would delete a
+    // sentence the person watched themselves type.
+    await waitFor(() => expect(body().value).toBe('first half and second half'));
+    // And there is still something to save, so the text has a way of reaching the server.
+    expect(saveButton().disabled).toBe(false);
+  });
+
+  it('settles once the save covers what is on the screen', async () => {
+    const { user, release } = renderDetailWithSlowSave();
+
+    const body = screen.getByLabelText('Body') as HTMLTextAreaElement;
+    await user.click(body);
+    await user.type(body, 'all of it');
+    await user.click(saveButton());
+    await act(async () => {
+      release();
+    });
+
+    await waitFor(() => expect(saveButton().disabled).toBe(true));
+    expect((screen.getByLabelText('Body') as HTMLTextAreaElement).value).toBe('all of it');
   });
 
   it('adopts a remote body while nothing is being typed', () => {
