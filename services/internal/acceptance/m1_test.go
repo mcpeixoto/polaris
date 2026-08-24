@@ -22,9 +22,10 @@ import (
 // believe M1 is accepted" into something that breaks when it stops being true.
 //
 // What it cannot do is judge whether a proof is any good. That judgement is written down
-// beside each entry instead, including where it is weaker than the criterion asks — see
-// criterion 6, which is measured against a bound five times looser than the one published,
-// and says so rather than claiming a pass.
+// beside each entry instead: `why` says what a proof establishes, and `caveat` says where it
+// establishes less than the criterion asks — which `TestTheWeakerProofsAreStated` prints, so
+// a weak proof is read out on every run rather than claiming a pass. No entry carries one
+// today; criterion 6 did, until its bound was tightened to the published number.
 
 // repoRoot is where this package sits relative to the repository, so the entries above can
 // name files the way a review would. Wrong the day somebody moves this package, and loudly:
@@ -172,6 +173,16 @@ var m1 = []criterion{
 				file: "services/internal/domain/notification_fanout_test.go",
 				name: "TestFanOut_BulkEditGivesEachSubscriberExactlyOneRow",
 				why:  "the count, seeded differently so the two cannot pass for one reason",
+			},
+			{
+				file: "web/e2e/bulk-fanout.spec.ts",
+				name: "gives a watcher one row with a tail, not one row per issue",
+				why: "and that the product reaches any of it. Both tests above call " +
+					"Service.BulkUpdateIssues directly, and every one of their assertions " +
+					"held while the criterion did not: the client looped updateIssue, one " +
+					"version block per issue, so a watcher of a bulk edit got a row each " +
+					"and no count on any of them. A criterion whose only proofs sit on the " +
+					"far side of the thing that was broken is not a proof of the criterion",
 			},
 		},
 	},

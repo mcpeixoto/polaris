@@ -138,17 +138,24 @@ func TestFanOut_BulkEditCoalescesIntoOneRowPerSubscriber(t *testing.T) {
 		t.Fatalf("the edit skipped %d issues: %+v", len(skipped), skipped)
 	}
 
+	budget := testutil.PerfBudget(2 * time.Second)
 	start := time.Now()
 	if _, err := svc.FanOut(ctx, f.WorkspaceID); err != nil {
 		t.Fatalf("fan out: %v", err)
 	}
 	// The other half of acceptance test 8. A wall-clock assertion is usually a bad idea in a
-	// test, and this one earns its place because the budget is roughly forty times what the
-	// pass actually costs: it cannot fail because a machine was busy, only because somebody
-	// put a query back inside the per-issue loop — which is a hundredfold regression, not a
-	// ten-percent one.
-	if elapsed := time.Since(start); elapsed > 2*time.Second {
-		t.Errorf("fanning out %d issues took %s, over the 2s budget", issues, elapsed)
+	// test, and this one used to claim it earned its place because the budget was "roughly
+	// forty times what the pass actually costs" and so "cannot fail because a machine was
+	// busy". Measured, it is about seven times, and it can: this pass alone has been timed
+	// between 0.16 s and 1.2 s on one laptop depending only on what else was running, and
+	// the sibling test that times the edit with it went over two seconds in three runs out
+	// of eight under -race. See testutil.Budget for the numbers. The ceiling is scaled for
+	// the running binary so that the thing it fails for is a query moved back inside the
+	// per-issue loop — a hundredfold regression, which no amount of contention imitates.
+	elapsed := time.Since(start)
+	t.Logf("fanning out %d issues took %s (budget %s)", issues, elapsed, budget)
+	if budget.Exceeded(elapsed) {
+		t.Errorf("fanning out %d issues took %s, over the %s budget", issues, elapsed, budget)
 	}
 
 	got := inbox(t, svc, bob)
