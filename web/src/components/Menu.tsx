@@ -12,6 +12,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { usePresence } from '~/hooks/usePresence';
+
 import { Kbd } from './Kbd';
 import styles from './Menu.module.css';
 
@@ -295,6 +297,14 @@ export function Menu({
   const settledRef = useRef(false);
   const flippedRef = useRef(false);
 
+  // The surface outlives `open` by the length of its fade. Everything that positions or
+  // focuses the menu still keys on `open` and so stops the instant it closes — which is what
+  // frees the exit from the constraint the entrance is under: nothing measures this element
+  // any more, and `settledRef` is still true, so the box the flip heuristic decided on is
+  // the box that fades. The exit stays opacity-only anyway, because an entrance that fades
+  // and an exit that slides are two different objects wearing the same shadow.
+  const { present, exitProps } = usePresence(open, surfaceRef);
+
   const nodes = useMemo(() => {
     const needle = filter.trim().toLowerCase();
     if (needle === '') return tidy(items);
@@ -311,23 +321,30 @@ export function Menu({
 
   const domIdFor = (itemId: string) => `${baseId}-${itemId}`;
 
+  // Keyed on `present` rather than on `open`, and the distinction is the whole reason this
+  // effect is worth a second look. It clears the position the menu is drawn at, so running it
+  // on close would drop a still-visible surface to the top-left corner of the window for the
+  // length of the fade. Emptying the filter would likewise re-populate the list under the
+  // user mid-exit. It wants to run when the menu is gone, and now there is a word for that.
   useEffect(() => {
-    if (open) return;
-    // Reset on close rather than on open, so that the menu's contents are never rendered
-    // for a frame in the state the last opening left them in.
+    if (present) return;
+    // Reset once the menu has left rather than on opening, so that its contents are never
+    // rendered for a frame in the state the last opening left them in.
     setFilter('');
     setActiveId(null);
     setPoint(null);
     settledRef.current = false;
     flippedRef.current = false;
-  }, [open]);
+  }, [present]);
 
   // The requested side is restored on every opening, so a flip forced by one position of
   // the trigger — a row near the bottom of a scrolled list — is not still in force the next
-  // time the same menu opens somewhere else.
+  // time the same menu opens somewhere else. `present`, not `open`: the placement class
+  // carries the surface's offset, and restoring the requested side while the flipped menu is
+  // still fading would move it across the screen on its way out.
   useEffect(() => {
     setPlacementUsed(placement);
-  }, [placement, open]);
+  }, [placement, present]);
 
   // The active item follows the list: filtering away the active item has to move the
   // highlight, or Enter chooses something that is no longer on screen.
@@ -530,7 +547,7 @@ export function Menu({
     }
   };
 
-  if (!open) return null;
+  if (!present) return null;
 
   const style: CSSProperties = point === null ? {} : { top: point.top, left: point.left };
   const activeDomId = activeId === null ? undefined : domIdFor(activeId);
@@ -605,6 +622,7 @@ export function Menu({
       className={[styles.surface, styles[placementUsed], className].filter(Boolean).join(' ')}
       style={style}
       onKeyDown={onKeyDown}
+      {...exitProps}
     >
       {filterable ? (
         <div className={styles.filter}>

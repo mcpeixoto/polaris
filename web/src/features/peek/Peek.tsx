@@ -6,7 +6,7 @@
  * list: `J`/`K` still move, and Peek follows.
  */
 
-import { type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { Link } from 'react-router';
 
 import {
@@ -22,19 +22,34 @@ import { labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { DueDateValue } from '~/features/issue/properties';
 import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { usePresence } from '~/hooks/usePresence';
 import type { DateOnly, DueDateSource, StateCategory, Store, UUID } from '~/store';
 import styles from './Peek.module.css';
 
-export function Peek({ issueId }: { issueId: UUID | null }) {
+/**
+ * The panel is now mounted by the list unconditionally and told whether it is open, rather
+ * than being rendered into existence by a ternary. That is what lets it slide out instead of
+ * blinking out: a component cannot animate its own removal from a tree it has already left.
+ *
+ * The cost is one live subscription that exists while the panel is shut. It is deliberately
+ * a cheap one — the selector returns `null` on sight when the panel is not present, so a
+ * closed Peek does no reading and re-renders on nothing.
+ */
+export function Peek({ open, issueId }: { open: boolean; issueId: UUID | null }) {
+  const panelRef = useRef<HTMLElement>(null);
+  const { present, exitProps } = usePresence(open, panelRef);
+
   const issue = useLiveQuery(
-    (store) => (issueId === null ? null : readPeek(store, issueId)),
+    (store) => (!present || issueId === null ? null : readPeek(store, issueId)),
     ['issue', 'team', 'user', 'workflowState', 'label', 'issueLabel', 'cycle', 'project'],
-    [issueId ?? ''],
+    [present, issueId ?? ''],
   );
+
+  if (!present) return null;
 
   if (issueId === null) {
     return (
-      <aside className={styles.panel} aria-label="Peek">
+      <aside ref={panelRef} className={styles.panel} aria-label="Peek" {...exitProps}>
         <EmptyState
           title="Nothing under the cursor"
           description="Move to a row, then press Space. Enter opens the issue for real."
@@ -45,7 +60,7 @@ export function Peek({ issueId }: { issueId: UUID | null }) {
 
   if (issue === null) {
     return (
-      <aside className={styles.panel} aria-label="Peek">
+      <aside ref={panelRef} className={styles.panel} aria-label="Peek" {...exitProps}>
         <EmptyState
           title="This issue is not here yet"
           description="It may still be arriving, or it belongs to a team you are not in."
@@ -55,7 +70,12 @@ export function Peek({ issueId }: { issueId: UUID | null }) {
   }
 
   return (
-    <aside className={styles.panel} aria-label={`Peek ${issue.identifier}`}>
+    <aside
+      ref={panelRef}
+      className={styles.panel}
+      aria-label={`Peek ${issue.identifier}`}
+      {...exitProps}
+    >
       <header className={styles.header}>
         <span className={styles.identifier}>{issue.identifier}</span>
         <h2 className={styles.title}>{issue.title}</h2>

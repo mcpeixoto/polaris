@@ -12,6 +12,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { usePresence } from '~/hooks/usePresence';
+
 import { Kbd } from './Kbd';
 import styles from './Tooltip.module.css';
 
@@ -140,13 +142,22 @@ export function Tooltip({
     setVisible(true);
   };
 
+  // The anchor point is deliberately not cleared here. It is what the tip is drawn at, and
+  // the tip is still on screen for the length of its fade; dropping it would send a visible
+  // element to the top-left corner of the window on its way out. The next `show` recomputes
+  // it in a layout effect, before anything is painted, so nothing stale is ever seen.
   const hide = () => {
     cancelPending();
     setVisible(false);
-    setPoint(null);
   };
 
   useEffect(() => cancelPending, []);
+
+  // A tip that vanishes the instant the pointer leaves reads as a flicker rather than as
+  // something that was there. Visibility is still `visible` — the accessible description
+  // below is attached to that and not to this, because a description that outlived the tip
+  // by even 50ms would be a dangling reference for exactly as long.
+  const { present, exitProps } = usePresence(visible, tipRef);
 
   useLayoutEffect(() => {
     if (!visible) return;
@@ -206,7 +217,7 @@ export function Tooltip({
   return (
     <>
       {trigger}
-      {visible && point !== null
+      {present && point !== null
         ? createPortal(
             <div
               ref={tipRef}
@@ -214,6 +225,7 @@ export function Tooltip({
               role="tooltip"
               className={[styles.tooltip, styles[placementUsed]].filter(Boolean).join(' ')}
               style={{ top: point.top, left: point.left }}
+              {...exitProps}
             >
               {label}
               {keys === undefined ? null : <Kbd keys={keys} className={styles.keys} />}

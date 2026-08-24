@@ -220,6 +220,13 @@
    * Nothing on the keyboard path may exceed --duration-fast. A shortcut that takes longer
    * to answer than the next keystroke takes to arrive does not feel smooth, it feels
    * broken, and the user out-types the interface.
+   *
+   * Exits are quicker than entrances, and every dismissal in this product is
+   * --duration-instant. An entrance is the interface answering a request and can afford to
+   * be seen arriving; a dismissal is the user having already decided, and any time spent
+   * drawing it is time spent between them and what they turned to next. There is a second
+   * reason, and it is the one that settles it: an exiting surface is a live element lying
+   * over the page, and the honest way to bound that hazard is to make it brief.
    */
   --duration-instant: 50ms;
   --duration-fast: 120ms;

@@ -9,6 +9,7 @@
 
 import './styles/reset.css';
 import './styles/tokens.css';
+import './styles/motion.css';
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

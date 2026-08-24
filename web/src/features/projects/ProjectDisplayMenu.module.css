@@ -28,6 +28,20 @@
   }
 }
 
+/* Vertical out, mirroring in. The measurement that ruled out horizontal movement has already
+ * happened by the time the panel is leaving, so this is a matter of the two halves matching
+ * rather than of the flip heuristic. */
+@keyframes panelOut {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.panel[data-exiting] {
+  animation: panelOut var(--duration-instant) var(--ease-in) forwards;
+}
+
 .panel:focus {
   outline: none;
 }

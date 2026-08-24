@@ -16,6 +16,7 @@ import { createPortal } from 'react-dom';
 
 import { useActions, useKeyContext } from '~/app/keymap';
 import { Button, Checkbox, Select } from '~/components';
+import { usePresence } from '~/hooks/usePresence';
 import {
   changedProjectDisplayCount,
   DEFAULT_PROJECT_DISPLAY,
@@ -66,6 +67,10 @@ export function ProjectDisplayMenu({
   const panelId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<Point | null>(null);
+
+  // Held on screen for the length of its fade. Nothing else in this file changes: the keyboard
+  // context, the Escape binding and the focus hand-back all still key on `open`.
+  const { present, exitProps } = usePresence(open, panelRef);
 
   const changed = changedProjectDisplayCount(display);
 
@@ -154,7 +159,7 @@ export function ProjectDisplayMenu({
     ? { top: position.top, left: position.left }
     : undefined;
 
-  if (!open) return null;
+  if (!present) return null;
 
   return createPortal(
     <div
@@ -165,6 +170,7 @@ export function ProjectDisplayMenu({
       role="dialog"
       aria-label="Display options"
       tabIndex={-1}
+      {...exitProps}
     >
       <div className={styles.head}>
         <h2 className={styles.title}>Display</h2>

@@ -54,6 +54,7 @@ import { createPortal } from 'react-dom';
 
 import { useActions, useKeyContext } from '~/app/keymap';
 import { Button, Checkbox, Select } from '~/components';
+import { usePresence } from '~/hooks/usePresence';
 import {
   DEFAULT_DISPLAY,
   type DisplayDirection,
@@ -287,6 +288,12 @@ export function DisplayMenu({
   // rect, and re-measuring after moving it would chase its own tail.
   const settledRef = useRef(false);
 
+  // Held on screen for the length of its exit. `open` keeps its meaning everywhere else in
+  // this file — the keyboard context is handed back, the outside-click listener is dropped
+  // and focus returns to the trigger on the frame Escape is pressed, all while the panel is
+  // still visibly leaving.
+  const { present, exitProps } = usePresence(open, panelRef);
+
   /**
    * What the registered Escape reads. The registry captures `run` once, at registration, so
    * a closure over `onClose` would go on calling the callback the first render happened to
@@ -323,15 +330,20 @@ export function DisplayMenu({
 
   useLayoutEffect(() => {
     if (!open) {
-      setPoint(null);
-      settledRef.current = false;
+      // Cleared when the panel has left, not when it was told to. `point` is the position it
+      // is drawn at, and a surface that is still fading would fall to the top-left corner of
+      // the window if this ran on close.
+      if (!present) {
+        setPoint(null);
+        settledRef.current = false;
+      }
       return;
     }
     const anchor = trigger.current;
     if (anchor === null) return;
     const rect = anchor.getBoundingClientRect();
     setPoint({ top: rect.bottom, left: rect.left });
-  }, [open, trigger]);
+  }, [open, present, trigger]);
 
   useLayoutEffect(() => {
     if (!open || point === null || settledRef.current) return;
@@ -394,7 +406,7 @@ export function DisplayMenu({
   const changed = changedCount(display, defaults);
   const note = orderingNote(display.orderBy, display.groupBy);
 
-  if (!open) return null;
+  if (!present) return null;
 
   const style: CSSProperties = point === null ? {} : { top: point.top, left: point.left };
   const layoutLabelId = `${baseId}-layout`;
@@ -412,6 +424,7 @@ export function DisplayMenu({
       className={[styles.panel, className].filter(Boolean).join(' ')}
       style={style}
       tabIndex={-1}
+      {...exitProps}
     >
       <div className={styles.head}>
         <h2 className={styles.title}>Display</h2>

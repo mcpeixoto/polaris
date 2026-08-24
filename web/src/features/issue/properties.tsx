@@ -53,6 +53,7 @@ import {
 import { isOverdue, whenDay } from '~/features/time';
 import { formatDay, localDayOf, type CivilDay } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { usePresence } from '~/hooks/usePresence';
 import type { DateOnly, DueDateSource, UUID } from '~/store';
 
 import type { Mixed } from './pickers';
@@ -334,6 +335,10 @@ export function DueDatePicker({
   // rect, and re-measuring after moving it would chase its own tail.
   const settledRef = useRef(false);
 
+  // Held on screen for the length of its fade. `open` still means what it meant: the keyboard
+  // context is handed back and focus returns to the trigger the moment Escape lands.
+  const { present, exitProps } = usePresence(open, panelRef);
+
   /**
    * What the registered Escape reads. The registry captures `run` once, at registration, so a
    * closure over `onClose` would go on calling whichever callback the first render happened to
@@ -365,24 +370,29 @@ export function DueDatePicker({
   );
 
   // The box starts on the date the issue actually has, so somebody nudging a deadline by a day
-  // edits the day rather than retyping the year. Reset on close rather than on open, so the
-  // panel is never rendered for a frame holding the previous issue's date.
+  // edits the day rather than retyping the year. Cleared once the panel has left rather than
+  // on opening, so it is never rendered for a frame holding the previous issue's date — and
+  // never emptied under the user's eyes while it is still fading out.
   useEffect(() => {
-    if (!open) setDraft('');
-    else setDraft(value ?? '');
-  }, [open, value]);
+    if (!present) setDraft('');
+    else if (open) setDraft(value ?? '');
+  }, [open, present, value]);
 
   useLayoutEffect(() => {
     if (!open) {
-      setPoint(null);
-      settledRef.current = false;
+      // Cleared when the panel has gone, not when it was told to go: `point` is where it is
+      // drawn, and a still-visible panel would drop to the corner of the window without it.
+      if (!present) {
+        setPoint(null);
+        settledRef.current = false;
+      }
       return;
     }
     const anchor = trigger.current;
     if (anchor === null) return;
     const rect = anchor.getBoundingClientRect();
     setPoint({ top: rect.bottom, left: rect.left });
-  }, [open, trigger]);
+  }, [open, present, trigger]);
 
   useLayoutEffect(() => {
     if (!open || point === null || settledRef.current) return;
@@ -420,7 +430,7 @@ export function DueDatePicker({
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [open, onClose, trigger]);
 
-  if (!open) return null;
+  if (!present) return null;
 
   const style: CSSProperties = point === null ? {} : { top: point.top, left: point.left };
 
@@ -441,6 +451,7 @@ export function DueDatePicker({
       className={styles.panel}
       style={style}
       tabIndex={-1}
+      {...exitProps}
     >
       {source === 'sla' ? (
         // Said rather than enforced silently. A disabled control with no explanation is
