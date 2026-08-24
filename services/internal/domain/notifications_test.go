@@ -146,10 +146,11 @@ func TestFanOut_BulkEditCoalescesIntoOneRowPerSubscriber(t *testing.T) {
 	// The other half of acceptance test 8. A wall-clock assertion is usually a bad idea in a
 	// test, and this one used to claim it earned its place because the budget was "roughly
 	// forty times what the pass actually costs" and so "cannot fail because a machine was
-	// busy". Measured, it is about seven times, and it can: this pass alone has been timed
-	// between 0.16 s and 1.2 s on one laptop depending only on what else was running, and
-	// the sibling test that times the edit with it went over two seconds in three runs out
-	// of eight under -race. See testutil.Budget for the numbers. The ceiling is scaled for
+	// busy". Measured, it is about seven times, and it can: on one laptop the fan-out half
+	// alone has been timed anywhere between 0.16 s and 2.77 s depending only on what else
+	// was running and whether the binary was race-instrumented, and the sibling test that
+	// times the edit with it went over two seconds in three runs out of eight under -race.
+	// See testutil.Budget for the numbers. The ceiling is scaled for
 	// the running binary so that the thing it fails for is a query moved back inside the
 	// per-issue loop — a hundredfold regression, which no amount of contention imitates.
 	elapsed := time.Since(start)
