@@ -53,6 +53,27 @@ import { fromWire } from '~/gql/enums';
 import type { Change } from './socket';
 
 /**
+ * A stand-in and the row that replaced it.
+ *
+ * Retiring the stand-in is enough for anything that only draws the replica — the row is
+ * there under its real key and the screen re-renders. It is not enough for the parts of the
+ * client that are *holding* the old id: an open reply composer knows its parent as the id it
+ * was given, and the moment that id stops naming a row the composer has nothing to attach to
+ * and the text in it has nowhere to go.
+ *
+ * So the pairing is reported as well as applied, and `SyncEngine` keeps it. Answering "what
+ * is this row called now" is the one question the client could not previously ask about a
+ * row it created itself a moment earlier.
+ */
+export interface Succession {
+  readonly type: EntityType;
+  /** The id the client invented. */
+  readonly provisionalId: string;
+  /** The id the server chose. */
+  readonly realId: string;
+}
+
+/**
  * Puts the server's row in place of the stand-in, in one store write.
  *
  * One write rather than two because a row that disappears for a frame on its way to being
@@ -72,11 +93,16 @@ export function settle(
   store: Store,
   spec: Reconciliation | readonly Reconciliation[] | undefined,
   data: unknown,
-): void {
-  for (const one of reconciliations(spec)) settleOne(store, one, data);
+): readonly Succession[] {
+  const succeeded: Succession[] = [];
+  for (const one of reconciliations(spec)) {
+    const pair = settleOne(store, one, data);
+    if (pair !== null) succeeded.push(pair);
+  }
+  return succeeded;
 }
 
-function settleOne(store: Store, spec: Reconciliation, data: unknown): void {
+function settleOne(store: Store, spec: Reconciliation, data: unknown): Succession | null {
   // No path means the response never carried this row: an `issueLabel` written beside a
   // created issue, a duplicate link written beside a triaged one. The mutation has just
   // been confirmed, so the server holds the real row and the delta stream is carrying it —
@@ -89,15 +115,17 @@ function settleOne(store: Store, spec: Reconciliation, data: unknown): void {
     if (store.get(spec.type, spec.provisionalId) !== undefined) {
       store.applyOptimistic(retire(spec));
     }
-    return;
+    // No row to name, so no succession to report: the response never carried this one, and
+    // the delta stream is where its real id turns up — `adopt` reports it from there.
+    return null;
   }
   let node: unknown = data;
   for (const key of spec.path) {
-    if (typeof node !== 'object' || node === null) return;
+    if (typeof node !== 'object' || node === null) return null;
     node = (node as Record<string, unknown>)[key];
   }
-  if (typeof node !== 'object' || node === null) return;
-  if (typeof (node as { id?: unknown }).id !== 'string') return;
+  if (typeof node !== 'object' || node === null) return null;
+  if (typeof (node as { id?: unknown }).id !== 'string') return null;
 
   const real = fromWire(spec.type, node as EntityOf<EntityType>);
   const patch: EntityPatch[] = [
@@ -110,6 +138,8 @@ function settleOne(store: Store, spec: Reconciliation, data: unknown): void {
   ];
   if (real.id !== spec.provisionalId) patch.unshift(...retire(spec));
   store.applyOptimistic(patch);
+  if (real.id === spec.provisionalId) return null;
+  return { type: spec.type, provisionalId: spec.provisionalId, realId: real.id };
 }
 
 /**
@@ -151,17 +181,22 @@ function retire(spec: Reconciliation): EntityPatch[] {
  * length of that gap and correct afterwards. The opposite bargain — demanding a key only
  * the server can mint — is what leaves the duplicate on screen indefinitely.
  */
-export function adopt(store: Store, outbox: Outbox, changes: readonly Change[]): void {
+export function adopt(
+  store: Store,
+  outbox: Outbox,
+  changes: readonly Change[],
+): readonly Succession[] {
   // The overwhelmingly common case: nothing is waiting, and this runs on every delta batch
   // the socket delivers. Checking the size first keeps that path free of an array copy.
-  if (outbox.size === 0) return;
+  if (outbox.size === 0) return [];
   const pending = outbox
     .list()
     .flatMap((record) => reconciliations(record.reconcile))
     .filter((spec) => spec.match !== undefined);
-  if (pending.length === 0) return;
+  if (pending.length === 0) return [];
 
   const drops: EntityPatch[] = [];
+  const succeeded: Succession[] = [];
   const claimed = new Set<string>();
 
   for (const change of changes) {
@@ -180,11 +215,13 @@ export function adopt(store: Store, outbox: Outbox, changes: readonly Change[]):
 
       claimed.add(spec.provisionalId);
       drops.push(...retire(spec));
+      succeeded.push({ type: spec.type, provisionalId: spec.provisionalId, realId: change.id });
       break;
     }
   }
 
   if (drops.length > 0) store.applyOptimistic(drops);
+  return succeeded;
 }
 
 /**

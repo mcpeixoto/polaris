@@ -24,6 +24,7 @@ import { maybeExpandEmoticons } from '~/features/prefs/emoticons';
 import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Comment, UUID } from '~/store';
+import { ApiError } from '~/sync/api';
 
 import { hitTest, isInlineRoot, paint, placeAnchors, type CommentAnchor } from './marks';
 import styles from './DescriptionEditor.module.css';
@@ -60,6 +61,7 @@ export function DescriptionEditor({
   const [showResolved, setShowResolved] = useState(false);
   const [composer, setComposer] = useState('');
   const [composerFocused, setComposerFocused] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   const text = draft ?? description;
 
@@ -178,6 +180,7 @@ export function DescriptionEditor({
     setOpenId(null);
     setComposer('');
     setSelection(null);
+    setRefusal(null);
   };
 
   const closeThread = () => {
@@ -185,31 +188,77 @@ export function DescriptionEditor({
     setOpenId(null);
     setComposer('');
     setComposerFocused(false);
+    setRefusal(null);
+  };
+
+  /**
+   * Follows an open thread onto its root's real id.
+   *
+   * An inline thread started here is drawn under an id this client invented, and that id
+   * stops naming anything the moment the server's own row lands. The panel is keyed on it,
+   * so without this the whole thread — and whatever reply was half typed into it — vanishes
+   * off the screen a beat after it was opened.
+   */
+  useEffect(() => {
+    if (openId === null) return;
+    const real = engine.succession(openId);
+    if (real !== openId) setOpenId(real);
+    // `comments` is the dependency that matters: it changes when the stand-in is retired.
+  }, [engine, openId, comments]);
+
+  /**
+   * Puts a refused comment back in the box it was typed in.
+   *
+   * Same bargain as the issue thread's composer (see `Comments` in views/IssueDetail.tsx):
+   * clearing on submit is right because the comment is on screen the same frame, and it is
+   * only right as long as a refusal undoes it. A reply to a thread whose root was opened a
+   * moment ago is the case that makes this more than housekeeping — the root's id is still
+   * one this client invented, the API refuses a parent it has never seen, and the reply used
+   * to end as a console line with the text nowhere at all.
+   */
+  const refuse = (typed: string, error: unknown) => {
+    report(error);
+    setComposer((since) => (since === '' ? typed : `${typed}\n\n${since}`));
+    setRefusal(
+      error instanceof ApiError && error.message !== ''
+        ? error.message
+        : 'That comment could not be posted.',
+    );
   };
 
   const submitComposer = () => {
-    const body = maybeExpandEmoticons(composer.trim());
+    const typed = composer;
+    const body = maybeExpandEmoticons(typed.trim());
     if (body === '') return;
+    setRefusal(null);
     if (pending !== null) {
+      const span = pending;
       postComment(engine, {
         issueId,
         body,
         authorId: viewerId ?? undefined,
-        anchorStart: pending.start,
-        anchorEnd: pending.end,
-        quote: pending.quote,
-      }).catch(report);
+        anchorStart: span.start,
+        anchorEnd: span.end,
+        quote: span.quote,
+      }).catch((error: unknown) => {
+        setPending(span);
+        refuse(typed, error);
+      });
       setPending(null);
       setComposer('');
       return;
     }
     if (open !== null) {
+      const root = open;
       postComment(engine, {
         issueId,
         body,
-        parentId: open.id,
+        parentId: root.id,
         authorId: viewerId ?? undefined,
-      }).catch(report);
+      }).catch((error: unknown) => {
+        setOpenId(engine.succession(root.id));
+        refuse(typed, error);
+      });
       setComposer('');
     }
   };
@@ -341,10 +390,14 @@ export function DescriptionEditor({
             maxRows={8}
             autoFocus
             value={composer}
+            error={refusal ?? undefined}
             data-submit-chord={enterSubmits ? 'enter' : undefined}
             onFocus={() => setComposerFocused(true)}
             onBlur={() => setComposerFocused(false)}
-            onChange={(event) => setComposer(event.target.value)}
+            onChange={(event) => {
+              setComposer(event.target.value);
+              setRefusal(null);
+            }}
           />
           <div className={styles.actions}>
             <Button onClick={closeThread}>Cancel</Button>
@@ -384,10 +437,14 @@ export function DescriptionEditor({
             minRows={2}
             maxRows={8}
             value={composer}
+            error={refusal ?? undefined}
             data-submit-chord={enterSubmits ? 'enter' : undefined}
             onFocus={() => setComposerFocused(true)}
             onBlur={() => setComposerFocused(false)}
-            onChange={(event) => setComposer(event.target.value)}
+            onChange={(event) => {
+              setComposer(event.target.value);
+              setRefusal(null);
+            }}
           />
           <div className={styles.actions}>
             <Button
