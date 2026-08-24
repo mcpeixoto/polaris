@@ -54,10 +54,17 @@ export function CommentEditor({ comment, onDone }: CommentEditorProps) {
     void save();
   };
 
-  // ⌘⏎ and Escape are handled here and stopped here. Both are global chords — the keymap
-  // hears them through a window listener even while a text field has focus — and the
-  // issue screen binds ⌘⏎ to "Post comment", which would send whatever is sitting in the
-  // composer at the bottom of the page instead of saving the line being corrected.
+  // ⌘⏎ and Escape are handled here and stopped here, rather than registered.
+  //
+  // Both are global chords: the keymap hears them through a window listener even while a
+  // text field has focus. The issue screen binds ⌘⏎ to "Post comment", so a chord that
+  // reaches the registry from inside this box sends whatever is sitting in the composer at
+  // the foot of the page instead of saving the line being corrected — and Escape, left to
+  // travel, closes whatever is around it while an unsaved edit is open. This is the trap
+  // case the pragma exists for: it intercepts two keys before the surrounding context sees
+  // them, and neither belongs in the command menu as a thing you can choose to do.
+  //
+  // keymap-lint-allow: a focus trap around an open editor, intercepting ⌘⏎ and Escape
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
@@ -87,6 +94,7 @@ export function CommentEditor({ comment, onDone }: CommentEditorProps) {
         autoFocus
         value={body}
         onChange={(event) => setBody(event.target.value)}
+        // keymap-lint-allow: see onKeyDown above — a trap, not a shortcut
         onKeyDown={onKeyDown}
       />
       <div className={styles.actions}>
