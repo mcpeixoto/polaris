@@ -27,6 +27,11 @@ function press(key: string, mods: Partial<Omit<KeyboardEventLike, 'key'>> = {}):
 
 type ActionOverrides = Partial<Action<TestContext>> & Pick<Action<TestContext>, 'id'>;
 
+/** A dispatch context for the surfaces that ask the registry a question rather than fire one. */
+function ctx(context: Context, log: string[] = []): TestContext {
+  return { source: 'menu', context, log };
+}
+
 /** An action whose only behaviour is to say that it ran. */
 function testAction(over: ActionOverrides): Action<TestContext> {
   return {
@@ -471,7 +476,7 @@ describe('views over the registry', () => {
       { id: 'issue.duplicate', group: 'Issues' },
     );
 
-    const groups = registry.byGroup();
+    const groups = registry.byGroup(ctx('global'));
     expect([...groups.keys()]).toEqual(['Issues', 'Navigation']);
     expect(
       groups.get('Issues')?.map((a) => a.id),
@@ -487,7 +492,7 @@ describe('views over the registry', () => {
     expect(log, 'hidden means unlisted, not unbound').toEqual(['list.moveDown']);
     expect(
       registry
-        .byGroup()
+        .byGroup(ctx('global'))
         .get('Navigation')
         ?.map((a) => a.id),
     ).toEqual(['list.moveDown']);
@@ -495,6 +500,62 @@ describe('views over the registry', () => {
       registry.listForContext('global').filter((a) => a.hidden !== true),
       'a command menu filters on hidden, and this one has nothing left to show',
     ).toHaveLength(0);
+  });
+
+  it('leaves a merely-disabled shortcut on the help sheet', () => {
+    const { register, registry } = harness();
+    register(
+      { id: 'app.dismiss', keys: ['Escape'], group: 'General', enabled: () => false },
+      { id: 'undo.last', keys: ['mod+z'], group: 'General', enabled: () => false },
+    );
+
+    expect(
+      registry
+        .byGroup(ctx('global'))
+        .get('General')
+        ?.map((a) => a.id),
+      'Esc and undo are the shortcuts people look up; "nothing is selected right now" is not a reason to stop documenting them',
+    ).toEqual(['app.dismiss', 'undo.last']);
+  });
+
+  it('drops a shortcut that says it does not apply here', () => {
+    const { register, registry, log, fire } = harness();
+    let inTriage = false;
+    register({
+      id: 'list.triageAccept',
+      title: 'Accept from triage',
+      keys: ['1'],
+      group: 'Triage',
+      available: () => inTriage,
+    });
+
+    expect(
+      [...registry.byGroup(ctx('global')).keys()],
+      'a whole section of keys that cannot fire anywhere on this screen is the sheet lying',
+    ).toEqual([]);
+    fire('1', { code: 'Digit1' });
+    expect(log, 'unavailable is unbound, exactly as disabled is').toEqual([]);
+    expect(registry.invoke('list.triageAccept', ctx('global'))).toBe(false);
+
+    // The same screen, once it is the screen the action is for.
+    inTriage = true;
+    expect([...registry.byGroup(ctx('global')).keys()]).toEqual(['Triage']);
+    fire('1', { code: 'Digit1' });
+    expect(log).toEqual(['list.triageAccept']);
+    expect(registry.invoke('list.triageAccept', ctx('global'))).toBe(true);
+  });
+
+  it('still refuses two unguarded bindings on one key when one of them is only `available`', () => {
+    const { register } = harness();
+    // `available` is not a guard for conflict purposes, on purpose: a second way to opt out
+    // of the duplicate-key check is a second way to retire it by accident. Failing loudly at
+    // registration is the safe direction.
+    expect(() =>
+      register(
+        { id: 'a.one', keys: ['q'], available: () => true },
+        { id: 'a.two', keys: ['q'], available: () => true },
+      ),
+    ).toThrow(/already bound/);
   });
 
   it('invokes an action by id for the menus, honouring its gate', () => {
@@ -632,7 +693,7 @@ describe('the M0 keymap', () => {
   it('generates the help overlay instead of anyone hand-writing it', () => {
     const { register, registry } = harness();
     register(...M0_KEYMAP);
-    const groups = registry.byGroup();
+    const groups = registry.byGroup(ctx('global'));
 
     expect(
       [...groups.keys()],

@@ -155,7 +155,10 @@ let boundTitles: () => string[] = () => [];
 
 function KeymapProbe() {
   const { registry } = useKeymap();
-  boundTitles = () => [...registry.byGroup().values()].flat().map((action) => action.title);
+  boundTitles = () =>
+    [...registry.byGroup({ source: 'menu', context: 'list' }).values()]
+      .flat()
+      .map((action) => action.title);
   return null;
 }
 
@@ -263,6 +266,11 @@ describe('IssueList', () => {
    * ⌘⏎ on the sheet) and cannot ask whether one is runnable right now. So an action that is
    * disabled for the lifetime of the team is a row in the keyboard reference that never works
    * — which is the one thing a generated reference exists to prevent.
+   *
+   * `available` is the other way to say this, for a gate the call site cannot hoist out of
+   * the action; either is right, and both keep the sheet honest. Here the *button* is absent
+   * too, so not registering at all is the answer that keeps the key and the control it opens
+   * making one decision.
    */
   it('offers no estimate button and binds no key when the team does not estimate', () => {
     renderList();
@@ -670,6 +678,54 @@ describe('triage', () => {
     );
     expect(screen.queryByText('Incoming from Slack')).toBeNull();
     expect(screen.getByText('Fix the flake')).toBeTruthy();
+  });
+
+  /**
+   * The queue's four keys are documented where they work and nowhere else.
+   *
+   * This team runs triage, so both screens exist and the keys really are live on one of
+   * them — which is what makes the absence on the other a statement rather than a blanket
+   * suppression. Before `available`, the ordinary list drew a whole "Triage" section
+   * teaching `1`, `2`, `3` and `H`, and on a team with triage off there was no screen in the
+   * workspace where any of the four could fire.
+   */
+  it('documents the triage keys in the queue and not on the team list', () => {
+    const store = triageStore();
+    const mutate = vi.fn().mockResolvedValue({});
+    const engine = { store, mutate } as unknown as SyncEngine;
+
+    const app = (path: string, element: React.ReactElement) => (
+      <MemoryRouter initialEntries={[path]}>
+        <KeymapProvider>
+          <KeymapProbe />
+          <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+            <Routes>
+              <Route path="/team/:teamKey" element={element} />
+              <Route path="/team/:teamKey/triage" element={element} />
+            </Routes>
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>
+    );
+
+    const list = render(app('/team/ENG', <IssueList />));
+    expect(boundTitles()).not.toContain('Accept from triage');
+    expect(boundTitles()).not.toContain('Snooze triage issue');
+    // The layout toggle is the inverse, and belongs in the same assertion: it is live here
+    // and absent from the queue, which stays a list so `H` has a cursor to snooze under.
+    expect(boundTitles()).toContain('Toggle list / board layout');
+    list.unmount();
+
+    render(app('/team/ENG/triage', <Triage />));
+    for (const title of [
+      'Accept from triage',
+      'Mark as duplicate',
+      'Decline from triage',
+      'Snooze triage issue',
+    ]) {
+      expect(boundTitles()).toContain(title);
+    }
+    expect(boundTitles()).not.toContain('Toggle list / board layout');
   });
 
   it('shows only the inbox, and 1 accepts the cursor row', async () => {

@@ -45,10 +45,20 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
 
   const candidates = useMemo(() => {
     if (!present) return [];
-    return registry
-      .listForContext(context)
-      .filter((a) => !a.hidden)
-      .filter((a) => a.enabled?.({ source: 'menu', context }) ?? true);
+    return (
+      registry
+        .listForContext(context)
+        .filter((a) => !a.hidden)
+        // Both gates, because `invoke` honours both: an action offered here and then refused
+        // on click is the "command that does nothing" this menu exists not to be. They are
+        // one rule to every surface except the help overlay, which lists a merely-disabled
+        // shortcut on purpose — see `available` in `keys/types.ts`.
+        .filter(
+          (a) =>
+            (a.available?.({ source: 'menu', context }) ?? true) &&
+            a.enabled?.({ source: 'menu', context }) !== false,
+        )
+    );
   }, [present, registry, context]);
 
   const parsed = useMemo(() => parseCommandQuery(query), [query]);

@@ -336,7 +336,9 @@ export function IssueDetail() {
        * would be missing the shortcut people look up most). So a permanently-disabled action
        * is a row in the keyboard reference that never works, on every issue in the team, for
        * as long as the team declines to estimate — which is the one thing that overlay exists
-       * not to do.
+       * not to do. (`available` now gives the overlay a way to ask, for a gate that cannot be
+       * hoisted out of the action. One that can be, as this one can, is still better hoisted:
+       * the key and the control it opens then make one decision instead of two.)
        *
        * And the rail has already made this decision: the estimate row is absent for a team
        * whose scale is `none`, not greyed out. The key follows the control it opens.

@@ -158,11 +158,13 @@ export function useActions(actions: readonly Action[], deps: readonly unknown[] 
  * at registration and cannot change without re-registering, and the display fields go with
  * them so the command menu and the help overlay keep reading one consistent object.
  *
- * `enabled` and `keyup` are forwarded only when the registered action declared them,
- * because the registry reads `=== undefined` on both as a fact about the action:
- * `assertNoConflict` lets two *guarded* bindings share a key, so a forwarder that always
- * carried an `enabled` would make every binding in the product look guarded and quietly
- * retire the duplicate-key check.
+ * `enabled`, `available` and `keyup` are forwarded only when the registered action declared
+ * them, because the registry reads `=== undefined` on each as a fact about the action:
+ * `assertNoConflict` lets two *guarded* bindings share a key, and `byGroup` lists an action
+ * with no `available` unconditionally. A forwarder that always carried an `enabled` would
+ * make every binding in the product look guarded and quietly retire the duplicate-key
+ * check; one that always carried an `available` would put every action in the product on
+ * the help overlay's conditional path.
  */
 function forwarder(ref: { current: readonly Action[] }, action: Action): Action {
   // By id rather than by index: a call site whose list is built conditionally can change
@@ -170,11 +172,14 @@ function forwarder(ref: { current: readonly Action[] }, action: Action): Action 
   // current render no longer offers falls back to the registered object — that action is
   // no longer rendered, and unregistering it needs a `deps` change, not a ref.
   const latest = (): Action => ref.current.find((c) => c.id === action.id) ?? action;
-  const { enabled, keyup } = action;
+  const { enabled, available, keyup } = action;
   return {
     ...action,
     run: (ctx) => latest().run(ctx),
     ...(enabled === undefined ? null : { enabled: (ctx) => (latest().enabled ?? enabled)(ctx) }),
+    ...(available === undefined
+      ? null
+      : { available: (ctx) => (latest().available ?? available)(ctx) }),
     ...(keyup === undefined ? null : { keyup: (ctx) => (latest().keyup ?? keyup)(ctx) }),
   };
 }

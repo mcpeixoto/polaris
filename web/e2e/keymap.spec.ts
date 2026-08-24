@@ -129,6 +129,18 @@ test('the help overlay lists the shortcuts that are hidden from the command menu
   // screen — and this sheet is the only place a permanently-disabled binding is visible.
   await expect(help.getByText('Set estimate', { exact: true })).toHaveCount(0);
 
+  // And a shortcut that IS registered, but says it does not apply here, is not taught here.
+  // `1`/`2`/`3`/`H` belong to a triage queue; this is an ordinary team list, and on a team
+  // that has never turned triage on there is no screen in the workspace where they fire.
+  await expect(help.getByRole('heading', { name: 'Triage', exact: true })).toHaveCount(0);
+  await expect(help.getByText('Accept from triage', { exact: true })).toHaveCount(0);
+  await expect(help.getByText('Snooze triage issue', { exact: true })).toHaveCount(0);
+  // The distinction is not "hide anything guarded". Undo is gated on there being something
+  // to undo and Escape on there being something to dismiss, and both stay on the sheet:
+  // "not right now" is not "not here", and those are the two people look up most.
+  await expect(help.getByText('Undo the last change', { exact: true })).toBeVisible();
+  await expect(help.getByText('Dismiss', { exact: true })).toBeVisible();
+
   await page.keyboard.press('Escape');
   await expect(help).toBeHidden();
 
@@ -209,4 +221,53 @@ test('the relation and sub-issue chords open their forms', async ({ page, worksp
   await page.keyboard.press('Escape');
 
   expect(errors, errors.join('\n')).toEqual([]);
+});
+
+/**
+ * The other direction, which is the one that makes the rule honest.
+ *
+ * Hiding a shortcut is only an improvement if the shortcut really is unreachable. So this
+ * turns triage on through the team's own settings, the way a person would, and asks the
+ * same sheet on the same product for the same four keys — they have to be there, and they
+ * have to work. A sheet that hid them everywhere would pass the assertions above and be a
+ * worse product than the one with the bug.
+ */
+test('the help overlay teaches the triage keys on the screen where they fire', async ({
+  page,
+  workspace,
+}) => {
+  await signIn(page, workspace.account);
+
+  await page.goto(`/team/${workspace.teamKey}/settings`);
+  const runTriage = page.getByLabel('Run triage');
+  await runTriage.waitFor();
+  await runTriage.check();
+  // The write has to have landed before the queue will draw anything but "Triage is off".
+  await expect(
+    page.getByLabel('Require a priority before an issue can leave triage'),
+  ).toBeVisible();
+
+  await page.goto(`/team/${workspace.teamKey}/triage`);
+  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+
+  await page.keyboard.press('?');
+  const help = page.getByRole('dialog', { name: /keyboard shortcuts/i });
+  await expect(help).toBeVisible();
+  await expect(help.getByRole('heading', { name: 'Triage', exact: true })).toBeVisible();
+  for (const label of [
+    'Accept from triage',
+    'Mark as duplicate',
+    'Decline from triage',
+    'Snooze triage issue',
+  ]) {
+    await expect(help.getByText(label, { exact: true })).toBeVisible();
+  }
+
+  // `⌘B` is the inverse case and belongs in the same test: triage stays a list because `H`
+  // snoozes the row under the cursor and a board has no cursor, so the layout toggle is the
+  // one shortcut that cannot fire *here* while firing everywhere else.
+  await expect(help.getByText('Toggle list / board layout', { exact: true })).toHaveCount(0);
+
+  await page.keyboard.press('Escape');
+  await expect(help).toBeHidden();
 });
