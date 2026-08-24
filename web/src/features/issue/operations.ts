@@ -139,3 +139,31 @@ export const SET_ISSUE_SUBSCRIPTION = /* GraphQL */ `
     }
   }
 `;
+
+/**
+ * One property change across a whole selection, as one write.
+ *
+ * The reason it exists rather than a loop over `updateIssue` is not that N requests are
+ * slow — they are, but that is the smaller half. Every `updateIssue` mints its own version
+ * block, and a version block is what the notification engine groups an inbox row by, so two
+ * hundred single edits are two hundred rows in the inbox of everybody watching those issues.
+ * One call is one block, one delta and one row carrying a count. It is M1 acceptance test 8,
+ * and the server has implemented it since the milestone opened.
+ *
+ * `issues` is deliberately not selected. The optimistic patch already put the new values on
+ * screen and the sync delta carries the authoritative rows a moment later, so asking for two
+ * hundred hydrated issues here would be a payload nothing reads. `skipped` *is* selected,
+ * because it is the one thing the client cannot work out for itself: the ids the server
+ * refused are the ids whose optimistic patch has to be taken back.
+ */
+export const BULK_UPDATE_ISSUES = /* GraphQL */ `
+  mutation BulkUpdateIssues($input: BulkUpdateIssuesInput!, $clientId: UUID!, $opId: UUID!) {
+    bulkUpdateIssues(input: $input, clientId: $clientId, opId: $opId) {
+      version
+      skipped {
+        id
+        reason
+      }
+    }
+  }
+`;

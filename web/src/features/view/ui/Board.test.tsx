@@ -147,7 +147,9 @@ function renderBoard({
   selected = [],
   store = seeded(),
 }: Options = {}) {
-  const mutate = vi.fn().mockResolvedValue({});
+  // Shaped like a real response: a multi-card drop now goes through `bulkUpdateIssues`,
+  // which the caller reads `skipped` off to take back the rows the server would not move.
+  const mutate = vi.fn().mockResolvedValue({ bulkUpdateIssues: { skipped: [] } });
   const engine = { store, mutate } as unknown as SyncEngine;
   const onOpen = vi.fn();
   const onFocus = vi.fn();
@@ -300,11 +302,18 @@ describe('Board', () => {
     fireEvent.dragStart(card('Fix the flake'), { dataTransfer });
     fireEvent.drop(column('In Progress'), { dataTransfer });
 
-    // One mutation each, because there is no bulk endpoint and a partial failure over a
-    // selection has to be reportable per issue.
+    // One mutation for the whole selection, not one per card. `bulkUpdateIssues` is what
+    // makes a multi-card drop one version block — and therefore one inbox row for whoever
+    // is watching those issues, which is M1 acceptance test 8. A partial failure is still
+    // reportable per issue: the payload names the ids it skipped and why.
+    expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate.mock.calls.map((call) => call[0].variables)).toEqual([
-      { input: { id: 'issue-1', stateId: 's-doing' } },
-      { input: { id: 'issue-2', stateId: 's-doing' } },
+      { input: { ids: ['issue-1', 'issue-2'], stateId: 's-doing' } },
+    ]);
+    // Both cards still move in the frame the drop happened in.
+    expect(mutate.mock.calls[0]?.[0].optimistic.map((entry: { id: string }) => entry.id)).toEqual([
+      'issue-1',
+      'issue-2',
     ]);
   });
 
