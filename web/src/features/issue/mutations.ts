@@ -25,6 +25,7 @@ import {
   ARCHIVE_ISSUE,
   CREATE_COMMENT,
   CREATE_ISSUE,
+  DELETE_COMMENT,
   DELETE_ISSUE,
   RESOLVE_COMMENT,
   UPDATE_COMMENT,
@@ -422,6 +423,9 @@ export async function editComment(engine: SyncEngine, id: UUID, body: string): P
   const before = engine.store.get('comment', id);
   if (before === undefined || before.body === body) return;
   const now = new Date().toISOString();
+  // `editedAt` is set here as well as by the server, so the "edited" marker appears on the
+  // same frame as the new text. The server stamps its own `edited_at` in the same statement
+  // that writes the body, so the delta that follows agrees with this rather than clearing it.
   const after: Comment = { ...before, body, editedAt: now, updatedAt: now };
 
   await engine.mutate({
@@ -429,6 +433,35 @@ export async function editComment(engine: SyncEngine, id: UUID, body: string): P
     variables: { id, body },
     optimistic: [{ type: 'comment', id, before, after }],
   });
+}
+
+/**
+ * Takes a comment back.
+ *
+ * The row is removed from the replica before the request leaves, so the thread closes over
+ * it immediately; `engine.mutate` puts it back if the server refuses. Deletion is the one
+ * comment write that is not strictly author-only — an admin may remove somebody else's
+ * words, because a comment is visible to the whole team and can be abusive — but an admin
+ * may not rewrite them. See `authz.CanEditOwnContent`.
+ *
+ * Replies are deliberately left alone. They are other people's sentences, and deleting my
+ * opening line is not a decision about theirs; the thread view promotes an orphaned reply
+ * to a root rather than hiding it.
+ */
+export async function deleteComment(engine: SyncEngine, id: UUID): Promise<void> {
+  const before = engine.store.get('comment', id);
+  if (before === undefined) return;
+
+  try {
+    await engine.mutate({
+      mutation: DELETE_COMMENT,
+      variables: { id },
+      optimistic: [{ type: 'comment', id, before, after: null }],
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
 }
 
 export async function resolveComment(

@@ -28,6 +28,7 @@ import {
   Avatar,
   Button,
   EmptyState,
+  IconButton,
   LabelChip,
   PriorityIcon,
   priorityLabel,
@@ -43,6 +44,7 @@ import { maybeExpandEmoticons } from '~/features/prefs/emoticons';
 import { personName, getPrefs, subscribePrefs } from '~/features/prefs/prefs';
 import {
   archiveIssues,
+  deleteComment,
   deleteIssues,
   postComment,
   report,
@@ -50,6 +52,11 @@ import {
   updateIssue,
   updateIssueProperties,
 } from '~/features/issue/mutations';
+import { CommentEditor } from '~/features/issue/CommentEditor';
+import commentStyles from '~/features/issue/CommentEditor.module.css';
+// The pencil and the bin, shared with project and initiative updates so the three
+// row-level affordances in the product are the same drawing rather than three that drift.
+import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
@@ -76,9 +83,9 @@ import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { clearCommentDraft, readCommentDrafts, writeCommentDraft } from '~/features/drafts/local';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
-import { useViewer, useViewerId } from '~/hooks/useViewer';
+import { useViewer, useViewerId, useViewerRole } from '~/hooks/useViewer';
 import { ISSUE_DETAIL_QUERY } from '~/gql/operations';
-import type { Actor, Comment, StateCategory, Store, UUID } from '~/store';
+import type { Actor, Comment, StateCategory, Store, UserRole, UUID } from '~/store';
 import { ApiError, gql } from '~/sync/api';
 import styles from './IssueDetail.module.css';
 
@@ -1062,6 +1069,7 @@ function Comments({
   enterSubmits,
 }: CommentsProps) {
   const engine = useEngine();
+  const viewerRole = useViewerRole();
 
   const stored = useLiveQuery(
     (store) =>
@@ -1072,7 +1080,18 @@ function Comments({
     [issueId],
   );
 
-  const threads = useMemo(() => thread(stored, fetched), [stored, fetched]);
+  // Comments deleted from this tab.
+  //
+  // The store drops the row the moment the delete is made, but `fetched` is the answer to
+  // one query made when the screen mounted and still holds it — so without this the comment
+  // would be taken away and then handed straight back by the merge. The set is the screen's
+  // memory of what it did, and the reload it survives is the one that makes it unnecessary.
+  const [removed, setRemoved] = useState<ReadonlySet<UUID>>(() => new Set());
+
+  const threads = useMemo(() => thread(stored, fetched, removed), [stored, fetched, removed]);
+
+  const [editing, setEditing] = useState<UUID | null>(null);
+  const [deleting, setDeleting] = useState<Comment | null>(null);
 
   const [drafts, setDrafts] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -1155,12 +1174,30 @@ function Comments({
         <ol className={styles.threads}>
           {threads.map(({ comment, replies }) => (
             <li key={comment.id} className={styles.thread}>
-              <CommentBody comment={comment} names={names} />
+              <CommentBody
+                comment={comment}
+                names={names}
+                editing={editing === comment.id}
+                canEdit={mayEdit(comment, viewerId)}
+                canDelete={mayDelete(comment, viewerId, viewerRole)}
+                onEdit={() => setEditing(comment.id)}
+                onDelete={() => setDeleting(comment)}
+                onDone={() => setEditing(null)}
+              />
               {replies.length === 0 ? null : (
                 <ol className={styles.replies}>
                   {replies.map((reply) => (
                     <li key={reply.id}>
-                      <CommentBody comment={reply} names={names} />
+                      <CommentBody
+                        comment={reply}
+                        names={names}
+                        editing={editing === reply.id}
+                        canEdit={mayEdit(reply, viewerId)}
+                        canDelete={mayDelete(reply, viewerId, viewerRole)}
+                        onEdit={() => setEditing(reply.id)}
+                        onDelete={() => setDeleting(reply)}
+                        onDone={() => setEditing(null)}
+                      />
                     </li>
                   ))}
                 </ol>
@@ -1183,11 +1220,71 @@ function Comments({
       )}
 
       {composer(ROOT, 'Leave a comment')}
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete this comment?"
+        consequence={deleteConsequence(deleting, threads)}
+        confirmLabel="Delete comment"
+        destructive
+        onConfirm={() => {
+          const target = deleting;
+          setDeleting(null);
+          if (target === null) return;
+          if (editing === target.id) setEditing(null);
+          setRemoved((current) => new Set(current).add(target.id));
+          deleteComment(engine, target.id).catch(report);
+        }}
+        onClose={() => setDeleting(null)}
+      />
     </section>
   );
 }
 
-function CommentBody({ comment, names }: { comment: Comment; names: Record<string, string> }) {
+/** Editing is the author's alone: an admin may remove somebody's words, not rewrite them. */
+function mayEdit(comment: Comment, viewerId: UUID | null): boolean {
+  return viewerId !== null && comment.actor.type === 'user' && comment.actor.id === viewerId;
+}
+
+/**
+ * Deleting is the author's, plus an admin's.
+ *
+ * That asymmetry is the server's (`authz.CanEditOwnContent`) and it is deliberate: a comment
+ * is visible to the whole team and can be abusive, so somebody has to be able to take it
+ * down — but nobody may put different words under another person's name.
+ */
+function mayDelete(comment: Comment, viewerId: UUID | null, role: UserRole | null): boolean {
+  return mayEdit(comment, viewerId) || role === 'admin' || role === 'owner';
+}
+
+function deleteConsequence(comment: Comment | null, threads: readonly Thread[]): string {
+  const replies = threads.find((t) => t.comment.id === comment?.id)?.replies.length ?? 0;
+  const base = 'The comment leaves the issue for everybody, and there is no undo for it.';
+  if (replies === 0) return base;
+  return `${base} The ${replies === 1 ? 'reply' : `${replies} replies`} to it stay — they are somebody else's words, so they are not yours to take back.`;
+}
+
+interface CommentBodyProps {
+  readonly comment: Comment;
+  readonly names: Record<string, string>;
+  readonly editing: boolean;
+  readonly canEdit: boolean;
+  readonly canDelete: boolean;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly onDone: () => void;
+}
+
+function CommentBody({
+  comment,
+  names,
+  editing,
+  canEdit,
+  canDelete,
+  onEdit,
+  onDelete,
+  onDone,
+}: CommentBodyProps) {
   const author = actorName(comment.actor, names);
   return (
     <article className={styles.comment}>
@@ -1202,10 +1299,38 @@ function CommentBody({ comment, names }: { comment: Comment; names: Record<strin
           {when(comment.createdAt)}
         </time>
         {comment.editedAt === undefined ? null : <span className={styles.eventWhen}>edited</span>}
+        {/* Named by author and time, because a screen reader hearing "Edit comment" six
+            times down a thread cannot tell which one it is on. */}
+        {editing ? null : (
+          <span className={commentStyles.rowActions}>
+            {canEdit && (
+              <IconButton
+                size="sm"
+                icon={<PencilGlyph />}
+                aria-label={`Edit comment from ${author}, ${when(comment.createdAt)}`}
+                tooltip="Edit comment"
+                onClick={onEdit}
+              />
+            )}
+            {canDelete && (
+              <IconButton
+                size="sm"
+                icon={<TrashGlyph />}
+                aria-label={`Delete comment from ${author}, ${when(comment.createdAt)}`}
+                tooltip="Delete comment"
+                onClick={onDelete}
+              />
+            )}
+          </span>
+        )}
       </div>
       {/* Markdown is shown as it was written. Rendering it is the M2 editor's job, and a
           half-implementation that handled bold but not links would be worse than neither. */}
-      <p className={styles.commentBody}>{comment.body}</p>
+      {editing ? (
+        <CommentEditor comment={comment} onDone={onDone} />
+      ) : (
+        <p className={styles.commentBody}>{comment.body}</p>
+      )}
     </article>
   );
 }
@@ -1267,10 +1392,15 @@ interface Thread {
  * writes; the query response carries neither, so preferring it would make a comment posted a
  * moment ago flicker back to its pre-edit text.
  */
-function thread(stored: readonly Comment[], fetched: readonly Comment[]): Thread[] {
+function thread(
+  stored: readonly Comment[],
+  fetched: readonly Comment[],
+  removed: ReadonlySet<UUID> = new Set(),
+): Thread[] {
   const byId = new Map<UUID, Comment>();
   for (const comment of fetched) byId.set(comment.id, comment);
   for (const comment of stored) byId.set(comment.id, comment);
+  for (const id of removed) byId.delete(id);
 
   const roots: Comment[] = [];
   const replies = new Map<UUID, Comment[]>();
@@ -1285,7 +1415,11 @@ function thread(stored: readonly Comment[], fetched: readonly Comment[]): Thread
     ) {
       continue;
     }
-    if (comment.parentId === undefined) {
+    // A reply whose parent is not here stands on its own rather than disappearing. That
+    // happens for real once a comment can be deleted: the opening line of a thread goes and
+    // the answers to it remain, and a reply filed under a root nobody renders is a row that
+    // exists on the server and nowhere on the screen.
+    if (comment.parentId === undefined || !byId.has(comment.parentId)) {
       roots.push(comment);
       continue;
     }
