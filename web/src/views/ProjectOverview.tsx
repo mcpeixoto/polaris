@@ -2,11 +2,11 @@
  * Project overview — latest health, compose an update, and the project description.
  */
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, IconButton, Select } from '~/components';
+import { Button, IconButton, Select, useNativeValue } from '~/components';
 import { ProjectGraph } from '~/features/projects/ProjectGraph';
 import { ProjectDependencies } from '~/features/projects/dependencies';
 import { createProjectUpdate } from '~/features/project-updates/mutations';
@@ -34,6 +34,12 @@ export function ProjectOverview() {
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
   const [editingLatest, setEditingLatest] = useState(false);
+
+  // The composer takes its text through the element rather than through a `value` prop. See
+  // components/nativeValue.ts: a controlled textarea has its text content rewritten by React
+  // on every commit, and that costs the browser's undo grouping.
+  const updateBodyRef = useRef<HTMLTextAreaElement | null>(null);
+  useNativeValue(updateBodyRef, body);
 
   const project = useLiveQuery(
     (store) => store.projects.get(projectId) ?? null,
@@ -130,9 +136,12 @@ export function ProjectOverview() {
             </Select>
             <label className={styles.field}>
               <span className={styles.label}>Update</span>
+              {/* Not `value={...}`: React rewrites a controlled textarea's text content on
+                  every commit, which resets the browser's undo grouping to one keystroke per
+                  entry. See components/nativeValue.ts. */}
               <textarea
+                ref={updateBodyRef}
                 className={styles.textarea}
-                value={body}
                 onChange={(event) => setBody(event.target.value)}
                 placeholder="What changed since the last update?"
                 rows={4}

@@ -2,12 +2,20 @@
  * One initiative overview — properties, latest update, description, and curated projects.
  */
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Input, LabelChip, PRIORITY_LEVELS, priorityLabel, Select } from '~/components';
+import {
+  Button,
+  Input,
+  LabelChip,
+  PRIORITY_LEVELS,
+  priorityLabel,
+  Select,
+  useNativeValue,
+} from '~/components';
 import {
   addInitiativeProject,
   addInitiativeRelation,
@@ -75,6 +83,14 @@ export function InitiativeDetail() {
   const [projectError, setProjectError] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const labelsMenu = useMenuTrigger();
+
+  // Both textareas take their text through the element rather than through a `value` prop.
+  // See components/nativeValue.ts: a controlled textarea has its text content rewritten by
+  // React on every commit, and that costs the browser's undo grouping.
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const updateBodyRef = useRef<HTMLTextAreaElement | null>(null);
+  useNativeValue(descriptionRef, draft);
+  useNativeValue(updateBodyRef, body);
 
   useKeyContext('detail');
   useActions(
@@ -336,9 +352,12 @@ export function InitiativeDetail() {
           </Select>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Update</span>
+            {/* Not `value={...}`: React rewrites a controlled textarea's text content on
+                every commit, which resets the browser's undo grouping to one keystroke per
+                entry. See components/nativeValue.ts. */}
             <textarea
+              ref={updateBodyRef}
               className={styles.descriptionInput}
-              value={body}
               onChange={(event) => setBody(event.target.value)}
               placeholder="What changed since the last update?"
               rows={4}
@@ -474,9 +493,12 @@ export function InitiativeDetail() {
         <h2 className={styles.sectionTitle}>Description</h2>
         {editing ? (
           <form onSubmit={saveDescription}>
+            {/* Not `value={...}`: React rewrites a controlled textarea's text content on
+                every commit, which resets the browser's undo grouping to one keystroke per
+                entry. See components/nativeValue.ts. */}
             <textarea
+              ref={descriptionRef}
               className={styles.descriptionInput}
-              value={draft}
               onChange={(event) => setDraft(event.target.value)}
             />
             <div className={styles.addRow}>

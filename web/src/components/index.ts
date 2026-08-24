@@ -74,6 +74,9 @@ export type { StateIconProps } from './StateIcon';
 
 export { Textarea } from './Textarea';
 export type { TextareaProps } from './Textarea';
+// Lives beside Textarea because it is the reason Textarea is not a controlled component;
+// exported for the description editor, which builds its own textarea over a mark overlay.
+export { useNativeValue } from './nativeValue';
 
 export { Tooltip } from './Tooltip';
 export type { TooltipPlacement, TooltipProps } from './Tooltip';

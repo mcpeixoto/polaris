@@ -1,11 +1,12 @@
 import { useCallback, useLayoutEffect, useRef, type Ref, type TextareaHTMLAttributes } from 'react';
 
 import { Field, fieldDescribedBy, fieldInvalid, useFieldIds } from './Field';
+import { useNativeValue } from './nativeValue';
 import styles from './Textarea.module.css';
 
 export interface TextareaProps extends Omit<
   TextareaHTMLAttributes<HTMLTextAreaElement>,
-  'rows' | 'style'
+  'rows' | 'style' | 'defaultValue' | 'children'
 > {
   label?: string | undefined;
   hideLabel?: boolean | undefined;
@@ -20,6 +21,12 @@ export interface TextareaProps extends Omit<
   minRows?: number | undefined;
   /** Where growing stops and scrolling starts, in lines. */
   maxRows?: number | undefined;
+  /**
+   * The text. Mirrored into the element by `useNativeValue` rather than handed to React as
+   * a controlled `value`; from a caller's side it behaves the same, and the reason for the
+   * difference is the browser's undo stack. See `nativeValue.ts`.
+   */
+  value?: string | undefined;
   className?: string | undefined;
   ref?: Ref<HTMLTextAreaElement> | undefined;
 }
@@ -40,6 +47,14 @@ export interface TextareaProps extends Omit<
  * `rows` and `style` are not accepted: the component writes the element's inline height on
  * every measurement, so anything a caller put there would survive exactly until the next
  * keystroke. Ask for `minRows` and `maxRows` instead.
+ *
+ * `defaultValue` and `children` are not accepted either, and that one is load-bearing rather
+ * than tidy: both of them are the textarea's text content, and React rewrites the text
+ * content of a textarea on every update it makes to one. Doing that to a field somebody is
+ * typing in resets the browser's undo grouping, so ⌘Z walks back a character at a time
+ * instead of undoing the sentence. `value` goes in through `useNativeValue`, which leaves the
+ * element's text content untouched for the element's whole life; the long version of why is
+ * in nativeValue.ts.
  */
 export function Textarea({
   label,
@@ -59,6 +74,10 @@ export function Textarea({
   const ids = useFieldIds(id);
   const invalid = fieldInvalid({ error });
   const elementRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Before the resize effect below, so the box is measured against the text it is about to
+  // be showing rather than the text it was showing a moment ago.
+  useNativeValue(elementRef, value);
 
   const attachRef = (node: HTMLTextAreaElement | null) => {
     elementRef.current = node;
@@ -94,10 +113,11 @@ export function Textarea({
     element.style.height = `${height}px`;
   }, [minRows, maxRows]);
 
-  // Before paint, so the box is never briefly the wrong height. `value` covers the
-  // controlled case; the `onInput` below covers typing, pasting and dropping into an
-  // uncontrolled one. Measuring on every render instead would force a layout each time a
-  // sync delta re-rendered the screen around this field, for an answer that had not moved.
+  // Before paint, so the box is never briefly the wrong height. `value` covers text arriving
+  // from the owner — a remote delta, a switched entity, a cleared composer; the `onInput`
+  // below covers typing, pasting and dropping. Measuring on every render instead would force
+  // a layout each time a sync delta re-rendered the screen around this field, for an answer
+  // that had not moved.
   useLayoutEffect(resize, [resize, value]);
 
   return (
@@ -111,7 +131,6 @@ export function Textarea({
     >
       <textarea
         {...rest}
-        value={value}
         ref={attachRef}
         id={ids.controlId}
         rows={minRows}
