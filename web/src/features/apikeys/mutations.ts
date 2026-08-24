@@ -62,12 +62,13 @@ export const API_KEY_SCOPES: readonly ApiKeyScopeOption[] = [
     value: 'write',
     label: 'Write',
     detail:
-      'The mutations as well. Read comes with it — the server expands the pair when the key is made, so the list above always shows what the key can really do.',
+      'The day-to-day mutations — issues, comments, projects, labels, views — and read along with them, expanded by the server when the key is made. It stops at administration: no invites, roles or removals, no new keys, no OAuth clients, no webhooks or integration settings.',
   },
   {
     value: 'admin',
     label: 'Admin',
-    detail: 'Nothing is narrowed: exactly what you can do, and never anything more.',
+    detail:
+      'Nothing is narrowed, including the administration Write refuses: exactly what you can do, and never anything more.',
   },
 ];
 
