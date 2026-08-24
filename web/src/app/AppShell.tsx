@@ -26,6 +26,7 @@ import { useViewerId, useViewerRole } from '~/hooks/useViewer';
 import { Menu } from '~/components';
 import { gotoLabelItems, labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { personName } from '~/features/prefs/prefs';
+import { triageQueueCount } from '~/features/triage/queue';
 import { CreateIssueProvider } from '~/features/issue/create-context';
 import { type IssueComposerSeed } from '~/features/issue/create-url';
 import {
@@ -142,7 +143,9 @@ export function AppShell({
   const teamTree = useMemo(() => buildTeamTree(teams), [teams]);
   const workspace = useQuery((store) => [...store.workspaces.values()][0], ['workspace']);
   const cyclesPath = useQuery((store) => pathToCycles(store), ['team', 'cycle']);
-  const triagePath = useQuery((store) => pathToTriage(store), ['team']);
+  // Also on the issues: with no team running triage, where `G T` lands depends on which
+  // team is still holding a queue.
+  const triagePath = useQuery((store) => pathToTriage(store), ['team', 'issue', 'workflowState']);
   const archivesPath = useQuery((store) => pathToArchives(store), ['team']);
 
   const viewerId = useViewerId();
@@ -1624,12 +1627,16 @@ function pathToCycles(store: Store): string {
 }
 
 /**
- * Where `G T` should land: the first team that runs triage, else the first team's inbox
- * page — which then teaches how to turn it on.
+ * Where `G T` should land: the first team that runs triage, else the first team still
+ * holding a queue somebody turned intake off on top of, else the first team's inbox page —
+ * which then teaches how to turn it on.
  */
 function pathToTriage(store: Store): string {
   const teams = [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key));
-  const withTriage = teams.find((team) => team.triageEnabled) ?? teams[0];
+  const withTriage =
+    teams.find((team) => team.triageEnabled) ??
+    teams.find((team) => triageQueueCount(store, team.id) > 0) ??
+    teams[0];
   if (withTriage === undefined) return '/';
   return `/team/${withTriage.key}/triage`;
 }

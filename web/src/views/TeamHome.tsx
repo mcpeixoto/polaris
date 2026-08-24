@@ -11,6 +11,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useKeymap } from '~/app/keymap';
 import { Avatar, Button, EmptyState } from '~/components';
 import { personName } from '~/features/prefs/prefs';
+import { triageQueueCount } from '~/features/triage/queue';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store, Team, UUID } from '~/store';
 import styles from './TeamHome.module.css';
@@ -26,6 +27,14 @@ interface TeamHomeView {
   readonly members: readonly MemberRow[];
   readonly openCount: number;
   readonly projectCount: number;
+  /**
+   * Unreviewed work still sitting in the team's triage statuses.
+   *
+   * Carried separately from the switch because turning triage off leaves the queue where
+   * it is, and this page is the only navigation into it. Hiding the link on the switch
+   * alone is what made a left-behind queue reachable from nothing but Search.
+   */
+  readonly triageQueue: number;
 }
 
 export function TeamHome() {
@@ -55,7 +64,7 @@ export function TeamHome() {
     );
   }
 
-  const { team, members, openCount, projectCount } = view;
+  const { team, members, openCount, projectCount, triageQueue } = view;
   const create = () => registry.invoke('issue.create', { source: 'menu', context });
   /*
    * A retired team is frozen, and this page has to say so before it offers anything.
@@ -114,7 +123,7 @@ export function TeamHome() {
               Cycles
             </Link>
           ) : null}
-          {team.triageEnabled ? (
+          {team.triageEnabled || triageQueue > 0 ? (
             <Link to={`/team/${team.key}/triage`} className={styles.shortcut}>
               Triage
             </Link>
@@ -197,5 +206,5 @@ function snapshot(store: Store, teamKey: string): TeamHomeView | null {
     if (onTeam) projectCount += 1;
   }
 
-  return { team, members, openCount, projectCount };
+  return { team, members, openCount, projectCount, triageQueue: triageQueueCount(store, team.id) };
 }

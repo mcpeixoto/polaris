@@ -1,0 +1,26 @@
+/*
+ * One line above the inbox, and only in the state that needs explaining: intake is off and
+ * the queue it was filling is not empty yet. It sits outside the list's own screen so the
+ * list keeps its header height and its scroller keeps the rest.
+ */
+
+.intakeOff {
+  flex: none;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.link {
+  color: var(--accent-text);
+  border-radius: var(--radius-sm);
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}

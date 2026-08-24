@@ -1726,18 +1726,23 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
 
       <div className={styles.body}>
         {/*
-         * `rows` and not `view.count`, because an empty group is still a row and an empty
-         * column is information — "nothing is in review" is a fact somebody wants to see.
-         *
-         * But that padding is exactly what hid the other half of this. Grouping by status
-         * in a team-scoped view adds a group per status whether or not anything is in it,
-         * so `rows` was never empty there and the filtered message below was unreachable
-         * from the default view: four clauses that matched nothing left five zero-count
+         * `view.count` and not `rows.length`: the padding that makes an empty status column
+         * information is exactly what hid this. Grouping by status adds a group per status
+         * whether or not anything is in it, so `rows` is never empty in a team-scoped view
+         * and everything below was unreachable from the default display — five zero-count
          * headers, no explanation, and no way back. Grouping by assignee in the same view
-         * showed the message, which is worse than either answer on its own. So a filter
-         * that has excluded everything says so, wherever it is grouped.
+         * showed the message, which is worse than either answer on its own.
+         *
+         * "Nothing is in review" is a fact somebody wants to see *next to the work that is
+         * somewhere*. With nothing in the view at all, every column reads zero, the padding
+         * says nothing, and it is displacing the only sentence on the screen that explains
+         * what this list is and how to put something in it. The triage inbox is where that
+         * bites hardest: its empty state is the one place its accept, decline, merge and
+         * snooze keys are ever named, and it is a screen meant to be driven by the keyboard.
+         *
+         * Why the view is empty changes the words, not whether there are any.
          */}
-        {rows.length === 0 || (filtered && view.count === 0) ? (
+        {view.count === 0 ? (
           <EmptyState
             className={styles.empty}
             title={

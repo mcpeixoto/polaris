@@ -31,6 +31,18 @@ async function enableCycles(page: Page, teamKey: string): Promise<void> {
   await expect(page.getByLabel('Duration')).toBeVisible();
 }
 
+/**
+ * A ready issue list, in either of its two shapes: the rows, or the empty state that stands
+ * in for them while nothing is on this cycle. Waiting on the listbox alone would hang on
+ * the empty window, which is the state both tests here start from.
+ */
+function listOrEmpty(page: Page) {
+  return page
+    .getByRole('listbox', { name: /issues/i })
+    .or(page.getByRole('button', { name: 'Create an issue' }))
+    .first();
+}
+
 /** Opens the team's current or next window from the Cycles page, the way a person does. */
 async function openCycle(page: Page, teamKey: string, phase: 'Current' | 'Upcoming') {
   await page.goto(`/team/${teamKey}/cycles`);
@@ -38,14 +50,21 @@ async function openCycle(page: Page, teamKey: string, phase: 'Current' | 'Upcomi
   await row.waitFor();
   await row.click();
   await expect(page).toHaveURL(/\/cycle\/[0-9a-f-]{36}$/);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await listOrEmpty(page).waitFor();
 }
 
 async function fileIssue(page: Page, title: string): Promise<void> {
-  // Click the list first: `C` is registered by it, and a click on the header would file
-  // into the team rather than into this cycle.
-  await page.getByRole('listbox', { name: /issues/i }).click({ position: { x: 4, y: 4 } });
-  await page.keyboard.press('c');
+  // The composer has to be opened from the list, because `C` is registered by it and a
+  // create from anywhere else files into the team rather than into this cycle. With rows
+  // on screen that means clicking into them first; with none, it means the empty state's
+  // own button, which invokes the same action in the same context.
+  const rows = page.getByRole('listbox', { name: /issues/i });
+  if (await rows.isVisible()) {
+    await rows.click({ position: { x: 4, y: 4 } });
+    await page.keyboard.press('c');
+  } else {
+    await page.getByRole('button', { name: 'Create an issue' }).click();
+  }
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Title').fill(title);
   await dialog.getByRole('button', { name: 'Create issue' }).click();
