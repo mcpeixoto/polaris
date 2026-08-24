@@ -21,6 +21,9 @@ import { createIssueViaApi, expect, signIn, test } from './fixtures';
 
 const BURST = 'the whole of this sentence should vanish at once';
 
+/** Comfortably more lines than the document body's sixteen-line resting height. */
+const LINES = Array.from({ length: 24 }, (_, index) => `line ${index + 1}`).join('\n');
+
 /**
  * Type, undo once, redo once.
  *
@@ -112,5 +115,48 @@ test.describe('native undo', () => {
     // text, not into the middle of it.
     await page.keyboard.press('ControlOrMeta+End');
     await burstUndoRedo(reloaded, page, 'Existing paragraph.');
+  });
+
+  /**
+   * The box measures itself and writes its own inline height, and the measurement now happens
+   * after the text has been pushed into the element rather than after React set a `value`
+   * prop. If those two ever swapped order the field would be sized against the text it was
+   * showing a moment ago — a paragraph in a two-line box, with no error anywhere to say so.
+   */
+  test('keeps growing with what is typed, and with text that arrives whole', async ({
+    page,
+    workspace,
+  }) => {
+    await signIn(page, workspace.account);
+    await page.goto(`/team/${workspace.teamKey}/documents`);
+
+    await page.getByPlaceholder('New document…').fill('Growing body');
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+
+    const area = page.getByLabel('Body');
+    await area.waitFor();
+    const height = async () => (await area.boundingBox())?.height ?? 0;
+
+    const atRest = await height();
+    expect(atRest).toBeGreaterThan(0);
+
+    // Past the sixteen lines the document body rests at, so growth is the only thing that
+    // could account for the difference.
+    await area.click();
+    await area.pressSequentially(LINES, { delay: 2 });
+    const typed = await height();
+    expect(typed).toBeGreaterThan(atRest);
+
+    // And after a reload, where the text arrives from the replica in one go rather than a
+    // keystroke at a time — the path that goes through the ref rather than through `onInput`.
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await page.reload();
+
+    const reloaded = page.getByLabel('Body');
+    await expect(reloaded).toHaveValue(LINES);
+    await expect
+      .poll(async () => (await reloaded.boundingBox())?.height ?? 0)
+      .toBeGreaterThanOrEqual(typed);
   });
 });
