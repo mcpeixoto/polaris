@@ -10,6 +10,7 @@ import { useEngine } from '~/app/context';
 import { Button, EmptyState, Input } from '~/components';
 import { createDocument } from '~/features/documents/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { compareOrderKeys } from '~/store';
 import type { Document, Store, UUID } from '~/store';
 import styles from './Documents.module.css';
 import { useState, type FormEvent } from 'react';
@@ -141,7 +142,7 @@ function listDocuments(store: Store, teamId?: UUID, projectId?: UUID): readonly 
     .map((id) => store.get('document', id))
     .filter((row): row is Document => row !== undefined)
     .filter((row) => projectId !== undefined || row.projectId === undefined)
-    .sort((a, b) => a.sortOrder.localeCompare(b.sortOrder) || a.title.localeCompare(b.title))
+    .sort((a, b) => compareOrderKeys(a.sortOrder, b.sortOrder) || a.title.localeCompare(b.title))
     .map((row) => ({ id: row.id, title: row.title, updatedAt: row.updatedAt }));
 }
 

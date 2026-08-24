@@ -20,7 +20,14 @@
  * have passed through the second.
  */
 
-import { createIssueViaApi, expect, signIn, test } from './fixtures';
+import {
+  createIssueViaApi,
+  expect,
+  inviteToWorkspace,
+  signIn,
+  test,
+  uniqueEmail,
+} from './fixtures';
 
 const COMPOSER = /leave a comment/i;
 
@@ -112,6 +119,92 @@ test.describe('comments', () => {
     expect(problems).toEqual([]);
   });
 
+  test('a reply typed while its parent is still being saved is kept', async ({
+    page,
+    workspace,
+  }) => {
+    const problems: string[] = [];
+    page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
+
+    const issue = await createIssueViaApi(workspace, 'A reply while the parent is in flight');
+
+    // No deltas. The sync socket normally delivers the server's own row within milliseconds
+    // of the mutation committing, which retires the stand-in and closes the window this test
+    // is about; blocking it makes the window last exactly as long as the response is held.
+    await page.routeWebSocket('**/sync**', () => {});
+
+    await signIn(page, workspace.account);
+    await page.goto(`/issue/${issue.identifier}`);
+    await page.getByPlaceholder(COMPOSER).first().waitFor();
+
+    const root = `Root ${Date.now()}`;
+    const reply = `The reply that used to disappear ${Date.now()}`;
+
+    // Only the root's create is held. The reply's must be free to go out once it can.
+    let release = false;
+    await page.route('**/graphql', async (route) => {
+      const sent = route.request().postData() ?? '';
+      if (!sent.includes('CreateComment') || !sent.includes(root)) {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      const payload = await response.text();
+      const deadline = Date.now() + 60_000;
+      while (!release && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await route.fulfill({ response, body: payload });
+    });
+
+    await page.getByPlaceholder(COMPOSER).first().fill(root);
+    await page
+      .getByRole('button', { name: /^comment$/i })
+      .first()
+      .click();
+    await expect(page.getByText(root, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+
+    // The comment on the screen is a stand-in under an id this client invented. Replying to
+    // it names a parent the server has never heard of.
+    await page
+      .getByRole('button', { name: /^reply to /i })
+      .first()
+      .click();
+    await page.getByPlaceholder(/write a reply/i).fill(reply);
+    await page
+      .getByRole('button', { name: /^comment$/i })
+      .first()
+      .click();
+
+    // Refused, and said so — with every character still in the box. This is the assertion
+    // the whole test exists for: the sentence did not evaporate into a console error.
+    await expect(page.getByPlaceholder(/write a reply/i)).toHaveValue(reply, { timeout: 30_000 });
+    await expect(page.getByRole('alert').first()).toBeVisible();
+
+    // The parent settles. The refusal is about a condition that has just passed, so the app
+    // taking it down is the client saying it has seen the real row — which is what makes the
+    // press below deterministic rather than a guess at how long a round trip takes.
+    release = true;
+    await expect(page.getByRole('alert')).toHaveCount(0, { timeout: 60_000 });
+    // The composer followed its parent onto the id the server chose rather than vanishing
+    // with the stand-in, and is still holding every character.
+    await expect(page.getByPlaceholder(/write a reply/i)).toHaveValue(reply);
+    await page
+      .getByRole('button', { name: /^comment$/i })
+      .first()
+      .click();
+
+    // Under the comment it answers, which is only possible if it named that comment by the
+    // id the server chose rather than the one this client invented.
+    const thread = page.locator('li').filter({ hasText: root }).first();
+    await expect(thread.getByText(reply, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+
+    // What survives a reload is the sibling test's subject and it runs with the socket
+    // alive. Asserting it here too would only be asserting how a replica converges with its
+    // delta stream cut off, which is not a state any user is ever in.
+    expect(problems).toEqual([]);
+  });
+
   test('a reply hangs under the comment it answers, and survives a reload', async ({
     page,
     workspace,
@@ -149,5 +242,190 @@ test.describe('comments', () => {
     // Under it, not beside it: the reply lives inside the thread its parent opened.
     const thread = page.locator('li').filter({ hasText: root }).first();
     await expect(thread.getByText(reply, { exact: true })).toHaveCount(1);
+  });
+});
+
+/**
+ * Correcting and taking back what you said.
+ *
+ * Both mutations have been on the client since M0 and neither had a caller: `editComment`
+ * was written, exported and never used, `DELETE_COMMENT` was defined and never imported, and
+ * the detail screen rendered an "edited" marker for a state nothing could produce. So this
+ * is about the affordance existing at all, and about the two things that make it honest —
+ * that the edit survives a reload with its marker, and that the buttons are drawn only for
+ * somebody the server would actually let through.
+ *
+ * The asymmetry in the last test is the server's and not a slip: editing is the author's
+ * alone, deletion is the author's or an admin's, because a comment is visible to the whole
+ * team and somebody has to be able to take an abusive one down without being able to put
+ * different words under another person's name. See `authz.CanEditOwnContent`.
+ */
+test.describe('comment edit and delete', () => {
+  test('an author corrects a comment and a reply, and both survive a reload', async ({
+    page,
+    workspace,
+  }) => {
+    const issue = await createIssueViaApi(workspace, 'Corrections');
+    await signIn(page, workspace.account);
+    await page.goto(`/issue/${issue.identifier}`);
+
+    await page.getByPlaceholder(COMPOSER).first().fill('frist post');
+    await page.getByRole('button', { name: /^comment$/i }).click();
+    await expect(page.getByText('frist post', { exact: true })).toHaveCount(1, { timeout: 30_000 });
+
+    await page
+      .getByRole('button', { name: /^reply to /i })
+      .first()
+      .click();
+    await page.getByPlaceholder(/write a reply/i).fill('teh reply');
+    await page
+      .getByRole('button', { name: /^comment$/i })
+      .first()
+      .click();
+    await expect(page.getByText('teh reply', { exact: true })).toHaveCount(1, { timeout: 30_000 });
+
+    // Root first. The pencil stands down while its own editor is open, so the count below
+    // is also the assertion that the row swapped rather than doubling.
+    await page
+      .getByRole('button', { name: /^edit comment from/i })
+      .first()
+      .click();
+    await page.getByLabel('Edit comment', { exact: true }).fill('first post');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
+    await expect(page.getByText('first post', { exact: true })).toHaveCount(1);
+    await expect(page.getByText('frist post', { exact: true })).toHaveCount(0);
+
+    // Then the reply, saved from the keyboard. ⌘⏎ is bound globally to "Post comment", so a
+    // chord that escapes the editor sends whatever is in the composer at the foot of the
+    // page instead of saving the line being corrected.
+    await page
+      .getByRole('button', { name: /^edit comment from/i })
+      .last()
+      .click();
+    await page.getByLabel('Edit comment', { exact: true }).fill('the reply');
+    await page.keyboard.press('ControlOrMeta+Enter');
+    await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
+    await expect(page.getByText('the reply', { exact: true })).toHaveCount(1);
+    await expect(page.getByRole('article')).toHaveCount(2);
+
+    // The marker the screen has always drawn, now reachable — and true on both rows.
+    await expect(page.getByText('edited', { exact: true })).toHaveCount(2);
+
+    await page.reload();
+    await page.getByPlaceholder(COMPOSER).first().waitFor();
+    await expect(page.getByText('first post', { exact: true })).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.getByText('the reply', { exact: true })).toHaveCount(1);
+    await expect(page.getByText('edited', { exact: true })).toHaveCount(2);
+    await expect(page.getByText('frist post', { exact: true })).toHaveCount(0);
+  });
+
+  test('a comment taken back is gone after a reload, and the reply to it stays', async ({
+    page,
+    workspace,
+  }) => {
+    const issue = await createIssueViaApi(workspace, 'Taken back');
+    await signIn(page, workspace.account);
+    await page.goto(`/issue/${issue.identifier}`);
+
+    await page.getByPlaceholder(COMPOSER).first().fill('said too soon');
+    await page.getByRole('button', { name: /^comment$/i }).click();
+    await expect(page.getByText('said too soon', { exact: true })).toHaveCount(1, {
+      timeout: 30_000,
+    });
+
+    await page
+      .getByRole('button', { name: /^reply to /i })
+      .first()
+      .click();
+    await page.getByPlaceholder(/write a reply/i).fill('answering that');
+    await page
+      .getByRole('button', { name: /^comment$/i })
+      .first()
+      .click();
+    await expect(page.getByText('answering that', { exact: true })).toHaveCount(1, {
+      timeout: 30_000,
+    });
+
+    await page
+      .getByRole('button', { name: /^delete comment from/i })
+      .first()
+      .click();
+    // The dialogue says what goes and what stays before anything is destroyed.
+    await expect(page.getByText(/the reply to it stays?/i)).toBeVisible();
+    await page.getByRole('button', { name: 'Delete comment', exact: true }).click();
+
+    await expect(page.getByText('said too soon', { exact: true })).toHaveCount(0);
+
+    // The screen's own memory of the delete is not the point; the server's is. A comment
+    // that comes back on reload is the failure this test exists for — the detail query's
+    // answer is merged in beside the replica, and it was fetched before the delete.
+    await page.reload();
+    await page.getByPlaceholder(COMPOSER).first().waitFor();
+    await expect(page.getByText('answering that', { exact: true })).toHaveCount(1, {
+      timeout: 30_000,
+    });
+    await expect(page.getByText('said too soon', { exact: true })).toHaveCount(0);
+  });
+
+  test("a member gets no affordance on somebody else's comment, an admin gets the bin", async ({
+    browser,
+    page,
+    workspace,
+  }) => {
+    const issue = await createIssueViaApi(workspace, 'Not yours to edit');
+
+    // The member joins first and says something, so the owner has somebody else's comment
+    // to look at.
+    const email = uniqueEmail('cm-member');
+    const { token } = await inviteToWorkspace(workspace, email);
+    const second = await browser.newContext();
+    const member = await second.newPage();
+    await member.goto(`/invite/${token}`);
+    await member.getByLabel(/^email$/i).fill(email);
+    await member.getByLabel(/^password$/i).fill('e2e-placeholder-password');
+    await member.getByLabel(/your name/i).fill('Grace Hopper');
+    await member.getByRole('button', { name: /create account and join/i }).click();
+    await member.getByRole('navigation', { name: /workspace/i }).waitFor({ timeout: 30_000 });
+
+    await member.goto(`/issue/${issue.identifier}`);
+    await member.getByPlaceholder(COMPOSER).first().fill('a member speaks');
+    await member.getByRole('button', { name: /^comment$/i }).click();
+    await expect(member.getByText('a member speaks', { exact: true })).toHaveCount(1, {
+      timeout: 30_000,
+    });
+
+    // The owner replies, so each of them has one comment of their own and one of the
+    // other's on the same screen.
+    await signIn(page, workspace.account);
+    await page.goto(`/issue/${issue.identifier}`);
+    await expect(page.getByText('a member speaks', { exact: true })).toHaveCount(1, {
+      timeout: 30_000,
+    });
+    await page.getByPlaceholder(COMPOSER).first().fill('the owner speaks');
+    await page.getByRole('button', { name: /^comment$/i }).click();
+    await expect(page.getByText('the owner speaks', { exact: true })).toHaveCount(1, {
+      timeout: 30_000,
+    });
+
+    // An admin may remove either comment but may only rewrite their own.
+    await expect(page.getByRole('button', { name: /^delete comment from/i })).toHaveCount(2);
+    await expect(page.getByRole('button', { name: /^edit comment from/i })).toHaveCount(1);
+    await expect(
+      page.getByRole('button', { name: /^edit comment from Grace Hopper/i }),
+    ).toHaveCount(0);
+
+    // The member is offered nothing on the owner's comment, in either direction — the
+    // server refuses both, and a button whose only outcome is a refusal is worse than none.
+    await member.reload();
+    await expect(member.getByText('the owner speaks', { exact: true })).toHaveCount(1, {
+      timeout: 30_000,
+    });
+    await expect(member.getByRole('button', { name: /^edit comment from/i })).toHaveCount(1);
+    await expect(member.getByRole('button', { name: /^delete comment from/i })).toHaveCount(1);
+    await expect(member.getByRole('button', { name: /^edit comment from E2E/i })).toHaveCount(0);
+    await expect(member.getByRole('button', { name: /^delete comment from E2E/i })).toHaveCount(0);
+
+    await second.close();
   });
 });

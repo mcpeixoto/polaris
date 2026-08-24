@@ -28,6 +28,7 @@ import {
   Avatar,
   Button,
   EmptyState,
+  IconButton,
   LabelChip,
   PriorityIcon,
   priorityLabel,
@@ -43,13 +44,20 @@ import { maybeExpandEmoticons } from '~/features/prefs/emoticons';
 import { personName, getPrefs, subscribePrefs } from '~/features/prefs/prefs';
 import {
   archiveIssues,
+  deleteComment,
   deleteIssues,
   postComment,
   report,
+  UNSETTLED_PARENT,
   setSubscribed,
   updateIssue,
   updateIssueProperties,
 } from '~/features/issue/mutations';
+import { CommentEditor } from '~/features/issue/CommentEditor';
+import commentStyles from '~/features/issue/CommentEditor.module.css';
+// The pencil and the bin, shared with project and initiative updates so the three
+// row-level affordances in the product are the same drawing rather than three that drift.
+import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
@@ -76,9 +84,9 @@ import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { clearCommentDraft, readCommentDrafts, writeCommentDraft } from '~/features/drafts/local';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
-import { useViewer, useViewerId } from '~/hooks/useViewer';
+import { useViewer, useViewerId, useViewerRole } from '~/hooks/useViewer';
 import { ISSUE_DETAIL_QUERY } from '~/gql/operations';
-import type { Actor, Comment, StateCategory, Store, UUID } from '~/store';
+import type { Actor, Comment, StateCategory, Store, UserRole, UUID } from '~/store';
 import { ApiError, gql } from '~/sync/api';
 import styles from './IssueDetail.module.css';
 
@@ -944,7 +952,7 @@ interface DetailCommands {
  * component reused across two issues must not carry the first one's half-typed title into
  * the second.
  */
-function TitleField({
+export function TitleField({
   issueId,
   title,
   onSave,
@@ -955,9 +963,50 @@ function TitleField({
 }) {
   const [draft, setDraft] = useState<string | null>(null);
 
+  /**
+   * The edit in flight, for the exits that are not a blur.
+   *
+   * Committing on blur is the model and it holds for every way of leaving the field that
+   * moves focus first — tabbing out, clicking anywhere else on the page, opening the command
+   * menu. It does not hold for the ways that take the whole screen away without focusing
+   * anything: the back button, a reload, a closed tab. React drops the input, no blur is
+   * ever dispatched, and a renamed issue silently still has its old name. This is the same
+   * hole the description had, and the same shape of fix.
+   *
+   * The save callback is captured at the keystroke rather than read at flush time, so a
+   * flush that happens to run during a route change writes this issue's title and not the
+   * next one's.
+   */
+  const flight = useRef<{ text: string; base: string; save: (next: string) => void } | null>(null);
+
+  useEffect(() => {
+    const flush = () => {
+      const edit = flight.current;
+      flight.current = null;
+      if (edit === null) return;
+      const next = edit.text.trim();
+      if (next === '' || next === edit.base) return;
+      edit.save(next);
+    };
+    // `hidden` fires on tab switch and, in every browser that matters, on the way out of the
+    // page — while the document is still alive enough to enqueue the write.
+    const onHidden = () => {
+      if (globalThis.document.visibilityState === 'hidden') flush();
+    };
+    globalThis.document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      globalThis.document.removeEventListener('visibilitychange', onHidden);
+      flush();
+    };
+    // Keyed on the issue, so moving between two issues flushes the first one's edit at the
+    // moment it stops being on screen rather than carrying it along to whenever the screen
+    // is finally left.
+  }, [issueId]);
+
   const commit = () => {
     const next = draft?.trim();
     setDraft(null);
+    flight.current = null;
     // An empty title is a mistake rather than an intention, so the field reverts to what the
     // issue actually says instead of saving a row with no name.
     if (next === undefined || next === '' || next === title) return;
@@ -980,7 +1029,10 @@ function TitleField({
         aria-label="Issue title"
         value={draft ?? title}
         onFocus={() => setDraft(title)}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          flight.current = { text: event.target.value, base: title, save: onSave };
+        }}
         onBlur={commit}
         autoComplete="off"
         spellCheck
@@ -1052,7 +1104,7 @@ interface CommentsProps {
  * from the detail query behind it — the store wins on conflict, because it holds both the
  * server's deltas and the user's own unsent writes and the network response holds neither.
  */
-function Comments({
+export function Comments({
   issueId,
   identifier,
   fetched,
@@ -1062,6 +1114,7 @@ function Comments({
   enterSubmits,
 }: CommentsProps) {
   const engine = useEngine();
+  const viewerRole = useViewerRole();
 
   const stored = useLiveQuery(
     (store) =>
@@ -1072,7 +1125,18 @@ function Comments({
     [issueId],
   );
 
-  const threads = useMemo(() => thread(stored, fetched), [stored, fetched]);
+  // Comments deleted from this tab.
+  //
+  // The store drops the row the moment the delete is made, but `fetched` is the answer to
+  // one query made when the screen mounted and still holds it — so without this the comment
+  // would be taken away and then handed straight back by the merge. The set is the screen's
+  // memory of what it did, and the reload it survives is the one that makes it unnecessary.
+  const [removed, setRemoved] = useState<ReadonlySet<UUID>>(() => new Set());
+
+  const threads = useMemo(() => thread(stored, fetched, removed), [stored, fetched, removed]);
+
+  const [editing, setEditing] = useState<UUID | null>(null);
+  const [deleting, setDeleting] = useState<Comment | null>(null);
 
   const [drafts, setDrafts] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -1085,27 +1149,27 @@ function Comments({
   });
   const [focused, setFocused] = useState<string>(ROOT);
   const [replyingTo, setReplyingTo] = useState<UUID | null>(null);
+  const [refusal, setRefusal] = useState<{ key: string; message: string } | null>(null);
 
-  const submit = (key: string) => {
-    const body = maybeExpandEmoticons((drafts[key] ?? '').trim());
-    if (body === '') return;
-    setDrafts((current) => ({ ...current, [key]: '' }));
-    clearCommentDraft(issueId, key === ROOT ? undefined : key);
-    if (key !== ROOT) setReplyingTo(null);
-    postComment(engine, {
-      issueId,
-      body,
-      parentId: key === ROOT ? undefined : key,
-      authorId: viewerId ?? undefined,
-    }).catch(report);
+  /**
+   * The drafts as they stand *now*, readable from a callback that has been on the network.
+   *
+   * `submit` clears the composer before the server has answered, which is right: the comment
+   * is on the screen the same frame, so leaving the text in the box as well would show it
+   * twice. It is only right as long as a refusal puts it back — and by the time a refusal
+   * arrives, `drafts` in that closure is whatever it was when the click happened.
+   */
+  const live = useRef(drafts);
+  const publish = (next: Record<string, string>) => {
+    live.current = next;
+    setDrafts(next);
   };
 
-  // ⌘⏎ belongs to whichever composer has focus. Read through the ref the registered action
-  // holds, because that action's `run` was captured when the screen mounted.
-  commands.current.submitComment = () => submit(focused);
-
   const persist = (key: string, body: string) => {
-    setDrafts((current) => ({ ...current, [key]: body }));
+    publish({ ...live.current, [key]: body });
+    // Typing again is the answer to "try again in a moment", so the refusal stops being
+    // shown rather than sitting under a box whose contents it no longer describes.
+    setRefusal((current) => (current === null || current.key !== key ? current : null));
     writeCommentDraft({
       issueId,
       parentId: key === ROOT ? undefined : key,
@@ -1113,6 +1177,89 @@ function Comments({
       body,
     });
   };
+
+  /**
+   * Puts a comment the server would not take back into the box it was typed in.
+   *
+   * Every refusal used to end at `report`, which writes a line to the console: the composer
+   * had already been emptied and the draft already deleted, so the only copy of the sentence
+   * was in a closure that was now finished with. The commonest way to hit it needs no server
+   * fault at all — reply to a comment posted a moment ago and the parent id is still the one
+   * this client invented, which the API correctly refuses.
+   *
+   * Anything typed since is kept and the refused text goes in front of it, oldest first. The
+   * ordinary case is an empty box and a straight restore; the merge exists so that a fast
+   * typist starting a second comment cannot be the reason the first one is destroyed.
+   */
+  const restore = (key: string, typed: string, error: unknown) => {
+    const since = live.current[key] ?? '';
+    persist(key, since === '' ? typed : `${typed}\n\n${since}`);
+    if (key !== ROOT) setReplyingTo(key as UUID);
+    setRefusal({
+      key,
+      message:
+        error instanceof ApiError && error.message !== ''
+          ? error.message
+          : 'That comment could not be posted.',
+    });
+  };
+
+  const submit = (key: string) => {
+    const typed = live.current[key] ?? '';
+    const body = maybeExpandEmoticons(typed.trim());
+    if (body === '') return;
+    setRefusal(null);
+    publish({ ...live.current, [key]: '' });
+    clearCommentDraft(issueId, key === ROOT ? undefined : key);
+    if (key !== ROOT) setReplyingTo(null);
+    postComment(engine, {
+      issueId,
+      body,
+      parentId: key === ROOT ? undefined : key,
+      authorId: viewerId ?? undefined,
+    }).catch((error: unknown) => {
+      report(error);
+      restore(key, typed, error);
+    });
+  };
+
+  // ⌘⏎ belongs to whichever composer has focus. Read through the ref the registered action
+  // holds, because that action's `run` was captured when the screen mounted.
+  commands.current.submitComment = () => submit(focused);
+
+  /**
+   * Follows an open reply composer onto its parent's real id.
+   *
+   * A comment posted here is drawn under an id this client invented, and that id stops
+   * naming anything the moment the server's own row arrives — which is a moment the person
+   * replying to it has no way to notice. The composer is keyed on the parent, so without
+   * this it simply disappears mid-sentence, taking a half-written reply off the screen and
+   * leaving it filed under a parent nothing renders.
+   *
+   * Re-run on every change to the comments, because that is when a stand-in retires.
+   */
+  useEffect(() => {
+    if (replyingTo === null) return;
+    const real = engine.succession(replyingTo);
+    if (real === replyingTo) return;
+    const body = live.current[replyingTo] ?? '';
+    const next = { ...live.current };
+    delete next[replyingTo];
+    if (body !== '') next[real] = body;
+    publish(next);
+    setReplyingTo(real);
+    setRefusal((current) => {
+      if (current === null || current.key !== replyingTo) return current;
+      // "Still being saved" was true of the parent and has just stopped being true, so it
+      // goes rather than moving across. Any other refusal is about this reply and still
+      // stands, so it follows the composer onto the parent's new id.
+      return current.message === UNSETTLED_PARENT ? null : { ...current, key: real };
+    });
+    if (body === '') return;
+    clearCommentDraft(issueId, replyingTo);
+    writeCommentDraft({ issueId, parentId: real, identifier, body });
+    // `stored` is the dependency that matters: it changes when the stand-in is retired.
+  }, [engine, replyingTo, stored, issueId, identifier]);
 
   const composer = (key: string, label: string, autoFocus = false) => (
     <form
@@ -1130,6 +1277,7 @@ function Comments({
         maxRows={16}
         autoFocus={autoFocus}
         value={drafts[key] ?? ''}
+        error={refusal !== null && refusal.key === key ? refusal.message : undefined}
         data-submit-chord={enterSubmits ? 'enter' : undefined}
         onFocus={() => setFocused(key)}
         onChange={(event) => persist(key, event.target.value)}
@@ -1155,12 +1303,30 @@ function Comments({
         <ol className={styles.threads}>
           {threads.map(({ comment, replies }) => (
             <li key={comment.id} className={styles.thread}>
-              <CommentBody comment={comment} names={names} />
+              <CommentBody
+                comment={comment}
+                names={names}
+                editing={editing === comment.id}
+                canEdit={mayEdit(comment, viewerId)}
+                canDelete={mayDelete(comment, viewerId, viewerRole)}
+                onEdit={() => setEditing(comment.id)}
+                onDelete={() => setDeleting(comment)}
+                onDone={() => setEditing(null)}
+              />
               {replies.length === 0 ? null : (
                 <ol className={styles.replies}>
                   {replies.map((reply) => (
                     <li key={reply.id}>
-                      <CommentBody comment={reply} names={names} />
+                      <CommentBody
+                        comment={reply}
+                        names={names}
+                        editing={editing === reply.id}
+                        canEdit={mayEdit(reply, viewerId)}
+                        canDelete={mayDelete(reply, viewerId, viewerRole)}
+                        onEdit={() => setEditing(reply.id)}
+                        onDelete={() => setDeleting(reply)}
+                        onDone={() => setEditing(null)}
+                      />
                     </li>
                   ))}
                 </ol>
@@ -1183,11 +1349,71 @@ function Comments({
       )}
 
       {composer(ROOT, 'Leave a comment')}
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete this comment?"
+        consequence={deleteConsequence(deleting, threads)}
+        confirmLabel="Delete comment"
+        destructive
+        onConfirm={() => {
+          const target = deleting;
+          setDeleting(null);
+          if (target === null) return;
+          if (editing === target.id) setEditing(null);
+          setRemoved((current) => new Set(current).add(target.id));
+          deleteComment(engine, target.id).catch(report);
+        }}
+        onClose={() => setDeleting(null)}
+      />
     </section>
   );
 }
 
-function CommentBody({ comment, names }: { comment: Comment; names: Record<string, string> }) {
+/** Editing is the author's alone: an admin may remove somebody's words, not rewrite them. */
+function mayEdit(comment: Comment, viewerId: UUID | null): boolean {
+  return viewerId !== null && comment.actor.type === 'user' && comment.actor.id === viewerId;
+}
+
+/**
+ * Deleting is the author's, plus an admin's.
+ *
+ * That asymmetry is the server's (`authz.CanEditOwnContent`) and it is deliberate: a comment
+ * is visible to the whole team and can be abusive, so somebody has to be able to take it
+ * down — but nobody may put different words under another person's name.
+ */
+function mayDelete(comment: Comment, viewerId: UUID | null, role: UserRole | null): boolean {
+  return mayEdit(comment, viewerId) || role === 'admin' || role === 'owner';
+}
+
+function deleteConsequence(comment: Comment | null, threads: readonly Thread[]): string {
+  const replies = threads.find((t) => t.comment.id === comment?.id)?.replies.length ?? 0;
+  const base = 'The comment leaves the issue for everybody, and there is no undo for it.';
+  if (replies === 0) return base;
+  return `${base} The ${replies === 1 ? 'reply' : `${replies} replies`} to it stay — they are somebody else's words, so they are not yours to take back.`;
+}
+
+interface CommentBodyProps {
+  readonly comment: Comment;
+  readonly names: Record<string, string>;
+  readonly editing: boolean;
+  readonly canEdit: boolean;
+  readonly canDelete: boolean;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly onDone: () => void;
+}
+
+function CommentBody({
+  comment,
+  names,
+  editing,
+  canEdit,
+  canDelete,
+  onEdit,
+  onDelete,
+  onDone,
+}: CommentBodyProps) {
   const author = actorName(comment.actor, names);
   return (
     <article className={styles.comment}>
@@ -1202,10 +1428,38 @@ function CommentBody({ comment, names }: { comment: Comment; names: Record<strin
           {when(comment.createdAt)}
         </time>
         {comment.editedAt === undefined ? null : <span className={styles.eventWhen}>edited</span>}
+        {/* Named by author and time, because a screen reader hearing "Edit comment" six
+            times down a thread cannot tell which one it is on. */}
+        {editing ? null : (
+          <span className={commentStyles.rowActions}>
+            {canEdit && (
+              <IconButton
+                size="sm"
+                icon={<PencilGlyph />}
+                aria-label={`Edit comment from ${author}, ${when(comment.createdAt)}`}
+                tooltip="Edit comment"
+                onClick={onEdit}
+              />
+            )}
+            {canDelete && (
+              <IconButton
+                size="sm"
+                icon={<TrashGlyph />}
+                aria-label={`Delete comment from ${author}, ${when(comment.createdAt)}`}
+                tooltip="Delete comment"
+                onClick={onDelete}
+              />
+            )}
+          </span>
+        )}
       </div>
       {/* Markdown is shown as it was written. Rendering it is the M2 editor's job, and a
           half-implementation that handled bold but not links would be worse than neither. */}
-      <p className={styles.commentBody}>{comment.body}</p>
+      {editing ? (
+        <CommentEditor comment={comment} onDone={onDone} />
+      ) : (
+        <p className={styles.commentBody}>{comment.body}</p>
+      )}
     </article>
   );
 }
@@ -1267,10 +1521,15 @@ interface Thread {
  * writes; the query response carries neither, so preferring it would make a comment posted a
  * moment ago flicker back to its pre-edit text.
  */
-function thread(stored: readonly Comment[], fetched: readonly Comment[]): Thread[] {
+function thread(
+  stored: readonly Comment[],
+  fetched: readonly Comment[],
+  removed: ReadonlySet<UUID> = new Set(),
+): Thread[] {
   const byId = new Map<UUID, Comment>();
   for (const comment of fetched) byId.set(comment.id, comment);
   for (const comment of stored) byId.set(comment.id, comment);
+  for (const id of removed) byId.delete(id);
 
   const roots: Comment[] = [];
   const replies = new Map<UUID, Comment[]>();
@@ -1285,7 +1544,11 @@ function thread(stored: readonly Comment[], fetched: readonly Comment[]): Thread
     ) {
       continue;
     }
-    if (comment.parentId === undefined) {
+    // A reply whose parent is not here stands on its own rather than disappearing. That
+    // happens for real once a comment can be deleted: the opening line of a thread goes and
+    // the answers to it remain, and a reply filed under a root nobody renders is a row that
+    // exists on the server and nowhere on the screen.
+    if (comment.parentId === undefined || !byId.has(comment.parentId)) {
       roots.push(comment);
       continue;
     }

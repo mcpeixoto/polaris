@@ -94,7 +94,18 @@ function engineFor(store: Store) {
       return {};
     },
   );
-  return { mutate, engine: { store, mutate } as unknown as SyncEngine };
+  // `succession` and `isProvisional` are part of the engine a composer talks to: a reply
+  // asks what its parent is called now before it names it. The identity answer is the one a
+  // real engine gives for a row that was never provisional.
+  return {
+    mutate,
+    engine: {
+      store,
+      mutate,
+      succession: (id: string) => id,
+      isProvisional: () => false,
+    } as unknown as SyncEngine,
+  };
 }
 
 function Host(props: ComponentProps<typeof DescriptionEditor>) {

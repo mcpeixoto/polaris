@@ -47,6 +47,61 @@ export function DocumentDetail() {
     showing.current = { title, body };
   }, [title, body]);
 
+  /**
+   * The edit as it stands, for the exits that do not blur a field.
+   *
+   * Saving on blur made this screen inconsistent in a way no mental model survives. Clicking
+   * the "Documents" link at the top saved, because the click moves focus out of the textarea
+   * first. Browser Back did not. Reloading did not. Pressing Escape, or simply stopping
+   * typing and walking away, did not. So the rule was neither "an explicit Save is the only
+   * thing that counts" nor "your work is kept" — it was "clicking away saves and everything
+   * else throws it out", which cannot be learned and cannot be relied on.
+   *
+   * Resolved towards keeping the work, because that is what the rest of the product already
+   * does: an issue title and an issue description are both saved when the screen goes away
+   * without a blur, and a document is the surface where somebody is *most* likely to have
+   * written something that exists nowhere else. Save stays, and still means "send it now";
+   * it stops being the only thing that ever sends it.
+   */
+  const pending = useRef<{
+    id: string;
+    title: string;
+    body: string;
+    stored: string;
+    dirty: boolean;
+  } | null>(null);
+  useEffect(() => {
+    pending.current =
+      document === null
+        ? null
+        : { id: document.id, title, body, stored: document.title, dirty: titleDirty || bodyDirty };
+  }, [document, title, body, titleDirty, bodyDirty]);
+
+  useEffect(() => {
+    const flush = () => {
+      const edit = pending.current;
+      pending.current = null;
+      if (edit === null || !edit.dirty) return;
+      // A blank title cannot be saved, and on this path there is nobody to tell: refusing
+      // outright would take the body down with it, which is the larger loss by far. The
+      // title the document already had is the honest stand-in — it is exactly what the
+      // on-screen refusal leaves in place.
+      const next = edit.title.trim() === '' ? edit.stored : edit.title.trim();
+      updateDocument(engine, { id: edit.id, title: next, body: edit.body }).catch(() => {
+        // The screen is going. A refusal here has nowhere to be shown, and the write is in
+        // the outbox if it was merely the network.
+      });
+    };
+    const onHidden = () => {
+      if (globalThis.document.visibilityState === 'hidden') flush();
+    };
+    globalThis.document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      globalThis.document.removeEventListener('visibilitychange', onHidden);
+      flush();
+    };
+  }, [engine]);
+
   // Adopt what the store says — but never over the top of an unsaved edit to the field it
   // would land in. Any change to this document re-runs the effect, including one that
   // touches a field nobody here is typing in, and a teammate renaming the document used to

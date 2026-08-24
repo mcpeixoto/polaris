@@ -62,9 +62,14 @@ const (
 const (
 	// APIKeyScopeRead permits every read its owner could perform.
 	APIKeyScopeRead = "read"
-	// APIKeyScopeWrite permits the mutations too. It implies APIKeyScopeRead, expanded at
-	// creation rather than interpreted at check time, so the listing shows exactly what the
-	// key can do and no future check has to remember the implication.
+	// APIKeyScopeWrite permits the day-to-day mutations too. It implies APIKeyScopeRead,
+	// expanded at creation rather than interpreted at check time, so the listing shows
+	// exactly what the key can do and no future check has to remember the implication.
+	//
+	// It stops short of administering the workspace: graph.adminMutations is the list, and
+	// it is what makes the dialog's Read / Write / Admin an actual ordering. Before it,
+	// `write` reached every mutation there is, including createApiKey — so a Write key
+	// could mint an unscoped one and be Admin a request later.
 	APIKeyScopeWrite = "write"
 	// APIKeyScopeAdmin is an unrestricted key — the same reach as its owner's session and
 	// nothing beyond it. authz.Principal.HasScope already treats it as the wildcard.

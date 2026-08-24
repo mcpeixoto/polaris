@@ -34,6 +34,7 @@ import {
   removeFavorite,
   renameFavoriteFolder,
 } from '~/features/view/mutations';
+import { byOrderKey, byOrderKeyThen } from '~/store';
 import type { Document, Favorite, Store, Team, UUID, View } from '~/store';
 
 import { useWorkspaceSession } from './Boot';
@@ -1687,7 +1688,7 @@ interface FavoriteNav {
 function favoriteNav(store: Store, userId: UUID): FavoriteNav {
   const ordered = [...store.favorites.values()]
     .filter((favorite) => favorite.userId === userId)
-    .sort((a, b) => a.position.localeCompare(b.position));
+    .sort(byOrderKey('position'));
 
   const folderIds = new Set<UUID>();
   for (const favorite of ordered) {
@@ -1794,7 +1795,7 @@ function jumpViews(store: Store, userId: UUID): readonly View[] {
         view.projectId === undefined &&
         (view.ownerId === undefined || view.ownerId === userId),
     )
-    .sort((a, b) => a.position.localeCompare(b.position) || a.name.localeCompare(b.name));
+    .sort(byOrderKeyThen('position', 'name'));
 }
 
 function visibleViews(store: Store, userId: UUID): readonly View[] {
@@ -1811,7 +1812,7 @@ function visibleViews(store: Store, userId: UUID): readonly View[] {
         !favourited.has(view.id) &&
         (view.ownerId === undefined || view.ownerId === userId),
     )
-    .sort((a, b) => a.position.localeCompare(b.position) || a.name.localeCompare(b.name));
+    .sort(byOrderKeyThen('position', 'name'));
 }
 
 /**

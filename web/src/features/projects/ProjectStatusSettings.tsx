@@ -15,6 +15,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useEngine } from '~/app/context';
 import { Badge, Button, IconButton, Input, Select, StateIcon } from '~/components';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { byOrderKey } from '~/store';
 import type { ProjectStatus, ProjectStatusCategory, StateCategory, Store } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from '~/views/TeamSettings.module.css';
@@ -65,7 +66,7 @@ export function ProjectStatusSettings() {
     (store: Store) =>
       [...store.projectStatuses.values()]
         .filter((status) => status.archivedAt === undefined)
-        .sort((a, b) => a.position.localeCompare(b.position)),
+        .sort(byOrderKey('position')),
     ['projectStatus'],
   );
 

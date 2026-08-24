@@ -25,6 +25,7 @@ import {
   ARCHIVE_ISSUE,
   CREATE_COMMENT,
   CREATE_ISSUE,
+  DELETE_COMMENT,
   DELETE_ISSUE,
   RESOLVE_COMMENT,
   UPDATE_COMMENT,
@@ -363,15 +364,39 @@ export interface NewComment {
   readonly quote?: string | undefined;
 }
 
-/** Posts a comment, appearing under the issue before the request leaves. See `createIssue`. */
+/**
+ * What a reply is refused with while the comment it answers is still a stand-in.
+ *
+ * Exported so a composer can tell this apart from the server's own refusals: this one is
+ * temporary, it clears itself within a round trip, and "try again" is a real instruction
+ * rather than a polite way of saying no.
+ */
+export const UNSETTLED_PARENT =
+  'The comment you are replying to is still being saved. Try again in a moment.';
+
+/**
+ * Posts a comment, appearing under the issue before the request leaves. See `createIssue`.
+ *
+ * A reply names its parent by id, and for the length of a round trip after that parent was
+ * posted the only id anything here has for it is the one this client invented. Sending that
+ * gets `no such comment` back, which rolls the reply out of the replica — so it is caught
+ * here instead, before a composer has cleared itself on the assumption that the write went
+ * out. `engine.succession` covers the far more common half of it: the parent has settled and
+ * the caller is simply still holding the old id, which is not a refusal at all, just a name
+ * that has moved on.
+ */
 export async function postComment(engine: SyncEngine, input: NewComment): Promise<void> {
   const store = engine.store;
+  const parentId = input.parentId === undefined ? undefined : engine.succession(input.parentId);
+  if (parentId !== undefined && engine.isProvisional(parentId)) {
+    throw new ApiError('CONFLICT', UNSETTLED_PARENT);
+  }
   const now = new Date().toISOString();
   const provisional: Comment = {
     id: uuidv7(),
     workspaceId: store.workspaceId,
     issueId: input.issueId,
-    parentId: input.parentId,
+    parentId,
     body: input.body,
     actor: input.authorId === undefined ? { type: 'user' } : { type: 'user', id: input.authorId },
     anchorStart: input.anchorStart,
@@ -388,7 +413,7 @@ export async function postComment(engine: SyncEngine, input: NewComment): Promis
         input: {
           issueId: input.issueId,
           body: input.body,
-          ...(input.parentId === undefined ? null : { parentId: input.parentId }),
+          ...(parentId === undefined ? null : { parentId }),
           ...(input.quote === undefined
             ? null
             : {
@@ -422,6 +447,9 @@ export async function editComment(engine: SyncEngine, id: UUID, body: string): P
   const before = engine.store.get('comment', id);
   if (before === undefined || before.body === body) return;
   const now = new Date().toISOString();
+  // `editedAt` is set here as well as by the server, so the "edited" marker appears on the
+  // same frame as the new text. The server stamps its own `edited_at` in the same statement
+  // that writes the body, so the delta that follows agrees with this rather than clearing it.
   const after: Comment = { ...before, body, editedAt: now, updatedAt: now };
 
   await engine.mutate({
@@ -429,6 +457,35 @@ export async function editComment(engine: SyncEngine, id: UUID, body: string): P
     variables: { id, body },
     optimistic: [{ type: 'comment', id, before, after }],
   });
+}
+
+/**
+ * Takes a comment back.
+ *
+ * The row is removed from the replica before the request leaves, so the thread closes over
+ * it immediately; `engine.mutate` puts it back if the server refuses. Deletion is the one
+ * comment write that is not strictly author-only — an admin may remove somebody else's
+ * words, because a comment is visible to the whole team and can be abusive — but an admin
+ * may not rewrite them. See `authz.CanEditOwnContent`.
+ *
+ * Replies are deliberately left alone. They are other people's sentences, and deleting my
+ * opening line is not a decision about theirs; the thread view promotes an orphaned reply
+ * to a root rather than hiding it.
+ */
+export async function deleteComment(engine: SyncEngine, id: UUID): Promise<void> {
+  const before = engine.store.get('comment', id);
+  if (before === undefined) return;
+
+  try {
+    await engine.mutate({
+      mutation: DELETE_COMMENT,
+      variables: { id },
+      optimistic: [{ type: 'comment', id, before, after: null }],
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
 }
 
 export async function resolveComment(
