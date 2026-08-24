@@ -52,6 +52,7 @@ import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 import { withAutoAssignOnStart } from './auto-assign';
 import {
+  BULK_UPDATE_ISSUES,
   CREATE_ISSUE_RELATION,
   CREATE_SUB_ISSUE,
   DELETE_ISSUE_RELATION,
@@ -241,32 +242,31 @@ export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<
 }
 
 /**
- * Applies the same change to every issue given, as one mutation each.
+ * The write one issue in a selection actually needs, or null when it needs none.
  *
- * There is no bulk mutation in the API and there deliberately should not be: a partial
- * failure over fifty issues has to be reportable per issue, and an "update issues" endpoint
- * that half-succeeds is a transaction nobody can retry. Fifty ops carry fifty opIds, so a
- * replay after a dropped connection applies each exactly once.
+ * Split out because `updateIssues` has to know each issue's answer *before* it can decide
+ * how many mutations to send: `withAutoAssignOnStart` fires only on an issue nobody owns,
+ * so one selection can resolve into two different field sets, and an issue whose values
+ * already match must not be in either.
  */
-export function updateIssues(
-  engine: SyncEngine,
-  ids: readonly UUID[],
-  fields: IssueFields,
-  viewerId?: UUID | null,
-): Promise<void> {
-  return all(ids.map((id) => updateIssue(engine, id, fields, viewerId)));
+interface IssueWrite {
+  readonly id: UUID;
+  readonly before: Issue;
+  readonly after: Issue;
+  /** `fields` with auto-assign resolved. This, not the caller's, is what goes on the wire. */
+  readonly fields: IssueFields;
 }
 
-export async function updateIssue(
-  engine: SyncEngine,
+function planUpdate(
+  store: Store,
   id: UUID,
   fields: IssueFields,
-  viewerId?: UUID | null,
-): Promise<void> {
-  const before = engine.store.get('issue', id);
-  if (before === undefined) return;
+  viewerId: UUID | null,
+): IssueWrite | null {
+  const before = store.get('issue', id);
+  if (before === undefined) return null;
 
-  const next = withAutoAssignOnStart(engine.store, id, fields, viewerId ?? null);
+  const next = withAutoAssignOnStart(store, id, fields, viewerId);
 
   const after: Issue = unsnooze({
     ...before,
@@ -285,13 +285,175 @@ export async function updateIssue(
       : { cycleId: next.cycleId === null ? undefined : next.cycleId }),
     updatedAt: new Date().toISOString(),
   });
-  if (sameIssue(before, after)) return;
+  if (sameIssue(before, after)) return null;
 
-  await engine.mutate({
+  return { id, before, after, fields: next };
+}
+
+/**
+ * The same change over a whole selection, as `bulkUpdateIssues` wants it — or null when
+ * this change is not one that mutation can express.
+ *
+ * `BulkUpdateIssuesInput` is deliberately narrower than `UpdateIssueInput`: no title, no
+ * description, no project and no cycle. Title and description are edits to one issue by
+ * definition; project and cycle simply are not on the input yet. Anything this returns null
+ * for falls back to one `updateIssue` per row, which is what the whole selection used to do.
+ */
+function bulkInputOf(fields: IssueFields): Record<string, unknown> | null {
+  if (fields.title !== undefined) return null;
+  if (fields.description !== undefined) return null;
+  if (fields.projectId !== undefined) return null;
+  if (fields.cycleId !== undefined) return null;
+
+  const input: Record<string, unknown> = {
+    ...(fields.stateId === undefined ? null : { stateId: fields.stateId }),
+    ...(fields.priority === undefined ? null : { priority: fields.priority }),
+    ...(fields.assigneeId === undefined
+      ? null
+      : fields.assigneeId === null
+        ? { clearAssignee: true }
+        : { assigneeId: fields.assigneeId }),
+  };
+  return Object.keys(input).length === 0 ? null : input;
+}
+
+/**
+ * How many issues one `bulkUpdateIssues` covers, and the reason the number is not larger.
+ *
+ * The server refuses a batch over `maxBulkIssues` (500, see services/internal/domain/
+ * issue_bulk.go) because the whole path holds the workspace version lock for the length of
+ * one transaction, and an unbounded selection turns one click into a workspace-wide stall.
+ * Chunking here rather than letting the call fail means "select all" in a large view still
+ * works, at the cost of one version block per chunk — which is two hundred fewer than what
+ * this used to send for two hundred issues.
+ */
+const BULK_CHUNK = 500;
+
+/**
+ * Applies the same change to every issue given, in as few writes as the API allows.
+ *
+ * It used to send one `updateIssue` per issue, and the comment here used to say that was
+ * deliberate because no bulk mutation existed. Both halves were wrong. `bulkUpdateIssues`
+ * has been in the schema since M1 opened, it answers the partial-failure worry directly — it
+ * skips what it cannot touch and returns the ids with a reason, rather than failing the
+ * batch — and the loop it replaced was quietly costing the product an M1 acceptance
+ * criterion: every `updateIssue` mints its own version block, the notification engine groups
+ * an inbox row by that block, so a watcher of two hundred bulk-edited issues got two hundred
+ * inbox rows instead of one row saying "and 199 others".
+ *
+ * What still goes one at a time, and why:
+ *
+ *   - a change `bulkInputOf` cannot express (title, description, project, cycle);
+ *   - a selection that resolves to a single write, where a batch would only add a wrapper;
+ *   - the *other* half of a selection when `autoAssignOnStart` applies to some rows and not
+ *     others — those are two different writes and are sent as two batches, not flattened
+ *     into one that would take work off whoever already owns it.
+ */
+export async function updateIssues(
+  engine: SyncEngine,
+  ids: readonly UUID[],
+  fields: IssueFields,
+  viewerId?: UUID | null,
+): Promise<void> {
+  const batches = new Map<string, IssueWrite[]>();
+  for (const id of ids) {
+    const write = planUpdate(engine.store, id, fields, viewerId ?? null);
+    if (write === null) continue;
+    // Keyed on the wire form rather than on the field object, so two rows that resolve to
+    // the same write share a batch however they got there. `updateInputOf` builds its keys
+    // in a fixed order, which is what makes the string stable.
+    const key = JSON.stringify(updateInputOf(write.fields));
+    const batch = batches.get(key);
+    if (batch === undefined) batches.set(key, [write]);
+    else batch.push(write);
+  }
+
+  const work: Promise<unknown>[] = [];
+  for (const batch of batches.values()) {
+    const first = batch[0];
+    if (first === undefined) continue;
+    const input = batch.length > 1 ? bulkInputOf(first.fields) : null;
+    if (input === null) {
+      for (const write of batch) work.push(sendUpdate(engine, write));
+      continue;
+    }
+    for (let at = 0; at < batch.length; at += BULK_CHUNK) {
+      work.push(sendBulkUpdate(engine, batch.slice(at, at + BULK_CHUNK), input));
+    }
+  }
+  return all(work);
+}
+
+export async function updateIssue(
+  engine: SyncEngine,
+  id: UUID,
+  fields: IssueFields,
+  viewerId?: UUID | null,
+): Promise<void> {
+  const write = planUpdate(engine.store, id, fields, viewerId ?? null);
+  if (write === null) return;
+  await sendUpdate(engine, write);
+}
+
+function sendUpdate(engine: SyncEngine, write: IssueWrite): Promise<unknown> {
+  return engine.mutate({
     mutation: UPDATE_ISSUE,
-    variables: { input: { id, ...updateInputOf(next) } },
-    optimistic: [{ type: 'issue', id, before, after }],
+    variables: { input: { id: write.id, ...updateInputOf(write.fields) } },
+    optimistic: [{ type: 'issue', id: write.id, before: write.before, after: write.after }],
   });
+}
+
+/**
+ * One `bulkUpdateIssues` for a batch that resolved to the same write.
+ *
+ * The optimistic patch carries every row, which is what makes a bulk edit feel the same as
+ * it did when it was N mutations: the list re-renders in the frame, the outbox holds the one
+ * op, and a reload taken mid-flight replays it under the same `opId` — so the server's
+ * idempotency table answers with the original result rather than editing twice.
+ *
+ * `skipped` is the part a single-issue update has no equivalent for. The server applies what
+ * it can and names what it would not, so the rows it refused are still sitting on screen
+ * wearing an optimistic value no delta is coming to correct. `revertOptimistic` puts exactly
+ * those back, and only where the row still looks as this patch left it — a delta or a later
+ * edit that has moved it on is already the truth.
+ *
+ * The one case it cannot cover is a reload taken between the request and the response: the
+ * outbox replays the op but nothing is left holding this closure, so a skipped row keeps its
+ * optimistic value until the next bootstrap. That is the same gap every `await`-time
+ * correction in this file has, and it is bounded — the value is wrong on one client until it
+ * resyncs, not written anywhere.
+ */
+async function sendBulkUpdate(
+  engine: SyncEngine,
+  batch: readonly IssueWrite[],
+  input: Record<string, unknown>,
+): Promise<void> {
+  const optimistic: EntityPatch[] = batch.map((write) => ({
+    type: 'issue',
+    id: write.id,
+    before: write.before,
+    after: write.after,
+  }));
+
+  const data = await engine.mutate<{
+    bulkUpdateIssues: { skipped: readonly { id: UUID; reason: string }[] };
+  }>({
+    mutation: BULK_UPDATE_ISSUES,
+    variables: { input: { ids: batch.map((write) => write.id), ...input } },
+    optimistic,
+  });
+
+  const skipped = data.bulkUpdateIssues.skipped;
+  if (skipped.length === 0) return;
+  const refused = new Set(skipped.map((entry) => entry.id));
+  engine.store.revertOptimistic(optimistic.filter((entry) => refused.has(entry.id)));
+  // Not `report`: nothing failed. The server did most of the edit and declined part of it,
+  // with a reason per id, and the rows it declined have just been put back. M1 has no toast
+  // host that can say "forty-eight of fifty moved", so the console is where the reason goes.
+  console.warn(
+    `[polaris] a bulk edit skipped ${String(skipped.length)} of ${String(batch.length)} issues`,
+    skipped,
+  );
 }
 
 /**

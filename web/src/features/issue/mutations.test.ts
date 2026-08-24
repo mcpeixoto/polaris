@@ -32,11 +32,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { setRole } from '~/features/members/mutations';
 import { createStatus } from '~/features/team/mutations';
-import { Store, type Change, type Entity, type Reconciliation } from '~/store';
+import {
+  Store,
+  type Change,
+  type Entity,
+  type OptimisticPatch,
+  type Reconciliation,
+} from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 import { settle } from '~/sync/reconcile';
 
-import { createIssue, createRelation } from './mutations';
+import { createIssue, createRelation, updateIssues } from './mutations';
+
+/**
+ * The one device preference these mutations read, held where a test can move it.
+ *
+ * `getPrefs` reads `localStorage`, and vitest's jsdom does not provide a working one — a
+ * `setPrefs` call in a test is silently a no-op, which would make the auto-assign case below
+ * pass for the wrong reason. Mocking the module is what makes the preference an input to the
+ * test rather than an accident of the environment; everything else in the module is the real
+ * thing, so no other caller changes behaviour.
+ */
+const prefs = vi.hoisted(() => ({ autoAssignOnStart: false }));
+vi.mock('~/features/prefs/prefs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~/features/prefs/prefs')>();
+  return { ...actual, getPrefs: () => ({ ...actual.getPrefs(), ...prefs }) };
+});
 
 const WORKSPACE = '01900000-0000-7000-8000-000000000001';
 const TEAM = '01900000-0000-7000-8000-000000000002';
@@ -349,5 +370,172 @@ describe('createIssue', () => {
     // the null had been persisted to IndexedDB.
     expect(store.index.active().has(id)).toBe(true);
     expect(store.index.byTeam(TEAM).has(id)).toBe(true);
+  });
+});
+
+/**
+ * `updateIssues` and the reason it is not a loop any more.
+ *
+ * It sent one `updateIssue` per selected issue, and the comment above it said no bulk
+ * mutation existed. One had existed since M1 opened, and the loop was quietly costing the
+ * product acceptance test 8 in docs/07-milestones/01-milestone-1.md: every `updateIssue`
+ * mints its own version block, the notification engine derives an inbox row's group key from
+ * that block, so a watcher of two hundred issues moved in one action got two hundred inbox
+ * rows rather than one saying "and 199 others". The server had the coalescing; nothing ever
+ * called the mutation that would let it happen.
+ *
+ * These pin the four decisions that make batching safe to do from a click handler.
+ */
+describe('updateIssues', () => {
+  const OTHER_STATE = '01900000-0000-7000-8000-0000000000f1';
+  const STARTED_STATE = '01900000-0000-7000-8000-0000000000f2';
+  const PROJECT = '01900000-0000-7000-8000-0000000000f3';
+
+  function withStates(): Store {
+    const store = seeded();
+    const base = {
+      workspaceId: WORKSPACE,
+      teamId: TEAM,
+      isDefault: false,
+      isSystem: false,
+      createdAt: AT,
+      updatedAt: AT,
+    };
+    store.applyChanges([
+      {
+        v: 90,
+        type: 'workflowState',
+        id: OTHER_STATE,
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: { ...base, id: OTHER_STATE, name: 'Done', category: 'completed', position: 'W' },
+      },
+      {
+        v: 91,
+        type: 'workflowState',
+        id: STARTED_STATE,
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: {
+          ...base,
+          id: STARTED_STATE,
+          name: 'In Progress',
+          category: 'started',
+          position: 'X',
+        },
+      },
+    ] as Change[]);
+    return store;
+  }
+
+  /**
+   * A `mutate` that applies the optimistic patch the way the real engine does.
+   *
+   * Without it the store never moves, and every assertion about what the user sees in the
+   * frame they pressed the key in would be asserting on the seed.
+   */
+  function mutateInto(store: Store, response: unknown): ReturnType<typeof vi.fn> {
+    return vi.fn((input: { optimistic?: OptimisticPatch }) => {
+      if (input.optimistic !== undefined) store.applyOptimistic(input.optimistic);
+      return Promise.resolve(response);
+    });
+  }
+
+  function engineWith(store: Store, mutate: ReturnType<typeof vi.fn>): SyncEngine {
+    return { store, mutate } as unknown as SyncEngine;
+  }
+
+  it('sends one bulkUpdateIssues for a selection rather than one write each', async () => {
+    const store = withStates();
+    const mutate = mutateInto(store, { bulkUpdateIssues: { skipped: [] } });
+
+    await updateIssues(engineWith(store, mutate), [ISSUE_A, ISSUE_B], { stateId: OTHER_STATE });
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate.mock.calls[0]?.[0].variables).toEqual({
+      input: { ids: [ISSUE_A, ISSUE_B], stateId: OTHER_STATE },
+    });
+    // Still optimistic, and for every row: a batch is what the user sees in the frame they
+    // pressed the key in, not what they see when the response lands.
+    expect(store.get('issue', ISSUE_A)?.stateId).toBe(OTHER_STATE);
+    expect(store.get('issue', ISSUE_B)?.stateId).toBe(OTHER_STATE);
+  });
+
+  it('takes back only the rows the server said it skipped', async () => {
+    const store = withStates();
+    const mutate = mutateInto(store, {
+      bulkUpdateIssues: { skipped: [{ id: ISSUE_B, reason: 'no such issue' }] },
+    });
+
+    await updateIssues(engineWith(store, mutate), [ISSUE_A, ISSUE_B], { stateId: OTHER_STATE });
+
+    // A skipped id gets no delta, so nothing else is ever coming to correct it. Without the
+    // revert the row sits there wearing a status the server refused to give it, until the
+    // next bootstrap.
+    expect(store.get('issue', ISSUE_A)?.stateId).toBe(OTHER_STATE);
+    expect(store.get('issue', ISSUE_B)?.stateId).toBe(STATE);
+  });
+
+  it('splits the selection when auto-assign applies to some of it and not the rest', async () => {
+    const store = withStates();
+    // ISSUE_B already has an owner; ISSUE_A has none. Moving both into a started status with
+    // the habit switched on is two different writes, and flattening them into one would take
+    // ISSUE_B away from whoever holds it.
+    store.applyChanges([
+      {
+        v: 92,
+        type: 'issue',
+        id: ISSUE_B,
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: { ...(store.get('issue', ISSUE_B) as object), assigneeId: USER },
+      },
+    ] as Change[]);
+    prefs.autoAssignOnStart = true;
+
+    const mutate = mutateInto(store, { bulkUpdateIssues: { skipped: [] } });
+    await updateIssues(
+      engineWith(store, mutate),
+      [ISSUE_A, ISSUE_B],
+      { stateId: STARTED_STATE },
+      USER,
+    );
+
+    // Two batches of one, so two single-issue writes. Neither is a bulk call, because a
+    // batch of one is a wrapper around a write that already exists.
+    expect(mutate.mock.calls.map((call) => call[0].variables)).toEqual([
+      { input: { id: ISSUE_A, stateId: STARTED_STATE, assigneeId: USER } },
+      { input: { id: ISSUE_B, stateId: STARTED_STATE } },
+    ]);
+  });
+
+  it('falls back to one write each for a field the bulk input cannot express', async () => {
+    const store = withStates();
+    const mutate = mutateInto(store, {});
+
+    // `BulkUpdateIssuesInput` carries no project, so this is still N mutations —
+    // deliberately, rather than silently dropping the field on the floor.
+    await updateIssues(engineWith(store, mutate), [ISSUE_A, ISSUE_B], { projectId: PROJECT });
+
+    expect(mutate.mock.calls.map((call) => call[0].variables)).toEqual([
+      { input: { id: ISSUE_A, projectId: PROJECT } },
+      { input: { id: ISSUE_B, projectId: PROJECT } },
+    ]);
+  });
+
+  it('leaves out the issues the change would not move, and writes nothing for none', async () => {
+    const store = withStates();
+    const mutate = mutateInto(store, { bulkUpdateIssues: { skipped: [] } });
+    const engine = engineWith(store, mutate);
+
+    // Both are already in STATE. Sending them would bump two versions and wake every client
+    // in the workspace to deliver a change that changed nothing.
+    await updateIssues(engine, [ISSUE_A, ISSUE_B], { stateId: STATE });
+    expect(mutate).not.toHaveBeenCalled();
+
+    await updateIssues(engine, [ISSUE_A, ISSUE_B], { priority: 2 });
+    expect(mutate.mock.calls[0]?.[0].variables).toEqual({
+      input: { ids: [ISSUE_A, ISSUE_B], priority: 2 },
+    });
   });
 });

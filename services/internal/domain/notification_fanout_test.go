@@ -63,6 +63,13 @@ func TestFanOut_BulkEditGivesEachSubscriberExactlyOneRow(t *testing.T) {
 	// somebody selects two hundred issues and presses a key, and the fan-out is only the
 	// second half of that — timing it alone would let the edit itself regress to thirty
 	// seconds with the budget still reported as met.
+	//
+	// Scaled for the running binary rather than compared against the product's number in
+	// every build. CI runs this under -race on a shared runner, where the same unchanged
+	// code takes anywhere from 0.9 s to 6.1 s; the measurements and the reasoning are in
+	// testutil.Budget. The assertions below this one are the ones that actually prove the
+	// criterion, and they do not move.
+	budget := testutil.PerfBudget(2 * time.Second)
 	start := time.Now()
 	_, skipped, _, err := svc.BulkUpdateIssues(ctx, alice, domain.BulkUpdateIssuesInput{
 		IDs: ids, StateID: &f.InProgress,
@@ -81,12 +88,15 @@ func TestFanOut_BulkEditGivesEachSubscriberExactlyOneRow(t *testing.T) {
 	}
 	total := time.Since(start)
 
-	t.Logf("bulk edit of %d issues took %s; fan-out to %d subscribers took %s; total %s (budget 2s); %d deliveries",
-		issues, edited, 2, total-edited, total, delivered)
+	// Logged unconditionally, and on purpose: a run that creeps from 0.3 s to 1.9 s is
+	// inside the ceiling and is still the thing somebody wants to see in the CI output
+	// before it becomes a failure.
+	t.Logf("bulk edit of %d issues took %s; fan-out to %d subscribers took %s; total %s (budget %s); %d deliveries",
+		issues, edited, 2, total-edited, total, budget, delivered)
 
-	if total > 2*time.Second {
-		t.Errorf("editing %d issues and fanning out took %s, over the 2s budget "+
-			"(edit %s, fan-out %s)", issues, total, edited, total-edited)
+	if budget.Exceeded(total) {
+		t.Errorf("editing %d issues and fanning out took %s, over the %s budget "+
+			"(edit %s, fan-out %s)", issues, total, budget, edited, total-edited)
 	}
 
 	// The criterion itself, one recipient at a time.
