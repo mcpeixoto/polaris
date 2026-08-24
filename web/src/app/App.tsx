@@ -259,14 +259,15 @@ function SignedInShell() {
         <Route path="/project/:projectId/documents" element={<Documents />} />
         <Route path="/document/:documentId" element={<DocumentDetail />} />
         <Route path="/cycle/:cycleId" element={<CycleDetail />} />
-        <Route
-          path="/settings"
-          element={
-            <AdminOnly>
-              <WorkspaceSettings />
-            </AdminOnly>
-          }
-        />
+        {/*
+          The door into settings, and the only route here that belongs to no screen.
+
+          It used to render the workspace general form, which is admin-only — so a member
+          following `G S`, or the Settings entry in the workspace menu, arrived at "Only
+          admins can open this". Profile is the one settings page every role has, including
+          a guest, so that is where the mode opens.
+        */}
+        <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
         <Route
           path="/settings/workspace"
           element={

@@ -17,7 +17,25 @@
  * than one id — so "deleted three, undid three" was a path nothing had ever run.
  */
 
+import type { Page } from '@playwright/test';
+
 import { createIssueViaApi, expect, openTeamList, signIn, test } from './fixtures';
+
+/**
+ * Opens the trash the way a person now does: workspace menu → Settings → Data → Trash.
+ *
+ * Three clicks rather than the one sidebar link this used to be, because Trash moved into the
+ * settings mode with the other twenty-seven settings screens. Every step is client-side, and
+ * that is the part that matters here rather than the number of them: `SyncEngine.mutate`
+ * persists the op to IndexedDB *asynchronously* after the optimistic patch, so a `page.goto`
+ * issued in the same tick as the delete tears the document down inside that window and takes
+ * the intent with it.
+ */
+async function openTrash(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Workspace menu' }).click();
+  await page.getByRole('menuitem', { name: /^Settings/ }).click();
+  await page.getByRole('link', { name: 'Trash', exact: true }).click();
+}
 
 test.describe('deleting an issue', () => {
   test('the undo toast puts it straight back', async ({ page, workspace }) => {
@@ -59,12 +77,9 @@ test.describe('deleting an issue', () => {
       .click();
     await expect(page).toHaveURL(new RegExp(`/team/${workspace.teamKey}$`));
 
-    // Through the sidebar rather than `page.goto`, because that is what a person does and
-    // because a hard navigation here would be testing something else. `SyncEngine.mutate`
-    // persists the op to IndexedDB *asynchronously* after the optimistic patch, so a document
-    // teardown inside that window takes the intent with it — see the note in the report; a
-    // `goto` issued in the same tick as the click loses the delete outright.
-    await page.getByRole('link', { name: 'Trash', exact: true }).click();
+    // Navigated rather than `page.goto`, because that is what a person does and because a
+    // hard navigation here would be testing something else — see `openTrash`.
+    await openTrash(page);
     await expect(page.getByRole('rowheader', { name: /Deleted then restored/ })).toBeVisible({
       timeout: 20_000,
     });
@@ -140,7 +155,7 @@ test.describe('deleting from a list', () => {
     await confirm.getByRole('button', { name: `Delete ${issue.identifier}` }).click();
     await expect(page.getByText('Chord deleted')).toBeHidden();
 
-    await page.getByRole('link', { name: 'Trash', exact: true }).click();
+    await openTrash(page);
     const row = page.getByRole('row').filter({ hasText: 'Chord deleted' });
     await expect(row).toBeVisible({ timeout: 20_000 });
     // Who put it here and when, both of which the screen used to say it could not know.

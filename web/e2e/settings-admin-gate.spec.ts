@@ -83,7 +83,17 @@ async function join(page: Page, email: string, token: string, name: string): Pro
   });
 }
 
+/**
+ * Settings is a mode, so the settings navigation only exists on a settings route.
+ *
+ * It used to be twenty-eight rows at the bottom of the workspace sidebar, readable from any
+ * screen; the shell now swaps one `<nav>` for the other. Which means this has to be standing
+ * inside settings to read it — the entry point every role has is Profile, so that is the
+ * door it opens.
+ */
 async function expectNav(page: Page, paths: readonly string[], count: 0 | 1): Promise<void> {
+  await page.goto('/settings/profile');
+  await expect(page.getByRole('navigation', { name: 'Settings' })).toBeVisible();
   for (const path of paths) {
     await expect(
       page.locator(`nav a[href="${path}"]`),
@@ -96,8 +106,12 @@ test('an admin keeps the whole of settings', async ({ page, workspace }) => {
   // The account that creates a workspace is its owner, so this is the admin case — the test
   // this replaces called it "a member" and asserted exactly the bug.
   await signIn(page, workspace.account);
-  await page.goto('/my-issues');
   await expectNav(page, [...OWN_SETTINGS, ...MEMBER_SETTINGS, ...ADMIN_SETTINGS], 1);
+
+  // And none of it in the workspace sidebar, which is the point of the mode: the settings
+  // rows outnumbered everything else in the navigation people actually use.
+  await page.goto('/my-issues');
+  await expect(page.locator('nav a[href^="/settings"]')).toHaveCount(0);
 
   await page.goto('/settings/webhooks');
   await expect(page.getByRole('heading', { name: 'Webhooks', level: 1 })).toBeVisible();
@@ -123,7 +137,9 @@ test('a member gets their own settings and none of the administration', async ({
 
   await expectNav(member, ADMIN_SETTINGS, 0);
   await expectNav(member, [...OWN_SETTINGS, ...MEMBER_SETTINGS], 1);
-  // Initiatives are workspace-wide but not administration: a member keeps them.
+  // Initiatives are workspace-wide but not administration: a member keeps them. Read from
+  // the workspace sidebar, which is the nav it lives in.
+  await member.goto('/my-issues');
   await expect(member.locator('nav a[href="/initiatives"]')).toHaveCount(1);
 
   // Typed in by hand, which is how somebody who saw the entry in a screen share gets here.
