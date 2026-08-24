@@ -19,7 +19,7 @@
 
 import type { Browser, ConsoleMessage, Page } from '@playwright/test';
 
-import { expect, signIn, test, type SeededWorkspace } from './fixtures';
+import { expect, openTeamList, signIn, test, type SeededWorkspace } from './fixtures';
 
 /** Every red line the browser drew, in order. */
 function watchErrors(page: Page): string[] {
@@ -116,8 +116,10 @@ test('a session that really expired is still reported', async ({ page, workspace
   const auth = watchAuthCalls(page);
 
   await signIn(page, workspace.account);
-  await page.goto(`/team/${workspace.teamKey}`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  // openTeamList rather than waiting on the listbox: a team with no issues in it draws its
+  // empty state instead of a list, so the listbox is the wrong thing to wait for on a
+  // freshly seeded workspace. That became true in #132 and is what this wait predates.
+  await openTeamList(page, workspace.teamKey);
 
   // Revoke the session the way a server-side sign-out or an expiry does: the refresh
   // cookie stops working, while this browser still has every reason to believe it is
