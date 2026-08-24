@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { csvEscape, exportCap, exportCapNote, toCsv } from './csv';
+import { csvEscape, csvGuard, downloadCsv, exportCap, exportCapNote, toCsv } from './csv';
 
 describe('csvEscape', () => {
   it('quotes commas, quotes and newlines, and doubles inner quotes', () => {
@@ -11,10 +11,88 @@ describe('csvEscape', () => {
   });
 });
 
+describe('csvGuard', () => {
+  it('defuses the cells a spreadsheet would execute', () => {
+    expect(csvGuard('=SUM(A1:A9)')).toBe("'=SUM(A1:A9)");
+    expect(csvGuard("=SUM(A1:A9)+cmd|'/c calc'!A0")).toBe("'=SUM(A1:A9)+cmd|'/c calc'!A0");
+    expect(csvGuard('+cmd|calc')).toBe("'+cmd|calc");
+    expect(csvGuard('-2+3+cmd|calc')).toBe("'-2+3+cmd|calc");
+    expect(csvGuard('@SUM(1)')).toBe("'@SUM(1)");
+    expect(csvGuard('\t=1+1')).toBe("'\t=1+1");
+    expect(csvGuard('\r=1+1')).toBe("'\r=1+1");
+  });
+
+  it('leaves ordinary text and plain numbers exactly as they were', () => {
+    expect(csvGuard('Fix the flake')).toBe('Fix the flake');
+    expect(csvGuard('a = b')).toBe('a = b');
+    expect(csvGuard('')).toBe('');
+    expect(csvGuard('-5')).toBe('-5');
+    expect(csvGuard('-1.5')).toBe('-1.5');
+    expect(csvGuard('+3')).toBe('+3');
+    expect(csvGuard('-1e3')).toBe('-1e3');
+  });
+});
+
+describe('csvEscape', () => {
+  it('quotes a guarded cell so the apostrophe cannot be read as data', () => {
+    expect(csvEscape('=1+1')).toBe('"\'=1+1"');
+    expect(csvEscape('=HYPERLINK("http://x","go")')).toBe('"\'=HYPERLINK(""http://x"",""go"")"');
+  });
+});
+
 describe('toCsv', () => {
-  it('emits a trailing newline so the last row is a row', () => {
+  it('separates records with CRLF, as RFC 4180 and Excel both expect', () => {
     const csv = toCsv(['ID', 'Title'], [['ENG-1', 'Fix the flake']]);
-    expect(csv).toBe('ID,Title\nENG-1,Fix the flake\n');
+    expect(csv).toBe('ID,Title\r\nENG-1,Fix the flake\r\n');
+  });
+
+  it('leaves a newline inside a field alone — that one is data, not a record break', () => {
+    const csv = toCsv(['Title'], [['line\nbreak']]);
+    expect(csv).toBe('Title\r\n"line\nbreak"\r\n');
+  });
+
+  it('carries the guard through a whole row', () => {
+    const csv = toCsv(['ID', 'Title'], [['ENG-1', '=SUM(A1:A9)+cmd|calc']]);
+    expect(csv).toBe('ID,Title\r\nENG-1,"\'=SUM(A1:A9)+cmd|calc"\r\n');
+  });
+});
+
+/**
+ * The blob's actual bytes.
+ *
+ * Read as text rather than as a buffer and the BOM disappears: decoding a UTF-8 stream
+ * consumes it as the encoding signal, which is the whole point of writing it and also the
+ * reason a text-level assertion here would pass against a file that has no BOM at all.
+ */
+function readBlobBytes(blob: Blob): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+describe('downloadCsv', () => {
+  it('writes a UTF-8 BOM so Excel does not mangle accents and kanji', async () => {
+    const created: Blob[] = [];
+    const realCreate = URL.createObjectURL;
+    const realRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = ((blob: Blob) => {
+      created.push(blob);
+      return 'blob:test';
+    }) as typeof URL.createObjectURL;
+    URL.revokeObjectURL = (() => {}) as typeof URL.revokeObjectURL;
+    try {
+      downloadCsv('issues.csv', toCsv(['Title'], [['résumé 日本語']]));
+    } finally {
+      URL.createObjectURL = realCreate;
+      URL.revokeObjectURL = realRevoke;
+    }
+    expect(created).toHaveLength(1);
+    const bytes = await readBlobBytes(created[0]!);
+    expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(new TextDecoder().decode(bytes.slice(3))).toContain('résumé 日本語');
   });
 });
 
