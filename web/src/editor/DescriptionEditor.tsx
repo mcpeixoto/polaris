@@ -18,7 +18,7 @@ import {
 
 import { useActions, useKeyContext } from '~/app/keymap';
 import { useEngine } from '~/app/context';
-import { Button, Checkbox, Textarea } from '~/components';
+import { Button, Checkbox, Textarea, useNativeValue } from '~/components';
 import { postComment, report, resolveComment } from '~/features/issue/mutations';
 import { maybeExpandEmoticons } from '~/features/prefs/emoticons';
 import { exact, when } from '~/features/time';
@@ -145,6 +145,13 @@ export function DescriptionEditor({
             .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)),
     [comments, open],
   );
+
+  // The text goes in through the element rather than through a `value` prop, for the reason
+  // spelled out in components/nativeValue.ts: React rewrites a controlled textarea's text
+  // content on every commit, and that resets the browser's undo grouping to one keystroke per
+  // entry. A description is the longest thing anybody types in this product and the one where
+  // undoing a sentence matters most.
+  useNativeValue(areaRef, text);
 
   const resize = useCallback(() => {
     const element = areaRef.current;
@@ -336,7 +343,6 @@ export function DescriptionEditor({
           className={styles.input}
           aria-label="Description"
           placeholder="Add a description…"
-          value={text}
           onFocus={() => setDraft(description)}
           onChange={(event) => {
             const next = event.target.value;
