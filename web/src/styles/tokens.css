@@ -310,6 +310,15 @@
   --state-completed: var(--color-accent-500);
   --state-canceled: var(--color-neutral-500);
 
+  /* The third and last place hue means something. A relation flag is not a priority and not
+   * a workflow state, and binding it to either would mean a theme that recolours urgency
+   * silently recolours the reason an issue is stuck. Warm for "something is holding this
+   * up", red for "this is holding others up" — the direction the reader cares about is which
+   * way the arrow points, and red is the one that costs somebody else time.
+   */
+  --relation-blocked: var(--color-orange-600);
+  --relation-blocking: var(--color-red-600);
+
   --shadow-sm: 0 1px 2px var(--color-black-a08);
   --shadow-md: 0 4px 12px var(--color-black-a12), 0 1px 2px var(--color-black-a08);
   --shadow-lg: 0 16px 48px var(--color-black-a16), 0 2px 8px var(--color-black-a08);
@@ -366,6 +375,9 @@
   --state-started: var(--color-amber-400);
   --state-completed: var(--color-accent-400);
   --state-canceled: var(--color-neutral-500);
+
+  --relation-blocked: var(--color-orange-400);
+  --relation-blocking: var(--color-red-400);
 
   /* Dark surfaces separate by edge, not by shadow — a blur over near-black is invisible.
    * The hairline ring is the part that actually reads; the blur underneath it only stops
@@ -429,6 +441,9 @@
     --state-started: var(--color-amber-400);
     --state-completed: var(--color-accent-400);
     --state-canceled: var(--color-neutral-500);
+
+    --relation-blocked: var(--color-orange-400);
+    --relation-blocking: var(--color-red-400);
 
     --shadow-sm: 0 1px 2px var(--color-black-a48);
     --shadow-md: 0 0 0 1px var(--color-white-a08), 0 8px 24px var(--color-black-a64);
