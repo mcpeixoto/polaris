@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const sentryReplayWindow = 60 * time.Second
+const sentryFreshnessWindow = 60 * time.Second
 
 // SentrySignatureOK reports whether Sentry-Hook-Signature matches the HMAC of body.
 //
@@ -49,7 +49,20 @@ func SentryTokenOK(secret, header string) bool {
 	return subtle.ConstantTimeCompare([]byte(secret), []byte(header)) == 1
 }
 
-// SentryTimestampOK reports whether Sentry-Hook-Timestamp is within the replay window.
+// SentryTimestampOK reports whether Sentry-Hook-Timestamp is within the freshness window.
+//
+// This is NOT replay protection, and the previous version of this comment calling it a
+// "replay window" is most of why it looked like some. Sentry's signature is an HMAC of the
+// raw body and nothing else — the timestamp is outside the MAC — so a replayer posting a
+// captured body simply supplies today's timestamp beside it and the window is satisfied.
+// The check is an assertion about a number the caller chose. It cannot be strengthened from
+// this side either: adding the timestamp to the MAC would mean computing a signature Sentry
+// does not send, and every real delivery would start failing.
+//
+// What it is worth keeping for is the accidental case — a stuck queue, a replayed capture in
+// a test fixture, a clock that walked — where nobody is lying to us. Actual replay defence
+// is ReplayGuard in webhook_replay.go, which remembers the body digest: the body is the one
+// part of the request the signature does pin, so it is the one part a replayer cannot vary.
 //
 // An empty header is allowed: alert-rule POSTs do not send one. A present but unparsable
 // value is a miss, because treating junk as "no timestamp" would admit a replay that
@@ -68,5 +81,5 @@ func SentryTimestampOK(header string, now time.Time) bool {
 	if delta < 0 {
 		delta = -delta
 	}
-	return delta <= sentryReplayWindow
+	return delta <= sentryFreshnessWindow
 }

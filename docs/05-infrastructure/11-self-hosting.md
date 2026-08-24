@@ -231,6 +231,31 @@ escape hatch if you have put your own limiter in front.
 twice the configured limit, because each sees half the traffic and charges its own bucket.
 Halve the numbers if you run replicas, or accept the drift — but know which you are doing.
 
+### Inbound webhook replay
+
+GitHub, GitLab and Sentry all authenticate a delivery by proving **who sent it** and never
+that it is **new**. A signature over a body stays valid for as long as the secret does, so
+anyone holding a captured request — a proxy log, a mirrored error report — can post it again
+and it verifies. Replaying an old "merge request merged" delivery is enough to drag an issue
+somebody deliberately reopened back to Done.
+
+The API remembers the SHA-256 of every delivery it has handled to completion, per provider
+and per workspace, for 24 hours, and answers a repeat with `{"ok":"ignored","reason":
+"duplicate"}`. The digest is of the body because the body is the part the signature covers:
+`X-GitHub-Delivery`, `Request-ID` and `Sentry-Hook-Timestamp` are all outside the MAC and a
+replayer can set them to anything. Deliveries that **failed** are not recorded, so GitHub's
+"Redeliver" button still works.
+
+Two caveats, both deliberate:
+
+- **The set is in each process's memory**, like the rate limiter above. One `Polaris_api`
+  container — the shipped topology — is the whole system; run replicas and a replay aimed at
+  the other one is not seen. Making it durable needs a table and a migration.
+- **It is not a defence against somebody holding the shared secret.** A GitLab token or an
+  `X-Sentry-Token` travels in the header of any request they captured, so they can forge
+  fresh bodies rather than replay old ones. For those two the token *is* the security: rotate
+  it if a delivery ever leaks.
+
 ### Where secrets go
 
 Not in the repository, not in the image, and not in a compose `environment:` block.

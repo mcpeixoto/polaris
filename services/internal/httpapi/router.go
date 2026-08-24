@@ -133,12 +133,18 @@ func NewRouter(d Deps) http.Handler {
 		mux.Handle("GET /sync", d.Sync)
 	}
 
+	// One guard for all three inbound integrations. They share the same weakness — a
+	// signature or token proves the sender and never the freshness — so they share the
+	// answer rather than each growing their own.
+	replay := platform.NewReplayGuard()
+
 	github := &githubHandlers{
 		svc:       d.Service,
 		tokens:    d.Tokens,
 		cfg:       d.Config,
 		publicURL: d.Config.PublicURL,
 		secure:    !d.Config.IsDevelopment(),
+		replay:    replay,
 	}
 	// Inbound GitHub traffic is unauthenticated: the signature is the credential.
 	// Anonymous budget, because a loop of unsigned posts would otherwise be free.
@@ -147,10 +153,10 @@ func NewRouter(d Deps) http.Handler {
 	mux.Handle("GET /auth/github/start", RequireWorkspace(http.HandlerFunc(github.oauthStart)))
 	mux.Handle("GET /auth/github/callback", d.Limits.Anonymous(http.HandlerFunc(github.oauthCallback)))
 
-	gitlab := &gitlabHandlers{svc: d.Service}
+	gitlab := &gitlabHandlers{svc: d.Service, replay: replay}
 	mux.Handle("POST /webhooks/gitlab/{workspaceId}", d.Limits.Anonymous(http.HandlerFunc(gitlab.events)))
 
-	sentry := &sentryHandlers{svc: d.Service}
+	sentry := &sentryHandlers{svc: d.Service, replay: replay}
 	mux.Handle("POST /webhooks/sentry/{workspaceId}", d.Limits.Anonymous(http.HandlerFunc(sentry.events)))
 
 	slack := &slackHandlers{

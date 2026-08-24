@@ -32,6 +32,7 @@ type githubHandlers struct {
 	cfg       platform.Config
 	publicURL string
 	secure    bool
+	replay    *platform.ReplayGuard
 }
 
 func (h *githubHandlers) events(w http.ResponseWriter, r *http.Request) {
@@ -45,38 +46,58 @@ func (h *githubHandlers) events(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The signature covers the body and stays valid for as long as the secret does, so a
+	// captured delivery re-posted tomorrow verifies exactly as it did today. GitHub ships a
+	// per-delivery UUID in X-GitHub-Delivery for this, and nothing in this repository has
+	// ever read it — nor could it safely, because that header is outside the MAC and a
+	// replayer can set it to anything. The body is the part the signature pins, so the body
+	// is what gets remembered.
+	key := platform.WebhookDeliveryKey("github", "app", body)
+	if h.replay.Seen(key, time.Now()) {
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "ignored", "reason": "duplicate"})
+		return
+	}
+	if h.ingestEvent(w, r, body) {
+		h.replay.Record(key, time.Now())
+	}
+}
+
+// ingestEvent handles a verified, non-duplicate delivery and reports whether it completed.
+// False on every error path, so a delivery that failed halfway stays replayable.
+func (h *githubHandlers) ingestEvent(w http.ResponseWriter, r *http.Request, body []byte) bool {
 	event := r.Header.Get("X-GitHub-Event")
 	switch event {
 	case "ping":
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "pong"})
-		return
+		return true
 	case "pull_request":
 		parsed, err := gh.ParsePullRequest(body)
 		if err != nil {
 			writeError(w, r, platform.Validation("", "could not parse the GitHub payload"))
-			return
+			return false
 		}
 		if parsed.Installation == 0 {
 			writeJSON(w, http.StatusOK, map[string]string{"ok": "ignored"})
-			return
+			return true
 		}
 		conn, err := h.svc.GetGitHubConnectionByInstallation(r.Context(), parsed.Installation)
 		if err != nil {
 			if platform.CodeOf(err) == platform.CodeNotFound {
 				writeJSON(w, http.StatusOK, map[string]string{"ok": "ignored"})
-				return
+				return true
 			}
 			writeError(w, r, err)
-			return
+			return false
 		}
 		if _, _, err := h.svc.IngestGitHubPullRequest(r.Context(), conn.WorkspaceID, parsed.Input); err != nil {
 			writeError(w, r, err)
-			return
+			return false
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "linked"})
-		return
+		return true
 	default:
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "ignored"})
+		return true
 	}
 }
 
@@ -96,25 +117,41 @@ func (h *githubHandlers) commits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	key := platform.WebhookDeliveryKey("github-commits", workspaceID.String(), body)
+	if h.replay.Seen(key, time.Now()) {
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "ignored", "reason": "duplicate"})
+		return
+	}
+	if h.ingestCommits(w, r, workspaceID, body) {
+		h.replay.Record(key, time.Now())
+	}
+}
+
+// ingestCommits handles a verified, non-duplicate delivery and reports whether it completed.
+// False on every error path, so a delivery that failed halfway stays replayable.
+func (h *githubHandlers) ingestCommits(
+	w http.ResponseWriter, r *http.Request, workspaceID uuid.UUID, body []byte,
+) bool {
 	event := r.Header.Get("X-GitHub-Event")
 	if event == "ping" || event == "" {
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "pong"})
-		return
+		return true
 	}
 	if event != "push" {
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "ignored"})
-		return
+		return true
 	}
 	parsed, err := gh.ParsePush(body)
 	if err != nil {
 		writeError(w, r, platform.Validation("", "could not parse the GitHub payload"))
-		return
+		return false
 	}
 	if _, _, err := h.svc.IngestGitHubPush(r.Context(), workspaceID, parsed.Input); err != nil {
 		writeError(w, r, err)
-		return
+		return false
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "linked"})
+	return true
 }
 
 func (h *githubHandlers) oauthStart(w http.ResponseWriter, r *http.Request) {

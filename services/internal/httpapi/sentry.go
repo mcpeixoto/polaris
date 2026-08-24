@@ -3,6 +3,7 @@ package httpapi
 import (
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -14,7 +15,8 @@ import (
 const sentryMaxBody = 25 << 20
 
 type sentryHandlers struct {
-	svc *domain.Service
+	svc    *domain.Service
+	replay *platform.ReplayGuard
 }
 
 func (h *sentryHandlers) events(w http.ResponseWriter, r *http.Request) {
@@ -41,14 +43,36 @@ func (h *sentryHandlers) events(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verification proved who sent these bytes, not that they are new. The signature covers
+	// the body and nothing else — Sentry-Hook-Timestamp is outside the MAC, so the window
+	// VerifySentryWebhook enforces on it is a check on a value the replayer supplies — and a
+	// captured delivery therefore verifies for as long as the secret lives.
+	key := platform.WebhookDeliveryKey("sentry", workspaceID.String(), body)
+	if h.replay.Seen(key, time.Now()) {
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "ignored", "reason": "duplicate"})
+		return
+	}
+	if h.ingest(w, r, workspaceID, body) {
+		h.replay.Record(key, time.Now())
+	}
+}
+
+// ingest handles a verified, non-duplicate delivery and reports whether it completed.
+//
+// The return value is what the caller records, and it is false on every error path on
+// purpose: a delivery that failed halfway must stay replayable, or a database blip becomes a
+// dropped Sentry issue that no retry can recover.
+func (h *sentryHandlers) ingest(
+	w http.ResponseWriter, r *http.Request, workspaceID uuid.UUID, body []byte,
+) bool {
 	parsed, skip, err := sentryin.Parse(body)
 	if err != nil {
 		writeError(w, r, platform.Validation("", "could not parse the Sentry payload"))
-		return
+		return false
 	}
 	if skip != "" {
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "ignored", "reason": skip})
-		return
+		return true
 	}
 
 	result, err := h.svc.IngestSentryIssue(r.Context(), workspaceID, domain.IngestSentryIssueInput{
@@ -62,19 +86,20 @@ func (h *sentryHandlers) events(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeError(w, r, err)
-		return
+		return false
 	}
 	if result.Ignored != "" {
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "ignored", "reason": result.Ignored})
-		return
+		return true
 	}
 	if result.Issue == nil {
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "ignored"})
-		return
+		return true
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":         "created",
 		"issueId":    result.Issue.ID,
 		"identifier": result.Issue.Identifier,
 	})
+	return true
 }
