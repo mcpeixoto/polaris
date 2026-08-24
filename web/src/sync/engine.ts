@@ -15,6 +15,7 @@ import {
   dropStaleDatabases,
   Outbox,
   PolarisDB,
+  reconciliations,
   Store,
   uuidv7,
   type Change as StoreChange,
@@ -27,7 +28,7 @@ import {
 } from '~/store';
 import { ApiError, gql, setWorkspace } from './api';
 import { streamBootstrap } from './bootstrap';
-import { adopt, settle, unpairedCreates } from './reconcile';
+import { adopt, settle, unpairedCreates, type Succession } from './reconcile';
 import {
   OUTDATED_CLIENT_MESSAGE,
   clearSchemaReloadAttempt,
@@ -80,6 +81,15 @@ export interface EngineOptions {
  */
 const MAX_ATTEMPTS = 5;
 
+/**
+ * How many provisional-to-real pairings are kept.
+ *
+ * They exist for the seconds between a create being drawn and the screen learning the row's
+ * real name, so a few hundred covers any burst of creates a person can produce by hand while
+ * the map stays a fixed, small cost.
+ */
+const MAX_SUCCESSIONS = 500;
+
 /** `mutation CreateComment(...)` → `CreateComment`, so a thrown error names the call site. */
 function operationName(document: string): string {
   return /\bmutation\s+([A-Za-z0-9_]+)/.exec(document)?.[1] ?? 'a mutation';
@@ -108,6 +118,16 @@ export class SyncEngine {
   private options: EngineOptions;
 
   private status: EngineStatus = { phase: 'idle' };
+  /**
+   * What the server called the rows this client first drew under an id it invented.
+   *
+   * Bounded and oldest-first, because it is a convenience for the seconds after a create and
+   * not a history: a long session creates thousands of rows and every one of them would sit
+   * here forever otherwise. An entry that has been evicted is indistinguishable from one that
+   * never existed, and both answer "no succession" — which is the correct answer for a row
+   * whose stand-in retired long enough ago that nothing is still holding the old id.
+   */
+  private successions = new Map<UUID, UUID>();
   private draining = false;
   private resyncTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
@@ -246,7 +266,7 @@ export class SyncEngine {
         clientId: this.clientId,
         opId,
       });
-      settle(this.store, input.reconcile, data);
+      this.remember(settle(this.store, input.reconcile, data));
       await this.outbox.resolve(opId);
       this.publishStatus();
       return data;
@@ -269,6 +289,65 @@ export class SyncEngine {
       throw err;
     } finally {
       void record;
+    }
+  }
+
+  /**
+   * What the server ended up calling a row this client first drew under a stand-in id.
+   *
+   * Returns the id it was given when nothing has superseded it — so a caller can pass any id
+   * through this and get back the one that names a real row, without having to know whether
+   * the row it is holding was ever provisional.
+   *
+   * Follows a chain, because a stand-in can in principle be retired against a delta row that
+   * is itself later replaced by the response; one hop is the only case in practice and the
+   * loop is a few lines of insurance against a cycle turning into a hang.
+   */
+  succession(id: UUID): UUID {
+    let current = id;
+    for (let hops = 0; hops < 8; hops++) {
+      const next = this.successions.get(current);
+      if (next === undefined || next === current) return current;
+      current = next;
+    }
+    return current;
+  }
+
+  /**
+   * Whether a queued mutation is still standing in for this id.
+   *
+   * True means the server has never heard of it: it is an id this client invented for a row
+   * it has not been told the real name of yet. Sending it as a foreign key — a reply's
+   * parent, a link's target — gets the write refused, so a caller that is about to do that
+   * should ask first and keep the user's text rather than lose it to a refusal it could have
+   * predicted.
+   */
+  isProvisional(id: UUID): boolean {
+    if (this.successions.has(id)) return false;
+    return this.outbox
+      .list()
+      .some((record) =>
+        reconciliations(record.reconcile).some((spec) => spec.provisionalId === id),
+      );
+  }
+
+  /**
+   * Files the pairings a retirement just made.
+   *
+   * Called from all three routes a stand-in can be retired by — the mutation response, the
+   * outbox drain, the delta stream — because a caller holding the old id does not know or
+   * care which of them got there first.
+   */
+  private remember(pairs: readonly Succession[]): void {
+    for (const pair of pairs) {
+      this.successions.set(pair.provisionalId as UUID, pair.realId as UUID);
+    }
+    // Insertion order, so this drops the oldest — the ones least likely to still be held by
+    // anything on screen.
+    while (this.successions.size > MAX_SUCCESSIONS) {
+      const oldest = this.successions.keys().next();
+      if (oldest.done === true) break;
+      this.successions.delete(oldest.value);
     }
   }
 
@@ -306,7 +385,7 @@ export class SyncEngine {
           // The replay carries the original result, so this is the same pairing the
           // first attempt would have done — and the only chance to do it, because the
           // caller that was awaiting the first attempt is gone.
-          settle(this.store, record.reconcile, data);
+          this.remember(settle(this.store, record.reconcile, data));
           await this.outbox.resolve(record.opId);
         } catch (err) {
           if (err instanceof ApiError && err.isOffline) {
@@ -354,7 +433,7 @@ export class SyncEngine {
     // gets back here — and until something retires the stand-in the user is looking at their
     // comment twice. Doing it here rather than waiting for `settle` is what makes the
     // duplicate last a frame instead of a round trip, or forever when the response is lost.
-    adopt(this.store, this.outbox, changes);
+    this.remember(adopt(this.store, this.outbox, changes));
     this.socket.setVersion(this.store.version);
   }
 

@@ -112,6 +112,94 @@ test.describe('comments', () => {
     expect(problems).toEqual([]);
   });
 
+  test('a reply typed while its parent is still being saved is kept', async ({
+    page,
+    workspace,
+  }) => {
+    const problems: string[] = [];
+    page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
+
+    const issue = await createIssueViaApi(workspace, 'A reply while the parent is in flight');
+
+    // No deltas. The sync socket normally delivers the server's own row within milliseconds
+    // of the mutation committing, which retires the stand-in and closes the window this test
+    // is about; blocking it makes the window last exactly as long as the response is held.
+    await page.routeWebSocket('**/sync**', () => {});
+
+    await signIn(page, workspace.account);
+    await page.goto(`/issue/${issue.identifier}`);
+    await page.getByPlaceholder(COMPOSER).first().waitFor();
+
+    const root = `Root ${Date.now()}`;
+    const reply = `The reply that used to disappear ${Date.now()}`;
+
+    // Only the root's create is held. The reply's must be free to go out once it can.
+    let release = false;
+    await page.route('**/graphql', async (route) => {
+      const sent = route.request().postData() ?? '';
+      if (!sent.includes('CreateComment') || !sent.includes(root)) {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      const payload = await response.text();
+      const deadline = Date.now() + 60_000;
+      while (!release && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await route.fulfill({ response, body: payload });
+    });
+
+    await page.getByPlaceholder(COMPOSER).first().fill(root);
+    await page
+      .getByRole('button', { name: /^comment$/i })
+      .first()
+      .click();
+    await expect(page.getByText(root, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+
+    // The comment on the screen is a stand-in under an id this client invented. Replying to
+    // it names a parent the server has never heard of.
+    await page
+      .getByRole('button', { name: /^reply to /i })
+      .first()
+      .click();
+    await page.getByPlaceholder(/write a reply/i).fill(reply);
+    await page
+      .getByRole('button', { name: /^comment$/i })
+      .first()
+      .click();
+
+    // Refused, and said so — with every character still in the box. This is the assertion
+    // the whole test exists for: the sentence did not evaporate into a console error.
+    await expect(page.getByPlaceholder(/write a reply/i)).toHaveValue(reply, { timeout: 30_000 });
+    await expect(page.getByRole('alert').first()).toBeVisible();
+
+    // The parent settles. The refusal is about a condition that has just passed, so the app
+    // taking it down is the client saying it has seen the real row — which is what makes the
+    // press below deterministic rather than a guess at how long a round trip takes.
+    release = true;
+    await expect(page.getByRole('alert')).toHaveCount(0, { timeout: 60_000 });
+    // The composer followed its parent onto the id the server chose rather than vanishing
+    // with the stand-in, and is still holding every character.
+    await expect(page.getByPlaceholder(/write a reply/i)).toHaveValue(reply);
+    await page
+      .getByRole('button', { name: /^comment$/i })
+      .first()
+      .click();
+    await expect(page.getByText(reply, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+
+    await page.unroute('**/graphql');
+    await page.reload();
+    await page.getByPlaceholder(COMPOSER).first().waitFor();
+    await expect(page.getByText(root, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.getByText(reply, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+
+    const thread = page.locator('li').filter({ hasText: root }).first();
+    await expect(thread.getByText(reply, { exact: true })).toHaveCount(1);
+
+    expect(problems).toEqual([]);
+  });
+
   test('a reply hangs under the comment it answers, and survives a reload', async ({
     page,
     workspace,

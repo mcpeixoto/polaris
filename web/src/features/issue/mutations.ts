@@ -363,15 +363,39 @@ export interface NewComment {
   readonly quote?: string | undefined;
 }
 
-/** Posts a comment, appearing under the issue before the request leaves. See `createIssue`. */
+/**
+ * What a reply is refused with while the comment it answers is still a stand-in.
+ *
+ * Exported so a composer can tell this apart from the server's own refusals: this one is
+ * temporary, it clears itself within a round trip, and "try again" is a real instruction
+ * rather than a polite way of saying no.
+ */
+export const UNSETTLED_PARENT =
+  'The comment you are replying to is still being saved. Try again in a moment.';
+
+/**
+ * Posts a comment, appearing under the issue before the request leaves. See `createIssue`.
+ *
+ * A reply names its parent by id, and for the length of a round trip after that parent was
+ * posted the only id anything here has for it is the one this client invented. Sending that
+ * gets `no such comment` back, which rolls the reply out of the replica — so it is caught
+ * here instead, before a composer has cleared itself on the assumption that the write went
+ * out. `engine.succession` covers the far more common half of it: the parent has settled and
+ * the caller is simply still holding the old id, which is not a refusal at all, just a name
+ * that has moved on.
+ */
 export async function postComment(engine: SyncEngine, input: NewComment): Promise<void> {
   const store = engine.store;
+  const parentId = input.parentId === undefined ? undefined : engine.succession(input.parentId);
+  if (parentId !== undefined && engine.isProvisional(parentId)) {
+    throw new ApiError('CONFLICT', UNSETTLED_PARENT);
+  }
   const now = new Date().toISOString();
   const provisional: Comment = {
     id: uuidv7(),
     workspaceId: store.workspaceId,
     issueId: input.issueId,
-    parentId: input.parentId,
+    parentId,
     body: input.body,
     actor: input.authorId === undefined ? { type: 'user' } : { type: 'user', id: input.authorId },
     anchorStart: input.anchorStart,
@@ -388,7 +412,7 @@ export async function postComment(engine: SyncEngine, input: NewComment): Promis
         input: {
           issueId: input.issueId,
           body: input.body,
-          ...(input.parentId === undefined ? null : { parentId: input.parentId }),
+          ...(parentId === undefined ? null : { parentId }),
           ...(input.quote === undefined
             ? null
             : {

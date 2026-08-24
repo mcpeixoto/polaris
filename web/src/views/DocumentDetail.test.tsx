@@ -7,10 +7,10 @@
  * textarea, which is the one thing on the screen that exists nowhere else yet.
  */
 
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
@@ -88,12 +88,27 @@ function gatedEngine(store: Store) {
   return { mutate, release: () => release(), engine: { store, mutate } as unknown as SyncEngine };
 }
 
+/** The body of every document update that reached the engine. */
+function bodiesSent(mutate: ReturnType<typeof vi.fn>): unknown[] {
+  return mutate.mock.calls.map(
+    (call) => ((call[0] as MutateInput).variables.input as { body?: unknown }).body,
+  );
+}
+
 function saveButton(): HTMLButtonElement {
   return screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
 }
 
+/** The rendered screen, so a test can take it away the way the back button does. */
+let view: ReturnType<typeof render> | null = null;
+
+afterEach(() => {
+  view = null;
+  cleanup();
+});
+
 function mount(store: Store, engine: SyncEngine) {
-  render(
+  view = render(
     <MemoryRouter initialEntries={[`/document/${DOC}`]}>
       <KeymapProvider>
         <EngineProvider engine={engine} status={{ phase: 'idle' }}>
@@ -212,6 +227,41 @@ describe('DocumentDetail', () => {
       'Something the server will not have',
     );
     expect(saveButton().disabled).toBe(false);
+  });
+
+  it('keeps an edit when the screen goes away without a blur', async () => {
+    const { mutate, user } = renderDetail();
+
+    const body = screen.getByLabelText('Body') as HTMLTextAreaElement;
+    await user.click(body);
+    await user.type(body, 'the only copy of this sentence');
+
+    // Browser Back. The Documents link at the top of this same screen saved, because
+    // clicking it blurs the textarea first; Back did not, and the difference was invisible.
+    view!.unmount();
+
+    expect(bodiesSent(mutate)).toContain('the only copy of this sentence');
+  });
+
+  it('keeps an edit when the tab is hidden', async () => {
+    const { mutate, user } = renderDetail();
+
+    const body = screen.getByLabelText('Body') as HTMLTextAreaElement;
+    await user.click(body);
+    await user.type(body, 'written just before the reload');
+
+    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    fireEvent(document, new Event('visibilitychange'));
+    hidden.mockRestore();
+
+    expect(bodiesSent(mutate)).toContain('written just before the reload');
+  });
+
+  it('sends nothing when nothing was typed', async () => {
+    const { mutate, user } = renderDetail();
+    await user.click(screen.getByLabelText('Body'));
+    view!.unmount();
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   it('adopts a remote body while nothing is being typed', () => {

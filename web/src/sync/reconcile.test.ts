@@ -259,6 +259,66 @@ describe('adopt', () => {
  * variables. A create that is both and declares no pairing has no way back — not on a race,
  * but on every reload, every navigation and every response that does not come.
  */
+describe('succession', () => {
+  it('names what the response called the row', () => {
+    const store = storeWithStandIn();
+
+    const succeeded = settle(store, COMMENT_SPEC, { createComment: { comment: serverComment() } });
+
+    // Retiring the stand-in is enough for anything that only draws the replica. It is not
+    // enough for a reply composer, which is holding the old id and has to be told the new
+    // one — see `SyncEngine.succession`.
+    expect(succeeded).toEqual([{ type: 'comment', provisionalId: PROVISIONAL, realId: REAL }]);
+  });
+
+  it('names what the delta stream called the row', async () => {
+    const outbox = new Outbox();
+    await outbox.append({
+      mutation: 'CreateComment',
+      variables: {},
+      optimisticPatch: [
+        { type: 'comment', id: PROVISIONAL, before: null, after: provisionalComment() },
+      ],
+      reconcile: { ...COMMENT_SPEC, match: ['issueId', 'parentId', 'body'] },
+    });
+    const store = storeWithStandIn();
+    const changes = [
+      {
+        v: 1,
+        type: 'comment',
+        id: REAL,
+        op: 'upsert',
+        actor: { type: 'user' },
+        payload: { ...serverComment(), actor: { type: 'user' } },
+      } as unknown as Change,
+    ];
+    store.applyChanges(changes);
+
+    // The socket usually gets here first, and a caller holding the old id must not have to
+    // know which route retired it.
+    expect(adopt(store, outbox, changes)).toEqual([
+      { type: 'comment', provisionalId: PROVISIONAL, realId: REAL },
+    ]);
+  });
+
+  it('reports nothing when the id did not change', () => {
+    const store = new Store(WORKSPACE);
+    store.applyOptimistic([
+      { type: 'comment', id: REAL, before: null, after: { ...provisionalComment(), id: REAL } },
+    ]);
+
+    expect(
+      settle(
+        store,
+        { ...COMMENT_SPEC, provisionalId: REAL },
+        {
+          createComment: { comment: serverComment() },
+        },
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe('unpairedCreates', () => {
   const standIn = {
     type: 'comment',
