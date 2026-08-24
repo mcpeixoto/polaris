@@ -18,7 +18,14 @@
  * possible question: does the shell still answer ⌘K, and did anything throw.
  */
 
-import { test, expect, signIn, createIssueViaApi } from './fixtures';
+import {
+  test,
+  expect,
+  signIn,
+  createIssueViaApi,
+  inviteToWorkspace,
+  uniqueEmail,
+} from './fixtures';
 import type { Page } from '@playwright/test';
 
 /**
@@ -270,4 +277,51 @@ test('the help overlay teaches the triage keys on the screen where they fire', a
 
   await page.keyboard.press('Escape');
   await expect(help).toBeHidden();
+});
+
+/**
+ * The same rule for a person rather than a screen.
+ *
+ * A guest cannot save a view on any screen, in any state, ever — the cap refuses them and
+ * the role never changes under them — so `⌥V` on their keyboard sheet was a promise the
+ * product had no way of keeping. It has to be a real guest in a real browser: the unit
+ * tests mock `useViewer` and can hand it a guest profile assembled by the test rather than
+ * by the bootstrap, which is the difference that hid three earlier guest leaks.
+ *
+ * The assertions run both ways on one screen, because "hide it from guests" is only right
+ * if the rest of the section survives. Display options, insights and the layout toggle are
+ * all things a guest may genuinely do, and all three stay.
+ */
+test('a guest is not taught the shortcut a guest may never use', async ({
+  page,
+  browser,
+  workspace,
+}) => {
+  await signIn(page, workspace.account);
+
+  const email = uniqueEmail('keymap-guest');
+  const { token } = await inviteToWorkspace(workspace, email, 'GUEST');
+  const guestContext = await browser.newContext();
+  const guest = await guestContext.newPage();
+  await guest.goto(`/invite/${token}`);
+  await guest.getByLabel(/^email$/i).fill(email);
+  await guest.getByLabel(/^password$/i).fill('e2e-placeholder-password');
+  await guest.getByLabel(/your name/i).fill('Grace Guest');
+  await guest.getByRole('button', { name: /create account and join/i }).click();
+  await expect(guest.getByRole('navigation', { name: /workspace/i })).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await guest.goto(`/team/${workspace.teamKey}`);
+  await guest.getByRole('listbox', { name: /issues/i }).waitFor({ timeout: 20_000 });
+
+  await guest.keyboard.press('?');
+  const help = guest.getByRole('dialog', { name: /keyboard shortcuts/i });
+  await expect(help).toBeVisible();
+  await expect(help.getByText('Save as view', { exact: true })).toHaveCount(0);
+  for (const stays of ['Display options', 'Toggle insights', 'Toggle list / board layout']) {
+    await expect(help.getByText(stays, { exact: true })).toBeVisible();
+  }
+
+  await guestContext.close();
 });

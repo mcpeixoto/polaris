@@ -212,7 +212,7 @@ export class KeymapRegistry<Ctx extends ActionContext = ActionContext> {
    *
    * Actions that say they do not apply here are dropped, which is what makes the promise
    * above true rather than aspirational. It used to filter on `keys` alone, so an action
-   * registered permanently ungated printed as a keyboard-reference row that did nothing:
+   * registered permanently gated printed as a keyboard-reference row that did nothing:
    * a team list that is not a triage queue drew a whole "Triage" section teaching `1`, `2`,
    * `3` and `H`, none of which could fire anywhere on that screen. `enabled` is
    * deliberately NOT consulted — see `available` in `types.ts` for why the sheet has to
