@@ -22,11 +22,12 @@ import {
   currentWorkspace,
   isSignedIn,
   onAuthLost,
+  sessionMayExist,
   setWorkspace,
   type Workspace,
 } from '~/sync/api';
 import { prefetchViewerId } from '~/hooks/useViewer';
-import { shouldAttemptDevSession } from '~/sync/endpoint';
+import { pageNeedsNoSession, shouldAttemptDevSession } from '~/sync/endpoint';
 import { SyncEngine, type EngineStatus } from '~/sync/engine';
 import { isOutdatedClientMessage } from '~/sync/outdated-client';
 import { EngineProvider } from './context';
@@ -144,13 +145,22 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
     [open],
   );
 
-  // The access token lives in memory only, so every load starts by exchanging the
-  // HttpOnly refresh cookie for a new one. That round trip is the price of not keeping a
-  // long-lived credential anywhere script can read it.
+  // The access token lives in memory only, so a load that is restoring a session starts by
+  // exchanging the HttpOnly refresh cookie for a new one. That round trip is the price of
+  // not keeping a long-lived credential anywhere script can read it.
+  //
+  // It is skipped when there is no session to restore, which used to be unaskable and is
+  // now two cheap facts: this page may not use sessions at all (`/ask/:token`), and this
+  // browser may never have held one (`sessionMayExist`). Asking anyway is not free —
+  // `/auth/refresh` answers 401, the browser draws that in red, and the sign-in page shipped
+  // a guaranteed console error on every cold boot. A red line that is always there is a red
+  // line nobody reads, and this suite had already grown a blanket "ignore anything with 401
+  // in it" filter around it. The 401 that means a session actually expired still gets
+  // asked, still fails, and is still loud — that one is a fault and not an answer.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const session = await auth.refresh();
+      const session = pageNeedsNoSession() || !sessionMayExist() ? null : await auth.refresh();
       if (cancelled) return;
       if (!session) {
         // Loopback only: the API 404s this unless Host and the TCP peer are

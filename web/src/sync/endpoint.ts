@@ -123,6 +123,30 @@ export function isAnonymousAuthPath(pathname: string): boolean {
   );
 }
 
+/**
+ * Whether this page has any use for a session at all.
+ *
+ * The public ask form carries its own credential in the URL — the token *is* the
+ * authorisation — and renders identically whether or not a session exists, because the
+ * routes for both branches point at the same component. So restoring one is not merely
+ * unnecessary, it is the wrong thing to spend a stranger's rate-limit budget on: the
+ * anonymous bucket is per IP, and a boot-time `/auth/refresh` made a form load cost two
+ * tokens instead of one.
+ *
+ * Deliberately narrower than `isAnonymousAuthPath`. `/signin` and `/invite/:token` also
+ * render signed out, but a browser that *does* hold a session must still be recognised
+ * there — an invitation is very often opened in the browser somebody already works in, and
+ * `/signin` on a live session belongs on the issue list.
+ */
+export function isSessionlessPath(pathname: string): boolean {
+  return pathname.startsWith('/ask/');
+}
+
+/** `isSessionlessPath` asked of the page this client is actually on. */
+export function pageNeedsNoSession(): boolean {
+  return isSessionlessPath(currentPathname());
+}
+
 export function isLoopbackHostname(host: string): boolean {
   const h = host.trim().toLowerCase().replace(/\.$/, '');
   return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]';
