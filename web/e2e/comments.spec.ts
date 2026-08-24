@@ -208,15 +208,30 @@ test.describe('comments', () => {
     workspace,
   }) => {
     const issue = await createIssueViaApi(workspace, 'Threads, one level deep');
-    await signIn(page, workspace.account);
-    await page.goto(`/issue/${issue.identifier}`);
 
     const root = `Root ${Date.now()}`;
     const reply = `Reply ${Date.now()}`;
 
+    // The sync socket delivering the root's own row is the moment the client stops holding
+    // it under an id it invented. Waiting for that is what makes the reply below a reply to
+    // a real comment: pressed a moment earlier it names a parent the server has never heard
+    // of, and is refused with the text kept in the box — which is the previous test's
+    // subject, correct behaviour, and not this one's. On a loaded runner the root takes long
+    // enough to settle that this happened about once in thirty runs.
+    let settled = false;
+    page.on('websocket', (socket) => {
+      socket.on('framereceived', (frame) => {
+        if (typeof frame.payload === 'string' && frame.payload.includes(root)) settled = true;
+      });
+    });
+
+    await signIn(page, workspace.account);
+    await page.goto(`/issue/${issue.identifier}`);
+
     await page.getByPlaceholder(COMPOSER).first().fill(root);
     await page.getByRole('button', { name: /^comment$/i }).click();
     await expect(page.getByText(root, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+    await expect.poll(() => settled, { timeout: 60_000 }).toBe(true);
 
     await page
       .getByRole('button', { name: /^reply to /i })
@@ -238,6 +253,149 @@ test.describe('comments', () => {
     await expect(page.getByText(reply, { exact: true })).toHaveCount(1, { timeout: 30_000 });
 
     // Under it, not beside it: the reply lives inside the thread its parent opened.
+    const thread = page.locator('li').filter({ hasText: root }).first();
+    await expect(thread.getByText(reply, { exact: true })).toHaveCount(1);
+  });
+
+  /**
+   * The duplicate that survives a reload because the *retirement* was the thing that was lost.
+   *
+   * Everything above pairs the stand-in with the server's row in memory, and the screen is
+   * right the moment it happens. The replica is a beat behind: `applyOptimistic` writes memory
+   * synchronously and only queues the IndexedDB delete, so for the length of one transaction
+   * the disk still holds a stand-in that memory has already retired. Dropping the outbox
+   * record in that window is what makes it permanent — the record was the last thing holding
+   * the pairing, and once it is gone a reload brings the stand-in back with nothing left to
+   * retire it against. Two rows, both ordinary, for one comment on the server.
+   *
+   * It reproduced roughly one run in ten of the test above, on a machine with six spinning
+   * cores, and never on a quiet one — the disk queue has to be slow enough to still be running
+   * when the reload lands, which is the same "loaded machine" that makes the delta beat the
+   * response. Waiting for that is not a test, so this holds the queue open instead: a
+   * long-lived readwrite transaction on `comment` blocks every write the replica issues
+   * afterwards, for exactly as long as this test wants, using nothing but IndexedDB's own
+   * ordering rules.
+   *
+   * A reply rather than a root comment only because that is where it was found; the mechanism
+   * is the pairing's durability and knows nothing about parents.
+   */
+  test('a reply stays single when the reload beats the replica to disk', async ({
+    page,
+    workspace,
+  }) => {
+    const issue = await createIssueViaApi(workspace, 'A retirement that never reached disk');
+
+    // No deltas until the reload. The socket normally delivers the server's row within
+    // milliseconds and `adopt` retires the stand-in there and then — which would queue the
+    // delete before this test has had a chance to hold the queue open. Cut it, and the
+    // response is the only route left, which is the one this test can time exactly.
+    let cut = true;
+    await page.routeWebSocket('**/sync**', (socket) => {
+      if (cut) return;
+      socket.connectToServer();
+    });
+
+    await signIn(page, workspace.account);
+    await page.goto(`/issue/${issue.identifier}`);
+    await page.getByPlaceholder(COMPOSER).first().waitFor();
+
+    const root = `Root ${Date.now()}`;
+    const reply = `Reply ${Date.now()}`;
+
+    /** What the replica holds on disk, read through a connection of this test's own. */
+    const stored = async (): Promise<string[]> =>
+      (await page.evaluate(`(async () => {
+        const found = (await indexedDB.databases()).find((d) => (d.name ?? '').startsWith('polaris'));
+        if (!found || !found.name) return [];
+        const db = await new Promise((resolve, reject) => {
+          const open = indexedDB.open(found.name);
+          open.onsuccess = () => resolve(open.result);
+          open.onerror = () => reject(open.error);
+        });
+        const rows = await new Promise((resolve) => {
+          const all = db.transaction('comment').objectStore('comment').getAll();
+          all.onsuccess = () => resolve(all.result);
+        });
+        db.close();
+        return rows.map((row) => row.body);
+      })()`)) as string[];
+
+    // Only the reply's create is held, and only until this test releases it.
+    let release = false;
+    await page.route('**/graphql', async (route) => {
+      const sent = route.request().postData() ?? '';
+      if (!sent.includes('CreateComment') || !sent.includes(reply)) {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      const payload = await response.text();
+      const deadline = Date.now() + 60_000;
+      while (!release && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await route.fulfill({ response, body: payload });
+    });
+
+    await page.getByPlaceholder(COMPOSER).first().fill(root);
+    await page.getByRole('button', { name: /^comment$/i }).click();
+    // The root's own stand-in has been retired *and* that delete has reached disk. Starting
+    // from a replica of exactly one comment is what makes the count below unambiguous.
+    await expect.poll(stored, { timeout: 30_000 }).toEqual([root]);
+
+    await page
+      .getByRole('button', { name: /^reply to /i })
+      .first()
+      .click();
+    await page.getByPlaceholder(/write a reply/i).fill(reply);
+    await page
+      .getByRole('button', { name: /^comment$/i })
+      .first()
+      .click();
+
+    // The reply's stand-in is on disk. It is meant to be: an optimistic write that vanished
+    // on refresh would be the worse bug, and it is the reason the delete has to be durable.
+    await expect.poll(stored, { timeout: 30_000 }).toEqual([root, reply]);
+
+    // From here the replica cannot write. Every batch it issues queues behind this
+    // transaction, which stays open as long as it keeps asking for something.
+    await page.evaluate(`(async () => {
+      const found = (await indexedDB.databases()).find((d) => (d.name ?? '').startsWith('polaris'));
+      const db = await new Promise((resolve, reject) => {
+        const open = indexedDB.open(found.name);
+        open.onsuccess = () => resolve(open.result);
+        open.onerror = () => reject(open.error);
+      });
+      const shelf = db.transaction('comment', 'readwrite').objectStore('comment');
+      const spin = () => {
+        const again = shelf.get('00000000-0000-0000-0000-000000000000');
+        again.onsuccess = spin;
+        again.onerror = spin;
+      };
+      spin();
+    })()`);
+
+    // The response lands and the pairing is made — in memory, where it is immediately right.
+    release = true;
+    await expect(page.getByText(reply, { exact: true })).toHaveCount(1, { timeout: 60_000 });
+    await page.waitForTimeout(1_000);
+    await expect(page.getByText(reply, { exact: true })).toHaveCount(1);
+
+    // And the tab goes, taking the unwritten delete with it. What is left on disk is a
+    // stand-in; what comes back from the server is the row it stood for.
+    cut = false;
+    await page.reload();
+    await page.getByPlaceholder(COMPOSER).first().waitFor();
+
+    // Two comments were posted, so two are on the screen — polled, because the replica
+    // hydrates before the server's rows arrive and passes through "one" on its way to the
+    // truth either way. What is being waited for is where it *stops*.
+    await expect.poll(async () => page.getByRole('article').count(), { timeout: 30_000 }).toBe(2);
+    await page.waitForTimeout(1_500);
+    await expect(page.getByRole('article')).toHaveCount(2);
+    await expect(page.getByText(root, { exact: true })).toHaveCount(1);
+    await expect(page.getByText(reply, { exact: true })).toHaveCount(1);
+
     const thread = page.locator('li').filter({ hasText: root }).first();
     await expect(thread.getByText(reply, { exact: true })).toHaveCount(1);
   });
