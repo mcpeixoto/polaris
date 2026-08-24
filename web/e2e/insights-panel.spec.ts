@@ -126,3 +126,65 @@ test('a bar filters the view by click, by Enter and by Space', async ({ page, wo
   await expect(rows(page)).toHaveCount(2);
   expect(page.url()).toContain('/team/');
 });
+
+/**
+ * What the panel says about work it cannot see, and about a unit the team has never used.
+ *
+ * Both are claims rather than layout, which is why they are asserted on text and on control
+ * counts. Archiving emits a delete to the replica, so an archived issue is not in the store
+ * this panel computes over — a "show archived" switch here could only ever measure the same
+ * issues twice, and the honest version of that is no switch. And a team's estimate scale
+ * defaults to `none`, where every issue is worth exactly 1: the effort total is then an issue
+ * count, and the cycle graph and capacity dial already call that `issues`.
+ */
+test('offers no archived switch, and reports effort in the team’s own unit', async ({
+  page,
+  workspace,
+}) => {
+  const made: string[] = [];
+  for (const title of ['Live one', 'Live two', 'Archived one']) {
+    const data = await graphql<{ createIssue: { issue: { id: string } } }>(
+      workspace,
+      `
+        mutation ($i: CreateIssueInput!) {
+          createIssue(input: $i) {
+            issue {
+              id
+            }
+          }
+        }
+      `,
+      { i: { teamId: workspace.teamId, title } },
+    );
+    made.push(data.createIssue.issue.id);
+  }
+  await graphql(
+    workspace,
+    `
+      mutation ($id: UUID!, $clientId: UUID!, $opId: UUID!) {
+        archiveIssue(id: $id, archived: true, clientId: $clientId, opId: $opId) {
+          id
+        }
+      }
+    `,
+    { id: made[2]!, clientId: crypto.randomUUID(), opId: crypto.randomUUID() },
+  );
+
+  await signIn(page, workspace.account);
+  await openTeamList(page, workspace.teamKey);
+  await expect(rows(page)).toHaveCount(2);
+  await openInsights(page);
+  const panel = panelOf(page);
+
+  // No control claiming to widen the corpus, by any spelling.
+  await expect(panel.getByRole('checkbox')).toHaveCount(0);
+  await expect(panel.getByText(/archived/i)).toHaveCount(0);
+  // And the number matches the list it sits above, which is the whole promise.
+  await expect(panel).toContainText('2 issues');
+
+  // The team has no estimate scale, so this is a count and must not claim to be points.
+  await panel.getByLabel('Measure').selectOption('effort');
+  await expect(panel).toContainText('2 issues');
+  await expect(panel).not.toContainText('points');
+  await expect(panel.locator('thead th').nth(1)).toHaveText('issues');
+});

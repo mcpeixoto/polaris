@@ -1,10 +1,24 @@
 /**
  * Insights panel for an issue view: measure × slice over the replica.
+ *
+ * There is deliberately no "show archived" control, and `docs/01-features/12-analytics-*.md`
+ * records why rather than listing it as a feature. Archiving an issue emits a *delete* to
+ * every client — `Service.ArchiveIssue`: "archived issues are never part of the bootstrap
+ * snapshot" — which is the same decision `02-issues.md` states as "deliberately loaded on
+ * demand rather than kept in the client cache". So there is nothing archived in the store for
+ * this panel to widen to, on any view, and the checkbox that used to sit here measured the
+ * same issues whether it was ticked or not.
+ *
+ * Fetching the archive per team and merging it in is not the missing patch, either: the rows
+ * `archivedIssues` returns arrive without their label and customer-request edges, so every
+ * slice but assignee, priority, team and status type would file archived work under "No
+ * label" and "No customer". That is a chart that lies rather than one that omits. Archived
+ * work is reachable — the team's archives page — and this panel says so by not pretending.
  */
 
 import { useEffect, useState } from 'react';
 
-import { Button, Checkbox, Select } from '~/components';
+import { Button, Select } from '~/components';
 import type { FilterNode } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewer } from '~/hooks/useViewer';
@@ -40,7 +54,6 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
     : INSIGHT_SLICES;
   const [measure, setMeasure] = useState<InsightMeasure>('count');
   const [slice, setSlice] = useState<InsightSlice>('assignee');
-  const [includeArchived, setIncludeArchived] = useState(false);
   const [burnPeriod, setBurnPeriod] = useState<BurnPeriod>('month');
   const idsKey = issueIds.join(',');
 
@@ -56,10 +69,7 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
         measure,
         slices.includes(slice) ? slice : 'assignee',
         Date.now(),
-        {
-          includeArchived,
-          burnPeriod,
-        },
+        { burnPeriod },
       ),
     [
       'issue',
@@ -74,7 +84,7 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
       'customer',
       'customerRequest',
     ],
-    [idsKey, measure, slice, includeArchived, burnPeriod, hideCustomers],
+    [idsKey, measure, slice, burnPeriod, hideCustomers],
   );
 
   const applyBucket = (clause: NonNullable<(typeof data.buckets)[number]['filter']>) => {
@@ -121,11 +131,6 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
             ))}
           </Select>
         )}
-        <Checkbox
-          label="Show archived"
-          checked={includeArchived}
-          onChange={(event) => setIncludeArchived(event.target.checked)}
-        />
         <span className={styles.total}>{formatTotal(data.total, data.unit)}</span>
         <Button variant="ghost" size="sm" onClick={onClose}>
           Close

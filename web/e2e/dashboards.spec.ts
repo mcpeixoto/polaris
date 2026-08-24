@@ -3,9 +3,9 @@
  *
  * The interesting part is not that a tile renders — a vitest covers the arithmetic — but
  * that a tile's three displays agree with each other over the same live data. They did
- * not: a burn-up whose header read "3 completed" and whose table listed the month drew
- * "nothing to chart", because a series with one period was treated as no series at all,
- * and a workspace younger than two months only ever has one.
+ * not: a burn-up whose header read "3 completed issues" and whose table listed the month
+ * drew "nothing to chart", because a series with one period was treated as no series at
+ * all, and a workspace younger than two months only ever has one.
  */
 
 import { expect, test, signIn, type SeededWorkspace } from './fixtures';
@@ -85,12 +85,14 @@ test('a burn-up tile charts a single period', async ({ page, workspace }) => {
   // Burn-up is a series over time, so it has no slice to pick.
   await expect(tile.getByLabel('Slice')).toHaveCount(0);
 
-  // All three displays are views of the same number.
-  await expect(tile.locator('h2 + span')).toHaveText('3 completed');
+  // All three displays are views of the same number, and it is named in the unit the team
+  // actually estimates in. This team has no estimate scale, so a burn-up sums 1 per issue
+  // and "3 completed" alone would leave the reader to guess whether that meant points.
+  await expect(tile.locator('h2 + span')).toHaveText('3 completed issues');
 
   await tile.getByLabel('Display').selectOption('metric');
   await expect(tile.getByLabel('Display')).toHaveValue('metric');
-  await expect(tile.locator('p')).toHaveText('3 completed');
+  await expect(tile.locator('p')).toHaveText('3 completed issues');
 
   await tile.getByLabel('Display').selectOption('table');
   await expect(tile.getByLabel('Display')).toHaveValue('table');

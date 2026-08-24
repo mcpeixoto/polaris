@@ -25,7 +25,9 @@ A panel on nearly every issue view — `Cmd/Ctrl+Shift+I`. Present in custom vie
 Available slice/segment values depend on the issues in the view. Documented dimensions include assignee, delegate/agent, label, project, project label, team, priority, milestone (segmentable by status type), SLA status, template, and status type.
 
 ### Filters that matter for insights
-`Created at`, `Completed at`, `Status type` (works across teams with differently-named statuses), and Label/Project/Team for narrowing. Insight options additionally offer **Show archived issues** and filtering out unprioritised issues.
+`Created at`, `Completed at`, `Status type` (works across teams with differently-named statuses), and Label/Project/Team for narrowing. Insight options additionally offer filtering out unprioritised issues.
+
+**Show archived issues — deliberately not offered here.** Linear has it; this clone does not, and the reason is architectural rather than an omission. Archiving an issue emits a *delete* to every connected replica and archived issues are never in the bootstrap snapshot (`Service.ArchiveIssue`, and `02-issues.md`: "deliberately loaded on demand rather than kept in the client cache"). Insights are computed live over the replica, so there is no archived row for the option to widen to, on any view — a checkbox there can only ever be inert. Fetching the archive per team and merging it in does not rescue it either: `archivedIssues` returns the issue rows without their label or customer-request edges, so every slice but assignee, priority, team and status type would file archived work under "No label" / "No customer". Analysis over archived work belongs to a surface that queries the server, not to a panel over the local replica. Archived work stays reachable through the team's archives page.
 
 ### Interactions
 - **Bar**: hover for values and percentile breakdowns; click a bar or segment to temporarily filter the view; hovering highlights the corresponding table rows.
@@ -71,6 +73,6 @@ For analysis outside the product:
 ## Notes for a clone
 
 - Insights are computed **live over the current view's filter set**, not over a pre-aggregated warehouse. Design the query layer for this — it is the single biggest analytics performance constraint.
-- Effort/estimate semantics must be shared between the graph, capacity, insights, and progress percentage code paths, including "unestimated counts as 1" and the T-shirt→Fibonacci mapping.
+- Effort/estimate semantics must be shared between the graph, capacity, insights, and progress percentage code paths, including "unestimated counts as 1" and the T-shirt→Fibonacci mapping. That includes the *unit*: a team whose scale is `none` contributes 1 per issue, so its effort total is an issue count and is labelled `issues`, matching the cycle graph and the capacity dial. Insights is the only one of the three that can span teams, and a selection mixing a team that estimates with one that does not has no common unit — it is labelled `effort`, because naming it after either ladder would be a claim about the other.
 - Cycle graphs and completed-cycle statistics are **snapshots**; project graph stats refresh hourly. Decide snapshot-vs-live per surface deliberately.
 - **[OPEN]** Insights on Salesforce case properties are explicitly unsupported in Linear; decide whether to match that limitation or exceed it.
