@@ -352,9 +352,7 @@ export function InitiativeDetail() {
           </Select>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Update</span>
-            {/* Not `value={...}`: React rewrites a controlled textarea's text content on
-                every commit, which resets the browser's undo grouping to one keystroke per
-                entry. See components/nativeValue.ts. */}
+            {/* No `value` prop by design — the text arrives through the ref above. */}
             <textarea
               ref={updateBodyRef}
               className={styles.descriptionInput}
@@ -493,9 +491,7 @@ export function InitiativeDetail() {
         <h2 className={styles.sectionTitle}>Description</h2>
         {editing ? (
           <form onSubmit={saveDescription}>
-            {/* Not `value={...}`: React rewrites a controlled textarea's text content on
-                every commit, which resets the browser's undo grouping to one keystroke per
-                entry. See components/nativeValue.ts. */}
+            {/* No `value` prop by design — the text arrives through the ref above. */}
             <textarea
               ref={descriptionRef}
               className={styles.descriptionInput}

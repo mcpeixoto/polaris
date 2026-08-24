@@ -136,9 +136,7 @@ export function ProjectOverview() {
             </Select>
             <label className={styles.field}>
               <span className={styles.label}>Update</span>
-              {/* Not `value={...}`: React rewrites a controlled textarea's text content on
-                  every commit, which resets the browser's undo grouping to one keystroke per
-                  entry. See components/nativeValue.ts. */}
+              {/* No `value` prop by design — the text arrives through the ref above. */}
               <textarea
                 ref={updateBodyRef}
                 className={styles.textarea}
