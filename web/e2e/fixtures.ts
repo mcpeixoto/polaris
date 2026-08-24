@@ -219,12 +219,20 @@ export async function signIn(page: Page, account: Account): Promise<void> {
  * rendered and the keymap has registered `C`. A test that navigates and immediately presses
  * a key is therefore racing the boot, and loses often enough to be a mystery: the keystroke
  * lands on a document with no handler for it, the dialogue never opens, and the failure
- * names the dialogue rather than the race. Waiting for the listbox is waiting for the thing
+ * names the dialogue rather than the race. Waiting for the list is waiting for the thing
  * every one of these tests then acts on.
+ *
+ * "The list" is two shapes, and a fresh workspace is the second one: a team with no work
+ * yet renders the empty state and its create button in place of the rows, so waiting only
+ * for the listbox would hang in exactly the state most of these tests start in.
  */
 export async function openTeamList(page: Page, teamKey: string): Promise<void> {
   await page.goto(`/team/${teamKey}`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page
+    .getByRole('listbox', { name: /issues/i })
+    .or(page.getByRole('button', { name: 'Create an issue' }))
+    .first()
+    .waitFor();
 }
 
 /**

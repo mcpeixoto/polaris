@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -594,8 +594,48 @@ describe('IssueList over an assignee', () => {
   });
 });
 
+/**
+ * A list with nothing in it, grouped by status — which is the default and so the case
+ * everybody meets first.
+ *
+ * Grouping pads a group per status whether or not anything is in it, so a brand-new team's
+ * list was never made of zero rows and the explanation below never rendered: five headers
+ * reading zero, no sentence, and no create button. The padding is right when there is work
+ * to place beside it and says nothing at all when there is none.
+ */
+describe('an empty list', () => {
+  it('explains itself instead of showing a column of zeroes', () => {
+    const store = seeded();
+    store.applyChanges(
+      [1, 2, 3].map((n, index) => ({
+        v: 20 + index,
+        type: 'issue',
+        id: `issue-${n}`,
+        op: 'delete',
+        actor: { type: 'system' },
+      })) as Change[],
+    );
+    const mutate = vi.fn().mockResolvedValue({});
+    const engine = { store, mutate } as unknown as SyncEngine;
+    render(
+      <MemoryRouter initialEntries={['/team/ENG']}>
+        <KeymapProvider>
+          <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+            <Routes>
+              <Route path="/team/:teamKey" element={<IssueList />} />
+            </Routes>
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('No issues in this team yet')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Create an issue' })).toBeTruthy();
+  });
+});
+
 describe('triage', () => {
-  function triageStore(): Store {
+  function triageStore(enabled = true): Store {
     const store = seeded();
     const dup = { ...state('s-dup', 'Duplicate', 'duplicate'), isSystem: true };
     store.applyChanges([
@@ -605,7 +645,7 @@ describe('triage', () => {
         id: TEAM,
         op: 'upsert',
         actor: { type: 'system' },
-        payload: { ...team(), triageEnabled: true },
+        payload: { ...team(), triageEnabled: enabled },
       },
       {
         v: 11,
@@ -643,8 +683,7 @@ describe('triage', () => {
     return store;
   }
 
-  function renderTriage() {
-    const store = triageStore();
+  function renderTriage(store = triageStore()) {
     const mutate = vi.fn().mockResolvedValue({});
     const engine = { store, mutate } as unknown as SyncEngine;
     render(
@@ -779,6 +818,59 @@ describe('triage', () => {
 
     render(tree('/team/ENG/triage?snoozed=true'));
     expect(screen.getByText('Snoozed until later')).toBeTruthy();
+  });
+
+  /**
+   * Turning intake off does not empty the queue — the server keeps the statuses and the
+   * issues sitting in them on purpose — so the screen has to stay usable while anything is
+   * still waiting on a decision. It used to refuse, and since every ordinary view hides
+   * triage-category work, those issues were then reachable only from Search.
+   */
+  it('still lists a queue left behind when intake is turned off', async () => {
+    const { user, mutate } = renderTriage(triageStore(false));
+
+    expect(screen.getByText('Incoming from Slack')).toBeTruthy();
+    expect(screen.queryByText('Triage is off')).toBeNull();
+
+    await user.keyboard('1');
+    const sent = mutate.mock.calls[0]?.[0] as { mutation: string; variables: { id: string } };
+    expect(sent.mutation).toContain('acceptTriageIssue');
+    expect(sent.variables.id).toBe('issue-9');
+  });
+
+  it('says intake is off, and where to turn it back on', () => {
+    renderTriage(triageStore(false));
+
+    const notice = screen.getByText(/intake is off/i);
+    expect(notice.textContent).toContain('1 issue is still waiting on a decision');
+    expect(within(notice).getByRole('link', { name: /team settings/i })).toBeTruthy();
+  });
+
+  /** Off and drained is the one state with nothing to say but "this is off". */
+  it('is off once the queue it was holding open is empty', () => {
+    const store = triageStore(false);
+    store.applyChanges([
+      { v: 20, type: 'issue', id: 'issue-9', op: 'delete', actor: { type: 'system' } },
+    ] as Change[]);
+    renderTriage(store);
+
+    expect(screen.getByText('Triage is off')).toBeTruthy();
+    expect(screen.queryByRole('listbox', { name: /issues/i })).toBeNull();
+  });
+
+  /**
+   * The inbox's only account of its own keyboard, and it lives in the empty state — which
+   * padding made unreachable, because a status group with no rows in it is still a row.
+   */
+  it('explains its shortcuts when the inbox is clear', () => {
+    const store = triageStore();
+    store.applyChanges([
+      { v: 20, type: 'issue', id: 'issue-9', op: 'delete', actor: { type: 'system' } },
+    ] as Change[]);
+    renderTriage(store);
+
+    expect(screen.getByText('Inbox is clear')).toBeTruthy();
+    expect(screen.getByText(/Press C to file into triage/)).toBeTruthy();
   });
 });
 

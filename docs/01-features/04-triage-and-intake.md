@@ -32,6 +32,12 @@ Navigate with `G` then `T` (`O` then `T` to pick another team first).
 
 Team setting: **require priority before an issue can leave Triage**.
 
+## Turning Triage off
+
+The switch is about *intake*. Disabling it stops new work landing in Triage and leaves the reserved statuses, and everything already sitting in them, exactly where they are. Nothing is accepted or declined on the team's behalf: the queue is a pile of unmade decisions, and only a person can make them.
+
+So the inbox follows the queue rather than the switch. While anything is still in a Triage status the screen stays reachable — `G` `T`, and the team page's Triage link — and stays read-write, with all of `1` / `2` / `3` / `H` working as they do with triage on. It says intake is off and why it is still there, and it retires itself the moment the queue is empty. The one thing that does stop is filing *into* triage: `C` on that screen files an ordinary issue.
+
 ## Triage responsibility (Business/Enterprise)
 
 Define who owns the incoming queue. Selected members either get notified of new triage issues or are auto-assigned them. Team members can see who is currently on triage duty when creating issues.

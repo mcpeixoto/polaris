@@ -27,6 +27,7 @@ import type { Browser, Page } from '@playwright/test';
 import {
   expect,
   inviteToWorkspace,
+  openTeamList,
   signIn,
   test,
   uniqueEmail,
@@ -72,8 +73,7 @@ async function invitedMember(
 
 /** Creates an issue with `C` and leaves the browser on its detail page. */
 async function createIssue(page: Page, teamKey: string, title: string): Promise<string> {
-  await page.goto(`/team/${teamKey}`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await openTeamList(page, teamKey);
   await page.keyboard.press('c');
   const dialog = page.getByRole('dialog', { name: /new issue/i });
   await expect(dialog).toBeVisible();
