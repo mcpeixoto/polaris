@@ -1,0 +1,89 @@
+/*
+ * The rules two sidebars share.
+ *
+ * The shell draws one of two navigations — the workspace one, or the settings one — and
+ * they are the same object seen twice: same width, same 28px rows, same active treatment.
+ * Keeping the rules in one module rather than copying them into a second is what stops the
+ * two drifting a pixel apart, which is exactly the kind of difference that reads as a
+ * different application rather than a different screen of the same one.
+ */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-sidebar);
+  overflow-y: auto;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-tertiary);
+}
+
+.navItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.navItem:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.navItemActive {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.navIcon {
+  flex: none;
+  display: inline-flex;
+  color: inherit;
+  opacity: 0.72;
+}
+
+.navItemActive .navIcon,
+.navItem:hover .navIcon {
+  opacity: 1;
+}
+
+.navLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spacer {
+  flex: 1;
+}
