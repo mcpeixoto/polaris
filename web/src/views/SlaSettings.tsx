@@ -13,6 +13,7 @@ import { Button, EmptyState, Select } from '~/components';
 import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
 import type { FilterNode } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { byOrderKey } from '~/store';
 import type { Store } from '~/store';
 import { ApiError } from '~/sync/api';
 import { report } from '~/features/issue/mutations';
@@ -92,7 +93,7 @@ export function SlaSettings() {
 
   const rules = useLiveQuery(
     (store: Store) => {
-      return [...store.slaRules.values()].sort((a, b) => a.position.localeCompare(b.position));
+      return [...store.slaRules.values()].sort(byOrderKey('position'));
     },
     ['slaRule'],
   );

@@ -15,6 +15,7 @@ import {
 } from '~/features/initiative-updates/helpers';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { byOrderKeyThen } from '~/store';
 import type { InitiativeLabel, InitiativeStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
 import styles from './Initiatives.module.css';
 
@@ -161,7 +162,7 @@ function listInitiatives(store: Store): InitiativeRow[] {
     }
     return true;
   });
-  roots.sort((a, b) => a.sortOrder.localeCompare(b.sortOrder) || a.name.localeCompare(b.name));
+  roots.sort(byOrderKeyThen('sortOrder', 'name'));
 
   const rows: InitiativeRow[] = [];
   const walk = (id: UUID, depth: number, ancestors: ReadonlySet<UUID>) => {
@@ -179,7 +180,7 @@ function listInitiatives(store: Store): InitiativeRow[] {
           child.deletedAt === undefined &&
           !nextAncestors.has(child.id),
       )
-      .sort((a, b) => a.sortOrder.localeCompare(b.sortOrder) || a.name.localeCompare(b.name));
+      .sort(byOrderKeyThen('sortOrder', 'name'));
     for (const child of children) {
       walk(child.id, depth + 1, nextAncestors);
     }

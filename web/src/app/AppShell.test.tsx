@@ -138,7 +138,7 @@ function seeded(extra: readonly [string, Entity][] = []): Store {
   return store;
 }
 
-function view(id: string, name: string, ownerId?: string): [string, Entity] {
+function view(id: string, name: string, ownerId?: string, position = 'V'): [string, Entity] {
   return [
     'view',
     {
@@ -148,7 +148,7 @@ function view(id: string, name: string, ownerId?: string): [string, Entity] {
       ...(ownerId === undefined ? null : { ownerId }),
       filter: { conj: 'and', nodes: [] },
       display: {},
-      position: 'V',
+      position,
       createdAt: AT,
       updatedAt: AT,
     } as unknown as Entity,
@@ -211,6 +211,39 @@ describe('the saved views in the sidebar', () => {
     renderShell(seeded());
     expect(screen.queryByRole('heading', { name: 'Views' })).toBeNull();
   });
+
+  /**
+   * The sixth view is the one that catches this, and that is not a coincidence.
+   *
+   * `position` is a base-62 fractional key over `0-9A-Za-z`, stored in a column declared
+   * `COLLATE "C"` so Postgres orders it byte by byte. Appending starts at "V" and steps one
+   * digit at a time, so a sidebar's keys run V, W, X, Y, Z, a, b … — and 'Z' (0x5a) to 'a'
+   * (0x61) is where byte order and *linguistic* order part company. `localeCompare` sorts by
+   * letter before case, so it puts "a" first and the newest view jumps to the top of a
+   * sidebar the server ordered last.
+   *
+   * Five views sort identically under both rules. That is why every fixture in this file, and
+   * every workspace CI has ever built, missed it: the bug needs a workspace somebody has been
+   * using, and appears on the sixth saved view and never goes away.
+   */
+  it('renders views in the server\u2019s byte order across the case boundary', () => {
+    renderShell(
+      seeded([
+        view('v-1', 'First', undefined, 'V'),
+        view('v-2', 'Second', undefined, 'W'),
+        view('v-3', 'Third', undefined, 'X'),
+        view('v-4', 'Fourth', undefined, 'Y'),
+        view('v-5', 'Fifth', undefined, 'Z'),
+        view('v-6', 'Sixth', undefined, 'a'),
+      ]),
+    );
+    const names = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth'];
+    const rendered = screen
+      .getAllByRole('link')
+      .map((link) => link.textContent ?? '')
+      .filter((text) => names.includes(text));
+    expect(rendered).toEqual(names);
+  });
 });
 
 describe('the favourites in the sidebar', () => {
@@ -241,6 +274,24 @@ describe('the favourites in the sidebar', () => {
       .map((link) => link.textContent ?? '')
       .filter((text) => text === 'First' || text === 'Second');
     expect(names).toEqual(['First', 'Second']);
+  });
+
+  it('orders favourites by byte order too, not by letter then case', () => {
+    // The same boundary as the Views section above: 'Z' is byte 0x5a and 'a' is 0x61, so
+    // the row the server put last is the row `localeCompare` puts first.
+    renderShell(
+      seeded([
+        view('v-a', 'Later', undefined),
+        view('v-b', 'Earlier', undefined),
+        favorite('f-a', 'view', 'v-a', 'a'),
+        favorite('f-b', 'view', 'v-b', 'Z'),
+      ]),
+    );
+    const names = screen
+      .getAllByRole('link')
+      .map((link) => link.textContent ?? '')
+      .filter((text) => text === 'Earlier' || text === 'Later');
+    expect(names).toEqual(['Earlier', 'Later']);
   });
 
   it('does not also list a favourited view under Views', () => {
