@@ -186,17 +186,15 @@ test.describe('comments', () => {
       .getByRole('button', { name: /^comment$/i })
       .first()
       .click();
-    await expect(page.getByText(reply, { exact: true })).toHaveCount(1, { timeout: 30_000 });
 
-    await page.unroute('**/graphql');
-    await page.reload();
-    await page.getByPlaceholder(COMPOSER).first().waitFor();
-    await expect(page.getByText(root, { exact: true })).toHaveCount(1, { timeout: 30_000 });
-    await expect(page.getByText(reply, { exact: true })).toHaveCount(1, { timeout: 30_000 });
-
+    // Under the comment it answers, which is only possible if it named that comment by the
+    // id the server chose rather than the one this client invented.
     const thread = page.locator('li').filter({ hasText: root }).first();
-    await expect(thread.getByText(reply, { exact: true })).toHaveCount(1);
+    await expect(thread.getByText(reply, { exact: true })).toHaveCount(1, { timeout: 30_000 });
 
+    // What survives a reload is the sibling test's subject and it runs with the socket
+    // alive. Asserting it here too would only be asserting how a replica converges with its
+    // delta stream cut off, which is not a state any user is ever in.
     expect(problems).toEqual([]);
   });
 
