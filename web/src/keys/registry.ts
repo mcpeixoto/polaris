@@ -209,14 +209,35 @@ export class KeymapRegistry<Ctx extends ActionContext = ActionContext> {
    * Only bound actions appear — an action with no key has nothing to say in a keyboard
    * reference — and `hidden` ones do appear, because hiding is about keeping the command
    * menu's search results clean, not about keeping a shortcut secret.
+   *
+   * Actions that say they do not apply here are dropped, which is what makes the promise
+   * above true rather than aspirational. It used to filter on `keys` alone, so an action
+   * registered permanently gated printed as a keyboard-reference row that did nothing:
+   * a team list that is not a triage queue drew a whole "Triage" section teaching `1`, `2`,
+   * `3` and `H`, none of which could fire anywhere on that screen. `enabled` is
+   * deliberately NOT consulted — see `available` in `types.ts` for why the sheet has to
+   * keep `Esc` and `⌘Z` even at a moment when neither would run.
+   *
+   * `ctx` is what `available` is asked with. Its `context` is overwritten per action with
+   * the one the action declared, so a predicate is answered about its own surface rather
+   * than about whichever surface happened to be innermost when the overlay opened.
    */
-  byGroup(): Map<string, Action<Ctx>[]> {
+  byGroup(ctx: Ctx): Map<string, Action<Ctx>[]> {
     const out = new Map<string, Action<Ctx>[]>();
     for (const [group, actions] of this.groups) {
-      const bound = actions.filter((action) => (action.keys?.length ?? 0) > 0);
-      if (bound.length > 0) out.set(group, bound);
+      const listed = actions.filter(
+        (action) => (action.keys?.length ?? 0) > 0 && this.isAvailable(action, ctx),
+      );
+      if (listed.length > 0) out.set(group, listed);
     }
     return out;
+  }
+
+  /** Whether an action applies at all. Actions without an opinion always do. */
+  private isAvailable(action: Action<Ctx>, ctx: Ctx): boolean {
+    if (action.available === undefined) return true;
+    const context = contextsOf(action.when)[0] ?? 'global';
+    return action.available({ ...ctx, context });
   }
 
   /** The innermost context currently pushed. */
@@ -280,16 +301,18 @@ export class KeymapRegistry<Ctx extends ActionContext = ActionContext> {
     const candidates: Binding<Ctx>[] = [];
     for (const context of chain) {
       for (const binding of this.bindings.get(context) ?? []) {
-        const { enabled } = binding.action;
-        if (enabled !== undefined) {
+        const { enabled, available } = binding.action;
+        if (enabled !== undefined || available !== undefined) {
           let probe = probes.get(context);
           if (probe === undefined) {
             probe = this.dispatchContext(actionCtx, context, event);
             probes.set(context, probe);
           }
-          // A disabled action is treated as unbound so the keystroke can still reach an
-          // outer context, rather than being swallowed by a command that cannot run.
-          if (!enabled(probe)) continue;
+          // A disabled or inapplicable action is treated as unbound so the keystroke can
+          // still reach an outer context, rather than being swallowed by a command that
+          // cannot run. The two differ only to the help overlay; here they are one rule.
+          if (available !== undefined && !available(probe)) continue;
+          if (enabled !== undefined && !enabled(probe)) continue;
         }
         candidates.push(binding);
       }
@@ -348,6 +371,7 @@ export class KeymapRegistry<Ctx extends ActionContext = ActionContext> {
     // The caller's `context` is kept: a menu knows which surface it was opened over,
     // and the registry does not.
     const ctx = { ...actionCtx, source };
+    if (action.available !== undefined && !action.available(ctx)) return false;
     if (action.enabled !== undefined && !action.enabled(ctx)) return false;
     // Invoking a command ends whatever sequence was half-typed; the user has moved on.
     this.matcher.reset();
@@ -407,6 +431,12 @@ export class KeymapRegistry<Ctx extends ActionContext = ActionContext> {
       // An unguarded binding still conflicts with everything, because that is the case the
       // check exists for: two actions both permanently live on one key, where one of them
       // simply never fires and nobody finds out until somebody presses it.
+      //
+      // `available` deliberately does not count. It would be sound if it did — `handle`
+      // filters on it exactly as it does on `enabled` — but this check is the one that
+      // catches the white-screen class, and a second way to opt out of it is a second way
+      // to retire it by accident. Refusing a pair that would in fact have been safe fails
+      // loudly at startup; the other direction fails silently in a user's hands.
       if (existing.action.enabled !== undefined && action.enabled !== undefined) continue;
 
       const relation =

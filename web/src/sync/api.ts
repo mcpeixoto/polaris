@@ -64,6 +64,56 @@ let session: Session | null = null;
 let workspaceId: string | null = null;
 let refreshInFlight: Promise<Session | null> | null = null;
 
+/**
+ * A note to the next page load that this browser has a refresh cookie worth spending a
+ * round trip on.
+ *
+ * The cookie itself is HttpOnly, which is the point of it — so the only way the app can
+ * know whether asking `/auth/refresh` is a question or a formality is to remember that it
+ * once had an answer. Without that, every cold boot asks, every first-ever visitor is
+ * told 401, and the browser draws that in red: a console error on the sign-in page, where
+ * it is *guaranteed*, teaching everybody who works here that red lines are background
+ * noise. It also costs a request, which on the public ask form is half of an anonymous
+ * IP's rate-limit budget spent learning nothing.
+ *
+ * This is a hint and never a credential. It grants nothing: the cookie is still the only
+ * thing that mints a session, and a browser holding a forged hint gets the same 401 it
+ * would have got anyway. The failure modes both point the safe way — a hint that outlives
+ * its cookie costs exactly one honest 401, and a missing hint costs a sign-in form.
+ */
+const SESSION_HINT_KEY = 'polaris.session';
+
+function rememberSessionExists(): void {
+  try {
+    localStorage.setItem(SESSION_HINT_KEY, '1');
+  } catch {
+    // Safari private mode and sandboxed iframes throw. See `sessionMayExist`.
+  }
+}
+
+function forgetSession(): void {
+  try {
+    localStorage.removeItem(SESSION_HINT_KEY);
+  } catch {
+    /* see above */
+  }
+}
+
+/**
+ * Whether a session restore is worth attempting on this browser.
+ *
+ * Fails *open*: a browser that cannot read storage at all is told to go ahead and ask, so
+ * the worst case of a locked-down profile is the console error we had before rather than a
+ * user who can never stay signed in.
+ */
+export function sessionMayExist(): boolean {
+  try {
+    return localStorage.getItem(SESSION_HINT_KEY) !== null;
+  } catch {
+    return true;
+  }
+}
+
 const onAuthLostCallbacks = new Set<() => void>();
 
 export function onAuthLost(fn: () => void): () => void {
@@ -99,11 +149,13 @@ function storeSession(body: {
     expiresAt: Date.now() + (body.expiresIn - 60) * 1000,
     accountId: body.accountId,
   };
+  rememberSessionExists();
   return session;
 }
 
 function clearSession(): void {
   session = null;
+  forgetSession();
   for (const fn of onAuthLostCallbacks) fn();
 }
 

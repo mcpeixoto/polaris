@@ -1063,13 +1063,28 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         enabled: () => viewerId !== null && commands.current.hasRows(),
         run: () => commands.current.toggleSubscribe(),
       },
+      /*
+       * The four triage keys, split into the two questions they were asking as one.
+       *
+       * `inTriage` is a fact about the screen: this list is a triage queue or it is not, and
+       * nothing the user does without navigating away can change it. `hasRows` is a fact
+       * about this moment. Both leave the key unbound, so the matcher never told them apart
+       * — but the help overlay lists every *registered* binding, and asked only whether an
+       * action had keys, so an ordinary team list drew a whole "Triage" section teaching
+       * `1`, `2`, `3` and `H`. On a default team, where triage is off, there was no screen
+       * in the entire workspace on which any of the four could fire.
+       *
+       * `available` is what the overlay asks. `enabled` stays for the empty queue, because
+       * "select a row first" is an answer the sheet should still be able to give.
+       */
       {
         id: 'issueList.triageAccept',
         title: 'Accept from triage',
         keys: ['1'],
         when: 'list',
         group: 'Triage',
-        enabled: () => commands.current.inTriage() && commands.current.hasRows(),
+        available: () => commands.current.inTriage(),
+        enabled: () => commands.current.hasRows(),
         run: () => commands.current.acceptTriage(),
       },
       {
@@ -1078,7 +1093,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         keys: ['2', 'm m'],
         when: 'list',
         group: 'Triage',
-        enabled: () => commands.current.inTriage() && commands.current.hasRows(),
+        available: () => commands.current.inTriage(),
+        enabled: () => commands.current.hasRows(),
         run: () => commands.current.pickDuplicate(),
       },
       {
@@ -1087,7 +1103,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         keys: ['3'],
         when: 'list',
         group: 'Triage',
-        enabled: () => commands.current.inTriage() && commands.current.hasRows(),
+        available: () => commands.current.inTriage(),
+        enabled: () => commands.current.hasRows(),
         run: () => commands.current.declineTriage(),
       },
       {
@@ -1096,7 +1113,8 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         keys: ['h'],
         when: 'list',
         group: 'Triage',
-        enabled: () => commands.current.inTriage() && commands.current.hasRows(),
+        available: () => commands.current.inTriage(),
+        enabled: () => commands.current.hasRows(),
         run: () => commands.current.pickSnooze(),
       },
       {
@@ -1161,7 +1179,13 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         keys: ['alt+v'],
         when: 'list',
         group: 'Views',
-        enabled: () => viewer !== null && viewer.role !== 'guest',
+        // A guest cannot save a view on any screen, in any state, ever — so `⌥V` on their
+        // keyboard sheet was a promise the product had no way of keeping. An unknown role
+        // during the bootstrap withdraws nothing permanently: `available` reads "not a
+        // guest", which a null viewer satisfies, and `enabled` holds the key until the
+        // session has actually answered.
+        available: () => viewer === null || viewer.role !== 'guest',
+        enabled: () => viewer !== null,
         run: () => commands.current.saveView(),
       },
       {
@@ -1186,9 +1210,12 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
         when: 'list',
         group: 'Views',
         // Triage is a list because `H` snoozes the row under the cursor and a board has no
-        // cursor. Disabled rather than absent, so the chord still reports itself in the help
-        // overlay on every screen rather than appearing to be unbound on one of them.
-        enabled: () => commands.current.canBoard(),
+        // cursor — so on triage there is no board to toggle to and never will be. This used
+        // to be `enabled`, argued as "the chord still reports itself in the help overlay on
+        // every screen rather than appearing to be unbound on one of them". That trade is
+        // gone now that the sheet can tell the two apart: a row saying ⌘B on the one screen
+        // where ⌘B does nothing is not consistency, it is the sheet being wrong.
+        available: () => commands.current.canBoard(),
         run: () => commands.current.toggleLayout(),
       },
     ],

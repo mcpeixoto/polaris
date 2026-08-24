@@ -46,8 +46,7 @@ test('a project linked once is listed once, even when the socket beats the respo
 }) => {
   const problems: string[] = [];
   page.on('console', (message) => {
-    if (message.type() === 'error' && !message.text().includes('401'))
-      problems.push(message.text());
+    if (message.type() === 'error') problems.push(message.text());
   });
   page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
 

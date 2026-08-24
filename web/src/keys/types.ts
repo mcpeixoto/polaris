@@ -154,8 +154,33 @@ export interface Action<Ctx extends ActionContext = ActionContext> {
    * Gate for actions that only make sense sometimes — "Assign to…" with nothing
    * selected. A disabled action is treated as unbound, so the keystroke falls through to
    * an outer context instead of being silently swallowed.
+   *
+   * `enabled` says *not right now*. For *not here at all*, see `available`.
    */
   readonly enabled?: (ctx: Ctx) => boolean;
+  /**
+   * Whether this action applies to this surface at all — as opposed to `enabled`, which
+   * answers whether it can run at this instant.
+   *
+   * The two are identical to the matcher: both leave the key unbound. They are not
+   * identical to the help overlay, and that difference is the whole reason this field
+   * exists. A keyboard reference must keep `Esc`, `⌘Z` and `Space` on the sheet even when
+   * there is nothing selected, nothing to undo and no row to peek — those are the
+   * shortcuts people look up, and "press it once you have selected something" is the
+   * answer they came for. But it must NOT print `1`, `2`, `3` and `H` for triage on a team
+   * list that is not a triage queue, because there is no state the user can reach from that
+   * screen in which those keys do anything. One predicate cannot tell those apart, so the
+   * action says which it means.
+   *
+   * Rule of thumb: if the user could make it true without leaving the screen, it is
+   * `enabled`. If it is a fact about the screen, the team, the workspace or their role, it
+   * is `available`.
+   *
+   * Deliberately NOT a guard as far as `assertNoConflict` is concerned — see the comment
+   * there. Two actions sharing one key still need `enabled` on both to be allowed, so
+   * adding this field to an action can never quietly retire the duplicate-key check.
+   */
+  readonly available?: (ctx: Ctx) => boolean;
   /**
    * Registered and bound, but not offered in the command menu. For actions whose title
    * would be noise in a searchable list — `Escape`, arrow navigation — that still belong

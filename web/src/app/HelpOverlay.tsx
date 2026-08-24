@@ -15,17 +15,25 @@ import { useKeymap } from './keymap';
 import styles from './HelpOverlay.module.css';
 
 export function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { registry } = useKeymap();
+  const { registry, context } = useKeymap();
 
   const groups = useMemo(() => {
     if (!open) return [];
-    // `byGroup` is the registry's own answer to this question: every *bound* action, grouped,
-    // with the `hidden` ones kept. Filtering `hidden` here — which this overlay used to do —
-    // reads like the same idea but is the opposite one: `hidden` keeps a command out of the
-    // command menu's search results, where "Move down" and "Dismiss" are noise. A keyboard
-    // reference is exactly where they belong, and dropping them cost this sheet `J`/`K`, the
-    // arrow keys, `Esc`, and every ⌘⏎ submit — the first shortcuts anybody looks up.
-    return [...registry.byGroup().entries()]
+    // `byGroup` is the registry's own answer to this question: every *bound* action that
+    // applies here, grouped, with the `hidden` ones kept. Filtering `hidden` here — which
+    // this overlay used to do — reads like the same idea but is the opposite one: `hidden`
+    // keeps a command out of the command menu's search results, where "Move down" and
+    // "Dismiss" are noise. A keyboard reference is exactly where they belong, and dropping
+    // them cost this sheet `J`/`K`, the arrow keys, `Esc`, and every ⌘⏎ submit — the first
+    // shortcuts anybody looks up.
+    //
+    // What it does drop is an action that says it does not apply on this screen at all. The
+    // sheet used to have no way to ask, so a permanently-ungated binding printed as a
+    // reference row that did nothing — an ordinary team list drew a "Triage" section
+    // teaching four keys that could not fire anywhere on it. It deliberately does not ask
+    // `enabled`: "not right now" is not "not here", and a sheet that dropped `Esc` because
+    // nothing was selected would be missing the shortcut people look up most.
+    return [...registry.byGroup({ source: 'menu', context }).entries()]
       .map(([group, actions]) => ({
         group,
         entries: actions
@@ -37,7 +45,7 @@ export function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => v
           .sort((a, b) => a.title.localeCompare(b.title)),
       }))
       .sort((a, b) => a.group.localeCompare(b.group));
-  }, [open, registry]);
+  }, [open, registry, context]);
 
   if (!open) return null;
 

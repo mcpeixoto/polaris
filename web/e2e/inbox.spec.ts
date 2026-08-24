@@ -39,14 +39,14 @@ const API = process.env.POLARIS_E2E_API ?? 'http://localhost:8088';
 /**
  * Everything the browser shouted about, so a flow that passes while throwing still fails.
  *
- * The boot-time 401 is excluded and only that: a browser with no session asks `/auth/refresh`
- * before it can know there is nothing to refresh, and it happens on every fresh context.
+ * Nothing is excluded. This used to exempt "anything containing 401", because a cold boot
+ * asked `/auth/refresh` before it could know there was nothing to refresh — an exemption
+ * wide enough to swallow a genuine sign-out mid-flow. `Boot` no longer asks a question it
+ * has no reason to ask (see `boot-console.spec.ts`), so the filter can go.
  */
 function watchConsole(page: Page, sink: string[], who: string): void {
   page.on('console', (message) => {
-    if (message.type() === 'error' && !message.text().includes('401')) {
-      sink.push(`[${who}] console.error: ${message.text()}`);
-    }
+    if (message.type() === 'error') sink.push(`[${who}] console.error: ${message.text()}`);
   });
   page.on('pageerror', (error) => sink.push(`[${who}] pageerror: ${error.message}`));
 }
