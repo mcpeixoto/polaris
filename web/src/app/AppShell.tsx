@@ -164,15 +164,43 @@ export function AppShell({
   const showCustomers = notGuest && customersOn;
   const showDashboards = showCustomers;
   const showPulse = notGuest && (workspace === undefined || workspace.pulseEnabled);
-  // Initiatives and the administration half of Settings are the same reading. A guest is
-  // team-scoped: no workspace-wide surfaces, and no settings beyond their own account —
-  // `docs/01-features/17-admin-security-permissions.md`, "Guests". The server already
-  // refuses every write behind these, so what was on screen was a list of doors rather
-  // than a way through one; a nav that names Members, API keys, OAuth apps, Webhooks,
-  // Export and Trash to somebody who may open none of them is still telling them what the
-  // workspace has.
+  // Initiatives are workspace-wide and a guest is team-scoped: no workspace-wide surfaces,
+  // and no settings beyond their own account — `docs/01-features/17-admin-security-
+  // permissions.md`, "Guests".
   const showInitiatives = notGuest;
-  const showAdminSettings = notGuest;
+  // Settings is two halves, and until now both were `notGuest` under one flag named for the
+  // half it did not implement.
+  //
+  // A workspace member is not an administrator: the same doc's role table gives Member "no
+  // workspace administration pages". So the Settings nav is split by what the *server* does
+  // with each screen, not by which sidebar block it happens to sit in:
+  //
+  //   - `showAdminSettings` — the screens where a non-admin may do nothing and see nothing.
+  //     Either the read itself is refused (`ListWebhooks`, `ListOauthClients` and the
+  //     GitHub/GitLab/Sentry/Slack settings queries, which select a webhook secret guarded
+  //     by `ActionGitHubManage` and friends), or every control on the page is an admin
+  //     action (`ActionWorkspaceUpdate` behind Workspace, Project updates, Pulse, Customer
+  //     requests and SLAs; `ActionWorkspaceLabelManage` behind Project and Initiative
+  //     labels; `ActionProjectStatusManage` behind Project statuses). Driven as a member,
+  //     `/settings/oauth-apps` gave a page shell, a New OAuth app button and the alert
+  //     "OAuth applications could not be fetched. Only admins can read them." — a list of
+  //     doors rather than a way through one.
+  //
+  //   - `showMemberSettings` — the rest, which a member genuinely uses and which must not be
+  //     swept up with the above. `ActionAPIKeyManage` is `!IsGuest`, so members mint their
+  //     own keys (and MCP is the page that explains where to point them). `exportCap` gives
+  //     a member 250 issues. Trash restores through `CanInTeam(ActionIssueDelete)`, which is
+  //     membership. Labels and Templates each carry a team scope whose action is membership
+  //     too. Members is deliberately readable with its admin controls withheld (#108). Asks
+  //     and Deleted teams answer to `ActionTeamUpdate`/`ActionTeamDelete`, which a *team
+  //     owner* holds while being an ordinary workspace member — a role this hook does not
+  //     carry, so hiding them would take a page away from the people who use it.
+  //
+  // Both read an unanswered session as closed, the way `showPulse` does. A create action
+  // reads it the other way; see `mayCreate` below.
+  const isAdmin = viewerRole === 'owner' || viewerRole === 'admin';
+  const showMemberSettings = notGuest;
+  const showAdminSettings = isAdmin;
   // A create action reads it as *open*, because holding one back is what breaks. These
   // pages draw a create button that reaches its dialogue through the keymap, so an action
   // registered only once the role is known makes the first click land on nothing and stay
@@ -511,7 +539,7 @@ export function AppShell({
         group: 'Navigation',
         run: () => navigate('/settings/authorised-apps'),
       },
-      ...(showAdminSettings
+      ...(showMemberSettings
         ? [
             {
               id: 'nav.mcp',
@@ -525,6 +553,10 @@ export function AppShell({
               group: 'Navigation',
               run: () => navigate('/settings/asks'),
             },
+          ]
+        : []),
+      ...(showAdminSettings
+        ? [
             {
               id: 'nav.customerRequests',
               title: 'Go to Customer requests',
@@ -617,7 +649,7 @@ export function AppShell({
         group: 'Navigation',
         run: () => navigate(archivesPath),
       },
-      ...(showAdminSettings
+      ...(showMemberSettings
         ? [
             {
               id: 'nav.trash',
@@ -651,6 +683,7 @@ export function AppShell({
       mayCreateCustomers,
       showPulse,
       showInitiatives,
+      showMemberSettings,
       showAdminSettings,
       engine,
       pathname,
@@ -943,6 +976,10 @@ export function AppShell({
                   <NavGlyph name="apps" />
                   <span className={styles.navLabel}>Workspace</span>
                 </NavLink>
+              </>
+            )}
+            {showMemberSettings && (
+              <>
                 <NavLink to="/settings/members" className={navClass}>
                   <NavGlyph name="members" />
                   <span className={styles.navLabel}>Members</span>
@@ -951,6 +988,10 @@ export function AppShell({
                   <NavGlyph name="labels" />
                   <span className={styles.navLabel}>Labels</span>
                 </NavLink>
+              </>
+            )}
+            {showAdminSettings && (
+              <>
                 <NavLink to="/settings/project-labels" className={navClass}>
                   <NavGlyph name="labels" />
                   <span className={styles.navLabel}>Project labels</span>
@@ -985,7 +1026,7 @@ export function AppShell({
               <NavGlyph name="bell" />
               <span className={styles.navLabel}>Notifications</span>
             </NavLink>
-            {showAdminSettings && (
+            {showMemberSettings && (
               <>
                 <NavLink to="/settings/templates" className={navClass}>
                   <NavGlyph name="template" />
@@ -1005,7 +1046,7 @@ export function AppShell({
               <NavGlyph name="key" />
               <span className={styles.navLabel}>Authorised apps</span>
             </NavLink>
-            {showAdminSettings && (
+            {showMemberSettings && (
               <>
                 <NavLink to="/settings/mcp" className={navClass}>
                   <NavGlyph name="key" />
@@ -1015,14 +1056,24 @@ export function AppShell({
                   <NavGlyph name="template" />
                   <span className={styles.navLabel}>Asks</span>
                 </NavLink>
+              </>
+            )}
+            {showAdminSettings && (
+              <>
                 <NavLink to="/settings/oauth-apps" className={navClass}>
                   <NavGlyph name="apps" />
                   <span className={styles.navLabel}>OAuth apps</span>
                 </NavLink>
-                <NavLink to="/settings/integrations" className={navClass}>
-                  <NavGlyph name="apps" />
-                  <span className={styles.navLabel}>Integrations</span>
-                </NavLink>
+              </>
+            )}
+            {showMemberSettings && (
+              <NavLink to="/settings/integrations" className={navClass}>
+                <NavGlyph name="apps" />
+                <span className={styles.navLabel}>Integrations</span>
+              </NavLink>
+            )}
+            {showAdminSettings && (
+              <>
                 <NavLink to="/settings/webhooks" className={navClass}>
                   <NavGlyph name="webhook" />
                   <span className={styles.navLabel}>Webhooks</span>
@@ -1043,6 +1094,10 @@ export function AppShell({
                   <NavGlyph name="slack" />
                   <span className={styles.navLabel}>Slack</span>
                 </NavLink>
+              </>
+            )}
+            {showMemberSettings && (
+              <>
                 <NavLink to="/settings/export" className={navClass}>
                   <NavGlyph name="export" />
                   <span className={styles.navLabel}>Export</span>

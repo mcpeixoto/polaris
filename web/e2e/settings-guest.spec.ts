@@ -132,7 +132,16 @@ test('a guest gets neither the administration nav nor the pages behind it', asyn
   await guestContext.close();
 });
 
-test('a member still gets the whole of settings', async ({ page, workspace }) => {
+/**
+ * The other half of the same gate: what a guest loses, an admin keeps.
+ *
+ * This was called "a member still gets the whole of settings" and signed in as
+ * `workspace.account` — the account that created the workspace, and therefore its owner. It
+ * was asserting the bug: `showAdminSettings` was `notGuest`, so a real member did get the
+ * whole of settings, and nothing here would have noticed. What a member gets and does not is
+ * now `settings-admin-gate.spec.ts`, driven as an actual invited member.
+ */
+test('an admin still gets the whole of settings', async ({ page, workspace }) => {
   await signIn(page, workspace.account);
   await page.goto('/my-issues');
   for (const path of [...ADMIN_SETTINGS, ...OWN_SETTINGS]) {

@@ -9,6 +9,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 
+import { Button, EmptyState } from '~/components';
 import { useViewerRole } from '~/hooks/useViewer';
 import { onDeepLink } from '~/platform/runtime';
 import { hasServer } from '~/sync/endpoint';
@@ -261,17 +262,17 @@ function SignedInShell() {
         <Route
           path="/settings"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <WorkspaceSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/workspace"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <WorkspaceSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route path="/settings/profile" element={<ProfileSettings />} />
@@ -294,57 +295,57 @@ function SignedInShell() {
         <Route
           path="/settings/project-labels"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <ProjectLabelSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/initiative-labels"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <InitiativeLabelSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/project-statuses"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <ProjectStatusSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/project-updates"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <ProjectUpdateSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/pulse"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <PulseSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/customers"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <CustomerRequestSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/slas"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <SlaSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route path="/settings/notifications" element={<NotificationSettings />} />
@@ -386,9 +387,9 @@ function SignedInShell() {
         <Route
           path="/settings/oauth-apps"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <OAuthApps />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
@@ -402,41 +403,41 @@ function SignedInShell() {
         <Route
           path="/settings/webhooks"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <Webhooks />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/github"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <GitHubSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/gitlab"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <GitLabSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/sentry"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <SentrySettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
           path="/settings/slack"
           element={
-            <MembersOnly>
+            <AdminOnly>
               <SlackSettings />
-            </MembersOnly>
+            </AdminOnly>
           }
         />
         <Route
@@ -494,6 +495,51 @@ function SignedInShell() {
 function MembersOnly({ children }: { children: ReactNode }) {
   const role = useViewerRole();
   if (role === 'guest') return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+/**
+ * A workspace administration screen, which a plain member does not get either.
+ *
+ * `MembersOnly` was the only wrapper here, so every Administration route was open to
+ * anybody who was not a guest — and the sidebar named them all, because `showAdminSettings`
+ * in `AppShell` was assigned `notGuest`. The role table in
+ * `docs/01-features/17-admin-security-permissions.md` gives Member "no workspace
+ * administration pages", and the server agrees: everything behind these routes answers to
+ * `Role.IsAdmin()`. Reached as a member, `/settings/webhooks` drew a page shell, a New
+ * webhook button and "Webhooks could not be fetched. Only admins can read them."
+ *
+ * Which routes are wrapped is decided by what the server does, not by which sidebar block a
+ * screen sits in. Members, Labels, Templates, API keys, MCP, Asks, Integrations, Export,
+ * Trash and Deleted teams all carry something a non-admin may actually do, and stay on
+ * `MembersOnly`.
+ *
+ * The two refusals differ because the two audiences do. A guest is sent home, as every
+ * other guest gate here does: they have no business knowing the page exists. A member is
+ * told, in place — they can see the entry in a colleague's screen share and type the
+ * address, and bouncing them to the issue list silently reads as a broken link rather than
+ * an answer.
+ *
+ * `null` — the session has not answered — renders the screen, for the same reason
+ * `MembersOnly` does: bouncing an admin off their own settings for the width of one round
+ * trip would be a bug of its own, and the nav reads the same unknown the other way, as
+ * closed. The server is the lock; this is the sign on the door.
+ */
+function AdminOnly({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+  const role = useViewerRole();
+  if (role === 'guest') return <Navigate to="/" replace />;
+  if (role === 'member') {
+    return (
+      <EmptyState
+        title="Only admins can open this"
+        description="This is a workspace administration page. Ask an admin of this workspace if something here needs changing."
+        action={
+          <Button onClick={() => void navigate('/settings/profile')}>Your own settings</Button>
+        }
+      />
+    );
+  }
   return <>{children}</>;
 }
 

@@ -15,7 +15,7 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
@@ -49,13 +49,27 @@ vi.mock('./Boot', () => ({
   }),
 }));
 
+/**
+ * The role the sidebar is asked to gate on, settable per test.
+ *
+ * It has to be settable, because the Settings nav is now three answers rather than two and
+ * a fixture pinned to one role can only ever prove one of them. It also has to come from
+ * here rather than from the replica: `useViewer` reads `store.users`, a guest's replica has
+ * no `user` rows, and gating on it is the bug this suite exists downstream of.
+ */
+let viewerRole: 'owner' | 'admin' | 'member' | 'guest' | null = 'admin';
+
 vi.mock('~/hooks/useViewer', () => ({
   useViewerId: () => VIEWER,
   useViewer: () => null,
   // The role comes from the session query rather than the replica, so it is answered here
-  // even though `useViewer` is not: the sidebar's guest gates read this one.
-  useViewerRole: () => 'member',
+  // even though `useViewer` is not: the sidebar's role gates read this one.
+  useViewerRole: () => viewerRole,
 }));
+
+beforeEach(() => {
+  viewerRole = 'admin';
+});
 
 function seeded(extra: readonly [string, Entity][] = []): Store {
   const store = new Store(WORKSPACE);
@@ -238,36 +252,60 @@ describe('the favourites in the sidebar', () => {
   });
 });
 
+/** Their own account, which every role keeps. */
+const OWN_SETTINGS = ['Profile', 'Preferences', 'Notifications', 'Sessions', 'Authorised apps'];
+
+/**
+ * Settings a member uses, because the server lets them.
+ *
+ * `ActionAPIKeyManage` is `!IsGuest`; `exportCap` gives a member 250 issues; restoring from
+ * Trash is `CanInTeam(ActionIssueDelete)`, i.e. membership; Labels and Templates each carry
+ * a team scope whose action is membership; the Members roster is deliberately readable with
+ * its admin controls withheld (#108); and Asks and Deleted teams answer to team ownership,
+ * which an ordinary workspace member can hold.
+ */
+const MEMBER_SETTINGS = [
+  'Members',
+  'Labels',
+  'Templates',
+  'API keys',
+  'MCP',
+  'Asks',
+  'Integrations',
+  'Export',
+  'Trash',
+  'Deleted teams',
+];
+
+/**
+ * Settings where a non-admin may do nothing and see nothing.
+ *
+ * Either the read itself is refused — `ListWebhooks`, `ListOauthClients`, and the
+ * GitHub/GitLab/Sentry/Slack settings queries, which select a webhook secret guarded by
+ * `ActionGitHubManage` and its siblings — or every control is an admin action:
+ * `ActionWorkspaceUpdate`, `ActionWorkspaceLabelManage`, `ActionProjectStatusManage`.
+ */
+const ADMIN_SETTINGS = [
+  'Workspace',
+  'Project labels',
+  'Initiative labels',
+  'Project statuses',
+  'Project updates',
+  'Customer requests',
+  'SLAs',
+  'OAuth apps',
+  'Webhooks',
+  'GitHub',
+  'GitLab',
+  'Sentry',
+  'Slack',
+];
+
 describe('the settings section', () => {
   /** Only this level can prove every screen built for M1 is actually reachable. */
-  it('links to every workspace screen', () => {
+  it('links to every workspace screen for an admin', () => {
     renderShell(seeded());
-    for (const name of [
-      'Profile',
-      'Workspace',
-      'Preferences',
-      'Members',
-      'Labels',
-      'Initiative labels',
-      'Project statuses',
-      'Notifications',
-      'Templates',
-      'API keys',
-      'Sessions',
-      'Authorised apps',
-      'MCP',
-      'Asks',
-      'Customer requests',
-      'OAuth apps',
-      'Integrations',
-      'Webhooks',
-      'GitHub',
-      'GitLab',
-      'Sentry',
-      'Export',
-      'Trash',
-      'Deleted teams',
-    ]) {
+    for (const name of [...OWN_SETTINGS, ...MEMBER_SETTINGS, ...ADMIN_SETTINGS]) {
       expect(screen.getByRole('link', { name }), `${name} is not reachable`).toBeTruthy();
     }
     for (const name of ['My Issues', 'Inbox', 'Drafts', 'Search']) {
@@ -277,6 +315,49 @@ describe('the settings section', () => {
       screen.getAllByRole('link', { name: 'Pulse' }).length,
       'Pulse feed and Pulse settings',
     ).toBe(2);
+  });
+
+  /**
+   * A member is not an administrator.
+   *
+   * `showAdminSettings` was assigned `notGuest`, so this whole list was in a member's
+   * sidebar — and behind each entry was a page the server refuses, most visibly
+   * `/settings/oauth-apps`, which answered "OAuth applications could not be fetched. Only
+   * admins can read them." underneath a New OAuth app button. The role table in
+   * `docs/01-features/17-admin-security-permissions.md` gives Member "no workspace
+   * administration pages".
+   */
+  it('withholds the administration screens from a member', () => {
+    viewerRole = 'member';
+    renderShell(seeded());
+    for (const name of ADMIN_SETTINGS) {
+      expect(
+        screen.queryByRole('link', { name }),
+        `the sidebar offered a member ${name}`,
+      ).toBeNull();
+    }
+    // Only the feed, not the settings page behind it.
+    expect(screen.getAllByRole('link', { name: 'Pulse' }).length, 'Pulse settings').toBe(1);
+    for (const name of [...OWN_SETTINGS, ...MEMBER_SETTINGS]) {
+      expect(screen.getByRole('link', { name }), `${name} went missing for a member`).toBeTruthy();
+    }
+  });
+
+  /**
+   * An unanswered session reads as closed, the way every other display gate here does.
+   *
+   * The opposite reading is what the three leaks before this one all were: `useViewer()` is
+   * null for a guest for the whole session, and `!== 'guest'` took that for "not a guest".
+   */
+  it('offers no settings beyond the viewer\u2019s own until the role is known', () => {
+    viewerRole = null;
+    renderShell(seeded());
+    for (const name of [...MEMBER_SETTINGS, ...ADMIN_SETTINGS]) {
+      expect(screen.queryByRole('link', { name }), `${name} was offered too early`).toBeNull();
+    }
+    for (const name of OWN_SETTINGS) {
+      expect(screen.getByRole('link', { name }), `${name} went missing`).toBeTruthy();
+    }
   });
 
   it('opens a team at its home rather than its issue list', () => {
