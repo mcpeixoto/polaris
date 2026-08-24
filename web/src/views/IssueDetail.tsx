@@ -1127,13 +1127,28 @@ export function Comments({
     [issueId],
   );
 
-  // Comments deleted from this tab.
+  // The comments the replica has been told are gone.
   //
-  // The store drops the row the moment the delete is made, but `fetched` is the answer to
-  // one query made when the screen mounted and still holds it — so without this the comment
-  // would be taken away and then handed straight back by the merge. The set is the screen's
-  // memory of what it did, and the reload it survives is the one that makes it unnecessary.
-  const [removed, setRemoved] = useState<ReadonlySet<UUID>>(() => new Set());
+  // `fetched` is the answer to one query, made when the screen mounted, and it is never
+  // asked again — so every delete that lands afterwards has to be subtracted from it by
+  // hand or the merge below hands the comment straight back. This used to be the screen's
+  // own memory of the deletes *it* made, which covered the only case anybody had looked
+  // at and left two that were reported as a comment coming back from the dead:
+  //
+  //   - somebody else deletes it. The delta retires the row in the replica and the merge
+  //     restores it from `fetched`, for as long as this tab stays open. No reload, no
+  //     race, no way back — the server will never mention that row again.
+  //   - this tab deletes it and reloads before the server has answered. The new screen
+  //     asks for the comments while the delete is still in flight, so `fetched` is
+  //     answered with the row still in it; the outbox replays the delete a moment later
+  //     and the delta retires a row this store never had. `removed` was empty, because
+  //     the tab that did the deleting is gone.
+  //
+  // Both are the same shape — a read that was answered before a delete it cannot know
+  // about — and the replica is the only thing that sees both, so the answer comes from
+  // there. `deleteComment` refused by the server puts the row back through `put`, which
+  // drops the tombstone, so a refusal is visible instead of looking like a success.
+  const removed = useLiveQuery((store) => store.forgottenIds('comment'), ['comment'], []);
 
   const threads = useMemo(() => thread(stored, fetched, removed), [stored, fetched, removed]);
 
@@ -1363,7 +1378,6 @@ export function Comments({
           setDeleting(null);
           if (target === null) return;
           if (editing === target.id) setEditing(null);
-          setRemoved((current) => new Set(current).add(target.id));
           deleteComment(engine, target.id).catch(report);
         }}
         onClose={() => setDeleting(null)}

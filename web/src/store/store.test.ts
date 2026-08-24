@@ -902,6 +902,101 @@ describe('Store optimistic writes', () => {
   });
 });
 
+/**
+ * What the replica remembers about a row after the row itself is gone.
+ *
+ * A screen that merges a network read with the replica — `Comments` in
+ * `web/src/views/IssueDetail.tsx` is the one that exists — needs to tell "the store has never
+ * heard of this" from "the store has been told this is deleted". A table of live rows answers
+ * both with `undefined`, and the difference is the whole bug: the issue detail query is asked
+ * once, when the screen mounts, and any delete that lands after it is subtracted from the
+ * replica and handed straight back by the merge. Nothing ever corrects it, because the server
+ * has finished saying things about a row it has finished deleting.
+ */
+describe('a delete the replica remembers', () => {
+  it('records a comment the delta says is gone', async () => {
+    const store = await seeded();
+    expect(store.forgottenIds('comment').has('c1')).toBe(false);
+
+    store.applyChanges([remove(101, 'comment', 'c1')]);
+    expect(store.get('comment', 'c1')).toBeUndefined();
+    expect(store.forgottenIds('comment').has('c1')).toBe(true);
+  });
+
+  it('records one the replica never held, which is the reload the bug hides in', async () => {
+    const store = await seeded();
+
+    // The tab that did the deleting reloaded before the server answered. This store hydrated
+    // from a replica the delete had already reached, so there is nothing here to remove — and
+    // the screen that asked for the comments a moment earlier is still holding the row.
+    store.applyChanges([remove(101, 'comment', 'gone-before-we-looked')]);
+    expect(store.forgottenIds('comment').has('gone-before-we-looked')).toBe(true);
+  });
+
+  it('records the delete this tab made, before the server has answered', async () => {
+    const store = await seeded();
+    const before = store.get('comment', 'c1');
+    expect(before).toBeDefined();
+
+    store.applyOptimistic([{ type: 'comment', id: 'c1', before: before as Comment, after: null }]);
+    expect(store.forgottenIds('comment').has('c1')).toBe(true);
+  });
+
+  it('forgets the tombstone when the server refuses the delete', async () => {
+    const store = await seeded();
+    const before = store.get('comment', 'c1') as Comment;
+    const patch: EntityPatch[] = [{ type: 'comment', id: 'c1', before, after: null }];
+
+    store.applyOptimistic(patch);
+    store.revertOptimistic(patch);
+
+    // The row is back, so the tombstone has to go with it. A refusal that left one behind
+    // would take the comment off the screen exactly as convincingly as a delete that worked.
+    expect(store.get('comment', 'c1')).toEqual(before);
+    expect(store.forgottenIds('comment').has('c1')).toBe(false);
+  });
+
+  it('wakes a live query even when there was no row to remove', async () => {
+    const store = await seeded();
+    const seen: number[] = [];
+    store.subscribe({
+      select: (current) => current.forgottenIds('comment').size,
+      onChange: (size) => seen.push(size),
+      deps: ['comment'],
+    });
+
+    store.applyChanges([remove(101, 'comment', 'never-here')]);
+
+    // Without this the screen holding the stale answer is never told to recompute, and the
+    // tombstone is a fact nobody reads.
+    expect(seen).toEqual([1]);
+  });
+
+  it('does not remember the rows a cascade took with it', async () => {
+    const store = await seeded();
+
+    // One `revoke` for a team can carry sixty thousand issues. The merge only ever holds the
+    // rows a read answered with, so the id worth keeping is the one the server named; keeping
+    // the cascade as well would be a leak with a tombstone's name on it.
+    store.applyChanges([{ v: 101, type: 'team', id: 't1', op: 'revoke', actor: ACTOR }]);
+    expect(store.get('issue', 'i1')).toBeUndefined();
+    expect(store.forgottenIds('team').has('t1')).toBe(true);
+    expect(store.forgottenIds('issue').size).toBe(0);
+    expect(store.forgottenIds('comment').size).toBe(0);
+  });
+
+  it('drops every tombstone when a fresh snapshot arrives', async () => {
+    const store = await seeded();
+    store.applyChanges([remove(101, 'comment', 'c1')]);
+    expect(store.forgottenIds('comment').size).toBe(1);
+
+    // A bootstrap is the server's answer to "what exists", and it is newer than anything
+    // remembered here.
+    await store.beginBootstrap();
+    expect(store.forgottenIds('comment').size).toBe(0);
+  });
+});
+
 describe('Store labels', () => {
   it('keeps both labels when two clients add one each in separate frames', async () => {
     const store = await seeded();

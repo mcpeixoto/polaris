@@ -356,6 +356,28 @@ export class Store {
   /** Keyed by user and view key together; see `preferenceKey`. */
   private readonly preferenceKeys = new Map<string, UUID>();
 
+  /**
+   * Ids this session has been told are gone, kept after the rows themselves are gone.
+   *
+   * A screen that merges a network read with the replica needs to be able to tell "the
+   * store never had this" from "the store was told this is deleted", and a `Map` of live
+   * rows cannot say which. Without the difference, a read that was answered before the
+   * delete — the issue detail query is the one that exists — hands the row straight back
+   * to the merge, and it stays on screen for as long as the tab is open, because no
+   * further delta will ever mention a row the server has finished deleting.
+   *
+   * Recorded for the changes the client is actually handed, not for the rows a cascade
+   * takes with them: one `revoke` for a team can carry sixty thousand issues, and a set
+   * that grew by sixty thousand ids would be a leak rather than a tombstone. What the
+   * merge needs is the id the read could still be holding, and that is the named one.
+   *
+   * Session-scoped, and deliberately not persisted. A reload gets its answers from a
+   * replica that already has the delete in it, so the tombstone has nothing to protect —
+   * and a tombstone that outlived its reason would be a row this client could never see
+   * again.
+   */
+  private readonly forgotten = new Map<EntityType, Set<UUID>>();
+
   private readonly subscribers = new Set<Subscriber>();
   private readonly db: PolarisDB | null;
   private readonly onPersistError: (error: unknown) => void;
@@ -661,6 +683,17 @@ export class Store {
 
   commentIdsFor(issueId: UUID): ReadonlySet<UUID> {
     return this.commentIssue.get(issueId);
+  }
+
+  /**
+   * The ids of this type this session has been told are gone. See `forgotten`.
+   *
+   * A fresh set each call, because it is read through `subscribe`, and a selector that
+   * handed back the same mutating instance every time would compare equal to itself and
+   * never wake the view it belongs to.
+   */
+  forgottenIds(type: EntityType): ReadonlySet<UUID> {
+    return new Set(this.forgotten.get(type));
   }
 
   attachmentIdsFor(issueId: UUID): ReadonlySet<UUID> {
@@ -1012,6 +1045,7 @@ export class Store {
           // indistinguishable: any residue — a cached title, an id in an index, a row
           // left in IndexedDB — is a permanent readable copy of data the user was cut
           // off from, which is the exact failure `revoke` exists to prevent.
+          this.entomb(change.type, change.id, touched);
           this.forget(change.type, change.id, deletes, touched);
           break;
       }
@@ -1035,8 +1069,10 @@ export class Store {
     const deletes: EntityRef[] = [];
     const touched = new Set<EntityType>();
     for (const entry of patch) {
-      if (entry.after === null) this.forget(entry.type, entry.id, deletes, touched);
-      else this.put(entry.type, entry.after, puts, touched);
+      if (entry.after === null) {
+        this.entomb(entry.type, entry.id, touched);
+        this.forget(entry.type, entry.id, deletes, touched);
+      } else this.put(entry.type, entry.after, puts, touched);
     }
     // No meta: an optimistic write has no workspace version yet, and claiming one would
     // make the client resume from a point the server has never heard of.
@@ -1061,8 +1097,10 @@ export class Store {
       if (entry === undefined) continue;
       const current = this.tables[entry.type].get(entry.id) ?? null;
       if (!sameResult(current, entry.after)) continue;
-      if (entry.before === null) this.forget(entry.type, entry.id, deletes, touched);
-      else this.put(entry.type, entry.before, puts, touched);
+      if (entry.before === null) {
+        this.entomb(entry.type, entry.id, touched);
+        this.forget(entry.type, entry.id, deletes, touched);
+      } else this.put(entry.type, entry.before, puts, touched);
     }
     this.persist({ puts, deletes });
     this.notify(touched);
@@ -1148,6 +1186,10 @@ export class Store {
     this.projectDependencyBlockedByOf.clear();
     this.cycleTeam.clear();
     this.preferenceKeys.clear();
+    // The snapshot about to be streamed in is the server's answer to "what exists", and
+    // it is newer than every tombstone here. Keeping them would let one delete this
+    // session watched hide a row a later bootstrap says is real.
+    this.forgotten.clear();
     this.currentVersion = 0;
     this.bootstrappedAt = null;
   }
@@ -1163,7 +1205,26 @@ export class Store {
     const previous = this.tables[type].get(entity.id);
     this.tables[type].set(entity.id, entity);
     this.reindex(type, previous, entity);
+    // The row is here, so any tombstone for it is answered. This is what puts a comment
+    // back on screen when the server refuses the delete that took it off: `revertOptimistic`
+    // writes `before` back through here, and the tombstone must not outlive it.
+    this.forgotten.get(type)?.delete(entity.id);
     puts.push({ type, entity });
+    touched.add(type);
+  }
+
+  /**
+   * Records that this session was told an id is gone. See `forgotten`.
+   *
+   * `touched` regardless of whether the row was there to remove: a client that reloaded
+   * between the delete and the delta hydrates without the row and is then told about it,
+   * and the screens merging a network read need waking for exactly that case — it is the
+   * one where they are still holding the row and the store is not.
+   */
+  private entomb(type: EntityType, id: UUID, touched: Set<EntityType>): void {
+    const seen = this.forgotten.get(type);
+    if (seen === undefined) this.forgotten.set(type, new Set([id]));
+    else seen.add(id);
     touched.add(type);
   }
 

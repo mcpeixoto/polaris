@@ -524,6 +524,66 @@ test.describe('comment edit and delete', () => {
     await expect(page.getByText('said too soon', { exact: true })).toHaveCount(0);
   });
 
+  /**
+   * The delete that arrives from somewhere else, which is the same bug without the race.
+   *
+   * The test above was failing every run, and the reload was a red herring: what makes a
+   * deleted comment come back is that the issue screen merges the replica with the answer to
+   * one network query, made when it mounted and never made again. A delete that lands after
+   * that answer is subtracted from the replica and put straight back by the merge. The screen
+   * used to subtract the deletes *it* made, by hand, which covered the one case somebody had
+   * looked at and left every other route in.
+   *
+   * Reloading is the second route and it is a race — the outbox replays the delete a moment
+   * after the new screen has already asked for the comments, and whether the answer still has
+   * the row in it depends on which of the two reaches the server first. This is the first
+   * route, and it is not a race at all: the comment is deleted from another tab, the delta
+   * says so, the replica drops it, and the merge hands it back. It stays for as long as the
+   * tab is open, because the server has said everything it will ever say about that row.
+   *
+   * Written with a second context rather than a second account because the mechanism is the
+   * delta, not the author: what matters is that the delete reaches this screen from the sync
+   * socket instead of from its own click.
+   */
+  test('a comment deleted in another tab leaves this one, without a reload', async ({
+    browser,
+    page,
+    workspace,
+  }) => {
+    const issue = await createIssueViaApi(workspace, 'Taken back somewhere else');
+    const body = `Said in one tab ${Date.now()}`;
+
+    await signIn(page, workspace.account);
+    await page.goto(`/issue/${issue.identifier}`);
+    await page.getByPlaceholder(COMPOSER).first().fill(body);
+    await page.getByRole('button', { name: /^comment$/i }).click();
+    await expect(page.getByText(body, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+
+    // The screen is reloaded once so the comment is inside the detail query's answer as well
+    // as inside the replica. That is the state the merge is wrong about, and it is the
+    // ordinary state of any issue somebody opens after the conversation has started.
+    await page.reload();
+    await page.getByPlaceholder(COMPOSER).first().waitFor();
+    await expect(page.getByText(body, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+
+    const elsewhere = await browser.newContext();
+    const other = await elsewhere.newPage();
+    await signIn(other, workspace.account);
+    await other.goto(`/issue/${issue.identifier}`);
+    await expect(other.getByText(body, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+    await other
+      .getByRole('button', { name: /^delete comment from/i })
+      .first()
+      .click();
+    await other.getByRole('button', { name: 'Delete comment', exact: true }).click();
+    await expect(other.getByText(body, { exact: true })).toHaveCount(0);
+
+    // The first tab never touched it and never reloads. Everything it needs is on the wire.
+    await expect(page.getByText(body, { exact: true })).toHaveCount(0, { timeout: 30_000 });
+
+    await elsewhere.close();
+  });
+
   test("a member gets no affordance on somebody else's comment, an admin gets the bin", async ({
     browser,
     page,
