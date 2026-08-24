@@ -7,7 +7,7 @@
  */
 
 import { STATE_LABELS, priorityLabel } from '~/components';
-import { effortOf } from '~/features/estimate';
+import { effortOf, estimatesEnabled } from '~/features/estimate';
 import { isFilterGroup, type FilterClause, type FilterNode } from '~/filter';
 import type { Customer, Issue, StateCategory, Store, UUID } from '~/store';
 
@@ -48,7 +48,6 @@ export type InsightSlice = (typeof INSIGHT_SLICES)[number];
 export type BurnPeriod = 'week' | 'month';
 
 export interface InsightOptions {
-  readonly includeArchived?: boolean;
   readonly burnPeriod?: BurnPeriod;
 }
 
@@ -117,13 +116,17 @@ export function buildInsights(
   now = Date.now(),
   options: InsightOptions = {},
 ): InsightData {
-  const includeArchived = options.includeArchived === true;
+  // Archived work is not measurable here, and there is no option to ask for it.
+  //
+  // `Service.ArchiveIssue` emits a *delete* for the replica — "archived issues are never
+  // part of the bootstrap snapshot" — so an archived issue is not in `store.issues` at all,
+  // on any client, ever. A "show archived" switch over this corpus could only ever be inert,
+  // which is worse than absent: it tells the reader the number in front of them has been
+  // widened when nothing widened it. The guard below is therefore unconditional rather than
+  // optional, and stays as the statement of that invariant.
   const issues = issueIds
     .map((id) => store.issues.get(id))
-    .filter(
-      (issue): issue is Issue =>
-        issue !== undefined && (includeArchived || issue.archivedAt === undefined),
-    );
+    .filter((issue): issue is Issue => issue !== undefined && issue.archivedAt === undefined);
 
   if (measure === 'burnUp') {
     return burnUp(store, issues, options.burnPeriod ?? 'month');
@@ -184,7 +187,7 @@ export function buildInsights(
     measure,
     slice,
     chart,
-    unit: unitOf(measure),
+    unit: unitOf(store, rows, measure),
     buckets,
     scatter,
     burn: [],
@@ -195,8 +198,13 @@ export function buildInsights(
 
 function burnUp(store: Store, issues: readonly Issue[], period: BurnPeriod): InsightData {
   const buckets = new Map<string, number>();
+  // The issues the line is actually made of, kept so the unit can be named after them.
+  // A burn-up sums `effortOf` exactly as the effort measure does, so a bare "completed"
+  // leaves the reader to guess whether 12 is twelve issues or twelve points.
+  const contributing: Issue[] = [];
   for (const issue of issues) {
     if (issue.completedAt === undefined) continue;
+    contributing.push(issue);
     const key = periodKey(issue.completedAt, period);
     buckets.set(key, (buckets.get(key) ?? 0) + effortOf(issue, store.teams.get(issue.teamId)));
   }
@@ -211,7 +219,7 @@ function burnUp(store: Store, issues: readonly Issue[], period: BurnPeriod): Ins
     measure: 'burnUp',
     slice: 'assignee',
     chart: 'area',
-    unit: 'completed',
+    unit: `completed ${effortUnit(store, contributing)}`,
     buckets: [],
     scatter: [],
     burn,
@@ -303,11 +311,38 @@ function average(values: readonly number[]): number {
   return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10;
 }
 
-function unitOf(measure: InsightMeasure): string {
+function unitOf(store: Store, rows: readonly Issue[], measure: InsightMeasure): string {
   if (measure === 'count') return 'issues';
-  if (measure === 'effort') return 'points';
-  if (measure === 'burnUp') return 'completed';
+  if (measure === 'effort') return effortUnit(store, rows);
   return 'days';
+}
+
+/**
+ * What an effort number is actually counted in.
+ *
+ * `effortOf` returns 1 per issue for a team whose scale is `none`, so "effort" over such a
+ * team is an issue count and nothing else — calling it *points* invents a currency the team
+ * has never entered a value in. `computeCapacity` and `computeCycleGraph` already say
+ * `issues` in that case; the doc's requirement that effort semantics be shared across the
+ * graph, capacity and insights is the reason this exists rather than a hardcoded word.
+ *
+ * Insights is the one surface that can span teams, so it has a third answer those two do
+ * not need. A selection holding a Fibonacci team and a team that does not estimate has no
+ * common unit: the sum is real, and it is neither a point total nor an issue count. "Effort"
+ * is what that sum is, and naming it after either ladder would be a claim about the other.
+ */
+function effortUnit(store: Store, rows: readonly Issue[]): string {
+  let estimated = false;
+  let counted = false;
+  for (const issue of rows) {
+    const team = store.teams.get(issue.teamId);
+    // A team the replica has not got is treated as not estimating, because that is exactly
+    // what `effortOf` does with it: no team, one point per issue.
+    if (team !== undefined && estimatesEnabled(team)) estimated = true;
+    else counted = true;
+    if (estimated && counted) return 'effort';
+  }
+  return estimated ? 'points' : 'issues';
 }
 
 interface Dimension {

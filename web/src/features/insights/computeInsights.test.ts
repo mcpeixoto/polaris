@@ -303,7 +303,10 @@ describe('buildInsights', () => {
     ]);
   });
 
-  it('can include archived issues and burn up by week', () => {
+  // Archiving emits a delete to the replica, so a client never holds an archived issue and
+  // the panel has no option to ask for one. A row that somehow carries `archivedAt` is a
+  // replica that has gone wrong, and it is left out rather than measured.
+  it('never measures an archived issue, and there is no option to ask for one', () => {
     const store = new Store('w');
     seed(store);
     store.applyChanges([
@@ -317,17 +320,58 @@ describe('buildInsights', () => {
         }),
       ),
     ]);
-    const hidden = buildInsights(store, ['i1', 'i9'], 'count', 'priority');
-    expect(hidden.total).toBe(1);
-    const shown = buildInsights(store, ['i1', 'i9'], 'count', 'priority', Date.parse(NOW), {
-      includeArchived: true,
-    });
-    expect(shown.total).toBe(2);
+    expect(buildInsights(store, ['i1', 'i9'], 'count', 'priority').total).toBe(1);
+    expect(buildInsights(store, ['i1', 'i9'], 'count', 'priority', Date.parse(NOW), {}).total).toBe(
+      1,
+    );
     const weekly = buildInsights(store, ['i1', 'i9'], 'burnUp', 'assignee', Date.parse(NOW), {
-      includeArchived: true,
       burnPeriod: 'week',
     });
-    expect(weekly.burn.map((point) => point.period)).toEqual(['2026-02-09', '2026-02-16']);
+    expect(weekly.burn.map((point) => point.period)).toEqual(['2026-02-09']);
+  });
+});
+
+describe('the unit an effort number is reported in', () => {
+  it('says points for a team that estimates', () => {
+    const store = new Store('w');
+    seed(store);
+    const data = buildInsights(store, ['i1', 'i2'], 'effort', 'priority');
+    expect(data.unit).toBe('points');
+    expect(data.total).toBe(7);
+  });
+
+  // `effortOf` returns 1 per issue when the scale is `none`, so the number is an issue
+  // count. `computeCapacity` and `computeCycleGraph` both say `issues` in that case.
+  it('says issues for a team that cannot estimate', () => {
+    const store = new Store('w');
+    seed(store);
+    store.applyChanges([upsert(40, 'team', { ...teamRow(), estimateScale: 'none' })]);
+    const data = buildInsights(store, ['i1', 'i2'], 'effort', 'priority');
+    expect(data.unit).toBe('issues');
+    expect(data.total).toBe(2);
+    expect(buildInsights(store, ['i1', 'i2'], 'count', 'priority').unit).toBe('issues');
+  });
+
+  // The one answer the cycle graph and the capacity dial never need: they are scoped to a
+  // single team, and Insights is not.
+  it('says effort when the selection spans a team that estimates and one that does not', () => {
+    const store = new Store('w');
+    seed(store);
+    store.applyChanges([
+      upsert(41, 'team', { ...teamRow(), id: 't2', key: 'OPS', estimateScale: 'none' }),
+      upsert(42, 'issue', issue('i7', { teamId: 't2' })),
+    ]);
+    const data = buildInsights(store, ['i1', 'i2', 'i7'], 'effort', 'priority');
+    expect(data.unit).toBe('effort');
+    expect(data.total).toBe(8);
+  });
+
+  it('names the burn-up unit too, rather than leaving it at "completed"', () => {
+    const store = new Store('w');
+    seed(store);
+    expect(buildInsights(store, ['i1', 'i2'], 'burnUp', 'assignee').unit).toBe('completed points');
+    store.applyChanges([upsert(43, 'team', { ...teamRow(), estimateScale: 'none' })]);
+    expect(buildInsights(store, ['i1', 'i2'], 'burnUp', 'assignee').unit).toBe('completed issues');
   });
 });
 
