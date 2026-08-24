@@ -28,6 +28,24 @@
   }
 }
 
+/*
+ * Leaving is one event too, and it is the faster of the two. The scrim and the dialog go
+ * together at --duration-instant on --ease-in — accelerating away, where the entrance
+ * decelerated in — because a dismissal is a decision the user has already taken and the
+ * interface is only catching up. `forwards` on both: without it the last frame of an
+ * animation hands the element back its original opacity, and a dialog that flashes to full
+ * strength for one frame before vanishing is worse than the hard cut this replaces.
+ */
+@keyframes scrimOut {
+  to {
+    opacity: 0;
+  }
+}
+
+.backdrop[data-exiting] {
+  animation: scrimOut var(--duration-instant) var(--ease-in) forwards;
+}
+
 .dialog {
   display: flex;
   flex-direction: column;
@@ -54,6 +72,26 @@
     opacity: 0;
     transform: translateY(-6px) scale(0.98);
   }
+}
+
+/*
+ * Back the way it came, and not as far. The entrance descends six pixels into place, so the
+ * exit lifts — retracing an arrival is what makes the pair read as one object appearing and
+ * leaving rather than two unrelated effects. Four pixels rather than six because there is
+ * less than half the time to cover them, and a distance that cannot be travelled calmly is
+ * better shortened than hurried.
+ */
+@keyframes dialogOut {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.99);
+  }
+}
+
+/* Driven from the backdrop, which is the node usePresence marks: the dialog is a child and
+ * has no state of its own to key on. */
+.backdrop[data-exiting] .dialog {
+  animation: dialogOut var(--duration-instant) var(--ease-in) forwards;
 }
 
 .dialog:focus {

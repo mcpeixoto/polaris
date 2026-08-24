@@ -48,6 +48,38 @@
 }
 
 /*
+ * And the way out, at --duration-instant on --ease-in.
+ *
+ * This is the surface the argument for a quick exit is clearest on. The command menu exists
+ * to be gone: every row in it either navigates somewhere or runs something, so the moment it
+ * closes is the moment the user is looking for whatever they asked for. A leisurely fade
+ * here would be the interface admiring itself in front of the thing it was told to do.
+ *
+ * Scrim and panel leave together, for the same reason they arrive together — one keystroke,
+ * one event.
+ */
+@keyframes scrimOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes fall {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.99);
+  }
+}
+
+.backdrop[data-exiting] {
+  animation: scrimOut var(--duration-instant) var(--ease-in) forwards;
+}
+
+.backdrop[data-exiting] .panel {
+  animation: fall var(--duration-instant) var(--ease-in) forwards;
+}
+
+/*
  * There is no `prefers-reduced-motion` block here on purpose, and there used to be. Both
  * animations above are driven by --duration-fast, which tokens.css already collapses to 1ms
  * under that query — so the override restated a guarantee the token layer makes, in one

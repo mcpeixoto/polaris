@@ -43,6 +43,24 @@
   }
 }
 
+/*
+ * Vertical only on the way out as well, and here the restriction is a choice rather than a
+ * constraint. The measurement that forbids horizontal movement has already happened —
+ * `settledRef` is set, and every layout effect in DisplayMenu.tsx is gated on `open`, which
+ * is false by the time this runs — so nothing would break. It stays vertical because the
+ * entrance is, and a panel that drops in and slides sideways out is not one gesture.
+ */
+@keyframes panelOut {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.panel[data-exiting] {
+  animation: panelOut var(--duration-instant) var(--ease-in) forwards;
+}
+
 /* The panel takes focus on opening so the keyboard arrives inside it, but it is a container
    rather than a control: a ring around the whole surface would say "you are here" about a
    region nobody has to be told about, and the first control's own ring carries it. */

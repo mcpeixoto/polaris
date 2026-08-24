@@ -49,6 +49,7 @@ import {
   useState,
   type FormEvent,
   type ReactNode,
+  type Ref,
 } from 'react';
 
 import { useActions, useKeyContext } from '~/app/keymap';
@@ -67,6 +68,7 @@ import {
 } from '~/components';
 import { formatCustomerStatus } from '~/features/customers/mutations';
 import { browserTimezone } from '~/features/locale';
+import { usePresence, type ExitProps } from '~/hooks/usePresence';
 import { whenDay } from '~/features/time';
 import {
   CUSTOMER_STATUSES,
@@ -444,7 +446,13 @@ function ClauseChip({
   onRemove,
 }: ClauseChipProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(open);
+
+  // The popover is held on screen for the length of its fade. The focus hand-back below
+  // still fires on the frame it closes: `inert` has already pushed the caret out of the
+  // exiting panel by then, so this puts it back on the chip rather than fighting it.
+  const { present, exitProps } = usePresence(open, editorRef);
 
   // Focus comes back to the chip when its editor closes, wherever the closing came from —
   // Escape, the Done button, or another chip being opened. Without it, dismissing a popover
@@ -483,8 +491,10 @@ function ClauseChip({
         onClick={onRemove}
       />
 
-      {open ? (
+      {present ? (
         <ClauseEditor
+          ref={editorRef}
+          exitProps={exitProps}
           clause={clause}
           names={names}
           timezone={timezone}
@@ -504,6 +514,10 @@ interface ClauseEditorProps {
   teamId: UUID | undefined;
   onChange: (next: FilterClause) => void;
   onClose: () => void;
+  /** The popover's own node, so its chip can time the exit against the animation on it. */
+  ref?: Ref<HTMLDivElement> | undefined;
+  /** Inertness and the exit hook, from the chip's `usePresence`. Spread, never inspected. */
+  exitProps?: ExitProps | undefined;
 }
 
 /**
@@ -515,7 +529,16 @@ interface ClauseEditorProps {
  * user was working in. Escape, the Done button and clicking the chip again all close it,
  * which is three ways more than the failure mode is worth.
  */
-function ClauseEditor({ clause, names, timezone, teamId, onChange, onClose }: ClauseEditorProps) {
+function ClauseEditor({
+  clause,
+  names,
+  timezone,
+  teamId,
+  onChange,
+  onClose,
+  ref,
+  exitProps,
+}: ClauseEditorProps) {
   const [search, setSearch] = useState('');
   const operatorRef = useRef<HTMLSelectElement>(null);
   const field = clause.field;
@@ -534,9 +557,11 @@ function ClauseEditor({ clause, names, timezone, teamId, onChange, onClose }: Cl
 
   return (
     <div
+      ref={ref}
       className={styles.editor}
       role="dialog"
       aria-label={`Edit the ${FIELD_LABELS[field]} filter`}
+      {...exitProps}
     >
       <Select
         ref={operatorRef}

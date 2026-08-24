@@ -1,0 +1,19 @@
+/* Rules that belong to motion itself rather than to any one component.
+ *
+ * There is exactly one of them, and it is the price of admission for animating a dismissal.
+ *
+ * A surface that fades out is a surface the user has already finished with: they pressed
+ * Escape, or clicked the backdrop, and as far as they are concerned the thing is gone. For
+ * the length of the exit it is still there — a full-screen scrim, or a menu over the row
+ * behind it — and every millisecond of that is a millisecond in which a click can land on a
+ * dialog nobody believes is on screen. hooks/usePresence.ts marks the node `inert`, which
+ * already stops hit-testing wherever `inert` is supported; this rule states the same
+ * guarantee in the layer that cannot be forgotten by a component, so a surface that grows an
+ * exit without going through the hook still cannot swallow a click on its way out.
+ *
+ * It is deliberately not scoped to a component or a class. `[data-exiting]` is a claim about
+ * a state, and the state means the same thing everywhere it appears.
+ */
+[data-exiting] {
+  pointer-events: none;
+}

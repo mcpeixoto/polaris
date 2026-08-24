@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -8,6 +9,8 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
+
+import { usePresence } from '~/hooks/usePresence';
 
 import { IconButton } from './IconButton';
 import styles from './Modal.module.css';
@@ -116,12 +119,19 @@ export function Modal({
   const titleId = `${baseId}-title`;
   const descriptionId = `${baseId}-description`;
 
+  const backdropRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const returnRef = useRef<HTMLElement | null>(null);
   // A press that began inside the dialog and ended on the backdrop is a drag — selecting
   // the last word of a sentence, usually — not a dismissal.
   const backdropPressRef = useRef(false);
+
+  // `present` outlives `open` by the length of the exit. Everything below still keys on
+  // `open`, because focus and the scroll lock are answers to "has the user dismissed this",
+  // not to "is anything still painted": Escape has to hand the keyboard back on the frame it
+  // was pressed, whatever the scrim is doing afterwards.
+  const { present, exitProps } = usePresence(open, backdropRef);
 
   // Declared before the focusing effect below, and a layout effect like it, so that what it
   // captures is the element that opened the dialog rather than the dialog's own first
@@ -130,6 +140,22 @@ export function Modal({
     if (!open) return;
     const previous = document.activeElement;
     returnRef.current = previous instanceof HTMLElement ? previous : null;
+  }, [open]);
+
+  /**
+   * And the other half of the round trip, deliberately in a passive effect rather than in
+   * the cleanup of the layout effect above.
+   *
+   * The split is not stylistic. Since the dialog now outlives `open` by the length of its
+   * exit, the element that was focused inside it is still connected when the closing commit
+   * ends — and React, which captures the focused element before a commit and re-focuses it
+   * after, would put the caret straight back into the dialog the user has just dismissed.
+   * Restoring from a layout cleanup means restoring before that happens and being quietly
+   * overruled. A passive effect runs after the whole commit, including after usePresence has
+   * emptied the exiting subtree of focus, so this is the last word rather than the first.
+   */
+  useEffect(() => {
+    if (!open) return;
     return () => {
       const target = returnRef.current;
       returnRef.current = null;
@@ -156,8 +182,11 @@ export function Modal({
     target.focus();
   }, [open, initialFocus]);
 
+  // The one exception, and it is about the scrim rather than the dialog: releasing the lock
+  // on `open` would return the scrollbar — and reflow the page behind a backdrop that is
+  // still opaque — while the user is watching it fade.
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!present) return;
     const { body } = document;
     const previous = body.style.overflow;
     body.style.overflow = 'hidden';
@@ -166,9 +195,9 @@ export function Modal({
     return () => {
       body.style.overflow = previous;
     };
-  }, [open]);
+  }, [present]);
 
-  if (!open) return null;
+  if (!present) return null;
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
@@ -224,7 +253,13 @@ export function Modal({
   };
 
   return createPortal(
-    <div className={styles.backdrop} onMouseDown={onBackdropMouseDown} onClick={onBackdropClick}>
+    <div
+      ref={backdropRef}
+      className={styles.backdrop}
+      onMouseDown={onBackdropMouseDown}
+      onClick={onBackdropClick}
+      {...exitProps}
+    >
       <div
         ref={dialogRef}
         role="dialog"

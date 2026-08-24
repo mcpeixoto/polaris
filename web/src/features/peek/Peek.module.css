@@ -31,6 +31,25 @@
   }
 }
 
+/*
+ * Out the way it came, back towards the edge it is attached to. A drawer that fades in place
+ * on Space has stopped being a drawer.
+ *
+ * The panel keeps its untransformed width for the whole of the exit, so the list beside it
+ * does not start growing until the panel is gone — which is the same bargain the entrance
+ * makes in reverse, and the reason neither direction reflows the list mid-animation.
+ */
+@keyframes peekOut {
+  to {
+    opacity: 0;
+    transform: translateX(var(--space-3));
+  }
+}
+
+.panel[data-exiting] {
+  animation: peekOut var(--duration-instant) var(--ease-in) forwards;
+}
+
 .header {
   display: flex;
   flex-direction: column;

@@ -73,6 +73,20 @@
   }
 }
 
+/* Vertical out as well, mirroring the entrance. Nothing measures the panel by the time it is
+ * leaving — every layout effect in properties.tsx is gated on `open` — so the restriction is
+ * now only about keeping the arrival and the departure recognisably the same panel. */
+@keyframes panelOut {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.panel[data-exiting] {
+  animation: panelOut var(--duration-instant) var(--ease-in) forwards;
+}
+
 .note {
   margin: 0;
   color: var(--text-tertiary);

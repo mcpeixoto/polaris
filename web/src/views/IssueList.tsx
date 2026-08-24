@@ -1842,7 +1842,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             </div>
           </div>
         )}
-        {peekOpen ? <Peek issueId={cursorId} /> : null}
+        <Peek open={peekOpen} issueId={cursorId} />
       </div>
     </div>
   );

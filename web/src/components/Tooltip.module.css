@@ -39,6 +39,25 @@
 }
 
 /*
+ * Out, at --duration-instant.
+ *
+ * A tooltip is the one surface here whose dismissal is not a decision — the pointer simply
+ * moved on, often to the control right next to it. That is the argument for fading rather
+ * than cutting: a toolbar crossed left to right used to strobe a hint on and off at every
+ * icon, and a fade turns that into something the eye can ignore. It is also the argument for
+ * keeping it very short, since the next tip is usually already on its way in.
+ */
+@keyframes tipOut {
+  to {
+    opacity: 0;
+  }
+}
+
+.tooltip[data-exiting] {
+  animation: tipOut var(--duration-instant) var(--ease-in) forwards;
+}
+
+/*
  * The offset from the trigger is a margin rather than arithmetic in the positioning code,
  * so the gap stays a design token. The component sets the anchor point; the translate below
  * moves the box onto the correct side of it.

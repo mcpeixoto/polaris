@@ -47,6 +47,28 @@
 }
 
 /*
+ * The way out. Opacity again, and this time not because anything is measuring: by the time a
+ * menu is closing, `settledRef` has long since been set and every layout effect in Menu.tsx
+ * is gated on `open`, so the box is free to move. It does not, because the pair has to read
+ * as one object. A picker that appears by fading and leaves by sliding is two behaviours
+ * sharing a stylesheet.
+ *
+ * --duration-instant, half the entrance. These menus are opened with S, A, P and closed with
+ * Escape, and the closing keystroke is nearly always followed immediately by another one.
+ */
+@keyframes surfaceOut {
+  to {
+    opacity: 0;
+  }
+}
+
+/* `forwards` holds the surface at zero for the frames between the animation ending and React
+ * removing the node; without it the menu snaps back to full opacity to say goodbye. */
+.surface[data-exiting] {
+  animation: surfaceOut var(--duration-instant) var(--ease-in) forwards;
+}
+
+/*
  * The gap between the trigger and the menu is a margin rather than arithmetic in the
  * positioning code, so it stays a design token. The component sets the anchor point; these
  * four rules move the panel onto the right side of it.

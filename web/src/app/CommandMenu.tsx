@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
+import { usePresence } from '~/hooks/usePresence';
 import { formatKeySpec, type Action, type Platform } from '~/keys';
 import { os } from '~/platform/runtime';
 
@@ -35,19 +36,25 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+
+  // Held on screen for the length of its exit. The two memos below switch from `open` to
+  // `present` with it: they are what the panel is drawing, and a list that empties itself
+  // halfway through a fade shows the user the surface being dismantled rather than leaving.
+  const { present, exitProps } = usePresence(open, backdropRef);
 
   const candidates = useMemo(() => {
-    if (!open) return [];
+    if (!present) return [];
     return registry
       .listForContext(context)
       .filter((a) => !a.hidden)
       .filter((a) => a.enabled?.({ source: 'menu', context }) ?? true);
-  }, [open, registry, context]);
+  }, [present, registry, context]);
 
   const parsed = useMemo(() => parseCommandQuery(query), [query]);
 
   const rows = useMemo((): Row[] => {
-    if (!open) return [];
+    if (!present) return [];
     const out: Row[] = [];
     const showCommands = parsed.scope === 'command' || parsed.scope === 'mixed';
     const showIssues =
@@ -70,7 +77,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
       }
     }
     return out;
-  }, [open, candidates, parsed, engine.store]);
+  }, [present, candidates, parsed, engine.store]);
 
   useEffect(() => {
     if (!open) return;
@@ -133,12 +140,12 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
     el?.scrollIntoView({ block: 'nearest' });
   }, [active]);
 
-  if (!open) return null;
+  if (!present) return null;
 
   const activeRow = rows[active];
 
   return (
-    <div className={styles.backdrop} onMouseDown={onClose}>
+    <div ref={backdropRef} className={styles.backdrop} onMouseDown={onClose} {...exitProps}>
       <div
         className={styles.panel}
         role="dialog"

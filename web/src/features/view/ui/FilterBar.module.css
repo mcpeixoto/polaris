@@ -188,6 +188,22 @@ button.conj:focus-visible {
   }
 }
 
+/*
+ * Back towards its chip, from the same corner it grew out of. Three pixels rather than four:
+ * the exit has half the time, and the popover is small enough that the distance was never
+ * doing much of the work — the shrink is what says "this belongs to the chip above it".
+ */
+@keyframes editorOut {
+  to {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+}
+
+.editor[data-exiting] {
+  animation: editorOut var(--duration-instant) var(--ease-in) forwards;
+}
+
 .editorFooter {
   display: flex;
   justify-content: flex-end;
