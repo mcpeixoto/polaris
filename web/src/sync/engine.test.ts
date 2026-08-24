@@ -38,6 +38,7 @@ function engineWithOutbox(): { engine: InstanceType<typeof SyncEngine>; outbox: 
     revertOptimistic: vi.fn(),
     applyOptimistic: vi.fn(),
     get: vi.fn(),
+    whenPersisted: vi.fn().mockResolvedValue(undefined),
   } as unknown as Store;
   return { engine, outbox };
 }
@@ -128,6 +129,85 @@ describe('draining the outbox', () => {
 
     expect(outbox.size).toBe(0);
     expect(gql).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * The ordering that makes a pairing survive the reload it is there for.
+ *
+ * `settle` retires the stand-in in memory and *queues* the durable delete; the outbox record
+ * is the only other thing that knows this stand-in has a real row waiting for it. Drop the
+ * record while that delete is still in the queue and a reload finds the stand-in back off
+ * disk beside the server's row, with nothing left anywhere to pair them — the duplicate at
+ * the top of ./reconcile.ts, reached not by failing to declare a pairing but by making one
+ * and then losing it.
+ *
+ * Reproduced in a browser as one run in ten of `web/e2e/comments.spec.ts`, on a machine
+ * loaded enough for an IndexedDB transaction to still be running when the reload landed.
+ */
+describe('discharging a paired op', () => {
+  beforeEach(() => {
+    gql.mockReset();
+  });
+
+  /** Lets the drain run to wherever it is going to stop, without guessing a tick count. */
+  const idle = async (): Promise<void> => {
+    for (let i = 0; i < 20; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  it('keeps the op queued until the retirement it made has reached disk', async () => {
+    const { engine, outbox } = engineWithOutbox();
+    let landed: () => void = () => {};
+    const onDisk = new Promise<void>((resolve) => {
+      landed = resolve;
+    });
+    (engine.store as unknown as { whenPersisted: () => Promise<void> }).whenPersisted = () =>
+      onDisk;
+
+    const record = await outbox.append({
+      mutation:
+        'mutation CreateComment($i: CreateCommentInput!) { createComment(input: $i) { c } }',
+      variables: { i: { body: 'Said once' } },
+      reconcile: {
+        type: 'comment',
+        provisionalId: '01920000-0000-7000-8000-0000000000aa' as UUID,
+        path: ['createComment', 'comment'],
+      },
+    });
+    gql.mockResolvedValue({ createComment: { comment: { id: 'real' } } });
+
+    const draining = engine.drainOutbox();
+    // Run the drain as far as it will go. The server has answered, `settle` has retired the
+    // stand-in on screen, and the only thing left unfinished is the disk queue.
+    await idle();
+    expect(gql).toHaveBeenCalledTimes(1);
+
+    // The record has to still be here. It is what replays the op and retires the stand-in a
+    // second time if this tab does not survive the wait — and dropping it now is what leaves
+    // a stand-in on disk that nothing anywhere is holding a pairing for.
+    expect(outbox.get(record.opId)).toBeDefined();
+
+    landed();
+    await draining;
+    expect(outbox.size).toBe(0);
+  });
+
+  it('does not make an unpaired op wait on the disk queue', async () => {
+    const { engine, outbox } = engineWithOutbox();
+    const whenPersisted = vi.fn().mockResolvedValue(undefined);
+    (engine.store as unknown as { whenPersisted: () => Promise<void> }).whenPersisted =
+      whenPersisted;
+
+    await queue(outbox, 'Just a title');
+    gql.mockResolvedValue({});
+    await engine.drainOutbox();
+
+    // An ordinary optimistic write is a value the delta stream restates. Losing one costs a
+    // stale field until the next delta, not a row that exists twice for good — and putting a
+    // disk round trip in front of every acknowledgement to cover it would be paid on every
+    // keystroke.
+    expect(whenPersisted).not.toHaveBeenCalled();
+    expect(outbox.size).toBe(0);
   });
 });
 

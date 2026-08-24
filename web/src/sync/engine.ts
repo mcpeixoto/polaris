@@ -267,7 +267,7 @@ export class SyncEngine {
         opId,
       });
       this.remember(settle(this.store, input.reconcile, data));
-      await this.outbox.resolve(opId);
+      await this.discharge(opId, input.reconcile);
       this.publishStatus();
       return data;
     } catch (err) {
@@ -332,6 +332,43 @@ export class SyncEngine {
   }
 
   /**
+   * Drops an op the server has answered — but not before the retirement it caused is on disk.
+   *
+   * The stand-in is a *persisted* row, and retiring it is a persisted delete. The two are not
+   * written at the same moment: `applyOptimistic` updates memory synchronously and queues the
+   * durable write, so between "the screen shows one comment" and "the replica holds one
+   * comment" there is a gap the length of an IndexedDB transaction — tens of milliseconds on a
+   * quiet machine, and far longer on a loaded one, which is also exactly when the delta beats
+   * the response and `adopt` does the retiring.
+   *
+   * A reload taken in that gap is unrecoverable, and it is unrecoverable *because* of the line
+   * below. The outbox record is the only thing left that knows this stand-in has a real row to
+   * be paired with; drop it while the delete is still queued and the reload finds the stand-in
+   * back off disk, the server's row beside it, and nothing anywhere holding the pairing. Both
+   * rows are ordinary rows now, and no amount of reloading separates them again — which is the
+   * duplicate at the top of ./reconcile.ts, arrived at from the one direction that file does
+   * not cover: not a pairing that was never declared, but one that was made and then lost.
+   *
+   * So the queue is drained first. Either the delete lands and the record can go, or the tab
+   * dies waiting — and then the record is still in the outbox, the drain replays it, the
+   * server's idempotency table answers with the original row, and `settle` retires the
+   * stand-in a second time. Both ways out are correct; dropping the record early is the only
+   * way to have neither.
+   *
+   * Only for ops that declared a pairing. Every other optimistic write is a value the delta
+   * stream will restate — a lost one is a stale field until the next delta, not a row that
+   * exists twice for good — and making every mutation wait on the disk queue would put an
+   * IndexedDB round trip in front of every keystroke's acknowledgement for no gain.
+   */
+  private async discharge(
+    opId: UUID,
+    spec: Reconciliation | readonly Reconciliation[] | undefined,
+  ): Promise<void> {
+    if (reconciliations(spec).length > 0) await this.store.whenPersisted();
+    await this.outbox.resolve(opId);
+  }
+
+  /**
    * Files the pairings a retirement just made.
    *
    * Called from all three routes a stand-in can be retired by — the mutation response, the
@@ -386,7 +423,7 @@ export class SyncEngine {
           // first attempt would have done — and the only chance to do it, because the
           // caller that was awaiting the first attempt is gone.
           this.remember(settle(this.store, record.reconcile, data));
-          await this.outbox.resolve(record.opId);
+          await this.discharge(record.opId, record.reconcile);
         } catch (err) {
           if (err instanceof ApiError && err.isOffline) {
             // Still offline. Release the claim without counting an attempt and stop:
