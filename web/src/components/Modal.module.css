@@ -13,6 +13,19 @@
   /* The dialog can outgrow the viewport on a short window; the scrim is what scrolls, so
    * the dialog never has to hide its own footer. */
   overflow-y: auto;
+  animation: scrimIn var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * The scrim and the dialog arrive together rather than one after the other. Staggering them
+ * is the obvious idea and it is wrong here: a dialog that lands after its own backdrop reads
+ * as two events, and this one is opened by pressing C — a single keystroke should produce a
+ * single arrival.
+ */
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
 }
 
 .dialog {
@@ -24,6 +37,23 @@
   background-color: var(--bg-elevated);
   box-shadow: var(--shadow-lg);
   font-family: var(--font-sans);
+  /* Grown from the top edge, because that is the edge the box is pinned to: scaling about
+   * the centre would walk the title field upwards during the animation, which is the exact
+   * thing the top alignment above exists to prevent. */
+  transform-origin: 50% 0;
+  animation: dialogIn var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * Six pixels and two per cent. Both are deliberately below the threshold where anyone can
+ * name what happened — the dialog should read as having come from somewhere, not as having
+ * performed. Nothing measures this element, so unlike Menu it is free to move.
+ */
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
 }
 
 .dialog:focus {

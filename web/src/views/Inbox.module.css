@@ -83,6 +83,9 @@
   font: inherit;
   text-align: start;
   cursor: pointer;
+  transition:
+    background-color var(--duration-instant) var(--ease-out),
+    box-shadow var(--duration-instant) var(--ease-out);
 }
 
 .row:hover {

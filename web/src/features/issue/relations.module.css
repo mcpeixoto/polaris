@@ -35,11 +35,38 @@
 }
 
 .sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   margin: 0;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-none);
+}
+
+/*
+ * The flags docs/01-features/03-issue-properties.md has always described and nothing has
+ * ever drawn: orange for blocked by, red for blocking.
+ *
+ * One per section rather than one per row. Every row under a heading is the same kind of
+ * link, so a flag repeated down the list would be six copies of a fact stated once — and the
+ * heading is where the eye lands when it is scanning the panel for whether this issue is
+ * stuck at all.
+ */
+.flag {
+  display: inline-flex;
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+.flagBlocked {
+  color: var(--relation-blocked);
+}
+
+.flagBlocking {
+  color: var(--relation-blocking);
 }
 
 /* The rollup's numbers, beside the ring rather than inside it: 1/2 is quicker to read than an
@@ -92,6 +119,7 @@
   height: var(--row-height);
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .row:hover {
@@ -217,6 +245,7 @@ form.addForm > *:first-child {
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .result:hover {

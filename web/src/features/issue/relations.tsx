@@ -325,6 +325,32 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
  */
 type RelationKind = 'blockedBy' | 'blocking' | 'related' | 'duplicateOf' | 'duplicatedBy';
 
+/**
+ * The flag beside a section heading, or nothing.
+ *
+ * Only the two blocking kinds carry one. A flag on "Related" would be decoration, and a
+ * palette where everything is marked marks nothing — these two exist because they are the
+ * only relations that say work cannot proceed.
+ *
+ * `aria-hidden`, because the heading it sits in already says "Blocked by" in words. A screen
+ * reader that also announced an image here would read the same fact twice.
+ */
+function RelationFlag({ kind }: { kind: RelationKind }) {
+  if (kind !== 'blockedBy' && kind !== 'blocking') return null;
+  const tone = kind === 'blockedBy' ? styles.flagBlocked : styles.flagBlocking;
+  return (
+    <svg
+      className={[styles.flag, tone].join(' ')}
+      viewBox="0 0 12 12"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path d="M3 1.5v9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M3 2.25h5.5L7 4.5l1.5 2.25H3z" fill="currentColor" />
+    </svg>
+  );
+}
+
 const KIND_HEADINGS: Readonly<Record<RelationKind, string>> = {
   blockedBy: 'Blocked by',
   blocking: 'Blocking',
@@ -530,7 +556,10 @@ export function Relations({ issueId, className }: RelationsProps) {
 
       {sections.map((section) => (
         <div key={section.kind} className={styles.section}>
-          <h3 className={styles.sectionTitle}>{KIND_HEADINGS[section.kind]}</h3>
+          <h3 className={styles.sectionTitle}>
+            <RelationFlag kind={section.kind} />
+            {KIND_HEADINGS[section.kind]}
+          </h3>
           <ul className={styles.rows}>
             {section.rows.map((row) => (
               <li key={row.relationId} className={styles.row}>

@@ -147,6 +147,7 @@
   text-decoration: none;
   cursor: pointer;
   user-select: none;
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .row:hover {

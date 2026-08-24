@@ -157,7 +157,12 @@
   line-height: var(--line-height-none);
   cursor: pointer;
   user-select: none;
-  transition: background-color var(--duration-instant) var(--ease-out);
+  /* box-shadow is here for the cursor bar below. The wash and the bar are one movement as
+     far as the eye is concerned — J and K move both — so they ramp together, and at
+     --duration-instant because holding J down must not leave the mark trailing the row. */
+  transition:
+    background-color var(--duration-instant) var(--ease-out),
+    box-shadow var(--duration-instant) var(--ease-out);
 }
 
 .row:hover {

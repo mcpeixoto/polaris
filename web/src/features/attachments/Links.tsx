@@ -77,16 +77,8 @@ export function Links({ issueId }: { issueId: UUID }) {
           {rows.map((row) => (
             <li key={row.id} className={styles.row}>
               <a className={styles.link} href={row.url} target="_blank" rel="noreferrer">
-                <span className={styles.linkTitle}>
-                  {row.title === '' ? hostOf(row.url) : row.title}
-                </span>
-                {row.subtitle !== undefined && row.subtitle !== '' ? (
-                  <span className={styles.subtitle}>
-                    {formatSubtitle(row.subtitle, row.metadata)}
-                  </span>
-                ) : (
-                  <span className={styles.subtitle}>{hostOf(row.url)}</span>
-                )}
+                <span className={styles.linkTitle}>{shownTitle(row)}</span>
+                <LinkSubtitle row={row} />
               </a>
               <IconButton
                 size="sm"
@@ -136,6 +128,38 @@ export function Links({ issueId }: { issueId: UUID }) {
       />
     </section>
   );
+}
+
+/**
+ * What the first line of the card says.
+ *
+ * The server already defaults a title-less attachment to its host, so `row.title` is very
+ * often the host string rather than empty — which is why the fallback below cannot be the
+ * only place the host is considered.
+ */
+function shownTitle(row: { title: string; url: string }): string {
+  return row.title === '' ? hostOf(row.url) : row.title;
+}
+
+/**
+ * The second line, or nothing.
+ *
+ * A link with no metadata and no title of its own was rendering "github.com" above
+ * "github.com": the title line falls back to the host, and so did this one, and neither knew
+ * the other had. A subtitle that only repeats the line above it is not a quiet detail, it is
+ * the card looking broken — so when the host is already the title, there is no second line.
+ */
+function LinkSubtitle({
+  row,
+}: {
+  row: { title: string; url: string; subtitle?: string | undefined; metadata?: unknown };
+}) {
+  if (row.subtitle !== undefined && row.subtitle !== '') {
+    return <span className={styles.subtitle}>{formatSubtitle(row.subtitle, row.metadata)}</span>;
+  }
+  const host = hostOf(row.url);
+  if (host === shownTitle(row)) return null;
+  return <span className={styles.subtitle}>{host}</span>;
 }
 
 function hostOf(url: string): string {

@@ -90,6 +90,9 @@
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-decoration: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .shortcut:hover {

@@ -19,6 +19,23 @@
    * heading for, and swallowing that click would make the interface feel broken in exactly
    * the moment the user was told what the control does. */
   pointer-events: none;
+  animation: tipIn var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * Opacity only, for the same reason as Menu: Tooltip.tsx reads this element's rendered rect
+ * in a layout effect to decide whether the box has been clipped and has to flip to the
+ * other side of the trigger, and it reads it on the frame the animation begins. A keyframe
+ * that translated the box would be measured before it had arrived, and the flip would be
+ * decided against a position the tooltip never occupies.
+ *
+ * The trigger delay lives in the component, so this ramp starts only once the tooltip has
+ * been earned — it is the difference between a hint appearing and a hint flashing.
+ */
+@keyframes tipIn {
+  from {
+    opacity: 0;
+  }
 }
 
 /*

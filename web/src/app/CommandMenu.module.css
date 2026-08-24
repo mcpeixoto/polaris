@@ -12,6 +12,15 @@
   align-items: flex-start;
   padding-top: 14vh;
   background: var(--bg-overlay);
+  /* The scrim was cutting in behind a panel that rose, which made the most-used surface in
+   * the product arrive as two separate events on one keystroke. */
+  animation: scrimIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
 }
 
 .panel {
@@ -38,11 +47,14 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .panel {
-    animation: none;
-  }
-}
+/*
+ * There is no `prefers-reduced-motion` block here on purpose, and there used to be. Both
+ * animations above are driven by --duration-fast, which tokens.css already collapses to 1ms
+ * under that query — so the override restated a guarantee the token layer makes, in one
+ * file, for the two animations that happened to exist when it was written. Spinner keeps its
+ * override because an *infinite* animation collapsed to 1ms is not calm, it is a strobe;
+ * that is a real exception, and this was not one.
+ */
 
 .input {
   flex: none;

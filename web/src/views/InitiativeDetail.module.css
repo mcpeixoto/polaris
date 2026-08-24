@@ -121,6 +121,7 @@
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .projectLink:hover {
@@ -189,6 +190,7 @@
   font: inherit;
   font-size: var(--font-size-sm);
   cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .propertyButton:hover {

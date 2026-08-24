@@ -66,6 +66,7 @@
   line-height: var(--line-height-none);
   white-space: nowrap;
   cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .chip:hover {
@@ -170,6 +171,21 @@ button.conj:focus-visible {
   border-radius: var(--radius-lg);
   background-color: var(--bg-elevated);
   box-shadow: var(--shadow-md);
+  /* From the top-left, which is the corner it hangs off: the popover belongs to the chip
+   * above it, and growing about its centre would detach it from the thing it is editing. */
+  transform-origin: 0 0;
+  animation: editorIn var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * Free to scale, unlike the display panel and the menu — this one is placed entirely by the
+ * stylesheet, against its chip, and no layout effect ever reads its rect.
+ */
+@keyframes editorIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
 }
 
 .editorFooter {
