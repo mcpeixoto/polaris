@@ -24,6 +24,7 @@ import {
   signIn,
   createIssueViaApi,
   inviteToWorkspace,
+  openTeamList,
   uniqueEmail,
 } from './fixtures';
 import type { Page } from '@playwright/test';
@@ -255,7 +256,14 @@ test('the help overlay teaches the triage keys on the screen where they fire', a
   ).toBeVisible();
 
   await page.goto(`/team/${workspace.teamKey}/triage`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  // Either shape: a queue with rows draws a list, an empty one draws "Inbox is clear"
+  // (#132). The sheet must teach these four keys on this screen either way — `hasRows()`
+  // is why they cannot fire *right now*, not a reason to stop naming them here.
+  await page
+    .getByRole('listbox', { name: /issues/i })
+    .or(page.getByText('Inbox is clear'))
+    .first()
+    .waitFor();
 
   await page.keyboard.press('?');
   const help = page.getByRole('dialog', { name: /keyboard shortcuts/i });
@@ -312,8 +320,8 @@ test('a guest is not taught the shortcut a guest may never use', async ({
     timeout: 20_000,
   });
 
-  await guest.goto(`/team/${workspace.teamKey}`);
-  await guest.getByRole('listbox', { name: /issues/i }).waitFor({ timeout: 20_000 });
+  // Same either-shape reason as above: this workspace holds no issues the guest can see.
+  await openTeamList(guest, workspace.teamKey);
 
   await guest.keyboard.press('?');
   const help = guest.getByRole('dialog', { name: /keyboard shortcuts/i });
