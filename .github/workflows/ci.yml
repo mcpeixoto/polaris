@@ -197,6 +197,10 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash scripts/lint-keymap.sh
       - run: bash scripts/lint-tokens.sh
+      # A fractional order key compared with localeCompare. Byte order and linguistic order
+      # agree for the first five entries of any list and part company at the sixth, so this
+      # is invisible in every fixture and permanent in every workspace somebody uses.
+      - run: bash scripts/lint-order-keys.sh
       # The reverse proxy against the routes the servers register. `handle /sync*` sent the
       # bootstrap to a process that does not serve it, and every self-hosted install came up
       # with an empty workspace behind a socket reporting healthy.

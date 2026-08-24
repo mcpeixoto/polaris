@@ -16,6 +16,7 @@ import { issueIdsForTile, TILE_MEASURE, TILE_SLICE } from '~/features/dashboards
 import { buildInsights, MEASURE_LABELS, SLICE_LABELS } from '~/features/insights/computeInsights';
 import { formatTotal, formatValue, InsightChart } from '~/features/insights/InsightChart';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { compareOrderKeys } from '~/store';
 import type {
   Dashboard,
   DashboardMeasure,
@@ -139,7 +140,7 @@ function listTiles(store: Store, dashboardId: UUID): DashboardTile[] {
     const tile = store.dashboardTiles.get(id);
     if (tile !== undefined) tiles.push(tile);
   }
-  tiles.sort((a, b) => a.sortOrder.localeCompare(b.sortOrder) || a.id.localeCompare(b.id));
+  tiles.sort((a, b) => compareOrderKeys(a.sortOrder, b.sortOrder) || a.id.localeCompare(b.id));
   return tiles;
 }
 

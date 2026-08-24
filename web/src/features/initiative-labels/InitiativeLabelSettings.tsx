@@ -4,6 +4,7 @@ import { useEngine } from '~/app/context';
 import { Button, Checkbox, EmptyState, Input, Select } from '~/components';
 import { DEFAULT_LABEL_COLOR } from '~/features/labels/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { byOrderKey } from '~/store';
 import type { Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 
@@ -262,7 +263,7 @@ function LabelRow({
 function groupLabels(labels: readonly LabelView[]) {
   const roots: LabelView[] = [];
   const children = new Map<UUID, LabelView[]>();
-  for (const label of [...labels].sort((a, b) => a.position.localeCompare(b.position))) {
+  for (const label of [...labels].sort(byOrderKey('position'))) {
     if (label.parentId === undefined) {
       roots.push(label);
       continue;

@@ -17,6 +17,7 @@ import {
 import { EMPTY_FILTER } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
+import { byOrderKeyThen } from '~/store';
 import type { Store, UUID, View } from '~/store';
 import styles from './attachedViews.module.css';
 
@@ -30,7 +31,7 @@ export function attachedViewsForProject(store: Store, projectId: UUID): readonly
   return [...store.viewIdsForProject(projectId)]
     .map((id) => store.views.get(id))
     .filter((view): view is View => view !== undefined && view.archivedAt === undefined)
-    .sort((a, b) => a.position.localeCompare(b.position) || a.name.localeCompare(b.name));
+    .sort(byOrderKeyThen('position', 'name'));
 }
 
 interface ProjectViewTabsProps {

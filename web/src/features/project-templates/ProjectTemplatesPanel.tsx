@@ -20,6 +20,7 @@ import {
 } from '~/features/project-templates/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
+import { byOrderKey } from '~/store';
 import type {
   ProjectTemplate,
   ProjectTemplateIssue,
@@ -291,7 +292,7 @@ function ProjectTemplateEditor({
     (store: Store) => ({
       statuses: [...store.projectStatuses.values()]
         .filter((status) => status.archivedAt === undefined)
-        .sort((a, b) => a.position.localeCompare(b.position)),
+        .sort(byOrderKey('position')),
       users: [...store.users.values()]
         .filter((user) => user.archivedAt === undefined)
         .sort((a, b) => a.displayName.localeCompare(b.displayName)),

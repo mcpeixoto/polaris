@@ -12,6 +12,7 @@ import type { RefObject } from 'react';
 
 import { Menu, StateIcon, type MenuNode, type MenuPlacement } from '~/components';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { compareOrderKeys } from '~/store';
 import type { ProjectStatus, ProjectStatusCategory, Store, UUID } from '~/store';
 
 import {
@@ -95,7 +96,7 @@ function offerings(store: Store, current: UUID | undefined): ProjectStatus[] {
     .sort(
       (a, b) =>
         (rank.get(a.category) ?? 0) - (rank.get(b.category) ?? 0) ||
-        a.position.localeCompare(b.position) ||
+        compareOrderKeys(a.position, b.position) ||
         a.name.localeCompare(b.name),
     );
 }
