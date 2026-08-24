@@ -51,21 +51,80 @@ export function exportCapNote(
   return `Exported the first ${shown} of ${all} ${noun}. Narrow the list with a filter and export again for the rest.`;
 }
 
-export function csvEscape(value: string): string {
-  if (/[",\n\r]/.test(value)) return `"${value.replaceAll('"', '""')}"`;
-  return value;
+/**
+ * Cells a spreadsheet would run instead of read.
+ *
+ * Excel, LibreOffice and Sheets all treat a cell that opens with `=`, `+`, `-` or `@` as a
+ * formula, and `\t` / `\r` as leading whitespace they strip before applying that same rule.
+ * An issue titled `=SUM(A1:A9)+cmd|'/c calc'!A0` is therefore not text in the exported file;
+ * it is a DDE payload that fires when somebody opens their own export. The title arrived
+ * through a normal issue form, so nothing upstream of here will ever refuse it.
+ */
+const FORMULA_LEAD = /^[=+\-@\t\r]/;
+
+/**
+ * A plain number, which is the one thing we must NOT defuse.
+ *
+ * `-5` and `+5` open with a guarded character and is not a formula, and an estimate or a burndown
+ * delta that arrived as text instead of a number turns every downstream SUM into a zero.
+ * Numbers are recognised and left alone; everything else that opens dangerously is quoted.
+ */
+const PLAIN_NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+/**
+ * Neutralise a cell a spreadsheet would otherwise execute.
+ *
+ * The apostrophe is the mitigation every spreadsheet understands, and it is a real cost: it
+ * is part of the field on the wire, so a reader that does not strip it sees one extra
+ * character, and a naive re-import would store the apostrophe in the title. That cost is
+ * paid only by the cells that would otherwise be code — a title starting with `=` — and it
+ * is the cheaper half of the trade. The alternative is shipping a file that runs a stranger's
+ * formula on the machine of whoever opens it, and no amount of clean round-tripping is worth
+ * that. Polaris has no CSV importer today, so nothing in the product reads these files back;
+ * if one is ever written, it strips a leading apostrophe from a formula-leading cell and the
+ * round trip closes.
+ */
+export function csvGuard(value: string): string {
+  if (!FORMULA_LEAD.test(value)) return value;
+  if (PLAIN_NUMBER.test(value)) return value;
+  return `'${value}`;
 }
 
+export function csvEscape(value: string): string {
+  const guarded = csvGuard(value);
+  if (/[",\n\r]/.test(guarded) || guarded !== value) {
+    return `"${guarded.replaceAll('"', '""')}"`;
+  }
+  return guarded;
+}
+
+/**
+ * Rows joined with CRLF, because RFC 4180 says CRLF and Excel believes it.
+ *
+ * A newline *inside* a quoted field is left exactly as the value had it: that one is data,
+ * not a record separator, and rewriting it would edit somebody's description.
+ */
 export function toCsv(headers: readonly string[], rows: readonly (readonly string[])[]): string {
   const lines = [headers.map(csvEscape).join(',')];
   for (const row of rows) {
     lines.push(row.map((cell) => csvEscape(cell)).join(','));
   }
-  return `${lines.join('\n')}\n`;
+  return `${lines.join('\r\n')}\r\n`;
 }
 
+/**
+ * The byte-order mark Excel needs to believe a .csv is UTF-8.
+ *
+ * Without it Excel on Windows decodes the file in the system ANSI codepage, so `é` arrives as
+ * `Ã©` and `日本語` as mojibake — for a workspace that does not write in English that is every
+ * row, not an edge case. It lives here rather than in `toCsv` because it is a property of the
+ * file being handed to an operating system, not of the CSV text: a caller that wants the text
+ * still gets text.
+ */
+const UTF8_BOM = '\uFEFF';
+
 export function downloadCsv(filename: string, csv: string): void {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const blob = new Blob([UTF8_BOM, csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
