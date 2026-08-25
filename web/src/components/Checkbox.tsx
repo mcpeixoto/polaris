@@ -50,6 +50,11 @@ export function Checkbox({ label, indeterminate = false, className, ref, ...rest
             <path
               className={[styles.mark, styles.check].filter(Boolean).join(' ')}
               d="M3.5 8.25 6.5 11l6-6.5"
+              // pathLength normalises the tick to a length of one, which is what lets the
+              // stylesheet draw it on as `stroke-dashoffset: 1 → 0` without this path's
+              // measured length being copied into the CSS, where it would go stale the
+              // moment anybody nudged the geometry here.
+              pathLength={1}
               stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"

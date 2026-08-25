@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactElement } from 'react';
 
 import type { StateCategory } from '../store';
+import styles from './StateIcon.module.css';
 
 export interface StateIconProps {
   category: StateCategory;
@@ -81,9 +82,27 @@ const DASH_ARRAY = '2.4 2.31';
  */
 const KNOCKOUT: CSSProperties = { stroke: 'var(--bg-primary)' };
 
+/**
+ * Why nearly everything below carries a `key`.
+ *
+ * The categories all draw a circle first and most of them draw something second, so React
+ * reconciles a status change positionally and *reuses* the elements: the ring becomes the
+ * disc by having its attributes rewritten, and the wedge becomes the check the same way. A
+ * reused element does not re-run a CSS animation, so a glyph that changed meaning entirely
+ * would arrive fully formed and the completion would pass without being seen. Keys that
+ * differ per shape force the real mount, which is what the animations in the stylesheet
+ * hang off.
+ *
+ * The cost is that a first render animates too — a virtualised list scrolling a row back
+ * into view redraws its check. At --duration-fast that reads as the row settling rather
+ * than as anything asking for attention, and it is the price of the change itself being
+ * visible, which is the case worth spending on.
+ */
 function ring(dashed: boolean): ReactElement {
   return (
     <circle
+      key="ring"
+      className={styles.ring}
       cx={8}
       cy={8}
       r={RING_RADIUS}
@@ -95,6 +114,13 @@ function ring(dashed: boolean): ReactElement {
   );
 }
 
+/** The filled circle behind a closed status's mark. Keyed apart from the ring it replaces. */
+function disc(): ReactElement {
+  return (
+    <circle key="disc" className={styles.disc} cx={8} cy={8} r={DISC_RADIUS} fill="currentColor" />
+  );
+}
+
 /**
  * The wedge, drawn from twelve o'clock clockwise. A full circle cannot be expressed as one
  * arc — start and end coincide and the browser draws nothing — so it is special-cased
@@ -103,13 +129,24 @@ function ring(dashed: boolean): ReactElement {
 function pie(progress: number): ReactElement | null {
   const fraction = Math.min(Math.max(progress, 0), 1);
   if (fraction <= 0) return null;
-  if (fraction >= 1) return <circle cx={8} cy={8} r={PIE_RADIUS} fill="currentColor" />;
+  // Keyed by the fraction it was drawn for. There is no interpolating a path's `d` in CSS —
+  // a wedge that goes from a third to two thirds simply is a different shape — so instead of
+  // pretending the arc sweeps, the new wedge is a new element and grows in from the centre.
+  // A status change and a sub-issue finishing then read as the same thing, which is what
+  // they are: more of this is done than was a moment ago.
+  const key = `pie-${fraction}`;
+  if (fraction >= 1)
+    return (
+      <circle key={key} className={styles.pie} cx={8} cy={8} r={PIE_RADIUS} fill="currentColor" />
+    );
   const angle = fraction * 2 * Math.PI;
   const x = 8 + PIE_RADIUS * Math.sin(angle);
   const y = 8 - PIE_RADIUS * Math.cos(angle);
   const largeArc = fraction > 0.5 ? 1 : 0;
   return (
     <path
+      key={key}
+      className={styles.pie}
       d={`M8 8 L8 ${8 - PIE_RADIUS} A${PIE_RADIUS} ${PIE_RADIUS} 0 ${largeArc} 1 ${x.toFixed(3)} ${y.toFixed(3)} Z`}
       fill="currentColor"
     />
@@ -143,9 +180,15 @@ function glyph(category: StateCategory, progress: number): ReactElement {
     case 'completed':
       return (
         <>
-          <circle cx={8} cy={8} r={DISC_RADIUS} fill="currentColor" />
+          {disc()}
           <path
+            key="check"
+            className={styles.mark}
             d="M4.9 8.2 7 10.3l4.1-4.4"
+            // pathLength normalises the tick to a length of one so the stylesheet can draw
+            // it on as `stroke-dashoffset: 1 → 0` without the measured length of this
+            // particular `d` being copied into the CSS and going stale next to it.
+            pathLength={1}
             style={KNOCKOUT}
             fill="none"
             strokeWidth={1.75}
@@ -158,9 +201,14 @@ function glyph(category: StateCategory, progress: number): ReactElement {
     case 'duplicate':
       return (
         <>
-          <circle cx={8} cy={8} r={DISC_RADIUS} fill="currentColor" />
+          {disc()}
           <path
+            // A different key from the check, so moving between the two closed states
+            // redraws rather than morphing one mark's `d` into the other's.
+            key="cross"
+            className={styles.mark}
             d="m5.6 5.6 4.8 4.8m0-4.8-4.8 4.8"
+            pathLength={1}
             style={KNOCKOUT}
             fill="none"
             strokeWidth={1.75}

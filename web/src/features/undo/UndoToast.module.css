@@ -55,3 +55,34 @@
     transform: translateY(var(--space-2));
   }
 }
+
+/*
+ * And the way back down, mirroring `rise` — same distance, same direction, reversed.
+ *
+ * Quicker than the entrance and on --ease-in, which is the house rule for every exit and is
+ * especially right for this one. The toast leaves because its window closed; there is nothing
+ * left to read, and lingering over the departure would be the interface drawing attention to
+ * an offer it has just withdrawn.
+ *
+ * `forwards` because usePresence keeps the node alive until the animation ends, and without
+ * it the toast would snap back to full opacity for the frame between the last keyframe and
+ * the unmount.
+ *
+ * The `pointer-events` is not a duplicate of the one in styles/motion.css. That rule is
+ * `[data-exiting]`, which ties with `.toast`'s own `pointer-events: auto` on specificity and
+ * would be settled by stylesheet order — which is bundler business, not something this file
+ * can depend on. e2e/exit-animations.spec.ts asserts that no leaving surface anywhere is
+ * clickable, and for the one element in the product that opts *into* pointer events while its
+ * host opts out, saying so explicitly is what makes that assertion true by construction.
+ */
+.toast[data-exiting] {
+  animation: fall var(--duration-instant) var(--ease-in) forwards;
+  pointer-events: none;
+}
+
+@keyframes fall {
+  to {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}

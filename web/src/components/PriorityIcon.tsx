@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactElement } from 'react';
 
+import styles from './PriorityIcon.module.css';
+
 export interface PriorityIconProps {
   /** 0 none, 1 urgent, 2 high, 3 medium, 4 low — the server's scale, unchanged. */
   priority: number;
@@ -74,7 +76,10 @@ function bars(lit: number): ReactElement {
     <>
       {BARS.map((bar, index) => (
         <rect
+          // Keyed by position, not by whether it is lit: the same three rectangles have to
+          // survive a change of level for their opacity to have anything to ease between.
           key={bar.x}
+          className={styles.bar}
           x={bar.x}
           y={bar.y}
           width={3}

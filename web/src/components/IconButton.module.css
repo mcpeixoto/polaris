@@ -14,10 +14,13 @@
   background-color: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  /* `opacity` for the same reason as Button: enabling and disabling a control is a state
+   * change on one object, and a hard cut reads as the object being swapped for another. */
   transition:
     background-color var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
+    color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
 }
 
 .button:focus-visible {
@@ -86,6 +89,25 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * The glyph is what dips, not the box.
+ *
+ * These sit in toolbars and on issue rows, shoulder to shoulder at 28 and 22 pixels, and a
+ * box that scales pulls its own hover wash and its border in with it — at that size the
+ * result reads as the button wobbling rather than as it being pressed. Scaling the icon
+ * inside a box that stays put keeps the row's geometry exactly where it was, which is also
+ * why it can afford to be ten per cent rather than Button's three: there is nothing else in
+ * the control to disturb.
+ *
+ * See Button.module.css for why the duration is overridden rather than the shorthand
+ * replaced, and why `:disabled` is excluded.
+ */
+.button:active:not(:disabled) .icon {
+  transform: scale(0.9);
+  transition-duration: var(--duration-instant);
 }
 
 .md .icon svg {

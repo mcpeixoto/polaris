@@ -25,6 +25,9 @@
   font: inherit;
   line-height: var(--line-height-none);
   cursor: pointer;
+  /* See Input.module.css: enable and disable is a state change on one control, and a hard
+   * cut reads as the control being swapped for a different one. */
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .select:focus {
@@ -42,4 +45,20 @@
   display: flex;
   color: var(--text-tertiary);
   pointer-events: none;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * The chevron is the only thing here that can move, and that is a constraint rather than a
+ * decision: the popup belongs to the platform, so there is no open state for CSS to see and
+ * nothing to rotate the chevron against — an arrow that flipped on focus would be lying
+ * about a list that is not open, and one that flipped on click would still be wrong for the
+ * keyboard, which opens this control with Alt+Down and never fires one.
+ *
+ * So it does the one honest thing left: it brightens with the box, exactly as the affix in
+ * Input.module.css does, so a focused select and a focused text field agree about what
+ * focus looks like.
+ */
+.box:focus-within .chevron {
+  color: var(--text-secondary);
 }

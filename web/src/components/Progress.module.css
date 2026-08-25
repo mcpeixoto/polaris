@@ -34,7 +34,11 @@
 .fill {
   stroke: var(--accent);
   stroke-width: 2;
-  transition: stroke-dasharray var(--duration-fast) var(--ease-out);
+  /* The offset, not the dash array. The dash is fixed at the full circumference in
+   * Progress.tsx and only its offset moves, which leaves the browser one length to
+   * interpolate instead of two and turns a change into an arc sweeping round rather than
+   * both of its ends shuffling. */
+  transition: stroke-dashoffset var(--duration-fast) var(--ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {

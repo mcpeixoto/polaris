@@ -15,8 +15,24 @@
   padding-inline: 0;
 }
 
+/*
+ * The unboxed field had no focus affordance whatsoever: no border, no ring, no fill, and
+ * `outline: none` on top — so on the create-issue title and the issue heading, the only
+ * evidence that typing would land there was the caret. That is a real gap rather than a
+ * stylistic one; a caret is two pixels wide and it blinks.
+ *
+ * A single edge is the answer, because it is the only mark that fits what `plain` is for:
+ * the text *is* the page here, and a box drawn round it would undo the whole variant. The
+ * border box is already reserved at 1px on all four sides, so lighting one side costs no
+ * layout at all, and `border-color` is in the transition list --control inherits from
+ * Field, which means it arrives at the same speed as every boxed field's edge.
+ *
+ * `outline: none` stays. The ring is a claim that this is a control with a boundary, and
+ * this one deliberately has none.
+ */
 .plain:focus-within {
   border-color: transparent;
+  border-bottom-color: var(--border-focus);
   outline: none;
 }
 
@@ -34,6 +50,9 @@
   color: inherit;
   font: inherit;
   line-height: var(--line-height-none);
+  /* `opacity` transitioned for the same reason as on Button: a field that becomes available
+   * once something above it is filled in should be seen becoming available, not repainted. */
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 /* The ring is drawn by the box around this input, not by the input itself; leaving both in
@@ -56,4 +75,13 @@
   align-items: center;
   flex: none;
   color: var(--text-tertiary);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+/* The affix belongs to the field, not to the page, so it brightens with the field's edge.
+ * Tertiary to secondary and no further: it is a search glyph or a currency mark, and pulling
+ * it to primary would make the decoration the loudest thing in a focused box whose actual
+ * job is to hold text the user is reading back. */
+.box:focus-within .affix {
+  color: var(--text-secondary);
 }

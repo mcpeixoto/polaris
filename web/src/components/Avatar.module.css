@@ -37,6 +37,27 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /*
+   * An animation rather than a transition, and the distinction is the whole reason this
+   * works at all: the `<img>` is only in the tree when there is a usable src (see
+   * Avatar.tsx), so it has no previous computed style for a transition to interpolate from.
+   * The fade is keyed to the element's arrival instead.
+   *
+   * What that buys, precisely: an avatar whose image is already in the cache — every
+   * re-render of a list, every navigation back to a screen the user has seen — paints on
+   * the frame the node is created, so the fade covers exactly the pop it is aimed at. An
+   * image still crossing the network finishes this animation before it decodes and lands at
+   * full strength, which is what happens today. So this is an improvement in the common
+   * case and never a regression in the slow one, and it is as far as CSS alone can go —
+   * there is no selector for "loaded".
+   */
+  animation: imageIn var(--duration-normal) var(--ease-out);
+}
+
+@keyframes imageIn {
+  from {
+    opacity: 0;
+  }
 }
 
 /*

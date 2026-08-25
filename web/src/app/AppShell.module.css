@@ -73,6 +73,10 @@
   color: inherit;
   font: inherit;
   text-align: left;
+  /* Same curve and length as .navItem below. Every other hover in this sidebar eases and
+     this one snapped, which reads as the row being a different kind of thing than the rows
+     under it — it is not, it is the same list continued upwards. */
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .workspaceSwitch:hover {
@@ -89,15 +93,75 @@
   white-space: nowrap;
 }
 
+/*
+ * The sync badge, and the only thing in this shell that comes and goes on its own initiative
+ * rather than because somebody asked for it.
+ *
+ * That is what makes a hard cut wrong here specifically. Every other surface appears because
+ * a key was pressed, so appearing instantly is the interface answering; this one materialises
+ * beside the workspace name while the user is reading something else entirely, and a word
+ * that blinks into the corner of the eye reads as a glitch before it reads as information.
+ * The fade does not stop the row reflowing under it — that is a width change, and only
+ * reserving space would fix it — but it does stop it startling.
+ *
+ * `color` is transitioned because the three states are one badge changing its mind, not three
+ * badges taking turns: "Syncing 3" going amber as the socket drops should look like the same
+ * word darkening, which is what says it is still the same fact being reported.
+ */
 .status {
   flex: none;
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   white-space: nowrap;
+  animation: statusIn var(--duration-fast) var(--ease-out);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+@keyframes statusIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * The way out. usePresence holds the node for exactly as long as this rule says, reading the
+ * number off the computed style — so the shorthand has to replace the whole `animation`
+ * property, pulse included, or a badge that left while reconnecting would measure as infinite
+ * and never unmount. `.status[data-exiting]` outranks `.statusWarn` on specificity, which is
+ * what makes that true, and it keeps being true inside the reduced-motion block at the foot
+ * of this file.
+ */
+.status[data-exiting] {
+  animation: statusOut var(--duration-instant) var(--ease-in) forwards;
+}
+
+@keyframes statusOut {
+  to {
+    opacity: 0;
+  }
 }
 
 .statusWarn {
   color: var(--priority-medium);
+  /*
+   * The one state here that is genuinely ongoing rather than momentary, and therefore the one
+   * that has earned a loop: a reconnect is still happening, so the badge breathes for as long
+   * as it is and stops the instant it is not. Slow on purpose — eight times --duration-normal
+   * is a breath, and anything quicker is an alarm about a socket that usually comes back.
+   *
+   * Delayed by the length of the entrance because two animations touching `opacity` do not
+   * blend: the last one declared wins outright, so without the delay the pulse would sit on
+   * top of the fade in and cancel it.
+   */
+  animation:
+    statusIn var(--duration-fast) var(--ease-out),
+    statusPulse calc(var(--duration-normal) * 8) var(--ease-in-out) var(--duration-fast) infinite;
+}
+
+@keyframes statusPulse {
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .statusError {
@@ -165,6 +229,10 @@
   font: inherit;
   font-size: var(--font-size-xs);
   cursor: pointer;
+  /* Matches .navItem. These are the two-pixel affordances that only exist on hover, so the
+     ramp is the whole of their arrival — snapping one on is how a control reads as an
+     accident rather than as something that was always there waiting. */
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .folderAction:hover {
@@ -189,6 +257,39 @@
     color var(--duration-fast) var(--ease-out);
 }
 
+/*
+ * The active marker, drawn rather than only coloured.
+ *
+ * `.navItemActive` changes background, text colour and weight at once, and the weight is the
+ * tell: it snaps while the colours ease, so selecting a row arrives as two events on one
+ * keystroke. A rail cannot fix the weight — `font-weight` reflows the label whatever it is
+ * given — but it can put something that moves where the eye already is, and a mark growing
+ * out of the left edge covers the frame the text spends resetting.
+ *
+ * On `::before` because `.navItem` is `position: relative` already, and the alternative is a
+ * span in each of the forty-odd nav rows in AppShell.tsx that nothing else would use.
+ * `transform` and `opacity` only: both composite, and this fires on the keyboard path where
+ * the `g` chords land, so it has to cost nothing to be allowed at all.
+ */
+.navItem::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 2px;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  opacity: 0;
+  /* Scaled out of nothing rather than slid in from outside the box: .navItem is
+     `overflow: hidden` for the ellipsis, so a mark travelling in from the left would be
+     invisible until the moment it had already arrived. */
+  transform: translateY(-50%) scaleY(0.2);
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
 .navItem:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
@@ -200,11 +301,20 @@
   font-weight: var(--font-weight-medium);
 }
 
+.navItemActive::before {
+  opacity: 1;
+  transform: translateY(-50%) scaleY(1);
+}
+
 .navIcon {
   flex: none;
   display: inline-flex;
   color: inherit;
   opacity: 0.72;
+  /* The row's own colours already ease at this length; without the same ramp here the icon
+     brightens a frame ahead of the label it belongs to, which is the sort of thing nobody
+     can name and everybody can see. */
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .navItemActive .navIcon,
@@ -254,6 +364,43 @@
   background: var(--bg-primary);
 }
 
+/*
+ * One node per route, so a screen can arrive rather than simply be there.
+ *
+ * Keyed on the pathname in AppShell.tsx — that is what replays the entrance — and most of
+ * this rule is not the animation at all. It is a stand-in for `.main`'s inner box: the same
+ * column flex container, the same clipping, and above all the same `min-height: 0`. Every
+ * screen in the product is written as a flex item of `.main` that owns its own scrolling, and
+ * dropping an element in between them without these four lines lets a long issue list grow
+ * past the bottom of the shell instead of scrolling inside it.
+ *
+ * The entrance deliberately has no `forwards`. A `transform` left standing here makes this
+ * element the containing block for every `position: fixed` descendant beneath it and hands
+ * @tanstack/react-virtual a scroll parent that is not the one it measured against. Letting
+ * the animation lapse back to the declared style — which is no transform at all — confines
+ * that to the hundred and twenty milliseconds it cannot be avoided in.
+ *
+ * And it is --duration-fast, not a millisecond longer. Navigation is a keyboard path here:
+ * the `g` chords put a screen up, and tokens.css is explicit that nothing on that path may
+ * outrun the hand that asked for it.
+ */
+.view {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: viewIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes viewIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+}
+
 .gotoTrigger {
   position: absolute;
   width: 1px;
@@ -264,4 +411,26 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/*
+ * The one exception the token layer cannot make for itself.
+ *
+ * tokens.css folds every duration to 1ms under this preference, which is the right answer for
+ * a fade and precisely the wrong one for a loop: the reconnect breath above would become a
+ * thousand flashes a second, i.e. the exact thing the preference exists to prevent.
+ * Spinner.module.css makes the same argument at greater length and is the precedent for this
+ * being an exception rather than a habit — every finite animation in this file is left to the
+ * tokens, as CommandMenu.module.css explains.
+ *
+ * So the reconnecting badge stops moving and states its business in colour and words alone.
+ * Note what this does *not* override: `.status[data-exiting]` carries an attribute selector
+ * and therefore outranks `.statusWarn` regardless of order, so a badge dismissed under
+ * reduced motion still runs its 1ms exit and still unmounts. A `animation: none` winning
+ * there would strand the node on the page with nothing to fire `animationend`.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .statusWarn {
+    animation: none;
+  }
 }

@@ -47,3 +47,71 @@
 .action {
   margin-top: var(--space-2);
 }
+
+/*
+ * The entrance, and the delay in front of it is the part that earns its place.
+ *
+ * This is a local-first client: a list renders from whatever the store holds on the frame it
+ * mounts, which during sync bootstrap is nothing, and then re-renders populated a moment
+ * later. Without a delay the user is shown "No issues yet" for a couple of frames on the way
+ * to a screen full of issues — a flash of the most discouraging thing the product can say,
+ * at the moment it is least true. Holding the whole block invisible for --duration-normal
+ * and only then starting the fade means an empty state that is about to be replaced is never
+ * drawn at all, and a genuinely empty list costs a fifth of a second nobody is waiting on.
+ *
+ * `backwards` is what makes the delay do that. Without a fill mode the element sits at its
+ * normal, fully opaque style until the animation begins, so the delay would produce exactly
+ * the flash it exists to prevent — the first frames would show the empty state at full
+ * strength and *then* fade it in from nothing.
+ *
+ * --duration-normal is defensible here and nowhere near a keyboard path: an empty state is
+ * something the interface says when there is nothing to do, not a response to a keystroke.
+ *
+ * Under reduced motion the tokens collapse to 1ms and take the guard with them, so the flash
+ * comes back for anyone who has asked for less movement. That is the honest trade — the
+ * alternative is a hard-coded delay that ignores the preference, and a hidden element is a
+ * worse thing to force on someone than a brief one.
+ */
+.root {
+  animation: emptyIn var(--duration-normal) var(--ease-out) var(--duration-normal) backwards;
+}
+
+@keyframes emptyIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * The stagger. Each part carries the same four-pixel rise and starts one --duration-instant
+ * after the one above it, so the block assembles top to bottom instead of landing as a slab.
+ *
+ * Transform only: the fade belongs to `.root` and stays there. Two opacity ramps multiplied
+ * together make a muddier curve than either alone, and the parent is already holding
+ * everything at zero through the delay, which is the only thing the children would need an
+ * opacity of their own for.
+ */
+.icon,
+.title,
+.description,
+.action {
+  animation: emptyRise var(--duration-normal) var(--ease-out) var(--duration-normal) backwards;
+}
+
+.title {
+  animation-delay: calc(var(--duration-normal) + var(--duration-instant));
+}
+
+.description {
+  animation-delay: calc(var(--duration-normal) + var(--duration-instant) * 2);
+}
+
+.action {
+  animation-delay: calc(var(--duration-normal) + var(--duration-instant) * 3);
+}
+
+@keyframes emptyRise {
+  from {
+    transform: translateY(4px);
+  }
+}

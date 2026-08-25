@@ -1,0 +1,91 @@
+/*
+ * StateIcon's motion.
+ *
+ * What the glyphs mean is StateIcon.tsx's business; this file only says how one shape
+ * arrives and how it hands over to the next. Three things move, and each is a different
+ * kind of change:
+ *
+ *   - the ring's colour, which is a property changing on an element that stays put, so it
+ *     transitions;
+ *   - the started wedge and the closed disc, which replace a different shape entirely, so
+ *     they animate in on arrival;
+ *   - the check and the cross, which are drawn on rather than faded in.
+ *
+ * Nothing here exceeds --duration-fast. Changing a status is a keyboard action — `s` then
+ * a letter, over and over down a list — and an icon still finishing its last answer when
+ * the next keystroke lands is the exact feeling tokens.css's motion rules exist to prevent.
+ *
+ * None of these carry the reduced-motion override Spinner.module.css does, and that is on
+ * purpose rather than an oversight. tokens.css folds every duration token to 1ms under the
+ * preference; for a one-shot animation that means "already finished", which is precisely
+ * the intent. It is only a looping animation that turns 1ms into a thousand cycles a
+ * second, i.e. a strobe, and there is no loop in this file.
+ */
+
+/*
+ * The ring survives a change of category — backlog, unstarted and started all draw the same
+ * circle, and React reuses the element — so its paint is the one thing here that can really
+ * be transitioned. Note this is `stroke` and not `color` on the root: transitioning both
+ * would make the ring chase an already-easing inherited value and finish visibly late.
+ */
+.ring {
+  transition: stroke var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * The wedge grows out of the middle of the ring. transform-origin is written in user units
+ * rather than as `center` because these elements are re-keyed as the geometry changes, and
+ * `center` on an SVG shape resolves against its own bounding box — which for a wedge is
+ * off-centre and swings further off as the wedge grows, so a quarter-done pie would scale
+ * from somewhere near five o'clock. 8 8 is the centre of the viewBox and the centre of the
+ * ring, which is the point the wedge actually pivots on.
+ */
+.pie {
+  transform-origin: 8px 8px;
+  animation: state-pie-in var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * The disc that replaces the ring when work closes. A small pop rather than a scale from
+ * nothing: it lands under a check or a cross that is about to draw itself on, and a disc
+ * still arriving under a mark that has already started reads as two separate events.
+ */
+.disc {
+  transform-origin: 8px 8px;
+  animation: state-disc-in var(--duration-instant) var(--ease-out);
+}
+
+/*
+ * The check and the cross draw themselves on.
+ *
+ * pathLength={1} in the markup normalises each path to a length of one, which is what lets
+ * the dash be written as 1 → 0 here without either path's measured length being hard-coded
+ * in a second place and going stale the moment somebody nudges the geometry. It is also why
+ * the same two rules serve a check and a two-stroke cross of quite different lengths.
+ *
+ * The resting state is offset 0 — fully drawn — so anything that stops the animation from
+ * running leaves a correct icon rather than an empty disc.
+ */
+.mark {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: state-mark-draw var(--duration-fast) var(--ease-out);
+}
+
+@keyframes state-pie-in {
+  from {
+    transform: scale(0);
+  }
+}
+
+@keyframes state-disc-in {
+  from {
+    transform: scale(0.86);
+  }
+}
+
+@keyframes state-mark-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
