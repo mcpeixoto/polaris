@@ -14,16 +14,6 @@
   font-size: var(--font-size-md);
 }
 
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-2);
-  border-right: 1px solid var(--border-subtle);
-  background: var(--bg-sidebar);
-  overflow-y: auto;
-}
-
 .workspace {
   display: flex;
   align-items: center;
@@ -73,7 +63,7 @@
   color: inherit;
   font: inherit;
   text-align: left;
-  /* Same curve and length as .navItem below. Every other hover in this sidebar eases and
+  /* Same curve and length as .navItem in nav.module.css. Every other hover in this sidebar eases and
      this one snapped, which reads as the row being a different kind of thing than the rows
      under it — it is not, it is the same list continued upwards. */
   transition: background-color var(--duration-fast) var(--ease-out);
@@ -168,24 +158,6 @@
   color: var(--priority-urgent);
 }
 
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.sectionTitle {
-  margin: 0 0 var(--space-1);
-  padding: 0 var(--space-2);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-tertiary);
-}
-
 .folder {
   display: flex;
   flex-direction: column;
@@ -229,7 +201,7 @@
   font: inherit;
   font-size: var(--font-size-xs);
   cursor: pointer;
-  /* Matches .navItem. These are the two-pixel affordances that only exist on hover, so the
+  /* Matches .navItem in nav.module.css. These are the two-pixel affordances that only exist on hover, so the
      ramp is the whole of their arrival — snapping one on is how a control reads as an
      accident rather than as something that was always there waiting. */
   transition: color var(--duration-fast) var(--ease-out);
@@ -237,103 +209,6 @@
 
 .folderAction:hover {
   color: var(--text-primary);
-}
-
-.navItem {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 28px;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition:
-    background-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-/*
- * The active marker, drawn rather than only coloured.
- *
- * `.navItemActive` changes background, text colour and weight at once, and the weight is the
- * tell: it snaps while the colours ease, so selecting a row arrives as two events on one
- * keystroke. A rail cannot fix the weight — `font-weight` reflows the label whatever it is
- * given — but it can put something that moves where the eye already is, and a mark growing
- * out of the left edge covers the frame the text spends resetting.
- *
- * On `::before` because `.navItem` is `position: relative` already, and the alternative is a
- * span in each of the forty-odd nav rows in AppShell.tsx that nothing else would use.
- * `transform` and `opacity` only: both composite, and this fires on the keyboard path where
- * the `g` chords land, so it has to cost nothing to be allowed at all.
- */
-.navItem::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 2px;
-  height: 14px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  opacity: 0;
-  /* Scaled out of nothing rather than slid in from outside the box: .navItem is
-     `overflow: hidden` for the ellipsis, so a mark travelling in from the left would be
-     invisible until the moment it had already arrived. */
-  transform: translateY(-50%) scaleY(0.2);
-  transition:
-    opacity var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
-}
-
-.navItem:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.navItemActive {
-  background: var(--bg-selected);
-  color: var(--text-primary);
-  font-weight: var(--font-weight-medium);
-}
-
-.navItemActive::before {
-  opacity: 1;
-  transform: translateY(-50%) scaleY(1);
-}
-
-.navIcon {
-  flex: none;
-  display: inline-flex;
-  color: inherit;
-  opacity: 0.72;
-  /* The row's own colours already ease at this length; without the same ramp here the icon
-     brightens a frame ahead of the label it belongs to, which is the sort of thing nobody
-     can name and everybody can see. */
-  transition: opacity var(--duration-fast) var(--ease-out);
-}
-
-.navItemActive .navIcon,
-.navItem:hover .navIcon {
-  opacity: 1;
-}
-
-.navLabel {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.navHint {
-  flex: none;
-  margin-left: auto;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
 }
 
 .teamKey {
@@ -350,10 +225,6 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.01em;
-}
-
-.spacer {
-  flex: 1;
 }
 
 .main {

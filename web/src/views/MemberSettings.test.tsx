@@ -266,13 +266,16 @@ beforeEach(() => {
   );
 });
 
-function renderScreen(users: readonly User[] = [person(ADA, 'Ada Lovelace')]) {
+function renderScreen(
+  users: readonly User[] = [person(ADA, 'Ada Lovelace')],
+  at = '/settings/members',
+) {
   const store = seeded(users);
   const mutate = vi.fn().mockResolvedValue({});
   const engine = { store, mutate } as unknown as SyncEngine;
 
   render(
-    <MemoryRouter initialEntries={['/settings/members']}>
+    <MemoryRouter initialEntries={[at]}>
       <KeymapProvider>
         <EngineProvider engine={engine} status={{ phase: 'idle' }}>
           <MemberSettings />
@@ -288,6 +291,38 @@ function renderScreen(users: readonly User[] = [person(ADA, 'Ada Lovelace')]) {
 function invitations(): HTMLElement {
   return screen.getByRole('region', { name: 'Pending invitations' });
 }
+
+/**
+ * The workspace menu's "Invite people", which arrives as a URL rather than as a call.
+ *
+ * The alternative was hoisting this screen's dialog state into the shell, which would have
+ * put a second door on the dialog and left the seat check guarding only one of them. A
+ * parameter keeps `openInvite` the single way in — and makes the invitation screen a link
+ * worth sending to somebody.
+ */
+describe('MemberSettings · arriving to invite', () => {
+  it('opens the dialog for an admin who asked for it', async () => {
+    renderScreen(undefined, '/settings/members?invite=1');
+    expect(await screen.findByRole('dialog', { name: 'Invite somebody' })).toBeTruthy();
+  });
+
+  it('leaves the dialog shut for anybody who did not', async () => {
+    renderScreen();
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Members' })).toBeTruthy());
+    expect(screen.queryByRole('dialog', { name: 'Invite somebody' })).toBeNull();
+  });
+
+  /**
+   * A member can read the roster and may not add to it. Opening a dialog whose submit the
+   * server refuses is the "fixed list that fails when chosen" the `i` command avoids.
+   */
+  it('ignores the request from somebody who may not invite', async () => {
+    viewer.current = { id: ADA, role: 'member' };
+    renderScreen(undefined, '/settings/members?invite=1');
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Members' })).toBeTruthy());
+    expect(screen.queryByRole('dialog', { name: 'Invite somebody' })).toBeNull();
+  });
+});
 
 describe('MemberSettings · pending invitations', () => {
   it('lists them, with the role in the spelling a person reads and not the wire’s', async () => {

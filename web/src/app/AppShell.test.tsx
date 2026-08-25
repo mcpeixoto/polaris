@@ -171,10 +171,15 @@ function favorite(id: string, kind: string, targetId: string, position = 'V'): [
   ];
 }
 
-function renderShell(store: Store) {
+/**
+ * @param at Which route to render at. Settings is a mode now: on a `/settings` path the
+ * shell draws `SettingsNav` in place of the workspace one, so which nav is under test is
+ * decided here and nowhere else.
+ */
+function renderShell(store: Store, at = '/') {
   const engine = { store, mutate: vi.fn() } as unknown as SyncEngine;
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[at]}>
       <KeymapProvider>
         <EngineProvider engine={engine} status={{ phase: 'idle' }}>
           <AppShell>
@@ -337,7 +342,7 @@ const MEMBER_SETTINGS = [
  * `ActionWorkspaceUpdate`, `ActionWorkspaceLabelManage`, `ActionProjectStatusManage`.
  */
 const ADMIN_SETTINGS = [
-  'Workspace',
+  'General',
   'Project labels',
   'Initiative labels',
   'Project statuses',
@@ -352,20 +357,15 @@ const ADMIN_SETTINGS = [
   'Slack',
 ];
 
-describe('the settings section', () => {
+describe('the settings navigation', () => {
+  const SETTINGS = '/settings/profile';
+
   /** Only this level can prove every screen built for M1 is actually reachable. */
-  it('links to every workspace screen for an admin', () => {
-    renderShell(seeded());
+  it('links to every settings screen for an admin', () => {
+    renderShell(seeded(), SETTINGS);
     for (const name of [...OWN_SETTINGS, ...MEMBER_SETTINGS, ...ADMIN_SETTINGS]) {
       expect(screen.getByRole('link', { name }), `${name} is not reachable`).toBeTruthy();
     }
-    for (const name of ['My Issues', 'Inbox', 'Drafts', 'Search']) {
-      expect(screen.getByRole('link', { name }), `${name} is not reachable`).toBeTruthy();
-    }
-    expect(
-      screen.getAllByRole('link', { name: 'Pulse' }).length,
-      'Pulse feed and Pulse settings',
-    ).toBe(2);
   });
 
   /**
@@ -380,15 +380,10 @@ describe('the settings section', () => {
    */
   it('withholds the administration screens from a member', () => {
     viewerRole = 'member';
-    renderShell(seeded());
+    renderShell(seeded(), SETTINGS);
     for (const name of ADMIN_SETTINGS) {
-      expect(
-        screen.queryByRole('link', { name }),
-        `the sidebar offered a member ${name}`,
-      ).toBeNull();
+      expect(screen.queryByRole('link', { name }), `settings offered a member ${name}`).toBeNull();
     }
-    // Only the feed, not the settings page behind it.
-    expect(screen.getAllByRole('link', { name: 'Pulse' }).length, 'Pulse settings').toBe(1);
     for (const name of [...OWN_SETTINGS, ...MEMBER_SETTINGS]) {
       expect(screen.getByRole('link', { name }), `${name} went missing for a member`).toBeTruthy();
     }
@@ -402,7 +397,7 @@ describe('the settings section', () => {
    */
   it('offers no settings beyond the viewer\u2019s own until the role is known', () => {
     viewerRole = null;
-    renderShell(seeded());
+    renderShell(seeded(), SETTINGS);
     for (const name of [...MEMBER_SETTINGS, ...ADMIN_SETTINGS]) {
       expect(screen.queryByRole('link', { name }), `${name} was offered too early`).toBeNull();
     }
@@ -411,15 +406,105 @@ describe('the settings section', () => {
     }
   });
 
-  it('opens a team at its home rather than its issue list', () => {
-    renderShell(seeded());
-    const team = screen.getByRole('link', { name: /Engineering/ });
-    expect(team.getAttribute('href')).toBe('/team/ENG/home');
+  /**
+   * A group heading over nothing reads as a section that failed to load.
+   *
+   * A guest keeps their own account and nothing else, so four of the five headings have no
+   * rows left to draw. The empty ones are dropped rather than rendered bare.
+   */
+  it('drops a group whose every row is withheld', () => {
+    viewerRole = 'guest';
+    renderShell(seeded(), SETTINGS);
+    expect(screen.getByRole('heading', { name: 'Account' })).toBeTruthy();
+    for (const title of ['Workspace', 'Features', 'Integrations', 'Data']) {
+      expect(screen.queryByRole('heading', { name: title }), `${title} stood empty`).toBeNull();
+    }
   });
 
+  /**
+   * The mode has a visible edge.
+   *
+   * Both navigations are the same width with the same rows, so without a way back the
+   * settings sidebar is something you scroll looking for Inbox. `/` rather than a route
+   * chosen here, so `HomeRedirect` decides by `prefs.homeView`.
+   */
+  it('offers a way back to the app', () => {
+    renderShell(seeded(), SETTINGS);
+    const back = screen.getByRole('link', { name: 'Back to app' });
+    expect(back.getAttribute('href')).toBe('/');
+  });
+
+  /**
+   * The two navigations are alternatives, not neighbours.
+   *
+   * This is the whole point of the change: twenty-eight settings links used to sit in the
+   * workspace sidebar permanently, below a spacer that pinned them past the fold of a column
+   * they overflowed.
+   */
+  it('keeps settings out of the workspace sidebar', () => {
+    renderShell(seeded());
+    const settingsLinks = screen
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href') ?? '')
+      .filter((href) => href.startsWith('/settings'));
+    expect(settingsLinks, 'the workspace sidebar still lists settings').toEqual([]);
+    // And the reverse: no workspace navigation while settings is up, so nothing suggests
+    // the two are one scroll apart.
+    expect(screen.getByRole('navigation', { name: 'Workspace' })).toBeTruthy();
+  });
+
+  it('swaps the workspace navigation out on a settings route', () => {
+    renderShell(seeded(), SETTINGS);
+    expect(screen.getByRole('navigation', { name: 'Settings' })).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: 'Workspace' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'My Issues' })).toBeNull();
+  });
+
+  /**
+   * "Pulse" named two links in one sidebar — the feed and the settings page — one above the
+   * other, and a test used to assert the pair. Grouping settled it without renaming a screen:
+   * the two navigations never render together.
+   */
+  it('names Pulse once in each navigation', () => {
+    renderShell(seeded());
+    expect(screen.getAllByRole('link', { name: 'Pulse' }), 'the feed, alone').toHaveLength(1);
+  });
+});
+
+describe('the workspace menu', () => {
   it('offers a control to switch workspace', () => {
     renderShell(seeded());
-    expect(screen.getByRole('button', { name: 'Switch workspace' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Workspace menu' })).toBeTruthy();
+  });
+
+  /**
+   * The menu behind the workspace mark listed workspaces and nothing else.
+   *
+   * Most people belong to one, so it answered a question nobody asks while the three things
+   * people do look for behind a workspace mark were not there at all — settings had to be
+   * found in the sidebar, an invitation was two screens away, and there was no way out of
+   * the session short of Settings → Sessions → revoke this browser.
+   */
+  it('offers settings, an invitation and the way out', async () => {
+    const user = userEvent.setup();
+    renderShell(seeded());
+    await user.click(screen.getByRole('button', { name: 'Workspace menu' }));
+    expect(screen.getByRole('menuitem', { name: /Settings/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Invite people' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Log out' })).toBeTruthy();
+  });
+
+  /**
+   * Withheld from a member for the reason `MemberSettings` gives about its own `i` command:
+   * an entry that answers with the server's 403 is worse than no entry.
+   */
+  it('withholds the invitation from a member', async () => {
+    viewerRole = 'member';
+    const user = userEvent.setup();
+    renderShell(seeded());
+    await user.click(screen.getByRole('button', { name: 'Workspace menu' }));
+    expect(screen.queryByRole('menuitem', { name: 'Invite people' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /Settings/ })).toBeTruthy();
   });
 });
 

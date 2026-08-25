@@ -1,0 +1,17 @@
+/*
+ * Settings borrows the sidebar's shape from `nav.module.css` and adds one thing: a title.
+ *
+ * The workspace sidebar names itself with the workspace mark, which is a control. This one
+ * names the mode, and a mode needs saying — the two navigations are the same width, the same
+ * row height and the same colours, so without a word at the top the only signal that the
+ * application has changed footing is that the rows are different.
+ */
+
+.title {
+  margin: 0;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.014em;
+  color: var(--text-primary);
+}

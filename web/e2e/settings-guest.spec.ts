@@ -83,16 +83,28 @@ test('a guest gets neither the administration nav nor the pages behind it', asyn
   guest.on('pageerror', (error) => errors.push(error.message));
   await joinAsGuest(guest, email, token);
 
+  await expect(
+    guest.locator('nav a[href="/initiatives"]'),
+    'the sidebar offered a guest Initiatives',
+  ).toHaveCount(0);
+
+  // Settings is a mode of its own now, so its nav is only on screen inside it. Profile is
+  // the door every role has, and for a guest it is very nearly the whole of what is behind
+  // it — four of the five groups have no rows left and are not drawn at all.
+  await guest.goto('/settings/profile');
+  await expect(guest.getByRole('navigation', { name: 'Settings' })).toBeVisible();
   for (const path of ADMIN_SETTINGS) {
     await expect(
       guest.locator(`nav a[href="${path}"]`),
       `the sidebar offered a guest ${path}`,
     ).toHaveCount(0);
   }
-  await expect(
-    guest.locator('nav a[href="/initiatives"]'),
-    'the sidebar offered a guest Initiatives',
-  ).toHaveCount(0);
+  for (const title of ['Workspace', 'Features', 'Integrations', 'Data']) {
+    await expect(
+      guest.getByRole('heading', { name: title, exact: true }),
+      `a guest was shown an empty ${title} group`,
+    ).toHaveCount(0);
+  }
 
   // Their own account survives — a guest who cannot reach their own profile is locked out
   // of changing their name or signing another device out.
@@ -144,10 +156,12 @@ test('a guest gets neither the administration nav nor the pages behind it', asyn
 test('an admin still gets the whole of settings', async ({ page, workspace }) => {
   await signIn(page, workspace.account);
   await page.goto('/my-issues');
+  await expect(page.locator('nav a[href="/initiatives"]')).toHaveCount(1);
+
+  await page.goto('/settings/profile');
   for (const path of [...ADMIN_SETTINGS, ...OWN_SETTINGS]) {
     await expect(page.locator(`nav a[href="${path}"]`), `${path} went missing`).toHaveCount(1);
   }
-  await expect(page.locator('nav a[href="/initiatives"]')).toHaveCount(1);
 
   await page.goto('/settings/webhooks');
   await expect(page.getByRole('heading', { name: 'Webhooks', level: 1 })).toBeVisible();

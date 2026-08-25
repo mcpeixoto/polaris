@@ -61,6 +61,11 @@ Ordered top to bottom, per Linear's own docs nav and app layout:
 - **Your teams** — each expands to: Team home (Overview/Documents/Members), Triage*, Issues (All / Active / Backlog), Cycles*, Projects, Views, Loops. `*` = opt-in per team setting.
 - **Exploring** — a temporary section for teams you visit but haven't joined.
 
+Settings is a **mode**, not a section of this list: on a `/settings` path the sidebar is
+replaced by a grouped settings navigation (Account, Workspace, Features, Integrations, Data)
+with a way back to the app at the top. It is entered from the workspace menu, `G`+`S`, or the
+command menu. See `07-milestones/54-settings-mode.md`.
+
 ## Global interaction primitives to build
 
 | Primitive | Behaviour |

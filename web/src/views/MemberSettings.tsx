@@ -33,7 +33,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
@@ -242,6 +242,31 @@ export function MemberSettings() {
     }
     setInviting(true);
   };
+
+  /**
+   * Opens the invite dialog for somebody who arrived asking for it.
+   *
+   * The workspace menu's "Invite people" hands off through this parameter rather than by
+   * reaching into this screen's state from the shell, which keeps the seat check above on
+   * the one path that opens the dialog — and makes the invite screen a link worth sending.
+   *
+   * It waits for the role, because `canAdminister` is null until the session answers and
+   * opening for a member would draw a dialog whose submit the server refuses. The parameter
+   * is stripped either way: left in the address bar it reopens the dialog on every back
+   * button, and it has already been spent.
+   */
+  const [search, setSearch] = useSearchParams();
+  const wantsInvite = search.get('invite') === '1';
+  useEffect(() => {
+    if (!wantsInvite || canAdminister === null) return;
+    if (canAdminister) openInvite.current();
+    const next = new URLSearchParams(search);
+    next.delete('invite');
+    setSearch(next, { replace: true });
+    // `search` and `setSearch` are left out deliberately: this runs on the arrival, and
+    // including the object it is about to rewrite would run it again on the rewrite.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsInvite, canAdminister]);
 
   useKeyContext('list');
 
