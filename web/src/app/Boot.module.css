@@ -1,3 +1,32 @@
+/*
+ * The splash, and the fifth of a second nobody is supposed to see.
+ *
+ * Boot's first phase is `restoring`, which on a warm session is one round trip to
+ * /auth/refresh and is usually over in less time than it takes to read the word "Signing".
+ * Painting a status line for that is worse than painting nothing: a message that appears and
+ * disappears inside 80ms is a flicker, and a flicker reads as a fault.
+ *
+ * So the splash holds still for --duration-normal before it begins to fade in. A boot that
+ * finishes inside the delay never shows anything at all — the element is unmounted while it
+ * is still at the first frame of its own animation — and only a boot slow enough to be worth
+ * explaining ever becomes visible. This is the ordinary delay-the-loader trick, spelled as an
+ * animation-delay because that is the one place it costs no JavaScript and no timer to cancel.
+ *
+ * `backwards` is the whole mechanism. Without it the splash is painted at full strength for
+ * the length of the delay and then snaps to opacity 0 to start animating, which is the flash
+ * this is here to prevent, arriving early.
+ *
+ * Two things make the hold safe. The message is still in the accessibility tree while it is
+ * transparent — opacity hides pixels, not semantics — so a screen reader on the live region
+ * below is unaffected by any of this. And the page underneath is --bg-primary, set on body in
+ * reset.css, which is the same colour this element paints: there is nothing to see through.
+ *
+ * Under prefers-reduced-motion the delay collapses with every other duration, because it is
+ * spelled with a token and tokens.css folds those to 1ms. The splash then appears at once, on
+ * every boot, exactly as it did before this file had any motion in it. That is the honest
+ * outcome: the hold is bought with the same token as the fade, and a person who has asked for
+ * no motion gets the behaviour they had, not a flicker they did not ask for.
+ */
 .splash {
   display: flex;
   flex-direction: column;
@@ -9,13 +38,50 @@
   color: var(--text-secondary);
   font-family: var(--font-sans);
   font-size: var(--font-size-sm);
+  animation: splashIn var(--duration-normal) var(--ease-out) var(--duration-normal) backwards;
 }
 
+@keyframes splashIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * The message changes in place. `restoring` and `failed` render the same <Splash>, so React
+ * keeps the same element and swaps the text inside it — "Signing you in" becomes whatever the
+ * engine said went wrong, with no frame between them saying that anything happened.
+ *
+ * Boot keys this span on its own text, so a new sentence is a new element and this fades in
+ * rather than being substituted. It is a fade-in on the replacement rather than a true
+ * dissolve: holding both strings on screen at once would mean stacking them absolutely, and
+ * that trades a hard cut in the text for a jumping line box in a centred column.
+ *
+ * Deliberately no delay of its own. On the first mount this runs behind the splash's own hold
+ * and is finished by the time anything is visible, which is right — a message that waited for
+ * the splash and then waited again would leave an empty screen with a background on it. On a
+ * later change the splash is long since opaque and this is the only thing that moves.
+ *
+ * Opacity alone, no travel: the words are replacing words that were in that exact spot, and
+ * anything that slides in reads as a second message arriving rather than as this one changing.
+ */
 .message {
   max-width: 40ch;
   text-align: center;
+  animation: messageIn var(--duration-normal) var(--ease-out);
 }
 
+@keyframes messageIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * The retry appears with the failure, one beat behind the sentence that explains it — read
+ * first, then act. Before this it arrived in the same frame as the message, which put a
+ * button under the cursor before there was any reason to press it.
+ */
 .retry {
   padding: var(--space-2) var(--space-4);
   border: 1px solid var(--border-default);
@@ -24,6 +90,15 @@
   color: var(--text-primary);
   font: inherit;
   cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+  animation: retryIn var(--duration-fast) var(--ease-out) var(--duration-instant) backwards;
+}
+
+@keyframes retryIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
 .retry:hover {

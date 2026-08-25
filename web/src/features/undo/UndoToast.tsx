@@ -29,13 +29,22 @@
  * the keymap only forwards a handful of global chords out of one — because inside a description
  * `mod+z` means undo the last thing you typed, and stealing it to resurrect an issue would be
  * astonishing.
+ *
+ * **It leaves the way it arrived.** This was the last surface in the product with an entrance
+ * and no exit, and it is the surface where that asymmetry read worst: the toast is a deadline,
+ * and a deadline that expires by the offer blinking out of existence gives the user no way to
+ * tell "you ran out of time" from "the app dropped something". The fall says which. Presence
+ * comes from usePresence like everywhere else, which means the leaving node is `inert` and
+ * unclickable for the fifty milliseconds it is still on screen — a toast whose button could
+ * still be hit on its way out would undo something the user had already stopped being offered.
  */
 
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { useActions } from '~/app/keymap';
 import { Button } from '~/components';
 import { report } from '~/features/issue/mutations';
+import { usePresence } from '~/hooks/usePresence';
 import styles from './UndoToast.module.css';
 import { EMPTY_UNDO_STACK, expire, expiresAt, latest, record, take, type UndoStack } from './undo';
 
@@ -120,6 +129,24 @@ function runUndo(id: string): void {
 export function UndoToast() {
   const current = useSyncExternalStore(subscribe, snapshot, snapshot);
   const action = latest(current);
+  const toastRef = useRef<HTMLDivElement>(null);
+  const { present, exitProps } = usePresence(action !== null, toastRef);
+
+  /**
+   * The offer the toast is currently showing, which is not always the offer that exists.
+   *
+   * For the length of the exit there is no offer at all — the window lapsed, or the undo was
+   * taken, and that is precisely what set the toast leaving. Rendering from `action` would
+   * therefore blank the label and the button on the frame the fall begins, so what falls is an
+   * empty rounded rectangle rather than the sentence the user was deciding about. Holding the
+   * last one is the difference between a toast leaving and a toast being deleted.
+   *
+   * `latest` returns the entry itself out of a stack that only changes by being replaced, so
+   * comparing by identity settles after one extra render instead of proposing a new value on
+   * every pass. This is the same render-phase update usePresence makes, for the same reason.
+   */
+  const [shown, setShown] = useState(action);
+  if (action !== null && action !== shown) setShown(action);
 
   // Auto-dismissal. One timer for the newest entry rather than one per entry: the toast only
   // ever shows the newest, and everything older than it expires no later than it does.
@@ -159,10 +186,16 @@ export function UndoToast() {
 
   return (
     <div className={styles.host} role="status" aria-live="polite">
-      {action === null ? null : (
-        <div className={styles.toast}>
-          <span className={styles.label}>{action.label}</span>
-          <Button size="sm" onClick={() => runUndo(action.id)}>
+      {!present || shown === null ? null : (
+        // Keyed by the offer, so that one offer replacing another re-enters instead of
+        // rewriting the label under the user's eyes. Deleting a second issue while the first
+        // toast is still up used to swap "Deleted ENG-42" for "Deleted ENG-43" in place, with
+        // nothing to say that the button underneath now took back a different thing — the
+        // most consequential silent text change in the product. A fresh node replays `rise`,
+        // which is the smallest honest way to say this is a new offer.
+        <div key={shown.id} ref={toastRef} className={styles.toast} {...exitProps}>
+          <span className={styles.label}>{shown.label}</span>
+          <Button size="sm" onClick={() => runUndo(shown.id)}>
             Undo
           </Button>
         </div>

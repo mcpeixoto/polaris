@@ -37,7 +37,41 @@
   /* Just enough edge to survive on a hovered row, where the wash and the row background
    * converge. */
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--label-color) 22%, transparent);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
+
+/*
+ * Hover, and only on the full-size chip.
+ *
+ * A compact chip lives on an issue row where the row is the target and the chip is not, so
+ * lighting it up as the pointer crosses would offer something to click that does not exist.
+ * The full-size chip is the detail-view one, and it is the only one that can contain the
+ * dismiss control — so the wash strengthening as the pointer arrives is the chip saying that
+ * there is something inside it to reach for.
+ *
+ * Both values move together and both stay derived from --label-color, which is the rule this
+ * whole file exists to keep: there is one place the user's colour enters, and the wash and
+ * the ring cannot end up disagreeing about what the label looks like.
+ */
+.chip:not(.compact):hover {
+  background-color: color-mix(in srgb, var(--label-color) 20%, var(--bg-tertiary));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--label-color) 32%, transparent);
+}
+
+/*
+ * There is deliberately no enter or exit animation on the chip itself. A chip is rendered
+ * per label per row: a list of five hundred issues mounts thousands of them, and any scroll
+ * that recycles a row replays whatever entrance they have. That does not read as "a label
+ * was added", it reads as the list flickering.
+ *
+ * If one is ever wanted for the detail view — where chips really are added and removed one
+ * at a time — it has to be a CSS `animation` in both directions and not a `transition`.
+ * hooks/usePresence.ts schedules the unmount off the element's computed `animation-duration`
+ * and cannot see a transition at all, so a chip that faded out on a transition would be
+ * pulled from the DOM on the same frame it started leaving.
+ */
 
 /*
  * List density. Note that the dismiss control is never offered at this size — a compact
@@ -89,7 +123,8 @@
   cursor: pointer;
   transition:
     background-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 
 .remove svg {
@@ -100,6 +135,15 @@
 .remove:hover {
   color: var(--text-primary);
   background-color: var(--bg-hover);
+}
+
+/* Twelve pixels of button, so the press has to be carried by the scale — there is not
+ * enough area here for the hover wash to register as a state change on its own. Instant
+ * down and fast back up, as everywhere else; see Button.module.css for why the duration is
+ * overridden rather than the whole shorthand replaced. */
+.remove:active {
+  transform: scale(0.9);
+  transition-duration: var(--duration-instant);
 }
 
 .remove:focus-visible {

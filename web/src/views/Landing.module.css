@@ -1,14 +1,58 @@
 /*
  * Marketing surface. Same tokens as the app, denser than a SaaS template: 32px controls,
- * 13px body, hairlines, no orbs. Display type is local — the product scale tops out at
- * 22px because an issue title is not a poster.
+ * 13px body, hairlines. Display type is local — the product scale tops out at 22px
+ * because an issue title is not a poster, and a headline is.
+ *
+ * ## The three local scales, and why they are local
+ *
+ * --landing-* sizes and --reveal-* durations are declared on .page and nowhere else. The
+ * product is bound by --duration-fast (120ms) because a surface slower than the next
+ * keystroke feels broken; this page answers a scroll, not a key, and a 760ms reveal is
+ * correct here and would be a bug anywhere else. Putting these in tokens.css would make
+ * them reachable from a menu.
+ *
+ * ## The motion contract
+ *
+ * Three layers, and the order is a trust order:
+ *
+ *   [data-reveal] / [data-shown]  — the load-bearing one. views/landingMotion.ts stamps
+ *       [data-shown] from a single IntersectionObserver, and where there is no observer
+ *       it stamps every target immediately. Nothing on this page is hidden by anything
+ *       else, so this is the only mechanism that can strand content off screen — and it
+ *       cannot, because its failure mode is "everything visible with no transition".
+ *
+ *   @supports (animation-timeline: …) — the scrubbed effects. Firefox has none of these.
+ *       Every block below is written so that not running is the finished state: the
+ *       progress hairline is scaleX(0) and therefore absent, the parallax is no
+ *       transform, the manifesto is ordinary --text-primary. None of them may be the only
+ *       thing making an element visible.
+ *
+ *   :hover / :active — pointer polish, free to be missing.
+ *
+ * prefers-reduced-motion collapses layer 1 to 1ms with no travel, declines to declare
+ * layer 2 at all, and stops every infinite animation. The rule at the bottom of this file
+ * is the whole of it; nothing here opts out individually.
  */
 
 .page {
   --landing-max: 68rem;
-  --landing-display: 2.25rem;
-  --landing-title: 1.375rem;
+  --landing-display: clamp(2.375rem, 1.35rem + 3.4vw, 4.25rem);
+  --landing-title: clamp(1.375rem, 1.1rem + 0.9vw, 1.875rem);
 
+  /* Reveal. --reveal-step is multiplied by --i, which components set inline to place
+   * themselves in a stagger. The default is declared here rather than left to the var()
+   * fallbacks so that an element which forgets to set one still has a real value to
+   * inherit — and so the property is discoverable in the stylesheet that consumes it. */
+  --i: 0;
+  --reveal-dur: 760ms;
+  --reveal-step: 70ms;
+  --reveal-y: 16px;
+
+  position: relative;
+  isolation: isolate;
+  /* clip rather than hidden: hidden on an ancestor turns the sticky header into a static
+   * one, because it makes .page a scroll container the header would stick inside. */
+  overflow-x: clip;
   min-height: 100dvh;
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -17,29 +61,118 @@
   line-height: var(--line-height-normal);
 }
 
+/* ------------------------------------------------------------------ *
+ * Reveal primitives
+ * ------------------------------------------------------------------ */
+
+[data-reveal] {
+  opacity: 0;
+  transform: translate3d(0, var(--reveal-y), 0);
+  transition:
+    opacity var(--reveal-dur) var(--ease-out) calc(var(--i, 0) * var(--reveal-step)),
+    transform var(--reveal-dur) var(--ease-out) calc(var(--i, 0) * var(--reveal-step));
+}
+
+[data-reveal][data-shown] {
+  opacity: 1;
+  transform: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * Page furniture
+ * ------------------------------------------------------------------ */
+
 .skip {
   position: absolute;
   left: var(--space-3);
   top: var(--space-3);
-  z-index: calc(var(--z-sticky) + 1);
+  z-index: calc(var(--z-sticky) + 2);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background-color: var(--bg-elevated);
   color: var(--text-primary);
   transform: translateY(-200%);
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 
 .skip:focus {
   transform: none;
 }
 
+/*
+ * Read position, as a hairline across the top of the window. Declared at scaleX(0) so a
+ * browser without scroll-driven animations shows nothing at all rather than a full-width
+ * bar that never moves.
+ */
+.progressLine {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: calc(var(--z-sticky) + 1);
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-text));
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+/*
+ * The one soft thing on the page. Accent only — a second hue here would be decoration,
+ * and this page has exactly one brand colour to spend.
+ */
+.aurora {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: -1;
+  height: 48rem;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      58rem 26rem at 16% -8%,
+      color-mix(in srgb, var(--accent) 20%, transparent),
+      transparent 68%
+    ),
+    radial-gradient(
+      44rem 22rem at 84% 2%,
+      color-mix(in srgb, var(--accent) 11%, transparent),
+      transparent 66%
+    );
+  /* A mask reads alpha only, so the opaque stop can be any colour — currentcolor keeps
+   * a literal out of a stylesheet that is not allowed to hold one. */
+  mask-image: linear-gradient(to bottom, currentcolor 30%, transparent 100%);
+  animation: aurora-drift 24s var(--ease-in-out) infinite alternate;
+}
+
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(-2%, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2%, 1.5%, 0) scale(1.06);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Nav
+ * ------------------------------------------------------------------ */
+
 .nav {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  border-bottom: 1px solid var(--border-subtle);
-  background-color: color-mix(in srgb, var(--bg-primary) 86%, transparent);
-  backdrop-filter: blur(10px);
+  border-bottom: 1px solid transparent;
+  transition:
+    border-color var(--duration-normal) var(--ease-out),
+    background-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.page[data-scrolled] .nav {
+  border-bottom-color: var(--border-subtle);
+  background-color: color-mix(in srgb, var(--bg-primary) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: var(--shadow-sm);
 }
 
 .navInner {
@@ -49,6 +182,11 @@
   max-width: var(--landing-max);
   margin: 0 auto;
   padding: var(--space-2) var(--space-5);
+  height: calc(var(--header-height) + var(--space-3));
+  transition: height var(--duration-normal) var(--ease-out);
+}
+
+.page[data-scrolled] .navInner {
   height: var(--header-height);
 }
 
@@ -59,6 +197,7 @@
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .wordmark:hover {
@@ -73,14 +212,35 @@
   min-width: 0;
 }
 
+/* The underline grows from the leading edge rather than fading in, so the pointer is
+ * followed rather than answered. */
 .navLinks a {
+  position: relative;
+  padding-block: var(--space-1);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.navLinks a::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  height: 1px;
+  background-color: var(--accent-text);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform var(--duration-normal) var(--ease-out);
 }
 
 .navLinks a:hover {
   color: var(--text-primary);
+}
+
+.navLinks a:hover::after {
+  transform: scaleX(1);
 }
 
 .navActions {
@@ -99,11 +259,16 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .navQuiet:hover {
   color: var(--text-primary);
 }
+
+/* ------------------------------------------------------------------ *
+ * Calls to action
+ * ------------------------------------------------------------------ */
 
 .cta,
 .ctaGhost {
@@ -111,7 +276,7 @@
   align-items: center;
   justify-content: center;
   height: var(--control-height-lg);
-  padding-inline: var(--space-3);
+  padding-inline: var(--space-4);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -119,6 +284,11 @@
   text-decoration: none;
   white-space: nowrap;
   line-height: var(--line-height-none);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
 }
 
 .cta {
@@ -128,6 +298,16 @@
 
 .cta:hover {
   background-color: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+/* Press returns the button to the page. Without this the lift reads as a hover state
+ * that ignores the click, which is the one moment it should not. */
+.cta:active,
+.ctaGhost:active {
+  transform: translateY(0);
+  transition-duration: var(--duration-instant);
 }
 
 .ctaGhost {
@@ -138,12 +318,17 @@
 .ctaGhost:hover {
   border-color: var(--border-strong);
   background-color: var(--bg-hover);
+  transform: translateY(-1px);
 }
+
+/* ------------------------------------------------------------------ *
+ * Hero
+ * ------------------------------------------------------------------ */
 
 .hero {
   max-width: var(--landing-max);
   margin: 0 auto;
-  padding: var(--space-12) var(--space-5) var(--space-8);
+  padding: var(--space-16) var(--space-5) var(--space-8);
 }
 
 .kicker {
@@ -166,10 +351,38 @@
 .heroTitle {
   max-width: 22ch;
   font-size: var(--landing-display);
+  letter-spacing: -0.045em;
 }
 
 .sectionTitle {
   font-size: var(--landing-title);
+}
+
+/*
+ * One word, one clipping box. The overflow is what makes the word rise out of the line
+ * instead of drifting into it; the negative margin gives descenders somewhere to be so
+ * the clip does not shave the tail off a "p".
+ */
+.word {
+  display: inline-block;
+  overflow: hidden;
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+  vertical-align: bottom;
+}
+
+.wordInner {
+  display: inline-block;
+  opacity: 0;
+  transform: translate3d(0, 110%, 0);
+  transition:
+    opacity 620ms var(--ease-out) calc(var(--i, 0) * 46ms + 60ms),
+    transform 940ms var(--ease-out) calc(var(--i, 0) * 46ms + 60ms);
+}
+
+[data-shown] .wordInner {
+  opacity: 1;
+  transform: none;
 }
 
 .heroLead,
@@ -184,7 +397,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-top: var(--space-5);
+  margin-top: var(--space-6);
 }
 
 .stats {
@@ -216,9 +429,29 @@
   letter-spacing: -0.02em;
 }
 
+/*
+ * The product shot arrives lying back from the reader and comes upright. A single
+ * rotateX, no drop shadow theatre: the screenshot is the argument and the geometry is
+ * only there so that it reads as an object rather than an image.
+ */
 .heroShot {
-  margin: var(--space-8) 0 0;
+  margin: var(--space-10) 0 0;
+  perspective: 1600px;
 }
+
+.heroShot > * {
+  transform: rotateX(15deg) scale(0.94);
+  transform-origin: 50% 0;
+  transition: transform 1200ms var(--ease-out) 140ms;
+}
+
+.heroShot[data-shown] > * {
+  transform: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * Bands and splits
+ * ------------------------------------------------------------------ */
 
 .band,
 .split,
@@ -226,6 +459,9 @@
   max-width: var(--landing-max);
   margin: 0 auto;
   padding: var(--space-12) var(--space-5);
+  /* The header is sticky, so an anchor jump would otherwise land the section title
+   * underneath it. */
+  scroll-margin-top: calc(var(--header-height) + var(--space-4));
 }
 
 .bandHead {
@@ -263,6 +499,8 @@
   position: relative;
 }
 
+/* The dash draws itself in as the point arrives, rather than waiting there for copy that
+ * has not appeared yet. */
 .points li::before {
   content: '';
   position: absolute;
@@ -271,7 +509,18 @@
   width: var(--space-2);
   height: 1px;
   background-color: var(--border-strong);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 520ms var(--ease-out) calc(var(--i, 0) * var(--reveal-step) + 160ms);
 }
+
+.points li[data-shown]::before {
+  transform: scaleX(1);
+}
+
+/* ------------------------------------------------------------------ *
+ * Feature grid
+ * ------------------------------------------------------------------ */
 
 .featureGrid {
   display: grid;
@@ -285,14 +534,43 @@
 }
 
 .feature {
+  position: relative;
   padding: var(--space-4);
   background-color: var(--bg-secondary);
+  transition: background-color var(--duration-normal) var(--ease-out);
+}
+
+/* Hover is an accent rule that grows from the leading edge — the same gesture as the nav
+ * link, because they are the same promise. */
+.feature::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  height: 2px;
+  background-color: var(--accent);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+.feature:hover {
+  background-color: var(--bg-elevated);
+}
+
+.feature:hover::after {
+  transform: scaleX(1);
 }
 
 .feature h3 {
   margin: 0 0 var(--space-2);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.feature:hover h3 {
+  color: var(--accent-text);
 }
 
 .feature p {
@@ -305,6 +583,29 @@
   margin: 0;
   min-width: 0;
 }
+
+/* ------------------------------------------------------------------ *
+ * Manifesto
+ * ------------------------------------------------------------------ */
+
+.manifestoBand {
+  max-width: var(--landing-max);
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-5);
+}
+
+.manifesto {
+  margin: 0;
+  max-width: 20ch;
+  font-size: var(--landing-display);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+}
+
+/* ------------------------------------------------------------------ *
+ * Keyboard
+ * ------------------------------------------------------------------ */
 
 .keyboardRow {
   display: grid;
@@ -333,11 +634,23 @@
   padding-inline: var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
   font-size: var(--font-size-sm);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    opacity var(--reveal-dur) var(--ease-out) calc(var(--i, 0) * var(--reveal-step)),
+    transform var(--reveal-dur) var(--ease-out) calc(var(--i, 0) * var(--reveal-step));
+}
+
+.shortcut:hover {
+  background-color: var(--bg-hover);
 }
 
 .shortcut:last-child {
   border-bottom: 0;
 }
+
+/* ------------------------------------------------------------------ *
+ * Product chrome
+ * ------------------------------------------------------------------ */
 
 .chrome {
   display: grid;
@@ -433,7 +746,71 @@
   font-size: var(--font-size-xs);
 }
 
+/*
+ * The row cursor, walking the list.
+ *
+ * Its stops are computed from the same tokens the rows are built from — a group header is
+ * --control-height-md, a row is --row-height plus the hairline above it — so a change to
+ * the density scale moves the cursor with the rows instead of leaving it hovering between
+ * two of them. The band is the first child and is not given a z-index, which puts it
+ * behind every row in paint order without needing one.
+ */
+.issueList {
+  position: relative;
+
+  --row-step: calc(var(--row-height) + 1px);
+  --stop-1: var(--control-height-md);
+  --stop-2: calc(var(--control-height-md) + var(--row-step));
+  --stop-3: calc(var(--control-height-md) * 2 + var(--row-step) * 2);
+  --stop-4: calc(var(--control-height-md) * 2 + var(--row-step) * 3);
+  --stop-5: calc(var(--control-height-md) * 2 + var(--row-step) * 4);
+}
+
+.rowCursor {
+  position: absolute;
+  inset-inline: var(--space-2);
+  top: 0;
+  height: var(--row-step);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-selected);
+  box-shadow: inset 2px 0 0 var(--accent);
+  pointer-events: none;
+  animation: row-walk 16s var(--ease-in-out) infinite;
+}
+
+@keyframes row-walk {
+  0%,
+  9% {
+    transform: translateY(var(--stop-1));
+  }
+  14%,
+  23% {
+    transform: translateY(var(--stop-2));
+  }
+  28%,
+  38% {
+    transform: translateY(var(--stop-3));
+  }
+  43%,
+  52% {
+    transform: translateY(var(--stop-4));
+  }
+  57%,
+  68% {
+    transform: translateY(var(--stop-5));
+  }
+  73%,
+  82% {
+    transform: translateY(var(--stop-3));
+  }
+  87%,
+  100% {
+    transform: translateY(var(--stop-1));
+  }
+}
+
 .issueGroup {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -450,6 +827,7 @@
 }
 
 .issueRow {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -483,6 +861,10 @@
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-full);
 }
+
+/* ------------------------------------------------------------------ *
+ * Project timeline
+ * ------------------------------------------------------------------ */
 
 .projectHead,
 .projectRow {
@@ -518,10 +900,19 @@
   overflow: hidden;
 }
 
+/* Each bar grows from its own start date, one after the other, which is the order the
+ * quarter actually happens in. */
 .timelineBar {
   display: block;
   height: 100%;
   border-radius: var(--radius-full);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 900ms var(--ease-out) calc(var(--i, 0) * 110ms + 220ms);
+}
+
+[data-shown] .timelineBar {
+  transform: scaleX(1);
 }
 
 .timelineScale {
@@ -532,22 +923,40 @@
   font-size: var(--font-size-xs);
 }
 
+/* ------------------------------------------------------------------ *
+ * Cycle graph
+ * ------------------------------------------------------------------ */
+
 .cycleChart {
   width: 100%;
   height: 6rem;
   padding: var(--space-3) var(--space-4) 0;
 }
 
-.cycleScope {
+/* pathLength="1" on the markup is what lets the dash be written as 1 → 0 here without
+ * either curve's measured length appearing in two places. */
+.cycleScope,
+.cycleDone {
   fill: none;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 1500ms var(--ease-out) 260ms;
+}
+
+.cycleScope {
   stroke: var(--text-tertiary);
   stroke-width: 1.5;
 }
 
 .cycleDone {
-  fill: none;
   stroke: var(--accent-text);
   stroke-width: 2;
+  transition-delay: 460ms;
+}
+
+[data-shown] .cycleScope,
+[data-shown] .cycleDone {
+  stroke-dashoffset: 0;
 }
 
 .cycleLegend {
@@ -579,6 +988,10 @@
   background-color: var(--accent-text);
 }
 
+/* ------------------------------------------------------------------ *
+ * Command menu
+ * ------------------------------------------------------------------ */
+
 .palette {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -597,8 +1010,34 @@
 }
 
 .paletteQuery {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1em;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+}
+
+.caret {
+  display: inline-block;
+  width: 1px;
+  height: 1.1em;
+  margin-inline-start: 1px;
+  background-color: var(--accent-text);
+  animation: caret-blink 1100ms steps(1, end) infinite;
+}
+
+@keyframes caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  99% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 .paletteItem {
@@ -608,16 +1047,45 @@
   height: var(--row-height);
   padding-inline: var(--space-4);
   font-size: var(--font-size-sm);
+  opacity: 0;
+  transform: translate3d(0, 6px, 0);
+  transition:
+    opacity 480ms var(--ease-out) calc(var(--i, 0) * 60ms + 200ms),
+    transform 480ms var(--ease-out) calc(var(--i, 0) * 60ms + 200ms);
+}
+
+[data-shown] .paletteItem {
+  opacity: 1;
+  transform: none;
 }
 
 .paletteOn {
   background-color: var(--bg-selected);
 }
 
+/* ------------------------------------------------------------------ *
+ * Sync
+ * ------------------------------------------------------------------ */
+
 .syncGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
+}
+
+.syncCard,
+.syncMeter {
+  opacity: 0;
+  transform: translate3d(0, 12px, 0);
+  transition:
+    opacity 600ms var(--ease-out) calc(var(--i, 0) * 110ms),
+    transform 600ms var(--ease-out) calc(var(--i, 0) * 110ms);
+}
+
+[data-shown] .syncCard,
+[data-shown] .syncMeter {
+  opacity: 1;
+  transform: none;
 }
 
 .syncCard {
@@ -653,10 +1121,35 @@
 }
 
 .syncLive {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: var(--space-3) 0 0;
   color: var(--accent-text);
   font-size: var(--font-size-xs);
   font-variant-numeric: tabular-nums;
+}
+
+/* A connection is a claim about right now, and the only honest way to draw right now is
+ * something that is still moving. */
+.syncLive::before {
+  content: '';
+  flex: none;
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  background-color: currentcolor;
+  animation: live-pulse 2400ms var(--ease-in-out) infinite;
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  60% {
+    box-shadow: 0 0 0 5px transparent;
+  }
 }
 
 .syncMeter {
@@ -678,7 +1171,12 @@
   font-size: var(--font-size-xs);
 }
 
+/* ------------------------------------------------------------------ *
+ * Social proof
+ * ------------------------------------------------------------------ */
+
 .logos {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
@@ -688,6 +1186,33 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
   background-color: var(--border-subtle);
+}
+
+/* A single pass of light across the row, slowly. These are placeholders and the sweep is
+ * the honest way to say so — a real logo wall does not need to shimmer to be believed. */
+.logos::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 42%,
+    color-mix(in srgb, var(--accent) 14%, transparent) 50%,
+    transparent 58%
+  );
+  transform: translateX(-100%);
+  animation: logo-sweep 9s var(--ease-in-out) infinite;
+}
+
+@keyframes logo-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .logo {
@@ -701,6 +1226,12 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   letter-spacing: 0.02em;
+  opacity: 0;
+  transition: opacity 520ms var(--ease-out) calc(var(--i, 0) * 80ms);
+}
+
+[data-shown] .logo {
+  opacity: 1;
 }
 
 .quotes {
@@ -718,6 +1249,11 @@
   background-color: var(--bg-secondary);
 }
 
+.quote:hover {
+  border-color: var(--border-default);
+  background-color: var(--bg-elevated);
+}
+
 .quote p:first-child {
   margin: 0;
   font-size: var(--font-size-sm);
@@ -732,6 +1268,10 @@
 .quoteWho span {
   display: block;
 }
+
+/* ------------------------------------------------------------------ *
+ * Self-host
+ * ------------------------------------------------------------------ */
 
 .ctaBand {
   border-top: 1px solid var(--border-subtle);
@@ -779,11 +1319,79 @@
 .footer a {
   color: var(--text-secondary);
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .footer a:hover {
   color: var(--text-primary);
 }
+
+/* ------------------------------------------------------------------ *
+ * Scroll-driven layer
+ *
+ * Everything here is additive. A browser without scroll-driven animations — Firefox,
+ * today — renders the page exactly as the rules above leave it, which is finished and
+ * legible. Nothing in this block is the only thing making an element visible.
+ * ------------------------------------------------------------------ */
+
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .progressLine {
+      animation: progress-grow linear;
+      animation-timeline: scroll(root block);
+    }
+
+    @keyframes progress-grow {
+      to {
+        transform: scaleX(1);
+      }
+    }
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* Parallax on the section shots. ±3% over the whole time the figure is on screen —
+     * enough that the shot and the copy beside it are clearly not glued together, small
+     * enough that nobody has to notice why. */
+    .shot > * {
+      animation: shot-drift linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+
+    @keyframes shot-drift {
+      from {
+        transform: translate3d(0, 3.2%, 0);
+      }
+      to {
+        transform: translate3d(0, -3.2%, 0);
+      }
+    }
+
+    /*
+     * The manifesto inks in word by word as the line crosses the viewport, scrubbed to
+     * scroll position rather than to a clock — so it reads at whatever speed the reader
+     * is actually moving, and reverses if they scroll back up.
+     */
+    .manifesto .wordInner {
+      color: var(--text-tertiary);
+      animation: ink linear both;
+      animation-timeline: view();
+      animation-range: entry calc(26% + var(--i, 0) * 3%) entry calc(56% + var(--i, 0) * 3%);
+    }
+
+    @keyframes ink {
+      to {
+        color: var(--text-primary);
+      }
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Responsive
+ * ------------------------------------------------------------------ */
 
 @media (max-width: 900px) {
   .navLinks {
@@ -814,6 +1422,12 @@
   .chromeSide {
     display: none;
   }
+
+  /* The unfurl needs depth to read, and a narrow viewport does not have it — at this
+   * width the rotation only makes the shot look crooked. */
+  .heroShot > * {
+    transform: none;
+  }
 }
 
 @media (max-width: 520px) {
@@ -824,7 +1438,76 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .heroTitle {
+  .heroTitle,
+  .manifesto {
     font-size: var(--font-size-2xl);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Reduced motion
+ *
+ * One block, at the end, covering the whole page. Collapsing the local durations rather
+ * than disabling the transitions means content still resolves to its shown state — a
+ * reader who asks for less motion gets the page, not an empty one. The infinite
+ * animations are the only things stopped outright, because a loop has no end state to
+ * settle into.
+ * ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    --reveal-dur: 1ms;
+    --reveal-step: 0ms;
+    --reveal-y: 0px;
+  }
+
+  [data-reveal],
+  .wordInner,
+  .paletteItem,
+  .syncCard,
+  .syncMeter,
+  .logo {
+    opacity: 1;
+    transform: none;
+    transition-duration: 1ms;
+    transition-delay: 0ms;
+  }
+
+  .points li::before,
+  .timelineBar {
+    transform: scaleX(1);
+    transition-duration: 1ms;
+    transition-delay: 0ms;
+  }
+
+  .cycleScope,
+  .cycleDone {
+    stroke-dashoffset: 0;
+    transition-duration: 1ms;
+    transition-delay: 0ms;
+  }
+
+  .heroShot > * {
+    transform: none;
+  }
+
+  .aurora,
+  .rowCursor,
+  .caret,
+  .syncLive::before,
+  .logos::after {
+    animation: none;
+  }
+
+  .rowCursor {
+    transform: translateY(var(--stop-1));
+  }
+
+  .caret {
+    opacity: 1;
+  }
+
+  .logos::after {
+    display: none;
   }
 }

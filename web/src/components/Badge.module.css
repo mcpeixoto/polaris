@@ -14,6 +14,16 @@
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-none);
   white-space: nowrap;
+  /* A badge is the one thing on a row that changes *tone* rather than text: an issue moves
+   * from started to completed and the same pill is still the same pill, in a different
+   * colour. Crossfading the pair together is what says so — swapped instantly, the eye reads
+   * it as one badge being replaced by another, which is a claim about the data that is not
+   * true. Both properties or neither: a fill that moves while its foreground snaps passes
+   * through a frame where the text is the old colour on the new ground, and at these tints
+   * that frame is genuinely unreadable. */
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .icon {

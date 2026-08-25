@@ -76,12 +76,45 @@ export function AuthFieldPair({ children }: { children: ReactNode }) {
  * `role="alert"` because a form that has just been submitted is the moment a keyboard user
  * has no idea what happened: focus is still in the field they left, the button has stopped
  * spinning, and without the announcement the only evidence is a red line they cannot see.
+ *
+ * ## The wrapper is the animation, and it is the only reason it exists
+ *
+ * This message is the one element on these screens that changes the layout: it mounts as the
+ * form's first child and pushes the fields, the hint and the button down by its own height
+ * plus the form's gap, in a single frame. `.errorSlot` is a one-row grid whose row grows from
+ * 0fr, which is the only way to animate to a height nothing has measured — and that trick
+ * needs the message to be the *item* in the row rather than the box around it, so there has
+ * to be a box around it. The alert is still one element with one role and one string in it;
+ * assistive technology sees exactly what it saw before.
+ *
+ * ## Why there is no attempt counter keying this node
+ *
+ * The obvious complaint about an announced-once error is that submitting the same wrong
+ * password twice leaves an identical string sitting there, saying nothing and moving not at
+ * all. The usual fix is to key the node on a counter so React remounts it. It is not needed
+ * here, and adding it would cost more than it buys:
+ *
+ *  - Every screen that submits already clears the message first — SignIn, SignUp,
+ *    AcceptInvite, CreateWorkspace and OAuthAuthorize all `setError(null)` before the
+ *    request. So this component genuinely unmounts on submit and mounts again when the
+ *    failure comes back, which re-fires `role="alert"` and replays the reveal below without
+ *    anybody keying anything. The re-announcement is a property of the flow, not a trick.
+ *  - A counter would have to come from the screen that owns the submit, and a remount driven
+ *    by anything looser — a parent re-render, a `busy` flip — would tear down and rebuild a
+ *    live region while the request is still in flight, announcing the *previous* failure as
+ *    though it were the answer to the attempt just made.
+ *
+ * The one case left inert is ConnectServer's client-side address check, which sets the same
+ * sentence without clearing it first. That is a fix in that file — clear, then set — and not
+ * a reason for this one to grow a key.
  */
 export function AuthError({ message }: { message: string | null }) {
   if (message === null) return null;
   return (
-    <p className={styles.error} role="alert">
-      {message}
-    </p>
+    <div className={styles.errorSlot}>
+      <p className={styles.error} role="alert">
+        {message}
+      </p>
+    </div>
   );
 }

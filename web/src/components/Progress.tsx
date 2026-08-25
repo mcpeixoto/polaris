@@ -32,8 +32,16 @@ export interface ProgressProps {
 export function Progress({ percent, label, detail, size = 'md' }: ProgressProps) {
   const clamped = Math.max(0, Math.min(100, Math.round(percent)));
 
-  // A stroke-dasharray on a circle, so the ring is one element and scales with the font
-  // rather than needing a size prop threaded through every caller.
+  // A dashed stroke on a circle, so the ring is one element and scales with the font rather
+  // than needing a size prop threaded through every caller.
+  //
+  // The dash pattern is fixed at the full circumference and it is the *offset* that carries
+  // the number: one dash exactly as long as the ring, wound back by however much is not done
+  // yet. Written the other way round — a growing dash against a fixed gap, which is what
+  // this was — a change animates two lengths at once, and because a dash pattern repeats,
+  // the far end of the arc creeps while the near end is still moving. That reads as a
+  // stutter rather than as a sweep. One property moving is also one property the browser can
+  // interpolate honestly.
   const radius = 7;
   const circumference = 2 * Math.PI * radius;
   const filled = (clamped / 100) * circumference;
@@ -54,7 +62,8 @@ export function Progress({ percent, label, detail, size = 'md' }: ProgressProps)
           cx="9"
           cy="9"
           r={radius}
-          strokeDasharray={`${filled} ${circumference}`}
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference - filled}
           // Starts the arc at twelve o'clock. Without it the ring fills from three
           // o'clock, which reads as an arbitrary rotation rather than as progress.
           transform="rotate(-90 9 9)"

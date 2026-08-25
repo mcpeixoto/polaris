@@ -1,3 +1,16 @@
+/*
+ * The consent screen's own contents, inside AuthLayout's card.
+ *
+ * The card, its wordmark, its title and its subtitle are staggered by AuthLayout.module.css.
+ * Everything below is what this screen adds underneath them, and it arrives on the same beat
+ * so that the whole thing reads as one card filling in rather than as a card plus a list.
+ *
+ * The beat is duplicated here rather than inherited from `.page` because a stylesheet should
+ * not depend on a custom property another one happens to set; the value matches on purpose,
+ * and both are written as a fraction of a motion token so the reduced-motion collapse in
+ * tokens.css folds the stagger away with everything else.
+ */
+
 .pending,
 .description,
 .legend,
@@ -8,9 +21,50 @@
   line-height: var(--line-height-normal);
 }
 
+.pending,
+.description,
+.legend,
+.scopes,
+.hint,
+.actions {
+  --oauth-beat: calc(var(--duration-instant) * 0.6);
+
+  /* `backwards`: without it each element is painted at full strength until its delay is up
+     and then snaps to the first frame of its own entrance. */
+  animation: oauthRiseIn var(--duration-fast) var(--ease-out) backwards;
+}
+
+@keyframes oauthRiseIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/*
+ * Four beats in, which is where AuthLayout puts a form: this line stands in for the whole
+ * body of the card while the application is being looked up, and it should land where that
+ * body will.
+ */
+.pending {
+  animation-delay: calc(var(--oauth-beat) * 4);
+}
+
+/*
+ * The rest arrive on their own clock, starting again from one.
+ *
+ * They mount when the lookup answers, which is a network round trip after the card was
+ * drawn — so continuing the card's numbering would put a quarter of a second between a
+ * response and the button it is about, counted from a moment that has already passed.
+ */
+.description {
+  animation-delay: var(--oauth-beat);
+}
+
 .legend {
   color: var(--text-primary);
   font-weight: var(--font-weight-medium);
+  animation-delay: calc(var(--oauth-beat) * 2);
 }
 
 .scopes {
@@ -20,6 +74,7 @@
   flex-direction: column;
   gap: var(--space-1);
   font-size: var(--font-size-sm);
+  animation-delay: calc(var(--oauth-beat) * 3);
 }
 
 .scopes code,
@@ -28,9 +83,19 @@
   font-size: var(--font-size-xs);
 }
 
+.hint {
+  animation-delay: calc(var(--oauth-beat) * 4);
+}
+
+/*
+ * Last, and deliberately so. This is the one screen in the product where the button grants
+ * somebody else access to a workspace, and a pair of buttons that settles after the list of
+ * scopes is a pair of buttons pressed after the list of scopes was read.
+ */
 .actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-3);
   margin-top: var(--space-2);
+  animation-delay: calc(var(--oauth-beat) * 5);
 }

@@ -1,0 +1,23 @@
+/*
+ * PriorityIcon's motion, which is one property on one shape.
+ *
+ * The three bars are the same three rectangles at every level from high to low; only how
+ * many of them are lit changes, and "lit" is opacity — a full-strength bar against the 0.28
+ * of the unlit remainder of the same scale. Because the rectangles are keyed by position
+ * they survive the change, so raising an issue from medium to high is one bar's opacity
+ * moving rather than a new icon appearing, and easing it is what makes the difference read
+ * as a bar lighting up on a scale instead of as the glyph being swapped out from under the
+ * cursor.
+ *
+ * --duration-fast because this happens on the keyboard path: priority is set from a menu
+ * that closes as the icon changes, and a glyph still resolving after the menu has gone
+ * looks like the change did not take.
+ *
+ * The other two levels cannot join in. Urgent is a filled square with a hole in it and no
+ * priority is three level dashes, so neither shares an element with the bar chart — React
+ * mounts a different shape and there is nothing to interpolate between. That is the price
+ * of the icon being legible without colour, and it is worth paying.
+ */
+.bar {
+  transition: opacity var(--duration-fast) var(--ease-out);
+}

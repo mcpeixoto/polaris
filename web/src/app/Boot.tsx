@@ -282,7 +282,22 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
 function Splash({ message, action }: { message: string; action?: ReactNode }) {
   return (
     <div className={styles.splash} role="status" aria-live="polite">
-      <span className={styles.message}>{message}</span>
+      {/*
+       * Keyed on the text so that a new sentence is a new element.
+       *
+       * `restoring` and `failed` are the same <Splash> at the same position, so React reuses
+       * this span and swaps its text node — "Signing you in" becomes the reason the workspace
+       * would not open with nothing between the two saying that anything changed. A key makes
+       * the replacement a mount, which is what re-runs the fade in Boot.module.css.
+       *
+       * It costs nothing in announcements: this lives inside an aria-live region, and a live
+       * region announces its new contents whether the node carrying them was replaced or
+       * merely rewritten. The one string that must not be keyed away is the region itself,
+       * which is the div above and is never remounted.
+       */}
+      <span key={message} className={styles.message}>
+        {message}
+      </span>
       {action}
     </div>
   );

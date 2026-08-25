@@ -70,16 +70,50 @@
 }
 
 /*
- * The tick grows into the box rather than being switched on. The box's own fill is already
- * on a --duration-fast ramp above, and a mark that appeared instantly on top of a background
- * that was still arriving read as two controls disagreeing about whether they had been
- * pressed.
+ * Neither mark is switched on. The box's own fill is already on a --duration-fast ramp
+ * above, and a mark that appeared instantly on top of a background that was still arriving
+ * read as two controls disagreeing about whether they had been pressed.
  *
- * The scale is faster than the fade on purpose: the mark should be the right size by the
- * time it is dark enough to read, or it looks like it is still settling after the click.
+ * What the two marks share is the fade; how they arrive is different, because they are
+ * different statements and a line and a tick do not move alike.
  */
 .mark {
   opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * The tick draws itself on, left to right, the way it would be written.
+ *
+ * pathLength={1} on the markup normalises the two segments to a total length of one, so the
+ * dash can be written 1 → 0 here without this path's measured length living in two files at
+ * once. `stroke-dasharray: 1` is one dash as long as the whole tick; the offset winds it
+ * back out of sight and the transition brings it in.
+ *
+ * The fade is the quicker of the two on purpose. If the opacity ramped over the same window
+ * as the draw, the first half of the stroke would be laid down while the ink was still
+ * arriving and the tick would look like it was being rubbed on rather than written; at
+ * --duration-instant the stroke is already at full strength before there is enough of it to
+ * see, and what reads is the line travelling.
+ */
+.check {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition:
+    opacity var(--duration-instant) var(--ease-out),
+    stroke-dashoffset var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * The dash keeps the scale-and-fade. A horizontal line drawing itself on from one end reads
+ * as a progress bar filling — something in flight, with a direction and an end — and "some
+ * of these are selected" is a standing fact with neither.
+ *
+ * The scale is faster than the fade for the same reason the tick's fade is: the mark should
+ * be the right size by the time it is dark enough to read, or it looks like it is still
+ * settling after the click.
+ */
+.dash {
   transform: scale(0.7);
   transform-origin: center;
   transition:
@@ -89,13 +123,16 @@
 
 .input:checked + .box .check {
   opacity: 1;
-  transform: scale(1);
+  stroke-dashoffset: 0;
 }
 
 /* After the checked rule: a tri-state control that is both checked and indeterminate shows
- * the dash, because "some of these" is the more specific and more useful statement. */
+ * the dash, because "some of these" is the more specific and more useful statement. The tick
+ * winds back out as it goes, so it is not left fully drawn and invisible, waiting to flash
+ * into view the next time the box is checked. */
 .input:indeterminate + .box .check {
   opacity: 0;
+  stroke-dashoffset: 1;
 }
 
 .input:indeterminate + .box .dash {

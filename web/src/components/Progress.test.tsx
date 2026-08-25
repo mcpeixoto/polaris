@@ -38,7 +38,12 @@ describe('Progress', () => {
     const { container } = render(<Progress percent={25} label="Sub-issues" />);
     const fill = container.querySelector('circle:nth-of-type(2)');
     const circumference = 2 * Math.PI * 7;
-    expect(fill?.getAttribute('stroke-dasharray')).toBe(`${circumference / 4} ${circumference}`);
+    // One dash as long as the whole ring, wound back by the part that is not done: at 25%
+    // three quarters of the circumference is still offset. The proportion is the same claim
+    // as before, made in the one property that can be animated without the arc's two ends
+    // interpolating separately.
+    expect(fill?.getAttribute('stroke-dasharray')).toBe(`${circumference}`);
+    expect(fill?.getAttribute('stroke-dashoffset')).toBe(`${circumference - circumference / 4}`);
     // Without the rotation the ring fills from three o'clock, which reads as an arbitrary
     // rotation rather than as progress.
     expect(fill?.getAttribute('transform')).toBe('rotate(-90 9 9)');

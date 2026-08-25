@@ -54,6 +54,39 @@
     color var(--duration-fast) var(--ease-out);
 }
 
+/*
+ * The active marker, drawn rather than only coloured.
+ *
+ * `.navItemActive` changes background, text colour and weight at once, and the weight is the
+ * tell: it snaps while the colours ease, so selecting a row arrives as two events on one
+ * keystroke. A rail cannot fix the weight — `font-weight` reflows the label whatever it is
+ * given — but it can put something that moves where the eye already is, and a mark growing
+ * out of the left edge covers the frame the text spends resetting.
+ *
+ * On `::before` because `.navItem` is `position: relative` already, and the alternative is a
+ * span in every nav row both sidebars draw that nothing else would use. `transform` and
+ * `opacity` only: both composite, and this fires on the keyboard path where the `g` chords
+ * land, so it has to cost nothing to be allowed at all.
+ */
+.navItem::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 2px;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  opacity: 0;
+  /* Scaled out of nothing rather than slid in from outside the box: .navItem is
+     `overflow: hidden` for the ellipsis, so a mark travelling in from the left would be
+     invisible until the moment it had already arrived. */
+  transform: translateY(-50%) scaleY(0.2);
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
 .navItem:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
@@ -65,11 +98,20 @@
   font-weight: var(--font-weight-medium);
 }
 
+.navItemActive::before {
+  opacity: 1;
+  transform: translateY(-50%) scaleY(1);
+}
+
 .navIcon {
   flex: none;
   display: inline-flex;
   color: inherit;
   opacity: 0.72;
+  /* The row's own colours already ease at this length; without the same ramp here the icon
+     brightens a frame ahead of the label it belongs to, which is the sort of thing nobody
+     can name and everybody can see. */
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .navItemActive .navIcon,

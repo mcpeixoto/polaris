@@ -22,6 +22,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useDesktopNotifications, useUnreadBadge } from '~/features/inbox/desktop';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
+import { usePresence } from '~/hooks/usePresence';
 import { useViewerId, useViewerRole } from '~/hooks/useViewer';
 import { Menu, type MenuNode } from '~/components';
 import { auth } from '~/sync/api';
@@ -38,6 +39,7 @@ import {
 } from '~/features/view/mutations';
 import { byOrderKey, byOrderKeyThen } from '~/store';
 import type { Document, Favorite, Store, Team, UUID, View } from '~/store';
+import type { EngineStatus } from '~/sync/engine';
 
 import { useWorkspaceSession } from './Boot';
 import { useEngine, useQuery, useSyncStatus } from './context';
@@ -1051,7 +1053,25 @@ export function AppShell({
           </nav>
         )}
 
-        <main className={styles.main}>{children}</main>
+        <main className={styles.main}>
+          {/*
+           * Keyed on the pathname so that every route change is a mount, and a mount is what
+           * a CSS entrance needs. Most navigations already replaced this subtree — different
+           * routes render different components — so the key changes little except for the
+           * navigations that stay within one screen and swap its subject, `/issue/A` to
+           * `/issue/B` being the obvious one. Those are the ones that most needed it: the
+           * page used to change its entire contents with nothing to say that it had.
+           *
+           * The pathname, deliberately, and not the whole location. The query string carries
+           * the filters and the display options, and remounting the list every time somebody
+           * narrows it would throw away the virtualiser's measurements and the scroll
+           * position on each keystroke — a route transition for something that is not a route
+           * change.
+           */}
+          <div key={pathname} className={styles.view}>
+            {children}
+          </div>
+        </main>
 
         <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
         <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
@@ -1498,26 +1518,6 @@ function visibleViews(store: Store, userId: UUID): readonly View[] {
 }
 
 /**
- * The sync indicator.
- *
- * It shows the count of unsent mutations rather than a generic "offline" badge, because
- * the question a user actually has when their network wobbles is "did my work save?" —
- * and "3 unsent" answers it while a grey cloud icon does not.
- *
- * It is a live region. The whole point of this indicator is to answer a question the user
- * has at a moment when something has gone wrong, and a status that only exists visually
- * answers it for some people and not others — a screen-reader user has no way to discover
- * that their last three edits are sitting in a queue.
- *
- * It is a *named* live region, and the name is fixed. There are two `role="status"` regions
- * in the shell — the undo toast is the other, mounted empty and permanently so that an
- * announcement inserted into it is actually announced — so "the status region" identifies
- * neither of them on its own. Naming it from its own text would not help: the text is the
- * value, reading "Reconnecting" one moment and "Syncing 3" the next, so a name taken from it
- * stops matching exactly when somebody wants to look at it. The label says which region this
- * is; the contents say what it currently reports.
- */
-/**
  * The square beside the workspace name: its logo if it has one, its initial otherwise.
  *
  * The letter is not a placeholder waiting for an upload — most workspaces never set a logo,
@@ -1551,49 +1551,109 @@ function WorkspaceMark({ name, logoUrl }: { name: string; logoUrl?: string | und
   );
 }
 
-function ConnectionIndicator() {
-  const status = useSyncStatus();
-  // `polite`, not `assertive`: reconnecting is worth knowing and not worth interrupting
-  // whatever the user is reading to say.
-  const live = {
-    role: 'status' as const,
-    'aria-live': 'polite' as const,
-    'aria-label': 'Sync status',
-  };
+/** What the badge currently says, or `null` for the states it stays quiet about. */
+interface SyncReport {
+  readonly text: string;
+  readonly title: string;
+  /** The tone class, or undefined for the neutral states. */
+  readonly tone: string | undefined;
+}
 
+/**
+ * The ladder, lifted out of the component.
+ *
+ * It used to be four `return <span>` branches, which was fine while the badge could vanish
+ * mid-frame. It cannot any more: the node has to outlive the status that justified it for
+ * the length of its exit, so the component needs to be able to render a report the current
+ * status no longer produces — and a component that returns markup from four branches has
+ * nowhere to keep one.
+ */
+function describeSync(status: EngineStatus): SyncReport | null {
   if (status.phase === 'bootstrapping') {
-    return (
-      <span {...live} className={styles.status} title="Loading your workspace">
-        Loading {status.received > 0 ? `${status.received}` : ''}
-      </span>
-    );
+    return {
+      text: `Loading ${status.received > 0 ? `${status.received}` : ''}`,
+      title: 'Loading your workspace',
+      tone: undefined,
+    };
   }
   if (status.phase === 'failed') {
-    return (
-      <span
-        {...live}
-        className={[styles.status, styles.statusError].join(' ')}
-        title={status.error}
-      >
-        Offline
-      </span>
-    );
+    return { text: 'Offline', title: status.error, tone: styles.statusError };
   }
   if (status.phase !== 'ready') return null;
-
   if (status.pending > 0) {
-    return (
-      <span {...live} className={styles.status} title="Changes waiting to be sent">
-        Syncing {status.pending}
-      </span>
-    );
+    return {
+      text: `Syncing ${status.pending}`,
+      title: 'Changes waiting to be sent',
+      tone: undefined,
+    };
   }
   if (status.connection !== 'ready') {
-    return (
-      <span {...live} className={[styles.status, styles.statusWarn].join(' ')} title="Reconnecting">
-        Reconnecting
-      </span>
-    );
+    return { text: 'Reconnecting', title: 'Reconnecting', tone: styles.statusWarn };
   }
   return null;
+}
+
+/**
+ * The sync indicator.
+ *
+ * It shows the count of unsent mutations rather than a generic "offline" badge, because
+ * the question a user actually has when their network wobbles is "did my work save?" —
+ * and "3 unsent" answers it while a grey cloud icon does not.
+ *
+ * It is a live region. The whole point of this indicator is to answer a question the user
+ * has at a moment when something has gone wrong, and a status that only exists visually
+ * answers it for some people and not others — a screen-reader user has no way to discover
+ * that their last three edits are sitting in a queue.
+ *
+ * It is a *named* live region, and the name is fixed. There are two `role="status"` regions
+ * in the shell — the undo toast is the other, mounted empty and permanently so that an
+ * announcement inserted into it is actually announced — so "the status region" identifies
+ * neither of them on its own. Naming it from its own text would not help: the text is the
+ * value, reading "Reconnecting" one moment and "Syncing 3" the next, so a name taken from it
+ * stops matching exactly when somebody wants to look at it. The label says which region this
+ * is; the contents say what it currently reports.
+ *
+ * It is also now a *single* span across all four states rather than one per branch. That is
+ * not tidiness: four elements meant the badge tore itself down and rebuilt itself every time
+ * bootstrapping handed over to syncing, so there was never one node for a colour to
+ * transition on, and every handover was a fresh insertion into the live region rather than an
+ * update to it.
+ */
+function ConnectionIndicator() {
+  const status = useSyncStatus();
+  const ref = useRef<HTMLSpanElement>(null);
+  // Memoised on the status object so that `report` only changes when the status does, which
+  // is what makes the render-phase update below terminate rather than propose a new report
+  // on every pass.
+  const report = useMemo(() => describeSync(status), [status]);
+  const { present, exitProps } = usePresence(report !== null, ref);
+
+  /**
+   * The last thing it said, held for the length of the fade out.
+   *
+   * `report` is already null on the frame the badge starts leaving — being null is what makes
+   * it leave — so rendering straight from it would empty the span first and then fade out an
+   * empty box. This is the same render-phase update usePresence makes, and it is here for the
+   * same reason: deriving from props without paying a second commit.
+   */
+  const [shown, setShown] = useState(report);
+  if (report !== null && report !== shown) setShown(report);
+
+  if (!present || shown === null) return null;
+
+  return (
+    <span
+      ref={ref}
+      role="status"
+      // `polite`, not `assertive`: reconnecting is worth knowing and not worth interrupting
+      // whatever the user is reading to say.
+      aria-live="polite"
+      aria-label="Sync status"
+      className={[styles.status, shown.tone].filter(Boolean).join(' ')}
+      title={shown.title}
+      {...exitProps}
+    >
+      {shown.text}
+    </span>
+  );
 }

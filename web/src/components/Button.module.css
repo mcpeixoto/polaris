@@ -20,10 +20,20 @@
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
+  /* `opacity` is in this list because "disabled" is a state of this button rather than a
+   * different button. The submit on the connect-server and create-workspace forms flips to
+   * enabled the moment the last field stops being empty, and a hard cut there reads as a
+   * repaint of the page rather than as the form becoming ready.
+   *
+   * `transform` is here for the press below. `outline` is deliberately absent, as it is
+   * from every transition list in this codebase: a focus ring is a fact about where the
+   * keyboard is, and a fact that fades in is a fact the user learns to check twice. */
   transition:
     background-color var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
+    color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 
 /* :focus-visible, never :focus. A ring drawn on a mouse click teaches keyboard users to
@@ -122,6 +132,34 @@
   background-color: var(--bg-selected);
 }
 
+/*
+ * The press itself, and it is three per cent.
+ *
+ * The wash above only says "the pointer is here"; the scale is the part that says the
+ * button went down, and without it a press on a ghost button — which has no fill to wash —
+ * is very nearly invisible. Three per cent is deliberately near the bottom of what can be
+ * seen: on a full-width submit that is still only a few pixels of travel, and a control
+ * that moves further than that stops reading as something fixed to the page.
+ *
+ * Instant down, fast back up, which is the reverse of the house rule for surfaces and
+ * correct here: a press is the one moment the interface must not appear to think, while the
+ * release is the button returning to rest and can be seen doing it. It is expressed as
+ * `transition-duration` rather than a second `transition` shorthand on purpose — the
+ * shorthand would replace the whole list for as long as the button is held, so every other
+ * property would drop to no transition at all and the hover wash would snap back on
+ * release. Overriding the duration alone keeps the list and only changes how fast it is
+ * crossed.
+ *
+ * Neither disabled form participates. `aria-disabled` matters more than it looks: a loading
+ * button keeps `:active` precisely because it is not `disabled` (see Button.tsx on why it
+ * must stay focusable), and a button that dips to a click it is about to swallow has
+ * promised something it will not do.
+ */
+.button:active:not(:disabled):not([aria-disabled='true']) {
+  transform: scale(0.97);
+  transition-duration: var(--duration-instant);
+}
+
 .button:disabled,
 .button[aria-disabled='true'] {
   opacity: 0.5;
@@ -139,11 +177,29 @@
   flex: none;
 }
 
+/*
+ * `visibility` transitioned alongside `opacity`, and the pair is the whole trick.
+ *
+ * Opacity alone would fade the label out and leave it hit-testable and still read aloud by
+ * a screen reader; `visibility: hidden` alone is the instant flip this replaces. Together,
+ * the discrete step that visibility takes lands at the *end* of the fade out and at the
+ * *start* of the fade in — so the label is unreachable exactly while it is invisible, and
+ * back the instant it begins to return. Both properties leave the element in flow, which is
+ * what still reserves the button's width.
+ */
+.label,
+.icon {
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    visibility var(--duration-fast) var(--ease-out);
+}
+
 /* Hidden rather than unmounted while loading: the label is what gives the button its
  * width, and a button that shrinks when you press it moves everything next to it.
  */
 .loading .label,
 .loading .icon {
+  opacity: 0;
   visibility: hidden;
 }
 
@@ -153,4 +209,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* The other half of the cross-fade, and it has to be an animation rather than a
+   * transition: the spinner is mounted by the same state change that hides the label, and a
+   * node on its first frame has no previous computed style to interpolate from. Finite, so
+   * the reduced-motion collapse in tokens.css is all it needs — the rotation inside Spinner
+   * is the looping one, and it carries its own opt-out. */
+  animation: spinnerIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes spinnerIn {
+  from {
+    opacity: 0;
+  }
 }

@@ -66,11 +66,58 @@
   border-color: var(--priority-urgent);
 }
 
+/*
+ * The message, and the way it arrives.
+ *
+ * This one rule is every hint and every validation error in the product — the auth screens,
+ * every settings form, every dialog — so the thing it has to avoid is the message *shoving*
+ * the form: text that appears at full height pushes the submit button down under a pointer
+ * that is on its way to it, and on a failed login it moves the field the user is about to
+ * correct.
+ *
+ * So two things happen at once. The box opens from nothing to its own height, and the text
+ * fades up into it.
+ *
+ * `minmax(0, 0fr)` rather than the usual bare `0fr`. The text here is an anonymous grid item
+ * — there is no wrapper element and there must not be one, because this `<p>` is also the
+ * live region — and an anonymous item cannot be given the `min-height: 0` that the ordinary
+ * `0fr` reveal depends on. A track whose min sizing function is `auto` refuses to collapse
+ * below its content, so the reveal would simply not happen. Pinning the minimum to 0 in the
+ * track itself is what makes it work without a wrapper.
+ *
+ * `overflow: hidden` is what the reveal clips against, and it is safe at this line height:
+ * at rest the box is exactly one line box tall and 1.25 keeps the descenders inside it.
+ *
+ * An animation rather than a transition, because the element does not exist until there is
+ * something to say — React inserts this node, and a node on its first frame has no previous
+ * computed style to interpolate from. It follows that a hint being *replaced* by an error
+ * does not replay this: same element, same position, only new text. That is the right
+ * behaviour anyway; re-animating a box that is already open would draw the eye to the
+ * movement instead of to the words that changed.
+ *
+ * --duration-fast, not normal. A validation message is the answer to a submit the user made
+ * from the keyboard, and they are waiting on it to find out what is wrong.
+ */
 .message {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
   color: var(--text-tertiary);
   font-family: var(--font-sans);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-tight);
+  animation: messageIn var(--duration-fast) var(--ease-out);
+}
+
+/* Two pixels, which is a third of what a dialog travels. The rise is happening inside a box
+ * that is clipping it, so any further and the last frames would show the descenders cut off
+ * at the bottom edge rather than a message settling into place. */
+@keyframes messageIn {
+  from {
+    grid-template-rows: minmax(0, 0fr);
+    opacity: 0;
+    transform: translateY(2px);
+  }
 }
 
 /*

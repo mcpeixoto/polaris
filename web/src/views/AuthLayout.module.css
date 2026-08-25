@@ -4,6 +4,11 @@
  * These screens are the only ones in the product that are not dense. There is exactly one
  * thing to do on each of them, the person doing it is usually new, and the density that makes
  * the issue list good makes a sign-in form look like a configuration panel.
+ *
+ * They are also the first thing anybody sees, and until now every one of them was a hard cut:
+ * the card was simply there, and a failed sign-in shoved the whole form down the page in a
+ * single frame. The motion below is the smallest amount that fixes both — an entrance for the
+ * card and its contents, and a reveal for the one element that changes the layout.
  */
 
 .page {
@@ -17,6 +22,17 @@
   background-color: var(--bg-secondary);
   color: var(--text-primary);
   font-family: var(--font-sans);
+
+  /*
+   * One beat of the entrance, inherited by the card and the footer alike.
+   *
+   * Written as a fraction of a motion token rather than as a number of milliseconds so that
+   * the reduced-motion collapse in tokens.css reaches it. A hard-coded 30ms would survive
+   * that collapse untouched, and somebody who asked for no motion would still watch five
+   * elements arrive one after another — the stagger stripped of the softness that was the
+   * only reason to have it.
+   */
+  --auth-beat: calc(var(--duration-instant) * 0.6);
 }
 
 .card {
@@ -30,6 +46,54 @@
   border-radius: var(--radius-lg);
   background-color: var(--bg-elevated);
   box-shadow: var(--shadow-md);
+
+  /*
+   * Modal's dialogIn, turned over and given more room.
+   *
+   * That one falls from -6px because the dialog is pinned to the top of the viewport and
+   * grows downward from the edge it is nearest to; this card is centred in the page with
+   * nothing above it, so it rises the same short distance instead. Same two per cent of
+   * scale, for the same reason stated there: far enough to read as having come from
+   * somewhere, not far enough for anyone to name what happened.
+   *
+   * --duration-normal, where a dialog gets --duration-fast. The rule in tokens.css is that
+   * nothing on the keyboard path may exceed --duration-fast, because a user out-typing the
+   * interface is the failure it protects against. This surface is not on that path: it is
+   * reached by a URL, at the start of a session, by somebody who has not begun working yet
+   * and has no next keystroke queued. 200ms is what separates a card that appeared from a
+   * card that arrived, and it is the one screen that can afford it.
+   */
+  animation: cardIn var(--duration-normal) var(--ease-out);
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/*
+ * The beats inside the card.
+ *
+ * Each one is addressed by its own class rather than by :nth-child, and that is not a matter
+ * of taste. `.error` mounts as the form's first child on a failed submit; an nth-child
+ * stagger would renumber every field beneath it, and changing an element's animation-delay
+ * rewinds an animation that had already finished — so the whole form would re-play its
+ * entrance on the exact frame the user is trying to read a failure.
+ *
+ * `backwards` is what turns the delay into a wait rather than a flash. Without it the element
+ * is painted at full strength until its delay elapses and only then snaps back to the first
+ * frame of its own entrance, which is a worse hard cut than the one this replaces.
+ *
+ * Four pixels, not the card's eight: these are moving inside a box that is itself moving, and
+ * the two distances add up on screen.
+ */
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
 .wordmark {
@@ -38,6 +102,7 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.01em;
+  animation: riseIn var(--duration-fast) var(--ease-out) var(--auth-beat) backwards;
 }
 
 .title {
@@ -45,6 +110,7 @@
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
+  animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 2) backwards;
 }
 
 .subtitle {
@@ -52,12 +118,28 @@
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+  animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 3) backwards;
 }
 
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/*
+ * The form arrives as one beat, not one beat per field.
+ *
+ * A per-field stagger was the obvious next step and it is wrong twice over: it puts the
+ * submit button as much as a fifth of a second behind the card on a five-field screen, and it
+ * is exactly the nth-child numbering that `.error` breaks when it mounts. The fields are one
+ * thing — a form — and they should land like one.
+ *
+ * A child that mounts later, which on these screens means only the error and SignUp's
+ * refusal, gets its own rule below; both are placed after this one and win on source order.
+ */
+.form > * {
+  animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 4) backwards;
 }
 
 /* Fields that belong together on one line — a workspace name and its address, a team's name
@@ -78,24 +160,106 @@
 .footer {
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+  /* Last, because it is the way out of a screen the user has only just been shown. */
+  animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 5) backwards;
 }
 
 .footer a {
   color: var(--accent-text);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * Toward the body colour on hover, rather than to another stop on the accent ramp.
+ *
+ * --accent-hover is the *fill's* hover, and in the light theme it resolves to the same
+ * accent-600 that --accent-text already is: a hover state that changes nothing. Pulling the
+ * link to --text-primary moves in both themes — darker in light, lighter in dark — and both
+ * ends of it are colours already trusted to be readable on this surface.
+ */
+.footer a:hover {
+  color: var(--text-primary);
 }
 
 /*
  * Takes --priority-urgent for the same reason Field.module.css does: the token layer has no
  * --danger role, and that pair is the only red already tuned for both page colours.
+ *
+ * min-height and overflow are what make the slot below able to close over it: a grid item
+ * refuses to shrink below its content unless told it may, and a message that overflowed a
+ * closed row would be drawn outside the row it is supposed to be hidden in.
  */
 .error {
   margin: 0;
+  min-height: 0;
+  overflow: hidden;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
   color: var(--priority-urgent);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+  /*
+   * Two animations, and the second one is not decoration.
+   *
+   * The slot below closes its row to 0fr, but a grid item cannot be made shorter than its own
+   * padding — content boxes compress, padding does not — so a row asked for zero still stands
+   * 16px tall and the reveal begins with a pop of exactly that height. Measured, not guessed:
+   * the track reported 16px for the first quarter of the animation before it started growing.
+   * Taking the block padding down to zero on the way in removes the floor, and the box then
+   * grows from nothing.
+   *
+   * It borrows the slot's duration and easing rather than its own on purpose. These two
+   * properties are describing one box opening, on two elements the browser sizes against each
+   * other every frame; give them different curves and the height stops being monotonic.
+   *
+   * The words are separate and a beat behind, so they arrive into a box that has begun
+   * opening rather than being stretched along with it.
+   */
+  animation:
+    riseIn var(--duration-fast) var(--ease-out) var(--auth-beat) backwards,
+    errorPad var(--duration-normal) var(--ease-out);
+}
+
+@keyframes errorPad {
+  from {
+    padding-block: 0;
+  }
+}
+
+/*
+ * The slot the error opens into, and why it is a separate element.
+ *
+ * `.error` mounts as the first child of the form, and in a flex column that means the fields,
+ * the button, and everything beneath them are shoved down by the height of the message plus
+ * the form's --space-4 gap, in one frame, at the exact moment somebody is looking for what
+ * went wrong. It is the only element on these screens that changes the layout, which makes it
+ * the only one worth spending a layout animation on.
+ *
+ * The slot is a grid exactly one row tall and the row grows from 0fr to 1fr — the only way to
+ * animate to a height nothing has measured, and the reason the wrapper exists at all: the
+ * message itself has to be the *item* in that row, not the container of it.
+ *
+ * The negative margin in the same keyframe cancels the parent's gap for as long as the row is
+ * closed. Without it 16px of space appears at full size on the first frame, which is the jump
+ * this rule exists to remove, only smaller and harder to explain. Both properties are on one
+ * timeline with one easing, so they cannot drift apart mid-reveal.
+ *
+ * Where grid-template-rows cannot be interpolated the row is 1fr from the start and the
+ * message lands the way it does today. Nothing — not the alert, not the layout — depends on
+ * the reveal happening.
+ */
+.errorSlot {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: errorOpen var(--duration-normal) var(--ease-out);
+}
+
+@keyframes errorOpen {
+  from {
+    grid-template-rows: 0fr;
+    margin-block-end: calc(var(--space-4) * -1);
+  }
 }
 
 /*
@@ -104,10 +268,14 @@
  * Deliberately not red. It sits below `.error`, and repeating the alarm would read as a
  * second thing having gone wrong rather than as the way forward from the first — this is
  * ordinary prose, in the tertiary text colour the subtitle uses.
+ *
+ * One beat behind the message for the same reason it is a different colour: it is the answer
+ * to the refusal, and an answer that arrives with the bad news reads as part of it.
  */
 .refusal {
   margin: calc(var(--space-2) * -1) 0 0;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+  animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 2) backwards;
 }
