@@ -117,7 +117,28 @@ jobs:
       - name: Package and sign
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         working-directory: desktop
-        run: pnpm exec electron-builder ${{ matrix.target }} --publish always
+        shell: bash
+        # An undefined secret is not an absent environment variable: GitHub sets it to the
+        # empty string. electron-builder treats a *defined* CSC_LINK as a path to a
+        # certificate, resolves "" against the working directory, and dies with
+        # `<repo>/desktop not a file` — a message that reads like a packaging bug and is
+        # really a missing secret. The empty ones are dropped here rather than removed from
+        # `env:` below, so that adding the secret in repository settings is the only thing
+        # needed to turn signing on; nothing in this file has to change with it.
+        run: |
+          if [ -z "${CSC_LINK:-}" ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD
+            # Otherwise electron-builder searches the runner keychain, finds nothing, and
+            # reports the absence as a signing failure instead of skipping.
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          if [ -z "${APPLE_API_KEY:-}" ]; then
+            unset APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER
+          fi
+          if [ -z "${AZURE_TENANT_ID:-}" ]; then
+            unset AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET
+          fi
+          pnpm exec electron-builder ${{ matrix.target }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS: a Developer ID certificate, and an App Store Connect key for notarisation.
