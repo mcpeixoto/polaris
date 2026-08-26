@@ -9,8 +9,10 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit && tsc --noEmit -p tsconfig.e2e.json",
-    "lint": "eslint src --max-warnings 0",
+    "typecheck:ee": "tsc --noEmit -p tsconfig.ee.json",
+    "lint": "eslint src --max-warnings 0 && cd ../ee/web && eslint . --max-warnings 0",
     "test": "vitest run",
+    "test:ee": "POLARIS_EDITION=ee vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
     "codegen": "graphql-codegen --config codegen.ts"

@@ -885,6 +885,39 @@ type WebhookDelivery struct {
 	CreatedAt      time.Time  `json:"createdAt"`
 }
 
+// AuditLogEntry is one security-relevant event, as an administrator reads it.
+//
+// Not on the sync stream, and for a stronger reason than WebhookDelivery's: replicating the
+// audit log to every device would put a workspace-wide record of who did what into the
+// local store of every member, including the ones it describes. It is read on one
+// admin-only screen, by request.
+//
+// The actor is denormalised into ActorLabel rather than resolved through ActorUserID,
+// because an audit entry must still name the person after their user row is gone — which is
+// the case an audit is most often opened for. The pointer is there for the client to link
+// from when the user does still exist.
+//
+// Before and After are the entity's shape either side of the change, already stripped of
+// anything secret by whoever recorded the entry. A credential never appears in either.
+type AuditLogEntry struct {
+	ID          uuid.UUID       `json:"id"`
+	ActorUserID *uuid.UUID      `json:"actorUserId,omitempty"`
+	ActorType   string          `json:"actorType"`
+	ActorLabel  string          `json:"actorLabel"`
+	Action      string          `json:"action"`
+	TargetType  *string         `json:"targetType,omitempty"`
+	TargetID    *uuid.UUID      `json:"targetId,omitempty"`
+	TargetLabel *string         `json:"targetLabel,omitempty"`
+	Before      json.RawMessage `json:"before,omitempty"`
+	After       json.RawMessage `json:"after,omitempty"`
+	// IP is rendered as text rather than as a netip.Addr so that the wire shape is a plain
+	// string in both transports. Null where the request metadata never reached the domain
+	// layer — see the migration's comment; a zero address would read as a fact.
+	IP        *string   `json:"ip,omitempty"`
+	UserAgent *string   `json:"userAgent,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 // OauthClient is a third-party application this workspace owns.
 //
 // Not on the sync stream: it is an admin settings row whose secret is a credential, and

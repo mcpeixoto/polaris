@@ -805,6 +805,38 @@ func toWebhookDeliveries(rows []model.WebhookDelivery) []generated.WebhookDelive
 	return out
 }
 
+// ----------------------------------------------------------------------------- audit log
+
+// A straight field-for-field copy: the model shape was designed against this schema type,
+// and the audit log has no enum to case-convert and no id to rewrite. Kept explicit rather
+// than done by reflection for the reason every converter here is — a field added to one
+// side and not the other should be a compile error, not a silently absent value.
+func toAuditLogEntry(e model.AuditLogEntry) generated.AuditLogEntry {
+	return generated.AuditLogEntry{
+		ID:          e.ID,
+		ActorUserID: e.ActorUserID,
+		ActorType:   e.ActorType,
+		ActorLabel:  e.ActorLabel,
+		Action:      e.Action,
+		TargetType:  e.TargetType,
+		TargetID:    e.TargetID,
+		TargetLabel: e.TargetLabel,
+		Before:      e.Before,
+		After:       e.After,
+		IP:          e.IP,
+		UserAgent:   e.UserAgent,
+		CreatedAt:   e.CreatedAt,
+	}
+}
+
+func toAuditLogEntries(rows []model.AuditLogEntry) []generated.AuditLogEntry {
+	out := make([]generated.AuditLogEntry, 0, len(rows))
+	for _, e := range rows {
+		out = append(out, toAuditLogEntry(e))
+	}
+	return out
+}
+
 // --------------------------------------------------------------------------------- oauth
 
 func toOauthClient(c model.OauthClient) generated.OauthClient {

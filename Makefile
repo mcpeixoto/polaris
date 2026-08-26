@@ -122,7 +122,20 @@ dev-down: ## Stop the keep-alive stack (does not stop Docker)
 # a tree that cannot build — reached this repository once, and this line is why it will not
 # reach it twice.
 .PHONY: check
-check: fmt-check lint test build-web ## Everything CI runs
+check: fmt-check lint test build-web check-ee ## Everything CI runs
+
+# The enterprise half of what CI runs. Separate target, folded into `check`, so that
+# `make check-ee` is available on its own while nobody can run the full check and miss it.
+#
+# `build-web` earns its place above for a reason that applies twice over here: the enterprise
+# bundle is the one the cloud serves, and it is the one no other gate compiles.
+.PHONY: check-ee
+check-ee: lint-editions test-go-ee test-web-ee build-web-ee ## Everything CI runs for the ee edition
+	$(PNPM) -C web typecheck:ee
+
+.PHONY: build-web-ee
+build-web-ee: ## Prove the enterprise client actually bundles
+	POLARIS_EDITION=ee $(PNPM) --filter @polaris/web build
 
 .PHONY: build-web
 build-web: ## Prove the client actually bundles
@@ -131,19 +144,25 @@ build-web: ## Prove the client actually bundles
 .PHONY: fmt
 fmt: ## Format all code
 	cd $(SVC) && $(GO) fmt ./...
-	npx prettier --write "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "desktop/src/**/*.{ts,cts}"
+	npx prettier --write "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "ee/web/**/*.{ts,tsx,css}" "desktop/src/**/*.{ts,cts}"
 
 .PHONY: fmt-check
 fmt-check: ## Fail if anything is unformatted
 	@cd $(SVC) && out=$$($(GO) fmt ./...) && [ -z "$$out" ] || { echo "unformatted: $$out"; exit 1; }
-	@npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "desktop/src/**/*.{ts,cts}"
+	@npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "ee/web/**/*.{ts,tsx,css}" "desktop/src/**/*.{ts,cts}"
 
 .PHONY: lint
-lint: lint-go lint-compose lint-desktop lint-images lint-imports lint-ios-graphql lint-keymap lint-routes lint-tokens lint-web ## All linters
+lint: lint-go lint-compose lint-desktop lint-editions lint-images lint-imports lint-ios-graphql lint-keymap lint-routes lint-tokens lint-web ## All linters
 
 .PHONY: lint-go
 lint-go:
 	cd $(SVC) && $(GO) vet ./...
+	cd $(SVC) && $(GO) vet -tags ee ./...
+	cd ee && $(GO) vet -tags ee ./...
+
+.PHONY: lint-editions
+lint-editions: ## Enforce that the community build does not CONTAIN the enterprise code
+	@bash scripts/lint-editions.sh
 
 .PHONY: lint-compose
 lint-compose: ## Enforce that an opt-in compose service cannot break commands for people who did not enable it
@@ -188,9 +207,21 @@ test: test-go test-web ## All tests
 test-go:
 	cd $(SVC) && $(GO) test ./... -race -count=1
 
+# The enterprise edition is a second artefact, not a variant, so it gets its own run.
+# `go test ./...` does not cross a module boundary, which is why ee/ is invoked separately:
+# building services with -tags ee compiles the commercial module but runs none of its tests.
+.PHONY: test-go-ee
+test-go-ee: ## Test the enterprise edition
+	cd $(SVC) && $(GO) test -tags ee ./... -race -count=1
+	cd ee && $(GO) test -tags ee ./... -count=1
+
 .PHONY: test-web
 test-web:
 	$(PNPM) -r test
+
+.PHONY: test-web-ee
+test-web-ee: ## Run the client suite resolved against the commercial modules
+	$(PNPM) -C web test:ee
 
 .PHONY: e2e
 e2e: ## Playwright end-to-end suite

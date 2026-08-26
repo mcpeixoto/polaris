@@ -51,6 +51,62 @@ jobs:
       - run: go test ./... -race -count=1
         working-directory: services
 
+  # The enterprise edition, built and tested as its own job.
+  #
+  # It is separate from `go` rather than two extra steps inside it, because the two editions
+  # are two artefacts: `ghcr.io/…/polaris` and `ghcr.io/…/polaris-ee`, built from this one
+  # commit (docs/06-product-model/01-licensing-and-distribution.md). A tagged build that only
+  # ran after the untagged one passed would be a check on the community image with an
+  # afterthought attached, and the afterthought is the half that runs in production for every
+  # paying customer.
+  #
+  # It exists at all because `//go:build ee` code is invisible to every other job here. It
+  # does not compile under `go vet ./...`, it is not covered by `go test ./...`, and until
+  # this job existed a syntax error in ee/ could be merged, tagged and shipped — discovered
+  # by the release build, or by the cloud.
+  go-ee:
+    name: Go — the enterprise edition builds and passes its own tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.2-alpine
+        env:
+          POSTGRES_USER: polaris
+          POSTGRES_PASSWORD: polaris
+          POSTGRES_DB: polaris_test
+        options: >-
+          --health-cmd "pg_isready -U polaris"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+        ports: ["5432:5432"]
+      valkey:
+        image: valkey/valkey:8.0-alpine
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgres://polaris:polaris@localhost:5432/polaris_test?sslmode=disable
+      VALKEY_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/go.mod
+          cache-dependency-path: services/go.sum
+      # Reads the linked dependency graph of both editions' binaries and fails if the
+      # community ones contain commercially licensed code — or if the enterprise ones do
+      # not, which would mean the tag had quietly stopped reaching anything.
+      - run: bash scripts/lint-editions.sh
+      - run: go vet -tags ee ./...
+        working-directory: services
+      - run: go test -tags ee ./... -race -count=1
+        working-directory: services
+      # The commercial module on its own terms. `go test` above runs it as a dependency of
+      # services/, which compiles it but runs none of its own tests — they live in a
+      # different module and `./...` does not cross a module boundary.
+      - run: go test -tags ee ./... -count=1
+        working-directory: ee
+
   generated:
     name: Generated code is not stale
     runs-on: ubuntu-latest
@@ -86,8 +142,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "desktop/src/**/*.{ts,cts}"
+      - run: npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "ee/web/**/*.{ts,tsx,css}" "desktop/src/**/*.{ts,cts}"
       - run: pnpm -C web typecheck
+      # The enterprise resolution of `@ee`. tsconfig.json pins the alias to the stubs so that
+      # the ordinary typecheck has something that always exists to check against — which
+      # means the commercial modules are not compiled by the line above at all, and would
+      # otherwise first be compiled inside the release build.
+      - run: pnpm -C web typecheck:ee
       - run: pnpm -C web lint
       # An optimistic create under a stand-in id that nothing can pair with the server's row.
       # Five features shipped that independently and each was found by a user seeing their
@@ -99,6 +160,47 @@ jobs:
       # reads those documents.
       - run: node scripts/lint-ios-graphql.mjs
       - run: pnpm -C web test -- --run
+      # The same suite resolved against the commercial modules, plus their own specs.
+      # A core run resolves `@ee` to the stubs, so without this the enterprise bundle's
+      # components are never rendered by any test — and the bundle the cloud serves is the
+      # enterprise one.
+      - run: pnpm -C web test:ee
+      # The community bundle, and then the assertion that it does not contain the
+      # commercial one. This is the web half of scripts/lint-editions.sh: that script reads
+      # the Go binaries' dependency graphs, and nothing until now read the JavaScript.
+      #
+      # The markers are derived rather than listed, so the check keeps working as ee/web
+      # grows: every GraphQL operation name declared under ee/web must be absent from the
+      # community bundle. A commercial module that leaked in through a stray import would
+      # bring its documents with it, and operation names survive minification because they
+      # are string literals sent to the server.
+      - run: pnpm -C web build
+      - name: Fail if the community bundle contains commercial code
+        run: |
+          set -euo pipefail
+          # An operation DECLARATION: the keyword, a PascalCase name, then the variable
+          # list or the selection set. The trailing bracket is what keeps English out —
+          # "query into" and "query on" appear in the comments here, and `into` matches
+          # somewhere in any bundle, which would fail this check for everybody forever.
+          markers=$(grep -rhoE '\b(query|mutation) [A-Z][A-Za-z0-9_]*[[:space:]]*[({]' ee/web \
+                      --include='*.ts' --include='*.tsx' \
+                    | awk '{print $2}' | sed 's/[({].*//' | sort -u)
+          if [ -z "$markers" ]; then
+            echo "::error::found no operation names under ee/web, so this check is vacuous"
+            exit 1
+          fi
+          failed=0
+          for marker in $markers; do
+            if grep -rlF "$marker" web/dist/assets; then
+              echo "::error::the community bundle contains the ee operation ${marker}"
+              failed=1
+            fi
+          done
+          exit $failed
+      # Proves the enterprise client actually bundles. `tsc` and vitest both accept a
+      # missing CSS module import; only the bundler notices — see the note on `build-web`
+      # in the Makefile, which is there because that exact state reached this repository.
+      - run: POLARIS_EDITION=ee pnpm -C web build
 
   e2e:
     name: End-to-end — the browser-only acceptance tests

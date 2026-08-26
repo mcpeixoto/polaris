@@ -2040,6 +2040,37 @@ type WebhookDelivery {
   createdAt: Time!
 }
 
+"""
+One security-relevant event: who did what, to what, from where.
+
+Read on the admin-only audit log screen. Not on the sync stream — a workspace-wide record
+of everybody's administrative actions does not belong in every member's local replica.
+"""
+type AuditLogEntry {
+  id: UUID!
+  """
+  The actor's user id, or null once that user has been deleted. Use actorLabel to name
+  them: it is the name as it read when the event happened, and it survives the deletion.
+  """
+  actorUserId: UUID
+  """One of: user, app_user, integration, system."""
+  actorType: String!
+  actorLabel: String!
+  """A dotted name, e.g. member.role_changed. Stable enough to filter and export on."""
+  action: String!
+  """Null together with targetId, for events that act on nobody — a sign-in."""
+  targetType: String
+  targetId: UUID
+  targetLabel: String
+  """The entity either side of the change. Null where the event has no such side. Never contains a credential."""
+  before: JSON
+  after: JSON
+  """Null where the transport did not carry it; today only the sign-in paths do."""
+  ip: String
+  userAgent: String
+  createdAt: Time!
+}
+
 input CreateWebhookInput {
   url: String!
   """XOR with allPublicTeams: one team, or every public team."""
@@ -3324,6 +3355,16 @@ type Query {
   """Workspace webhooks. Admins only; the signing secret is never returned."""
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
+
+  """
+  The workspace's audit log, newest first. Admins only, and an Enterprise feature: on a
+  plan without it this refuses with PLAN_LIMIT rather than returning an empty list.
+
+  `after` is the id of the last entry you already have — pass it to get the next page.
+  Keyset rather than offset: the table is appended to while somebody reads it, and an
+  offset would silently repeat and skip rows on the one screen where that is unacceptable.
+  """
+  auditLog(first: Int, after: UUID): [AuditLogEntry!]!
 
   """OAuth applications this workspace owns. Admins only; the secret is never returned."""
   oauthClients: [OauthClient!]!

@@ -513,6 +513,23 @@ func (s Set) Allow(f Feature) error {
 	return s.denyFeature(f)
 }
 
+// Deny is the refusal a READ path returns when Has said no.
+//
+// Allow cannot serve that case, and the difference is the lapse. Allow answers from the
+// narrowed write matrix, so a lapsed Pro workspace is refused a feature its plan includes —
+// correct for a write, and exactly the bug the lapsed rule exists to prevent if a read did
+// it. So a read asks Has, and when the answer is no it comes here for the sentence.
+//
+// Why not let the caller write the sentence: because the message names the plan that would
+// permit the feature, and that name is derived from the matrix. A hand-written string is a
+// message that keeps naming Enterprise on the day the feature moves to Pro, and it is the
+// one string a customer reads before deciding whether to pay.
+//
+// Deny does not check anything. It is the caller's job to have asked Has first; calling it
+// for a feature the plan includes produces a refusal that contradicts itself, which is why
+// this is a separate method rather than a second return from Has.
+func (s Set) Deny(f Feature) error { return s.denyFeature(f) }
+
 // Limit reports a plan's ceiling. ok is false when there is none, in which case n is
 // Unlimited.
 //

@@ -14,6 +14,7 @@ import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-
  * Learn more about it here: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client#reducing-bundle-size
  */
 type Documents = {
+    "\n  query EnterpriseAuditLog($first: Int, $after: UUID) {\n    auditLog(first: $first, after: $after) {\n      id\n      actorUserId\n      actorType\n      actorLabel\n      action\n      targetType\n      targetId\n      targetLabel\n      ip\n      userAgent\n      createdAt\n    }\n  }\n": typeof types.EnterpriseAuditLogDocument,
     "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        slas\n        slack\n        lapsed\n      }\n    }\n  }\n": typeof types.EntitlementsDocument,
     "\n  query Invites {\n    invites {\n      id\n      email\n      role\n      invitedBy\n      teamIds\n      expiresAt\n      createdAt\n    }\n  }\n": typeof types.InvitesDocument,
     "\n  mutation InviteToWorkspace($input: InviteInput!) {\n    inviteToWorkspace(input: $input) {\n      id\n      email\n      role\n      expiresAt\n      token\n    }\n  }\n": typeof types.InviteToWorkspaceDocument,
@@ -307,6 +308,7 @@ type Documents = {
     "\n  \n  mutation UpdateProfile($input: UpdateProfileInput!) {\n    updateProfile(input: $input) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.UpdateProfileDocument,
 };
 const documents: Documents = {
+    "\n  query EnterpriseAuditLog($first: Int, $after: UUID) {\n    auditLog(first: $first, after: $after) {\n      id\n      actorUserId\n      actorType\n      actorLabel\n      action\n      targetType\n      targetId\n      targetLabel\n      ip\n      userAgent\n      createdAt\n    }\n  }\n": types.EnterpriseAuditLogDocument,
     "\n  query Entitlements {\n    workspace {\n      id\n      name\n      plan\n      planExpiresAt\n      planLapsedAt\n      seatLimit\n      entitlements {\n        plan\n        seatLimit\n        seatsUsed\n        teamLimit\n        historyDays\n        privateTeams\n        subTeams\n        multiLevelSubTeams\n        customViews\n        apiKeys\n        sso\n        auditLog\n        slas\n        slack\n        lapsed\n      }\n    }\n  }\n": types.EntitlementsDocument,
     "\n  query Invites {\n    invites {\n      id\n      email\n      role\n      invitedBy\n      teamIds\n      expiresAt\n      createdAt\n    }\n  }\n": types.InvitesDocument,
     "\n  mutation InviteToWorkspace($input: InviteInput!) {\n    inviteToWorkspace(input: $input) {\n      id\n      email\n      role\n      expiresAt\n      token\n    }\n  }\n": types.InviteToWorkspaceDocument,
@@ -614,6 +616,10 @@ const documents: Documents = {
  */
 export function graphql(source: string): unknown;
 
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query EnterpriseAuditLog($first: Int, $after: UUID) {\n    auditLog(first: $first, after: $after) {\n      id\n      actorUserId\n      actorType\n      actorLabel\n      action\n      targetType\n      targetId\n      targetLabel\n      ip\n      userAgent\n      createdAt\n    }\n  }\n"): (typeof documents)["\n  query EnterpriseAuditLog($first: Int, $after: UUID) {\n    auditLog(first: $first, after: $after) {\n      id\n      actorUserId\n      actorType\n      actorLabel\n      action\n      targetType\n      targetId\n      targetLabel\n      ip\n      userAgent\n      createdAt\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

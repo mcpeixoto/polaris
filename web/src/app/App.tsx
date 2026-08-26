@@ -74,6 +74,7 @@ import { SignUp } from '~/views/SignUp';
 import { Archives } from '~/views/Archives';
 import { Trash } from '~/views/Trash';
 import { DeletedTeams } from '~/views/DeletedTeams';
+import { AuditLog } from '~/views/AuditLog';
 import { SlaSettings } from '~/views/SlaSettings';
 import { DocumentDetail } from '~/views/DocumentDetail';
 import { Documents } from '~/views/Documents';
@@ -346,6 +347,14 @@ function SignedInShell() {
           element={
             <AdminOnly>
               <SlaSettings />
+            </AdminOnly>
+          }
+        />
+        <Route
+          path="/settings/audit-log"
+          element={
+            <AdminOnly>
+              <AuditLog />
             </AdminOnly>
           }
         />

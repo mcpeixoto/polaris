@@ -95,6 +95,23 @@ type Attachment struct {
 	UpdatedAt   time.Time
 }
 
+type AuditLog struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	ActorUserID *uuid.UUID
+	ActorType   string
+	ActorLabel  string
+	Action      string
+	TargetType  *string
+	TargetID    *uuid.UUID
+	TargetLabel *string
+	Before      []byte
+	After       []byte
+	Ip          *netip.Addr
+	UserAgent   *string
+	CreatedAt   time.Time
+}
+
 type ChangeLog struct {
 	WorkspaceID   uuid.UUID
 	Version       int64

@@ -1,0 +1,17 @@
+{
+  // The enterprise edition's typecheck.
+  //
+  // tsconfig.json pins `@ee/*` to the stubs, because TypeScript cannot switch a path mapping
+  // on an environment variable. That means the ordinary `pnpm typecheck` never looks at the
+  // commercial modules at all — they would compile for the first time inside `vite build`
+  // with POLARIS_EDITION=ee, which is to say inside the release build, which is the worst
+  // place to discover a type error.
+  //
+  // So this file exists to typecheck the other resolution. Same options, same source, one
+  // path mapping different. `pnpm typecheck:ee` runs it and CI runs both.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": { "~/*": ["src/*"], "@ee/*": ["../ee/web/*"] }
+  },
+  "include": ["src", "../ee/web", "edition.ts", "vite.config.ts", "vitest.config.ts"]
+}

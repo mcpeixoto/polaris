@@ -203,6 +203,20 @@ func (s *Service) SetUserRole(ctx context.Context, p *authz.Principal, userID uu
 			}
 		}
 
+		// A role change is the archetypal audit event: it is how somebody acquires access
+		// they did not have, and the before/after is the whole story. Recorded beside Emit
+		// rather than inside it — Emit is the sync stream, which is pruned at thirty days
+		// and is not what an access review reads a year later.
+		entry := s.auditBy(ctx, q, p, AuditMemberRoleChanged)
+		entry.TargetType = "user"
+		entry.TargetID = &out.ID
+		entry.TargetLabel = out.DisplayName
+		entry.Before = map[string]any{"role": existing.Role}
+		entry.After = map[string]any{"role": out.Role}
+		if err := s.recordAudit(ctx, q, entry); err != nil {
+			return err
+		}
+
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "user", EntityID: out.ID, Op: OpUpsert,
 			Scope: authz.WorkspaceScope(), Payload: out,
@@ -275,6 +289,24 @@ func (s *Service) SuspendUser(ctx context.Context, p *authz.Principal, userID uu
 			return platform.Internal(err)
 		}
 		out = toUser(row)
+
+		// Two actions rather than one with a boolean, because an auditor filters on the
+		// action name. "member.suspended" and "member.restored" are different events with
+		// different urgency, and folding them into one name would mean the filter that
+		// finds suspensions also finds every reinstatement.
+		action := AuditMemberRestored
+		if suspended {
+			action = AuditMemberSuspended
+		}
+		entry := s.auditBy(ctx, q, p, action)
+		entry.TargetType = "user"
+		entry.TargetID = &out.ID
+		entry.TargetLabel = out.DisplayName
+		entry.Before = map[string]any{"status": existing.Status}
+		entry.After = map[string]any{"status": out.Status}
+		if err := s.recordAudit(ctx, q, entry); err != nil {
+			return err
+		}
 
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "user", EntityID: out.ID, Op: OpUpsert,

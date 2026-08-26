@@ -1,6 +1,15 @@
 packages:
   - web
   - desktop
+  # The commercial web modules. A workspace package rather than a folder inside web/src,
+  # because ee/LICENSE governs "the contents of the `ee/` directory" and a directory called
+  # ee nested inside AGPL source would be exactly the ambiguity that licence resolves against
+  # itself. Being a package is what lets it resolve react at all from out here — node walks
+  # upwards for node_modules, and web/node_modules is not on that path.
+  #
+  # It ships no build of its own: web/vite.config.ts pulls it in through the `@ee` alias when
+  # POLARIS_EDITION=ee, so it is compiled as part of the web bundle or not at all.
+  - ee/web
 
 # esbuild ships a platform binary and needs its postinstall to run; Vite will not start
 # without it. Declared explicitly because pnpm 10+ blocks build scripts by default, and

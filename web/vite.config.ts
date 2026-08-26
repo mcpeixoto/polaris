@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { fileURLToPath, URL } from 'node:url';
+
+import { aliases } from './edition';
 
 // Where the dev server forwards to. Defaults are the ports `make api` and `make sync`
 // bind, so the ordinary `pnpm dev` needs no environment at all. They are overridable
@@ -15,9 +16,9 @@ const SYNC_TARGET = process.env.POLARIS_SYNC_URL ?? 'ws://localhost:8089';
 // how an auth bug reaches staging.
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: { '~': fileURLToPath(new URL('./src', import.meta.url)) },
-  },
+  // `@ee` resolves to the commercial modules or to the stubs that stand in for them,
+  // decided by POLARIS_EDITION at build time. See edition.ts.
+  resolve: { alias: aliases() },
   server: {
     // Bind IPv4 as well as IPv6. Default `localhost` is [::1]-only on macOS,
     // which makes http://127.0.0.1:5173 refuse even while Vite is "up".

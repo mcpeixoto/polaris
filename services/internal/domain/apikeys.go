@@ -173,6 +173,20 @@ func (s *Service) CreateApiKey(
 		}
 		out = toAPIKeyCreated(row)
 
+		// The audit trail the comment below promises. Name, prefix and scopes — never the
+		// token, and never the hash. The prefix is what lets somebody match a row here
+		// against a key in the listing without either of them being usable.
+		entry := s.auditBy(ctx, q, p, AuditAPIKeyCreated)
+		entry.TargetType = "api_key"
+		entry.TargetID = &out.ID
+		entry.TargetLabel = out.Name
+		entry.After = map[string]any{
+			"name": out.Name, "prefix": out.Prefix, "scopes": out.Scopes, "expiresAt": out.ExpiresAt,
+		}
+		if err := s.recordAudit(ctx, q, entry); err != nil {
+			return err
+		}
+
 		// Deliberately no Emit, and this is the one file in the domain layer where that is
 		// the right answer. Emit exists so clients learn about entities they replicate, and
 		// api_key is not replicated (see model.APIKey): keys are read on one settings screen,
@@ -203,14 +217,25 @@ func (s *Service) RevokeApiKey(ctx context.Context, p *authz.Principal, id uuid.
 		// Scoped to the caller by the query itself, so somebody else's key id answers
 		// exactly as an invented one does — not-found rather than forbidden. Otherwise the
 		// id of a colleague's key becomes a way to confirm it exists.
-		if _, err := q.RevokeAPIKey(ctx, store.RevokeAPIKeyParams{ID: id, UserID: p.UserID}); err != nil {
+		revoked, err := q.RevokeAPIKey(ctx, store.RevokeAPIKeyParams{ID: id, UserID: p.UserID})
+		if err != nil {
 			if store.IsNotFound(err) {
 				return platform.NotFound("api key")
 			}
 			return platform.Internal(err)
 		}
 
-		var err error
+		// The revocation matters as much as the minting: an audit that shows a credential
+		// created and never shows it retired leaves the reader to assume it is still live.
+		entry := s.auditBy(ctx, q, p, AuditAPIKeyRevoked)
+		entry.TargetType = "api_key"
+		entry.TargetID = &id
+		entry.TargetLabel = revoked.Name
+		entry.Before = map[string]any{"name": revoked.Name, "prefix": revoked.Prefix, "scopes": revoked.Scopes}
+		if err := s.recordAudit(ctx, q, entry); err != nil {
+			return err
+		}
+
 		version, err = syncWatermark(ctx, q, p.WorkspaceID)
 		return err
 	})

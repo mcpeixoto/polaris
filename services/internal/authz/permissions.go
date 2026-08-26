@@ -103,6 +103,19 @@ const (
 	// secret is a workspace-wide credential, and every admin of the owning workspace is
 	// meant to be able to manage the app.
 	ActionOauthClientManage Action = "oauth_client.manage"
+
+	// Reading the workspace's audit log. Admin, and read-only: there is no corresponding
+	// write action because nothing a person does adds an entry directly — entries are a
+	// side effect of the events they describe, which is what makes the log worth reading.
+	//
+	// Admin rather than owner, despite docs/01-features/17-admin-security-permissions.md
+	// describing it as owner-only. Can() has no owner-only branch today, and every other
+	// workspace-administration action here resolves through Role.IsAdmin(), which admits
+	// owner and admin alike. Inventing a second shape for one action is the kind of
+	// asymmetry that later gets "simplified" back by somebody who cannot see why it was
+	// different. If owner-only is wanted it should be a deliberate change to the role
+	// model, made once, for every action that deserves it.
+	ActionAuditLogRead Action = "audit_log.read"
 )
 
 // AllActions exists so a test can assert that every action is classified.
@@ -123,6 +136,7 @@ var AllActions = []Action{
 	ActionWorkspaceTemplateManage, ActionTeamTemplateManage,
 	ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete, ActionProjectStatusManage,
 	ActionAPIKeyManage, ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionSentryManage, ActionSlackManage, ActionOauthClientManage,
+	ActionAuditLogRead,
 }
 
 // Deliberately absent: notifications, subscriptions, favourites and view preferences.
@@ -173,7 +187,8 @@ func Can(p *Principal, a Action) bool {
 		// team-scoped equivalents are not.
 		ActionWorkspaceLabelManage, ActionWorkspaceViewManage, ActionWorkspaceTemplateManage,
 		ActionProjectStatusManage,
-		ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionSentryManage, ActionSlackManage, ActionOauthClientManage:
+		ActionWebhookManage, ActionGitHubManage, ActionGitLabManage, ActionSentryManage, ActionSlackManage, ActionOauthClientManage,
+		ActionAuditLogRead:
 		return p.Role.IsAdmin()
 
 	case ActionTeamJoin, ActionAPIKeyManage, ActionProjectCreate, ActionProjectUpdate, ActionProjectDelete:

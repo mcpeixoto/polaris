@@ -392,6 +392,20 @@ func (s *Service) UpdateWorkspace(ctx context.Context, p *authz.Principal, in Up
 		}
 		out = toWorkspace(row)
 
+		// The settings the workspace runs under. The whole resulting row rather than a diff,
+		// because there is no `before` read on this path and inventing one would mean an
+		// extra query on every workspace edit to serve a screen nobody has opened yet. The
+		// previous values are recoverable by reading the previous entry, which is what an
+		// append-only log is for.
+		entry := s.auditBy(ctx, q, p, AuditWorkspaceUpdated)
+		entry.TargetType = "workspace"
+		entry.TargetID = &out.ID
+		entry.TargetLabel = out.Name
+		entry.After = out
+		if err := s.recordAudit(ctx, q, entry); err != nil {
+			return err
+		}
+
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "workspace", EntityID: out.ID, Op: OpUpsert,
 			Scope: authz.WorkspaceScope(), Payload: out,

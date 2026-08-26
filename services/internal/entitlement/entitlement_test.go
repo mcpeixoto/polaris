@@ -797,3 +797,62 @@ func TestSet_ReportsTheFactsItWasGiven(t *testing.T) {
 		t.Error("no plan_lapsed_at means not lapsed")
 	}
 }
+
+// -------------------------------------------------------------- the read-side refusal
+
+// Deny is what a READ path returns once Has has said no, and the two must agree. A read that
+// asked Has, got false, and then got nil from Deny would return no data and no error — which
+// the transport renders as an empty audit log rather than as a paywall.
+func TestDeny_RefusesEverythingHasDenies(t *testing.T) {
+	for _, p := range AllPlans {
+		for _, f := range AllFeatures {
+			set := New(Facts{Plan: p})
+			if set.Has(f) {
+				continue
+			}
+			err := set.Deny(f)
+			if err == nil {
+				t.Errorf("%s does not include %s, yet Deny returned nil — a read path "+
+					"gating on this would answer with an empty result and no refusal", p, f)
+				continue
+			}
+			if platform.CodeOf(err) != platform.CodeEntitlement {
+				t.Errorf("Deny(%s) on %s must classify as %s so the client renders a "+
+					"paywall rather than an error", f, p, platform.CodeEntitlement)
+			}
+		}
+	}
+}
+
+// The message is derived from the matrix rather than written at the call site, which is the
+// whole reason Deny exists instead of each read path composing its own sentence.
+func TestDeny_NamesThePlanThatWouldPermitIt(t *testing.T) {
+	var e *Error
+	if !errors.As(New(Facts{Plan: PlanFree}).Deny(FeatureAuditLog), &e) {
+		t.Fatal("expected an *entitlement.Error")
+	}
+	if e.NeedsPlan != PlanEnterprise {
+		t.Errorf("the audit log is Enterprise-only in the matrix, yet the refusal points at %q", e.NeedsPlan)
+	}
+	if !strings.Contains(e.Message, "Enterprise") {
+		t.Errorf("the message must name the plan a reader would have to buy: %q", e.Message)
+	}
+}
+
+// A lapse must never reach Deny, because Has ignores lapses and Deny is only called after
+// Has says no. Reaching it would mean telling somebody to upgrade the plan they already pay
+// for — and, worse for this feature, that their existing audit entries are unreadable
+// because a card expired.
+func TestDeny_IsUnreachableForALapsedWorkspaceThatIsEntitled(t *testing.T) {
+	set := New(Facts{Plan: PlanEnterprise, PlanLapsedAt: lapsedAt})
+
+	if !set.Has(FeatureAuditLog) {
+		t.Fatal("a lapse must not take a feature off what the plan entitles — reads keep " +
+			"working, which is the rule the whole lapsed design exists to hold")
+	}
+	// And the write side does refuse, which is the other half of the same rule: no NEW
+	// entries while billing is behind, every existing entry still readable.
+	if set.Allow(FeatureAuditLog) == nil {
+		t.Error("a lapsed plan must stop accepting new audit entries")
+	}
+}

@@ -22,7 +22,12 @@
     "useDefineForClassFields": true,
 
     "baseUrl": ".",
-    "paths": { "~/*": ["src/*"] }
+    // `@ee/*` is pinned to the stubs here and NOT switched on POLARIS_EDITION, because
+    // TypeScript resolves paths statically — there is no environment to read at the point
+    // tsc builds its module graph. The stubs are therefore the type contract: whatever the
+    // commercial modules export must be assignable to what these declare, and tsconfig.ee.json
+    // is what checks the other side of that bargain. See edition.ts.
+    "paths": { "~/*": ["src/*"], "@ee/*": ["src/ee-absent/*"] }
   },
-  "include": ["src", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "edition.ts", "vite.config.ts", "vitest.config.ts"]
 }
