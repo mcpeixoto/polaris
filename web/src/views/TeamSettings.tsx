@@ -37,6 +37,7 @@ import {
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
+import { PlanBlock } from '~/features/admin/PlanBlock';
 import { updateTeamArchive } from '~/features/archive/mutations';
 import { inheritsCycleSchedule } from '~/features/cycles/inherit';
 import { updateTeamCycles } from '~/features/cycles/mutations';
@@ -494,11 +495,7 @@ function VisibilitySettings({
           disabled={block !== null}
           onChange={(event) => onToggle(event.target.checked)}
         />
-        {block === null ? null : (
-          <p className={styles.sectionHint} role="status">
-            {block}
-          </p>
-        )}
+        <PlanBlock block={block} className={styles.sectionHint} />
       </section>
 
       <ConfirmDialog
@@ -1546,12 +1543,12 @@ function ParentTeamSettings({
         <Button
           onClick={() => onMove(parentId === '' ? null : (parentId as UUID))}
           disabled={readOnly || block !== null || parentId === (team.parentTeamId ?? '')}
-          title={block ?? undefined}
+          title={block?.reason}
         >
           Save parent
         </Button>
       </div>
-      {block !== null ? <p className={styles.sectionHint}>{block}</p> : null}
+      <PlanBlock block={block} className={styles.sectionHint} />
 
       {subTeams.length > 0 ? (
         <ul className={styles.subTeamList}>

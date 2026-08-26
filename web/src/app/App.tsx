@@ -69,6 +69,7 @@ import { Templates } from '~/views/Templates';
 import { TeamHome } from '~/views/TeamHome';
 import { TeamSettings } from '~/views/TeamSettings';
 import { Landing } from '~/views/Landing';
+import { Pricing } from '~/views/Pricing';
 import { SignIn } from '~/views/SignIn';
 import { SignUp } from '~/views/SignUp';
 import { Archives } from '~/views/Archives';
@@ -120,6 +121,10 @@ export function App() {
                   SignedInShell. Anonymous `/` is the marketing surface; authenticated `/`
                   is still the first team's issue list. */}
               <Route path="/welcome" element={<Landing />} />
+              {/* Declared before the catch-all, which renders the sign-in form: without
+                  this route /pricing showed a password field to somebody who had asked
+                  what it costs. Also routed in SignedInShell — see the note there. */}
+              <Route path="/pricing" element={<Pricing />} />
               <Route path="/signin" element={<SignIn onSignedIn={onSignedIn} />} />
               <Route path="/signup" element={<SignUp onSignedIn={onSignedIn} />} />
               {/* The invitation link is followed from an email, so it has to survive
@@ -171,6 +176,17 @@ export function App() {
 function SignedInShell() {
   const { pathname } = useLocation();
   if (pathname === '/welcome') return <Landing />;
+  /*
+    Pricing is routed for signed-in people too, and outside AppShell for the same reason
+    /welcome is: it is a public page, and the sidebar behind it would belong to a workspace
+    the reader is deciding whether to keep paying for.
+
+    Not optional. Every paywall in the product now links here — see
+    features/admin/entitlements.ts — and inside the shell the catch-all below would have
+    swallowed /pricing and dropped the reader on their own issue list, which reads as the
+    upgrade link being broken.
+  */
+  if (pathname === '/pricing') return <Pricing />;
   if (pathname === '/oauth/authorize') return <OAuthAuthorize />;
   if (pathname.startsWith('/ask/')) return <AskFormPage />;
   // An invitation link is followed from an email, on whatever browser the email was opened

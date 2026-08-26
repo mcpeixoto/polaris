@@ -393,6 +393,21 @@
   font-size: var(--font-size-md);
 }
 
+/* An inline link inside body copy. Underlined rather than coloured alone: the accent is the
+ * one brand colour this page spends, and a sentence carrying two accent words that are not
+ * both links is how a reader learns to stop trusting the colour. */
+.heroLead a,
+.sectionLead a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.heroLead a:hover,
+.sectionLead a:hover {
+  color: var(--text-primary);
+}
+
 .heroCtas {
   display: flex;
   flex-wrap: wrap;
@@ -577,6 +592,18 @@
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+}
+
+/* A second paragraph in a cell — the pricing band puts the price above the blurb. Declared
+ * as a sibling rule rather than a margin on every p, so the single-paragraph feature cells
+ * this grid was built for keep their exact spacing. */
+.feature p + p {
+  margin-top: var(--space-2);
+}
+
+.feature p strong {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
 }
 
 .shot {

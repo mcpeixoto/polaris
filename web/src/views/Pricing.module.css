@@ -1,0 +1,510 @@
+/*
+ * Pricing surface. Same tokens as the app and the same density as Landing.module.css —
+ * hairlines, 32px controls, 13px body — because this page is reached from both the marketing
+ * page and from a paywall inside the product, and a third visual language between them would
+ * read as a different company.
+ *
+ * No motion. Landing earns its reveals by being a poster; this page is a table somebody is
+ * comparing numbers in, and content that fades in while being read is content being taken
+ * away. That also means nothing here needs a reduced-motion block: there is nothing to
+ * reduce.
+ *
+ * ## The one hard layout problem
+ *
+ * Five columns do not fit in 375px and never will. The answer is not to hide columns — a
+ * comparison with a column missing is not a comparison — so the table scrolls inside
+ * .tableWrap, the row header stays stuck to the leading edge so a cell is never orphaned from
+ * the capability it belongs to, and the plan cards above carry price and CTA so the decision
+ * can be made without scrolling sideways at all.
+ */
+
+.page {
+  --pricing-max: 68rem;
+  --pricing-display: clamp(2rem, 1.2rem + 2.6vw, 3.25rem);
+
+  position: relative;
+  min-height: 100dvh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+.skip {
+  position: absolute;
+  left: var(--space-3);
+  top: var(--space-3);
+  z-index: calc(var(--z-sticky) + 2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  transform: translateY(-200%);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.skip:focus {
+  transform: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * Nav
+ * ------------------------------------------------------------------ */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  border-bottom: 1px solid var(--border-subtle);
+  background-color: var(--bg-primary);
+}
+
+.navInner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: var(--pricing-max);
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-5);
+}
+
+.wordmark {
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.navActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-inline-start: auto;
+}
+
+.navQuiet {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.navQuiet:hover {
+  color: var(--text-primary);
+}
+
+/* ------------------------------------------------------------------ *
+ * Calls to action
+ * ------------------------------------------------------------------ */
+
+.cta,
+.ctaGhost,
+.planCta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-height-lg);
+  padding: 0 var(--space-4);
+  line-height: var(--line-height-none);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.cta {
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.cta:hover {
+  background-color: var(--accent-hover);
+}
+
+.ctaGhost,
+.planCta {
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.ctaGhost:hover,
+.planCta:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.cta:active,
+.ctaGhost:active,
+.planCta:active {
+  transform: translateY(1px);
+}
+
+/* ------------------------------------------------------------------ *
+ * Hero
+ * ------------------------------------------------------------------ */
+
+.hero,
+.band,
+.plans,
+.ctaBand {
+  max-width: var(--pricing-max);
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-5);
+  /* The header is sticky, so an anchor jump would otherwise land a title underneath it. */
+  scroll-margin-top: calc(var(--header-height) + var(--space-4));
+}
+
+.kicker {
+  margin: 0 0 var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  margin: 0;
+  max-width: 18ch;
+  font-size: var(--pricing-display);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
+}
+
+.heroLead,
+.sectionLead {
+  margin: var(--space-4) 0 0;
+  max-width: 62ch;
+  color: var(--text-secondary);
+}
+
+.annual {
+  margin: var(--space-5) 0 0;
+  max-width: 62ch;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.annual strong {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ------------------------------------------------------------------ *
+ * Plan cards
+ * ------------------------------------------------------------------ */
+
+.planGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background-color: var(--border-subtle);
+}
+
+.plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  background-color: var(--bg-secondary);
+}
+
+.planName {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.planPrice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.03em;
+}
+
+.planPer {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-normal);
+  letter-spacing: 0;
+}
+
+.planBlurb {
+  flex: 1;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.planCta {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+  background-color: var(--bg-primary);
+}
+
+/* ------------------------------------------------------------------ *
+ * Comparison table
+ * ------------------------------------------------------------------ */
+
+.bandHead {
+  max-width: 58ch;
+  margin-bottom: var(--space-6);
+}
+
+/*
+ * The scroll container. Focusable in the markup, so it needs a focus ring of its own —
+ * without one, a keyboard user tabbing into it has no idea anything happened, which is the
+ * usual way this pattern is shipped broken.
+ */
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-secondary);
+}
+
+.tableWrap:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.caption {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+.table th,
+.table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table thead th {
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.table tbody td {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/*
+ * The capability column stays put while the plan columns scroll under it. Sticky rather
+ * than duplicated: a cell whose row header has scrolled off the leading edge says "✓" about
+ * nothing, and at 375px that is most of the table most of the time.
+ *
+ * It carries its own background because a sticky cell over a scrolling one is transparent by
+ * default, and the two would print on top of each other.
+ */
+.rowHead {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  min-width: 11rem;
+  background-color: var(--bg-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.note {
+  display: block;
+  margin-top: var(--space-1);
+  max-width: 24ch;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-normal);
+  white-space: normal;
+}
+
+.yes {
+  color: var(--accent-text);
+  font-size: var(--font-size-md);
+}
+
+.no {
+  color: var(--text-tertiary);
+}
+
+.coming {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+/*
+ * Visible to a screen reader, absent from the page. Same recipe as Sessions.module.css:
+ * `display: none` and `visibility: hidden` both take the text out of the accessibility tree,
+ * which is the opposite of what this is for.
+ */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Answers
+ * ------------------------------------------------------------------ */
+
+.answers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-6);
+  margin: 0;
+}
+
+.answers dt {
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.answers dd {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* ------------------------------------------------------------------ *
+ * Closing band and footer
+ * ------------------------------------------------------------------ */
+
+.ctaBand {
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  background-color: var(--bg-secondary);
+  max-width: none;
+}
+
+.ctaBand > * {
+  max-width: var(--pricing-max);
+  margin-inline: auto;
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: var(--pricing-max);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) var(--space-10);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.footer p {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.footer a:hover {
+  color: var(--text-primary);
+}
+
+/* ------------------------------------------------------------------ *
+ * Responsive
+ * ------------------------------------------------------------------ */
+
+@media (max-width: 900px) {
+  .planGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .answers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .planGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero,
+  .band,
+  .plans,
+  .ctaBand {
+    padding-inline: var(--space-4);
+  }
+
+  .rowHead {
+    min-width: 9rem;
+  }
+}

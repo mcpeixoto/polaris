@@ -20,16 +20,78 @@ export type ErrorCode =
   | 'INTERNAL'
   | 'NETWORK';
 
+/**
+ * The structure a PLAN_LIMIT refusal carries besides its sentence.
+ *
+ * The server has always known which feature was refused, which plan would permit it and
+ * which ceiling was hit — `entitlement.Details` on the Go side — and both transports now
+ * send it: GraphQL merges these keys into `extensions` beside `code`, and the REST handlers
+ * flatten the same names into the 402 body. One shape, so a paywall reads the same whichever
+ * endpoint answered.
+ *
+ * Every field is optional because the server omits what it does not know, and because a
+ * deployment running an older API answers with none of them. A reader must treat all-absent
+ * as "no structure offered" and fall back to the message, never as "no upgrade exists" —
+ * guessing the second is how a paying customer gets told to buy the plan they are on.
+ */
+export interface PaywallDetails {
+  /** The workspace's plan at the moment of refusal. */
+  readonly plan?: string;
+  /** The cheapest plan that would permit it. Absent when no plan would. */
+  readonly needsPlan?: string;
+  /** Set on a feature refusal. Exactly one of `feature` and `limit` is present. */
+  readonly feature?: string;
+  /** Set on a ceiling refusal: `seats`, `teams`, `history_days`. */
+  readonly limit?: string;
+  /** The ceiling that was hit. Meaningful only alongside `limit`, and 0 is a real value. */
+  readonly cap?: number;
+  /** Billing lapsed rather than the plan not including this. A different screen entirely. */
+  readonly lapsed?: boolean;
+}
+
+/**
+ * Picks the paywall fields out of a wire payload.
+ *
+ * Written defensively rather than cast, because this object came off the network: a
+ * `cap` that arrived as a string would otherwise reach a template and render
+ * "limited to [object Object]" at a customer. Anything of the wrong type is dropped, which
+ * degrades to the plain message — the same place a client with no structure at all lands.
+ */
+function readPaywall(source: Record<string, unknown> | undefined): PaywallDetails | undefined {
+  if (source === undefined) return undefined;
+  const details: {
+    plan?: string;
+    needsPlan?: string;
+    feature?: string;
+    limit?: string;
+    cap?: number;
+    lapsed?: boolean;
+  } = {};
+  for (const key of ['plan', 'needsPlan', 'feature', 'limit'] as const) {
+    const value = source[key];
+    if (typeof value === 'string' && value !== '') details[key] = value;
+  }
+  if (typeof source.cap === 'number' && Number.isFinite(source.cap)) details.cap = source.cap;
+  if (source.lapsed === true) details.lapsed = true;
+  return Object.keys(details).length === 0 ? undefined : details;
+}
+
 /** A failure the UI can branch on without string-matching a message. */
 export class ApiError extends Error {
   readonly code: ErrorCode;
   readonly field?: string;
+  /**
+   * Present only on a PLAN_LIMIT refusal, and not on every one of those — see
+   * `PaywallDetails`. `features/admin/entitlements.ts` turns it into an upgrade destination.
+   */
+  readonly paywall?: PaywallDetails;
 
-  constructor(code: ErrorCode, message: string, field?: string) {
+  constructor(code: ErrorCode, message: string, field?: string, paywall?: PaywallDetails) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
     this.field = field;
+    this.paywall = paywall;
   }
 
   /**
@@ -178,15 +240,20 @@ async function parseError(res: Response): Promise<ApiError> {
   let code: ErrorCode = 'INTERNAL';
   let message = res.statusText || 'request failed';
   let field: string | undefined;
+  let paywall: PaywallDetails | undefined;
 
   try {
     const body = (await res.json()) as {
-      error?: { code?: string; message?: string; field?: string };
+      error?: { code?: string; message?: string; field?: string } & Record<string, unknown>;
     };
     if (body.error) {
       code = (body.error.code as ErrorCode) ?? code;
       message = body.error.message ?? message;
       field = body.error.field;
+      // Read on every failure rather than only on a 402: the status and the code are the
+      // server's classification, and gating this on one of them would mean a refusal that
+      // arrived with a status the proxy rewrote quietly lost its upgrade destination.
+      paywall = readPaywall(body.error);
     }
   } catch {
     // A non-JSON body means the proxy answered, not the app. The status is all there is.
@@ -196,7 +263,7 @@ async function parseError(res: Response): Promise<ApiError> {
     else if (res.status === 429) code = 'RATELIMITED';
   }
 
-  return new ApiError(code, message, field);
+  return new ApiError(code, message, field, paywall);
 }
 
 /** What a registration may carry besides the credentials. */
@@ -444,7 +511,13 @@ function post<T>(path: string, body: unknown, opts: RequestOptions = {}): Promis
 /** A GraphQL error as the server's presenter emits it. */
 interface GraphQLError {
   message: string;
-  extensions?: { code?: string; field?: string };
+  /**
+   * `code` and `field` are the contract every client branches on. A PLAN_LIMIT error also
+   * carries the paywall's structure here — see `PaywallDetails` — merged in flat beside
+   * them by the server's presenter, which is why this is an open record rather than the
+   * two named keys it used to be.
+   */
+  extensions?: { code?: string; field?: string } & Record<string, unknown>;
 }
 
 /**
@@ -471,6 +544,7 @@ export async function gql<T>(
       (first.extensions?.code as ErrorCode) ?? 'INTERNAL',
       first.message,
       first.extensions?.field,
+      readPaywall(first.extensions),
     );
   }
   if (body.data === undefined) {

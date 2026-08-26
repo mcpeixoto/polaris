@@ -27,7 +27,8 @@ import { when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UserRole, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
-import { seatBlock, type Entitlements } from './entitlements';
+import { refusalOf, seatBlock, type Block, type Entitlements } from './entitlements';
+import { PlanBlock } from './PlanBlock';
 import {
   existingMember,
   inviteToWorkspace,
@@ -82,7 +83,7 @@ export function InviteDialog({
   const [teamIds, setTeamIds] = useState<readonly UUID[]>([]);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [teamError, setTeamError] = useState<string | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<Block | null>(null);
   const [sending, setSending] = useState(false);
   /**
    * The created invitation, held only while this dialog is mounted.
@@ -176,8 +177,19 @@ export function InviteDialog({
       setCreated(invite);
       onInvited?.();
     } catch (error) {
+      /*
+        The refusal that people actually hit. `seatBlock` above compares against the replica,
+        which can be one delta behind the transaction that spent the last seat — so the check
+        passes, the form is filled in, and the server says no. That answer used to land here
+        as `error.message`: the one sentence in the flow where somebody has genuinely tried
+        and most needs somewhere to go, rendered with nowhere to go.
+      */
       setFailure(
-        error instanceof ApiError ? error.message : 'That invitation could not be created.',
+        refusalOf(error) ?? {
+          reason:
+            error instanceof ApiError ? error.message : 'That invitation could not be created.',
+          upgrade: null,
+        },
       );
     } finally {
       setSending(false);
@@ -241,11 +253,7 @@ export function InviteDialog({
       <form className={styles.form} onSubmit={onSubmit}>
         {/* Announced rather than merely drawn: the reason a control is disabled is exactly
             what a person who cannot see it being grey needs to be told. */}
-        {seats === null ? null : (
-          <p className={styles.blocked} role="status">
-            {seats}
-          </p>
-        )}
+        <PlanBlock block={seats} className={styles.blocked} />
 
         <Input
           ref={emailRef}
@@ -330,11 +338,7 @@ export function InviteDialog({
           )}
         </fieldset>
 
-        {failure === null ? null : (
-          <p className={styles.error} role="alert">
-            {failure}
-          </p>
-        )}
+        <PlanBlock block={failure} className={styles.error} role="alert" />
       </form>
     </Modal>
   );

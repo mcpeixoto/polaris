@@ -40,6 +40,7 @@ import { useActions, useKeyContext } from '~/app/keymap';
 import { Avatar, Badge, Button, EmptyState, Select, Spinner, Tooltip } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { seatBlock, seatSummary, useEntitlements } from '~/features/admin/entitlements';
+import { PlanBlock } from '~/features/admin/PlanBlock';
 import { InviteDialog } from '~/features/admin/InviteDialog';
 import {
   fetchInvites,
@@ -237,7 +238,11 @@ export function MemberSettings() {
   const openInvite = useRef<() => void>(() => {});
   openInvite.current = () => {
     if (seats !== null) {
-      setError(seats);
+      // The reason only. This path is the `I` shortcut hitting a full workspace, and the
+      // Seats section below is already on screen carrying the same sentence with the link —
+      // a second copy of the destination in the error banner would be two ways to the same
+      // page, six inches apart.
+      setError(seats.reason);
       return;
     }
     setInviting(true);
@@ -388,7 +393,7 @@ export function MemberSettings() {
             {seatSummary(entitlements.facts)} Suspending somebody frees their seat; removing them
             does too. App users are never counted — an integration is not a person.
           </p>
-          {seats === null ? null : <p className={styles.blocked}>{seats}</p>}
+          <PlanBlock block={seats} className={styles.blocked} />
         </section>
 
         {/* Two sources for one question, and either is enough to hide the section. The

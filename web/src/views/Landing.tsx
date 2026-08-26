@@ -40,6 +40,8 @@ import { Link } from 'react-router';
 
 import { Avatar, Badge, Kbd, LabelChip, PriorityIcon, Progress, StateIcon } from '~/components';
 
+import { annualMonthlyCents, formatEur, PLANS, PRO_MONTHLY_CENTS } from '~/features/pricing/plans';
+
 import { useReveal, useScrolled, useTypewriter } from './landingMotion';
 import styles from './Landing.module.css';
 
@@ -83,6 +85,7 @@ export function Landing() {
             <a href="#product">Product</a>
             <a href="#keyboard">Keyboard</a>
             <a href="#sync">Sync</a>
+            <a href="#pricing">Pricing</a>
             <a href="#self-host">Self-host</a>
           </nav>
           <div className={styles.navActions}>
@@ -314,6 +317,47 @@ export function Landing() {
           </ul>
         </section>
 
+        {/*
+          Pricing on the poster, and the numbers come from features/pricing/plans.ts rather
+          than being typed here. A landing page quoting its own price is the copy that goes
+          stale the day the price moves, and nothing fails when it does — the two pages just
+          quietly disagree in front of the customer.
+        */}
+        <section id="pricing" className={styles.band} aria-labelledby="pricing-title">
+          <div className={styles.bandHead} data-reveal="">
+            <p className={styles.kicker}>Pricing</p>
+            <h2 id="pricing-title" className={styles.sectionTitle}>
+              {formatEur(PRO_MONTHLY_CENTS)} a seat, or nothing at all.
+            </h2>
+            <p className={styles.sectionLead}>
+              Self-host it under the AGPL and pay nothing, with no ceiling on seats, teams or
+              history. Cloud starts free for five people and is {formatEur(PRO_MONTHLY_CENTS)} per
+              user per month after that — {formatEur(annualMonthlyCents())} if the year is paid up
+              front.
+            </p>
+          </div>
+          <ul className={styles.featureGrid} role="list">
+            {PLANS.map((plan, index) => (
+              <li key={plan.id} className={styles.feature} data-reveal="" style={at(index)}>
+                <h3>{plan.name}</h3>
+                <p>
+                  <strong>{plan.price ?? 'Contact us'}</strong>
+                  {plan.per === '' ? null : ` · ${plan.per}`}
+                </p>
+                <p>{plan.blurb}</p>
+              </li>
+            ))}
+          </ul>
+          <div className={styles.heroCtas} data-reveal="" style={at(1)}>
+            <Link to="/pricing" className={styles.cta}>
+              Compare plans
+            </Link>
+            <Link to="/signup" className={styles.ctaGhost}>
+              Start free
+            </Link>
+          </div>
+        </section>
+
         <section id="self-host" className={styles.ctaBand} aria-labelledby="selfhost-title">
           <div data-reveal="">
             <p className={styles.kicker}>Self-host</p>
@@ -322,8 +366,11 @@ export function Landing() {
             </h2>
             <p className={styles.sectionLead}>
               AGPL core, Docker Compose, no published ports on the datastore. The paid pitch is that
-              you do not want to run it — plus SSO, SCIM, audit log. Cloud is EU-only when it
-              exists; self-hosters choose their hardware.
+              you do not want to run it: our cloud is EU-only and starts at{' '}
+              {formatEur(PRO_MONTHLY_CENTS)} a seat, while self-hosters choose their own hardware
+              and pay nothing. SSO, SCIM and the audit log are the Enterprise tier and are still
+              being built — <Link to="/pricing">the pricing page</Link> says which rows are shipped
+              and which are not.
             </p>
           </div>
           <pre className={styles.code} data-reveal="" style={at(1)}>
@@ -356,6 +403,7 @@ export function Landing() {
         <nav aria-label="Footer">
           <Link to="/signin">Sign in</Link>
           <Link to="/signup">Get started</Link>
+          <Link to="/pricing">Pricing</Link>
           <a href="#self-host">Self-host</a>
           <a href={SOURCE}>GitHub</a>
         </nav>
