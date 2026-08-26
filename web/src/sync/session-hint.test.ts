@@ -71,7 +71,9 @@ describe('the session hint across a failed refresh', () => {
       vi.fn(() =>
         Promise.resolve(
           new Response(
-            JSON.stringify({ error: { code: 'UNAUTHENTICATED', message: 'invalid refresh token' } }),
+            JSON.stringify({
+              error: { code: 'UNAUTHENTICATED', message: 'invalid refresh token' },
+            }),
             { status: 401, headers: { 'Content-Type': 'application/json' } },
           ),
         ),
