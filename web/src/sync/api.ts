@@ -153,9 +153,24 @@ function storeSession(body: {
   return session;
 }
 
-function clearSession(): void {
+/**
+ * Drops the in-memory access token and tells the app the session is gone.
+ *
+ * `forgetHint` is separate because the two failures look identical at the call site and cost
+ * wildly different things. A refresh that failed because the API was unreachable — wifi off,
+ * or the API container restarting behind the proxy — says nothing about whether the refresh
+ * cookie is still good. Forgetting the hint on that is what strands the user: `Boot` reads a
+ * missing hint as "this browser has never held a session" and stops asking, so the session is
+ * unrecoverable even after the network comes back and they have to type their password again.
+ *
+ * The asymmetry decides the default. Keeping a hint whose cookie really did die costs exactly
+ * one honest 401 on the next boot. Dropping a hint whose cookie is still valid costs a
+ * re-login. So the hint is forgotten only when the server actually said the credential is no
+ * good, never merely because the answer did not arrive.
+ */
+function clearSession({ forgetHint = true }: { forgetHint?: boolean } = {}): void {
   session = null;
-  forgetSession();
+  if (forgetHint) forgetSession();
   for (const fn of onAuthLostCallbacks) fn();
 }
 
@@ -265,8 +280,11 @@ export const auth = {
           { skipAuth: true },
         );
         return storeSession(body);
-      } catch {
-        clearSession();
+      } catch (error) {
+        // Only an UNAUTHENTICATED answer proves the cookie is spent. A network error or a
+        // 5xx means the question never got an answer, and the hint has to survive it.
+        const credentialRefused = error instanceof ApiError && error.isAuthFailure;
+        clearSession({ forgetHint: credentialRefused });
         return null;
       } finally {
         refreshInFlight = null;
