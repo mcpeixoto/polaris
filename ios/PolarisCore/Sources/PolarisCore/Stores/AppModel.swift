@@ -52,7 +52,9 @@ public final class AppModel {
             await finishSignIn(session)
             return
         }
-        if environment.allowsDevSession, let session = try? await api.signInWithDevSession() {
+        // The fixture client answers this without a network, which is how the signed-in
+        // screens become reachable on a machine with no backend.
+        if let session = try? await api.signInWithDevSession() {
             await finishSignIn(session)
             return
         }

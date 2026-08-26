@@ -23,11 +23,12 @@ schemes:
       targets:
         Polaris: all
         PolarisTests: [test]
+        PolarisUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
-      targets: [PolarisTests]
+      targets: [PolarisTests, PolarisUITests]
     profile:
       config: Release
     analyze:
@@ -107,6 +108,28 @@ targets:
           GCC_PREPROCESSOR_DEFINITIONS: "DEBUG=1 $(inherited)"
           ENABLE_TESTABILITY: "YES"
 
+  # Drives the real app in a simulator. Paired with `-polaris-fixtures`, which swaps in the
+  # in-memory client, so every signed-in screen is reachable with no server, no database and
+  # no account — the state this machine is actually in.
+  PolarisUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: PolarisUITests
+    dependencies:
+      - target: Polaris
+    settings:
+      base:
+        PRODUCT_NAME: PolarisUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.peixotolabs.polaris.uitests
+        # A test bundle has no Info.plist of its own and codesign refuses to sign without
+        # one. Xcode generates it when asked; nothing else will.
+        GENERATE_INFOPLIST_FILE: "YES"
+        DEVELOPMENT_TEAM: H874DPF6H5
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: Polaris
+
   PolarisTests:
     type: bundle.unit-test
     platform: iOS
@@ -120,6 +143,7 @@ targets:
       base:
         PRODUCT_NAME: PolarisTests
         PRODUCT_BUNDLE_IDENTIFIER: com.peixotolabs.polaris.tests
+        GENERATE_INFOPLIST_FILE: "YES"
         DEVELOPMENT_TEAM: H874DPF6H5
         SWIFT_VERSION: "6.0"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Polaris.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Polaris"

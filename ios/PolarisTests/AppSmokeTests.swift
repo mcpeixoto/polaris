@@ -8,7 +8,11 @@ import XCTest
 /// at build time.
 final class BundleConfigurationTests: XCTestCase {
     func testVersionKeysInterpolated() throws {
-        let bundle = Bundle(for: type(of: self))
+        // `Bundle.main`, not `Bundle(for:)`. In an app-hosted unit test the latter is the
+        // *test* bundle, whose Info.plist Xcode generates and which says nothing about the
+        // app — so the assertion below passed for the wrong reason until the test bundle
+        // started generating a plist of its own, and then failed for the wrong reason too.
+        let bundle = Bundle.main
         let short = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
 
