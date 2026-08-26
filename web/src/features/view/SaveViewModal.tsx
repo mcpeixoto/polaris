@@ -129,7 +129,11 @@ export function SaveViewModal({ filter, display, teamId, onClose }: SaveViewModa
           checked={personal}
           onChange={(event) => setPersonal(event.target.checked)}
         />
-        {saveError !== null && <p className={styles.error}>{saveError}</p>}
+        {saveError !== null && (
+          <p className={styles.error} role="alert">
+            {saveError}
+          </p>
+        )}
       </form>
     </Modal>
   );

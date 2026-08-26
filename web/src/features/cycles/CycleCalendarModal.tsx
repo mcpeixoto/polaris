@@ -116,7 +116,11 @@ export function CycleCalendarModal({ open, teamId, teamName, onClose }: CycleCal
           </Button>
         }
       >
-        {error !== null ? <p className={styles.error}>{error}</p> : null}
+        {error !== null ? (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        ) : null}
         {busy && url === null ? <p className={styles.status}>Minting a feed URL…</p> : null}
         {url !== null ? (
           <div className={styles.actions}>

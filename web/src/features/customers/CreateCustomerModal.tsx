@@ -118,7 +118,11 @@ export function CreateCustomerModal({ onClose }: CreateCustomerModalProps) {
           hint="Comma-separated, unique in this workspace"
           placeholder="acme.com"
         />
-        {saveError !== null && <p className={styles.error}>{saveError}</p>}
+        {saveError !== null && (
+          <p className={styles.error} role="alert">
+            {saveError}
+          </p>
+        )}
       </form>
     </Modal>
   );
