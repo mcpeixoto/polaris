@@ -66,16 +66,47 @@ The cost is honest: no live updates while the app sits in the foreground, and no
 reads. If realtime is wanted later, the middle path is to open the socket and use `delta`
 frames purely as invalidation signals — refetch what changed — without holding a replica.
 
-## Signing
+## Signing and TestFlight
 
 Team `H874DPF6H5`, bundle id `com.peixotolabs.polaris`.
 
-Both configurations use automatic signing, which departs from the convention in the other
-iOS repos here (Release = Manual with a named `"<App> App Store"` profile). That profile does
-not exist for Polaris yet, and naming a profile that was never created fails `archive` with an
-error about signing rather than one about the missing profile. `project.yml` records exactly
-what to switch it to once the profile exists.
+Debug signs automatically — right for the simulator, and a developer without the distribution
+key can still build and run. Release is Manual against the `Polaris App Store` profile, because
+automatic signing needs an interactively-authenticated Xcode and cannot resolve a profile from
+a script or from CI.
 
-**Nothing here has been near TestFlight.** Distribution needs an App Store Connect app record
-for `com.peixotolabs.polaris`, a distribution profile, and an upload — none of which this
-project has done yet.
+Set the Apple side up with:
+
+```bash
+uv run --with "pyjwt[crypto]" --with requests python ios/scripts/asc-setup.py
+```
+
+It is idempotent. It registers the bundle id, reuses the team's single Apple Distribution
+certificate rather than minting a second one (an Individual team is capped, and burning one
+per app is how you end up unable to sign anything), creates the App Store provisioning profile
+and installs it.
+
+Then archive, export and upload:
+
+```bash
+cd ios && xcodegen generate
+xcodebuild -project Polaris.xcodeproj -scheme Polaris -configuration Release   -destination 'generic/platform=iOS' -archivePath build/Polaris.xcarchive archive
+xcodebuild -exportArchive -archivePath build/Polaris.xcarchive   -exportOptionsPlist ExportOptions.plist -exportPath build/export
+xcrun altool --upload-app -f build/export/Polaris.ipa -t ios   --apiKey GJKL39M374 --apiIssuer <issuer-uuid>
+```
+
+### The one manual step
+
+`asc-setup.py` deliberately does not create the **App Store Connect app record**: the ASC API
+has no endpoint for it. It has to be added once at
+<https://appstoreconnect.apple.com/apps> (**+ > New App**) against this bundle id.
+
+Until it exists, everything above succeeds and the *upload* fails with:
+
+```
+ERROR: Cannot determine the Apple ID from Bundle ID 'com.peixotolabs.polaris' and platform 'IOS'
+```
+
+which names neither the cause nor the fix — hence this paragraph. App names are globally
+unique on the App Store, so `Polaris` may already be taken; the record's name does not have to
+match `productName`.
