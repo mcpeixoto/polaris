@@ -1,0 +1,55 @@
+# iOS client build and tests.
+#
+# Split from ci.yml for the same reason desktop.yml is: this needs a macOS runner and an Xcode
+# toolchain, which the Go and web jobs do not, and it is only interesting when somebody has
+# touched the iOS client.
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and test
+    # macos-26 for Xcode 26. The Swift 6 language mode and strict concurrency this package
+    # compiles under are not available on the older runner images.
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The whole testable surface lives in the PolarisCore package and is platform-portable
+      # on purpose, so it runs here with no simulator in the loop — seconds rather than the
+      # minutes an xcodebuild test destination costs.
+      - name: Test PolarisCore
+        working-directory: ios/PolarisCore
+        run: swift test
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # The .xcodeproj is generated, not committed. Generating it here is also the check that
+      # project.yml is valid — a malformed manifest fails at this step rather than as a
+      # confusing build error later.
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build for the simulator
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -project Polaris.xcodeproj \
+            -scheme Polaris \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            build
