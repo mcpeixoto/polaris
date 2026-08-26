@@ -69,6 +69,14 @@ public final class IssuesStore {
         pendingIssueIDs.insert(issueID)
         defer { pendingIssueIDs.remove(issueID) }
 
+        // Apply first, ask after. Without this the row does not move until the round trip
+        // finishes, which is the thing "optimistic" is supposed to avoid — and it also means
+        // there is nothing for the catch below to roll back, so the rollback would be dead
+        // code that no test could distinguish from working.
+        var optimistic = list
+        optimistic[index].state = state
+        issues = .loaded(sort(optimistic))
+
         do {
             let updated = try await api.updateIssue(IssueChange(id: issueID, stateId: state.id))
             if var current = issues.value, let position = current.firstIndex(where: { $0.id == issueID }) {

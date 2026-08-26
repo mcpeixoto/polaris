@@ -69,14 +69,15 @@ public struct Issue: Codable, Sendable, Hashable, Identifiable {
     public let identifier: String
     public let title: String
     public let description: String
-    public let priority: Priority
+    public var priority: Priority
     public let estimate: Int?
     /// A calendar day, `2006-01-02`, deliberately not a `Time` — see the schema comment on
     /// `Issue.dueDate`. Kept as the wire string so a date with no timezone never acquires one.
     public let dueDate: String?
-    public let state: WorkflowState
+    /// `var` so an optimistic write can build a modified copy before the server replies.
+    public var state: WorkflowState
     public let team: Team
-    public let assignee: User?
+    public var assignee: User?
     public let creator: User?
     public let labels: [Label]
     public let createdAt: Date

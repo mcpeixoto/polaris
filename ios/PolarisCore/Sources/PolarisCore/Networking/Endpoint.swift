@@ -57,7 +57,7 @@ enum PolarisJSON {
     /// Accepts `2026-08-25T10:00:00Z`, `2026-08-25T10:00:00.512Z`, and numeric offsets
     /// (`+01:00`). Returns nil for anything else rather than guessing.
     static func parseRFC3339(_ raw: String) -> Date? {
-        var scalars = Array(raw.utf8)
+        let scalars = Array(raw.utf8)
         guard scalars.count >= 20 else { return nil }
 
         func number(_ range: Range<Int>) -> Int? {
