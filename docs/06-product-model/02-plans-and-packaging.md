@@ -25,7 +25,7 @@ Deliberately **not** gated, against the instinct to gate them:
 | Feature | Why it stays free |
 |---|---|
 | **Private teams** | Gating a *security boundary* is user-hostile. A five-person company with an HR team needs this |
-| **Guests** | Same reasoning — access control is not a luxury |
+| **Guests** | Same reasoning — access control is not a luxury. A guest does **not** consume a paid seat: `role = 'guest'` is excluded from `CountWorkspaceSeats`. (Linear bills guests as members — `00-overview/03-plan-matrix.md:99` describes *their* packaging, not ours) |
 | **API + webhooks** | Gating the API kills the integration ecosystem that makes the project worth adopting |
 | **Triage rules, SLAs** | Cheap to run, and they're what makes the tool usable for support-adjacent teams |
 | **Basic Insights** | A chart on a view is table stakes in 2026 |
@@ -108,7 +108,9 @@ Not needed for self-host, needed before the first paying customer:
 |---|---|
 | **Waitlist + manual approval** | Invite-only beta (your decision). A `signup_request` table, an admin approve action, an invite email |
 | **Billing** | Stripe: subscriptions, per-seat proration, invoices, VAT/OSS handling for EU B2B, dunning on failed payment |
-| **Seat counting** | Unsuspended users, reconciled nightly against Stripe |
+| **Seat counting** | Active human members, excluding guests and app users, reconciled against Stripe. One query — `CountWorkspaceSeats` — mirrored client-side in `web/src/features/admin/entitlements.ts` |
+| **Plan writes** | `workspace.plan`, `seat_limit`, `plan_expires_at`, `plan_lapsed_at` are written only by `services/internal/domain/billing.go`. No GraphQL input carries a plan: a workspace that can upgrade itself with a mutation is a paywall with a public bypass |
+| **Dunning / lapse** | `subscription.status = 'past_due'` for longer than `domain.PlanLapseGrace` (7 days past `current_period_end`) sets `plan_lapsed_at`; recovery clears it. Reads never stop working — only gated writes narrow to the Free matrix |
 | **Quota enforcement** | Per-workspace issue/storage/API counters, checked at write time, surfaced in settings |
 | **Abuse controls** | Email verification, per-IP signup caps, disposable-domain blocklist, outbound-email rate caps, attachment scanning |
 | **Trial → paid flow** | 14-day Pro trial on request, no card |

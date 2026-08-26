@@ -75,6 +75,19 @@ type Querier interface {
 	AllocateIssueNumber(ctx context.Context, id uuid.UUID) (int64, error)
 	AppendChange(ctx context.Context, arg AppendChangeParams) error
 	AppendIssueHistory(ctx context.Context, arg AppendIssueHistoryParams) error
+	// ApplyWorkspacePlan is the one statement in the product that sets a workspace's plan.
+	//
+	// seat_limit and plan_expires_at are assigned outright rather than COALESCEd onto what is
+	// already there, because billing states the whole truth on every apply: a subscription that
+	// stops pinning seats has to be able to say so, and a COALESCE would make "no override" an
+	// unsayable value that leaves last quarter's deal in place forever.
+	//
+	// plan_lapsed_at is the exception, and only ever cleared here — never set. Clearing on a
+	// healthy subscription is what makes a recovered payment restore writes immediately instead
+	// of at the next tick of the lapse job; setting it is that job's business, because it is the
+	// only thing that knows how long past due the account has been.
+	//
+	ApplyWorkspacePlan(ctx context.Context, arg ApplyWorkspacePlanParams) (Workspace, error)
 	ArchiveAskForm(ctx context.Context, id uuid.UUID) error
 	ArchiveCustomer(ctx context.Context, id uuid.UUID) error
 	ArchiveCycle(ctx context.Context, id uuid.UUID) error
@@ -206,6 +219,7 @@ type Querier interface {
 	ClearFavoritesInFolder(ctx context.Context, folderID uuid.UUID) ([]Favorite, error)
 	ClearSentryConnectionOrganizationSlug(ctx context.Context, workspaceID uuid.UUID) error
 	ClearSlackConnectionChannelName(ctx context.Context, workspaceID uuid.UUID) error
+	ClearWorkspacePlanLapsed(ctx context.Context, id uuid.UUID) (Workspace, error)
 	CompleteCycle(ctx context.Context, arg CompleteCycleParams) (Cycle, error)
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) error
 	ConsumeOauthAuthorizationCode(ctx context.Context, id uuid.UUID) (ConsumeOauthAuthorizationCodeRow, error)
@@ -272,6 +286,20 @@ type Querier interface {
 	// identity would make every integration a purchasing decision. Suspended and archived
 	// users are excluded because suspending somebody is how an admin frees a seat, and a
 	// suspension that does not is a suspension that does nothing anybody asked for.
+	//
+	// Guests are excluded because they are free, and this query said otherwise. It counted
+	// every active human regardless of role, so a workspace that invited a dozen contractors
+	// into one team hit its seat limit and was told to upgrade — while
+	// docs/06-product-model/02-plans-and-packaging.md sold guests as a core, ungated feature
+	// on the grounds that charging for an access-control boundary is user-hostile. Only one
+	// of the two could be right, and the query is the one that refuses an invitation.
+	//
+	// (00-overview/03-plan-matrix.md says guests are billed as members. That file describes
+	// Linear's packaging as reference and not ours; ours is 06-product-model.)
+	//
+	// web/src/features/admin/entitlements.ts re-implements this predicate against the local
+	// replica, to answer without a round trip. The two have to agree or one screen says the
+	// workspace is full while the next lets an invitation through.
 	//
 	// Run in the same transaction as the write that would consume the seat, or two concurrent
 	// invitations each see one seat free and the workspace ends up one over its limit.
@@ -650,6 +678,7 @@ type Querier interface {
 	// it gets its own neighbour lookups rather than reusing the ones above.
 	//
 	GetSubIssueSortOrderAfter(ctx context.Context, arg GetSubIssueSortOrderAfterParams) (*string, error)
+	GetSubscription(ctx context.Context, workspaceID uuid.UUID) (Subscription, error)
 	GetTeam(ctx context.Context, id uuid.UUID) (Team, error)
 	GetTeamByEmailIntakeToken(ctx context.Context, token *string) (Team, error)
 	GetTeamByKey(ctx context.Context, arg GetTeamByKeyParams) (Team, error)
@@ -1010,6 +1039,28 @@ type Querier interface {
 	// another team.
 	//
 	ListStaleOpenIssues(ctx context.Context, arg ListStaleOpenIssuesParams) ([]ListStaleOpenIssuesRow, error)
+	// ListSubscriptionsPastDueBeyondGrace names the workspaces whose plan should now be marked
+	// lapsed, and its predicate is the exact negation of the recovery query below — a workspace
+	// that satisfied both would flap between lapsed and not on every tick.
+	//
+	// `plan_lapsed_at IS NULL` keeps the sweep proportional: once a workspace is marked it
+	// stops appearing, so a long dunning cycle is not re-written every minute.
+	//
+	// free is excluded because a free plan cannot lapse (there is nothing to fail to pay) and
+	// self_hosted because a cloud billing row has no business narrowing an install somebody
+	// runs themselves — entitlement.New honours the flag on every plan but free, so a stray
+	// timestamp there would quietly put a self-hoster's writes under the free caps, which is
+	// the one symptom in this product nobody would think to trace to billing.
+	//
+	ListSubscriptionsPastDueBeyondGrace(ctx context.Context, cutoff time.Time) ([]uuid.UUID, error)
+	// ListSubscriptionsRecoveredFromLapse names the workspaces whose lapse should be lifted.
+	//
+	// It requires a subscription row rather than clearing every lapsed workspace it can find.
+	// A workspace marked lapsed with no billing record is not something this job knows anything
+	// about — a support script, a migration, a hand-written deal — and "recovering" it would be
+	// this job silently granting a paid plan it has no evidence for.
+	//
+	ListSubscriptionsRecoveredFromLapse(ctx context.Context, cutoff time.Time) ([]uuid.UUID, error)
 	// ListTeamIDsForUser resolves a session's visibility set. Called on every socket connect
 	// and on every permission change, so it must stay an index-only scan on
 	// team_membership_user_idx.
@@ -1082,6 +1133,15 @@ type Querier interface {
 	MarkOauthRefreshRotated(ctx context.Context, arg MarkOauthRefreshRotatedParams) error
 	MarkWebhookDeliveryDelivered(ctx context.Context, arg MarkWebhookDeliveryDeliveredParams) error
 	MarkWebhookDeliveryFailed(ctx context.Context, arg MarkWebhookDeliveryFailedParams) error
+	// MarkWorkspacePlanLapsed and ClearWorkspacePlanLapsed both restate the condition the
+	// listing query already checked. That is what makes the job idempotent under concurrency:
+	// two workers sweeping at once, or one sweeping while a webhook applies a recovery, and the
+	// loser writes nothing and gets pgx.ErrNoRows rather than overwriting the winner's answer
+	// with a stale one. It also keeps the lapse timestamp honest — it records the first sweep
+	// that found the workspace past grace, not the most recent one, so "lapsed since" does not
+	// reset itself every hour.
+	//
+	MarkWorkspacePlanLapsed(ctx context.Context, arg MarkWorkspacePlanLapsedParams) (Workspace, error)
 	// NotifySyncHub wakes the sync hubs for a workspace.
 	//
 	// Deliberately pg_notify rather than a Valkey PUBLISH after commit: NOTIFY is delivered
@@ -1739,6 +1799,19 @@ type Querier interface {
 	//
 	UpsertNotification(ctx context.Context, arg UpsertNotificationParams) (Notification, error)
 	UpsertPulseDigestCursor(ctx context.Context, arg UpsertPulseDigestCursorParams) error
+	// Billing. Every statement that writes a workspace's plan facts lives in this file, and
+	// that is not tidiness — `workspace.plan`, `seat_limit`, `plan_expires_at` and
+	// `plan_lapsed_at` are the four columns the entire entitlement matrix resolves against, and
+	// the product's rule is that a *request* can never set them. Keeping the writers in one
+	// place is what makes "is there a second writer" a question somebody can answer by looking.
+	//
+	// UpdateWorkspace (workspaces.sql) touches none of them, on purpose. See internal/domain/
+	// billing.go for the only production callers of anything below.
+	// Keyed on the workspace rather than on the provider's id, because a webhook replay and a
+	// reconciliation sweep must both land on the row that is already there. The id column is
+	// left alone on conflict: it is this row's identity, and churning it would break any future
+	// reference to it.
+	UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) (Subscription, error)
 	// ---------------------------------------------------------------------------------------
 	// Display preferences for the built-in views.
 	// The id is only ever used when the row is created; the natural key is (user_id, view_key)

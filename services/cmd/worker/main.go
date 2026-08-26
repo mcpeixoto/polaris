@@ -298,6 +298,44 @@ func run() error {
 			},
 		},
 		{
+			// Billing's dunning window: mark a workspace lapsed once its subscription has
+			// been past due beyond domain.PlanLapseGrace, and lift the mark when the payment
+			// comes good.
+			//
+			// This is the job the lapse rule has referred to since it was written. The rule
+			// itself — reads unaffected, gated writes narrowed to Free — has been
+			// implemented, tested and enforced at every call site the whole time, and did
+			// nothing on any running system, because nothing anywhere wrote plan_lapsed_at.
+			// A policy with no writer is indistinguishable from a policy nobody implemented.
+			//
+			// Hourly against a grace measured in days: the tick is the resolution of a
+			// deadline, not the deadline. An hour of lag on either side of a seven-day window
+			// is not a thing a customer can perceive, and a per-minute sweep would ask the
+			// database about every past-due subscription in the fleet sixty times as often
+			// for that.
+			//
+			// atBoot, and unlike the digest's this re-anchors nothing: the answer is a
+			// function of the subscription and the clock, so a pass at deploy time reaches
+			// the same conclusion the next tick would. What it buys is that a restart does
+			// not leave a customer who has just paid staring at a paywall for an hour.
+			name:   "sweep lapsed plans",
+			every:  time.Hour,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.SweepLapsedPlans(ctx, time.Now())
+				if err == nil && n > 0 {
+					// Info, not debug: this narrows what a paying customer may write, and
+					// "when did we cut them off" is the first question support asks.
+					log.Info("swept lapsed plans", "workspaces", n)
+				}
+				return err
+			},
+			// Not critical. A missed pass is retried in an hour with the same inputs, and
+			// nothing degrades in between — a workspace stays entitled an hour longer, which
+			// is the safe direction for a billing error to fail in.
+			critical: false,
+		},
+		{
 			// Hourly: the cadence's resolution, not the cadence. Each workspace's own
 			// setting decides daily vs weekly, and 06:00 is in the recipient's timezone,
 			// so this period only bounds how late a morning summary can be. atBoot is

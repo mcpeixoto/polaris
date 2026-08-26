@@ -65,6 +65,7 @@ SELECT count(*) FROM "user"
 WHERE workspace_id = $1
   AND kind = 'human'
   AND status = 'active'
+  AND role <> 'guest'
   AND archived_at IS NULL
 `
 
@@ -74,6 +75,20 @@ WHERE workspace_id = $1
 // identity would make every integration a purchasing decision. Suspended and archived
 // users are excluded because suspending somebody is how an admin frees a seat, and a
 // suspension that does not is a suspension that does nothing anybody asked for.
+//
+// Guests are excluded because they are free, and this query said otherwise. It counted
+// every active human regardless of role, so a workspace that invited a dozen contractors
+// into one team hit its seat limit and was told to upgrade — while
+// docs/06-product-model/02-plans-and-packaging.md sold guests as a core, ungated feature
+// on the grounds that charging for an access-control boundary is user-hostile. Only one
+// of the two could be right, and the query is the one that refuses an invitation.
+//
+// (00-overview/03-plan-matrix.md says guests are billed as members. That file describes
+// Linear's packaging as reference and not ours; ours is 06-product-model.)
+//
+// web/src/features/admin/entitlements.ts re-implements this predicate against the local
+// replica, to answer without a round trip. The two have to agree or one screen says the
+// workspace is full while the next lets an invitation through.
 //
 // Run in the same transaction as the write that would consume the seat, or two concurrent
 // invitations each see one seat free and the workspace ends up one over its limit.

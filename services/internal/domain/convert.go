@@ -19,11 +19,22 @@ import (
 
 func toWorkspace(w store.Workspace) model.Workspace {
 	return model.Workspace{
-		ID:                                w.ID,
-		Name:                              w.Name,
-		URLKey:                            w.UrlKey,
-		LogoURL:                           w.LogoUrl,
-		Plan:                              w.Plan,
+		ID:      w.ID,
+		Name:    w.Name,
+		URLKey:  w.UrlKey,
+		LogoURL: w.LogoUrl,
+		Plan:    w.Plan,
+		// The three plan facts, which this converter did not carry.
+		//
+		// model.Workspace has declared them since 000016 and internal/graph maps them
+		// through, but nothing filled them here — so `planLapsedAt` was null on every
+		// surface fed by this package, on every workspace, whatever the column said. Both
+		// readers treat null as "not lapsed": the GraphQL client and the local replica in
+		// web/src/features/admin/entitlements.ts. A lapse the billing job writes and
+		// nobody can see is a lapse that does not exist.
+		PlanExpiresAt:                     w.PlanExpiresAt,
+		PlanLapsedAt:                      w.PlanLapsedAt,
+		SeatLimit:                         intPtrFromInt32(w.SeatLimit),
 		ProjectUpdateReminderIntervalDays: int(w.ProjectUpdateReminderIntervalDays),
 		ProjectUpdateReminderWeekday:      int(w.ProjectUpdateReminderWeekday),
 		ProjectUpdateReminderHour:         int(w.ProjectUpdateReminderHour),

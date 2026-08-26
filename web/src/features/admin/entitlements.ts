@@ -185,17 +185,26 @@ export function useEntitlements(): Entitlements {
    * The replica's answer: available synchronously, correct about this workspace, and silent
    * about what the plan includes.
    *
-   * The seat count mirrors the server's one seat query — humans, active, not archived —
-   * because those three conditions are what suspension exists to change: suspending
-   * somebody is how an admin frees a seat, and a count that ignored `status` would tell
-   * them it had not worked.
+   * The seat count mirrors the server's one seat query — humans, active, not guests, not
+   * archived. `status` is what suspension exists to change: suspending somebody is how an
+   * admin frees a seat, and a count that ignored it would tell them it had not worked.
+   * Guests are excluded because guests are free (docs/06-product-model/
+   * 02-plans-and-packaging.md), and this predicate has to keep matching
+   * CountWorkspaceSeats in services/internal/store/queries/workspaces.sql — the moment the
+   * two disagree, this screen quotes one number and the invitation that follows is refused
+   * against another.
    */
   const local = useLiveQuery(
     (store) => {
       const workspace = [...store.workspaces.values()][0];
       let seatsUsed = 0;
       for (const user of store.users.values()) {
-        if (user.kind === 'human' && user.status === 'active' && user.archivedAt === undefined) {
+        if (
+          user.kind === 'human' &&
+          user.status === 'active' &&
+          user.role !== 'guest' &&
+          user.archivedAt === undefined
+        ) {
           seatsUsed++;
         }
       }
