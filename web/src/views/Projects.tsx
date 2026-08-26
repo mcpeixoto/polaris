@@ -156,6 +156,15 @@ export function Projects() {
   const heading = team === null ? 'Projects' : `${team.name} projects`;
   const rowCount = groups.reduce((sum, group) => sum + group.rows.length, 0);
 
+  // Whether the list is empty because there is nothing, or empty because the header's two
+  // dropdowns excluded everything. Without the distinction the screen tells somebody their
+  // projects are gone and offers to make more — see the same flag in IssueList.
+  const filtered = depFilter !== 'all' || customerFilter !== 'all';
+  const clearFilters = useCallback(() => {
+    setDepFilter('all');
+    setCustomerFilter('all');
+  }, []);
+
   const onDropOnRow = useCallback(
     async (targetId: UUID) => {
       if (draggingId === null || draggingId === targetId) return;
@@ -289,12 +298,22 @@ export function Projects() {
         />
       ) : rowCount === 0 ? (
         <EmptyState
-          title="No projects yet"
-          description="A project is a unit of work with a clear outcome. Create one, then file issues into it with Shift+P."
+          title={filtered ? 'Nothing matches these filters' : 'No projects yet'}
+          description={
+            filtered
+              ? 'Every project here is excluded by the dependency or customer filter above.'
+              : 'A project is a unit of work with a clear outcome. Create one, then file issues into it with Shift+P.'
+          }
           action={
-            <Button variant="primary" onClick={create}>
-              New project
-            </Button>
+            filtered ? (
+              <Button variant="secondary" onClick={clearFilters}>
+                Clear the filters
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={create}>
+                New project
+              </Button>
+            )
           }
         />
       ) : (

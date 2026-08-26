@@ -89,13 +89,13 @@ export const DIRECTORY: readonly DirectoryEntry[] = [
     id: 'teams',
     name: 'Microsoft Teams',
     category: 'Chat',
-    summary: '@Linear agent and project channel connection.',
+    summary: '@Polaris agent and project channel connection.',
   },
   {
     id: 'discord',
     name: 'Discord',
     category: 'Chat',
-    summary: '/linear issue, search, wrap, and message linking.',
+    summary: '/polaris issue, search, wrap, and message linking.',
   },
   {
     id: 'intercom',
@@ -131,7 +131,7 @@ export const DIRECTORY: readonly DirectoryEntry[] = [
     id: 'jira',
     name: 'Jira',
     category: 'Sync',
-    summary: 'Two-way space ↔ team sync plus the importer.',
+    summary: 'Two-way project ↔ team sync, plus an importer for existing issues.',
   },
 ];
 
