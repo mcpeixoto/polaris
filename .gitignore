@@ -57,3 +57,10 @@ docker-compose.fleet.yml
 .dev-pids
 .dev-stop
 .dev-logs/
+
+# iOS. The project is generated from ios/project.yml by XcodeGen, so the .xcodeproj is
+# build output and committing it invites merge conflicts over a file nobody edits by hand.
+ios/Polaris.xcodeproj/
+ios/PolarisCore/.build/
+ios/build/
+ios/Polaris/Info.plist

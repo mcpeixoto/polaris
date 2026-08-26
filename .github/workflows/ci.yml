@@ -94,6 +94,10 @@ jobs:
       # own comment twice. `SyncEngine.mutate` asserts the same rule at runtime; this is the
       # half that reaches code no test runs.
       - run: node scripts/lint-optimistic-reconcile.mjs
+      # The iOS client writes its GraphQL as Swift string literals, so a renamed field still
+      # compiles and fails at runtime on a device, inside a 200 response. Nothing else in CI
+      # reads those documents.
+      - run: node scripts/lint-ios-graphql.mjs
       - run: pnpm -C web test -- --run
 
   e2e:

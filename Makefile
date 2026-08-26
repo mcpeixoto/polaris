@@ -139,7 +139,7 @@ fmt-check: ## Fail if anything is unformatted
 	@npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "desktop/src/**/*.{ts,cts}"
 
 .PHONY: lint
-lint: lint-go lint-compose lint-desktop lint-images lint-imports lint-keymap lint-routes lint-tokens lint-web ## All linters
+lint: lint-go lint-compose lint-desktop lint-images lint-imports lint-ios-graphql lint-keymap lint-routes lint-tokens lint-web ## All linters
 
 .PHONY: lint-go
 lint-go:
@@ -160,6 +160,10 @@ lint-images: ## Enforce that every binary a compose service asks for exists and 
 .PHONY: lint-imports
 lint-imports: ## Enforce the package rule: only domain/ may import store/
 	@bash scripts/lint-imports.sh
+
+.PHONY: lint-ios-graphql
+lint-ios-graphql: ## Enforce that the iOS client's hand-written GraphQL matches the schema
+	@node scripts/lint-ios-graphql.mjs
 
 .PHONY: lint-keymap
 lint-keymap: ## Enforce that keyboard handling lives in the keymap registry
