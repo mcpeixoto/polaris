@@ -31,8 +31,47 @@ permissions:
   contents: write # needed to attach artefacts to a release
 
 jobs:
+  # Creates the draft release before any platform can, and exists solely to stop the three
+  # build jobs racing to create it themselves.
+  #
+  # electron-builder's GitHub publisher looks for a release matching the tag and creates one
+  # only if it finds none. That is check-then-create, and the three platforms run it
+  # concurrently — so two of them can both find nothing and both create. GitHub permits it,
+  # because a *draft* is not bound to its tag: the result is two draft releases with the same
+  # tag_name, each holding the artefacts of whichever jobs happened to land on it.
+  #
+  # That is exactly how v0.2.0 shipped: one draft with the macOS and Linux artefacts, a second
+  # with `Polaris-Setup-0.2.0.exe`, `latest.yml` and one stray macOS blockmap. Every job
+  # reported success, the workflow was green, and the release a user would have downloaded had
+  # no Windows installer in it. v0.1.1 raced the same way and happened to win, which is worse
+  # than failing — it means the bug is invisible until the run where it is not.
+  #
+  # With the release already present, all three publishers take the "found it" branch and
+  # there is nothing left to race over.
+  release:
+    name: Prepare the draft release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create the draft release if it does not exist
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Idempotent on purpose: a re-run of a partly-finished tag must reuse the release it
+        # already made rather than adding another one beside it.
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "release $GITHUB_REF_NAME already exists — reusing it"
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+
   build:
     name: ${{ matrix.name }}
+    # Runs on pull requests too, where the job above does nothing — `needs` still orders them,
+    # and a job whose only step is skipped still succeeds, so nothing here is gated on a tag.
+    needs: release
     runs-on: ${{ matrix.os }}
     strategy:
       # One platform failing must not cancel the others: knowing that Windows is broken and
