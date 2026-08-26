@@ -55,8 +55,29 @@ public actor FixturePolarisClient: PolarisAPI {
     }
 
     public func signIn(email: String, password: String) async throws -> Session {
-        guard password == "correct-horse" else { throw PolarisError.unauthorized }
+        guard password == "correct-horse" else { throw PolarisError.unauthorized("incorrect email or password") }
         return try await signInWithDevSession()
+    }
+
+    public func register(
+        email: String,
+        password: String,
+        inviteToken: String?,
+        displayName: String?
+    ) async throws -> Session {
+        guard password.count >= 8 else {
+            throw PolarisError.validation(message: "Password must be at least 8 characters", field: "password")
+        }
+        return try await signInWithDevSession()
+    }
+
+    public func createWorkspace(_ draft: WorkspaceDraft) async throws -> Workspace {
+        try consumeFailure()
+        return FixtureData.workspace
+    }
+
+    public func restoreSession() async throws -> Session {
+        throw PolarisError.unauthorized(nil)
     }
 
     public func signOut() async {}
@@ -150,7 +171,7 @@ public actor FixturePolarisClient: PolarisAPI {
 /// passing after a decoding bug was introduced.
 public enum FixtureData {
     public static let workspace: Workspace = decoded(
-        #"{"id":"w1","name":"Peixoto Labs","urlKey":"peixotolabs"}"#
+        #"{"id":"w1","name":"Peixoto Labs","urlKey":"peixotolabs","plan":"pro"}"#
     )
 
     // Delimited with ##"…"## rather than #"…"#: the colour value starts with `#` directly

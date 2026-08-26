@@ -32,8 +32,33 @@ public struct Workspace: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let name: String
     public let urlKey: String
+    /// `free` / `pro` / `enterprise` / `self_hosted`. A raw string rather than an enum: the
+    /// server may add a plan before this app ships again, and an unknown value must render as
+    /// itself rather than crash a decode or silently become the wrong tier.
+    public let plan: String
 
-    enum CodingKeys: String, CodingKey { case id, name, urlKey }
+    enum CodingKeys: String, CodingKey { case id, name, urlKey, plan }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        urlKey = try c.decode(String.self, forKey: .urlKey)
+        // Absent on the create-workspace response, which returns the row before the plan is
+        // selected in the projection.
+        plan = try c.decodeIfPresent(String.self, forKey: .plan) ?? "free"
+    }
+
+    /// Title-cased for display. `self_hosted` -> `Self-hosted`.
+    public var planLabel: String {
+        switch plan {
+        case "self_hosted": "Self-hosted"
+        case "free": "Free"
+        case "pro": "Pro"
+        case "enterprise": "Enterprise"
+        default: plan.capitalized
+        }
+    }
 }
 
 public struct Team: Codable, Sendable, Hashable, Identifiable {

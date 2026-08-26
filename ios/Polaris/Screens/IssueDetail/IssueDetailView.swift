@@ -5,6 +5,7 @@ struct IssueDetailView: View {
     @Environment(AppModel.self) private var model
     @State private var store: IssueDetailStore?
     @State private var draftComment = ""
+    @FocusState private var commentFocused: Bool
 
     private let seed: Issue
 
@@ -13,7 +14,8 @@ struct IssueDetailView: View {
     }
 
     var body: some View {
-        Group {
+        ZStack {
+            Theme.background.ignoresSafeArea()
             if let store {
                 content(store: store)
             } else {
@@ -22,10 +24,11 @@ struct IssueDetailView: View {
         }
         .navigationTitle(seed.identifier)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .task {
-            // Seeded from the row the user tapped so the screen opens with content, then
-            // refreshed in place. A detail view that spinners over data the app already had
-            // is the most common self-inflicted slowness in a list-detail app.
+            // Seeded from the row the reader tapped so the screen opens with content, then
+            // refreshed in place. A detail view that spinners over data the app already had is
+            // the most common self-inflicted slowness in a list-detail app.
             if store == nil {
                 store = IssueDetailStore(api: model.api, issue: seed)
             }
@@ -36,39 +39,77 @@ struct IssueDetailView: View {
     @ViewBuilder
     private func content(store: IssueDetailStore) -> some View {
         let issue = store.issue.value ?? seed
-        List {
-            Section {
-                Text(issue.title)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Theme.primaryText)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        StateIcon(state: issue.state, size: 16)
+                        Text(issue.state.name)
+                            .monoFont(11, weight: .medium)
+                            .foregroundStyle(Theme.hex(issue.state.color))
+                        Text("·").foregroundStyle(Theme.eyebrowText)
+                        Text("\(issue.team.key) · \(issue.team.name)")
+                            .monoFont(11)
+                            .foregroundStyle(Theme.eyebrowText)
+                    }
 
-                if !issue.description.isEmpty {
-                    Text(issue.description)
-                        .font(TypeScale.body)
-                        .foregroundStyle(Theme.secondaryText)
+                    Text(issue.title)
+                        .displayFont(24, weight: .semibold)
+                        .foregroundStyle(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if !issue.description.isEmpty {
+                        Text(issue.description)
+                            .bodyFont(14)
+                            .foregroundStyle(Theme.textSecondary)
+                            .lineSpacing(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .staggerRise(0)
+
+                properties(issue: issue, store: store)
+                    .padding(.top, 22)
+                    .staggerRise(1)
+
+                comments(store: store)
+                    .padding(.top, 22)
+                    .staggerRise(2)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 6)
+            .padding(.bottom, 28)
+        }
+        .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+    }
 
-            Section("Properties") {
-                statusRow(issue: issue, store: store)
-                priorityRow(issue: issue, store: store)
-                assigneeRow(issue: issue, store: store)
-                LabeledContent("Team", value: "\(issue.team.key) · \(issue.team.name)")
-
-                if !issue.labels.isEmpty {
-                    HStack {
-                        Text("Labels")
-                        Spacer()
-                        HStack(spacing: 4) {
-                            ForEach(issue.labels) { LabelChip(label: $0) }
+    private func properties(issue: Issue, store: IssueDetailStore) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            MonoEyebrow(text: "Properties")
+            Card {
+                VStack(spacing: 0) {
+                    statusRow(issue: issue, store: store)
+                    HairlineDivider().padding(.horizontal, 16)
+                    priorityRow(issue: issue, store: store)
+                    HairlineDivider().padding(.horizontal, 16)
+                    assigneeRow(issue: issue, store: store)
+                    if !issue.labels.isEmpty {
+                        HairlineDivider().padding(.horizontal, 16)
+                        HStack {
+                            Text("Labels")
+                                .bodyFont(14)
+                                .foregroundStyle(Theme.textSecondary)
+                            Spacer()
+                            HStack(spacing: 4) {
+                                ForEach(issue.labels) { LabelChip(label: $0) }
+                            }
                         }
+                        .padding(16)
                     }
                 }
             }
-
-            commentsSection(store: store)
         }
-        .listStyle(.insetGrouped)
     }
 
     private func statusRow(issue: Issue, store: IssueDetailStore) -> some View {
@@ -86,8 +127,12 @@ struct IssueDetailView: View {
                 SwiftUI.Label(state.name, systemImage: state.category.symbolName).tag(state.id)
             }
         } label: {
-            Text("Status")
+            Text("Status").bodyFont(14).foregroundStyle(Theme.textSecondary)
         }
+        .tint(Theme.accentBright)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
+        // A picker with nothing in it renders as a dead row; say why instead of offering it.
         .disabled(states.isEmpty)
     }
 
@@ -102,8 +147,11 @@ struct IssueDetailView: View {
                 Text(value.label).tag(value)
             }
         } label: {
-            Text("Priority")
+            Text("Priority").bodyFont(14).foregroundStyle(Theme.textSecondary)
         }
+        .tint(Theme.accentBright)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
     }
 
     private func assigneeRow(issue: Issue, store: IssueDetailStore) -> some View {
@@ -122,64 +170,107 @@ struct IssueDetailView: View {
                 Text(person.displayName).tag(String?.some(person.id))
             }
         } label: {
-            Text("Assignee")
+            Text("Assignee").bodyFont(14).foregroundStyle(Theme.textSecondary)
         }
+        .tint(Theme.accentBright)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
     }
 
     @ViewBuilder
-    private func commentsSection(store: IssueDetailStore) -> some View {
-        Section("Comments") {
+    private func comments(store: IssueDetailStore) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            MonoEyebrow(text: "Comments")
+
             switch store.comments {
             case .idle, .loading:
-                HStack {
-                    ProgressView()
-                    Text("Loading comments").foregroundStyle(Theme.secondaryText)
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small).tint(Theme.accentBright)
+                    Text("Loading comments")
+                        .bodyFont(12.5)
+                        .foregroundStyle(Theme.textSecondary)
                 }
+                .padding(.vertical, 8)
+
             case .failed(let error):
-                Text(error.displayMessage).foregroundStyle(Theme.secondaryText)
+                InlineErrorLabel(text: error.displayMessage)
+
             case .loaded(let comments) where comments.isEmpty:
                 Text("No comments yet.")
-                    .font(TypeScale.rowMeta)
-                    .foregroundStyle(Theme.secondaryText)
+                    .bodyFont(12.5)
+                    .foregroundStyle(Theme.eyebrowText)
+                    .padding(.vertical, 4)
+
             case .loaded(let comments):
-                ForEach(comments) { comment in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(authorName(for: comment))
-                            .font(.footnote.weight(.semibold))
-                        Text(comment.body)
-                            .font(TypeScale.body)
-                            .foregroundStyle(Theme.primaryText)
-                        Text(comment.createdAt.formatted(date: .abbreviated, time: .shortened))
-                            .font(.caption2)
-                            .foregroundStyle(Theme.secondaryText)
+                VStack(spacing: 8) {
+                    ForEach(comments) { comment in
+                        Card(radius: 14) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                HStack(spacing: 6) {
+                                    Text(authorName(for: comment))
+                                        .bodyFont(12.5, weight: .bold)
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text(comment.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                        .monoFont(10)
+                                        .foregroundStyle(Theme.eyebrowText)
+                                }
+                                Text(comment.body)
+                                    .bodyFont(13.5)
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .lineSpacing(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(14)
+                        }
+                        .accessibilityElement(children: .combine)
                     }
-                    .padding(.vertical, 2)
-                    .accessibilityElement(children: .combine)
                 }
             }
 
-            HStack {
-                TextField("Add a comment", text: $draftComment, axis: .vertical)
-                    .lineLimit(1...4)
-                Button {
-                    let body = draftComment
-                    draftComment = ""
-                    Task { await store.postComment(body) }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill").font(.title2)
-                }
-                .disabled(
-                    draftComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || store.isPostingComment
-                )
-                .accessibilityLabel("Post comment")
-            }
+            composer(store: store)
+                .padding(.top, 6)
 
             if let error = store.commentError {
-                Text(error.displayMessage)
-                    .font(TypeScale.rowMeta)
-                    .foregroundStyle(.red)
+                InlineErrorLabel(text: error.displayMessage)
             }
+        }
+    }
+
+    private func composer(store: IssueDetailStore) -> some View {
+        HStack(spacing: 8) {
+            TextField(
+                "",
+                text: $draftComment,
+                prompt: Text("Add a comment").foregroundStyle(Color.white.opacity(0.4)),
+                axis: .vertical
+            )
+            .lineLimit(1...4)
+            .darkField()
+            .focused($commentFocused)
+
+            Button {
+                let body = draftComment
+                draftComment = ""
+                commentFocused = false
+                Task { await store.postComment(body) }
+            } label: {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Theme.accent)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(
+                draftComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || store.isPostingComment
+            )
+            .opacity(
+                draftComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1
+            )
+            .accessibilityLabel("Post comment")
         }
     }
 
@@ -187,10 +278,8 @@ struct IssueDetailView: View {
         switch comment.actor.type {
         case .user, .appUser:
             model.workspaceData.user(id: comment.actor.id)?.displayName ?? "Someone"
-        case .integration:
-            "Integration"
-        case .system:
-            "Polaris"
+        case .integration: "Integration"
+        case .system: "Polaris"
         }
     }
 }

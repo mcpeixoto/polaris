@@ -41,6 +41,56 @@ public actor LivePolarisClient: PolarisAPI {
         )
     }
 
+    public func register(
+        email: String,
+        password: String,
+        inviteToken: String?,
+        displayName: String?
+    ) async throws -> Session {
+        // Only the keys the handler declares: it decodes with DisallowUnknownFields, so an
+        // extra key is a 400 rather than an ignored field. The optional two are omitted
+        // entirely when absent rather than sent as null.
+        var body: [String: JSONValue] = [
+            "email": .string(email),
+            "password": .string(password),
+        ]
+        if let inviteToken, !inviteToken.isEmpty { body["inviteToken"] = .string(inviteToken) }
+        if let displayName, !displayName.isEmpty { body["displayName"] = .string(displayName) }
+        return try await authenticate(path: "/auth/register", body: body)
+    }
+
+    public func createWorkspace(_ draft: WorkspaceDraft) async throws -> Workspace {
+        // CreateWorkspaceResult carries no json tags, so Go marshals its fields under their
+        // Go names — capitalised. Decoding this as lowerCamelCase silently yields nothing.
+        struct Result: Decodable {
+            let workspace: Workspace
+            enum CodingKeys: String, CodingKey { case workspace = "Workspace" }
+        }
+
+        let data = try await postAuth(
+            path: "/auth/workspaces",
+            body: [
+                "name": .string(draft.name),
+                "urlKey": .string(draft.urlKey),
+                "userName": .string(draft.userName),
+                "userDisplayName": .string(draft.userDisplayName),
+                "userTimezone": .string(draft.userTimezone),
+                "firstTeamKey": .string(draft.firstTeamKey),
+                "firstTeamName": .string(draft.firstTeamName),
+            ],
+            authorized: true
+        )
+        let created = try decode(Result.self, from: data).workspace
+        // Subsequent calls must be scoped to it, or every resolver refuses for want of a
+        // principal.
+        workspaceId = created.id
+        return created
+    }
+
+    public func restoreSession() async throws -> Session {
+        try await refresh()
+    }
+
     public func signOut() async {
         _ = try? await postAuth(path: "/auth/logout", body: [:], authorized: true)
         accessToken = nil
@@ -125,7 +175,7 @@ public actor LivePolarisClient: PolarisAPI {
         field: String
     ) async throws -> Data {
         let token = try await validToken()
-        guard let workspaceId else { throw PolarisError.unauthorized }
+        guard let workspaceId else { throw PolarisError.unauthorized(nil) }
 
         var request = URLRequest(url: environment.apiBaseURL.appending(path: "/graphql"))
         request.httpMethod = "POST"
@@ -164,7 +214,7 @@ public actor LivePolarisClient: PolarisAPI {
 
     private func mapGraphQLError(code: String?, field: String?, message: String) -> PolarisError {
         switch code {
-        case "UNAUTHORIZED": .unauthorized
+        case "UNAUTHORIZED", "UNAUTHENTICATED": .unauthorized(message)
         case "FORBIDDEN": .forbidden
         case "NOT_FOUND": .notFound
         case "VALIDATION": .validation(message: message, field: field)
@@ -199,7 +249,8 @@ public actor LivePolarisClient: PolarisAPI {
         case 200...299:
             return data
         case 401:
-            throw PolarisError.unauthorized
+            // The server's sentence, when it sent one — see PolarisError.unauthorized.
+            throw PolarisError.unauthorized(serverMessage(from: data))
         case 403:
             throw PolarisError.forbidden
         case 404:

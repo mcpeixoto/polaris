@@ -6,7 +6,11 @@ import Foundation
 public enum PolarisError: Error, Equatable, Sendable {
     case offline
     case timedOut
-    case unauthorized
+    /// 401. Carries the server's own sentence when it sent one, because the two things that
+    /// produce a 401 need opposite copy: a mistyped password is "incorrect email or password",
+    /// an expired token is "sign in again". Flattening both into the second tells somebody who
+    /// simply fat-fingered their password that their session expired.
+    case unauthorized(String?)
     case forbidden
     case notFound
     case rateLimited(retryAfter: TimeInterval?)
@@ -21,8 +25,8 @@ public enum PolarisError: Error, Equatable, Sendable {
             "You're offline. Polaris will retry when the connection comes back."
         case .timedOut:
             "That took too long. Try again."
-        case .unauthorized:
-            "Your session expired. Sign in again."
+        case .unauthorized(let message):
+            message ?? "Your session expired. Sign in again."
         case .forbidden:
             "You don't have access to that."
         case .notFound:

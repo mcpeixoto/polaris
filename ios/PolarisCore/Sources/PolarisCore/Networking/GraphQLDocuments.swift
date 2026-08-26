@@ -23,8 +23,8 @@ enum GraphQLDocuments {
     query Viewer {
       viewer {
         user { id name displayName avatarUrl email }
-        workspace { id name urlKey }
-        workspaces { id name urlKey }
+        workspace { id name urlKey plan }
+        workspaces { id name urlKey plan }
         syncVersion
       }
     }

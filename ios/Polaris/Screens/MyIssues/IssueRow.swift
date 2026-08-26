@@ -6,26 +6,28 @@ struct IssueRow: View {
     var isPending: Bool = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 11) {
             StateIcon(state: issue.state)
+                .frame(width: 18)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(issue.title)
-                    .font(TypeScale.rowTitle)
-                    .foregroundStyle(Theme.primaryText)
+                    .bodyFont(14.5, weight: .medium)
+                    .foregroundStyle(Theme.textPrimary)
                     .lineLimit(2)
+                    .multilineTextAlignment(.leading)
 
-                HStack(spacing: 6) {
+                HStack(spacing: 7) {
                     Text(issue.identifier)
-                        .font(TypeScale.identifier)
-                        .foregroundStyle(Theme.secondaryText)
+                        .monoFont(10.5, weight: .medium)
+                        .foregroundStyle(Theme.eyebrowText)
                     if issue.priority != Priority.none {
                         PriorityIcon(priority: issue.priority)
                     }
                     if let dueDate = issue.dueDate {
                         Text(dueDate)
-                            .font(TypeScale.rowMeta)
-                            .foregroundStyle(Theme.secondaryText)
+                            .monoFont(10.5)
+                            .foregroundStyle(Theme.eyebrowText)
                     }
                     ForEach(issue.labels.prefix(2)) { label in
                         LabelChip(label: label)
@@ -36,14 +38,23 @@ struct IssueRow: View {
             Spacer(minLength: 8)
 
             if isPending {
-                ProgressView().controlSize(.small)
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(Theme.accentBright)
             } else {
                 AvatarView(user: issue.assignee)
             }
         }
-        .padding(.vertical, 3)
-        // Without this the row reads out as six unrelated fragments. One label, in the order a
-        // person would say it.
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Theme.card)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Theme.border, lineWidth: 1)
+        )
+        // Without this the row reads out as six unrelated fragments. One label, in the order
+        // a person would say it.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
     }

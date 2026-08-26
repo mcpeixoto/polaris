@@ -21,6 +21,21 @@ public protocol PolarisAPI: Sendable {
     // Auth
     func signInWithDevSession() async throws -> Session
     func signIn(email: String, password: String) async throws -> Session
+    /// Creates an account.
+    ///
+    /// `inviteToken` is what admits the caller on a default install: registration mode is
+    /// `invite`, under which exactly two people may register — somebody holding an invitation,
+    /// and the very first account on an empty server. The token rides along with the
+    /// credentials rather than being redeemed separately so the account and the workspace
+    /// membership are one transaction.
+    func register(email: String, password: String, inviteToken: String?, displayName: String?) async throws -> Session
+    /// Creates a workspace and its first team, for an account that belongs to none.
+    func createWorkspace(_ draft: WorkspaceDraft) async throws -> Workspace
+    /// Trades the stored refresh cookie for a new session, or throws if there is none.
+    ///
+    /// URLSession persists the cookie across launches, so this is what stops the app asking
+    /// for a password every time it is opened.
+    func restoreSession() async throws -> Session
     func signOut() async
 
     /// Which workspace subsequent calls are scoped to. Every GraphQL request carries it as
@@ -144,5 +159,70 @@ public enum UUIDv7 {
 
     private static func UInt8truncating(_ value: UInt64) -> UInt8 {
         UInt8(value & 0xFF)
+    }
+}
+
+
+/// A new workspace, as the create screen collects it.
+///
+/// The server derives nothing: it wants the workspace name and URL key, the creator's own
+/// name and timezone, and the first team's key and name, all in one call. `decodeJSON` is
+/// configured with `DisallowUnknownFields`, so this must carry exactly the keys the handler
+/// declares and no others.
+public struct WorkspaceDraft: Sendable, Hashable {
+    public var name: String
+    public var urlKey: String
+    public var userName: String
+    public var userDisplayName: String
+    public var userTimezone: String
+    public var firstTeamKey: String
+    public var firstTeamName: String
+
+    public init(
+        name: String,
+        urlKey: String,
+        userName: String,
+        userDisplayName: String,
+        userTimezone: String = TimeZone.current.identifier,
+        firstTeamKey: String,
+        firstTeamName: String
+    ) {
+        self.name = name
+        self.urlKey = urlKey
+        self.userName = userName
+        self.userDisplayName = userDisplayName
+        self.userTimezone = userTimezone
+        self.firstTeamKey = firstTeamKey
+        self.firstTeamName = firstTeamName
+    }
+}
+
+/// Turns a workspace name into a URL key, and a team name into a team key.
+///
+/// Both are derived as the user types and stop following once they edit the derived field by
+/// hand — the same rule the web client's CreateWorkspace screen uses. Deriving forever would
+/// overwrite a deliberate choice on the next keystroke of the name.
+public enum KeyDerivation {
+    /// Lowercase, alphanumeric and single hyphens, trimmed. `"Peixoto Labs"` -> `"peixoto-labs"`.
+    public static func urlKey(from name: String) -> String {
+        var out = ""
+        var lastWasHyphen = true          // leading hyphens are dropped
+        for character in name.lowercased() {
+            if character.isLetter || character.isNumber {
+                out.append(character)
+                lastWasHyphen = false
+            } else if !lastWasHyphen {
+                out.append("-")
+                lastWasHyphen = true
+            }
+        }
+        while out.hasSuffix("-") { out.removeLast() }
+        return String(out.prefix(48))
+    }
+
+    /// Up to three uppercase letters. `"Engineering"` -> `"ENG"`.
+    public static func teamKey(from name: String) -> String {
+        let letters = name.uppercased().filter { $0.isLetter || $0.isNumber }
+        return String(letters.prefix(3))
     }
 }
