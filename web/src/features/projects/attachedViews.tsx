@@ -190,6 +190,8 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
         >
           <Input
             ref={nameRef}
+            label="View name"
+            hideLabel
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="View name"

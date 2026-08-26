@@ -372,9 +372,17 @@ function PulseFeedEditor({
               />
             ))
           )}
-          {projectsError !== null && <p className={styles.error}>{projectsError}</p>}
+          {projectsError !== null && (
+            <p className={styles.error} role="alert">
+              {projectsError}
+            </p>
+          )}
         </fieldset>
-        {saveError !== null && <p className={styles.error}>{saveError}</p>}
+        {saveError !== null && (
+          <p className={styles.error} role="alert">
+            {saveError}
+          </p>
+        )}
       </form>
     </Modal>
   );

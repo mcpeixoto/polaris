@@ -195,7 +195,11 @@ export function CreateCustomerRequestModal({
           checked={important}
           onChange={(event) => setImportant(event.target.checked)}
         />
-        {saveError !== null && <p className={styles.error}>{saveError}</p>}
+        {saveError !== null && (
+          <p className={styles.error} role="alert">
+            {saveError}
+          </p>
+        )}
       </form>
     </Modal>
   );

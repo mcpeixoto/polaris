@@ -495,6 +495,10 @@ export function InitiativeDetail() {
             <textarea
               ref={descriptionRef}
               className={styles.descriptionInput}
+              // The <h2> above is not associated with this field, so without a name of its
+              // own it announces as "edit text, blank". Its sibling on the update form is
+              // wrapped in a <label>; this one has no visible label to wrap.
+              aria-label="Description"
               onChange={(event) => setDraft(event.target.value)}
             />
             <div className={styles.addRow}>
