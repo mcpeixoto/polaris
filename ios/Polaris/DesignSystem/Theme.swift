@@ -2,7 +2,7 @@ import SwiftUI
 import PolarisCore
 
 extension Color {
-    /// Tokens are written as `0x6366F1`, not `"#6366F1"` — a hex literal is checked by the
+    /// Tokens are written as `0x5A5DE8`, not `"#5A5DE8"` — a hex literal is checked by the
     /// compiler, a string is checked by nobody.
     init(hex: UInt32) {
         self.init(
@@ -126,28 +126,39 @@ enum Theme {
     }
 }
 
-/// The type scale, as view modifiers rather than `Font` values.
+/// The type scale.
 ///
 /// System faces with a serif display variant rather than bundled custom fonts. A custom font
 /// with a wrong PostScript name renders as San Francisco with no error at all, and shipping
-/// that trap for a v1 buys nothing here — `.serif` gives the display sizes their editorial
-/// voice without a font file to get wrong.
+/// that trap for a v1 buys nothing here.
 ///
-/// These are modifiers because `Font.system(size:)` is a *fixed* size: it does not grow with
-/// the reader's Dynamic Type setting, and only `Font.custom(_:size:relativeTo:)` takes an
-/// anchor. Multiplying by a `@ScaledMetric` factor is what puts the scaling back, and it keeps
-/// the exact half-point sizes the scale is built on (12.5, 13.5, 14.5) instead of rounding
-/// them to the nearest text style.
-private struct ScaledFont: ViewModifier {
-    /// A metric whose base value is 1 resolves to the reader's current scale factor.
-    @ScaledMetric(relativeTo: .body) private var factor: CGFloat = 1
-
-    let size: CGFloat
-    let weight: Font.Weight
-    let design: Font.Design
-
-    func body(content: Content) -> some View {
-        content.font(.system(size: size * factor, weight: weight, design: design))
+/// Anchored to text styles — `.system(.body, design:)` — rather than to point sizes, and this
+/// cost something worth naming. The scale these screens were designed against uses exact
+/// half-point sizes (12.5, 13.5, 14.5), and two earlier attempts to keep them both failed the
+/// accessibility audit: multiplying a fixed size by a `@ScaledMetric` factor reports as
+/// "Dynamic Type font sizes are partially unsupported", and wrapping a `UIFontMetrics`-scaled
+/// `UIFont` reports as "unsupported" outright, because SwiftUI receives a font whose size was
+/// already resolved and cannot mark it relative to anything.
+///
+/// Only a text style is a font the system understands as scalable. The reference apps get
+/// exact sizes *and* scaling from `Font.custom(_:size:relativeTo:)`, which needs a bundled
+/// font file; without one, this is the honest trade — the sizes land on the system's ladder
+/// instead of the design's, and the text actually scales for the people who need it to.
+enum TypeScale {
+    /// The nearest text style to a designed point size.
+    static func style(for size: CGFloat) -> Font.TextStyle {
+        switch size {
+        case ..<11.5: .caption2
+        case ..<12.5: .caption
+        case ..<13.5: .footnote
+        case ..<15: .subheadline
+        case ..<16.5: .callout
+        case ..<19: .body
+        case ..<22: .title3
+        case ..<27: .title2
+        case ..<33: .title
+        default: .largeTitle
+        }
     }
 }
 
@@ -155,16 +166,16 @@ extension View {
     /// Headlines and screen titles. Serif, because it is the one thing that stops a SwiftUI
     /// app looking like the Settings app.
     func displayFont(_ size: CGFloat, weight: Font.Weight = .semibold) -> some View {
-        modifier(ScaledFont(size: size, weight: weight, design: .serif))
+        font(.system(TypeScale.style(for: size), design: .serif).weight(weight))
     }
 
     func bodyFont(_ size: CGFloat, weight: Font.Weight = .regular) -> some View {
-        modifier(ScaledFont(size: size, weight: weight, design: .default))
+        font(.system(TypeScale.style(for: size), design: .default).weight(weight))
     }
 
     /// Eyebrows, identifiers, keyboard hints — anything that should read as machine text.
     func monoFont(_ size: CGFloat = 11, weight: Font.Weight = .medium) -> some View {
-        modifier(ScaledFont(size: size, weight: weight, design: .monospaced))
+        font(.system(TypeScale.style(for: size), design: .monospaced).weight(weight))
     }
 }
 

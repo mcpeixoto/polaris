@@ -110,7 +110,8 @@ struct WelcomeView: View {
     }
 
     private var footer: some View {
-        VStack(spacing: 12) {
+        // 18, not 12: the CTA's glow needs somewhere to fall that is not on top of the link.
+        VStack(spacing: 18) {
             PrimaryButton(title: "Create an account") { route = .signUp }
             Button { route = .signIn } label: {
                 Text("I already have an account")
