@@ -16,6 +16,7 @@
 import { AuditLogPanel } from '@ee/audit';
 
 import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
+import { PlanBlock } from '~/features/admin/PlanBlock';
 import styles from './AuditLog.module.css';
 
 export function AuditLog() {
@@ -42,14 +43,11 @@ export function AuditLog() {
           </p>
         </section>
 
-        {/* role="status" and not role="alert": a plan that does not include a feature is not
-            an error the reader made, and an assertive announcement treats it as one. This is
-            the same distinction SlaSettings draws. */}
-        {blocked === null ? null : (
-          <p className={styles.error} role="status">
-            {blocked}
-          </p>
-        )}
+        {/* PlanBlock rather than a bare paragraph: `featureBlock` returns a reason *and* a
+            destination, and rendering only the sentence drops the way out of it. It defaults
+            to role="status" — a plan that does not include a feature is not an error the
+            reader made, and an assertive announcement would treat it as one. */}
+        <PlanBlock block={blocked} className={styles.error} />
 
         {/* Rendered even when blocked is null-but-unknown, which is the case on a cold load:
             `featureBlock` deliberately does not treat an unknown answer as denied, so the
