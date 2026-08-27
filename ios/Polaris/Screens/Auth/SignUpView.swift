@@ -17,6 +17,11 @@ struct SignUpView: View {
     @State private var isSubmitting = false
     @State private var error: PolarisError?
     @State private var left: Set<Field> = []
+    /// The field the reader most recently moved away from. Its complaint is shown first,
+    /// because an error about a field you just left is the one you can act on — being told
+    /// "enter your name" the moment you leave the *password* field answers a question nobody
+    /// asked and buries the one they did.
+    @State private var lastLeft: Field?
     @FocusState private var focused: Field?
 
     private enum Field: Hashable { case name, email, password, invite }
@@ -32,15 +37,38 @@ struct SignUpView: View {
         return nil
     }
 
-    /// The same reason said out loud — but only once it is fair to say it. Printing "enter
-    /// your name" under an untouched empty form is scolding somebody for not having typed yet.
+    /// The first problem belonging to a field the reader has already left.
+    ///
+    /// Not simply `blockingProblem` gated on one field: that showed the first problem in a
+    /// fixed order and only if *that* field had been visited, so filling the password first
+    /// and leaving it said nothing at all — the name was still empty, so the name's complaint
+    /// won, and the name had never been focused, so it was suppressed. The reader got
+    /// silence and a dead button.
+    ///
+    /// Each field still speaks only once it has been left, so an untouched form scolds nobody.
     private var visibleProblem: String? {
-        guard let blockingProblem else { return nil }
-        switch blockingProblem {
-        case "Enter your name": return left.contains(.name) ? blockingProblem : nil
-        case "Enter a valid email address":
-            return left.contains(.email) && !email.isEmpty ? blockingProblem : nil
-        default: return left.contains(.password) && !password.isEmpty ? blockingProblem : nil
+        if let lastLeft, let problem = problem(for: lastLeft) { return problem }
+        // Otherwise the first outstanding complaint among fields already visited, so a form
+        // that is still incomplete says so rather than going quiet.
+        for field in [Field.name, .email, .password] where field != lastLeft {
+            if let problem = problem(for: field) { return problem }
+        }
+        return nil
+    }
+
+    /// A field's complaint, or nil — and always nil until the reader has left it, so an
+    /// untouched form scolds nobody.
+    private func problem(for field: Field) -> String? {
+        guard left.contains(field) else { return nil }
+        switch field {
+        case .name:
+            return displayName.trimmingCharacters(in: .whitespaces).isEmpty ? "Enter your name" : nil
+        case .email:
+            return !email.isEmpty && !isPlausibleEmail(email) ? "Enter a valid email address" : nil
+        case .password:
+            return !password.isEmpty && password.count < 8 ? "Use at least 8 characters" : nil
+        case .invite:
+            return nil
         }
     }
 
@@ -113,7 +141,10 @@ struct SignUpView: View {
         }
         .onAppear { focused = .name }
         .onChange(of: focused) { previous, _ in
-            if let previous { left.insert(previous) }
+            if let previous {
+                left.insert(previous)
+                lastLeft = previous
+            }
         }
         // A server refusal that outlives the thing it was about is just noise. Clearing on
         // the next edit means the reader sees their correction take effect.
@@ -123,7 +154,7 @@ struct SignUpView: View {
     }
 
     private func prompt(_ text: String) -> Text {
-        Text(text).foregroundStyle(Color.white.opacity(0.4))
+        Text(text).foregroundStyle(Theme.placeholder)
     }
 
     private func submit() {

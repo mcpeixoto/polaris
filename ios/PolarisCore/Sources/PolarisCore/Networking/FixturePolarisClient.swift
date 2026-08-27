@@ -36,7 +36,7 @@ public actor FixturePolarisClient: PolarisAPI {
         people: [User] = FixtureData.users,
         teams: [Team] = [FixtureData.team],
         states: [WorkflowState] = FixtureData.states,
-        comments: [String: [Comment]] = [:]
+        comments: [String: [Comment]] = QAFixtureSwitches.seededComments
     ) {
         self.signedIn = signedIn
         self.hasWorkspace = hasWorkspace
@@ -45,6 +45,7 @@ public actor FixturePolarisClient: PolarisAPI {
         self.allTeams = teams
         self.states = states
         self.storedComments = comments
+        if let armed = QAFixtureSwitches.armedWriteFailure { self.failNextWrite = armed }
     }
 
     public func setFailNextWrite(_ error: PolarisError?) {
@@ -139,7 +140,9 @@ public actor FixturePolarisClient: PolarisAPI {
     }
 
     public func teams() async throws -> [Team] { allTeams }
-    public func workflowStates(teamId: String) async throws -> [WorkflowState] { states }
+    public func workflowStates(teamId: String) async throws -> [WorkflowState] {
+        QAFixtureSwitches.noStates ? [] : states
+    }
     public func users() async throws -> [User] { people }
     public func unreadNotificationCount() async throws -> Int { 0 }
 
@@ -152,7 +155,12 @@ public actor FixturePolarisClient: PolarisAPI {
             identifier: "ENG-\(storedIssues.count + 1)",
             title: draft.title,
             priority: draft.priority,
-            state: states.first(where: { $0.id == draft.stateId }) ?? states[0]
+            state: states.first(where: { $0.id == draft.stateId }) ?? states[0],
+            // Honoured, not dropped. The composer defaults to assigning the issue to the
+            // creator precisely because MyIssues filters on assignee — a double that ignores
+            // the field cannot show whether that default works, which is the whole point of
+            // the test that exercises it.
+            assignee: draft.assigneeId.flatMap { id in people.first { $0.id == id } }
         )
         storedIssues.append(created)
         return created
@@ -165,8 +173,7 @@ public actor FixturePolarisClient: PolarisAPI {
         }
         // Mutated, not rebuilt. Rebuilding through FixtureData.issue silently dropped
         // description, labels, estimate, dueDate and timestamps, so any property change made
-        // the description vanish — which reads as a product bug and is a defect in the test
-        // double.
+        // the description vanish — which reads as a product bug and is a defect in the double.
         var updated = storedIssues[index]
         if let stateId = change.stateId, let next = states.first(where: { $0.id == stateId }) {
             updated.state = next
@@ -199,7 +206,8 @@ public actor FixturePolarisClient: PolarisAPI {
 /// passing after a decoding bug was introduced.
 public enum FixtureData {
     public static let workspace: Workspace = decoded(
-        #"{"id":"w1","name":"Peixoto Labs","urlKey":"peixotolabs","plan":"pro"}"#
+        "{\"id\":\"w1\",\"name\":\"\(QAFixtureSwitches.workspaceName)\","
+            + "\"urlKey\":\"\(QAFixtureSwitches.workspaceKey)\",\"plan\":\"\(QAFixtureSwitches.plan)\"}"
     )
 
     // Delimited with ##"…"## rather than #"…"#: the colour value starts with `#` directly
@@ -220,7 +228,20 @@ public enum FixtureData {
      {"id":"u2","name":"ana","displayName":"Ana Silva","avatarUrl":null,"email":null}]
     """)
 
-    public static let issues: [Issue] = [
+    /// The issue set, selected by launch argument.
+    ///
+    /// With no `-qa-*` argument this is the original four issues, so ordinary runs are
+    /// unaffected. Statics are lazy in Swift, so this reads the arguments after the process
+    /// has them.
+    public static let issues: [Issue] = {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-qa-empty") { return [] }
+        if arguments.contains("-qa-only-completed") { return completedOnlyIssues }
+        if arguments.contains("-qa-stress") { return stressIssues }
+        return baseIssues
+    }()
+
+    public static let baseIssues: [Issue] = [
         issue(id: "i1", identifier: "ENG-1", title: "Sync drops a comment on reconnect",
               priority: .urgent, state: states[2], assignee: users[0]),
         issue(id: "i2", identifier: "ENG-2", title: "Command menu forgets its last action",
@@ -230,6 +251,87 @@ public enum FixtureData {
         issue(id: "i4", identifier: "ENG-4", title: "Retire the old exporter",
               priority: Priority.none, state: states[3]),
     ]
+
+    /// Everything assigned is finished, so the default filter renders an empty list.
+    public static let completedOnlyIssues: [Issue] = [
+        issue(id: "c1", identifier: "ENG-1", title: "Retire the old exporter",
+              priority: .high, state: states[3], assignee: users[0]),
+        issue(id: "c2", identifier: "ENG-2", title: "Delete the dead feature flag",
+              priority: Priority.none, state: states[3], assignee: users[0]),
+    ]
+
+    /// Volume plus the layout edge cases: a title far past two lines, five labels where the
+    /// row shows two, no assignee, a long identifier, every priority, and a due date.
+    public static let stressIssues: [Issue] = {
+        let longTitle = "A deliberately enormous issue title that keeps going well past any "
+            + "reasonable two-line clamp so the row has to decide what to do about it, and "
+            + "then keeps going a good deal further still just to be certain"
+        var list: [Issue] = [
+            qaIssue(id: "x1", identifier: "PLATFORM-100234", title: longTitle,
+                    priority: .urgent, state: states[2], assignee: nil, labelCount: 5,
+                    dueDate: "2026-09-30"),
+            qaIssue(id: "x2", identifier: "ENG-2", title: "Row with five labels and no assignee",
+                    priority: .high, state: states[1], assignee: nil, labelCount: 5),
+            qaIssue(id: "x3", identifier: "INFRASTRUCTURE-9912",
+                    title: "Unbroken token: Supercalifragilisticexpialidocious_Antidisestablishmentarianism_Pneumonoultramicroscopicsilicovolcanoconiosis",
+                    priority: .low, state: states[0], assignee: users[1], labelCount: 1),
+            qaIssue(id: "x4", identifier: "ENG-4", title: "No priority, sorts last among open",
+                    priority: Priority.none, state: states[1], assignee: users[0], labelCount: 0),
+        ]
+        // Enough rows to scroll several screens, so the stagger can be watched under a flick.
+        let cycle: [Priority] = [.urgent, .high, .medium, .low, Priority.none]
+        for index in 0..<40 {
+            list.append(
+                qaIssue(
+                    id: "v\(index)", identifier: "ENG-\(100 + index)",
+                    title: "Volume row \(index) — enough text to occupy a full line of the row",
+                    priority: cycle[index % cycle.count],
+                    state: states[index % 3],
+                    assignee: index.isMultiple(of: 2) ? users[0] : nil,
+                    labelCount: index % 4
+                )
+            )
+        }
+        // One completed issue so "Show completed" has something to reveal at this volume.
+        list.append(
+            qaIssue(id: "vdone", identifier: "ENG-999", title: "Finished, and hidden by default",
+                    priority: .urgent, state: states[3], assignee: users[0], labelCount: 2)
+        )
+        return list
+    }()
+
+    /// Like `issue(...)` but able to attach labels and a due date, which the row renders and
+    /// the original builder cannot express.
+    public static func qaIssue(
+        id: String,
+        identifier: String,
+        title: String,
+        priority: Priority,
+        state: WorkflowState,
+        assignee: User?,
+        labelCount: Int,
+        dueDate: String? = nil
+    ) -> Issue {
+        let names = ["backend", "needs-design", "regression", "customer-reported", "p0-escalation"]
+        let colors = ["#5B8DEF", "#F5B700", "#3FB950", "#EF5B5B", "#B65BEF"]
+        let labels = (0..<max(0, min(labelCount, names.count))).map { index in
+            "{\"id\":\"l\(id)-\(index)\",\"name\":\"\(names[index])\",\"color\":\"\(colors[index])\"}"
+        }
+        let assigneeJSON = assignee.map {
+            "{\"id\":\"\($0.id)\",\"name\":\"\($0.name)\",\"displayName\":\"\($0.displayName)\",\"avatarUrl\":null,\"email\":null}"
+        } ?? "null"
+        let stateJSON = "{\"id\":\"\(state.id)\",\"name\":\"\(state.name)\",\"color\":\"\(state.color)\",\"category\":\"\(state.category.rawValue)\",\"position\":\"\(state.position)\"}"
+        let dueJSON = dueDate.map { "\"\($0)\"" } ?? "null"
+        return decoded("""
+        {"id":"\(id)","identifier":"\(identifier)","title":"\(title)","description":"",
+         "priority":\(priority.rawValue),"estimate":null,"dueDate":\(dueJSON),
+         "state":\(stateJSON),
+         "team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF"},
+         "assignee":\(assigneeJSON),"creator":null,"labels":[\(labels.joined(separator: ","))],
+         "createdAt":"2026-08-01T09:00:00Z","updatedAt":"2026-08-20T09:00:00Z"}
+        """)
+    }
+    // ===== end QA-ONLY =====
 
     public static func issue(
         id: String,
@@ -268,5 +370,126 @@ public enum FixtureData {
         } catch {
             fatalError("fixture JSON does not decode as \(T.self): \(error)")
         }
+    }
+
+    public static func issue(
+        id: String,
+        identifier: String,
+        title: String,
+        priority: Priority,
+        state: WorkflowState,
+        assignee: User? = nil,
+        description: String = ""
+    ) -> Issue {
+        let assigneeJSON = assignee.map {
+            "{\"id\":\"\($0.id)\",\"name\":\"\($0.name)\",\"displayName\":\"\($0.displayName)\",\"avatarUrl\":null,\"email\":null}"
+        } ?? "null"
+        let stateJSON = "{\"id\":\"\(state.id)\",\"name\":\"\(state.name)\",\"color\":\"\(state.color)\",\"category\":\"\(state.category.rawValue)\",\"position\":\"\(state.position)\"}"
+        return decoded("""
+        {"id":"\(id)","identifier":"\(identifier)","title":"\(title)","description":"\(description)",
+         "priority":\(priority.rawValue),"estimate":null,"dueDate":null,
+         "state":\(stateJSON),
+         "team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF"},
+         "assignee":\(assigneeJSON),"creator":null,"labels":[],
+         "createdAt":"2026-08-01T09:00:00Z","updatedAt":"2026-08-20T09:00:00Z"}
+        """)
+    }
+
+}
+
+
+/// Launch-argument switches that reshape the fixture for a QA pass.
+///
+/// The states worth testing on the detail and settings screens are exactly the ones the stock
+/// fixture cannot produce: a team with no workflow states, a write the server refuses, a plan
+/// string other than `pro`, a title long enough to wrap, comments by an author who is not in
+/// the loaded user list. Each is a launch argument rather than a constructor parameter because
+/// a UI test drives the app as a process and cannot reach the composition root.
+///
+/// Read only by `FixturePolarisClient`, which is already the test/preview double — no shipping
+/// code path consults these.
+public enum QAFixtureSwitches {
+    private static var args: [String] { ProcessInfo.processInfo.arguments }
+
+    private static func value(_ flag: String) -> String? {
+        guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
+        return args[i + 1]
+    }
+
+    public static var plan: String { value("-qa-plan") ?? "pro" }
+    public static var noStates: Bool { args.contains("-qa-no-states") }
+
+    public static var armedWriteFailure: PolarisError? {
+        args.contains("-qa-fail-writes")
+            ? .server(status: 500, message: "Polaris had a problem handling that.")
+            : nil
+    }
+
+    public static var workspaceName: String {
+        args.contains("-qa-long-names")
+            ? "The Extremely Long Peixoto Laboratories Research And Development Workspace"
+            : "Peixoto Labs"
+    }
+
+    public static var workspaceKey: String {
+        args.contains("-qa-long-names")
+            ? "peixoto-laboratories-research-and-development-workspace-primary"
+            : "peixotolabs"
+    }
+
+    public static var firstIssueTitle: String {
+        args.contains("-qa-long-text")
+            ? "Sync drops a comment on reconnect when the websocket is resumed after a long "
+                + "background period and the client replays its outbox against a watermark that "
+                + "the server has already advanced past, which loses the comment silently"
+            : "Sync drops a comment on reconnect"
+    }
+
+    public static var firstIssueDescription: String {
+        args.contains("-qa-long-text")
+            ? "Steps: put the app in the background for ten minutes, post a comment while "
+                + "offline, then bring it back. Expected the comment to arrive. Actual: it is "
+                + "dropped with no error anywhere. This paragraph is deliberately long so the "
+                + "detail screen has to lay out a real description rather than an empty string, "
+                + "and so the scroll view is exercised past one screenful of content."
+            : ""
+    }
+
+    public static var seededComments: [String: [Comment]] {
+        guard args.contains("-qa-comments") else { return [:] }
+        return ["i1": [
+            qaComment(id: "c1", actorType: "USER", actorId: "u2",
+                      body: "Reproduced on 2026-08-19.", at: "2026-08-19T10:00:00Z"),
+            qaComment(
+                id: "c2",
+                actorType: "USER", actorId: "u404",
+                body: "This comment's author is not in the loaded user list.",
+                at: "2026-08-19T11:00:00Z"
+            ),
+            qaComment(id: "c3", actorType: "INTEGRATION", actorId: "gh",
+                      body: "Linked pull request #481.", at: "2026-08-19T12:00:00Z"),
+            qaComment(id: "c4", actorType: "SYSTEM", actorId: nil,
+                      body: "Moved to In Progress.", at: "2026-08-19T13:00:00Z"),
+            qaComment(
+                id: "c5", actorType: "USER", actorId: "u1",
+                body: "A very long body. " + String(repeating: "The reconnect path replays the outbox and the watermark has already moved. ", count: 12),
+                at: "2026-08-19T14:00:00Z"
+            ),
+        ]]
+    }
+
+    private static func qaComment(
+        id: String,
+        actorType: String = "USER",
+        actorId: String? = "u1",
+        body: String,
+        at: String
+    ) -> Comment {
+        let actorIdJSON = actorId.map { "\"\($0)\"" } ?? "null"
+        let json = """
+        {"id":"\(id)","body":"\(body)",
+         "actor":{"type":"\(actorType)","id":\(actorIdJSON)},"editedAt":null,"createdAt":"\(at)"}
+        """
+        return try! PolarisJSON.decoder().decode(Comment.self, from: Data(json.utf8))
     }
 }

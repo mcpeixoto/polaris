@@ -128,6 +128,34 @@ struct IssuesStoreTests {
         #expect(store.issues.isLoading == false)
     }
 
+    @Test("a created issue keeps the priority and assignee it was given")
+    func createPreservesDraftFields() async {
+        // The UI test that covers this drives a SwiftUI Picker, which XCUITest reaches
+        // unreliably; this pins the product path itself. Both fields matter: priority because
+        // it decides where the row sorts, and assignee because MyIssues filters on it — an
+        // issue created unassigned is created and then vanishes.
+        let api = FixturePolarisClient()
+        let store = IssuesStore(api: api)
+        await store.load()
+
+        let draft = IssueDraft(
+            teamId: FixtureData.team.id,
+            title: "Urgent by choice",
+            priority: .urgent,
+            assigneeId: FixtureData.users[0].id
+        )
+        let created = try! await store.create(draft)
+
+        #expect(created.priority == Priority.urgent)
+        #expect(created.assignee?.id == FixtureData.users[0].id)
+        // Present in the list, and sorted among the urgent work rather than at a fixed index —
+        // ENG-1 is also urgent and wins the identifier tiebreak, so asserting "first" would be
+        // asserting the tiebreak rather than the priority.
+        let list = try! #require(store.issues.value)
+        let position = try! #require(list.firstIndex { $0.id == created.id })
+        #expect(list[..<position].allSatisfy { $0.priority == Priority.urgent })
+    }
+
     @Test("a failed refresh keeps the list the user is reading")
     func refreshFailureKeepsData() async {
         // The trade this asserts: a pull-to-refresh that fails must not blank the screen.

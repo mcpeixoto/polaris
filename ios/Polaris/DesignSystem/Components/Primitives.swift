@@ -120,15 +120,15 @@ struct PrimaryButton: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(Theme.accent)
+            .background(Theme.accent.opacity(isEnabled && !isBusy ? 1 : 0.55))
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .shadow(color: Theme.accent.opacity(0.45), radius: 15, x: 0, y: 16)
+            .shadow(
+                color: Theme.accent.opacity(isEnabled && !isBusy ? 0.45 : 0),
+                radius: 15, x: 0, y: 16
+            )
         }
         .buttonStyle(PressableStyle())
         .disabled(!isEnabled || isBusy)
-        // Explicit, because the system's own disabled dimming is barely visible on a dark
-        // background.
-        .opacity(isEnabled && !isBusy ? 1 : 0.55)
     }
 }
 

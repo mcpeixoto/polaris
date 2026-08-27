@@ -285,7 +285,7 @@ struct IssueDetailView: View {
             TextField(
                 "",
                 text: $draftComment,
-                prompt: Text("Add a comment").foregroundStyle(Color.white.opacity(0.4)),
+                prompt: Text("Add a comment").foregroundStyle(Theme.placeholder),
                 axis: .vertical
             )
             .lineLimit(1...4)

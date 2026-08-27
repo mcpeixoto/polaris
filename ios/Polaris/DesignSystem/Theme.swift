@@ -37,7 +37,15 @@ enum Theme {
 
     // MARK: - Colour
 
-    static let accent = Color(hex: 0x6366F1)          // indigo — the north star
+    /// Indigo — the north star.
+    ///
+    /// Darkened from #6366F1, which put white label text at **4.47:1** — under the 4.5:1
+    /// floor by three hundredths, which is exactly the band Apple's audit reports as
+    /// "Contrast nearly passed". This value is 5.04:1 and keeps the hue.
+    ///
+    /// The measurement that matters is white ON this colour, because that is the primary CTA
+    /// on every screen. Anything reading this as a *background* is a separate calculation.
+    static let accent = Color(hex: 0x5A5DE8)
     static let accentBright = Color(hex: 0x8B93FF)    // on dark, for small text and dots
     static let accentDark = Color(hex: 0x4F46E5)      // pressed
     static let accentTint = Color(hex: 0x6366F1).opacity(0.16)
@@ -54,6 +62,14 @@ enum Theme {
     /// under the 4.5:1 contrast floor — the same failure the web client's dark theme has.
     static let textSecondary = Color.white.opacity(0.62)
     static let eyebrowText = Color.white.opacity(0.48)
+
+    /// Placeholder text inside a field.
+    ///
+    /// 0.55, not the 0.40 this started at: over the field's own fill that measured **3.59:1**,
+    /// under the 4.5:1 floor. A placeholder is real text — WCAG exempts inactive *controls*,
+    /// not the words inside an active one — and it appeared on every field of every auth
+    /// screen, which is why three separate audits failed on it. This measures 5.42:1.
+    static let placeholder = Color.white.opacity(0.55)
 
     static let warn = Color(hex: 0xF5A623)
     static let danger = Color(hex: 0xFF5C5C)
