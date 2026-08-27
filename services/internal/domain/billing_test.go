@@ -76,7 +76,11 @@ func TestApplySubscription_PutsTheWorkspaceOnThePlanItPaidFor(t *testing.T) {
 	if row.Plan != string(entitlement.PlanPro) {
 		t.Errorf("workspace.plan is %q in the column, want pro", row.Plan)
 	}
-	if row.PlanExpiresAt == nil || !row.PlanExpiresAt.Equal(*end) {
+	// Truncated to microseconds on both sides before comparing. Postgres timestamptz stores
+	// microseconds and Go's time.Time carries nanoseconds, so a value that round-trips
+	// perfectly still fails an exact Equal by the sub-microsecond remainder.
+	if row.PlanExpiresAt == nil ||
+		!row.PlanExpiresAt.Truncate(time.Microsecond).Equal(end.Truncate(time.Microsecond)) {
 		t.Errorf("plan_expires_at is %v, want the subscription's current_period_end %v",
 			row.PlanExpiresAt, *end)
 	}

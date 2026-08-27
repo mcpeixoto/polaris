@@ -33,6 +33,13 @@ import (
 // Adding an entry is a decision that should be argued for in review, which is the point
 // of making it a visible edit to this map rather than a silent omission.
 var notInTheAPI = map[string]string{
+	// Both are writes, and both are deliberately unreachable from the public API. The plan is
+	// a fact about a subscription rather than something a request may set — the same rule
+	// testutil/fixture.go states about the column it writes. Exposing either would let a
+	// caller put their own workspace on any plan.
+	"ApplySubscription": "billing only: applies a provider subscription to a workspace's plan",
+	"SweepLapsedPlans":  "worker cron: marks and clears plan_lapsed_at past the grace window",
+
 	// Auth is REST, not GraphQL: sign-in has to set an HttpOnly cookie, and a GraphQL
 	// mutation that sets cookies as a side effect is both surprising and impossible to
 	// express in the schema.
@@ -77,7 +84,7 @@ var mutatingPrefixes = []string{
 	"Create", "Update", "Delete", "Archive", "Set", "Add", "Remove", "Clear",
 	"Suspend", "Resolve", "Accept", "Decline", "Snooze", "Mark", "Revoke", "Invite", "Register", "Login",
 	"Rotate", "Prune", "Ensure", "Refresh", "Purge", "Restore", "Retire", "Unretire", "Move", "Start", "Link", "Merge",
-	"Leave",
+	"Leave", "Apply", "Sweep",
 }
 
 func TestAPIParity_EveryDomainMutationIsReachableOverGraphQL(t *testing.T) {
