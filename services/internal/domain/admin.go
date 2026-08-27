@@ -182,6 +182,26 @@ func (s *Service) archiveWorkspaceMember(ctx context.Context, p *authz.Principal
 			Scope: authz.WorkspaceScope(), Payload: toUser(row),
 		})
 
+		// Removal and departure are one code path and two audit events, distinguished by
+		// whether the actor is the target. "Alice removed Bob" and "Bob left" describe the
+		// same row change and are not the same fact to whoever reads this later — one is an
+		// administrative act, the other is not — and the distinction is unrecoverable from
+		// the row afterwards if it is not written down now.
+		action := AuditMemberRemoved
+		if p.UserID == userID {
+			action = AuditMemberLeft
+		}
+		entry := s.auditBy(ctx, q, p, action)
+		entry.TargetType = "user"
+		entry.TargetID = &userID
+		entry.TargetLabel = existing.DisplayName
+		entry.Before = map[string]any{"role": existing.Role, "status": existing.Status}
+		// No `after`: the membership is gone. A payload here would have to invent a shape
+		// for absence, and null already means it.
+		if err := s.recordAudit(ctx, q, entry); err != nil {
+			return err
+		}
+
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...)
 		return err
 	})

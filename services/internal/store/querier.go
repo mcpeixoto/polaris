@@ -1083,6 +1083,14 @@ type Querier interface {
 	ListTeamsWithAutoArchive(ctx context.Context) ([]Team, error)
 	ListTeamsWithAutoClose(ctx context.Context) ([]Team, error)
 	ListTeamsWithCyclesEnabled(ctx context.Context) ([]Team, error)
+	// Every workspace membership one account holds.
+	//
+	// A sign-in happens to an account, but the audit log is workspace-scoped, so one sign-in
+	// produces one entry per workspace the account can reach. Archived memberships are excluded:
+	// somebody removed from a workspace last month did not sign in to it today, and an entry
+	// saying otherwise in that workspace's audit log would be a false positive in the one place
+	// false positives are expensive.
+	ListUsersForAccount(ctx context.Context, accountID *uuid.UUID) ([]User, error)
 	ListUsersInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]User, error)
 	ListViewPreferences(ctx context.Context, arg ListViewPreferencesParams) ([]ViewPreference, error)
 	// The fan-out's read: every subscription in the workspace, with the view's filter so a

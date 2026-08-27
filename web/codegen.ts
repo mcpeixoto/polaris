@@ -13,7 +13,24 @@ import type { CodegenConfig } from '@graphql-codegen/cli';
  */
 const config: CodegenConfig = {
   schema: '../schema/schema.graphql',
-  documents: ['src/**/*.ts', 'src/**/*.tsx', '!src/gql/generated/**'],
+  // The commercial tree is scanned too, and deliberately in EVERY edition rather than only
+  // when POLARIS_EDITION=ee.
+  //
+  // Codegen's job here is to validate documents against the one schema, and that check has
+  // to run somewhere that always runs — a document only checked in the enterprise build is a
+  // document whose renamed field is discovered by the release build. Running it always also
+  // keeps `make generate` deterministic, which is what the "Generated code is not stale" job
+  // compares against; making the output depend on an environment variable would make that
+  // job fail for whoever set it.
+  //
+  // Only the TYPES are generated from this. No commercial code is copied into src/.
+  documents: [
+    'src/**/*.ts',
+    'src/**/*.tsx',
+    '../ee/web/**/*.ts',
+    '../ee/web/**/*.tsx',
+    '!src/gql/generated/**',
+  ],
   ignoreNoDocuments: false,
   generates: {
     'src/gql/generated/': {

@@ -120,6 +120,22 @@ type ComplexityRoot struct {
 		Version    func(childComplexity int) int
 	}
 
+	AuditLogEntry struct {
+		Action      func(childComplexity int) int
+		ActorLabel  func(childComplexity int) int
+		ActorType   func(childComplexity int) int
+		ActorUserID func(childComplexity int) int
+		After       func(childComplexity int) int
+		Before      func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		ID          func(childComplexity int) int
+		IP          func(childComplexity int) int
+		TargetID    func(childComplexity int) int
+		TargetLabel func(childComplexity int) int
+		TargetType  func(childComplexity int) int
+		UserAgent   func(childComplexity int) int
+	}
+
 	AuthorisedOauthApp struct {
 		ClientID   func(childComplexity int) int
 		CreatedAt  func(childComplexity int) int
@@ -1447,6 +1463,7 @@ type ComplexityRoot struct {
 		ArchivedIssues               func(childComplexity int, teamID uuid.UUID) int
 		ArchivedProjects             func(childComplexity int, teamID uuid.UUID) int
 		AttachmentsForURL            func(childComplexity int, url string) int
+		AuditLog                     func(childComplexity int, first *int, after *uuid.UUID) int
 		AuthorisedOauthApps          func(childComplexity int) int
 		Comments                     func(childComplexity int, issueID uuid.UUID) int
 		Customer                     func(childComplexity int, id uuid.UUID) int
@@ -2158,6 +2175,7 @@ type QueryResolver interface {
 	AuthorisedOauthApps(ctx context.Context) ([]AuthorisedOauthApp, error)
 	Webhooks(ctx context.Context) ([]Webhook, error)
 	WebhookDeliveries(ctx context.Context, webhookID uuid.UUID, first *int) ([]WebhookDelivery, error)
+	AuditLog(ctx context.Context, first *int, after *uuid.UUID) ([]AuditLogEntry, error)
 	OauthClients(ctx context.Context) ([]OauthClient, error)
 	OauthClient(ctx context.Context, id uuid.UUID) (*OauthClient, error)
 	OauthClientInfo(ctx context.Context, clientID string) (*OauthClientInfo, error)
@@ -2545,6 +2563,85 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AttachmentPayload.Version(childComplexity), true
+
+	case "AuditLogEntry.action":
+		if e.ComplexityRoot.AuditLogEntry.Action == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.Action(childComplexity), true
+	case "AuditLogEntry.actorLabel":
+		if e.ComplexityRoot.AuditLogEntry.ActorLabel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.ActorLabel(childComplexity), true
+	case "AuditLogEntry.actorType":
+		if e.ComplexityRoot.AuditLogEntry.ActorType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.ActorType(childComplexity), true
+	case "AuditLogEntry.actorUserId":
+		if e.ComplexityRoot.AuditLogEntry.ActorUserID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.ActorUserID(childComplexity), true
+	case "AuditLogEntry.after":
+		if e.ComplexityRoot.AuditLogEntry.After == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.After(childComplexity), true
+	case "AuditLogEntry.before":
+		if e.ComplexityRoot.AuditLogEntry.Before == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.Before(childComplexity), true
+	case "AuditLogEntry.createdAt":
+		if e.ComplexityRoot.AuditLogEntry.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.CreatedAt(childComplexity), true
+	case "AuditLogEntry.id":
+		if e.ComplexityRoot.AuditLogEntry.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.ID(childComplexity), true
+	case "AuditLogEntry.ip":
+		if e.ComplexityRoot.AuditLogEntry.IP == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.IP(childComplexity), true
+	case "AuditLogEntry.targetId":
+		if e.ComplexityRoot.AuditLogEntry.TargetID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.TargetID(childComplexity), true
+	case "AuditLogEntry.targetLabel":
+		if e.ComplexityRoot.AuditLogEntry.TargetLabel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.TargetLabel(childComplexity), true
+	case "AuditLogEntry.targetType":
+		if e.ComplexityRoot.AuditLogEntry.TargetType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.TargetType(childComplexity), true
+	case "AuditLogEntry.userAgent":
+		if e.ComplexityRoot.AuditLogEntry.UserAgent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditLogEntry.UserAgent(childComplexity), true
 
 	case "AuthorisedOauthApp.clientId":
 		if e.ComplexityRoot.AuthorisedOauthApp.ClientID == nil {
@@ -9524,6 +9621,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AttachmentsForURL(childComplexity, args["url"].(string)), true
+	case "Query.auditLog":
+		if e.ComplexityRoot.Query.AuditLog == nil {
+			break
+		}
+
+		args, err := ec.field_Query_auditLog_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AuditLog(childComplexity, args["first"].(*int), args["after"].(*uuid.UUID)), true
 	case "Query.authorisedOauthApps":
 		if e.ComplexityRoot.Query.AuthorisedOauthApps == nil {
 			break
@@ -14016,6 +14124,37 @@ type WebhookDelivery {
   createdAt: Time!
 }
 
+"""
+One security-relevant event: who did what, to what, from where.
+
+Read on the admin-only audit log screen. Not on the sync stream — a workspace-wide record
+of everybody's administrative actions does not belong in every member's local replica.
+"""
+type AuditLogEntry {
+  id: UUID!
+  """
+  The actor's user id, or null once that user has been deleted. Use actorLabel to name
+  them: it is the name as it read when the event happened, and it survives the deletion.
+  """
+  actorUserId: UUID
+  """One of: user, app_user, integration, system."""
+  actorType: String!
+  actorLabel: String!
+  """A dotted name, e.g. member.role_changed. Stable enough to filter and export on."""
+  action: String!
+  """Null together with targetId, for events that act on nobody — a sign-in."""
+  targetType: String
+  targetId: UUID
+  targetLabel: String
+  """The entity either side of the change. Null where the event has no such side. Never contains a credential."""
+  before: JSON
+  after: JSON
+  """Null where the transport did not carry it; today only the sign-in paths do."""
+  ip: String
+  userAgent: String
+  createdAt: Time!
+}
+
 input CreateWebhookInput {
   url: String!
   """XOR with allPublicTeams: one team, or every public team."""
@@ -15301,6 +15440,16 @@ type Query {
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
 
+  """
+  The workspace's audit log, newest first. Admins only, and an Enterprise feature: on a
+  plan without it this refuses with PLAN_LIMIT rather than returning an empty list.
+
+  ` + "`" + `after` + "`" + ` is the id of the last entry you already have — pass it to get the next page.
+  Keyset rather than offset: the table is appended to while somebody reads it, and an
+  offset would silently repeat and skip rows on the one screen where that is unacceptable.
+  """
+  auditLog(first: Int, after: UUID): [AuditLogEntry!]!
+
   """OAuth applications this workspace owns. Admins only; the secret is never returned."""
   oauthClients: [OauthClient!]!
   oauthClient(id: UUID!): OauthClient
@@ -15926,6 +16075,38 @@ func (ec *executionContext) childFields_AttachmentPayload(ctx context.Context, f
 		return ec.fieldContext_AttachmentPayload_attachment(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AttachmentPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_AuditLogEntry(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AuditLogEntry_id(ctx, field)
+	case "actorUserId":
+		return ec.fieldContext_AuditLogEntry_actorUserId(ctx, field)
+	case "actorType":
+		return ec.fieldContext_AuditLogEntry_actorType(ctx, field)
+	case "actorLabel":
+		return ec.fieldContext_AuditLogEntry_actorLabel(ctx, field)
+	case "action":
+		return ec.fieldContext_AuditLogEntry_action(ctx, field)
+	case "targetType":
+		return ec.fieldContext_AuditLogEntry_targetType(ctx, field)
+	case "targetId":
+		return ec.fieldContext_AuditLogEntry_targetId(ctx, field)
+	case "targetLabel":
+		return ec.fieldContext_AuditLogEntry_targetLabel(ctx, field)
+	case "before":
+		return ec.fieldContext_AuditLogEntry_before(ctx, field)
+	case "after":
+		return ec.fieldContext_AuditLogEntry_after(ctx, field)
+	case "ip":
+		return ec.fieldContext_AuditLogEntry_ip(ctx, field)
+	case "userAgent":
+		return ec.fieldContext_AuditLogEntry_userAgent(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_AuditLogEntry_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AuditLogEntry", field.Name)
 }
 
 func (ec *executionContext) childFields_AuthorisedOauthApp(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -24182,6 +24363,28 @@ func (ec *executionContext) field_Query_attachmentsForURL_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_auditLog_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_comments_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -26191,6 +26394,305 @@ func (ec *executionContext) fieldContext_AttachmentPayload_attachment(_ context.
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _AuditLogEntry_id(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_actorUserId(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_actorUserId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ActorUserID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_actorUserId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_actorType(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_actorType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ActorType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_actorType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_actorLabel(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_actorLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ActorLabel, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_actorLabel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_action(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_action(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Action, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_action(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_targetType(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_targetType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TargetType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_targetType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_targetId(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_targetId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TargetID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_targetId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_targetLabel(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_targetLabel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TargetLabel, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_targetLabel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_before(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_before(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Before, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalOJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_before(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_after(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_after(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.After, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v json.RawMessage) graphql.Marshaler {
+			return ec.marshalOJSON2encodingᚋjsonᚐRawMessage(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_after(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_ip(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_ip(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IP, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_ip(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_userAgent(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_userAgent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserAgent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_userAgent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuditLogEntry_createdAt(ctx context.Context, field graphql.CollectedField, obj *AuditLogEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditLogEntry_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AuditLogEntry_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditLogEntry", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _AuthorisedOauthApp_id(ctx context.Context, field graphql.CollectedField, obj *AuthorisedOauthApp) (ret graphql.Marshaler) {
@@ -57085,6 +57587,50 @@ func (ec *executionContext) fieldContext_Query_webhookDeliveries(ctx context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_auditLog(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_auditLog(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AuditLog(ctx, fc.Args["first"].(*int), fc.Args["after"].(*uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []AuditLogEntry) graphql.Marshaler {
+			return ec.marshalNAuditLogEntry2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAuditLogEntryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_auditLog(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AuditLogEntry(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_auditLog_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_oauthClients(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -73513,6 +74059,104 @@ func (ec *executionContext) _AttachmentPayload(ctx context.Context, sel ast.Sele
 	return out
 }
 
+var auditLogEntryImplementors = []string{"AuditLogEntry"}
+
+func (ec *executionContext) _AuditLogEntry(ctx context.Context, sel ast.SelectionSet, obj *AuditLogEntry) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, auditLogEntryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AuditLogEntry")
+		case "id":
+			out.Values[i] = ec._AuditLogEntry_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "actorUserId":
+			out.Values[i] = ec._AuditLogEntry_actorUserId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "actorType":
+			out.Values[i] = ec._AuditLogEntry_actorType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "actorLabel":
+			out.Values[i] = ec._AuditLogEntry_actorLabel(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "action":
+			out.Values[i] = ec._AuditLogEntry_action(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "targetType":
+			out.Values[i] = ec._AuditLogEntry_targetType(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "targetId":
+			out.Values[i] = ec._AuditLogEntry_targetId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "targetLabel":
+			out.Values[i] = ec._AuditLogEntry_targetLabel(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "before":
+			out.Values[i] = ec._AuditLogEntry_before(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "after":
+			out.Values[i] = ec._AuditLogEntry_after(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "ip":
+			out.Values[i] = ec._AuditLogEntry_ip(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "userAgent":
+			out.Values[i] = ec._AuditLogEntry_userAgent(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._AuditLogEntry_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var authorisedOauthAppImplementors = []string{"AuthorisedOauthApp"}
 
 func (ec *executionContext) _AuthorisedOauthApp(ctx context.Context, sel ast.SelectionSet, obj *AuthorisedOauthApp) graphql.Marshaler {
@@ -83767,6 +84411,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "auditLog":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_auditLog(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "oauthClients":
 			field := field
 
@@ -87684,6 +88350,26 @@ func (ec *executionContext) marshalNAttachmentPayload2ᚖgithubᚗcomᚋpeixotol
 		return graphql.Null
 	}
 	return ec._AttachmentPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAuditLogEntry2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAuditLogEntry(ctx context.Context, sel ast.SelectionSet, v AuditLogEntry) graphql.Marshaler {
+	return ec._AuditLogEntry(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAuditLogEntry2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAuditLogEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []AuditLogEntry) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAuditLogEntry2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAuditLogEntry(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNAuthorisedOauthApp2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐAuthorisedOauthApp(ctx context.Context, sel ast.SelectionSet, v AuthorisedOauthApp) graphql.Marshaler {

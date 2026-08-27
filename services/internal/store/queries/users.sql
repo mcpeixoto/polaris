@@ -19,6 +19,20 @@ SELECT id, workspace_id, account_id, name, display_name, avatar_url, timezone,
 FROM "user"
 WHERE account_id = sqlc.arg(account_id) AND workspace_id = sqlc.arg(workspace_id);
 
+-- Every workspace membership one account holds.
+--
+-- A sign-in happens to an account, but the audit log is workspace-scoped, so one sign-in
+-- produces one entry per workspace the account can reach. Archived memberships are excluded:
+-- somebody removed from a workspace last month did not sign in to it today, and an entry
+-- saying otherwise in that workspace's audit log would be a false positive in the one place
+-- false positives are expensive.
+-- name: ListUsersForAccount :many
+SELECT id, workspace_id, account_id, name, display_name, avatar_url, timezone,
+       role, status, kind, last_seen_at,
+       archived_at, created_at, updated_at, notification_prefs
+FROM "user"
+WHERE account_id = sqlc.arg(account_id) AND archived_at IS NULL;
+
 -- name: ListUsersInWorkspace :many
 SELECT id, workspace_id, account_id, name, display_name, avatar_url, timezone,
        role, status, kind, last_seen_at,

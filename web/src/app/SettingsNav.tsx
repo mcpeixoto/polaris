@@ -83,6 +83,11 @@ const GROUPS: readonly SettingsGroup[] = [
       },
       { to: '/settings/templates', label: 'Templates', glyph: 'template', gate: 'member' },
       { to: '/settings/slas', label: 'SLAs', glyph: 'bell', gate: 'admin' },
+      // Visible to every admin, including on plans that do not include it: the screen
+      // itself explains the gate. Filtering the link on the entitlement would hide the
+      // feature's existence, which is the opposite of "disabled with a reason, never
+      // hidden".
+      { to: '/settings/audit-log', label: 'Audit log', glyph: 'key', gate: 'admin' },
     ],
   },
   {

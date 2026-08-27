@@ -124,6 +124,33 @@ type AttachmentPayload struct {
 
 func (AttachmentPayload) IsMutationResult() {}
 
+// One security-relevant event: who did what, to what, from where.
+//
+// Read on the admin-only audit log screen. Not on the sync stream — a workspace-wide record
+// of everybody's administrative actions does not belong in every member's local replica.
+type AuditLogEntry struct {
+	ID uuid.UUID `json:"id"`
+	// The actor's user id, or null once that user has been deleted. Use actorLabel to name
+	// them: it is the name as it read when the event happened, and it survives the deletion.
+	ActorUserID *uuid.UUID `json:"actorUserId,omitempty"`
+	// One of: user, app_user, integration, system.
+	ActorType  string `json:"actorType"`
+	ActorLabel string `json:"actorLabel"`
+	// A dotted name, e.g. member.role_changed. Stable enough to filter and export on.
+	Action string `json:"action"`
+	// Null together with targetId, for events that act on nobody — a sign-in.
+	TargetType  *string    `json:"targetType,omitempty"`
+	TargetID    *uuid.UUID `json:"targetId,omitempty"`
+	TargetLabel *string    `json:"targetLabel,omitempty"`
+	// The entity either side of the change. Null where the event has no such side. Never contains a credential.
+	Before json.RawMessage `json:"before,omitempty"`
+	After  json.RawMessage `json:"after,omitempty"`
+	// Null where the transport did not carry it; today only the sign-in paths do.
+	IP        *string   `json:"ip,omitempty"`
+	UserAgent *string   `json:"userAgent,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 // A third-party application this person has authorised in this workspace.
 //
 // Grouped by application: several live tokens for the same app are one row. Tokens

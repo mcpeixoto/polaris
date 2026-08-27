@@ -312,6 +312,25 @@ func (s *Service) UpdateTeam(ctx context.Context, p *authz.Principal, in UpdateT
 			changes = append(changes, descChanges...)
 		}
 
+		// Audited on the transition only, in both directions, and not on every team edit.
+		//
+		// Privacy is the one field on a team that changes who can READ things, which is why
+		// it is here while a rename is not: an audit log that records every edit to every
+		// team is one nobody scans. Opening a private team up is as much an access change as
+		// closing one, and it is the direction with no cleanup code to make it visible
+		// elsewhere, so it would otherwise leave no trace at all.
+		if before.Private != out.Private {
+			entry := s.auditBy(ctx, q, p, AuditTeamPrivacyChanged)
+			entry.TargetType = "team"
+			entry.TargetID = &out.ID
+			entry.TargetLabel = out.Name
+			entry.Before = map[string]any{"private": before.Private}
+			entry.After = map[string]any{"private": out.Private}
+			if err := s.recordAudit(ctx, q, entry); err != nil {
+				return err
+			}
+		}
+
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), changes...)
 		return err
 	})

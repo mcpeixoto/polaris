@@ -1,0 +1,14 @@
+{
+  // A tsconfig of its own, so that ESLint's type-aware rules have a program to ask.
+  //
+  // The edition typecheck itself is web/tsconfig.ee.json, which compiles this tree together
+  // with its core callers — that is the check that matters, because the two are one bundle.
+  // This file exists for the linter, which resolves a project per file and needs one rooted
+  // where the files are.
+  "extends": "../../web/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "../../web",
+    "paths": { "~/*": ["src/*"], "@ee/*": ["../ee/web/*"] }
+  },
+  "include": ["."]
+}

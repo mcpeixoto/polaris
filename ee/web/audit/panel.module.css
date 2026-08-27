@@ -1,0 +1,98 @@
+/*
+ * The audit log listing.
+ *
+ * COMMERCIALLY LICENSED — see ../../LICENSE. Not AGPL.
+ *
+ * A real <table>, for the same reason ApiKeys is one: every row is the same facts about a
+ * different event, and the questions asked of it are comparisons down a column — who did this
+ * repeatedly, what happened in this hour, which address does not belong. That is what a table
+ * is for, and it is what a screen reader can be driven through cell by cell.
+ *
+ * Every value is a design token. scripts/lint-tokens.sh enforces it, and the point is that a
+ * custom theme stays a list of declarations rather than a fork.
+ */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table thead th {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.caption {
+  padding-bottom: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+/* The action name is the column people scan, so it gets the monospace treatment that makes
+   a dotted identifier readable as one token rather than as a sentence. */
+.action {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.when {
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+/* An address is evidence, so it is shown exactly and never wrapped mid-octet. */
+.ip {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+/* An absent fact, styled so it does not read as a value. */
+.absent {
+  color: var(--text-tertiary);
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-10) 0;
+  color: var(--text-tertiary);
+}
+
+.failure {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  color: var(--priority-urgent);
+}
+
+.failureText {
+  margin: 0;
+  flex: 1;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4) 0;
+}

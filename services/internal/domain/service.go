@@ -31,6 +31,16 @@ type Service struct {
 	githubComments GitHubCommentPoster
 	gitlabComments GitLabCommentPoster
 
+	// audit records security-relevant events, and is nil in a community build.
+	//
+	// Not setter-injected like the two above, and the difference is what the nil means. A
+	// missing comment poster is a process that did not configure one; a nil recorder is a
+	// binary that does not contain one, decided at compile time by newAuditRecorder — see
+	// audit_core.go and audit_ee.go. Leaving it to a setter would let a caller "enable" the
+	// audit log in a build that has no code for it, which is the runtime flag ee/README.md
+	// rejects.
+	audit auditRecorder
+
 	// now is the clock the filter grammar's relative tokens resolve against.
 	//
 	// A field rather than a call to time.Now at the point of use, because "today" has to be
@@ -43,7 +53,7 @@ type Service struct {
 }
 
 func NewService(db *store.DB) *Service {
-	return &Service{db: db, now: time.Now}
+	return &Service{db: db, now: time.Now, audit: newAuditRecorder()}
 }
 
 // SetGitHubCommentPoster is how the API process posts linkbacks. Tests inject a recorder.

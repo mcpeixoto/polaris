@@ -21,6 +21,23 @@ The `ee/` split is what makes the enterprise upsell legally possible. It is the 
 
 ## Repository layout
 
+> **The sketch below is the original plan and the repository did not follow it.** The
+> commercial code lives under the top-level `ee/` directory — `ee/audit/`, `ee/web/` — and
+> not under `services/ee/` and `web/src/ee/`. `ee/README.md` describes what is actually
+> there.
+>
+> The reason is the scope rule in `ee/LICENSE`, which is the document that decides the
+> question: it governs "the contents of the `ee/` directory", and closes with "If a file's
+> placement is ambiguous, the directory it lives in decides — and a file that would be
+> ambiguous belongs in the core." A directory called `ee` nested inside AGPL source is
+> exactly that ambiguity, and resolving it in the licence's own terms puts the code under
+> the licence that names it. The cost is that `ee/` is a second Go module and cannot import
+> `services/internal/...`; the mechanism that works around it is described in
+> `ee/README.md`.
+>
+> Everything below about *build separation being real*, the two image sets, and licence keys
+> stands unchanged.
+
 ```
 polaris/
 ├── LICENSE                 AGPL-3.0-only        <- everything except ee/

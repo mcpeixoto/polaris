@@ -28,7 +28,7 @@ func principal(role Role, teams ...uuid.UUID) *Principal {
 // somebody adding an action to come back and classify it rather than only appending to
 // the const block.
 func TestEveryActionIsClassified(t *testing.T) {
-	const want = 36
+	const want = 37
 	if len(AllActions) != want {
 		t.Fatalf("AllActions has %d entries, expected %d — a new action must be added to "+
 			"AllActions and to teamScoped if it is team-scoped", len(AllActions), want)

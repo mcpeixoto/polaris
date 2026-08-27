@@ -5289,6 +5289,27 @@ func (r *queryResolver) WebhookDeliveries(ctx context.Context, webhookID uuid.UU
 	return toWebhookDeliveries(rows), nil
 }
 
+// AuditLog is the resolver for the auditLog field.
+func (r *queryResolver) AuditLog(ctx context.Context, first *int, after *uuid.UUID) ([]generated.AuditLogEntry, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	n := 0
+	if first != nil {
+		n = *first
+	}
+	// The admin check and the entitlement gate both live in the domain layer, which is why
+	// neither appears here. The *entitlement.Error it can return is passed through
+	// unmodified: it unwraps to PLAN_LIMIT and carries the structure a paywall renders from,
+	// and wrapping it would leave the client a sentence to string-match instead.
+	rows, err := r.Svc.ListAuditLog(ctx, p, n, after)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toAuditLogEntries(rows), nil
+}
+
 // OauthClients is the resolver for the oauthClients field.
 func (r *queryResolver) OauthClients(ctx context.Context) ([]generated.OauthClient, error) {
 	p, err := principalFrom(ctx)

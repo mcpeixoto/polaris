@@ -25,7 +25,7 @@ fi
 
 # --- 1. literal colours ---------------------------------------------------------------
 
-hits=$(grep -rnE '#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(' web/src --include='*.css' \
+hits=$(grep -rnE '#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(' web/src ee/web --include='*.css' \
         | grep -v "^$TOKENS:" || true)
 if [ -n "$hits" ]; then
   echo "FAIL: literal colours outside tokens.css — custom themes cannot override these:"
@@ -58,7 +58,7 @@ while IFS= read -r file; do
     echo "FAIL: $file references $token, which is neither a token in $TOKENS nor declared in the file itself"
     fail=1
   done
-done < <(find web/src -name '*.css' | sort)
+done < <(find web/src ee/web -name '*.css' | sort)
 
 if [ $fail -eq 0 ]; then
   echo "design tokens: ok"

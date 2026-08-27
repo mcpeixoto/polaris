@@ -429,7 +429,12 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (uuid.UUID, Session,
 			return platform.Internal(err)
 		}
 		session, err = s.issueSession(ctx, q, acct.ID, in.UserAgent, in.IP)
-		return err
+		if err != nil {
+			return err
+		}
+		// Audited here rather than in issueSession, which also mints sessions for
+		// registration and for every token refresh. A refresh is not a sign-in.
+		return s.auditSignIn(ctx, q, acct.ID, in.UserAgent, in.IP)
 	})
 	return acct.ID, session, err
 }
@@ -677,7 +682,16 @@ func (s *Service) InviteToWorkspace(ctx context.Context, p *authz.Principal, in 
 			ID: row.ID, Email: row.Email, Role: row.Role,
 			Token: plain, ExpiresAt: row.ExpiresAt,
 		}
-		return nil
+
+		// The invitation, not the token. `plain` is a live credential that grants membership
+		// to whoever holds it, and this table is permanent and readable by every admin —
+		// writing it here would turn the audit log into a place to harvest working invites.
+		entry := s.auditBy(ctx, q, p, AuditInviteSent)
+		entry.TargetType = "invite"
+		entry.TargetID = &row.ID
+		entry.TargetLabel = row.Email
+		entry.After = map[string]any{"email": row.Email, "role": row.Role, "teamIds": row.TeamIds}
+		return s.recordAudit(ctx, q, entry)
 	})
 	return out, err
 }
@@ -829,6 +843,26 @@ func (s *Service) applyInvite(
 
 	if err := q.AcceptInvite(ctx, store.AcceptInviteParams{ID: inv.ID, AcceptedBy: &userID}); err != nil {
 		return model.User{}, platform.Internal(err)
+	}
+
+	// Hooked here rather than in AcceptInvite, because this is the shared redemption path:
+	// Register redeems an invitation too, and auditing the caller instead would miss every
+	// person who joined by signing up from the invitation email.
+	//
+	// The actor is the invitee, not an administrator — nobody else is present. That is the
+	// pair to invite.sent, and reading the two together is what answers "who let them in".
+	acceptance := AuditEntry{
+		WorkspaceID: inv.WorkspaceID,
+		Actor:       authz.UserActor(userID),
+		ActorLabel:  user.DisplayName,
+		Action:      AuditInviteAccepted,
+		TargetType:  "invite",
+		TargetID:    &inv.ID,
+		TargetLabel: inv.Email,
+		After:       map[string]any{"userId": userID, "role": inv.Role},
+	}
+	if err := s.recordAudit(ctx, q, acceptance); err != nil {
+		return model.User{}, err
 	}
 
 	if _, err := s.em.Emit(ctx, q, inv.WorkspaceID, authz.UserActor(userID), changes...); err != nil {
