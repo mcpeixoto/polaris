@@ -192,7 +192,20 @@ public enum FixtureData {
      {"id":"u2","name":"ana","displayName":"Ana Silva","avatarUrl":null,"email":null}]
     """)
 
-    public static let issues: [Issue] = [
+    // ===== QA-ONLY (temporary, added for a QA sweep of the issue list) =====
+    // `issues` was a `let` holding the four-issue array inline. It still is a `let`; it just
+    // picks an edge-case set when a `-qa-*` launch argument is present. With no such argument
+    // the value is byte-for-byte the original four-issue set. Statics are lazy in Swift, so
+    // this reads the launch arguments after the process has them.
+    public static let issues: [Issue] = {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-qa-empty") { return [] }
+        if arguments.contains("-qa-only-completed") { return completedOnlyIssues }
+        if arguments.contains("-qa-stress") { return stressIssues }
+        return baseIssues
+    }()
+
+    public static let baseIssues: [Issue] = [
         issue(id: "i1", identifier: "ENG-1", title: "Sync drops a comment on reconnect",
               priority: .urgent, state: states[2], assignee: users[0]),
         issue(id: "i2", identifier: "ENG-2", title: "Command menu forgets its last action",
@@ -202,6 +215,87 @@ public enum FixtureData {
         issue(id: "i4", identifier: "ENG-4", title: "Retire the old exporter",
               priority: Priority.none, state: states[3]),
     ]
+
+    /// Everything assigned is finished, so the default filter renders an empty list.
+    public static let completedOnlyIssues: [Issue] = [
+        issue(id: "c1", identifier: "ENG-1", title: "Retire the old exporter",
+              priority: .high, state: states[3], assignee: users[0]),
+        issue(id: "c2", identifier: "ENG-2", title: "Delete the dead feature flag",
+              priority: Priority.none, state: states[3], assignee: users[0]),
+    ]
+
+    /// Volume plus the layout edge cases: a title far past two lines, five labels where the
+    /// row shows two, no assignee, a long identifier, every priority, and a due date.
+    public static let stressIssues: [Issue] = {
+        let longTitle = "A deliberately enormous issue title that keeps going well past any "
+            + "reasonable two-line clamp so the row has to decide what to do about it, and "
+            + "then keeps going a good deal further still just to be certain"
+        var list: [Issue] = [
+            qaIssue(id: "x1", identifier: "PLATFORM-100234", title: longTitle,
+                    priority: .urgent, state: states[2], assignee: nil, labelCount: 5,
+                    dueDate: "2026-09-30"),
+            qaIssue(id: "x2", identifier: "ENG-2", title: "Row with five labels and no assignee",
+                    priority: .high, state: states[1], assignee: nil, labelCount: 5),
+            qaIssue(id: "x3", identifier: "INFRASTRUCTURE-9912",
+                    title: "Unbroken token: Supercalifragilisticexpialidocious_Antidisestablishmentarianism_Pneumonoultramicroscopicsilicovolcanoconiosis",
+                    priority: .low, state: states[0], assignee: users[1], labelCount: 1),
+            qaIssue(id: "x4", identifier: "ENG-4", title: "No priority, sorts last among open",
+                    priority: Priority.none, state: states[1], assignee: users[0], labelCount: 0),
+        ]
+        // Enough rows to scroll several screens, so the stagger can be watched under a flick.
+        let cycle: [Priority] = [.urgent, .high, .medium, .low, Priority.none]
+        for index in 0..<40 {
+            list.append(
+                qaIssue(
+                    id: "v\(index)", identifier: "ENG-\(100 + index)",
+                    title: "Volume row \(index) — enough text to occupy a full line of the row",
+                    priority: cycle[index % cycle.count],
+                    state: states[index % 3],
+                    assignee: index.isMultiple(of: 2) ? users[0] : nil,
+                    labelCount: index % 4
+                )
+            )
+        }
+        // One completed issue so "Show completed" has something to reveal at this volume.
+        list.append(
+            qaIssue(id: "vdone", identifier: "ENG-999", title: "Finished, and hidden by default",
+                    priority: .urgent, state: states[3], assignee: users[0], labelCount: 2)
+        )
+        return list
+    }()
+
+    /// Like `issue(...)` but able to attach labels and a due date, which the row renders and
+    /// the original builder cannot express.
+    public static func qaIssue(
+        id: String,
+        identifier: String,
+        title: String,
+        priority: Priority,
+        state: WorkflowState,
+        assignee: User?,
+        labelCount: Int,
+        dueDate: String? = nil
+    ) -> Issue {
+        let names = ["backend", "needs-design", "regression", "customer-reported", "p0-escalation"]
+        let colors = ["#5B8DEF", "#F5B700", "#3FB950", "#EF5B5B", "#B65BEF"]
+        let labels = (0..<max(0, min(labelCount, names.count))).map { index in
+            "{\"id\":\"l\(id)-\(index)\",\"name\":\"\(names[index])\",\"color\":\"\(colors[index])\"}"
+        }
+        let assigneeJSON = assignee.map {
+            "{\"id\":\"\($0.id)\",\"name\":\"\($0.name)\",\"displayName\":\"\($0.displayName)\",\"avatarUrl\":null,\"email\":null}"
+        } ?? "null"
+        let stateJSON = "{\"id\":\"\(state.id)\",\"name\":\"\(state.name)\",\"color\":\"\(state.color)\",\"category\":\"\(state.category.rawValue)\",\"position\":\"\(state.position)\"}"
+        let dueJSON = dueDate.map { "\"\($0)\"" } ?? "null"
+        return decoded("""
+        {"id":"\(id)","identifier":"\(identifier)","title":"\(title)","description":"",
+         "priority":\(priority.rawValue),"estimate":null,"dueDate":\(dueJSON),
+         "state":\(stateJSON),
+         "team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF"},
+         "assignee":\(assigneeJSON),"creator":null,"labels":[\(labels.joined(separator: ","))],
+         "createdAt":"2026-08-01T09:00:00Z","updatedAt":"2026-08-20T09:00:00Z"}
+        """)
+    }
+    // ===== end QA-ONLY =====
 
     public static func issue(
         id: String,
