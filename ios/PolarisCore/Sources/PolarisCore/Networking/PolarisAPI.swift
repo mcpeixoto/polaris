@@ -21,6 +21,21 @@ public protocol PolarisAPI: Sendable {
     // Auth
     func signInWithDevSession() async throws -> Session
     func signIn(email: String, password: String) async throws -> Session
+    /// Creates an account.
+    ///
+    /// `inviteToken` is what admits the caller on a default install: registration mode is
+    /// `invite`, under which exactly two people may register — somebody holding an invitation,
+    /// and the very first account on an empty server. The token rides along with the
+    /// credentials rather than being redeemed separately so the account and the workspace
+    /// membership are one transaction.
+    func register(email: String, password: String, inviteToken: String?, displayName: String?) async throws -> Session
+    /// Creates a workspace and its first team, for an account that belongs to none.
+    func createWorkspace(_ draft: WorkspaceDraft) async throws -> Workspace
+    /// Trades the stored refresh cookie for a new session, or throws if there is none.
+    ///
+    /// URLSession persists the cookie across launches, so this is what stops the app asking
+    /// for a password every time it is opened.
+    func restoreSession() async throws -> Session
     func signOut() async
 
     /// Which workspace subsequent calls are scoped to. Every GraphQL request carries it as
@@ -144,5 +159,97 @@ public enum UUIDv7 {
 
     private static func UInt8truncating(_ value: UInt64) -> UInt8 {
         UInt8(value & 0xFF)
+    }
+}
+
+
+/// A new workspace, as the create screen collects it.
+///
+/// The server derives nothing: it wants the workspace name and URL key, the creator's own
+/// name and timezone, and the first team's key and name, all in one call. `decodeJSON` is
+/// configured with `DisallowUnknownFields`, so this must carry exactly the keys the handler
+/// declares and no others.
+public struct WorkspaceDraft: Sendable, Hashable {
+    public var name: String
+    public var urlKey: String
+    public var userName: String
+    public var userDisplayName: String
+    public var userTimezone: String
+    public var firstTeamKey: String
+    public var firstTeamName: String
+
+    public init(
+        name: String,
+        urlKey: String,
+        userName: String,
+        userDisplayName: String,
+        userTimezone: String = TimeZone.current.identifier,
+        firstTeamKey: String,
+        firstTeamName: String
+    ) {
+        self.name = name
+        self.urlKey = urlKey
+        self.userName = userName
+        self.userDisplayName = userDisplayName
+        self.userTimezone = userTimezone
+        self.firstTeamKey = firstTeamKey
+        self.firstTeamName = firstTeamName
+    }
+}
+
+/// Turns a workspace name into a URL key, and a team name into a team key.
+///
+/// Both are derived as the user types and stop following once they edit the derived field by
+/// hand — the same rule the web client's CreateWorkspace screen uses. Deriving forever would
+/// overwrite a deliberate choice on the next keystroke of the name.
+///
+/// **These mirror server regexes and must keep mirroring them**, because a key this produces
+/// that the server refuses is a dead end on the very first screen of a fresh install:
+///
+///   urlKey   ^[a-z0-9][a-z0-9-]{1,47}$     (workspace.go:19)  — ASCII only, at least 2 chars
+///   teamKey  ^[A-Z][A-Z0-9]{0,7}$          (team.go:20)       — ASCII only, must start alpha
+///
+/// `Character.isLetter`/`isNumber` accept the whole Unicode letter and number classes, so an
+/// earlier version derived `café-ltd` from "Café Ltd" and `МИР` from "Мир" — both refused by
+/// the server — and `3MD` from "3M Design", refused for starting with a digit.
+public enum KeyDerivation {
+    /// Lowercase ASCII alphanumerics and single hyphens. `"Peixoto Labs"` -> `"peixoto-labs"`.
+    ///
+    /// Returns "" when nothing usable survives, which the caller must treat as "not ready"
+    /// rather than sending it.
+    public static func urlKey(from name: String) -> String {
+        var out = ""
+        var lastWasHyphen = true          // leading hyphens are dropped
+        // Fold accents first, so "Café" contributes "cafe" instead of losing the é entirely.
+        let folded = name.folding(options: [.diacriticInsensitive], locale: .init(identifier: "en_US"))
+        for character in folded.lowercased() {
+            if character.isASCII && (character.isLetter || character.isNumber) {
+                out.append(character)
+                lastWasHyphen = false
+            } else if !lastWasHyphen {
+                out.append("-")
+                lastWasHyphen = true
+            }
+        }
+        while out.hasSuffix("-") { out.removeLast() }
+        out = String(out.prefix(48))
+        // The pattern demands a second character. A one-character name is legitimate, so pad
+        // rather than refuse — "X" becomes "x-1", which is ugly and accepted, where "x" is
+        // tidy and rejected.
+        if out.count == 1 { out += "-1" }
+        return out
+    }
+
+    /// Up to three uppercase ASCII characters, always starting with a letter.
+    /// `"Engineering"` -> `"ENG"`, `"3M Design"` -> `"MD"`.
+    public static func teamKey(from name: String) -> String {
+        let folded = name.folding(options: [.diacriticInsensitive], locale: .init(identifier: "en_US"))
+        var characters = Array(folded.uppercased().filter { $0.isASCII && ($0.isLetter || $0.isNumber) })
+        // Digits are legal *inside* a key but not as the first character, so lead with the
+        // first letter and keep whatever follows.
+        while let first = characters.first, !first.isLetter {
+            characters.removeFirst()
+        }
+        return String(characters.prefix(3))
     }
 }

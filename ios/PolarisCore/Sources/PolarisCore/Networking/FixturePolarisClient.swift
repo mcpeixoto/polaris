@@ -20,13 +20,26 @@ public actor FixturePolarisClient: PolarisAPI {
     /// a test can assert both the failure and the recovery.
     private var failNextWrite: PolarisError?
 
+    /// Whether the boot path finds a session. False makes the auth screens reachable, which
+    /// they otherwise are not: `signInWithDevSession` always succeeding meant the app went
+    /// straight to the issue list and welcome/sign-in/sign-up could not be driven at all.
+    private let signedIn: Bool
+
+    /// Whether that session belongs to a workspace. False is the state every first
+    /// registration lands in, and the only route to the create-workspace screen.
+    private let hasWorkspace: Bool
+
     public init(
+        signedIn: Bool = true,
+        hasWorkspace: Bool = true,
         issues: [Issue] = FixtureData.issues,
         people: [User] = FixtureData.users,
         teams: [Team] = [FixtureData.team],
         states: [WorkflowState] = FixtureData.states,
         comments: [String: [Comment]] = [:]
     ) {
+        self.signedIn = signedIn
+        self.hasWorkspace = hasWorkspace
         self.storedIssues = issues
         self.people = people
         self.allTeams = teams
@@ -48,15 +61,46 @@ public actor FixturePolarisClient: PolarisAPI {
     // MARK: - Auth
 
     public func signInWithDevSession() async throws -> Session {
+        guard signedIn else { throw PolarisError.forbidden }
+        return session()
+    }
+
+    private func session() -> Session {
         Session(
-            accessToken: "fixture", expiresIn: 900, accountId: "account",
-            workspaces: [FixtureData.workspace]
+            accessToken: "fixture",
+            expiresIn: 900,
+            accountId: "account",
+            // No workspaces is what puts AppModel into `.needsWorkspace`.
+            workspaces: hasWorkspace ? [FixtureData.workspace] : []
         )
     }
 
     public func signIn(email: String, password: String) async throws -> Session {
-        guard password == "correct-horse" else { throw PolarisError.unauthorized }
-        return try await signInWithDevSession()
+        guard password == "correct-horse" else {
+            throw PolarisError.unauthorized("incorrect email or password")
+        }
+        return session()
+    }
+
+    public func register(
+        email: String,
+        password: String,
+        inviteToken: String?,
+        displayName: String?
+    ) async throws -> Session {
+        guard password.count >= 8 else {
+            throw PolarisError.validation(message: "Password must be at least 8 characters", field: "password")
+        }
+        return session()
+    }
+
+    public func createWorkspace(_ draft: WorkspaceDraft) async throws -> Workspace {
+        try consumeFailure()
+        return FixtureData.workspace
+    }
+
+    public func restoreSession() async throws -> Session {
+        throw PolarisError.unauthorized(nil)
     }
 
     public func signOut() async {}
@@ -119,17 +163,22 @@ public actor FixturePolarisClient: PolarisAPI {
         guard let index = storedIssues.firstIndex(where: { $0.id == change.id }) else {
             throw PolarisError.notFound
         }
-        let existing = storedIssues[index]
-        let updated = FixtureData.issue(
-            id: existing.id,
-            identifier: existing.identifier,
-            title: change.title ?? existing.title,
-            priority: change.priority ?? existing.priority,
-            state: change.stateId.flatMap { id in states.first { $0.id == id } } ?? existing.state,
-            assignee: change.clearAssignee
-                ? nil
-                : (change.assigneeId.flatMap { id in people.first { $0.id == id } } ?? existing.assignee)
-        )
+        // Mutated, not rebuilt. Rebuilding through FixtureData.issue silently dropped
+        // description, labels, estimate, dueDate and timestamps, so any property change made
+        // the description vanish — which reads as a product bug and is a defect in the test
+        // double.
+        var updated = storedIssues[index]
+        if let stateId = change.stateId, let next = states.first(where: { $0.id == stateId }) {
+            updated.state = next
+        }
+        if let priority = change.priority {
+            updated.priority = priority
+        }
+        if change.clearAssignee {
+            updated.assignee = nil
+        } else if let assigneeId = change.assigneeId {
+            updated.assignee = people.first { $0.id == assigneeId }
+        }
         storedIssues[index] = updated
         return updated
     }
@@ -150,7 +199,7 @@ public actor FixturePolarisClient: PolarisAPI {
 /// passing after a decoding bug was introduced.
 public enum FixtureData {
     public static let workspace: Workspace = decoded(
-        #"{"id":"w1","name":"Peixoto Labs","urlKey":"peixotolabs"}"#
+        #"{"id":"w1","name":"Peixoto Labs","urlKey":"peixotolabs","plan":"pro"}"#
     )
 
     // Delimited with ##"…"## rather than #"…"#: the colour value starts with `#` directly

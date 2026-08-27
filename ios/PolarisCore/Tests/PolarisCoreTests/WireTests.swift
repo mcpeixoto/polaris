@@ -116,14 +116,27 @@ struct ErrorTests {
     func retryability() {
         #expect(PolarisError.offline.isRetryable)
         #expect(PolarisError.timedOut.isRetryable)
-        #expect(PolarisError.unauthorized.isRetryable == false)
+        #expect(PolarisError.unauthorized(nil).isRetryable == false)
         #expect(PolarisError.validation(message: "no", field: nil).isRetryable == false)
+    }
+
+    @Test("a 401 says what the server said, not what we assumed")
+    func unauthorizedCarriesServerCopy() {
+        // Production answers a bad password with "incorrect email or password". Showing
+        // "Your session expired" there tells somebody who mistyped that something else broke.
+        #expect(
+            PolarisError.unauthorized("incorrect email or password").displayMessage
+                == "incorrect email or password"
+        )
+        // An expired token arrives with no sentence of its own, and then the fallback is the
+        // right one.
+        #expect(PolarisError.unauthorized(nil).displayMessage == "Your session expired. Sign in again.")
     }
 
     @Test("every case has copy that can be shown to a user")
     func displayMessages() {
         let cases: [PolarisError] = [
-            .offline, .timedOut, .unauthorized, .forbidden, .notFound,
+            .offline, .timedOut, .unauthorized(nil), .forbidden, .notFound,
             .rateLimited(retryAfter: 30), .validation(message: "Title is required", field: "title"),
             .server(status: 500, message: nil), .decoding("x"), .badResponse,
         ]

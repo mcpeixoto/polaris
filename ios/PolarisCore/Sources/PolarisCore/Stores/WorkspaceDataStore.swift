@@ -13,6 +13,10 @@ public final class WorkspaceDataStore {
     public private(set) var teams: Loadable<[Team]> = .idle
     public private(set) var users: Loadable<[User]> = .idle
     public private(set) var statesByTeam: [String: [WorkflowState]] = [:]
+    /// Teams whose states could not be fetched, as distinct from teams that genuinely have
+    /// none. Without the distinction a transient network failure silently disables the status
+    /// picker for the rest of the session.
+    public private(set) var statesFailedForTeam: Set<String> = []
 
     private let api: any PolarisAPI
 
@@ -31,15 +35,23 @@ public final class WorkspaceDataStore {
         // States are per-team and the app needs them the moment a status picker opens, which
         // is too late to start a request. Fetched concurrently, once.
         if case .loaded(let loadedTeams) = teams {
-            await withTaskGroup(of: (String, [WorkflowState]).self) { group in
+            await withTaskGroup(of: (String, [WorkflowState], Bool).self) { group in
                 for team in loadedTeams {
                     group.addTask {
-                        let states = (try? await self.api.workflowStates(teamId: team.id)) ?? []
-                        return (team.id, states)
+                        do {
+                            return (team.id, try await self.api.workflowStates(teamId: team.id), true)
+                        } catch {
+                            return (team.id, [], false)
+                        }
                     }
                 }
-                for await (teamId, states) in group {
-                    statesByTeam[teamId] = states.sorted { $0.position < $1.position }
+                for await (teamId, states, ok) in group {
+                    if ok {
+                        statesByTeam[teamId] = states.sorted { $0.position < $1.position }
+                        statesFailedForTeam.remove(teamId)
+                    } else {
+                        statesFailedForTeam.insert(teamId)
+                    }
                 }
             }
         }

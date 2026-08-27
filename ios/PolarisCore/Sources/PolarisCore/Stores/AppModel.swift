@@ -8,19 +8,40 @@ import Observation
 @MainActor
 @Observable
 public final class AppModel {
+    /// Where the app is in getting somebody to their issues.
+    ///
+    /// `needsWorkspace` is its own case rather than a flag on `ready`. An account that exists
+    /// but belongs to no workspace is a real state the server can return — it is what every
+    /// first sign-up lands in — and folding it into "signed out" would send somebody who just
+    /// created an account back to a password field.
     public enum Phase: Sendable, Equatable {
         case launching
         case signedOut(PolarisError?)
+        case needsWorkspace
         case ready(Viewer)
     }
 
     public private(set) var phase: Phase = .launching
     public let api: any PolarisAPI
 
+    /// Remembered from registration so the workspace screen does not have to ask for a name
+    /// the person typed two screens ago — and so it never sends the *workspace* name as the
+    /// creator's name, which is what it would otherwise have to guess.
+    public private(set) var accountDisplayName: String?
+
     public private(set) var issues: IssuesStore
     public private(set) var workspaceData: WorkspaceDataStore
 
     private let environment: PolarisEnvironment
+
+    /// The host this build talks to, for screens that show an address to the reader.
+    public var displayHost: String { environment.displayHost }
+
+    /// The signed-in user, when there is one.
+    public var currentUser: User? {
+        if case .ready(let viewer) = phase { return viewer.user }
+        return nil
+    }
 
     public init(environment: PolarisEnvironment, api: (any PolarisAPI)? = nil) {
         let client = api ?? LivePolarisClient(environment: environment)
@@ -30,35 +51,77 @@ public final class AppModel {
         self.workspaceData = WorkspaceDataStore(api: client)
     }
 
-    /// Boot order copied from the web client: try to resume an existing session, and only
-    /// fall back to the dev session where the environment allows one. A sign-in form is the
-    /// last resort, not the first thing a developer sees on every launch.
+    /// Boot order, copied from the web client: resume an existing session first, then fall
+    /// back to the dev session where the environment allows one, and only then show a form.
+    /// A sign-in screen on every launch is the most common self-inflicted wound in a mobile
+    /// client that already holds a refresh cookie.
     public func start() async {
         phase = .launching
-        do {
-            let session: Session
-            if environment.allowsDevSession {
-                session = try await api.signInWithDevSession()
-            } else {
-                phase = .signedOut(nil)
-                return
-            }
+        if let session = try? await api.restoreSession() {
             await finishSignIn(session)
+            return
+        }
+        // The fixture client answers this without a network, which is how the signed-in
+        // screens become reachable on a machine with no backend.
+        if let session = try? await api.signInWithDevSession() {
+            await finishSignIn(session)
+            return
+        }
+        phase = .signedOut(nil)
+    }
+
+    public func signIn(email: String, password: String) async -> PolarisError? {
+        do {
+            await finishSignIn(try await api.signIn(email: email, password: password))
+            return nil
         } catch let error as PolarisError {
-            phase = .signedOut(error)
+            // Returned, not parked in `phase`. Writing the failure into `.signedOut(error)`
+            // made the welcome screen redisplay "incorrect email or password" after the
+            // reader had gone back from the form and dealt with it — an error re-announcing
+            // itself somewhere it cannot be acted on. `register` already worked this way.
+            return error
         } catch {
-            phase = .signedOut(.badResponse)
+            return .badResponse
         }
     }
 
-    public func signIn(email: String, password: String) async {
+    /// Registers, and reports the failure to the caller instead of only parking it in `phase`.
+    ///
+    /// The sign-up screen needs the error next to its own fields — a refusal that only reaches
+    /// a global phase leaves the form looking like nothing happened.
+    public func register(
+        email: String,
+        password: String,
+        inviteToken: String?,
+        displayName: String?
+    ) async -> PolarisError? {
         do {
-            let session = try await api.signIn(email: email, password: password)
+            let session = try await api.register(
+                email: email,
+                password: password,
+                inviteToken: inviteToken,
+                displayName: displayName
+            )
+            accountDisplayName = displayName
             await finishSignIn(session)
+            return nil
         } catch let error as PolarisError {
-            phase = .signedOut(error)
+            return error
         } catch {
-            phase = .signedOut(.badResponse)
+            return .badResponse
+        }
+    }
+
+    public func createWorkspace(_ draft: WorkspaceDraft) async -> PolarisError? {
+        do {
+            let workspace = try await api.createWorkspace(draft)
+            await api.useWorkspace(id: workspace.id)
+            await loadViewer()
+            return nil
+        } catch let error as PolarisError {
+            return error
+        } catch {
+            return .badResponse
         }
     }
 
@@ -70,9 +133,17 @@ public final class AppModel {
     }
 
     private func finishSignIn(_ session: Session) async {
-        if let first = session.workspaces.first {
-            await api.useWorkspace(id: first.id)
+        guard let first = session.workspaces.first else {
+            // Registered, but in no workspace yet. The create screen is the next step, not an
+            // error.
+            phase = .needsWorkspace
+            return
         }
+        await api.useWorkspace(id: first.id)
+        await loadViewer()
+    }
+
+    private func loadViewer() async {
         do {
             let viewer = try await api.viewer()
             await api.useWorkspace(id: viewer.workspace.id)

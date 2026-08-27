@@ -74,6 +74,60 @@ struct IssuesStoreTests {
         #expect(store.pendingIssueIDs.isEmpty)
     }
 
+    @Test("a refused status change puts the row back in its old place, not just its old state")
+    func rollbackRestoresPosition() async {
+        // Restoring the value without restoring the order leaves an urgent in-progress issue
+        // sitting below a medium one — a second, stranger bug than the failed write.
+        let (store, api) = store()
+        await store.load()
+        let before = try! #require(store.issues.value).map(\.id)
+        let target = try! #require(store.issues.value?.first { $0.state.category == .started })
+
+        await api.setFailNextWrite(.forbidden)
+        await store.setState(issueID: target.id, to: FixtureData.states[3])
+
+        #expect(store.issues.value?.map(\.id) == before)
+    }
+
+    @Test("an issue changed elsewhere is merged, and re-sorted")
+    func mergeFromDetail() async {
+        // The detail screen writes through its own store. Without this the list keeps the old
+        // status indefinitely: nothing reloads on return, and refreshIfStale short-circuits
+        // because the version did not move — this client made the change.
+        let (store, _) = store()
+        await store.load()
+        let target = try! #require(store.issues.value?.first { $0.state.category == .started })
+        let done = FixtureData.states[3]
+
+        store.merge(
+            FixtureData.issue(
+                id: target.id,
+                identifier: target.identifier,
+                title: target.title,
+                priority: target.priority,
+                state: done
+            )
+        )
+
+        let merged = store.issues.value?.first { $0.id == target.id }
+        #expect(merged?.state.category == .completed)
+        // Finished work sinks, so the merged row must not still be at the top.
+        #expect(store.issues.value?.last?.id == target.id)
+    }
+
+    @Test("toggling the filter does not blank a list the reader is looking at")
+    func filterKeepsContent() async {
+        let (store, _) = store()
+        await store.load()
+        #expect(store.issues.value != nil)
+
+        await store.setIncludeCompleted(true)
+        // Never passes through `.loading`: blanking discards what is on screen, and turns a
+        // failed refetch into a full-screen error over a list that was fine.
+        #expect(store.issues.value != nil)
+        #expect(store.issues.isLoading == false)
+    }
+
     @Test("a failed refresh keeps the list the user is reading")
     func refreshFailureKeepsData() async {
         // The trade this asserts: a pull-to-refresh that fails must not blank the screen.
@@ -124,6 +178,40 @@ struct IssueDetailStoreTests {
 
         await store.postComment("   \n  ")
         #expect(store.comments.value?.isEmpty == true)
+    }
+
+    @Test("a refused property change is reported, not silently reverted")
+    func refusedPropertyChangeIsReported() async {
+        // All three property writers used to discard the error, so a refused change snapped
+        // back with nothing said anywhere on the screen. IssuesStore got this right; the
+        // detail store did not, and had no test for any of the three.
+        let api = FixturePolarisClient()
+        let store = IssueDetailStore(api: api, issue: FixtureData.issues[0])
+        await store.load()
+        let originalState = try! #require(store.issue.value).state.id
+
+        await api.setFailNextWrite(.forbidden)
+        await store.setState(FixtureData.states[3])
+
+        #expect(store.issue.value?.state.id == originalState)
+        #expect(store.propertyError != nil)
+    }
+
+    @Test("a property change updates the fixture without losing the rest of the issue")
+    func propertyChangeKeepsTheIssueIntact() async {
+        let api = FixturePolarisClient()
+        let seed = FixtureData.issues[0]
+        let store = IssueDetailStore(api: api, issue: seed)
+        await store.load()
+
+        await store.setPriority(.low)
+
+        let updated = try! #require(store.issue.value)
+        #expect(updated.priority == Priority.low)
+        // Rebuilding rather than mutating dropped these, which looks like the server losing
+        // data rather than the test double doing it.
+        #expect(updated.identifier == seed.identifier)
+        #expect(updated.team.id == seed.team.id)
     }
 
     @Test("a refused comment surfaces the reason and is not shown as posted")
