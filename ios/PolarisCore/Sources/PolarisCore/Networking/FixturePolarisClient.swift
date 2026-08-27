@@ -163,17 +163,22 @@ public actor FixturePolarisClient: PolarisAPI {
         guard let index = storedIssues.firstIndex(where: { $0.id == change.id }) else {
             throw PolarisError.notFound
         }
-        let existing = storedIssues[index]
-        let updated = FixtureData.issue(
-            id: existing.id,
-            identifier: existing.identifier,
-            title: change.title ?? existing.title,
-            priority: change.priority ?? existing.priority,
-            state: change.stateId.flatMap { id in states.first { $0.id == id } } ?? existing.state,
-            assignee: change.clearAssignee
-                ? nil
-                : (change.assigneeId.flatMap { id in people.first { $0.id == id } } ?? existing.assignee)
-        )
+        // Mutated, not rebuilt. Rebuilding through FixtureData.issue silently dropped
+        // description, labels, estimate, dueDate and timestamps, so any property change made
+        // the description vanish — which reads as a product bug and is a defect in the test
+        // double.
+        var updated = storedIssues[index]
+        if let stateId = change.stateId, let next = states.first(where: { $0.id == stateId }) {
+            updated.state = next
+        }
+        if let priority = change.priority {
+            updated.priority = priority
+        }
+        if change.clearAssignee {
+            updated.assignee = nil
+        } else if let assigneeId = change.assigneeId {
+            updated.assignee = people.first { $0.id == assigneeId }
+        }
         storedIssues[index] = updated
         return updated
     }

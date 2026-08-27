@@ -74,9 +74,14 @@ struct IssueDetailView: View {
                 }
                 .staggerRise(0)
 
-                properties(issue: issue, store: store)
-                    .padding(.top, 22)
-                    .staggerRise(1)
+                VStack(alignment: .leading, spacing: 8) {
+                    properties(issue: issue, store: store)
+                    if let error = store.propertyError {
+                        InlineErrorLabel(text: error.displayMessage)
+                    }
+                }
+                .padding(.top, 22)
+                .staggerRise(1)
 
                 comments(store: store)
                     .padding(.top, 22)
@@ -118,9 +123,43 @@ struct IssueDetailView: View {
         }
     }
 
+    @ViewBuilder
     private func statusRow(issue: Issue, store: IssueDetailStore) -> some View {
         let states = model.workspaceData.states(forTeam: issue.team.id)
-        return Picker(
+        if states.isEmpty {
+            // A disabled control that explains nothing is worse than an absent one. The two
+            // reasons need different sentences, and only one of them is worth retrying.
+            HStack {
+                Text("Status").bodyFont(14).foregroundStyle(Theme.textSecondary)
+                Spacer()
+                if model.workspaceData.statesFailedForTeam.contains(issue.team.id) {
+                    Button {
+                        Task { await model.workspaceData.load() }
+                    } label: {
+                        Text("Couldn't load — retry")
+                            .bodyFont(12.5, weight: .semibold)
+                            .underline()
+                            .foregroundStyle(Theme.accentBright)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text("No statuses in this team")
+                        .bodyFont(12.5)
+                        .foregroundStyle(Theme.eyebrowText)
+                }
+            }
+            .padding(16)
+        } else {
+            statusPicker(issue: issue, store: store, states: states)
+        }
+    }
+
+    private func statusPicker(
+        issue: Issue,
+        store: IssueDetailStore,
+        states: [WorkflowState]
+    ) -> some View {
+        Picker(
             selection: Binding(
                 get: { issue.state.id },
                 set: { newId in
@@ -138,8 +177,6 @@ struct IssueDetailView: View {
         .tint(Theme.accentBright)
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
-        // A picker with nothing in it renders as a dead row; say why instead of offering it.
-        .disabled(states.isEmpty)
     }
 
     private func priorityRow(issue: Issue, store: IssueDetailStore) -> some View {
@@ -257,9 +294,12 @@ struct IssueDetailView: View {
 
             Button {
                 let body = draftComment
-                draftComment = ""
                 commentFocused = false
-                Task { await store.postComment(body) }
+                Task {
+                    // Cleared only once it has landed. Clearing first destroyed what the
+                    // reader typed the moment the server refused.
+                    if await store.postComment(body) { draftComment = "" }
+                }
             } label: {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 15, weight: .bold))
@@ -274,7 +314,8 @@ struct IssueDetailView: View {
                     || store.isPostingComment
             )
             .opacity(
-                draftComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1
+                draftComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || store.isPostingComment ? 0.5 : 1
             )
             .accessibilityLabel("Post comment")
         }
@@ -283,7 +324,9 @@ struct IssueDetailView: View {
     private func authorName(for comment: Comment) -> String {
         switch comment.actor.type {
         case .user, .appUser:
-            model.workspaceData.user(id: comment.actor.id)?.displayName ?? "Someone"
+            // A former member, or anyone absent from `users()`, has no name to show. "Someone"
+            // reads like a placeholder that failed to fill in; naming the condition does not.
+            model.workspaceData.user(id: comment.actor.id)?.displayName ?? "Former member"
         case .integration: "Integration"
         case .system: "Polaris"
         }

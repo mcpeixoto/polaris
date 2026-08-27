@@ -34,11 +34,9 @@ struct MainTabView: View {
         TabView {
             MyIssuesView()
                 .tabItem { SwiftUI.Label("Issues", systemImage: "checklist") }
-                .tag("issues")
 
             SettingsView(viewer: viewer)
                 .tabItem { SwiftUI.Label("Settings", systemImage: "gearshape") }
-                .tag("settings")
         }
         .tint(Theme.accentBright)
         // This client holds no replica and opens no socket; coming back to the foreground is

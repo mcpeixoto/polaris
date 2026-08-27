@@ -56,7 +56,12 @@ public struct Workspace: Codable, Sendable, Hashable, Identifiable {
         case "free": "Free"
         case "pro": "Pro"
         case "enterprise": "Enterprise"
-        default: plan.capitalized
+        case "": "Unknown"
+        default:
+            // Any plan the server adds before this app ships again. Underscores become spaces
+            // so `wildcat_tier` reads as "Wildcat tier" rather than keeping a visible
+            // separator, and an empty string never renders an empty badge.
+            plan.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
 }

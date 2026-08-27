@@ -180,6 +180,40 @@ struct IssueDetailStoreTests {
         #expect(store.comments.value?.isEmpty == true)
     }
 
+    @Test("a refused property change is reported, not silently reverted")
+    func refusedPropertyChangeIsReported() async {
+        // All three property writers used to discard the error, so a refused change snapped
+        // back with nothing said anywhere on the screen. IssuesStore got this right; the
+        // detail store did not, and had no test for any of the three.
+        let api = FixturePolarisClient()
+        let store = IssueDetailStore(api: api, issue: FixtureData.issues[0])
+        await store.load()
+        let originalState = try! #require(store.issue.value).state.id
+
+        await api.setFailNextWrite(.forbidden)
+        await store.setState(FixtureData.states[3])
+
+        #expect(store.issue.value?.state.id == originalState)
+        #expect(store.propertyError != nil)
+    }
+
+    @Test("a property change updates the fixture without losing the rest of the issue")
+    func propertyChangeKeepsTheIssueIntact() async {
+        let api = FixturePolarisClient()
+        let seed = FixtureData.issues[0]
+        let store = IssueDetailStore(api: api, issue: seed)
+        await store.load()
+
+        await store.setPriority(.low)
+
+        let updated = try! #require(store.issue.value)
+        #expect(updated.priority == Priority.low)
+        // Rebuilding rather than mutating dropped these, which looks like the server losing
+        // data rather than the test double doing it.
+        #expect(updated.identifier == seed.identifier)
+        #expect(updated.team.id == seed.team.id)
+    }
+
     @Test("a refused comment surfaces the reason and is not shown as posted")
     func commentFailure() async {
         let api = FixturePolarisClient()

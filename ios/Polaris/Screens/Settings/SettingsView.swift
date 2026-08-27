@@ -17,7 +17,12 @@ struct SettingsView: View {
 
                         section("Account") {
                             HStack(spacing: 12) {
+                                // Hidden here: AvatarView's label reads "Assigned to …",
+                                // which is right on an issue row and wrong on your own
+                                // account. The name and email beside it already say who this
+                                // is.
                                 AvatarView(user: viewer.user, size: 44)
+                                    .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(viewer.user.displayName)
                                         .bodyFont(15, weight: .semibold)
