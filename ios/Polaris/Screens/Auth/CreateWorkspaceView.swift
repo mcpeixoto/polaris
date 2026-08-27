@@ -21,10 +21,23 @@ struct CreateWorkspaceView: View {
 
     private enum Field: Hashable { case name, urlKey, teamName, teamKey }
 
-    private var canSubmit: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty
-            && !urlKey.isEmpty
-            && !teamKey.isEmpty
+    private var canSubmit: Bool { blockingProblem == nil }
+
+    /// What holds Create closed, phrased as the sentence the reader needs.
+    ///
+    /// A derived key can come out empty — "Мир", "世界", "!!!" contain nothing the server's
+    /// ASCII-only patterns accept — and the button then greys out with nothing on screen
+    /// explaining why. That is a silent dead end on the first screen of a fresh install, for
+    /// the only person who can ever use it.
+    private var blockingProblem: String? {
+        if name.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+        if urlKey.isEmpty {
+            return "That name has no letters or digits we can put in a web address. Type an address below."
+        }
+        if teamKey.isEmpty {
+            return "The team key needs to start with a letter. Type one below."
+        }
+        return nil
     }
 
     var body: some View {
@@ -97,8 +110,8 @@ struct CreateWorkspaceView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if let error {
-                    InlineErrorLabel(text: error.displayMessage)
+                if let message = error?.displayMessage ?? blockingProblem {
+                    InlineErrorLabel(text: message)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -106,7 +119,7 @@ struct CreateWorkspaceView: View {
             PrimaryButton(
                 title: "Create workspace",
                 isBusy: isSubmitting,
-                isEnabled: canSubmit,
+                isEnabled: isComplete,
                 action: submit
             )
         }
@@ -125,8 +138,12 @@ struct CreateWorkspaceView: View {
         }
     }
 
+    private var isComplete: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty && !urlKey.isEmpty && !teamKey.isEmpty
+    }
+
     private func submit() {
-        guard canSubmit, !isSubmitting else { return }
+        guard isComplete, !isSubmitting else { return }
         focused = nil
         isSubmitting = true
         error = nil
