@@ -199,6 +199,10 @@ struct PolarisMark: View {
         .frame(width: size * 1.15, height: size * 1.15)
         .accessibilityHidden(true)
         .onAppear {
+            // Under Reduce Motion these must stay false. The animations are nil there, so
+            // setting them would snap each layer to its END state — and the ring's end state
+            // is opacity 0, which deletes it. "Holds still" has to mean the start pose.
+            guard !reduceMotion else { return }
             breathe = true
             ringOut = true
         }

@@ -34,6 +34,9 @@ public final class AppModel {
 
     private let environment: PolarisEnvironment
 
+    /// The host this build talks to, for screens that show an address to the reader.
+    public var displayHost: String { environment.displayHost }
+
     public init(environment: PolarisEnvironment, api: (any PolarisAPI)? = nil) {
         let client = api ?? LivePolarisClient(environment: environment)
         self.environment = environment
@@ -66,10 +69,12 @@ public final class AppModel {
             await finishSignIn(try await api.signIn(email: email, password: password))
             return nil
         } catch let error as PolarisError {
-            phase = .signedOut(error)
+            // Returned, not parked in `phase`. Writing the failure into `.signedOut(error)`
+            // made the welcome screen redisplay "incorrect email or password" after the
+            // reader had gone back from the form and dealt with it — an error re-announcing
+            // itself somewhere it cannot be acted on. `register` already worked this way.
             return error
         } catch {
-            phase = .signedOut(.badResponse)
             return .badResponse
         }
     }

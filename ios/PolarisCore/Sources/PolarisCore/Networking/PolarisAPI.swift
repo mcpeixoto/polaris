@@ -202,13 +202,28 @@ public struct WorkspaceDraft: Sendable, Hashable {
 /// Both are derived as the user types and stop following once they edit the derived field by
 /// hand — the same rule the web client's CreateWorkspace screen uses. Deriving forever would
 /// overwrite a deliberate choice on the next keystroke of the name.
+///
+/// **These mirror server regexes and must keep mirroring them**, because a key this produces
+/// that the server refuses is a dead end on the very first screen of a fresh install:
+///
+///   urlKey   ^[a-z0-9][a-z0-9-]{1,47}$     (workspace.go:19)  — ASCII only, at least 2 chars
+///   teamKey  ^[A-Z][A-Z0-9]{0,7}$          (team.go:20)       — ASCII only, must start alpha
+///
+/// `Character.isLetter`/`isNumber` accept the whole Unicode letter and number classes, so an
+/// earlier version derived `café-ltd` from "Café Ltd" and `МИР` from "Мир" — both refused by
+/// the server — and `3MD` from "3M Design", refused for starting with a digit.
 public enum KeyDerivation {
-    /// Lowercase, alphanumeric and single hyphens, trimmed. `"Peixoto Labs"` -> `"peixoto-labs"`.
+    /// Lowercase ASCII alphanumerics and single hyphens. `"Peixoto Labs"` -> `"peixoto-labs"`.
+    ///
+    /// Returns "" when nothing usable survives, which the caller must treat as "not ready"
+    /// rather than sending it.
     public static func urlKey(from name: String) -> String {
         var out = ""
         var lastWasHyphen = true          // leading hyphens are dropped
-        for character in name.lowercased() {
-            if character.isLetter || character.isNumber {
+        // Fold accents first, so "Café" contributes "cafe" instead of losing the é entirely.
+        let folded = name.folding(options: [.diacriticInsensitive], locale: .init(identifier: "en_US"))
+        for character in folded.lowercased() {
+            if character.isASCII && (character.isLetter || character.isNumber) {
                 out.append(character)
                 lastWasHyphen = false
             } else if !lastWasHyphen {
@@ -217,12 +232,24 @@ public enum KeyDerivation {
             }
         }
         while out.hasSuffix("-") { out.removeLast() }
-        return String(out.prefix(48))
+        out = String(out.prefix(48))
+        // The pattern demands a second character. A one-character name is legitimate, so pad
+        // rather than refuse — "X" becomes "x-1", which is ugly and accepted, where "x" is
+        // tidy and rejected.
+        if out.count == 1 { out += "-1" }
+        return out
     }
 
-    /// Up to three uppercase letters. `"Engineering"` -> `"ENG"`.
+    /// Up to three uppercase ASCII characters, always starting with a letter.
+    /// `"Engineering"` -> `"ENG"`, `"3M Design"` -> `"MD"`.
     public static func teamKey(from name: String) -> String {
-        let letters = name.uppercased().filter { $0.isLetter || $0.isNumber }
-        return String(letters.prefix(3))
+        let folded = name.folding(options: [.diacriticInsensitive], locale: .init(identifier: "en_US"))
+        var characters = Array(folded.uppercased().filter { $0.isASCII && ($0.isLetter || $0.isNumber) })
+        // Digits are legal *inside* a key but not as the first character, so lead with the
+        // first letter and keep whatever follows.
+        while let first = characters.first, !first.isLetter {
+            characters.removeFirst()
+        }
+        return String(characters.prefix(3))
     }
 }

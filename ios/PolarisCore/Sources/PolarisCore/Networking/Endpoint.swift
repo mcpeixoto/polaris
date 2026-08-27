@@ -10,6 +10,12 @@ public struct PolarisEnvironment: Sendable, Hashable {
     public let apiBaseURL: URL
     public let allowsDevSession: Bool
 
+    /// What to show a reader beside their chosen URL key. A self-hoster on their own domain
+    /// was previously shown `polaris.app/`, which is not their address and not ours to claim.
+    public var displayHost: String {
+        (apiBaseURL.host ?? "polaris").replacingOccurrences(of: "^www\\.", with: "", options: .regularExpression)
+    }
+
     public init(apiBaseURL: URL, allowsDevSession: Bool) {
         self.apiBaseURL = apiBaseURL
         self.allowsDevSession = allowsDevSession

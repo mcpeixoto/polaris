@@ -5,7 +5,12 @@ import PolarisCore
 struct PolarisApp: App {
     @State private var model = AppModel(
         environment: .current,
-        api: LaunchOptions.usesFixtures ? FixturePolarisClient() : nil
+        api: LaunchOptions.usesFixtures
+            ? FixturePolarisClient(
+                signedIn: !LaunchOptions.startsSignedOut,
+                hasWorkspace: !LaunchOptions.startsWithoutWorkspace
+            )
+            : nil
     )
 
     var body: some Scene {
@@ -49,6 +54,18 @@ enum LaunchOptions {
     /// on a machine with no backend, which is otherwise impossible: every screen past the
     /// welcome page needs a session.
     static var usesFixtures: Bool { arguments.contains("-polaris-fixtures") }
+
+    /// Starts the fixture client signed OUT, so the welcome, sign-in, sign-up and
+    /// create-workspace screens are reachable without a server.
+    ///
+    /// `-polaris-fixtures` alone signs straight in and lands on the issue list, which left
+    /// every auth screen exactly as untestable as before — the gap `-polaris-fixtures` was
+    /// added to close, still open on the half of the app a new user meets first.
+    static var startsSignedOut: Bool { arguments.contains("-polaris-signed-out") }
+
+    /// Starts signed in but belonging to no workspace, which is the state every first
+    /// registration lands in and the only way to reach CreateWorkspaceView.
+    static var startsWithoutWorkspace: Bool { arguments.contains("-polaris-no-workspace") }
 
     /// Forces the hosted backend from a Debug build, so the production path can be exercised
     /// without editing code.

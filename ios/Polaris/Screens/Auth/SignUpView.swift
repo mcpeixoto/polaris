@@ -24,7 +24,10 @@ struct SignUpView: View {
     /// What holds the button closed.
     private var blockingProblem: String? {
         if displayName.trimmingCharacters(in: .whitespaces).isEmpty { return "Enter your name" }
-        if !email.contains("@") { return "Enter a valid email address" }
+        // `contains("@")` accepted a bare "@". Not full RFC validation — the server is the
+        // authority — just enough that an obviously-wrong address is caught here rather than
+        // after a round trip.
+        if !isPlausibleEmail(email) { return "Enter a valid email address" }
         if password.count < 8 { return "Use at least 8 characters" }
         return nil
     }
@@ -39,6 +42,13 @@ struct SignUpView: View {
             return left.contains(.email) && !email.isEmpty ? blockingProblem : nil
         default: return left.contains(.password) && !password.isEmpty ? blockingProblem : nil
         }
+    }
+
+    private func isPlausibleEmail(_ value: String) -> Bool {
+        let parts = value.split(separator: "@", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty else { return false }
+        let domain = parts[1]
+        return domain.contains(".") && !domain.hasPrefix(".") && !domain.hasSuffix(".")
     }
 
     var body: some View {
@@ -105,6 +115,11 @@ struct SignUpView: View {
         .onChange(of: focused) { previous, _ in
             if let previous { left.insert(previous) }
         }
+        // A server refusal that outlives the thing it was about is just noise. Clearing on
+        // the next edit means the reader sees their correction take effect.
+        .onChange(of: email) { _, _ in error = nil }
+        .onChange(of: password) { _, _ in error = nil }
+        .onChange(of: inviteToken) { _, _ in error = nil }
     }
 
     private func prompt(_ text: String) -> Text {

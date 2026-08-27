@@ -147,9 +147,16 @@ struct InlineErrorLabel: View {
                 .buttonStyle(.plain)
             }
         }
-        // One announcement, and an assertive one: a validation failure the reader cannot see
-        // is the case this exists for.
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isStaticText)
+        // Drawn is not the same as announced. Focus stays on the button the reader just
+        // pressed, so without this a VoiceOver user presses Sign in and hears nothing at all.
+        // `.high`, because the layout change that accompanies the error posts its own
+        // notification first and drops a default-priority announcement.
+        .onAppear {
+            var speech = AttributedString(text)
+            speech.accessibilitySpeechAnnouncementPriority = .high
+            AccessibilityNotification.Announcement(speech).post()
+        }
     }
 }

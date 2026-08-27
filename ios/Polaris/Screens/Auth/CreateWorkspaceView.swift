@@ -34,6 +34,7 @@ struct CreateWorkspaceView: View {
                     TextField("", text: $name, prompt: prompt("Peixoto Labs"))
                         .darkField()
                         .focused($focused, equals: .name)
+                        .accessibilityLabel("Workspace name")
                         .submitLabel(.next)
                         .onSubmit { focused = .teamName }
                         .onChange(of: name) { _, new in
@@ -43,7 +44,7 @@ struct CreateWorkspaceView: View {
 
                 labelled("Address") {
                     HStack(spacing: 0) {
-                        Text("polaris.app/")
+                        Text("\(model.displayHost)/")
                             .bodyFont(14)
                             .foregroundStyle(Theme.eyebrowText)
                         TextField("", text: $urlKey, prompt: prompt("peixoto-labs"))
@@ -52,6 +53,7 @@ struct CreateWorkspaceView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .focused($focused, equals: .urlKey)
+                            .accessibilityLabel("Workspace address")
                             .onChange(of: urlKey) { _, _ in
                                 if focused == .urlKey { urlKeyEdited = true }
                             }
@@ -71,6 +73,7 @@ struct CreateWorkspaceView: View {
                         TextField("", text: $teamName, prompt: prompt("Engineering"))
                             .darkField()
                             .focused($focused, equals: .teamName)
+                            .accessibilityLabel("First team name")
                             .onChange(of: teamName) { _, new in
                                 if !teamKeyEdited { teamKey = KeyDerivation.teamKey(from: new) }
                             }

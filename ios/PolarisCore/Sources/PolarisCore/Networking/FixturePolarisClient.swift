@@ -20,13 +20,26 @@ public actor FixturePolarisClient: PolarisAPI {
     /// a test can assert both the failure and the recovery.
     private var failNextWrite: PolarisError?
 
+    /// Whether the boot path finds a session. False makes the auth screens reachable, which
+    /// they otherwise are not: `signInWithDevSession` always succeeding meant the app went
+    /// straight to the issue list and welcome/sign-in/sign-up could not be driven at all.
+    private let signedIn: Bool
+
+    /// Whether that session belongs to a workspace. False is the state every first
+    /// registration lands in, and the only route to the create-workspace screen.
+    private let hasWorkspace: Bool
+
     public init(
+        signedIn: Bool = true,
+        hasWorkspace: Bool = true,
         issues: [Issue] = FixtureData.issues,
         people: [User] = FixtureData.users,
         teams: [Team] = [FixtureData.team],
         states: [WorkflowState] = FixtureData.states,
         comments: [String: [Comment]] = [:]
     ) {
+        self.signedIn = signedIn
+        self.hasWorkspace = hasWorkspace
         self.storedIssues = issues
         self.people = people
         self.allTeams = teams
@@ -48,15 +61,25 @@ public actor FixturePolarisClient: PolarisAPI {
     // MARK: - Auth
 
     public func signInWithDevSession() async throws -> Session {
+        guard signedIn else { throw PolarisError.forbidden }
+        return session()
+    }
+
+    private func session() -> Session {
         Session(
-            accessToken: "fixture", expiresIn: 900, accountId: "account",
-            workspaces: [FixtureData.workspace]
+            accessToken: "fixture",
+            expiresIn: 900,
+            accountId: "account",
+            // No workspaces is what puts AppModel into `.needsWorkspace`.
+            workspaces: hasWorkspace ? [FixtureData.workspace] : []
         )
     }
 
     public func signIn(email: String, password: String) async throws -> Session {
-        guard password == "correct-horse" else { throw PolarisError.unauthorized("incorrect email or password") }
-        return try await signInWithDevSession()
+        guard password == "correct-horse" else {
+            throw PolarisError.unauthorized("incorrect email or password")
+        }
+        return session()
     }
 
     public func register(
@@ -68,7 +91,7 @@ public actor FixturePolarisClient: PolarisAPI {
         guard password.count >= 8 else {
             throw PolarisError.validation(message: "Password must be at least 8 characters", field: "password")
         }
-        return try await signInWithDevSession()
+        return session()
     }
 
     public func createWorkspace(_ draft: WorkspaceDraft) async throws -> Workspace {

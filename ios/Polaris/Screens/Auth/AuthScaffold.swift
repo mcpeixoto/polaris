@@ -55,6 +55,7 @@ struct AuthScaffold<Content: View, Footer: View>: View {
                     .padding(.top, 8)
                     .staggerRise(3)
             }
+            .frame(maxWidth: 460)
             .padding(.horizontal, 26)
             .padding(.bottom, 24)
         }
