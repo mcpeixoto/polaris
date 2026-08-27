@@ -59,8 +59,12 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen:
           UIColorName: LaunchBackground
+        # All four, because TARGETED_DEVICE_FAMILY includes iPad and an iPad app that does
+        # not declare UIRequiresFullScreen must support every orientation — omitting one
+        # warns at archive time and is rejected at validation.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         # The development stack is plain HTTP on localhost. This exception is scoped to
@@ -80,7 +84,7 @@ targets:
         PRODUCT_NAME: Polaris
         PRODUCT_BUNDLE_IDENTIFIER: com.peixotolabs.polaris
         DEVELOPMENT_TEAM: H874DPF6H5
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.2.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
@@ -88,25 +92,25 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: "YES"
-        # Automatic in both configurations, deliberately, and this is the one place this
-        # project departs from the house pattern. The convention elsewhere is Release =
-        # Manual with a named "<App> App Store" profile, but that profile does not exist for
-        # Polaris yet, and naming a profile that has never been created fails `archive` with
-        # an error about signing rather than one about the missing profile. Switch Release to:
-        #
-        #   CODE_SIGN_STYLE: Manual
-        #   CODE_SIGN_IDENTITY: "Apple Distribution"
-        #   PROVISIONING_PROFILE_SPECIFIER: "Polaris App Store"
-        #
-        # once the profile has been created in App Store Connect.
         CODE_SIGN_STYLE: Automatic
       configs:
         Debug:
+          # Automatic is right for the simulator: there is no profile to keep in sync, and a
+          # developer without the distribution key can still build and run.
+          CODE_SIGN_STYLE: Automatic
           ONLY_ACTIVE_ARCH: "YES"
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG"
           SWIFT_OPTIMIZATION_LEVEL: "-Onone"
           GCC_PREPROCESSOR_DEFINITIONS: "DEBUG=1 $(inherited)"
           ENABLE_TESTABILITY: "YES"
+        Release:
+          # Manual, because Automatic needs an interactively-authenticated Xcode and will not
+          # resolve a profile from a script or CI. The profile is created idempotently by
+          # ios/scripts/asc-setup.py, which reuses the team's single Apple Distribution
+          # certificate rather than minting a second one.
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "Polaris App Store"
 
   # Drives the real app in a simulator. Paired with `-polaris-fixtures`, which swaps in the
   # in-memory client, so every signed-in screen is reachable with no server, no database and

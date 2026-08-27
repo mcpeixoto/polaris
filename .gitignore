@@ -64,3 +64,4 @@ ios/Polaris.xcodeproj/
 ios/PolarisCore/.build/
 ios/build/
 ios/Polaris/Info.plist
+ios/build/
