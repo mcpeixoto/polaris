@@ -36,7 +36,7 @@ public actor FixturePolarisClient: PolarisAPI {
         people: [User] = FixtureData.users,
         teams: [Team] = [FixtureData.team],
         states: [WorkflowState] = FixtureData.states,
-        comments: [String: [Comment]] = [:]
+        comments: [String: [Comment]] = QAFixtureSwitches.seededComments
     ) {
         self.signedIn = signedIn
         self.hasWorkspace = hasWorkspace
@@ -45,6 +45,7 @@ public actor FixturePolarisClient: PolarisAPI {
         self.allTeams = teams
         self.states = states
         self.storedComments = comments
+        if let armed = QAFixtureSwitches.armedWriteFailure { self.failNextWrite = armed }
     }
 
     public func setFailNextWrite(_ error: PolarisError?) {
@@ -139,7 +140,9 @@ public actor FixturePolarisClient: PolarisAPI {
     }
 
     public func teams() async throws -> [Team] { allTeams }
-    public func workflowStates(teamId: String) async throws -> [WorkflowState] { states }
+    public func workflowStates(teamId: String) async throws -> [WorkflowState] {
+        QAFixtureSwitches.noStates ? [] : states
+    }
     public func users() async throws -> [User] { people }
     public func unreadNotificationCount() async throws -> Int { 0 }
 
@@ -194,7 +197,8 @@ public actor FixturePolarisClient: PolarisAPI {
 /// passing after a decoding bug was introduced.
 public enum FixtureData {
     public static let workspace: Workspace = decoded(
-        #"{"id":"w1","name":"Peixoto Labs","urlKey":"peixotolabs","plan":"pro"}"#
+        "{\"id\":\"w1\",\"name\":\"\(QAFixtureSwitches.workspaceName)\","
+            + "\"urlKey\":\"\(QAFixtureSwitches.workspaceKey)\",\"plan\":\"\(QAFixtureSwitches.plan)\"}"
     )
 
     // Delimited with ##"…"## rather than #"…"#: the colour value starts with `#` directly
@@ -216,8 +220,9 @@ public enum FixtureData {
     """)
 
     public static let issues: [Issue] = [
-        issue(id: "i1", identifier: "ENG-1", title: "Sync drops a comment on reconnect",
-              priority: .urgent, state: states[2], assignee: users[0]),
+        issue(id: "i1", identifier: "ENG-1", title: QAFixtureSwitches.firstIssueTitle,
+              priority: .urgent, state: states[2], assignee: users[0],
+              description: QAFixtureSwitches.firstIssueDescription),
         issue(id: "i2", identifier: "ENG-2", title: "Command menu forgets its last action",
               priority: .medium, state: states[1]),
         issue(id: "i3", identifier: "ENG-3", title: "Ship the iOS client",
@@ -232,14 +237,15 @@ public enum FixtureData {
         title: String,
         priority: Priority,
         state: WorkflowState,
-        assignee: User? = nil
+        assignee: User? = nil,
+        description: String = ""
     ) -> Issue {
         let assigneeJSON = assignee.map {
             "{\"id\":\"\($0.id)\",\"name\":\"\($0.name)\",\"displayName\":\"\($0.displayName)\",\"avatarUrl\":null,\"email\":null}"
         } ?? "null"
         let stateJSON = "{\"id\":\"\(state.id)\",\"name\":\"\(state.name)\",\"color\":\"\(state.color)\",\"category\":\"\(state.category.rawValue)\",\"position\":\"\(state.position)\"}"
         return decoded("""
-        {"id":"\(id)","identifier":"\(identifier)","title":"\(title)","description":"",
+        {"id":"\(id)","identifier":"\(identifier)","title":"\(title)","description":"\(description)",
          "priority":\(priority.rawValue),"estimate":null,"dueDate":null,
          "state":\(stateJSON),
          "team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF"},
@@ -263,5 +269,102 @@ public enum FixtureData {
         } catch {
             fatalError("fixture JSON does not decode as \(T.self): \(error)")
         }
+    }
+}
+
+
+/// Launch-argument switches that reshape the fixture for a QA pass.
+///
+/// The states worth testing on the detail and settings screens are exactly the ones the stock
+/// fixture cannot produce: a team with no workflow states, a write the server refuses, a plan
+/// string other than `pro`, a title long enough to wrap, comments by an author who is not in
+/// the loaded user list. Each is a launch argument rather than a constructor parameter because
+/// a UI test drives the app as a process and cannot reach the composition root.
+///
+/// Read only by `FixturePolarisClient`, which is already the test/preview double — no shipping
+/// code path consults these.
+public enum QAFixtureSwitches {
+    private static var args: [String] { ProcessInfo.processInfo.arguments }
+
+    private static func value(_ flag: String) -> String? {
+        guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
+        return args[i + 1]
+    }
+
+    public static var plan: String { value("-qa-plan") ?? "pro" }
+    public static var noStates: Bool { args.contains("-qa-no-states") }
+
+    public static var armedWriteFailure: PolarisError? {
+        args.contains("-qa-fail-writes")
+            ? .server(status: 500, message: "Polaris had a problem handling that.")
+            : nil
+    }
+
+    public static var workspaceName: String {
+        args.contains("-qa-long-names")
+            ? "The Extremely Long Peixoto Laboratories Research And Development Workspace"
+            : "Peixoto Labs"
+    }
+
+    public static var workspaceKey: String {
+        args.contains("-qa-long-names")
+            ? "peixoto-laboratories-research-and-development-workspace-primary"
+            : "peixotolabs"
+    }
+
+    public static var firstIssueTitle: String {
+        args.contains("-qa-long-text")
+            ? "Sync drops a comment on reconnect when the websocket is resumed after a long "
+                + "background period and the client replays its outbox against a watermark that "
+                + "the server has already advanced past, which loses the comment silently"
+            : "Sync drops a comment on reconnect"
+    }
+
+    public static var firstIssueDescription: String {
+        args.contains("-qa-long-text")
+            ? "Steps: put the app in the background for ten minutes, post a comment while "
+                + "offline, then bring it back. Expected the comment to arrive. Actual: it is "
+                + "dropped with no error anywhere. This paragraph is deliberately long so the "
+                + "detail screen has to lay out a real description rather than an empty string, "
+                + "and so the scroll view is exercised past one screenful of content."
+            : ""
+    }
+
+    public static var seededComments: [String: [Comment]] {
+        guard args.contains("-qa-comments") else { return [:] }
+        return ["i1": [
+            qaComment(id: "c1", actorType: "USER", actorId: "u2",
+                      body: "Reproduced on 2026-08-19.", at: "2026-08-19T10:00:00Z"),
+            qaComment(
+                id: "c2",
+                actorType: "USER", actorId: "u404",
+                body: "This comment's author is not in the loaded user list.",
+                at: "2026-08-19T11:00:00Z"
+            ),
+            qaComment(id: "c3", actorType: "INTEGRATION", actorId: "gh",
+                      body: "Linked pull request #481.", at: "2026-08-19T12:00:00Z"),
+            qaComment(id: "c4", actorType: "SYSTEM", actorId: nil,
+                      body: "Moved to In Progress.", at: "2026-08-19T13:00:00Z"),
+            qaComment(
+                id: "c5", actorType: "USER", actorId: "u1",
+                body: "A very long body. " + String(repeating: "The reconnect path replays the outbox and the watermark has already moved. ", count: 12),
+                at: "2026-08-19T14:00:00Z"
+            ),
+        ]]
+    }
+
+    private static func qaComment(
+        id: String,
+        actorType: String = "USER",
+        actorId: String? = "u1",
+        body: String,
+        at: String
+    ) -> Comment {
+        let actorIdJSON = actorId.map { "\"\($0)\"" } ?? "null"
+        let json = """
+        {"id":"\(id)","body":"\(body)",
+         "actor":{"type":"\(actorType)","id":\(actorIdJSON)},"editedAt":null,"createdAt":"\(at)"}
+        """
+        return try! PolarisJSON.decoder().decode(Comment.self, from: Data(json.utf8))
     }
 }
