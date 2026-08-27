@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/peixotolabs/polaris/services/internal/entitlement"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 )
 
@@ -12,11 +13,19 @@ import (
 // extensions so a client can handle "forbidden" identically whichever endpoint produced
 // it.
 type errorBody struct {
-	Error struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-		Field   string `json:"field,omitempty"`
-	} `json:"error"`
+	Error errorPayload `json:"error"`
+}
+
+type errorPayload struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Field   string `json:"field,omitempty"`
+	// The entitlement refusal's structure, flattened rather than nested under a key of its
+	// own. GraphQL merges the same fields straight into `extensions` beside `code`, and a
+	// client that had to read a paywall from two different shapes depending on which
+	// endpoint answered would be two clients. Every field is omitempty, so nothing here
+	// appears on a failure that is not a 402.
+	entitlement.Details
 }
 
 // statusFor maps a domain error code onto an HTTP status, in one place.
@@ -57,6 +66,13 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		body.Error.Field = pe.Field
 	} else {
 		body.Error.Message = "internal error"
+	}
+
+	// A 402 says what would lift it. See the note on errorPayload: this is the same payload
+	// the GraphQL presenter puts in `extensions`, so one client reads both.
+	var eerr *entitlement.Error
+	if errors.As(err, &eerr) {
+		body.Error.Details = eerr.Details()
 	}
 
 	// An internal error's cause is logged in full and never serialised. A database

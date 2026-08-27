@@ -8,6 +8,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
+	"github.com/peixotolabs/polaris/services/internal/entitlement"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 )
 
@@ -49,6 +50,19 @@ func PresentError(ctx context.Context, err error) *gqlerror.Error {
 		ext := map[string]any{"code": string(perr.Code)}
 		if perr.Field != "" {
 			ext["field"] = perr.Field
+		}
+		// An entitlement refusal carries structure the code alone cannot: which feature,
+		// which plan would permit it, which ceiling was hit, and whether this is a lapse
+		// rather than a packaging decision. Without this the client had a sentence and a
+		// PLAN_LIMIT, so the only way to render a paywall that says anything specific was to
+		// string-match the message — which is the thing the comment at the top of this file
+		// tells clients never to do. The keys are disjoint from `code` and `field` by
+		// construction; see entitlement.Details.
+		var eerr *entitlement.Error
+		if errors.As(err, &eerr) {
+			for key, value := range eerr.Details().Extensions() {
+				ext[key] = value
+			}
 		}
 		return &gqlerror.Error{
 			Err:        err,

@@ -10,7 +10,13 @@ import { useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
 import { Button, EmptyState, Select } from '~/components';
-import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
+import {
+  featureBlock,
+  refusalOf,
+  useEntitlements,
+  type Block,
+} from '~/features/admin/entitlements';
+import { PlanBlock } from '~/features/admin/PlanBlock';
 import type { FilterNode } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { byOrderKey } from '~/store';
@@ -86,7 +92,7 @@ export function SlaSettings() {
   const engine = useEngine();
   const entitlements = useEntitlements();
   const blocked = featureBlock(entitlements, 'slas');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Block | null>(null);
   const [match, setMatch] = useState<MatchPreset>('urgent');
   const [action, setAction] = useState<'apply' | 'remove'>('apply');
   const [minutes, setMinutes] = useState(1440);
@@ -98,8 +104,22 @@ export function SlaSettings() {
     ['slaRule'],
   );
 
+  /**
+   * A refusal the server made, rather than one this screen predicted.
+   *
+   * Held as a Block and not a string so a PLAN_LIMIT that arrives here — the client's matrix
+   * can be absent offline, and this screen is live in that case by design — renders with the
+   * same link as the check above it. Before this it rendered as bare prose, which is the one
+   * case where somebody has actually tried the thing and most needs somewhere to go.
+   */
   const fail = (failure: unknown) => {
-    setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+    const refusal = refusalOf(failure);
+    setError(
+      refusal ??
+        (failure instanceof ApiError
+          ? { reason: failure.message, upgrade: null }
+          : { reason: 'That change could not be saved.', upgrade: null }),
+    );
     report(failure);
   };
 
@@ -128,17 +148,9 @@ export function SlaSettings() {
       </header>
 
       <div className={styles.body}>
-        {error === null ? null : (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
+        <PlanBlock block={error} className={styles.error} role="alert" />
 
-        {blocked === null ? null : (
-          <p className={styles.error} role="status">
-            {blocked}
-          </p>
-        )}
+        <PlanBlock block={blocked} className={styles.error} />
 
         <section className={styles.section}>
           <p className={styles.sectionHint}>

@@ -1,0 +1,38 @@
+/*
+ * Why a control is unavailable, in the same place the control is.
+ *
+ * Neutral rather than red, the same bargain InviteDialog.module.css already made: being out
+ * of seats is a fact about the plan, not a mistake the admin has made, and red sends
+ * somebody looking for the error they think they caused.
+ *
+ * The default only applies when a caller passes no className. Screens that already have a
+ * treatment for this — MemberSettings paints it in the urgent pair, TeamSettings uses its
+ * section hint — pass their own and get the link without inheriting a second box around it.
+ */
+
+.block {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * Underlined, not coloured alone. This link sits inside a sentence rather than beside one,
+ * and a colour difference is not something a reader with low colour vision can rely on to
+ * find the only actionable thing in the box — which is the whole reason the box has a link.
+ */
+.link {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.link:hover {
+  color: var(--text-primary);
+}

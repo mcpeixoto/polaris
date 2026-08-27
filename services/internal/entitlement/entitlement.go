@@ -600,6 +600,76 @@ func (e *Error) Unwrap() error {
 	return &platform.Error{Code: platform.CodeEntitlement, Message: e.Message}
 }
 
+// Details is the refusal as a client is allowed to act on it.
+//
+// The fields on Error above have carried this structure since gating shipped and not one of
+// them ever reached a browser: Unwrap yields a *platform.Error, which has room for a code
+// and a sentence and nothing else, so both transports flattened the whole refusal into
+// prose — exactly the paywall-that-string-matches-a-message the Error comment warns against.
+// This type is the shape that crosses the wire, written once so the GraphQL extensions and
+// the 402 body cannot drift apart.
+//
+// Cap is a pointer because 0 is a real ceiling — a workspace whose negotiated seat override
+// is zero looks exactly like that — and a client cannot tell an absent Cap from a Cap of
+// zero unless the key is missing rather than zero.
+type Details struct {
+	Plan      string `json:"plan,omitempty"`
+	NeedsPlan string `json:"needsPlan,omitempty"`
+	Feature   string `json:"feature,omitempty"`
+	Limit     string `json:"limit,omitempty"`
+	Cap       *int   `json:"cap,omitempty"`
+	Lapsed    bool   `json:"lapsed,omitempty"`
+}
+
+// Details renders the refusal for the wire.
+func (e *Error) Details() Details {
+	d := Details{
+		Plan:      string(e.Plan),
+		NeedsPlan: string(e.NeedsPlan),
+		Feature:   string(e.Feature),
+		Limit:     string(e.Limit),
+		Lapsed:    e.Lapsed,
+	}
+	// Cap is meaningful only alongside Limit, as the Error comment says. Sending it on a
+	// feature refusal would hand the client a ceiling of zero to write a sentence about.
+	if e.Limit != "" {
+		ceiling := e.Cap
+		d.Cap = &ceiling
+	}
+	return d
+}
+
+// Extensions is Details as GraphQL carries it, merged into the error's `extensions` beside
+// `code`. Flattened rather than nested under a key of its own so that a client reads the
+// same field names whichever transport answered — the REST body embeds this struct for the
+// same reason.
+//
+// Keys whose value is absent are omitted, matching `omitempty` on the struct above.
+// wire_test.go asserts the two stay in step, because a key present in one and missing in the
+// other is a client that works on one endpoint and not on the other.
+func (d Details) Extensions() map[string]any {
+	ext := map[string]any{}
+	if d.Plan != "" {
+		ext["plan"] = d.Plan
+	}
+	if d.NeedsPlan != "" {
+		ext["needsPlan"] = d.NeedsPlan
+	}
+	if d.Feature != "" {
+		ext["feature"] = d.Feature
+	}
+	if d.Limit != "" {
+		ext["limit"] = d.Limit
+	}
+	if d.Cap != nil {
+		ext["cap"] = *d.Cap
+	}
+	if d.Lapsed {
+		ext["lapsed"] = true
+	}
+	return ext
+}
+
 func (s Set) denyFeature(f Feature) *Error {
 	e := &Error{Plan: s.plan, Feature: f}
 

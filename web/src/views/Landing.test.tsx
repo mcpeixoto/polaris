@@ -44,6 +44,29 @@ describe('Landing', () => {
     ).toBeTruthy();
   });
 
+  it('carries pricing in the nav and a band that links to the page', () => {
+    renderLanding();
+    expect(screen.getAllByRole('link', { name: 'Pricing' })[0]?.getAttribute('href')).toBe(
+      '#pricing',
+    );
+    expect(screen.getByRole('link', { name: 'Compare plans' }).getAttribute('href')).toBe(
+      '/pricing',
+    );
+    // Quoted from features/pricing/plans.ts rather than typed into the copy, so the poster
+    // and the price list cannot disagree in front of a customer.
+    expect(screen.getAllByText(/€4/).length).toBeGreaterThan(0);
+  });
+
+  /**
+   * The self-host band used to end "Cloud is EU-only when it exists". Cloud is now something
+   * we sell, and a marketing page still saying the product does not exist is the one sentence
+   * that costs a sign-up outright.
+   */
+  it('no longer says the cloud does not exist', () => {
+    const { container } = renderLanding();
+    expect(container.textContent).not.toContain('when it exists');
+  });
+
   it('keeps social proof as placeholders rather than invented customers', () => {
     renderLanding();
     expect(screen.getAllByText('Placeholder').length).toBeGreaterThan(0);
