@@ -993,6 +993,19 @@ type SlackConnection struct {
 	AsksEnabled    bool
 }
 
+type Subscription struct {
+	ID                     uuid.UUID
+	WorkspaceID            uuid.UUID
+	Provider               string
+	ProviderCustomerID     string
+	ProviderSubscriptionID *string
+	Status                 string
+	CurrentPeriodEnd       *time.Time
+	SeatsPaid              *int32
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
 type Team struct {
 	ID                             uuid.UUID
 	WorkspaceID                    uuid.UUID
