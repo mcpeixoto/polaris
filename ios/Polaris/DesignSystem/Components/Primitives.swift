@@ -25,6 +25,7 @@ struct StaggerRise: ViewModifier {
     /// scrolling back replayed the animation and left a re-entering row blank for as long as
     /// its staggered delay — up to 0.6s of nothing where content used to be.
     var isEnabled: Bool = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown = false
 
     func body(content: Content) -> some View {
@@ -32,7 +33,10 @@ struct StaggerRise: ViewModifier {
             .opacity(shown ? 1 : 0)
             .offset(y: shown ? 0 : 14)
             .onAppear {
-                guard isEnabled else {
+                // Reduce Motion means arrive, not slide in. PolarisMark honoured this and
+                // this modifier did not — and it is applied to every row and section of every
+                // screen, so it was by far the larger omission of the two.
+                guard isEnabled, !reduceMotion else {
                     shown = true
                     return
                 }
@@ -58,10 +62,18 @@ struct MonoEyebrow: View {
     var color: Color = Theme.eyebrowText
     var size: CGFloat = 11
 
+    /// Tracking has to grow with the text.
+    ///
+    /// `.tracking(size * 0.14)` used the *design* size, so the letters grew under Dynamic Type
+    /// and the space between them did not — which reads as progressively tighter spacing the
+    /// larger the setting, and is what the accessibility audit means by "Dynamic Type font
+    /// sizes are partially unsupported". A `@ScaledMetric` gives the scaled value.
+    @ScaledMetric(relativeTo: .caption2) private var trackingUnit: CGFloat = 1
+
     var body: some View {
         Text(text)
             .monoFont(size, weight: .medium)
-            .tracking(size * 0.14)
+            .tracking(size * 0.14 * trackingUnit)
             .textCase(.uppercase)
             .foregroundStyle(color)
             .accessibilityAddTraits(.isHeader)
@@ -120,15 +132,19 @@ struct PrimaryButton: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(Theme.accent)
+            .background(Theme.accent.opacity(isEnabled && !isBusy ? 1 : 0.55))
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .shadow(color: Theme.accent.opacity(0.45), radius: 15, x: 0, y: 16)
+            // Blurred more than it is offset, so the glow stays under the button instead of
+            // pooling on whatever sits below it. The previous values (radius 15, y 16) put the
+            // densest part of the wash directly behind the secondary link on the welcome
+            // screen, which is exactly where small secondary text is least able to afford it.
+            .shadow(
+                color: Theme.accent.opacity(isEnabled && !isBusy ? 0.38 : 0),
+                radius: 18, x: 0, y: 10
+            )
         }
         .buttonStyle(PressableStyle())
         .disabled(!isEnabled || isBusy)
-        // Explicit, because the system's own disabled dimming is barely visible on a dark
-        // background.
-        .opacity(isEnabled && !isBusy ? 1 : 0.55)
     }
 }
 
@@ -144,8 +160,15 @@ struct DarkFieldStyle: ViewModifier {
             .tint(Theme.accentBright)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .background(Color.white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            // The fill is drawn *behind* the text rather than clipped around it. `.clipShape`
+            // on the field itself trims whatever does not fit the padded frame, so at larger
+            // Dynamic Type sizes the text was cut off inside its own box — which the
+            // accessibility audit reports as "Text clipped". A background shape has no such
+            // effect: the field grows and the text stays whole.
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.08))
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(Color.white.opacity(0.16), lineWidth: 1)
@@ -203,7 +226,8 @@ struct PolarisMark: View {
                         .font(.system(size: size * 0.34, weight: .light))
                         .foregroundStyle(.white)
                 )
-                .shadow(color: Theme.accent.opacity(0.45), radius: 24, x: 0, y: 10)
+                // Tightened from radius 24 / y 10, which reached the eyebrow below the mark.
+                .shadow(color: Theme.accent.opacity(0.4), radius: 16, x: 0, y: 4)
         }
         .frame(width: size * 1.15, height: size * 1.15)
         .accessibilityHidden(true)

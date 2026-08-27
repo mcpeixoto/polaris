@@ -55,7 +55,7 @@ struct SignInView: View {
     }
 
     private func prompt(_ text: String) -> Text {
-        Text(text).foregroundStyle(Color.white.opacity(0.4))
+        Text(text).foregroundStyle(Theme.placeholder)
     }
 
     private func submit() {
