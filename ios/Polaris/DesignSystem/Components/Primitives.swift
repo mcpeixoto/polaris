@@ -20,6 +20,11 @@ struct PressableStyle: ButtonStyle {
 /// screenful, which is all anyone sees on the first frame anyway.
 struct StaggerRise: ViewModifier {
     let index: Int
+    /// False once this row has already made its entrance. Owned by the caller, because a
+    /// `LazyVStack` destroys off-screen rows: `@State` alone is torn down with them, so
+    /// scrolling back replayed the animation and left a re-entering row blank for as long as
+    /// its staggered delay — up to 0.6s of nothing where content used to be.
+    var isEnabled: Bool = true
     @State private var shown = false
 
     func body(content: Content) -> some View {
@@ -27,6 +32,10 @@ struct StaggerRise: ViewModifier {
             .opacity(shown ? 1 : 0)
             .offset(y: shown ? 0 : 14)
             .onAppear {
+                guard isEnabled else {
+                    shown = true
+                    return
+                }
                 withAnimation(Theme.easing(0.5).delay(Double(min(index, 12)) * 0.05)) {
                     shown = true
                 }
@@ -35,8 +44,8 @@ struct StaggerRise: ViewModifier {
 }
 
 extension View {
-    func staggerRise(_ index: Int) -> some View {
-        modifier(StaggerRise(index: index))
+    func staggerRise(_ index: Int, isEnabled: Bool = true) -> some View {
+        modifier(StaggerRise(index: index, isEnabled: isEnabled))
     }
 }
 

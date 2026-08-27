@@ -12,10 +12,18 @@ public final class IssueDetailStore {
 
     private let api: any PolarisAPI
     private let issueID: String
+    /// Called whenever a write succeeds, so the list this screen was opened from can stop
+    /// showing the old value.
+    private let onChange: (@MainActor (Issue) -> Void)?
 
-    public init(api: any PolarisAPI, issue: Issue) {
+    public init(
+        api: any PolarisAPI,
+        issue: Issue,
+        onChange: (@MainActor (Issue) -> Void)? = nil
+    ) {
         self.api = api
         self.issueID = issue.id
+        self.onChange = onChange
         // Seeded from the row the user tapped, so the detail screen opens with content instead
         // of a spinner over data the app already had.
         self.issue = .loaded(issue)
@@ -24,6 +32,7 @@ public final class IssueDetailStore {
     public init(api: any PolarisAPI, issueID: String) {
         self.api = api
         self.issueID = issueID
+        self.onChange = nil
         self.issue = .idle
     }
 
@@ -72,6 +81,7 @@ public final class IssueDetailStore {
         do {
             let updated = try await api.updateIssue(IssueChange(id: issueID, stateId: state.id))
             issue = .loaded(updated)
+            onChange?(updated)
         } catch {
             issue = .loaded(current)
         }
@@ -82,6 +92,7 @@ public final class IssueDetailStore {
         do {
             let updated = try await api.updateIssue(IssueChange(id: issueID, priority: priority))
             issue = .loaded(updated)
+            onChange?(updated)
         } catch {
             issue = .loaded(current)
         }
@@ -95,7 +106,9 @@ public final class IssueDetailStore {
                 assigneeId: user?.id,
                 clearAssignee: user == nil
             )
-            issue = .loaded(try await api.updateIssue(change))
+            let updated = try await api.updateIssue(change)
+            issue = .loaded(updated)
+            onChange?(updated)
         } catch {
             issue = .loaded(current)
         }

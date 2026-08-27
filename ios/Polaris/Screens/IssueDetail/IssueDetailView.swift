@@ -30,7 +30,13 @@ struct IssueDetailView: View {
             // refreshed in place. A detail view that spinners over data the app already had is
             // the most common self-inflicted slowness in a list-detail app.
             if store == nil {
-                store = IssueDetailStore(api: model.api, issue: seed)
+                store = IssueDetailStore(api: model.api, issue: seed) { updated in
+                    // Otherwise the row and the "N open" count keep the old status after the
+                    // reader comes back: nothing reloads on return, and refreshIfStale
+                    // short-circuits because the version did not move — this client made the
+                    // change.
+                    model.issues.merge(updated)
+                }
             }
             await store?.load()
         }

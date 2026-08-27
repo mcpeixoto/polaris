@@ -121,6 +121,10 @@ targets:
       - target: Polaris
     settings:
       base:
+        # Matches the app target's Debug setting. Without it the test bundles build
+        # x86_64 while PolarisCore builds arm64 only, and `xcodebuild test` fails to
+        # resolve the package — the suite does not run at all.
+        ONLY_ACTIVE_ARCH: "YES"
         PRODUCT_NAME: PolarisUITests
         PRODUCT_BUNDLE_IDENTIFIER: com.peixotolabs.polaris.uitests
         # A test bundle has no Info.plist of its own and codesign refuses to sign without
@@ -141,6 +145,10 @@ targets:
       - package: PolarisCore
     settings:
       base:
+        # Matches the app target's Debug setting. Without it the test bundles build
+        # x86_64 while PolarisCore builds arm64 only, and `xcodebuild test` fails to
+        # resolve the package — the suite does not run at all.
+        ONLY_ACTIVE_ARCH: "YES"
         PRODUCT_NAME: PolarisTests
         PRODUCT_BUNDLE_IDENTIFIER: com.peixotolabs.polaris.tests
         GENERATE_INFOPLIST_FILE: "YES"

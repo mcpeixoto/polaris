@@ -4,6 +4,8 @@ import PolarisCore
 struct MyIssuesView: View {
     @Environment(AppModel.self) private var model
     @State private var isComposing = false
+    /// Rows that have already made their entrance, so scrolling back does not replay it.
+    @State private var revealed: Set<String> = []
 
     var body: some View {
         NavigationStack {
@@ -39,6 +41,7 @@ struct MyIssuesView: View {
                         .frame(width: 38, height: 38)
                         .background(Theme.accentTint)
                         .clipShape(Circle())
+                        .hitTarget()
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityLabel("New issue")
@@ -47,6 +50,7 @@ struct MyIssuesView: View {
     }
 
     private var openCountLabel: String {
+        if case .failed = model.issues.issues { return "Offline" }
         guard let issues = model.issues.issues.value else { return "Loading" }
         let open = issues.filter { $0.state.category.isOpen }.count
         return open == 1 ? "1 open" : "\(open) open"
@@ -70,6 +74,7 @@ struct MyIssuesView: View {
                 .frame(width: 38, height: 38)
                 .background(Theme.chipInactive)
                 .clipShape(Circle())
+                .hitTarget()
         }
         .accessibilityLabel("Filter")
     }
@@ -99,12 +104,17 @@ struct MyIssuesView: View {
                         .staggerRise(0)
 
                     if issues.isEmpty {
+                        // Two different empties. With completed work hidden the list may not
+                        // be empty at all, so claiming "nothing assigned" would be false; with
+                        // the filter already on, pointing at the filter would be useless.
                         EmptyStateView(
-                            symbol: "checkmark.circle",
-                            title: "Nothing assigned to you",
+                            symbol: model.issues.includeCompleted ? "tray" : "checkmark.circle",
+                            title: model.issues.includeCompleted
+                                ? "Nothing assigned to you"
+                                : "Nothing open",
                             message: model.issues.includeCompleted
                                 ? "No issues are assigned to you in this workspace yet."
-                                : "You're all clear. Completed work is hidden — turn it on from the filter above.",
+                                : "Nothing open is assigned to you. Anything you have finished is hidden — show completed from the filter above.",
                             actionTitle: "New issue",
                             action: { isComposing = true }
                         )
@@ -120,7 +130,8 @@ struct MyIssuesView: View {
                                 )
                             }
                             .buttonStyle(PressableStyle())
-                            .staggerRise(index + 1)
+                            .staggerRise(index + 1, isEnabled: !revealed.contains(issue.id))
+                            .onAppear { revealed.insert(issue.id) }
                         }
                     }
                 }

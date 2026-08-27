@@ -37,6 +37,12 @@ public final class AppModel {
     /// The host this build talks to, for screens that show an address to the reader.
     public var displayHost: String { environment.displayHost }
 
+    /// The signed-in user, when there is one.
+    public var currentUser: User? {
+        if case .ready(let viewer) = phase { return viewer.user }
+        return nil
+    }
+
     public init(environment: PolarisEnvironment, api: (any PolarisAPI)? = nil) {
         let client = api ?? LivePolarisClient(environment: environment)
         self.environment = environment

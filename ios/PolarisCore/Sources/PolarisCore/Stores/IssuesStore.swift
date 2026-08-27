@@ -43,8 +43,23 @@ public final class IssuesStore {
     public func setIncludeCompleted(_ newValue: Bool) async {
         guard newValue != includeCompleted else { return }
         includeCompleted = newValue
-        issues = .loading
+        // Deliberately NOT `issues = .loading`. Blanking to a spinner throws away a list the
+        // reader is looking at, and it defeats the protection `load()` implements: with no
+        // value held, a refetch that fails turns a populated list into a full-screen error.
         await load()
+    }
+
+    /// Accepts an issue changed elsewhere — the detail screen — so the list and its counts
+    /// stop disagreeing with the screen the reader just came back from.
+    ///
+    /// Without this the row keeps its old status indefinitely: nothing reloads on return, and
+    /// `refreshIfStale` short-circuits while `syncVersion` is unchanged, which it is, because
+    /// the change came from this client.
+    public func merge(_ updated: Issue) {
+        guard var current = issues.value else { return }
+        guard let index = current.firstIndex(where: { $0.id == updated.id }) else { return }
+        current[index] = updated
+        issues = .loaded(sort(current))
     }
 
     /// Refetches only if the workspace actually changed. Called when the app returns to the
@@ -86,7 +101,10 @@ public final class IssuesStore {
         } catch {
             if var current = issues.value, let position = current.firstIndex(where: { $0.id == issueID }) {
                 current[position] = original
-                issues = .loaded(current)
+                // Re-sorted, like the success path. Restoring the row's value without
+                // restoring its place leaves an urgent in-progress issue sitting below a
+                // medium one, which reads as a second, stranger bug than the failed write.
+                issues = .loaded(sort(current))
             }
         }
     }
@@ -109,7 +127,11 @@ public final class IssuesStore {
             if left.priority.sortWeight != right.priority.sortWeight {
                 return left.priority.sortWeight < right.priority.sortWeight
             }
-            return left.updatedAt > right.updatedAt
+            if left.updatedAt != right.updatedAt { return left.updatedAt > right.updatedAt }
+            // A final total tiebreak. `sorted(by:)` is not stable, so rows sharing every sort
+            // key would otherwise swap places on any re-sort — after a create, after a status
+            // change — and look like the list was shuffling itself.
+            return left.identifier < right.identifier
         }
     }
 }
