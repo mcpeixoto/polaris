@@ -814,10 +814,13 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
       void copyText(window.location.href);
     },
     openDisplay: () => display.show(),
-    // The current layout is read here rather than closed over at registration, so the chord
-    // toggles rather than repeatedly setting whatever the layout happened to be on mount.
+    // The patch is a function rather than a value, so the layout is read when the chord
+    // fires rather than when the render that registered it ran. Closing over `view.display`
+    // was already wrong once — it made the chord set a layout instead of toggling one — and
+    // reading it here was only half the fix: a render's `view` is still a frame old, so two
+    // presses inside one frame both saw `list` and both wrote `board`.
     toggleLayout: () =>
-      view.setDisplay({ layout: view.display.layout === 'board' ? 'list' : 'board' }),
+      view.setDisplay((current) => ({ layout: current.layout === 'board' ? 'list' : 'board' })),
     canBoard: () => !inTriage,
   };
 

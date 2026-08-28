@@ -45,7 +45,7 @@
  * nothing else claims.
  */
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 
 import {
@@ -109,8 +109,20 @@ export interface ViewState {
   readonly count: number;
   setFilter(next: FilterNode): void;
   /** Merges a patch over the current options and writes the result back to the URL. */
-  setDisplay(patch: Partial<DisplayOptions>): void;
+  setDisplay(patch: DisplayPatch): void;
 }
+
+/**
+ * What to change about the display options.
+ *
+ * The function form exists because a toggle is not a value: `layout: 'board'` is a
+ * statement, `the other one` is a question about what the layout is right now, and the
+ * answer a render closed over is a frame out of date. Anything that flips rather than
+ * sets should use it.
+ */
+export type DisplayPatch =
+  | Partial<DisplayOptions>
+  | ((current: Required<DisplayOptions>) => Partial<DisplayOptions>);
 
 export interface UseViewOptions {
   /**
@@ -252,6 +264,25 @@ export function useView({
 }: UseViewOptions): ViewState {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+
+  // The address bar as last written, rather than as last rendered.
+  //
+  // `useSearchParams` hands back one snapshot per commit, and every handler that fires
+  // before the next commit reads that same snapshot. Two chords inside one frame — ⌘B
+  // pressed twice to go to the board and back — therefore both see the layout as it was
+  // before either of them ran, so the second merges over the state the first had already
+  // replaced and writes `board` a second time. The layout does not come back and the
+  // keystroke looks dropped.
+  //
+  // Synced on identity rather than on every render: `useSearchParams` returns a new object
+  // per navigation and the same one otherwise, so this takes an external navigation over
+  // our own value while never rolling back a write the router has not committed yet.
+  const paramsRef = useRef(params);
+  const renderedRef = useRef(params);
+  if (renderedRef.current !== params) {
+    renderedRef.current = params;
+    paramsRef.current = params;
+  }
   const engine = useEngine();
   const viewer = useViewer();
   const viewerId = useViewerId();
@@ -347,13 +378,14 @@ export function useView({
 
   const writeParams = useCallback(
     (mutate: (next: URLSearchParams) => void) => {
-      const next = new URLSearchParams(params);
+      const next = new URLSearchParams(paramsRef.current);
       mutate(next);
+      paramsRef.current = next;
       // `replace`, not push: a filter is refined a character at a time, and pushing each
       // keystroke fills the back button with states nobody wants to return to.
       void navigate({ search: filterSearchString(next) }, { replace: true });
     },
-    [navigate, params],
+    [navigate],
   );
 
   const setFilter = useCallback(
@@ -370,8 +402,16 @@ export function useView({
   );
 
   const setDisplay = useCallback(
-    (patch: Partial<DisplayOptions>) => {
-      const merged = { ...display, ...patch };
+    (patch: DisplayPatch) => {
+      // Resolved the same way `display` is, but from the written params rather than the
+      // rendered ones — see `paramsRef`. The fallback chain is a render value on purpose:
+      // it moves when a preference arrives over the network, which is not something two
+      // keystrokes in one frame can race.
+      const live = Object.values(DISPLAY_PARAMS).some((name) => paramsRef.current.has(name))
+        ? paramsRef.current
+        : (fallbackParams ?? EMPTY_PARAMS);
+      const current = resolveDisplay(live);
+      const merged = { ...current, ...(typeof patch === 'function' ? patch(current) : patch) };
       const next = toDisplayParams(merged);
       writeParams((search) => {
         // Cleared first: `toDisplayParams` omits every value that is already the default,
@@ -392,7 +432,7 @@ export function useView({
         report,
       );
     },
-    [writeParams, display, engine, preferenceKey, viewerId],
+    [writeParams, fallbackParams, engine, preferenceKey, viewerId],
   );
 
   /**
