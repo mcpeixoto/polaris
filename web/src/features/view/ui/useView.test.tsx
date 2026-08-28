@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { BrowserRouter } from 'react-router';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { Store } from '~/store';
@@ -16,16 +16,17 @@ vi.mock('~/hooks/useViewer', () => ({
 const WORKSPACE = '00000000-0000-4000-8000-000000000001';
 
 /**
- * Two display changes inside one frame.
+ * What the display writes are allowed to assume about when they run.
  *
- * `useSearchParams` hands back one snapshot per commit, so every handler that fires before
- * React commits again reads the same one. That is not a hypothetical window: a chord is a
- * keydown handler, and a person who presses ⌘B twice quickly fires both inside it. The
- * end-to-end suite has a case for exactly that sequence, and it failed roughly one run in
- * ten — which is the worst possible signal, because nine runs in ten call the bug fixed.
+ * The answer is: nothing. A write can be issued between two React commits — a chord fires
+ * and the preference write it triggers re-renders the tree before the router's own state
+ * update has landed — and it can be issued after the bar has moved for a reason this
+ * component never rendered. Both happen in the product, and both used to produce a write
+ * built on a stale copy of the options, which is not a wrong value in one field but the
+ * pre-write value in *every* field the patch did not mention.
  *
- * This drives it from the same batch every time, so the answer does not depend on how fast
- * the machine committed a render.
+ * `BrowserRouter`, because that is what `App` mounts and because the bar is the thing under
+ * test. A `MemoryRouter` keeps its own location and would answer a question nobody asks.
  */
 function Probe({ onReady }: { onReady: (setDisplay: (patch: DisplayPatch) => void) => void }) {
   const view = useView({
@@ -43,6 +44,8 @@ function Probe({ onReady }: { onReady: (setDisplay: (patch: DisplayPatch) => voi
 }
 
 async function mounted() {
+  window.history.replaceState({}, '', '/team/ENG');
+
   const store = new Store(WORKSPACE);
   await store.beginBootstrap();
   store.ingestBootstrapPage([]);
@@ -51,7 +54,7 @@ async function mounted() {
 
   let setDisplay: ((patch: DisplayPatch) => void) | undefined;
   render(
-    <MemoryRouter>
+    <BrowserRouter>
       <EngineProvider engine={engine} status={{ phase: 'idle' }}>
         <Probe
           onReady={(fn) => {
@@ -59,7 +62,7 @@ async function mounted() {
           }}
         />
       </EngineProvider>
-    </MemoryRouter>,
+    </BrowserRouter>,
   );
 
   // The chord as `IssueList` registers it: a question about the current layout, not a value.
@@ -68,10 +71,15 @@ async function mounted() {
   const write = (patch: DisplayPatch) => setDisplay!(patch);
   const layout = () => screen.getByTestId('layout').textContent;
   const grouping = () => screen.getByTestId('groupBy').textContent;
-  return { toggle, write, layout, grouping };
+  const bar = () => window.location.search;
+  return { toggle, write, layout, grouping, bar };
 }
 
 describe('useView display writes', () => {
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/team/ENG');
+  });
+
   it('toggles the layout back when both presses land inside one frame', async () => {
     const { toggle, layout } = await mounted();
     expect(layout()).toBe('list');
@@ -81,9 +89,6 @@ describe('useView display writes', () => {
       toggle();
     });
 
-    // Before the fix this was 'board': the second patch merged over the snapshot the first
-    // one had already replaced, so it read `list`, wrote `board` again, and the layout
-    // stayed where the first press put it.
     expect(layout()).toBe('list');
   });
 
@@ -101,11 +106,10 @@ describe('useView display writes', () => {
   it('keeps an option a later write in the same frame never mentioned', async () => {
     const { write, layout, grouping } = await mounted();
 
-    // Two writes in one frame, of different things. Undoing a toggle is the visible symptom,
-    // but the underlying fault is broader: each patch is merged over the whole options
-    // object, so a second write built from a stale snapshot does not merely contradict the
-    // first — it carries the pre-first values for every key it did not mention and puts
-    // them back. Grouping is set first and never mentioned again; it has to survive.
+    // Undoing a toggle is the visible symptom; the fault is broader. Each patch is merged
+    // over the whole options object, so a second write built from a stale copy does not
+    // merely contradict the first — it carries the pre-first value for every key it did not
+    // mention and puts it back. Grouping is set first and never mentioned again.
     act(() => {
       write({ groupBy: 'priority' });
       write({ layout: 'board' });
@@ -113,5 +117,24 @@ describe('useView display writes', () => {
 
     expect(grouping()).toBe('priority');
     expect(layout()).toBe('board');
+  });
+
+  it('reads the layout from the bar when the bar moved without a re-render', async () => {
+    const { toggle, bar } = await mounted();
+
+    // The bar goes to the board without React being told. This is what the arrival effect
+    // does — it calls `navigate` directly — and what any write issued between two commits
+    // looks like from here: the location has moved and `useSearchParams` still reports the
+    // last committed snapshot.
+    //
+    // This is the case a ref of "what I last wrote" cannot cover, because it is not what
+    // this hook wrote. The toggle has to see `board` and produce a list.
+    act(() => {
+      window.history.replaceState({}, '', '/team/ENG?layout=board');
+    });
+
+    act(() => toggle());
+
+    expect(bar()).not.toContain('layout=board');
   });
 });
