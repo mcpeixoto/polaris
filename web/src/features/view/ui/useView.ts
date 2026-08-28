@@ -121,8 +121,7 @@ export interface ViewState {
  * sets should use it.
  */
 export type DisplayPatch =
-  | Partial<DisplayOptions>
-  | ((current: Required<DisplayOptions>) => Partial<DisplayOptions>);
+  Partial<DisplayOptions> | ((current: Required<DisplayOptions>) => Partial<DisplayOptions>);
 
 export interface UseViewOptions {
   /**
