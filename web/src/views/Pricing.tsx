@@ -38,9 +38,11 @@ import {
   ANNUAL_DISCOUNT_PERCENT,
   PLAN_ORDER,
   PLANS,
+  planAsSold,
   PRO_MONTHLY_CENTS,
   type Cell,
 } from '~/features/pricing/plans';
+import { useBillingLive } from '~/features/pricing/useBillingLive';
 import { isSignedIn } from '~/sync/api';
 
 import styles from './Pricing.module.css';
@@ -59,6 +61,13 @@ export function Pricing() {
    * like an error.
    */
   const signedIn = isSignedIn();
+
+  /**
+   * Whether this server can take a payment. False until the answer arrives, so the first
+   * paint is the honest one — a page that flashed "Get started" on Cloud Pro and then
+   * downgraded it to "Talk to us" would be worse than either state.
+   */
+  const billingLive = useBillingLive();
 
   return (
     <div className={styles.page}>
@@ -111,7 +120,7 @@ export function Pricing() {
 
         <section className={styles.plans} aria-label="Plans">
           <ul className={styles.planGrid} role="list">
-            {PLANS.map((plan) => (
+            {PLANS.map((entry) => planAsSold(entry, billingLive)).map((plan) => (
               <li key={plan.id} className={styles.plan}>
                 <h2 className={styles.planName}>{plan.name}</h2>
                 <p className={styles.planPrice}>
@@ -210,7 +219,7 @@ export function Pricing() {
             </h2>
           </div>
           <dl className={styles.answers}>
-            {ANSWERS.map((answer) => (
+            {answers(billingLive).map((answer) => (
               <div key={answer.q}>
                 <dt>{answer.q}</dt>
                 <dd>{answer.a}</dd>
@@ -278,14 +287,30 @@ function CellValue({ cell }: { cell: Cell }) {
   );
 }
 
+/**
+ * The questions, given what this server can do.
+ *
+ * The first one changes with the deployment because its true answer does. A self-host has no
+ * checkout and never will; the hosted product does once its Stripe keys are set. One static
+ * paragraph would be wrong on one of them, and the one it would be wrong for is whichever
+ * customer is reading it.
+ */
+function answers(billingLive: boolean): readonly { q: string; a: string }[] {
+  return [
+    {
+      q: 'Can I pay for Cloud Pro today?',
+      a: billingLive
+        ? 'Yes. Make an account, then open Settings → Billing and upgrade — checkout is Stripe, and the card never touches our servers. Seats are billed at the people in the workspace, and adding someone later is prorated rather than refused.'
+        : 'Not on this server. The price is settled and the plan is enforced, but no payment provider is configured here, so nothing on this page can charge a card. Write to us and we will arrange a workspace directly.',
+    },
+    ...ANSWERS,
+  ];
+}
+
 const ANSWERS: readonly { q: string; a: string }[] = [
   {
     q: 'What counts as a user?',
     a: 'Somebody active and not suspended. Suspending a person frees their seat the moment you do it, and bots and integrations are not seats.',
-  },
-  {
-    q: 'Can I pay for Cloud Pro today?',
-    a: 'Not yet. The price is settled and the server already enforces the plan, but the checkout that would take your money is still being built, so nothing on this page can charge a card. Write to us and we will arrange a workspace directly.',
   },
   {
     q: 'What happens when billing lapses?',

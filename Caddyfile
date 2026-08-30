@@ -75,6 +75,12 @@
 		reverse_proxy api:8088
 	}
 
+	# Billing: the administrator's three endpoints plus the anonymous config flag the
+	# pricing page reads. Stripe's own deliveries arrive under /webhooks/ above.
+	handle /billing* {
+		reverse_proxy api:8088
+	}
+
 	handle /files/* {
 		reverse_proxy api:8088
 	}

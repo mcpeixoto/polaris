@@ -398,6 +398,57 @@ export const auth = {
   },
 };
 
+/**
+ * Billing.
+ *
+ * REST and not GraphQL, deliberately: none of it is workspace data on the replica. A
+ * checkout URL is a one-shot redirect that must never be cached, and the config flag is read
+ * by the marketing pages, which have no session, no workspace header and no sync engine.
+ */
+export interface BillingState {
+  /** Whether this deployment can sell anything at all. False on every self-host. */
+  enabled: boolean;
+  plan: string;
+  status: string;
+  seatsUsed: number;
+  seatsPaid: number | null;
+  currentPeriodEnd: string | null;
+  lapsed: boolean;
+  hasSubscription: boolean;
+  /** Whether there is a Stripe customer to open the portal for. */
+  canManage: boolean;
+}
+
+export const billing = {
+  /**
+   * Whether checkout exists on this server. Read without a session, because the pricing
+   * page is rendered for people who do not have one.
+   */
+  async configured(): Promise<boolean> {
+    const body = await request<{ enabled: boolean }>('/billing/config', {
+      method: 'GET',
+      skipAuth: true,
+    });
+    return body.enabled;
+  },
+
+  state() {
+    return request<BillingState>('/billing', { method: 'GET' });
+  },
+
+  /** Opens a Stripe Checkout session and returns the URL to send the browser to. */
+  async checkout(interval: 'monthly' | 'yearly') {
+    const body = await post<{ url: string }>('/billing/checkout', { interval });
+    return body.url;
+  },
+
+  /** Opens Stripe's billing portal, where the card and the cancellation live. */
+  async portal() {
+    const body = await post<{ url: string }>('/billing/portal', {});
+    return body.url;
+  },
+};
+
 export const asks = {
   get(token: string) {
     return request<{ name: string; description: string; teamName: string }>(`/asks/${token}`, {

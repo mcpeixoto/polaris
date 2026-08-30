@@ -1,8 +1,26 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { billing } from '~/sync/api';
 
 import { Pricing } from './Pricing';
+
+/**
+ * The page asks the server whether it can take a payment. Unmocked that is a fetch to
+ * nowhere, and the default here — cannot sell — is the state the static copy is written for.
+ */
+vi.mock('~/sync/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~/sync/api')>();
+  return { ...actual, billing: { ...actual.billing, configured: vi.fn() } };
+});
+
+const billingConfigured = vi.mocked(billing.configured);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  billingConfigured.mockResolvedValue(false);
+});
 
 function renderPricing() {
   return render(
@@ -115,5 +133,21 @@ describe('Pricing', () => {
     const talk = screen.getByRole('link', { name: 'Talk to us' });
     expect(talk.getAttribute('href')?.startsWith('mailto:')).toBe(true);
     expect(screen.getByText(/Checkout is not open yet/)).toBeTruthy();
+  });
+
+  /**
+   * The same page on the hosted deployment, where Stripe keys are set. The waitlist wording
+   * has to disappear or the product tells paying customers to write an email instead of
+   * selling to them.
+   */
+  it('offers a sign-up for Cloud Pro once the server can take a payment', async () => {
+    billingConfigured.mockResolvedValue(true);
+    renderPricing();
+
+    await waitFor(() =>
+      expect(screen.getAllByRole('link', { name: 'Get started' }).length).toBeGreaterThan(1),
+    );
+    expect(screen.queryByRole('link', { name: 'Talk to us' })).toBeNull();
+    expect(screen.queryByText(/Checkout is not open yet/)).toBeNull();
   });
 });

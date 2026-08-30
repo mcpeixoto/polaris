@@ -274,3 +274,21 @@ export const COMPARISON: readonly ComparisonRow[] = [
 export function planSummary(id: string): PlanSummary | null {
   return PLANS.find((plan) => plan.id === id) ?? null;
 }
+
+/**
+ * The plan as the page should render it, given whether this server can actually sell.
+ *
+ * The static entry above is written for the pessimistic case, because that is the one that
+ * cannot lie: a page that assumed checkout existed would put "Get started" on Cloud Pro on
+ * every self-hosted deployment and on the hosted one until the day Stripe keys are set. When
+ * `GET /billing/config` says billing is live, the waitlist wording is replaced by the
+ * ordinary sign-up: the buyer makes an account, and the upgrade itself happens in
+ * Settings → Billing, where the workspace whose seats are being bought is unambiguous.
+ */
+export function planAsSold(plan: PlanSummary, billingLive: boolean): PlanSummary {
+  if (!billingLive || plan.availability !== 'waitlist') {
+    return plan;
+  }
+  const { note: _note, ...rest } = plan;
+  return { ...rest, availability: 'now', action: { label: 'Get started', to: '/signup' } };
+}

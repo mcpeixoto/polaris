@@ -66,6 +66,7 @@ const GROUPS: readonly SettingsGroup[] = [
     title: 'Workspace',
     links: [
       { to: '/settings/workspace', label: 'General', glyph: 'apps', gate: 'admin' },
+      { to: '/settings/billing', label: 'Billing', glyph: 'key', gate: 'admin' },
       { to: '/settings/members', label: 'Members', glyph: 'members', gate: 'member' },
       { to: '/settings/labels', label: 'Labels', glyph: 'labels', gate: 'member' },
       { to: '/settings/project-labels', label: 'Project labels', glyph: 'labels', gate: 'admin' },

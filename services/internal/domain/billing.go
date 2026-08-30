@@ -335,3 +335,63 @@ func intPtrFromInt32(n *int32) *int {
 	v := int(*n)
 	return &v
 }
+
+// BillingRecord is what an administrator's own screen may know about their subscription.
+//
+// Deliberately not the whole store row: no internal id, and nothing a support tool would
+// need. What it carries is what the two billing endpoints need — the customer to open a
+// portal for, whether there is a live subscription at all, and the state to render.
+type BillingRecord struct {
+	// CustomerID is empty when this workspace has never reached a checkout.
+	CustomerID string
+	// SubscriptionID is nil for a customer who exists but never completed one.
+	SubscriptionID   *string
+	Status           SubscriptionStatus
+	CurrentPeriodEnd *time.Time
+	SeatsPaid        *int
+	Plan             entitlement.Plan
+	SeatsUsed        int
+	Lapsed           bool
+}
+
+// BillingFor reads the billing state of the caller's own workspace.
+//
+// Administrators only: this is the money screen, and a member who can read it can read how
+// many seats the company is paying for and when the card is next charged. The check is
+// Role.IsAdmin rather than a permission constant because owning the subscription is not a
+// product capability — there is nothing to grant, and no plan under which a member should
+// see it.
+//
+// A workspace with no subscription row is not an error. It is every free workspace, and it
+// returns the plan and seat count with an empty customer, which is exactly what the screen
+// needs to offer a first checkout.
+func (s *Service) BillingFor(ctx context.Context, p *authz.Principal) (BillingRecord, error) {
+	if p == nil || !p.Role.IsAdmin() {
+		return BillingRecord{}, platform.Forbidden("only an administrator can see billing")
+	}
+
+	set, err := entitlementSetFor(ctx, s.db.Queries(), p.WorkspaceID)
+	if err != nil {
+		return BillingRecord{}, err
+	}
+	out := BillingRecord{
+		Status:    SubscriptionCanceled,
+		Plan:      set.Plan(),
+		SeatsUsed: set.SeatsUsed(),
+		Lapsed:    set.Lapsed(),
+	}
+
+	row, err := s.db.Queries().GetSubscription(ctx, p.WorkspaceID)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return out, nil
+		}
+		return BillingRecord{}, platform.Internal(err)
+	}
+	out.CustomerID = row.ProviderCustomerID
+	out.SubscriptionID = row.ProviderSubscriptionID
+	out.Status = SubscriptionStatus(row.Status)
+	out.CurrentPeriodEnd = row.CurrentPeriodEnd
+	out.SeatsPaid = intPtrFromInt32(row.SeatsPaid)
+	return out, nil
+}

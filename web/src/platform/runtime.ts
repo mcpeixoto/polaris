@@ -134,3 +134,22 @@ export function desktopServerUrl(): string | null {
 export function setDesktopServerUrl(url: string): void {
   bridge?.setServerUrl(url);
 }
+
+/**
+ * Hands the viewer to a URL this product does not own — today, Stripe's checkout and
+ * billing portal.
+ *
+ * `window.open` rather than `location.assign`, because the same bundle runs inside the
+ * Electron shell: the shell's `setWindowOpenHandler` sends this to the system browser and
+ * keeps the app window where it was, while an in-place navigation would replace the
+ * application with a page that has no way back. In a browser tab the popup is the same
+ * gesture as a target=_blank link, and if the popup is blocked the fallback navigates.
+ *
+ * `noopener` because the opened page must not get a handle on this one.
+ */
+export function openExternalUrl(url: string): void {
+  const opened = window.open(url, '_blank', 'noopener');
+  if (opened === null) {
+    window.location.assign(url);
+  }
+}

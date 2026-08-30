@@ -8,6 +8,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/entitlement"
+	stripein "github.com/peixotolabs/polaris/services/internal/integrations/stripe"
 	"github.com/peixotolabs/polaris/services/internal/mcp"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 )
@@ -155,6 +156,30 @@ func NewRouter(d Deps) http.Handler {
 
 	gitlab := &gitlabHandlers{svc: d.Service, replay: replay}
 	mux.Handle("POST /webhooks/gitlab/{workspaceId}", d.Limits.Anonymous(http.HandlerFunc(gitlab.events)))
+
+	// Billing. The webhook is anonymous because Stripe cannot hold a session; it
+	// authenticates by signature instead, and refuses everything when no signing secret is
+	// configured. The other three are the administrator's own screens.
+	billing := &billingHandlers{
+		svc: d.Service,
+		client: stripein.NewClient(
+			d.Config.StripeSecretKey, d.Config.StripeBaseURL, 20*time.Second),
+		prices: stripein.PriceMap{
+			Pro:        []string{d.Config.StripePriceProMonthly, d.Config.StripePriceProYearly},
+			Enterprise: []string{d.Config.StripePriceEnterprise},
+		},
+		monthly:       d.Config.StripePriceProMonthly,
+		yearly:        d.Config.StripePriceProYearly,
+		webhookSecret: d.Config.StripeWebhookSecret,
+		publicURL:     d.Config.PublicURL,
+		automaticTax:  d.Config.StripeAutomaticTax,
+		replay:        replay,
+	}
+	mux.Handle("POST /webhooks/stripe", d.Limits.Anonymous(http.HandlerFunc(billing.webhook)))
+	mux.Handle("GET /billing/config", d.Limits.Anonymous(http.HandlerFunc(billing.config)))
+	mux.Handle("GET /billing", RequireWorkspace(http.HandlerFunc(billing.state)))
+	mux.Handle("POST /billing/checkout", RequireWorkspace(http.HandlerFunc(billing.checkout)))
+	mux.Handle("POST /billing/portal", RequireWorkspace(http.HandlerFunc(billing.portal)))
 
 	sentry := &sentryHandlers{svc: d.Service, replay: replay}
 	mux.Handle("POST /webhooks/sentry/{workspaceId}", d.Limits.Anonymous(http.HandlerFunc(sentry.events)))
