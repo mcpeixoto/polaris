@@ -92,6 +92,19 @@ export interface PlanSummary {
   readonly blurb: string;
   /** The button under the column, and where it goes. */
   readonly action: { readonly label: string; readonly to: string };
+  /**
+   * Whether a reader can start this plan from the page today.
+   *
+   * `'now'` is the ordinary case. `'waitlist'` says the price is decided and the plan is
+   * enforced by the server, but the checkout that would take the money does not exist yet —
+   * `services/internal/domain/billing.go` has the entry point a payment provider would call
+   * and nothing in production calls it. A "Get started" button on a plan nobody can buy sends
+   * somebody to a sign-up that quietly hands them a different plan, so a plan that is not
+   * purchasable says so and asks them to write instead.
+   */
+  readonly availability: 'now' | 'waitlist';
+  /** Shown under the blurb when there is something the price alone does not say. */
+  readonly note?: string;
 }
 
 /**
@@ -138,33 +151,41 @@ export const PLANS: readonly PlanSummary[] = [
     per: 'forever',
     blurb: 'The whole tracker under the AGPL. You bring the machine.',
     action: { label: 'Self-hosting notes', to: '#self-host' },
+    availability: 'now',
   },
   {
     id: 'free',
     name: 'Cloud Free',
     price: formatEur(0),
     per: 'up to 5 people',
-    blurb: 'A real workspace on our hardware, small enough that we can afford to run it.',
+    blurb: 'A real workspace on our hardware, free for up to five people.',
     action: { label: 'Get started', to: '/signup' },
+    availability: 'now',
   },
   {
     id: 'pro',
     name: 'Cloud Pro',
     price: formatEur(PRO_MONTHLY_CENTS),
     per: 'per user / month',
-    blurb: 'The paid pitch is that you do not want to run it. Nothing is capped.',
-    action: { label: 'Get started', to: '/signup' },
+    blurb: 'Our hardware, and no ceiling on people, teams or history.',
+    action: {
+      label: 'Talk to us',
+      to: 'mailto:hello@peixotolabs.com?subject=Polaris%20Cloud%20Pro',
+    },
+    availability: 'waitlist',
+    note: 'Checkout is not open yet. Write to us and we will arrange it directly.',
   },
   {
     id: 'enterprise',
     name: 'Cloud Enterprise',
     price: null,
     per: '',
-    blurb: 'For teams whose security review has a list. Talk to us about what is on it.',
+    blurb: 'For teams with a procurement and security review. Tell us what it asks for.',
     action: {
       label: 'Contact us',
       to: 'mailto:hello@peixotolabs.com?subject=Polaris%20Enterprise',
     },
+    availability: 'now',
   },
 ];
 

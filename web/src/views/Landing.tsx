@@ -49,7 +49,7 @@ const SOURCE = 'https://github.com/mcpeixoto/polaris';
 const SELF_HOST_DOC =
   'https://github.com/mcpeixoto/polaris/blob/main/docs/05-infrastructure/11-self-hosting.md';
 
-const HERO_TITLE = 'The fast path never touches the network.';
+const HERO_TITLE = 'Issue tracking without the wait.';
 
 /**
  * Stagger index for a reveal. Read by the stylesheet as `calc(var(--i) * <step>)` on the
@@ -108,9 +108,9 @@ export function Landing() {
             <Words text={HERO_TITLE} />
           </h1>
           <p className={styles.heroLead} data-reveal="" style={at(3)}>
-            Polaris is an issue tracker for software teams that keep the replica on the machine.
-            Filter, sort and group against IndexedDB. The server&apos;s job is to keep that replica
-            true — and to get out of the way of <Kbd keys="mod+k" />.
+            Your whole workspace lives on your machine, so filtering, sorting and grouping take a
+            keystroke, not a round trip. The server just keeps it in sync — and stays out of the way
+            of <Kbd keys="mod+k" />.
           </p>
           <div className={styles.heroCtas} data-reveal="" style={at(4)}>
             <Link to="/signup" className={styles.cta}>
@@ -140,11 +140,11 @@ export function Landing() {
           <div className={styles.bandHead} data-reveal="">
             <p className={styles.kicker}>Product</p>
             <h2 id="features-title" className={styles.sectionTitle}>
-              The tracker, not a dashboard in front of one.
+              Everything the team tracks, in one app.
             </h2>
             <p className={styles.sectionLead}>
-              Issues, projects, cycles, triage, initiatives and the timeline share one visual
-              system: a 32px row, a keymap, a local replica. Nothing here is a slide.
+              Issues, projects, cycles, triage, initiatives and the timeline all work the same way:
+              the same dense rows, the same shortcuts, the same local copy of your data.
             </p>
           </div>
           <ul className={styles.featureGrid} role="list">
@@ -161,12 +161,12 @@ export function Landing() {
           <div className={styles.splitCopy} data-reveal="">
             <p className={styles.kicker}>Issues</p>
             <h2 id="issues-title" className={styles.sectionTitle}>
-              Twenty-two rows on a laptop. Not eleven.
+              Twice as many issues on screen.
             </h2>
             <p className={styles.sectionLead}>
-              The issue list is the product. Identifiers, priority, status, labels and assignees
-              share a 32px row. Peek with <Kbd keys="space" />, file with <Kbd keys="c" />, triage
-              with <Kbd keys="g t" />.
+              Identifier, priority, status, labels and assignee fit on one 32px row, so a laptop
+              shows twenty-two issues where most trackers show eleven. Peek with{' '}
+              <Kbd keys="space" />, file with <Kbd keys="c" />, triage with <Kbd keys="g t" />.
             </p>
             <ul className={styles.points} role="list">
               {ISSUE_POINTS.map((point, index) => (
@@ -185,7 +185,7 @@ export function Landing() {
           <div className={styles.splitCopy} data-reveal="">
             <p className={styles.kicker}>Projects</p>
             <h2 id="projects-title" className={styles.sectionTitle}>
-              Outcome, not a second issue list.
+              Cross-team work, with a timeline.
             </h2>
             <p className={styles.sectionLead}>
               Cross-team work with health from the latest update, milestones, dependencies and a
@@ -209,12 +209,12 @@ export function Landing() {
           <div className={styles.splitCopy} data-reveal="">
             <p className={styles.kicker}>Cycles</p>
             <h2 id="cycles-title" className={styles.sectionTitle}>
-              Cadence the team does not have to remember.
+              Sprints that repeat themselves.
             </h2>
             <p className={styles.sectionLead}>
-              Time-boxed, per-team, auto-repeating. Rollover and auto-add, a burn-up on the detail
-              page, pause and cooldown gaps when the calendar is not a factory. <Kbd keys="g c" /> /{' '}
-              <Kbd keys="shift+c" />.
+              Time-boxed and per-team, created automatically on your cadence. Unfinished work rolls
+              over, the detail page graphs scope against completed, and you can pause or leave a gap
+              between cycles. <Kbd keys="g c" /> / <Kbd keys="shift+c" />.
             </p>
             <ul className={styles.points} role="list">
               {CYCLE_POINTS.map((point, index) => (
@@ -231,7 +231,7 @@ export function Landing() {
 
         <section className={styles.manifestoBand} aria-labelledby="manifesto-title">
           <h2 id="manifesto-title" className={styles.manifesto} data-reveal="">
-            <Words text="Press the key. The answer is already on the machine." />
+            <Words text="Press the key. The answer is already there." />
           </h2>
         </section>
 
@@ -239,12 +239,11 @@ export function Landing() {
           <div className={styles.bandHead} data-reveal="">
             <p className={styles.kicker}>Keyboard</p>
             <h2 id="keyboard-title" className={styles.sectionTitle}>
-              One registry. The menu is a view of it.
+              Every shortcut in one place.
             </h2>
             <p className={styles.sectionLead}>
-              Every action is registered once. The command menu, the help overlay and the bindings
-              are the same list. A shortcut that is not in the registry does not exist — which is
-              how you keep a hundred chords from colliding.
+              Every action is defined once, so the command menu, the help overlay and the key
+              bindings can never drift apart. Find a shortcut in the menu and that is the shortcut.
             </p>
           </div>
           <div className={styles.keyboardRow}>
@@ -266,12 +265,12 @@ export function Landing() {
           <div className={styles.splitCopy} data-reveal="">
             <p className={styles.kicker}>Sync</p>
             <h2 id="sync-title" className={styles.sectionTitle}>
-              Local-first is the architecture, not a badge.
+              Offline is the normal case.
             </h2>
             <p className={styles.sectionLead}>
-              A gapless per-workspace version stream, NDJSON bootstrap, WebSocket hub, resume and
-              revoke. Optimistic mutations land in a durable outbox. Offline is the ordinary case;
-              the network is how the replica stays true.
+              Edits apply on your machine first and queue in a durable outbox, then sync over a
+              connection that resumes exactly where it dropped. Close the laptop mid-edit, reopen it
+              on a train, and nothing is lost or duplicated.
             </p>
             <ul className={styles.points} role="list">
               {SYNC_POINTS.map((point, index) => (
@@ -284,37 +283,6 @@ export function Landing() {
           <figure className={styles.shot} data-reveal="" aria-hidden="true">
             <SyncChrome />
           </figure>
-        </section>
-
-        <section className={styles.band} aria-labelledby="proof-title">
-          <div className={styles.bandHead} data-reveal="">
-            <p className={styles.kicker}>Teams</p>
-            <h2 id="proof-title" className={styles.sectionTitle}>
-              Built for people who run their own iron.
-            </h2>
-            <p className={styles.sectionLead}>
-              Placeholders, on purpose. Polaris is invite-only until quotas and abuse controls are
-              proven. These marks stand in for the row that will live here.
-            </p>
-          </div>
-          <ul className={styles.logos} role="list" data-reveal="">
-            {LOGOS.map((name, index) => (
-              <li key={name} className={styles.logo} style={at(index)}>
-                {name}
-              </li>
-            ))}
-          </ul>
-          <ul className={styles.quotes} role="list">
-            {QUOTES.map((quote, index) => (
-              <li key={quote.org} className={styles.quote} data-reveal="" style={at(index)}>
-                <p>“{quote.text}”</p>
-                <p className={styles.quoteWho}>
-                  {quote.who}
-                  <span>{quote.org}</span>
-                </p>
-              </li>
-            ))}
-          </ul>
         </section>
 
         {/*
@@ -345,6 +313,9 @@ export function Landing() {
                   {plan.per === '' ? null : ` · ${plan.per}`}
                 </p>
                 <p>{plan.blurb}</p>
+                {plan.note === undefined ? null : (
+                  <p className={styles.planNote}>{plan.note}</p>
+                )}
               </li>
             ))}
           </ul>
@@ -365,12 +336,11 @@ export function Landing() {
               Unlimited seats. You bring the machine.
             </h2>
             <p className={styles.sectionLead}>
-              AGPL core, Docker Compose, no published ports on the datastore. The paid pitch is that
-              you do not want to run it: our cloud is EU-only and starts at{' '}
-              {formatEur(PRO_MONTHLY_CENTS)} a seat, while self-hosters choose their own hardware
-              and pay nothing. SSO, SCIM and the audit log are the Enterprise tier and are still
-              being built — <Link to="/pricing">the pricing page</Link> says which rows are shipped
-              and which are not.
+              AGPL core, one Docker Compose file, no database ports exposed. Self-hosting costs
+              nothing but the hardware; our cloud is for teams who would rather not keep a Postgres
+              alive, is EU-only, and starts at {formatEur(PRO_MONTHLY_CENTS)} a seat. SSO, SCIM and
+              the audit log are not built yet — <Link to="/pricing">the pricing page</Link> marks
+              which rows ship today and which do not.
             </p>
           </div>
           <pre className={styles.code} data-reveal="" style={at(1)}>
@@ -443,7 +413,7 @@ function Words({ text }: { text: string }) {
 const STATS: readonly { label: string; value: string }[] = [
   { label: 'Filter 5,000 issues', value: '0.2 ms' },
   { label: 'Workspace snapshot', value: '24 ms / 20 KB' },
-  { label: 'Commit to delta', value: '< 100 ms' },
+  { label: 'Change reaches the team', value: '< 100 ms' },
   { label: 'Licence', value: 'AGPL-3.0' },
 ];
 
@@ -466,8 +436,8 @@ const CYCLE_POINTS = [
 ] as const;
 
 const SYNC_POINTS = [
-  'IndexedDB replica, in-memory indexes, client schema 21',
-  'GraphQL over the whole domain — the same API the product uses',
+  'A full IndexedDB replica of the workspace, with in-memory indexes',
+  'One GraphQL API over everything — the same one the app itself uses',
   'Argon2id, rotating refresh tokens, HttpOnly cookies',
 ] as const;
 
@@ -515,33 +485,6 @@ const SHORTCUTS: readonly { keys: string; label: string }[] = [
   { keys: 'g c', label: 'Cycles' },
   { keys: 'shift+p', label: 'Project picker' },
   { keys: 'mod+shift+u', label: 'Add link' },
-];
-
-const LOGOS = [
-  'Northwind Labs',
-  'Harbourline',
-  'Kite & Co.',
-  'Second System',
-  'Redoubt',
-  'Atelier',
-] as const;
-
-const QUOTES: readonly { text: string; who: string; org: string }[] = [
-  {
-    text: 'The list is already there when the packet is not. That is the whole product.',
-    who: 'Placeholder',
-    org: 'A team that runs the box',
-  },
-  {
-    text: 'We stopped briefing people on shortcuts. They find them because the menu is the registry.',
-    who: 'Placeholder',
-    org: 'A keyboard-first shop',
-  },
-  {
-    text: 'Self-host, AGPL, no seat tax. The replica is ours even when the uplink is not.',
-    who: 'Placeholder',
-    org: 'An infra team',
-  },
 ];
 
 function IssueChrome({ live = false }: { live?: boolean }) {

@@ -97,10 +97,8 @@ export function Pricing() {
             {formatEur(PRO_MONTHLY_CENTS)} a seat, or nothing at all.
           </h1>
           <p className={styles.heroLead}>
-            Run it yourself under the AGPL and pay us nothing, forever — that is the whole project
-            and it is not a trial. Cloud exists for the teams who would rather not keep a Postgres
-            alive, and it costs less than half what the tracker everyone compares us to charges for
-            its entry tier.
+            Run it yourself under the AGPL and pay us nothing, forever — that is the whole product,
+            not a trial of it. Cloud is for teams who would rather not keep a Postgres alive.
           </p>
           <p className={styles.annual}>
             Prices are per user, per month, billed monthly.{' '}
@@ -121,6 +119,9 @@ export function Pricing() {
                   {plan.per === '' ? null : <span className={styles.planPer}>{plan.per}</span>}
                 </p>
                 <p className={styles.planBlurb}>{plan.blurb}</p>
+                {plan.note === undefined ? null : (
+                  <p className={styles.planNote}>{plan.note}</p>
+                )}
                 {plan.action.to.startsWith('/') ? (
                   <Link to={plan.action.to} className={styles.planCta}>
                     {plan.action.label}
@@ -207,7 +208,7 @@ export function Pricing() {
         <section className={styles.band} aria-labelledby="answers-title">
           <div className={styles.bandHead}>
             <h2 id="answers-title" className={styles.sectionTitle}>
-              The questions that actually get asked.
+              Common questions.
             </h2>
           </div>
           <dl className={styles.answers}>
@@ -283,6 +284,10 @@ const ANSWERS: readonly { q: string; a: string }[] = [
   {
     q: 'What counts as a user?',
     a: 'Somebody active and not suspended. Suspending a person frees their seat the moment you do it, and bots and integrations are not seats.',
+  },
+  {
+    q: 'Can I pay for Cloud Pro today?',
+    a: 'Not yet. The price is settled and the server already enforces the plan, but the checkout that would take your money is still being built, so nothing on this page can charge a card. Write to us and we will arrange a workspace directly.',
   },
   {
     q: 'What happens when billing lapses?',

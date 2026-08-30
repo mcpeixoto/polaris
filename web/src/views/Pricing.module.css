@@ -508,3 +508,11 @@
     min-width: 9rem;
   }
 }
+
+/* A plan whose price is announced but whose checkout is not open. Tertiary and small: it
+   qualifies the price above it rather than competing with it. */
+.planNote {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}

@@ -105,4 +105,15 @@ describe('Pricing', () => {
       '/signin',
     );
   });
+
+  /**
+   * Cloud Pro is priced and enforced, but no code takes a payment for it, so the column
+   * must not carry the same "Get started" button as the plans somebody can actually start.
+   */
+  it('sends Cloud Pro to a conversation rather than a sign-up', () => {
+    renderPricing();
+    const talk = screen.getByRole('link', { name: 'Talk to us' });
+    expect(talk.getAttribute('href')?.startsWith('mailto:')).toBe(true);
+    expect(screen.getByText(/Checkout is not open yet/)).toBeTruthy();
+  });
 });
