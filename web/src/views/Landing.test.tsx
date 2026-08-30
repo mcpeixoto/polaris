@@ -16,7 +16,7 @@ describe('Landing', () => {
   it('has a heading a screen reader can find', () => {
     renderLanding();
     expect(
-      screen.getByRole('heading', { level: 1, name: 'The fast path never touches the network.' }),
+      screen.getByRole('heading', { level: 1, name: 'Issue tracking without the wait.' }),
     ).toBeTruthy();
   });
 
@@ -36,12 +36,8 @@ describe('Landing', () => {
     for (const name of ['Issues', 'Projects', 'Cycles', 'Triage', 'Initiatives', 'Timeline']) {
       expect(screen.getAllByText(name).length, name).toBeGreaterThan(0);
     }
-    expect(
-      screen.getByRole('heading', { name: 'One registry. The menu is a view of it.' }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole('heading', { name: 'Local-first is the architecture, not a badge.' }),
-    ).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Every shortcut in one place.' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Offline is the normal case.' })).toBeTruthy();
   });
 
   it('carries pricing in the nav and a band that links to the page', () => {
@@ -67,9 +63,15 @@ describe('Landing', () => {
     expect(container.textContent).not.toContain('when it exists');
   });
 
-  it('keeps social proof as placeholders rather than invented customers', () => {
-    renderLanding();
-    expect(screen.getAllByText('Placeholder').length).toBeGreaterThan(0);
-    expect(screen.getByText('Northwind Labs')).toBeTruthy();
+  /**
+   * The page carried a logo strip and three pull quotes that were openly labelled
+   * "Placeholder". Invented company names and invented sentences read as unfinished
+   * whether or not the page admits they are stand-ins, so the band is gone until there
+   * are real customers to name.
+   */
+  it('ships no invented customers or testimonials', () => {
+    const { container } = renderLanding();
+    expect(container.textContent).not.toContain('Placeholder');
+    expect(container.textContent).not.toContain('Northwind Labs');
   });
 });

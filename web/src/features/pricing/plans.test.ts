@@ -159,4 +159,20 @@ describe('agreement with the enforced matrix', () => {
     expect(cell('Teams')).toContain(String(FREE_TEAMS));
     expect(cell('History')).toContain(String(FREE_HISTORY_DAYS));
   });
+
+  /**
+   * The paywall quotes a price for Cloud Pro and the server enforces the plan, but nothing
+   * in production takes a payment: `ApplySubscription` in the Go domain has no caller
+   * outside its own test. A "Get started" button here would send somebody to a sign-up that
+   * hands them Free while the page said Pro.
+   */
+  it('does not offer a self-serve button for a plan nobody can buy', () => {
+    const pro = planSummary('pro');
+    expect(pro?.availability).toBe('waitlist');
+    expect(pro?.action.to.startsWith('mailto:')).toBe(true);
+    expect(pro?.note).toBeTruthy();
+    for (const id of ['self_hosted', 'free', 'enterprise'] as const) {
+      expect(planSummary(id)?.availability, id).toBe('now');
+    }
+  });
 });

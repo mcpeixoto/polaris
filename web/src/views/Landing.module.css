@@ -1538,3 +1538,10 @@
     display: none;
   }
 }
+
+/* Same qualifier as the pricing page's plan card, on the poster's version of it. */
+.planNote {
+  margin: var(--space-1) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}

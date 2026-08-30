@@ -1,7 +1,7 @@
 # Polaris
 
 **Polaris** is a keyboard-first, local-first issue tracker for software teams. It is
-self-hosted, AGPL-licensed, and built so that the fast path never touches the network: every
+self-hosted, AGPL-licensed, and built so the common actions never wait on a round trip: every
 filter, sort and grouping runs against a local replica of your workspace, and the server's
 job is to keep that replica true.
 
