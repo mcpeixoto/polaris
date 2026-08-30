@@ -313,9 +313,7 @@ export function Landing() {
                   {plan.per === '' ? null : ` · ${plan.per}`}
                 </p>
                 <p>{plan.blurb}</p>
-                {plan.note === undefined ? null : (
-                  <p className={styles.planNote}>{plan.note}</p>
-                )}
+                {plan.note === undefined ? null : <p className={styles.planNote}>{plan.note}</p>}
               </li>
             ))}
           </ul>

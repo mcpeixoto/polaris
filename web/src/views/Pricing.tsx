@@ -119,9 +119,7 @@ export function Pricing() {
                   {plan.per === '' ? null : <span className={styles.planPer}>{plan.per}</span>}
                 </p>
                 <p className={styles.planBlurb}>{plan.blurb}</p>
-                {plan.note === undefined ? null : (
-                  <p className={styles.planNote}>{plan.note}</p>
-                )}
+                {plan.note === undefined ? null : <p className={styles.planNote}>{plan.note}</p>}
                 {plan.action.to.startsWith('/') ? (
                   <Link to={plan.action.to} className={styles.planCta}>
                     {plan.action.label}
