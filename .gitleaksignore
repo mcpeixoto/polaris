@@ -19,3 +19,9 @@
 # is still in this branch's history, which is what the scan reads — and rewriting published
 # history to erase a string that was never a secret is the more dangerous of the two moves.
 cec60448a9196d4ca5c60924b1f130eafad8a4c7:services/internal/platform/stripe_hmac_test.go:generic-api-key:12
+
+# The comment that used to explain the entry above, in the commit before it was reworded.
+# Quoting the flagged string reproduced it, and a range scan reads the commit that introduced
+# a line, not the file as it stands — so deleting the quote fixed the file and not the scan.
+# This is the same non-secret, recorded a second time under the fingerprint it was found at.
+e498d3e5023d56b9e4a7ae9031dab33e882767a6:.gitleaksignore:generic-api-key:12
