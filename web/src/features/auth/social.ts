@@ -148,15 +148,23 @@ export async function mountGoogleButton(
   });
 }
 
+/** The nonce the SDK was last initialised with, and therefore the one Apple will echo. */
+let appleNonce: string | null = null;
+
 /**
- * Runs Apple's popup flow and resolves with the assertion.
+ * Loads and initialises Apple's SDK ahead of the click.
  *
- * `usePopup` keeps the whole exchange in one page: the redirect form would have Apple POST a
- * form back to a route of ours, which means a server-rendered endpoint this SPA does not
- * have. The redirect URI still has to be registered with Apple and still has to match, popup
- * or not — it is the origin they will hand the token back to.
+ * This is not an optimisation. `AppleID.auth.signIn()` opens a popup, and a browser only
+ * allows that while it can still see the user gesture that led to it — so awaiting a script
+ * download inside the click handler is the difference between a sign-in window and
+ * `{"error":"popup_blocked_by_browser"}` with nothing on screen to explain it. Preparing on
+ * mount leaves the click synchronous into the SDK.
+ *
+ * `usePopup` keeps the exchange in one page: the redirect form would have Apple POST back to
+ * a route of ours, which a static SPA does not have. The redirect URI still has to be
+ * registered with Apple and still has to match — it is the origin they hand the token to.
  */
-export async function signInWithApple(clientId: string): Promise<Assertion> {
+export async function prepareApple(clientId: string): Promise<void> {
   await loadScript(APPLE_SDK);
   const apple = window.AppleID;
   if (apple === undefined) {
@@ -171,15 +179,58 @@ export async function signInWithApple(clientId: string): Promise<Assertion> {
     usePopup: true,
     nonce,
   });
+  appleNonce = nonce;
+}
 
-  const result = await apple.auth.signIn();
-  const idToken = result.authorization?.id_token;
-  if (idToken === undefined || idToken === '') {
-    throw new Error('Apple did not return a sign-in.');
+/**
+ * Opens Apple's popup. Call straight from a click — nothing may be awaited first.
+ *
+ * Deliberately not `async`: an async function's first await already yields, and the point of
+ * this one is that `signIn()` is reached in the same task as the gesture.
+ */
+export function signInWithApple(): Promise<Assertion> {
+  const apple = window.AppleID;
+  const nonce = appleNonce;
+  if (apple === undefined || nonce === null) {
+    return Promise.reject(new Error('Apple sign-in is not ready yet. Try again in a moment.'));
   }
 
-  const first = result.user?.name?.firstName ?? '';
-  const last = result.user?.name?.lastName ?? '';
-  const displayName = `${first} ${last}`.trim();
-  return { idToken, nonce, ...(displayName === '' ? null : { displayName }) };
+  return apple.auth.signIn().then((result) => {
+    const idToken = result.authorization?.id_token;
+    if (idToken === undefined || idToken === '') {
+      throw new Error('Apple did not return a sign-in.');
+    }
+
+    const first = result.user?.name?.firstName ?? '';
+    const last = result.user?.name?.lastName ?? '';
+    const displayName = `${first} ${last}`.trim();
+    return { idToken, nonce, ...(displayName === '' ? null : { displayName }) };
+  });
+}
+
+/**
+ * What to show for a failed Apple sign-in, or null to stay quiet.
+ *
+ * Apple rejects with a plain object — `{"error":"popup_closed_by_user"}` — and not an Error.
+ * Rendering that with `String()` produces "[object Object]" on the sign-in page, which is
+ * what it did: a message that tells the reader nothing and looks like a broken product.
+ */
+export function appleFailureMessage(failure: unknown): string | null {
+  const code =
+    typeof failure === 'object' && failure !== null && 'error' in failure
+      ? String((failure as { error?: unknown }).error)
+      : '';
+
+  switch (code) {
+    // Somebody changed their mind. Not a fault, and not worth a red line.
+    case 'popup_closed_by_user':
+    case 'user_cancelled_authorize':
+      return null;
+    case 'popup_blocked_by_browser':
+      return 'Your browser blocked the Apple sign-in window. Allow pop-ups for this site and try again.';
+    case '':
+      return failure instanceof Error ? failure.message : 'That sign-in did not work. Try again.';
+    default:
+      return 'Apple could not complete that sign-in. Try again.';
+  }
 }
