@@ -21,6 +21,10 @@ type socialAuthHandlers struct {
 	*authHandlers
 	verifier  *oidc.Verifier
 	providers map[string]oidc.Provider
+	// appleWebClientID is the Services ID Apple's JS must be initialised with. Not derived
+	// from the audience list: that list also holds the iOS bundle id, and starting a browser
+	// flow with a bundle id fails at Apple with an error naming neither value.
+	appleWebClientID string
 }
 
 type socialSignInRequest struct {
@@ -119,6 +123,7 @@ func (h *socialAuthHandlers) available(w http.ResponseWriter, _ *http.Request) {
 		// The client ids are needed by the browser SDKs to start the flow, and they are not
 		// secret — they appear in the redirect URL of every sign-in that has ever happened.
 		"googleClientId": firstOr(h.providers["google"].Audiences, ""),
+		"appleClientId":  h.appleWebClientID,
 		"openSignup":     h.openSignup,
 	})
 }

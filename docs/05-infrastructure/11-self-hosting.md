@@ -176,6 +176,7 @@ which is not true of every system.
 | `POLARIS_EMAIL_WEBHOOK_SECRET` | empty | Inbound email-to-issue. Empty is a development stub |
 | `POLARIS_GOOGLE_CLIENT_ID` | empty | Sign in with Google. A client id, not a secret — the ID token is verified against Google's published keys. Empty means `POST /auth/oidc/google` answers 404 |
 | `POLARIS_APPLE_CLIENT_IDS` | empty | Sign in with Apple, comma separated: one Apple team issues tokens for several client ids, and the web Services ID and the iOS bundle id are both legitimate audiences |
+| `POLARIS_APPLE_WEB_CLIENT_ID` | empty | The Services ID the browser initialises Apple's JS with. Added to the accepted audiences automatically; for a web-only deployment it is the only Apple value needed |
 | `POLARIS_STRIPE_SECRET_KEY` | empty | Hosted billing. **Leave empty when self-hosting**: no checkout is offered and `POST /webhooks/stripe` refuses every delivery, because an empty signing secret verifies nothing |
 | `POLARIS_STRIPE_WEBHOOK_SECRET` | empty | The endpoint's signing secret (`whsec_…`). Needed together with the key — a key without it can take a payment and never learn that it did, which leaves a paying customer on the free plan |
 | `POLARIS_STRIPE_PRICE_PRO_MONTHLY` | empty | The price seats are sold at. Billing counts as configured only when the key, the signing secret and this are all set |

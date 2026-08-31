@@ -15,6 +15,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 
 import { Button, Input } from '~/components';
+import { SocialSignIn } from '~/features/auth/SocialSignIn';
 import { ApiError, auth } from '~/sync/api';
 import { AuthError, AuthForm, AuthLayout } from './AuthLayout';
 
@@ -85,6 +86,10 @@ export function SignIn({ onSignedIn }: SignInProps) {
           Sign in
         </Button>
       </AuthForm>
+
+      {/* Rendered from what the server offers. A deployment with no provider configured
+          gets nothing here, not an empty rule with a heading over it. */}
+      <SocialSignIn onSignedIn={onSignedIn} />
     </AuthLayout>
   );
 }

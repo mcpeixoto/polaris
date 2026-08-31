@@ -208,8 +208,15 @@ type Config struct {
 	GoogleClientID string `envconfig:"POLARIS_GOOGLE_CLIENT_ID"`
 
 	// Apple issues tokens for several client ids against one team — the iOS bundle id and
-	// the web Services ID are different strings — so this is a list.
+	// the web Services ID are different strings — so this is a list of what a token's `aud`
+	// may be.
 	AppleClientIDs []string `envconfig:"POLARIS_APPLE_CLIENT_IDS"`
+
+	// The Services ID the *browser* starts a sign-in with. A separate value because the
+	// list above cannot say which of its entries is the web one, and handing Apple's JS the
+	// iOS bundle id fails with an error that names neither. It is added to the accepted
+	// audiences automatically, so setting it alone is enough for a web-only deployment.
+	AppleWebClientID string `envconfig:"POLARIS_APPLE_WEB_CLIENT_ID"`
 
 	// Stripe credentials for hosted billing. Empty is the ordinary self-hosted case and
 	// the default: no checkout is offered, the billing endpoints answer "not configured",
@@ -280,11 +287,15 @@ func (c Config) GoogleSignInAudiences() []string {
 }
 
 func (c Config) AppleSignInAudiences() []string {
-	out := make([]string, 0, len(c.AppleClientIDs))
-	for _, id := range c.AppleClientIDs {
-		if trimmed := strings.TrimSpace(id); trimmed != "" {
-			out = append(out, trimmed)
+	seen := map[string]bool{}
+	out := make([]string, 0, len(c.AppleClientIDs)+1)
+	for _, id := range append(c.AppleClientIDs, c.AppleWebClientID) {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" || seen[trimmed] {
+			continue
 		}
+		seen[trimmed] = true
+		out = append(out, trimmed)
 	}
 	return out
 }
