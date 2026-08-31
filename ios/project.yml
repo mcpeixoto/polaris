@@ -45,6 +45,15 @@ targets:
       - path: Polaris
     dependencies:
       - package: PolarisCore
+    # Sign in with Apple. Without the entitlement the button draws and the sheet never
+    # opens: ASAuthorization fails with error 1000 and no message that says why. Generated
+    # by xcodegen rather than checked in, so the file cannot drift from this declaration.
+    entitlements:
+      path: Polaris/Polaris.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
+
     info:
       path: Polaris/Info.plist
       properties:

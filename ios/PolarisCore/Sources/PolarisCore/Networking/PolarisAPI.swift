@@ -21,6 +21,16 @@ public protocol PolarisAPI: Sendable {
     // Auth
     func signInWithDevSession() async throws -> Session
     func signIn(email: String, password: String) async throws -> Session
+    /// Trades an Apple ID token for a session.
+    ///
+    /// The token is what `ASAuthorizationAppleIDCredential` hands back; the server checks its
+    /// signature against Apple's published keys, so nothing secret travels and nothing here
+    /// has to be trusted.
+    ///
+    /// `displayName` is Apple's one-time gift. The name comes back on the very first
+    /// authorisation for this app and never again, so a client that drops it there has lost
+    /// it for good — which is why it is a parameter rather than something read later.
+    func signInWithApple(idToken: String, nonce: String, displayName: String?) async throws -> Session
     /// Creates an account.
     ///
     /// `inviteToken` is what admits the caller on a default install: registration mode is
