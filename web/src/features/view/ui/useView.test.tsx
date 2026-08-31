@@ -6,6 +6,8 @@ import { EngineProvider } from '~/app/context';
 import { Store } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
+import type { DisplayOptions } from '~/filter';
+
 import { useView, type DisplayPatch } from './useView';
 
 vi.mock('~/hooks/useViewer', () => ({
@@ -28,11 +30,18 @@ const WORKSPACE = '00000000-0000-4000-8000-000000000001';
  * `BrowserRouter`, because that is what `App` mounts and because the bar is the thing under
  * test. A `MemoryRouter` keeps its own location and would answer a question nobody asks.
  */
-function Probe({ onReady }: { onReady: (setDisplay: (patch: DisplayPatch) => void) => void }) {
+function Probe({
+  onReady,
+  preferenceKey,
+}: {
+  onReady: (setDisplay: (patch: DisplayPatch) => void) => void;
+  preferenceKey?: string | undefined;
+}) {
   const view = useView({
     issues: () => [],
     timezone: 'UTC',
     now: Date.parse('2026-01-01T00:00:00Z'),
+    preferenceKey,
   });
   onReady(view.setDisplay);
   return (
@@ -43,13 +52,36 @@ function Probe({ onReady }: { onReady: (setDisplay: (patch: DisplayPatch) => voi
   );
 }
 
-async function mounted() {
+async function mounted(options: { preferenceKey?: string; remembered?: DisplayOptions } = {}) {
   window.history.replaceState({}, '', '/team/ENG');
 
   const store = new Store(WORKSPACE);
   await store.beginBootstrap();
   store.ingestBootstrapPage([]);
   await store.finishBootstrap(1);
+  if (options.preferenceKey !== undefined && options.remembered !== undefined) {
+    store.applyChanges([
+      {
+        v: 2,
+        type: 'viewPreference',
+        id: 'pref-1',
+        op: 'upsert',
+        actor: { userId: 'user-ada', kind: 'user' },
+        payload: {
+          id: 'pref-1',
+          workspaceId: WORKSPACE,
+          userId: 'user-ada',
+          viewKey: options.preferenceKey,
+          display: options.remembered,
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z',
+        },
+      } as unknown as Parameters<Store['applyChanges']>[0][number],
+    ]);
+  }
+  // `mutate` resolves without applying anything, which is the point rather than a shortcut:
+  // it holds the store on the value the server last confirmed, exactly as it stands in the
+  // window between a local write and its optimistic patch landing.
   const engine = { store, mutate: async () => ({}) } as unknown as SyncEngine;
 
   let setDisplay: ((patch: DisplayPatch) => void) | undefined;
@@ -60,6 +92,7 @@ async function mounted() {
           onReady={(fn) => {
             setDisplay = fn;
           }}
+          preferenceKey={options.preferenceKey}
         />
       </EngineProvider>
     </BrowserRouter>,
@@ -135,6 +168,36 @@ describe('useView display writes', () => {
 
     act(() => toggle());
 
+    expect(bar()).not.toContain('layout=board');
+  });
+
+  /**
+   * Turning a remembered option off has to stay off.
+   *
+   * The arrival effect seeds the address bar from the stored row whenever the bar says
+   * nothing about display — and turning the last non-default option off is precisely how the
+   * bar comes to say nothing. The row itself is written fire-and-forget, so for the moment
+   * between the two the store still holds the old value, the effect reads it as an arrival,
+   * and it puts back the board the reader has just left.
+   *
+   * `mutate` here never applies the optimistic patch, which makes that window permanent
+   * instead of a race. In the product it is a race, which is worse: it is the e2e failure
+   * that shows up once in five runs, and for a reader it is a ⌘B that sometimes does not
+   * come back.
+   */
+  it('does not restore a remembered option the reader has just turned off', async () => {
+    const { toggle, layout, bar } = await mounted({
+      preferenceKey: 'team:ENG',
+      remembered: { layout: 'board' } as DisplayOptions,
+    });
+
+    // Arrival: the remembered board is seeded into a bar that said nothing.
+    expect(layout()).toBe('board');
+    expect(bar()).toContain('layout=board');
+
+    act(() => toggle());
+
+    expect(layout()).toBe('list');
     expect(bar()).not.toContain('layout=board');
   });
 });

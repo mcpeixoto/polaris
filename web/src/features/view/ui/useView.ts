@@ -45,7 +45,7 @@
  * nothing else claims.
  */
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 
 import {
@@ -312,7 +312,42 @@ export function useView({
    * never saved.
    */
   const preferenceSettled = preferenceKey === undefined || viewerId !== null;
-  const fallbackParams = storedParams ?? (preferenceSettled ? defaultParams : null);
+
+  /**
+   * The screen this reader has changed an option on, once they have.
+   *
+   * Read by the arrival effect below, which seeds the bar from the remembered row whenever
+   * the bar says nothing about display — and turning the last non-default option off is
+   * exactly how the bar comes to say nothing. The row is written fire-and-forget, so for the
+   * moment between the two the store still holds the old value; without this the effect
+   * reads that as an arrival and puts back the option that was just turned off.
+   *
+   * A ref rather than state because nothing renders differently for it, and because it must
+   * be true for the effect that runs after *this* commit rather than the next one.
+   *
+   * Holding the key, not a boolean, so that moving to another screen — a different
+   * `preferenceKey` on the same mounted hook — arrives fresh and is seeded normally. What
+   * has been chosen is a fact about one screen, not about the session.
+   */
+  const chosenHere = useRef<string | null>(null);
+
+  /**
+   * Once the reader has set an option on this screen, the bar is the whole answer.
+   *
+   * An empty bar then means "everything is at its default", because turning the last
+   * non-default option off is exactly how the bar comes to be empty — and falling back to
+   * the remembered row at that moment reinstates what they just turned off. The row is
+   * written fire-and-forget, so it holds the old value for as long as the round trip takes;
+   * the same applies to a saved view's shared default, which is a slower copy of a decision
+   * this reader has now overridden.
+   *
+   * Before that first choice the chain is untouched: arriving on a screen is exactly when a
+   * remembered option should be applied.
+   */
+  const chosenOnThisScreen = chosenHere.current === (preferenceKey ?? '');
+  const fallbackParams = chosenOnThisScreen
+    ? EMPTY_PARAMS
+    : (storedParams ?? (preferenceSettled ? defaultParams : null));
 
   const display = useMemo(
     () => resolveDisplay(urlDisplay ?? fallbackParams ?? EMPTY_PARAMS),
@@ -393,6 +428,7 @@ export function useView({
       // this render saw it — see `writeParams`. The fallback chain stays a render value on
       // purpose: it moves when a preference arrives over the network, which is not
       // something a keystroke can outrun.
+      chosenHere.current = preferenceKey ?? '';
       const bar = new URLSearchParams(window.location.search);
       const live = Object.values(DISPLAY_PARAMS).some((name) => bar.has(name))
         ? bar
@@ -460,7 +496,7 @@ export function useView({
     const next = new URLSearchParams(window.location.search);
     for (const [name, value] of entries) next.set(name, value);
     void navigate({ search: filterSearchString(next) }, { replace: true });
-  }, [urlDisplay, fallbackParams, params, navigate]);
+  }, [urlDisplay, fallbackParams, params, navigate, preferenceKey]);
 
   return {
     filter,
