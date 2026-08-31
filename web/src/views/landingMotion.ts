@@ -9,8 +9,8 @@
  * properties rather than in tokens.css, where they would be a standing invitation to
  * slow down a menu.
  *
- * Three helpers, and each exists because the CSS-only version of it is either
- * unsupported or a lie:
+ * Five helpers, and each exists because the CSS-only version of it is either unsupported
+ * or a lie:
  *
  *   useReveal    — one IntersectionObserver for the whole page, stamping `data-shown`
  *                  on every `[data-reveal]` as it arrives. `animation-timeline: view()`
@@ -20,11 +20,16 @@
  *   useScrolled  — whether the window has moved off the top, for the nav condense.
  *   useTypewriter— the command menu's query, retyping itself. There is no honest CSS
  *                  for changing text content.
+ *   useSectionSpy— which section the reader is in, for the nav's indicator. CSS has no
+ *                  way to style one element because a *different* one is on screen.
+ *   useDisclosure— open/closed for the narrow-viewport menu, with the three closes a
+ *                  disclosure owes: Escape, outside click, and growing past the
+ *                  breakpoint. `:target` and the checkbox hack do none of the three.
  *
- * All three are inert under `prefers-reduced-motion: reduce` or in an environment with
- * no observer (jsdom): the reveal marks everything shown immediately, and the
- * typewriter holds its first phrase. The page is never left mid-animation with content
- * the reader cannot see.
+ * All of them are inert under `prefers-reduced-motion: reduce` or in an environment with
+ * no observer (jsdom): the reveal marks everything shown immediately, the typewriter
+ * holds its first phrase, and the spy reports the section it can measure. The page is
+ * never left mid-animation with content the reader cannot see.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -148,4 +153,138 @@ export function useTypewriter(phrases: readonly string[]): string {
   }, [phrases]);
 
   return text;
+}
+
+/**
+ * Which of `ids` is the section the reader is currently looking at, or `null` above the
+ * first one. Drives the nav's indicator, so the header says where you are rather than
+ * only where you could go.
+ *
+ * The naive version — mark whatever is intersecting — flickers: at most viewport heights
+ * two sections are on screen at once and they trade the highlight on every scroll tick.
+ * This one keeps the *last* section whose top has passed a line a third of the way down
+ * the viewport, which is monotonic in scroll position and therefore cannot oscillate.
+ *
+ * It reads geometry on a scroll listener rather than through an IntersectionObserver
+ * because the answer depends on the ordering of all the sections at once, not on any one
+ * of them crossing an edge — the observer version needs the same full pass on every entry
+ * and buys nothing. `ids` must be a module-level constant: it is an effect dependency.
+ */
+export function useSectionSpy(ids: readonly string[]): string | null {
+  const [active, setActive] = useState<string | null>(null);
+
+  useEffect(() => {
+    let frame = 0;
+
+    const measure = () => {
+      frame = 0;
+      const line = window.innerHeight * 0.34;
+      let found: string | null = null;
+      for (const id of ids) {
+        const top = document.getElementById(id)?.getBoundingClientRect().top;
+        if (top === undefined || top > line) continue;
+        found = id;
+      }
+      // The last section can be too short to ever reach the line on a tall viewport, so
+      // it would never light up. At the bottom of the document it is the answer whatever
+      // the geometry says.
+      const atEnd = window.innerHeight + window.scrollY >= document.body.scrollHeight - 2;
+      setActive(atEnd ? (ids[ids.length - 1] ?? found) : found);
+    };
+
+    /*
+     * One measurement per frame. Scroll fires many times a frame and measure reads layout
+     * on every section, so the coalescing is not optional.
+     *
+     * Cancel-and-reschedule rather than the usual `if (frame === 0)` latch. The two are
+     * identical in a tab that is painting; they differ in one that is not, because
+     * requestAnimationFrame does not run in a background tab and the latch is only cleared
+     * from inside the callback. Under the latch a hidden tab accumulates one pending
+     * measurement and discards every scroll after it, so what lands when the tab comes
+     * back is the geometry of whatever frame the browser chooses to serve. Cancelling
+     * first keeps exactly one pending callback either way and holds no state that can be
+     * left set.
+     */
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    };
+
+    // Deferred rather than measured inline, because an effect runs before the browser has
+    // necessarily finished laying the page out: measuring here can find every section
+    // stacked near the top and light up the first link for a frame.
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    return () => {
+      if (frame !== 0) cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [ids]);
+
+  return active;
+}
+
+/**
+ * A boolean that closes itself.
+ *
+ * The mobile nav is a disclosure and disclosures are where accessibility bugs live, so
+ * the three obligations are met here once rather than in the markup: Escape closes it,
+ * a click outside closes it, and a viewport that grows past the breakpoint closes it —
+ * otherwise the panel stays mounted, invisible, holding focus, over a desktop layout that
+ * has its own visible links.
+ *
+ * `ref` goes on the element that counts as "inside", which is the whole header rather
+ * than the panel: the toggle button must not be an outside click, or the button would
+ * close the panel and reopen it in the same gesture.
+ */
+export function useDisclosure(breakpoint = 900) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    // The registry lives in the app shell and the marketing page renders outside it: there
+    // is no useActions to call here, no command menu to list this in and no help overlay to
+    // show it on. Escape closing what is open is not a shortcut either — it is what every
+    // dismissable surface owes, which is the same reason Menu and Modal are on this lint's
+    // file allowlist rather than in the registry.
+    // keymap-lint-allow: dismisses an open disclosure; cannot be a registered action.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    const onPointerDown = (event: Event) => {
+      // `as Node` rather than an `instanceof` guard: the header contains an inline SVG,
+      // whose elements are SVGElement and not HTMLElement, and a guard that missed them
+      // would treat a click on the logo as a click outside.
+      const target = event.target as Node | null;
+      if (target !== null && ref.current?.contains(target)) return;
+      setOpen(false);
+    };
+    // Guarded the same way useTypewriter guards its own query: jsdom has no matchMedia at
+    // all, and the two closes above are the ones that matter — an environment without
+    // media queries is not one where the viewport is about to cross a breakpoint.
+    const wide =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia(`(min-width: ${breakpoint + 1}px)`)
+        : null;
+    const onWide = () => {
+      if (wide?.matches) setOpen(false);
+    };
+
+    // keymap-lint-allow: registers the Escape dismissal argued for above.
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown);
+    wide?.addEventListener('change', onWide);
+    return () => {
+      // keymap-lint-allow: tears down the Escape dismissal argued for above.
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown);
+      wide?.removeEventListener('change', onWide);
+    };
+  }, [open, breakpoint]);
+
+  return { open, setOpen, ref };
 }

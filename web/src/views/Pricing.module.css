@@ -69,12 +69,17 @@
   padding: var(--space-3) var(--space-5);
 }
 
-.wordmark {
-  color: var(--text-primary);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
+/* The lockup owns how it looks; this only stops the anchor styling it as a link. */
+.brand {
+  display: inline-flex;
+  color: inherit;
   text-decoration: none;
+  border-radius: var(--radius-md);
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 3px;
 }
 
 .navActions {

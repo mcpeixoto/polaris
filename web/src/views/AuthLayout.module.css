@@ -96,13 +96,21 @@
   }
 }
 
+/*
+ * The lockup runs its own entrance — mark, then letters — and that entrance is longer than
+ * this card's whole stagger. Wrapping it in `riseIn` as well would start the two against
+ * each other, so the card's beat is spent on the box arriving and the logo's on what is
+ * inside it.
+ *
+ * It is also not recoloured. The word used to be --accent-text here and --text-primary in
+ * the marketing header, which was a difference nobody chose; now that the mark carries the
+ * accent, one lockup that looks the same everywhere is the point of having a component for
+ * it at all.
+ *
+ * `align-self` keeps the inline-flex lockup from stretching to the card's width.
+ */
 .wordmark {
-  margin: 0;
-  color: var(--accent-text);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.01em;
-  animation: riseIn var(--duration-fast) var(--ease-out) var(--auth-beat) backwards;
+  align-self: start;
 }
 
 .title {

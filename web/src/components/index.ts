@@ -1,5 +1,5 @@
 /**
- * The component library: seventeen primitives, and the whole of what a screen is allowed to
+ * The component library: eighteen primitives, and the whole of what a screen is allowed to
  * build from.
  *
  * Everything here obeys the same three rules, and they are what make the set a system
@@ -43,6 +43,9 @@ export type { KbdProps } from './Kbd';
 
 export { LabelChip } from './LabelChip';
 export type { LabelChipProps } from './LabelChip';
+
+export { Logo } from './Logo';
+export type { LogoProps, LogoSize } from './Logo';
 
 export { Menu } from './Menu';
 export type {

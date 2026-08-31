@@ -7,11 +7,13 @@
     <meta name="color-scheme" content="light dark" />
 
     <!--
-      One icon, generated from desktop/assets/icon.png by make-icon.py, so the tab, the
-      installed web app and the desktop build are the same mark rather than three that
-      drifted. The .ico carries 16/32/48 in one file, which is still what a browser reaches
-      for first and what avoids a <link> per size.
+      Two declarations, in the order a browser resolves them. An SVG icon is the mark
+      itself — the same star and the same coordinates as components/Logo, so the tab and
+      the header cannot drift — and it stays sharp at whatever size the chrome asks for.
+      The .ico stays for the browsers that ignore SVG icons and for a bookmark saved before
+      this shipped; it carries 16/32/48 in one file, which is what avoids a <link> per size.
     -->
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -23,8 +25,8 @@
       // Inline and tiny on purpose: any module-level alternative runs after the document
       // has already painted.
       try {
-        var t = localStorage.getItem('polaris.theme')
-        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t
+        var t = localStorage.getItem('polaris.theme');
+        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
       } catch (e) {}
     </script>
   </head>

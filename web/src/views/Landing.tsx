@@ -38,7 +38,16 @@
 import { Fragment, type CSSProperties } from 'react';
 import { Link } from 'react-router';
 
-import { Avatar, Badge, Kbd, LabelChip, PriorityIcon, Progress, StateIcon } from '~/components';
+import {
+  Avatar,
+  Badge,
+  Kbd,
+  LabelChip,
+  Logo,
+  PriorityIcon,
+  Progress,
+  StateIcon,
+} from '~/components';
 
 import {
   annualMonthlyCents,
@@ -49,7 +58,13 @@ import {
 } from '~/features/pricing/plans';
 import { useBillingLive } from '~/features/pricing/useBillingLive';
 
-import { useReveal, useScrolled, useTypewriter } from './landingMotion';
+import {
+  useDisclosure,
+  useReveal,
+  useScrolled,
+  useSectionSpy,
+  useTypewriter,
+} from './landingMotion';
 import styles from './Landing.module.css';
 
 const SOURCE = 'https://github.com/mcpeixoto/polaris';
@@ -57,6 +72,22 @@ const SELF_HOST_DOC =
   'https://github.com/mcpeixoto/polaris/blob/main/docs/05-infrastructure/11-self-hosting.md';
 
 const HERO_TITLE = 'Issue tracking without the wait.';
+
+/**
+ * The header's links, and the sections they point at. One list rather than two, because
+ * the nav and the scroll spy have to agree about what a section is called — a link whose
+ * href does not match an id it can highlight is a link that never lights up, and nothing
+ * in the markup would say so.
+ */
+const NAV: readonly { id: string; label: string }[] = [
+  { id: 'product', label: 'Product' },
+  { id: 'keyboard', label: 'Keyboard' },
+  { id: 'sync', label: 'Sync' },
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'self-host', label: 'Self-host' },
+];
+
+const NAV_IDS: readonly string[] = NAV.map((item) => item.id);
 
 /**
  * Stagger index for a reveal. Read by the stylesheet as `calc(var(--i) * <step>)` on the
@@ -70,6 +101,8 @@ function at(index: number): CSSProperties {
 export function Landing() {
   const page = useReveal<HTMLDivElement>();
   const scrolled = useScrolled();
+  const active = useSectionSpy(NAV_IDS);
+  const menu = useDisclosure();
   // See Pricing: the poster must not offer a checkout this server cannot open.
   const billingLive = useBillingLive();
 
@@ -85,17 +118,23 @@ export function Landing() {
           rows, and it can afford exactly one thing that is not. */}
       <div className={styles.aurora} aria-hidden="true" />
 
-      <header className={styles.nav}>
+      <header className={styles.nav} ref={menu.ref} data-open={menu.open ? '' : undefined}>
         <div className={styles.navInner}>
-          <Link to="/" className={styles.wordmark}>
-            Polaris
+          <Link to="/" className={styles.brand} aria-label="Polaris — home">
+            <Logo />
           </Link>
+          {/* `aria-current="true"` and not `page`: these are five places on one page, and
+              a screen reader announcing five of them as separate pages would be wrong. */}
           <nav className={styles.navLinks} aria-label="Page">
-            <a href="#product">Product</a>
-            <a href="#keyboard">Keyboard</a>
-            <a href="#sync">Sync</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#self-host">Self-host</a>
+            {NAV.map((item) => (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                aria-current={active === item.id ? 'true' : undefined}
+              >
+                {item.label}
+              </a>
+            ))}
           </nav>
           <div className={styles.navActions}>
             <Link to="/signin" className={styles.navQuiet}>
@@ -104,7 +143,56 @@ export function Landing() {
             <Link to="/signup" className={styles.cta}>
               Get started
             </Link>
+            <button
+              type="button"
+              className={styles.navToggle}
+              aria-expanded={menu.open}
+              aria-controls="nav-menu"
+              aria-label={menu.open ? 'Close menu' : 'Open menu'}
+              onClick={() => {
+                menu.setOpen(!menu.open);
+              }}
+            >
+              {/* Three bars that become an X. Drawn rather than lettered so the two states
+                  are one shape moving, not two glyphs swapping. */}
+              <span className={styles.navToggleBars} aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+            </button>
           </div>
+        </div>
+        {/*
+          The narrow-viewport menu. It is always in the DOM and always the same list,
+          because a panel built only when open is a panel whose links are invisible to
+          find-in-page and to a crawler; `hidden` until it opens is what keeps it out of
+          the tab order in between.
+        */}
+        <div className={styles.navMenu} id="nav-menu" hidden={!menu.open}>
+          <nav aria-label="Page, compact">
+            {NAV.map((item) => (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                aria-current={active === item.id ? 'true' : undefined}
+                onClick={() => {
+                  menu.setOpen(false);
+                }}
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <Link
+            to="/signin"
+            className={styles.navQuiet}
+            onClick={() => {
+              menu.setOpen(false);
+            }}
+          >
+            Sign in
+          </Link>
         </div>
       </header>
 
@@ -373,8 +461,8 @@ export function Landing() {
       </main>
 
       <footer className={styles.footer}>
-        <Link to="/" className={styles.wordmark}>
-          Polaris
+        <Link to="/" className={styles.brand} aria-label="Polaris — home">
+          <Logo size="md" />
         </Link>
         <p>Keyboard-first issue tracking. Local replica. AGPL-3.0.</p>
         <nav aria-label="Footer">
