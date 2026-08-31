@@ -313,6 +313,10 @@ const ANSWERS: readonly { q: string; a: string }[] = [
     a: 'Somebody active and not suspended. Suspending a person frees their seat the moment you do it, and bots and integrations are not seats.',
   },
   {
+    q: 'Can I pay for Cloud Pro today?',
+    a: 'Not yet. The price is settled and the server already enforces the plan, but the checkout that would take your money is still being built, so nothing on this page can charge a card. Write to us and we will arrange a workspace directly.',
+  },
+  {
     q: 'What happens when billing lapses?',
     a: 'Reading never stops. Your work stays where it is and stays readable; the changes that need the plan are paused until billing is current, and nothing is deleted.',
   },
