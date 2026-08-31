@@ -1,0 +1,345 @@
+/*
+ * The logo lockup: mark, wordmark, and one entrance timeline shared by both.
+ *
+ * ## Durations live here and are longer than the product's
+ *
+ * tokens.css caps the product at --duration-normal (200ms) because a surface slower than
+ * the next keystroke feels broken. A logo is not on the keystroke path — it is the first
+ * thing painted and the last thing anyone interacts with — so its beats are declared
+ * locally on .root as --logo-*, the same argument Landing.module.css makes for its reveal
+ * durations. Putting a 900ms value in tokens.css would make it reachable from a menu.
+ *
+ * ## Nothing animates layout
+ *
+ * The wordmark's tracking collapse is the centrepiece, and the obvious way to write it —
+ * `letter-spacing: 0.32em` unwinding to its resting value — reflows the word on every
+ * frame. In the marketing header the logo is `flex: none` immediately before a `flex: 1`
+ * nav, so a word that changes width for a second would drag the whole navigation sideways
+ * while the page loads. Each letter therefore carries `translateX(calc(var(--i) * …))`
+ * instead: identical on screen, composited, and the word occupies its final width from
+ * the first frame.
+ *
+ * ## Every animation is additive, never load-bearing
+ *
+ * A browser that ran none of the rules below would paint the finished lockup. The `from`
+ * of every keyframe is the displaced state and the element's own declarations are the
+ * settled one, so `animation: none` — which is exactly what prefers-reduced-motion gets —
+ * leaves the mark drawn and the word readable. That is the same trust order the landing
+ * page uses, and it is why the reduced-motion block at the bottom can be four rules.
+ */
+
+.root {
+  /* One timeline, expressed as an origin and a set of offsets from it, so a beat can be
+   * moved without recomputing the six delays that follow it. */
+  --logo-in: 900ms;
+  --logo-orbit: 1000ms;
+  --logo-letter-step: 38ms;
+  --logo-ray-step: 60ms;
+  /* A spring that overshoots slightly. --ease-out is the product's and it does not
+   * overshoot, which is correct for a menu and inert for a mark that is meant to arrive. */
+  --logo-spring: cubic-bezier(0.22, 1.35, 0.36, 1);
+  /* Declared so an element that forgets to set one still has a real value: an unresolved
+   * var() inside calc() makes the whole animation-delay invalid, and the beat it was
+   * meant to wait for fires on frame one instead. */
+  --i: 0;
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* Indirected through a property rather than declared outright, because a consumer that
+   * wants a different colour — the auth card wants the accent — cannot rely on winning a
+   * one-class-versus-one-class specificity tie against this file. Setting --logo-word is
+   * unambiguous; writing `color` on the same element is a coin flip decided by the order
+   * the bundler happened to emit the two stylesheets in. */
+  color: var(--logo-word, var(--text-primary));
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  /* The lockup is one object: the mark must not be draggable away from the word, and the
+   * word must not be selectable as a stray "Polaris" in the middle of a copied page. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sm {
+  --logo-mark: 20px;
+  font-size: var(--font-size-md);
+}
+
+.md {
+  --logo-mark: 24px;
+  font-size: var(--font-size-lg);
+}
+
+.lg {
+  --logo-mark: 30px;
+  font-size: var(--font-size-xl);
+}
+
+/* ------------------------------------------------------------------ *
+ * Mark
+ * ------------------------------------------------------------------ */
+
+.mark {
+  flex: none;
+  width: var(--logo-mark);
+  height: var(--logo-mark);
+  /* currentColor is what the gradient stops resolve against, so this one declaration is
+   * the whole of the mark's colour. */
+  color: var(--logo-mark-color, var(--accent));
+  overflow: visible;
+}
+
+/*
+ * Rotating an SVG child needs an origin, and the default is the origin of the *user
+ * space*, not of the element — an unqualified `rotate(90deg)` on a <g> swings it around
+ * the top-left corner of the viewBox and off screen. `transform-box: view-box` makes 50%
+ * mean the middle of the 40×40 grid for every child, which is what both rotations here
+ * want, and is why it is declared once on a shared rule rather than per element.
+ */
+.orbit,
+.star {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+
+.orbit {
+  animation: orbit-spin 28s linear 1.4s infinite;
+}
+
+.ring {
+  fill: none;
+  stroke: currentColor;
+  /* Under a pixel at 20px, which is the point: the orbit is a hairline that describes the
+   * star rather than a second shape competing with it. */
+  stroke-width: 1;
+  opacity: 0.42;
+  /* 80.1 by Ramanujan for rx=17.5 ry=6.8; 81 so the gap cannot leave a seam. */
+  stroke-dasharray: 81;
+  animation: ring-draw var(--logo-orbit) var(--ease-out) 60ms backwards;
+}
+
+.body {
+  /* fill comes from the gradient, inline, because it needs the per-instance id. */
+  stroke: none;
+}
+
+/* The two vertical points, painted again at full strength over the gradient. This is the
+ * whole of the faceting: one path, and the star stops being a silhouette. */
+.facet {
+  fill: currentColor;
+  opacity: 0.9;
+  animation: fade-in 500ms var(--ease-out) 520ms backwards;
+}
+
+.ray {
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  opacity: 0.55;
+  /* Each ray is exactly 5 units long (r=8.5 to r=13.5), so one dash covers it. */
+  stroke-dasharray: 5;
+  transition:
+    opacity var(--duration-normal) var(--ease-out),
+    stroke-dashoffset var(--duration-normal) var(--ease-out);
+  animation: ray-burst 620ms var(--logo-spring) calc(420ms + var(--i) * var(--logo-ray-step))
+    backwards;
+}
+
+.core {
+  fill: var(--bg-primary);
+  animation: core-flash 700ms var(--ease-out) 560ms backwards;
+}
+
+/*
+ * The specular. A bar of light crossing the star, clipped to it, once at the end of the
+ * entrance and again on hover — the same gesture a polished object makes when it turns.
+ * It is inside the clip path so it can never draw outside the mark.
+ */
+.glint {
+  fill: var(--color-white);
+  opacity: 0;
+  animation: glint-sweep 900ms var(--ease-in-out) 900ms backwards;
+}
+
+/* ------------------------------------------------------------------ *
+ * Wordmark
+ * ------------------------------------------------------------------ */
+
+/*
+ * The visible word. Its twin, `.name`, is the string an assistive technology reads, and
+ * it is collapsed to a clipped pixel rather than `display: none` — a display-none string
+ * is not in the accessibility tree at all, and the lockup would have no name.
+ */
+.word {
+  display: inline-flex;
+}
+
+.name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.letter {
+  display: inline-block;
+  /* A letter that has finished must not hold a transform, or subpixel text rendering
+   * stays on the composited path and the word looks softer than the copy beside it. */
+  animation: letter-in 620ms var(--logo-spring) calc(380ms + var(--i) * var(--logo-letter-step))
+    backwards;
+}
+
+/* ------------------------------------------------------------------ *
+ * Hover and focus
+ *
+ * `:focus-visible .star` matches when any ancestor is focused, which is precisely the
+ * case that matters: the lockup is wrapped in a <Link> in four places and a <p> in one,
+ * and the component cannot see which. A keyboard user tabbing to the header logo gets the
+ * same turn a pointer gets.
+ * ------------------------------------------------------------------ */
+
+.star {
+  transition: transform 700ms var(--logo-spring);
+  animation: star-in var(--logo-in) var(--logo-spring) 140ms backwards;
+}
+
+.root:hover .star,
+:focus-visible .star {
+  transform: rotate(90deg) scale(1.06);
+}
+
+.root:hover .ray,
+:focus-visible .ray {
+  opacity: 1;
+  /* Negative offset pushes the dash past the line's end, which reads as the ray growing
+   * — without a second element or a length nothing has measured. */
+  stroke-dashoffset: -1.6;
+}
+
+.root:hover .ring,
+:focus-visible .ring {
+  opacity: 0.75;
+}
+
+.root:hover .glint,
+:focus-visible .glint {
+  animation: glint-sweep 700ms var(--ease-in-out);
+}
+
+/* ------------------------------------------------------------------ *
+ * Keyframes
+ * ------------------------------------------------------------------ */
+
+@keyframes ring-draw {
+  from {
+    stroke-dashoffset: 81;
+    opacity: 0;
+  }
+}
+
+@keyframes orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * The star arrives already turning. A mark that scales up without rotating looks like a
+ * modal; one that unwinds through 140° looks like it was aimed.
+ */
+@keyframes star-in {
+  from {
+    transform: rotate(-140deg) scale(0.2);
+    opacity: 0;
+  }
+}
+
+@keyframes ray-burst {
+  from {
+    stroke-dashoffset: 5;
+    opacity: 0;
+  }
+}
+
+@keyframes core-flash {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  60% {
+    opacity: 1;
+  }
+}
+
+@keyframes glint-sweep {
+  from {
+    transform: translateX(-34px);
+    opacity: 0;
+  }
+
+  40% {
+    opacity: 0.55;
+  }
+
+  to {
+    transform: translateX(34px);
+    opacity: 0;
+  }
+}
+
+/*
+ * The tracking collapse, written as a transform. `--i * 0.34em` is the starting gap
+ * between letters; because every letter's target is 0 and the offsets are cumulative in
+ * index rather than in space, the word expands to roughly two and a half times its width
+ * at the first frame and pulls itself in — without ever changing the box it occupies.
+ */
+@keyframes letter-in {
+  from {
+    transform: translate3d(calc(var(--i) * 0.34em), 0.5em, 0);
+    opacity: 0;
+    filter: blur(5px);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Reduced motion
+ *
+ * Removed, not shortened. A 1ms version of a scripted entrance is a flicker, and the
+ * finished state is already what every element declares outside its keyframes.
+ * ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit,
+  .ring,
+  .facet,
+  .ray,
+  .core,
+  .glint,
+  .letter,
+  .star {
+    animation: none;
+  }
+
+  .star,
+  .root:hover .star,
+  :focus-visible .star {
+    transform: none;
+    transition: none;
+  }
+
+  .glint {
+    opacity: 0;
+  }
+}

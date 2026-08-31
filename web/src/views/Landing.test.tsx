@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
@@ -73,5 +74,61 @@ describe('Landing', () => {
     const { container } = renderLanding();
     expect(container.textContent).not.toContain('Placeholder');
     expect(container.textContent).not.toContain('Northwind Labs');
+  });
+
+  /**
+   * Below 900px the five section links are `display: none`, and for a while nothing
+   * replaced them: on a phone the page offered a logo, a sign-in and no route to Keyboard,
+   * Sync or Self-host at all. The panel is the replacement, and these are the three things
+   * about it that a stylesheet cannot guarantee.
+   *
+   * The width is not asserted — jsdom has no layout and the toggle is present at every
+   * width, hidden by a media query. What is asserted is that the panel is a real
+   * disclosure: closed to begin with, open on click, closed again on Escape, and carrying
+   * the same links the wide header does.
+   */
+  describe('the compact menu', () => {
+    it('starts closed, with its links out of the tree', () => {
+      renderLanding();
+      const toggle = screen.getByRole('button', { name: 'Open menu' });
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+      expect(screen.queryByRole('navigation', { name: 'Page, compact' })).toBeNull();
+    });
+
+    it('opens on click and offers every section the wide header does', async () => {
+      const user = userEvent.setup();
+      renderLanding();
+
+      await user.click(screen.getByRole('button', { name: 'Open menu' }));
+
+      const panel = screen.getByRole('navigation', { name: 'Page, compact' });
+      const labels = [...panel.querySelectorAll('a')].map((link) => link.textContent);
+      expect(labels).toEqual(['Product', 'Keyboard', 'Sync', 'Pricing', 'Self-host']);
+      expect(screen.getByRole('button', { name: 'Close menu' }).getAttribute('aria-expanded')).toBe(
+        'true',
+      );
+    });
+
+    it('closes on Escape, because a panel with no visible edge needs a way out', async () => {
+      const user = userEvent.setup();
+      renderLanding();
+
+      await user.click(screen.getByRole('button', { name: 'Open menu' }));
+      await user.keyboard('{Escape}');
+
+      expect(screen.queryByRole('navigation', { name: 'Page, compact' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Open menu' })).toBeTruthy();
+    });
+
+    it('closes when a link inside it is taken', async () => {
+      const user = userEvent.setup();
+      renderLanding();
+
+      await user.click(screen.getByRole('button', { name: 'Open menu' }));
+      const panel = screen.getByRole('navigation', { name: 'Page, compact' });
+      await user.click([...panel.querySelectorAll('a')][1]!);
+
+      expect(screen.queryByRole('navigation', { name: 'Page, compact' })).toBeNull();
+    });
   });
 });

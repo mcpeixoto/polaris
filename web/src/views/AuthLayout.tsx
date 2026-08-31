@@ -13,6 +13,8 @@
 
 import type { FormEvent, ReactNode } from 'react';
 
+import { Logo } from '~/components';
+
 import styles from './AuthLayout.module.css';
 
 export interface AuthLayoutProps {
@@ -29,7 +31,7 @@ export function AuthLayout({ title, subtitle, footer, children }: AuthLayoutProp
   return (
     <main className={styles.page}>
       <div className={styles.card}>
-        <p className={styles.wordmark}>Polaris</p>
+        <Logo className={styles.wordmark} />
         <h1 className={styles.title}>{title}</h1>
         {subtitle === undefined ? null : <p className={styles.subtitle}>{subtitle}</p>}
         {children}

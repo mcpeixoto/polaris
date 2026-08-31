@@ -190,18 +190,22 @@
   height: var(--header-height);
 }
 
-.wordmark {
+/*
+ * The logo's link, and nothing else. Everything the mark looks like belongs to
+ * components/Logo — this rule exists only to stop the anchor adding an underline and a
+ * link colour to a lockup that owns its own.
+ */
+.brand {
   flex: none;
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
+  display: inline-flex;
+  color: inherit;
   text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-out);
+  border-radius: var(--radius-md);
 }
 
-.wordmark:hover {
-  color: var(--accent-text);
+.brand:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 3px;
 }
 
 .navLinks {
@@ -239,7 +243,17 @@
   color: var(--text-primary);
 }
 
-.navLinks a:hover::after {
+/*
+ * The section the reader is actually in. Same hairline as the hover state rather than a
+ * second treatment, so the header has one vocabulary: a filled underline means "this
+ * one", whether the pointer put it there or the scroll position did.
+ */
+.navLinks a[aria-current] {
+  color: var(--text-primary);
+}
+
+.navLinks a:hover::after,
+.navLinks a[aria-current]::after {
   transform: scaleX(1);
 }
 
@@ -264,6 +278,141 @@
 
 .navQuiet:hover {
   color: var(--text-primary);
+}
+
+/* ------------------------------------------------------------------ *
+ * The narrow-viewport menu
+ *
+ * Below 900px the five section links used to be `display: none` and nothing replaced
+ * them: on a phone the page had a header with a logo, a sign-in and no way to reach
+ * Keyboard, Sync or Self-host short of scrolling the whole poster. This is that way.
+ * ------------------------------------------------------------------ */
+
+.navToggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.navToggle:hover {
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.navToggle:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * Three bars, and the same three bars are the X. The outer two rotate about the middle of
+ * the stack and the inner one scales away, which is one shape changing rather than two
+ * icons swapping — the swap version reads as a flicker at this size.
+ */
+.navToggleBars {
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 10px;
+}
+
+.navToggleBars span {
+  position: absolute;
+  inset-inline: 0;
+  height: 1.5px;
+  border-radius: var(--radius-full);
+  background-color: currentcolor;
+  transition:
+    transform var(--duration-normal) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+
+.navToggleBars span:nth-child(1) {
+  top: 0;
+}
+
+.navToggleBars span:nth-child(2) {
+  top: 4.25px;
+}
+
+.navToggleBars span:nth-child(3) {
+  top: 8.5px;
+}
+
+.nav[data-open] .navToggleBars span:nth-child(1) {
+  transform: translateY(4.25px) rotate(45deg);
+}
+
+.nav[data-open] .navToggleBars span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0.2);
+}
+
+.nav[data-open] .navToggleBars span:nth-child(3) {
+  transform: translateY(-4.25px) rotate(-45deg);
+}
+
+/*
+ * The panel. `[hidden]` is what closes it — display:none, out of the tab order, out of
+ * the accessibility tree — so the entrance below only ever plays on the frame it opens,
+ * and there is no "closing" animation to get stranded halfway through.
+ */
+.navMenu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  background-color: var(--bg-primary);
+  animation: menu-open var(--duration-normal) var(--ease-out);
+}
+
+.navMenu[hidden] {
+  display: none;
+}
+
+.navMenu a {
+  display: flex;
+  align-items: center;
+  height: var(--control-height-lg);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  text-decoration: none;
+}
+
+.navMenu a:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.navMenu a[aria-current] {
+  color: var(--accent-text);
+}
+
+.navMenu nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+@keyframes menu-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -1420,9 +1569,27 @@
  * Responsive
  * ------------------------------------------------------------------ */
 
+@media (min-width: 901px) {
+  /* Belt and braces with useDisclosure's own resize close: a viewport dragged past the
+     breakpoint must not leave a panel open over a header that already shows its links. */
+  .navMenu {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
   .navLinks {
     display: none;
+  }
+
+  .navToggle {
+    display: inline-flex;
+  }
+
+  /* An open panel needs the header's bottom hairline whether or not the page has been
+     scrolled, or the menu floats over the copy with no edge between them. */
+  .nav[data-open] {
+    border-bottom-color: var(--border-subtle);
   }
 
   .stats,
@@ -1458,6 +1625,13 @@
 }
 
 @media (max-width: 520px) {
+  /* The header runs out of room before the panel does. Sign in is the one action with a
+     home in the panel, so it is the one that leaves — Get started is what the page is
+     for, and the toggle is how everything else is reached. */
+  .navActions .navQuiet {
+    display: none;
+  }
+
   .stats,
   .featureGrid,
   .logos,
@@ -1522,8 +1696,15 @@
   .rowCursor,
   .caret,
   .syncLive::before,
-  .logos::after {
+  .logos::after,
+  .navMenu {
     animation: none;
+  }
+
+  /* The bars still have to reach the X — it is the only thing saying the menu is open —
+     so this shortens the morph rather than removing it. */
+  .navToggleBars span {
+    transition-duration: 1ms;
   }
 
   .rowCursor {

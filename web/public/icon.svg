@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <!--
+    The same star as components/Logo, at the same coordinates, so the tab and the header
+    cannot drift apart. It is the one place in the product that has to carry literal
+    colours: a favicon is painted by the browser chrome and has no access to tokens.css.
+    The values are --color-accent-500 (#5e6ad2) and the dark ground already declared as
+    <meta name="theme-color"> in index.html.
+
+    A ground rather than a transparent mark: the icon is drawn on a browser tab strip that
+    is white in one theme and near-black in the other, and a bare indigo star disappears
+    into the second one.
+  -->
+  <rect width="40" height="40" rx="9" fill="#0e1013" />
+  <g transform="translate(20 20) scale(0.82) translate(-20 -20)">
+    <ellipse
+      cx="20"
+      cy="20"
+      rx="17.5"
+      ry="6.8"
+      transform="rotate(-24 20 20)"
+      fill="none"
+      stroke="#5e6ad2"
+      stroke-width="1.1"
+      opacity="0.5"
+    />
+    <g stroke="#5e6ad2" stroke-width="1.4" stroke-linecap="round" opacity="0.6">
+      <line x1="26.01" y1="13.99" x2="29.55" y2="10.45" />
+      <line x1="13.99" y1="13.99" x2="10.45" y2="10.45" />
+      <line x1="13.99" y1="26.01" x2="10.45" y2="29.55" />
+      <line x1="26.01" y1="26.01" x2="29.55" y2="29.55" />
+    </g>
+    <path
+      d="M20 4.5Q23.2 16.8 35.5 20 23.2 23.2 20 35.5 16.8 23.2 4.5 20 16.8 16.8 20 4.5Z"
+      fill="#5e6ad2"
+      opacity="0.78"
+    />
+    <path
+      d="M20 4.5Q23.2 16.8 20 20 16.8 16.8 20 4.5ZM20 35.5Q23.2 23.2 20 20 16.8 23.2 20 35.5Z"
+      fill="#5e6ad2"
+    />
+    <circle cx="20" cy="20" r="1.7" fill="#0e1013" />
+  </g>
+</svg>

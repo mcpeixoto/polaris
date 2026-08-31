@@ -29,6 +29,8 @@
 
 import { Link } from 'react-router';
 
+import { Logo } from '~/components';
+
 import {
   CELL_LABELS,
   COMPARISON,
@@ -77,8 +79,8 @@ export function Pricing() {
 
       <header className={styles.nav}>
         <div className={styles.navInner}>
-          <Link to="/" className={styles.wordmark}>
-            Polaris
+          <Link to="/" className={styles.brand} aria-label="Polaris — home">
+            <Logo />
           </Link>
           <div className={styles.navActions}>
             {signedIn ? (
@@ -252,8 +254,8 @@ export function Pricing() {
       </main>
 
       <footer className={styles.footer}>
-        <Link to="/" className={styles.wordmark}>
-          Polaris
+        <Link to="/" className={styles.brand} aria-label="Polaris — home">
+          <Logo size="md" />
         </Link>
         <p>Keyboard-first issue tracking. Local replica. AGPL-3.0.</p>
         <nav aria-label="Footer">

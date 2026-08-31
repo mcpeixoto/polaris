@@ -96,13 +96,16 @@
   }
 }
 
+/*
+ * The lockup runs its own entrance — mark, then letters — and that entrance is longer
+ * than this card's whole stagger. Wrapping it in `riseIn` as well would start the two
+ * against each other, so the card's beat is spent on the box arriving and the logo's on
+ * what is inside it. `align-self` keeps the inline-flex lockup from stretching to the
+ * card's width and taking its click target with it.
+ */
 .wordmark {
-  margin: 0;
-  color: var(--accent-text);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.01em;
-  animation: riseIn var(--duration-fast) var(--ease-out) var(--auth-beat) backwards;
+  align-self: start;
+  --logo-word: var(--accent-text);
 }
 
 .title {
