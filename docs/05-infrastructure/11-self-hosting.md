@@ -174,6 +174,9 @@ which is not true of every system.
 | `POLARIS_SLACK_SIGNING_SECRET` | empty | Slack request signature. Required for slash commands and Events API; outbound channel webhooks work without it |
 | `POLARIS_SLACK_BOT_TOKEN` | empty | Slack bot token (`xoxb-…`). Required for link unfurls (`chat.unfurl`) |
 | `POLARIS_EMAIL_WEBHOOK_SECRET` | empty | Inbound email-to-issue. Empty is a development stub |
+| `POLARIS_GOOGLE_CLIENT_ID` | empty | Sign in with Google. A client id, not a secret — the ID token is verified against Google's published keys. Empty means `POST /auth/oidc/google` answers 404 |
+| `POLARIS_APPLE_CLIENT_IDS` | empty | Sign in with Apple, comma separated: one Apple team issues tokens for several client ids, and the web Services ID and the iOS bundle id are both legitimate audiences |
+| `POLARIS_APPLE_WEB_CLIENT_ID` | empty | The Services ID the browser initialises Apple's JS with. Added to the accepted audiences automatically; for a web-only deployment it is the only Apple value needed |
 | `POLARIS_STRIPE_SECRET_KEY` | empty | Hosted billing. **Leave empty when self-hosting**: no checkout is offered and `POST /webhooks/stripe` refuses every delivery, because an empty signing secret verifies nothing |
 | `POLARIS_STRIPE_WEBHOOK_SECRET` | empty | The endpoint's signing secret (`whsec_…`). Needed together with the key — a key without it can take a payment and never learn that it did, which leaves a paying customer on the free plan |
 | `POLARIS_STRIPE_PRICE_PRO_MONTHLY` | empty | The price seats are sold at. Billing counts as configured only when the key, the signing secret and this are all set |
@@ -189,6 +192,38 @@ three processes is 90, and you are one `psql` away from "too many clients". Eith
 front. The code already sets pgx's exec mode to `describe`, which is the setting a
 transaction pooler requires; getting that wrong produces "prepared statement already exists"
 errors that only appear under concurrency in production.
+
+### Sign in with Google and Apple
+
+Off unless configured, like everything else here. Both providers work the same way: the
+client obtains a signed ID token, posts it to `POST /auth/oidc/{provider}`, and the server
+verifies the signature against the issuer's JWKS, checks the issuer, checks that the audience
+is a client id **this** deployment owns, and checks expiry. There is no client secret in the
+product and no authorization-code exchange, so there is nothing to rotate and nothing to
+leak.
+
+`GET /auth/providers` reports which ones are configured, so a sign-in page renders only the
+buttons that will work.
+
+Three rules decide which account an assertion belongs to, in this order:
+
+1. **The provider's subject**, if it has been seen before. This is the identity — stable
+   across an address change at the provider.
+2. **A verified email address** matching an existing account, which links the provider to it.
+   The account keeps its password; a linked provider is a way in, not a replacement.
+   `email_verified` is load-bearing: linking on an unverified address would let anyone who
+   can register that address at *any* provider take over the account.
+3. **A new account**, if the server's registration mode admits one. It gets no password —
+   the column is nullable for exactly this — so it can only be entered through the provider
+   until its owner sets one.
+
+Registration mode is not bypassed. On an invite-only server a stranger signing in with Google
+is refused exactly as a stranger posting to `/auth/register` is, and an invitation token may
+travel on the sign-in call to redeem it in the same transaction.
+
+**If the iOS app offers Google sign-in, App Review requires Sign in with Apple beside it.**
+That is Apple's guideline 4.8, not a Polaris rule, and it applies to the app rather than to
+the website.
 
 ### Billing, if you are the one selling
 

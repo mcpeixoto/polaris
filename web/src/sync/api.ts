@@ -321,6 +321,50 @@ export const auth = {
     });
   },
 
+  /**
+   * Which sign-in providers this server offers, and the client ids the browser SDKs need.
+   *
+   * Read before the buttons are rendered, so a deployment with no Google client id shows no
+   * Google button rather than one that opens a popup and fails. Anonymous: the whole point
+   * is that the caller has no session yet.
+   */
+  async providers() {
+    return request<{
+      providers: ('google' | 'apple')[];
+      googleClientId: string;
+      appleClientId: string;
+      openSignup: boolean;
+    }>('/auth/providers', { method: 'GET', skipAuth: true });
+  },
+
+  /**
+   * Exchanges a provider's ID token for a Polaris session.
+   *
+   * Same response as `login`, deliberately: everything downstream — the stored access token,
+   * the workspace list, the refresh cookie — must not care which way in was used.
+   */
+  async signInWithOIDC(
+    provider: 'google' | 'apple',
+    input: { idToken: string; nonce?: string; displayName?: string; inviteToken?: string },
+  ) {
+    return post<{
+      accessToken: string;
+      expiresIn: number;
+      accountId: string;
+      workspaces: Workspace[];
+    }>(`/auth/oidc/${provider}`, {
+      idToken: input.idToken,
+      // Written only when present, for the reason `register` gives above: the handler
+      // decodes with DisallowUnknownFields and a `null` is a present field of the wrong type.
+      ...(input.nonce === undefined ? null : { nonce: input.nonce }),
+      ...(input.displayName === undefined ? null : { displayName: input.displayName }),
+      ...(input.inviteToken === undefined ? null : { inviteToken: input.inviteToken }),
+    }).then((body) => {
+      storeSession(body);
+      return body;
+    });
+  },
+
   async logout() {
     try {
       await post('/auth/logout', {});

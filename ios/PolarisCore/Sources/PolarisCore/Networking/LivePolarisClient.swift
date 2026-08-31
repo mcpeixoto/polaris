@@ -41,6 +41,21 @@ public actor LivePolarisClient: PolarisAPI {
         )
     }
 
+    public func signInWithApple(
+        idToken: String,
+        nonce: String,
+        displayName: String?
+    ) async throws -> Session {
+        var body: [String: JSONValue] = [
+            "idToken": .string(idToken),
+            "nonce": .string(nonce),
+        ]
+        // Omitted rather than sent empty, for the reason register gives: the handler decodes
+        // with DisallowUnknownFields and an empty name is not the same as no name.
+        if let displayName, !displayName.isEmpty { body["displayName"] = .string(displayName) }
+        return try await authenticate(path: "/auth/oidc/apple", body: body)
+    }
+
     public func register(
         email: String,
         password: String,

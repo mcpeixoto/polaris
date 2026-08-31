@@ -196,6 +196,28 @@ type Config struct {
 	SlackSigningSecret string `envconfig:"POLARIS_SLACK_SIGNING_SECRET"`
 	SlackBotToken      string `envconfig:"POLARIS_SLACK_BOT_TOKEN"`
 
+	// Sign in with Google and Sign in with Apple.
+	//
+	// Client ids, not secrets: both flows hand the browser or the app an ID token, and the
+	// server verifies it against the issuer's published keys. Nothing here has to be kept
+	// secret, and nothing here can be used to mint a token — which is why there is no
+	// client secret in this config and no authorization-code exchange in the product.
+	//
+	// Empty disables the provider outright: its route is refused rather than served in a
+	// state where every token fails an audience check nobody configured.
+	GoogleClientID string `envconfig:"POLARIS_GOOGLE_CLIENT_ID"`
+
+	// Apple issues tokens for several client ids against one team — the iOS bundle id and
+	// the web Services ID are different strings — so this is a list of what a token's `aud`
+	// may be.
+	AppleClientIDs []string `envconfig:"POLARIS_APPLE_CLIENT_IDS"`
+
+	// The Services ID the *browser* starts a sign-in with. A separate value because the
+	// list above cannot say which of its entries is the web one, and handing Apple's JS the
+	// iOS bundle id fails with an error that names neither. It is added to the accepted
+	// audiences automatically, so setting it alone is enough for a web-only deployment.
+	AppleWebClientID string `envconfig:"POLARIS_APPLE_WEB_CLIENT_ID"`
+
 	// Stripe credentials for hosted billing. Empty is the ordinary self-hosted case and
 	// the default: no checkout is offered, the billing endpoints answer "not configured",
 	// and POST /webhooks/stripe refuses everything because an empty signing secret verifies
@@ -253,6 +275,29 @@ func (c Config) MailEnabled() bool { return strings.TrimSpace(c.SMTPHost) != "" 
 // GitHubOAuthConfigured reports whether a GitHub App can complete an OAuth handshake.
 func (c Config) GitHubOAuthConfigured() bool {
 	return strings.TrimSpace(c.GitHubClientID) != "" && strings.TrimSpace(c.GitHubClientSecret) != ""
+}
+
+// GoogleSignInAudiences and AppleSignInAudiences are the client ids each provider's tokens
+// may name. Empty means the provider is off.
+func (c Config) GoogleSignInAudiences() []string {
+	if id := strings.TrimSpace(c.GoogleClientID); id != "" {
+		return []string{id}
+	}
+	return nil
+}
+
+func (c Config) AppleSignInAudiences() []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(c.AppleClientIDs)+1)
+	for _, id := range append(c.AppleClientIDs, c.AppleWebClientID) {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		out = append(out, trimmed)
+	}
+	return out
 }
 
 // BillingEnabled reports whether this deployment can actually sell a subscription.

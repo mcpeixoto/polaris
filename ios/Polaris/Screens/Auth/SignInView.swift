@@ -49,7 +49,23 @@ struct SignInView: View {
                 }
             }
         } footer: {
-            PrimaryButton(title: "Sign in", isBusy: isSubmitting, isEnabled: canSubmit, action: submit)
+            VStack(spacing: 12) {
+                PrimaryButton(title: "Sign in", isBusy: isSubmitting, isEnabled: canSubmit, action: submit)
+
+                // Apple's button under the password, not instead of it. An account made with
+                // one way in keeps the other: the server links a provider to an existing
+                // account when the address is verified, rather than making a second one.
+                AppleSignInButton(
+                    onFailure: { failure in
+                        isSubmitting = false
+                        error = failure
+                    },
+                    onStart: {
+                        error = nil
+                        isSubmitting = true
+                    }
+                )
+            }
         }
         .onAppear { focused = .email }
     }

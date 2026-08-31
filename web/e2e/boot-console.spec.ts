@@ -80,7 +80,21 @@ test('the sign-in page boots without a red line in the console', async ({ browse
   // And the reason it is quiet is that the question was never asked. A browser that has
   // never held a session here has nothing to refresh, and the sign-in page is the one
   // screen where that is guaranteed.
-  expect(auth).toEqual([]);
+  //
+  // Asserted as the exact list rather than "no refresh", so it still fails on any call
+  // nobody has argued for here. The one entry is the sign-in page asking which providers
+  // this deployment offers, which is the opposite of a refresh: it carries no credential,
+  // it is asked precisely because the visitor has no session, and its answer decides
+  // whether a Google or Apple button is drawn at all. Rendering the buttons from a build
+  // constant instead would put them on a server that cannot complete them.
+  //
+  // Polled rather than read once: the providers call is issued from an effect after the
+  // form paints, so reading the list the moment the button appears is a race that passes
+  // for the wrong reason — an empty list because nothing has been sent *yet* looks exactly
+  // like an empty list because nothing will be.
+  await expect
+    .poll(() => auth, { timeout: 5_000, message: 'anonymous /auth calls from the sign-in page' })
+    .toEqual(['GET /auth/providers']);
 
   await context.close();
 });

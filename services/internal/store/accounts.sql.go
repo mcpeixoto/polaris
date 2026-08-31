@@ -47,6 +47,43 @@ func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (A
 	return i, err
 }
 
+const createAccountCredential = `-- name: CreateAccountCredential :one
+INSERT INTO account_credential (id, account_id, kind, external_id, label)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, account_id, kind, external_id, label, data, last_used_at, created_at, updated_at
+`
+
+type CreateAccountCredentialParams struct {
+	ID         uuid.UUID
+	AccountID  uuid.UUID
+	Kind       string
+	ExternalID string
+	Label      *string
+}
+
+func (q *Queries) CreateAccountCredential(ctx context.Context, arg CreateAccountCredentialParams) (AccountCredential, error) {
+	row := q.db.QueryRow(ctx, createAccountCredential,
+		arg.ID,
+		arg.AccountID,
+		arg.Kind,
+		arg.ExternalID,
+		arg.Label,
+	)
+	var i AccountCredential
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Kind,
+		&i.ExternalID,
+		&i.Label,
+		&i.Data,
+		&i.LastUsedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createSession = `-- name: CreateSession :one
 INSERT INTO account_session (id, account_id, token_hash, user_agent, ip, country, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -141,6 +178,34 @@ func (q *Queries) GetAccountByEmail(ctx context.Context, email string) (Account,
 		&i.EmailVerifiedAt,
 		&i.DeletedAt,
 		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAccountCredential = `-- name: GetAccountCredential :one
+SELECT id, account_id, kind, external_id, label, data, last_used_at, created_at, updated_at
+FROM account_credential
+WHERE kind = $1::text AND external_id = $2::text
+`
+
+type GetAccountCredentialParams struct {
+	Kind       string
+	ExternalID string
+}
+
+func (q *Queries) GetAccountCredential(ctx context.Context, arg GetAccountCredentialParams) (AccountCredential, error) {
+	row := q.db.QueryRow(ctx, getAccountCredential, arg.Kind, arg.ExternalID)
+	var i AccountCredential
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Kind,
+		&i.ExternalID,
+		&i.Label,
+		&i.Data,
+		&i.LastUsedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -336,6 +401,15 @@ type SetAccountPasswordParams struct {
 
 func (q *Queries) SetAccountPassword(ctx context.Context, arg SetAccountPasswordParams) error {
 	_, err := q.db.Exec(ctx, setAccountPassword, arg.PasswordHash, arg.ID)
+	return err
+}
+
+const touchAccountCredential = `-- name: TouchAccountCredential :exec
+UPDATE account_credential SET last_used_at = now() WHERE id = $1
+`
+
+func (q *Queries) TouchAccountCredential(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, touchAccountCredential, id)
 	return err
 }
 

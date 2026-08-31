@@ -85,6 +85,29 @@ public final class AppModel {
         }
     }
 
+    /// Signs in with an Apple assertion, reporting the failure the same way `signIn` does.
+    ///
+    /// The screen owns the ASAuthorization dance because it needs a presentation anchor; this
+    /// owns what happens afterwards, so the two ways into the app end in exactly the same
+    /// state. Anything else and "signed in with Apple" would be a subtly different session
+    /// from "signed in with a password".
+    public func signInWithApple(
+        idToken: String,
+        nonce: String,
+        displayName: String?
+    ) async -> PolarisError? {
+        do {
+            await finishSignIn(
+                try await api.signInWithApple(idToken: idToken, nonce: nonce, displayName: displayName)
+            )
+            return nil
+        } catch let error as PolarisError {
+            return error
+        } catch {
+            return .badResponse
+        }
+    }
+
     /// Registers, and reports the failure to the caller instead of only parking it in `phase`.
     ///
     /// The sign-up screen needs the error next to its own fields — a refusal that only reaches

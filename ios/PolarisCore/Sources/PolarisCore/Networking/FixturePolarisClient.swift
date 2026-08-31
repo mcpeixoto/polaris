@@ -83,6 +83,20 @@ public actor FixturePolarisClient: PolarisAPI {
         return session()
     }
 
+    public func signInWithApple(
+        idToken: String,
+        nonce: String,
+        displayName: String?
+    ) async throws -> Session {
+        // The fixture cannot verify anything, so it stands in for the one thing the screen
+        // has to handle: an assertion arrives, or it does not. An empty token is what a
+        // cancelled or failed authorisation looks like by the time it reaches here.
+        guard !idToken.isEmpty else {
+            throw PolarisError.unauthorized("that sign-in could not be verified")
+        }
+        return session()
+    }
+
     public func register(
         email: String,
         password: String,
