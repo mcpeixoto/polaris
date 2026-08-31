@@ -246,6 +246,12 @@ export function useDisclosure(breakpoint = 900) {
   useEffect(() => {
     if (!open) return;
 
+    // The registry lives in the app shell and the marketing page renders outside it: there
+    // is no useActions to call here, no command menu to list this in and no help overlay to
+    // show it on. Escape closing what is open is not a shortcut either — it is what every
+    // dismissable surface owes, which is the same reason Menu and Modal are on this lint's
+    // file allowlist rather than in the registry.
+    // keymap-lint-allow: dismisses an open disclosure; cannot be a registered action.
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
@@ -268,10 +274,12 @@ export function useDisclosure(breakpoint = 900) {
       if (wide?.matches) setOpen(false);
     };
 
+    // keymap-lint-allow: registers the Escape dismissal argued for above.
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown);
     wide?.addEventListener('change', onWide);
     return () => {
+      // keymap-lint-allow: tears down the Escape dismissal argued for above.
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('pointerdown', onPointerDown);
       wide?.removeEventListener('change', onWide);

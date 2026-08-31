@@ -47,12 +47,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  /* Indirected through a property rather than declared outright, because a consumer that
-   * wants a different colour — the auth card wants the accent — cannot rely on winning a
-   * one-class-versus-one-class specificity tie against this file. Setting --logo-word is
-   * unambiguous; writing `color` on the same element is a coin flip decided by the order
-   * the bundler happened to emit the two stylesheets in. */
-  color: var(--logo-word, var(--text-primary));
+  color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
   line-height: var(--line-height-none);
@@ -88,7 +83,7 @@
   height: var(--logo-mark);
   /* currentColor is what the gradient stops resolve against, so this one declaration is
    * the whole of the mark's colour. */
-  color: var(--logo-mark-color, var(--accent));
+  color: var(--accent);
   overflow: visible;
 }
 
