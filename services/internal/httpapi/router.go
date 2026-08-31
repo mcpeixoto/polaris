@@ -124,6 +124,10 @@ func NewRouter(d Deps) http.Handler {
 		authHandlers: auth,
 		verifier:     oidc.NewVerifier(nil, nil),
 		providers:    socialProviders(d),
+		// The Services ID the browser needs. Left unset this field is "", the endpoint
+		// advertises Apple with no client id, and the button never renders — a zero value
+		// that compiles, deploys, and is only visible from outside.
+		appleWebClientID: d.Config.AppleWebClientID,
 	}
 	mux.Handle("POST /auth/oidc/{provider}", d.Limits.Anonymous(http.HandlerFunc(social.signIn)))
 	mux.Handle("GET /auth/providers", d.Limits.Anonymous(http.HandlerFunc(social.available)))
