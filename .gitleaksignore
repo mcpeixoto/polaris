@@ -8,12 +8,14 @@
 # is one of the likelier ways a key actually escapes.
 #
 # Adding a line here is a claim that the string has no value. Check it before you believe it.
+#
+# Do not quote the flagged string in a comment here. The first version of this file did, and
+# gitleaks flagged the explanation — same rule, same entropy, new fingerprint. Describe it.
 
-# `const testStripeSecret = "whsec_ZmFrZV9zZWNyZXRfZm9yX3Rlc3Rz"`, a webhook signing secret
-# in the unit test for signature verification. The base64 decodes to "fake_secret_for_tests";
-# it authenticates nothing, and no Stripe account has ever held it. gitleaks matched it under
-# generic-api-key on entropy alone (4.19) rather than on Stripe's key format. The constant
-# was rewritten as `whsec_not_a_real_secret` in the following commit — but the original is
-# still in this branch's history, which is what the scan reads, and rewriting published
-# history to delete a string that was never a secret is the more dangerous of the two moves.
+# The webhook signing secret in the unit test for Stripe signature verification. It was a
+# base64 blob whose plaintext says it is fake; it authenticates nothing and no Stripe account
+# has ever held it. generic-api-key matched on entropy alone, not on Stripe's key format. The
+# constant was rewritten to something unmistakably inert in the next commit, but the original
+# is still in this branch's history, which is what the scan reads — and rewriting published
+# history to erase a string that was never a secret is the more dangerous of the two moves.
 cec60448a9196d4ca5c60924b1f130eafad8a4c7:services/internal/platform/stripe_hmac_test.go:generic-api-key:12
