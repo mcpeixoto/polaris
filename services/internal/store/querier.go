@@ -323,6 +323,7 @@ type Querier interface {
 	// later. Nothing above the store has a use for it.
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (CreateAPIKeyRow, error)
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
+	CreateAccountCredential(ctx context.Context, arg CreateAccountCredentialParams) (AccountCredential, error)
 	CreateAskForm(ctx context.Context, arg CreateAskFormParams) (AskForm, error)
 	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) (Attachment, error)
 	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
@@ -508,6 +509,7 @@ type Querier interface {
 	GetAPIKeyByTokenHash(ctx context.Context, tokenHash []byte) (GetAPIKeyByTokenHashRow, error)
 	GetAccount(ctx context.Context, id uuid.UUID) (Account, error)
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
+	GetAccountCredential(ctx context.Context, arg GetAccountCredentialParams) (AccountCredential, error)
 	GetArchivedInitiativeLabel(ctx context.Context, id uuid.UUID) (GetArchivedInitiativeLabelRow, error)
 	// GetArchivedLabel reads a label the ordinary path treats as gone.
 	//
@@ -1637,6 +1639,7 @@ type Querier interface {
 	// who calls it.
 	//
 	TouchAPIKeyLastUsed(ctx context.Context, id uuid.UUID) error
+	TouchAccountCredential(ctx context.Context, id uuid.UUID) error
 	TouchOauthTokenLastUsed(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error

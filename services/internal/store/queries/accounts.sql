@@ -85,3 +85,16 @@ ORDER BY last_seen_at DESC;
 -- name: DeleteExpiredSessions :execrows
 DELETE FROM account_session
 WHERE expires_at < now() - interval '30 days';
+
+-- name: GetAccountCredential :one
+SELECT id, account_id, kind, external_id, label, data, last_used_at, created_at, updated_at
+FROM account_credential
+WHERE kind = sqlc.arg(kind)::text AND external_id = sqlc.arg(external_id)::text;
+
+-- name: CreateAccountCredential :one
+INSERT INTO account_credential (id, account_id, kind, external_id, label)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, account_id, kind, external_id, label, data, last_used_at, created_at, updated_at;
+
+-- name: TouchAccountCredential :exec
+UPDATE account_credential SET last_used_at = now() WHERE id = $1;

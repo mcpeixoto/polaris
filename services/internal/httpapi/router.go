@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/peixotolabs/polaris/services/internal/auth/oidc"
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/entitlement"
@@ -26,6 +27,11 @@ type Deps struct {
 
 	// Sync is the WebSocket hub handler. Nil in the api process, which does not serve it.
 	Sync http.Handler
+
+	// SocialProviders replaces the Google/Apple issuers. Tests only: it exists so the
+	// sign-in path can be exercised against a fake issuer whose keys the test controls.
+	// Production leaves it nil and gets the two constants in internal/auth/oidc.
+	SocialProviders map[string]oidc.Provider
 
 	// Limits carries the per-caller budgets. Passed in rather than built here because the
 	// GraphQL handler needs the same instance: the complexity budget is charged from inside
@@ -109,6 +115,18 @@ func NewRouter(d Deps) http.Handler {
 	mux.Handle("GET /auth/workspaces", RequireAuth(http.HandlerFunc(auth.workspaces)))
 	mux.Handle("POST /auth/workspaces", RequireAuth(http.HandlerFunc(auth.createWorkspace)))
 	mux.Handle("POST /auth/invites/accept", RequireAuth(http.HandlerFunc(auth.acceptInvite)))
+
+	// Sign in with Google / Apple. Anonymous by construction — the whole point is that the
+	// caller has no session yet — and rate limited like a password attempt. A provider this
+	// deployment has not configured is not routed at all; `social.signIn` answers 404 for it
+	// rather than pretending to try.
+	social := &socialAuthHandlers{
+		authHandlers: auth,
+		verifier:     oidc.NewVerifier(nil, nil),
+		providers:    socialProviders(d),
+	}
+	mux.Handle("POST /auth/oidc/{provider}", d.Limits.Anonymous(http.HandlerFunc(social.signIn)))
+	mux.Handle("GET /auth/providers", d.Limits.Anonymous(http.HandlerFunc(social.available)))
 
 	// --- the API ----------------------------------------------------------------
 	//
@@ -287,5 +305,16 @@ func requireMCP(publicURL string, next http.Handler) http.Handler {
 func (s *statusRecorder) Flush() {
 	if f, ok := s.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
+	}
+}
+
+// socialProviders is the two real issuers, or whatever a test injected.
+func socialProviders(d Deps) map[string]oidc.Provider {
+	if d.SocialProviders != nil {
+		return d.SocialProviders
+	}
+	return map[string]oidc.Provider{
+		"google": oidc.Google(d.Config.GoogleSignInAudiences()),
+		"apple":  oidc.Apple(d.Config.AppleSignInAudiences()),
 	}
 }
