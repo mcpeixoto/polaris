@@ -208,10 +208,16 @@
   outline-offset: 3px;
 }
 
+/*
+ * A step above the product's own 12px. Everything else in the header is a control — the
+ * sign-in, the CTA, the toggle — and controls are sized by --control-height; these are
+ * prose, read at arm's length on a poster rather than scanned in a dense list, and at
+ * --font-size-sm they were the smallest text on the page above the fold.
+ */
 .navLinks {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-5);
   flex: 1;
   min-width: 0;
 }
@@ -220,9 +226,9 @@
  * followed rather than answered. */
 .navLinks a {
   position: relative;
-  padding-block: var(--space-1);
+  padding-block: var(--space-2);
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   text-decoration: none;
   transition: color var(--duration-fast) var(--ease-out);
 }
@@ -267,10 +273,10 @@
 .navQuiet {
   display: inline-flex;
   align-items: center;
-  height: var(--control-height-md);
-  padding-inline: var(--space-2);
+  height: var(--control-height-lg);
+  padding-inline: var(--space-3);
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   text-decoration: none;
   transition: color var(--duration-fast) var(--ease-out);
@@ -382,14 +388,20 @@
   display: none;
 }
 
+/*
+ * 40px rows, not the 32px of --control-height-lg. This list is reached by thumb on a phone
+ * held one-handed, where 32px is under every touch-target guideline going and the rows sit
+ * close enough together to mis-hit; the product's density argument is about how many issues
+ * fit on a laptop screen and has nothing to say about five links on a phone.
+ */
 .navMenu a {
   display: flex;
   align-items: center;
-  height: var(--control-height-lg);
-  padding-inline: var(--space-2);
+  height: var(--space-10);
+  padding-inline: var(--space-3);
   border-radius: var(--radius-md);
   color: var(--text-secondary);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-lg);
   text-decoration: none;
 }
 
