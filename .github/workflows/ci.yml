@@ -8,9 +8,20 @@ on:
     tags: ["v*"]
   pull_request:
 
+# Superseded pull request runs are cancelled; runs on main are not.
+#
+# Cancelling everything was right when this workflow only reported. Now its last job
+# deploys, and a second merge landing while the first is still running cancelled the first
+# run *including its deploy* — which is how a merge silently never reaches production. It
+# happened: #162 was cancelled by #163 eight minutes later.
+#
+# Production converges either way, because the newer run deploys a commit that contains the
+# older one. What it does not survive is the newer run failing: prod would then sit on a
+# commit two merges back with nothing saying so, and the cancelled run in between looks like
+# an infrastructure hiccup rather than a skipped release.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
