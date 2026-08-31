@@ -40,7 +40,14 @@ import { Link } from 'react-router';
 
 import { Avatar, Badge, Kbd, LabelChip, PriorityIcon, Progress, StateIcon } from '~/components';
 
-import { annualMonthlyCents, formatEur, PLANS, PRO_MONTHLY_CENTS } from '~/features/pricing/plans';
+import {
+  annualMonthlyCents,
+  formatEur,
+  planAsSold,
+  PLANS,
+  PRO_MONTHLY_CENTS,
+} from '~/features/pricing/plans';
+import { useBillingLive } from '~/features/pricing/useBillingLive';
 
 import { useReveal, useScrolled, useTypewriter } from './landingMotion';
 import styles from './Landing.module.css';
@@ -63,6 +70,8 @@ function at(index: number): CSSProperties {
 export function Landing() {
   const page = useReveal<HTMLDivElement>();
   const scrolled = useScrolled();
+  // See Pricing: the poster must not offer a checkout this server cannot open.
+  const billingLive = useBillingLive();
 
   return (
     <div className={styles.page} ref={page} data-scrolled={scrolled ? '' : undefined}>
@@ -305,7 +314,7 @@ export function Landing() {
             </p>
           </div>
           <ul className={styles.featureGrid} role="list">
-            {PLANS.map((plan, index) => (
+            {PLANS.map((entry) => planAsSold(entry, billingLive)).map((plan, index) => (
               <li key={plan.id} className={styles.feature} data-reveal="" style={at(index)}>
                 <h3>{plan.name}</h3>
                 <p>

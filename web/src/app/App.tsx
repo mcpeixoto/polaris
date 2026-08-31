@@ -22,6 +22,7 @@ import { UndoToast } from '~/features/undo/UndoToast';
 import { AcceptInvite } from '~/views/AcceptInvite';
 import { AskFormPage } from '~/views/AskFormPage';
 import { AskSettings } from '~/views/AskSettings';
+import { BillingSettings } from '~/views/BillingSettings';
 import { ApiKeys } from '~/views/ApiKeys';
 import { AuthorisedApps } from '~/views/AuthorisedApps';
 import { Sessions } from '~/views/Sessions';
@@ -290,6 +291,14 @@ function SignedInShell() {
           element={
             <AdminOnly>
               <WorkspaceSettings />
+            </AdminOnly>
+          }
+        />
+        <Route
+          path="/settings/billing"
+          element={
+            <AdminOnly>
+              <BillingSettings />
             </AdminOnly>
           }
         />

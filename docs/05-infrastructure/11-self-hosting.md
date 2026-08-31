@@ -174,6 +174,12 @@ which is not true of every system.
 | `POLARIS_SLACK_SIGNING_SECRET` | empty | Slack request signature. Required for slash commands and Events API; outbound channel webhooks work without it |
 | `POLARIS_SLACK_BOT_TOKEN` | empty | Slack bot token (`xoxb-…`). Required for link unfurls (`chat.unfurl`) |
 | `POLARIS_EMAIL_WEBHOOK_SECRET` | empty | Inbound email-to-issue. Empty is a development stub |
+| `POLARIS_STRIPE_SECRET_KEY` | empty | Hosted billing. **Leave empty when self-hosting**: no checkout is offered and `POST /webhooks/stripe` refuses every delivery, because an empty signing secret verifies nothing |
+| `POLARIS_STRIPE_WEBHOOK_SECRET` | empty | The endpoint's signing secret (`whsec_…`). Needed together with the key — a key without it can take a payment and never learn that it did, which leaves a paying customer on the free plan |
+| `POLARIS_STRIPE_PRICE_PRO_MONTHLY` | empty | The price seats are sold at. Billing counts as configured only when the key, the signing secret and this are all set |
+| `POLARIS_STRIPE_PRICE_PRO_YEARLY` | empty | Optional. Absent, the annual checkout is refused and the monthly one still works |
+| `POLARIS_STRIPE_PRICE_ENTERPRISE` | empty | Optional. A negotiated subscription on a price nobody configured still entitles Pro rather than failing — see below |
+| `POLARIS_STRIPE_AUTOMATIC_TAX` | `false` | Stripe Tax. Asking for it on an account that has not set Tax up makes Stripe refuse the entire checkout session, so it is off until you turn it on |
 
 **Connection pool arithmetic.** The default of 10 is low because it is a *per-process*
 number and the defaults assume a pooler in front. Three processes at 10 is 30 backends
@@ -183,6 +189,42 @@ three processes is 90, and you are one `psql` away from "too many clients". Eith
 front. The code already sets pgx's exec mode to `describe`, which is the setting a
 transaction pooler requires; getting that wrong produces "prepared statement already exists"
 errors that only appear under concurrency in production.
+
+### Billing, if you are the one selling
+
+Nothing in this section applies to a self-host, and the defaults are already the answer:
+with no Stripe credentials the product has no checkout, `GET /billing/config` reports
+`{"enabled": false}`, the pricing page says so instead of offering a button, and the webhook
+refuses everything. `POLARIS_DEFAULT_PLAN=self_hosted` gives every workspace the unlimited
+plan without any of this.
+
+For a hosted deployment, in Stripe:
+
+1. Create a recurring product with a monthly price and, if you sell one, an annual price.
+   Copy the **price** ids (`price_…`, not `prod_…`) into `POLARIS_STRIPE_PRICE_PRO_MONTHLY`
+   and `POLARIS_STRIPE_PRICE_PRO_YEARLY`.
+2. Add an endpoint at `https://<your host>/webhooks/stripe` subscribed to
+   `checkout.session.completed`, `customer.subscription.created`,
+   `customer.subscription.updated` and `customer.subscription.deleted`. Copy its signing
+   secret into `POLARIS_STRIPE_WEBHOOK_SECRET`.
+3. Enable the customer portal (Billing → Customer portal), which is where cards are replaced
+   and subscriptions cancelled. Without it `POST /billing/portal` fails at Stripe.
+4. Put the secret key in `POLARIS_STRIPE_SECRET_KEY`. It is a credential: it belongs in the
+   same place as `POLARIS_JWT_SECRET`, never in the repository.
+
+What then happens: an administrator opens Settings → Billing and gets a Stripe Checkout
+session for the seats their workspace uses. Stripe posts back, the signature is verified
+against a five-minute window, and the subscription is applied to the workspace named in the
+subscription's `polaris_workspace_id` metadata — which the checkout writes, and which is why
+a subscription created by hand in the Stripe dashboard entitles nothing. Cancellations move
+the workspace back to `free`. A failed payment maps to `past_due`, and the seven-day grace in
+`services/internal/domain/billing.go` decides when writes narrow.
+
+Two behaviours worth knowing before they surprise you. A subscription on a price id this
+deployment does not have configured still entitles **Pro** and logs a warning — refusing
+would take the product away from somebody who is paying for it. And seats are a starting
+quantity, not a ceiling: adding a person to a Pro workspace is billed by proration rather
+than refused.
 
 ### Declared but not wired up
 

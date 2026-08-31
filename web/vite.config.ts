@@ -32,6 +32,8 @@ export default defineConfig({
       '/oauth/revoke': API_TARGET,
       '/mcp': API_TARGET,
       '/asks': API_TARGET,
+      '/billing': API_TARGET,
+      '/webhooks': API_TARGET,
       '/calendars': API_TARGET,
       '/.well-known': API_TARGET,
       '/sync/bootstrap': API_TARGET,

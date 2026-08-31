@@ -196,6 +196,31 @@ type Config struct {
 	SlackSigningSecret string `envconfig:"POLARIS_SLACK_SIGNING_SECRET"`
 	SlackBotToken      string `envconfig:"POLARIS_SLACK_BOT_TOKEN"`
 
+	// Stripe credentials for hosted billing. Empty is the ordinary self-hosted case and
+	// the default: no checkout is offered, the billing endpoints answer "not configured",
+	// and POST /webhooks/stripe refuses everything because an empty signing secret verifies
+	// nothing. A deployment that sets the secret key and not the signing secret can take
+	// money and never hear that it did, which is why BillingEnabled demands both.
+	StripeSecretKey     string `envconfig:"POLARIS_STRIPE_SECRET_KEY"`
+	StripeWebhookSecret string `envconfig:"POLARIS_STRIPE_WEBHOOK_SECRET"`
+
+	// The prices seats are sold at. Monthly and annual are the two the pricing page
+	// quotes; the enterprise price is optional and exists so a negotiated subscription
+	// resolves to the right tier instead of falling back to Pro.
+	StripePriceProMonthly string `envconfig:"POLARIS_STRIPE_PRICE_PRO_MONTHLY"`
+	StripePriceProYearly  string `envconfig:"POLARIS_STRIPE_PRICE_PRO_YEARLY"`
+	StripePriceEnterprise string `envconfig:"POLARIS_STRIPE_PRICE_ENTERPRISE"`
+
+	// Stripe Tax. Off by default because Stripe refuses a checkout session that asks for
+	// automatic tax on an account where Tax is not set up — turning a tax preference into
+	// a checkout outage. An EU seller almost certainly wants this on, once the account is
+	// configured for it.
+	StripeAutomaticTax bool `envconfig:"POLARIS_STRIPE_AUTOMATIC_TAX" default:"false"`
+
+	// Where the Stripe API lives. Overridden only by tests; a deployment that points this
+	// somewhere else is sending its secret key to that host.
+	StripeBaseURL string `envconfig:"POLARIS_STRIPE_BASE_URL" default:"https://api.stripe.com"`
+
 	// Shared secret for POST /webhooks/email. Empty is the development stub: unsigned
 	// JSON is accepted so a local `curl` can file an issue without a mail server.
 	// Production must set this — an empty secret outside development refuses every post.
@@ -228,6 +253,19 @@ func (c Config) MailEnabled() bool { return strings.TrimSpace(c.SMTPHost) != "" 
 // GitHubOAuthConfigured reports whether a GitHub App can complete an OAuth handshake.
 func (c Config) GitHubOAuthConfigured() bool {
 	return strings.TrimSpace(c.GitHubClientID) != "" && strings.TrimSpace(c.GitHubClientSecret) != ""
+}
+
+// BillingEnabled reports whether this deployment can actually sell a subscription.
+//
+// Both halves or neither, and the pricing page reads the same answer through
+// GET /billing/config. A secret key without a signing secret would let a customer pay and
+// leave the workspace on free, because nothing could verify the event that says they did;
+// a signing secret without a key would offer an upgrade button that cannot open a checkout.
+// Neither half-state is worth supporting, so neither is representable.
+func (c Config) BillingEnabled() bool {
+	return strings.TrimSpace(c.StripeSecretKey) != "" &&
+		strings.TrimSpace(c.StripeWebhookSecret) != "" &&
+		strings.TrimSpace(c.StripePriceProMonthly) != ""
 }
 
 // OpenSignupAllowed reports whether anybody may create an account.

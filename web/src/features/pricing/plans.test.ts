@@ -13,6 +13,7 @@ import {
   FREE_TEAMS,
   PLAN_ORDER,
   PLANS,
+  planAsSold,
   planSummary,
   PRO_MONTHLY_CENTS,
 } from './plans';
@@ -173,6 +174,39 @@ describe('agreement with the enforced matrix', () => {
     expect(pro?.note).toBeTruthy();
     for (const id of ['self_hosted', 'free', 'enterprise'] as const) {
       expect(planSummary(id)?.availability, id).toBe('now');
+    }
+  });
+
+  /**
+   * The static entry is written for the deployment that cannot sell, because that is the
+   * honest default. When the server says checkout is live, the waitlist wording has to go —
+   * otherwise the hosted product would tell paying customers to send an email.
+   */
+  it('restores an ordinary sign-up once the server can take a payment', () => {
+    const pro = planSummary('pro');
+    expect(pro).not.toBeNull();
+    if (pro === null) return;
+
+    const offline = planAsSold(pro, false);
+    expect(offline.action.label).toBe('Talk to us');
+    expect(offline.note).toBeTruthy();
+
+    const live = planAsSold(pro, true);
+    expect(live.availability).toBe('now');
+    expect(live.action).toEqual({ label: 'Get started', to: '/signup' });
+    expect(live.note).toBeUndefined();
+    // The price and the pitch are the same either way; only the way in changes.
+    expect(live.price).toBe(pro.price);
+    expect(live.blurb).toBe(pro.blurb);
+  });
+
+  it('leaves the plans anybody can already start alone', () => {
+    for (const id of ['self_hosted', 'free', 'enterprise'] as const) {
+      const plan = planSummary(id);
+      expect(plan).not.toBeNull();
+      if (plan === null) continue;
+      expect(planAsSold(plan, true)).toEqual(plan);
+      expect(planAsSold(plan, false)).toEqual(plan);
     }
   });
 });
