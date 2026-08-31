@@ -43,13 +43,14 @@ var notInTheAPI = map[string]string{
 	// Auth is REST, not GraphQL: sign-in has to set an HttpOnly cookie, and a GraphQL
 	// mutation that sets cookies as a side effect is both surprising and impossible to
 	// express in the schema.
-	"Register":        "POST /auth/register",
-	"Login":           "POST /auth/login",
-	"LoginDev":        "POST /auth/dev-session — loopback-only cookie mint; never GraphQL",
-	"RefreshSession":  "POST /auth/refresh",
-	"RevokeSession":   "POST /auth/logout",
-	"CreateWorkspace": "POST /auth/workspaces — there is no workspace to scope it to yet",
-	"AcceptInvite":    "POST /auth/invites/accept — same reason",
+	"Register":         "POST /auth/register",
+	"SignInWithSocial": "POST /auth/oidc/{provider} — same cookie, same reason",
+	"Login":            "POST /auth/login",
+	"LoginDev":         "POST /auth/dev-session — loopback-only cookie mint; never GraphQL",
+	"RefreshSession":   "POST /auth/refresh",
+	"RevokeSession":    "POST /auth/logout",
+	"CreateWorkspace":  "POST /auth/workspaces — there is no workspace to scope it to yet",
+	"AcceptInvite":     "POST /auth/invites/accept — same reason",
 
 	// Server-side only. No caller outside the process should be able to invoke these.
 	"PruneChangeLog":            "worker cron",
