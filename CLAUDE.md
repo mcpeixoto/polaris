@@ -22,6 +22,14 @@ https://polaris.peixotolabs.com/healthz for up to five minutes, because
 `docker compose up -d` returns as soon as containers exist and long before anything serves
 a request.
 
+**The deploy key cannot open a shell.** `/root/.ssh/authorized_keys` pins it to
+`command="/root/polaris-deploy.sh"` with `no-pty` and no forwarding, so the request is one
+commit sha and nothing else. The script refuses anything that is not 40 hex characters, and
+refuses a sha that is not already an ancestor of `origin/main` — so a leaked or misused key
+deploys a commit that was going to production anyway, rather than owning the machine.
+
+To revoke: delete the `github-actions-deploy@polaris` line from `/root/.ssh/authorized_keys`.
+
 It needs these repository secrets. Without them the job fails loudly rather than passing
 without deploying:
 
@@ -29,11 +37,13 @@ without deploying:
 |---|---|
 | `DEPLOY_HOST` | The server's address |
 | `DEPLOY_USER` | The SSH user (`root` on this fleet) |
-| `DEPLOY_SSH_KEY` | Private key for that user |
+| `DEPLOY_SSH_KEY` | Private key for that user — the dedicated `/root/.ssh/gh_deploy`, not a personal key |
 | `DEPLOY_HOST_KEY` | The server's public host key, from `ssh-keyscan <host>`. Pinned so the job cannot be talked onto another machine |
 | `DEPLOY_PORT` | Optional, defaults to `22` |
-| `DEPLOY_PATH` | Optional, defaults to `/root/Polaris` |
 | `DEPLOY_HEALTH_URL` | Optional, defaults to the healthz URL above |
+
+`DEPLOY_PATH` is no longer a secret: the path lives in `/root/polaris-deploy.sh` on the
+server, because the forced command is what decides where a deploy may write.
 
 The fleet registry at `/root/AdminPanel/registry.yml` still carries `deploy: manual` for
 Polaris. That is now a description of a path nobody takes, not a constraint — worth

@@ -405,9 +405,6 @@ jobs:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           SSH_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
           SSH_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
-          # Where the checkout lives on the server. Overridable because the fleet
-          # registry's deploy_cmd names it, and that is the one true copy.
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/root/Polaris' }}
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -431,14 +428,19 @@ jobs:
           printf '%s\n' "$SSH_HOST_KEY" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s <<EOF
-          set -euo pipefail
-          cd "$DEPLOY_PATH"
-          git fetch origin
-          # The commit this run tested, not origin/main as it stands now.
-          git reset --hard "$SHA"
-          GIT_SHA=\$(git rev-parse --short HEAD) docker compose up -d --build
-          EOF
+          # The whole request is one commit sha.
+          #
+          # This key is pinned in the server's authorized_keys to
+          # `command="/root/polaris-deploy.sh"`, so whatever is sent here never reaches a
+          # shell: sshd runs that script and hands it this string in SSH_ORIGINAL_COMMAND.
+          # The script refuses anything that is not 40 hex characters, and refuses a sha
+          # that is not already an ancestor of origin/main.
+          #
+          # That is why this is not a script piped to `bash -s` any more. A pipeline that
+          # sends commands means the secret in this job is a root shell on production, held
+          # by a public repository — and the blast radius of a leaked or misused key should
+          # be "it deployed a commit that was already on main", not "it owns the machine".
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$SHA"
 
       - name: Check it came back up
         env:
