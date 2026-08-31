@@ -112,7 +112,11 @@ func socialRouter(t *testing.T, openSignup bool, configured bool) socialHarness 
 	}
 
 	providers := map[string]oidc.Provider{"google": issuer.provider()}
-	if !configured {
+	if configured {
+		cfg.AppleWebClientID = "com.example.polaris.web"
+		cfg.AppleClientIDs = []string{"com.example.polaris"}
+		providers["apple"] = oidc.Apple(cfg.AppleSignInAudiences())
+	} else {
 		// What a deployment that never set POLARIS_GOOGLE_CLIENT_ID looks like.
 		providers = map[string]oidc.Provider{"google": oidc.Google(nil)}
 	}
@@ -324,16 +328,31 @@ func TestProvidersEndpointAdvertisesWhatWorks(t *testing.T) {
 		t.Fatalf("status %d", rec.Code)
 	}
 	var got struct {
-		Providers  []string `json:"providers"`
-		OpenSignup bool     `json:"openSignup"`
+		Providers      []string `json:"providers"`
+		GoogleClientID string   `json:"googleClientId"`
+		AppleClientID  string   `json:"appleClientId"`
+		OpenSignup     bool     `json:"openSignup"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Providers) != 1 || got.Providers[0] != "google" {
+	if len(got.Providers) != 2 || got.Providers[0] != "google" || got.Providers[1] != "apple" {
 		t.Fatalf("providers = %v", got.Providers)
 	}
 	if !got.OpenSignup {
 		t.Fatal("openSignup was not reported on a server with open registration")
+	}
+
+	// The client ids, and not merely the names.
+	//
+	// This is the assertion that was missing when `appleWebClientID` was left unwired in the
+	// router: the endpoint advertised Apple, the field defaulted to "", the browser had
+	// nothing to initialise Apple's JS with, and the button silently never rendered. It
+	// compiled, deployed, and was visible only by reading the JSON from outside.
+	if got.GoogleClientID == "" {
+		t.Fatal("google is advertised with no client id; the button cannot be started")
+	}
+	if got.AppleClientID != "com.example.polaris.web" {
+		t.Fatalf("apple client id = %q, want the Services ID this deployment configured", got.AppleClientID)
 	}
 }
