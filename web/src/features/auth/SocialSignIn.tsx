@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApiError, auth } from '~/sync/api';
 
+import { fetchAuthProviders } from './providers';
 import { mountGoogleButton, signInWithApple, type Assertion } from './social';
 import styles from './SocialSignIn.module.css';
 
@@ -31,8 +32,7 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
 
   useEffect(() => {
     let cancelled = false;
-    auth
-      .providers()
+    fetchAuthProviders()
       .then((body) => {
         if (cancelled) return;
         setProviders(body.providers);
