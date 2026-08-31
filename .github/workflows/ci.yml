@@ -338,3 +338,124 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Deploy
+  #
+  # Polaris was `deploy: manual` in the fleet registry, which meant every release
+  # reached production only when somebody remembered to run the command by hand —
+  # and production sat two tags behind main for a day without anything saying so.
+  #
+  # This job is the fix, and it is deliberately the *last* job in the same
+  # workflow rather than a `workflow_run` listener: `needs` gives ordering the
+  # scheduler enforces, so nothing can reach the server until every check above it
+  # has actually passed. A separate workflow keyed on "CI finished" would have to
+  # re-derive that, and would deploy on a run whose conclusion it read wrong.
+  #
+  # It deploys the exact commit CI validated, not whatever main happens to be when
+  # the SSH lands. Two merges a minute apart would otherwise race, and the second
+  # deploy could ship the first commit twice while the second is never built.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    needs: [go, go-ee, generated, web, e2e, discipline, secrets]
+    # Pushes to main only. Not tags: tags are cut from commits already on main and
+    # would deploy the same tree a second time. Not pull_request: a fork PR would
+    # otherwise ask for production credentials, and gets none.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Named so that GitHub's environment protection rules apply if you ever want a
+    # human approval or a deploy window in front of this — Settings → Environments.
+    environment: production
+    # An ssh that hangs should fail the run, not hold the production concurrency
+    # group open for six hours while every later merge queues behind it.
+    timeout-minutes: 20
+    # One deploy at a time, and never cancel one in flight: `docker compose up
+    # --build` interrupted halfway leaves the stack half-new, which is worse than
+    # queueing behind it.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Check the deploy credentials exist
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          missing=""
+          [ -z "$HOST" ] && missing="$missing DEPLOY_HOST"
+          [ -z "$USER" ] && missing="$missing DEPLOY_USER"
+          [ -z "$KEY" ] && missing="$missing DEPLOY_SSH_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Automatic deploys are on, but these repository secrets are missing:$missing"
+            echo "Add them under Settings -> Secrets and variables -> Actions, then re-run this job."
+            echo "Until then main is red on purpose: a deploy job that quietly succeeded"
+            echo "without deploying would be indistinguishable from a working one."
+            exit 1
+          fi
+
+      - name: Deploy the commit this run validated
+        env:
+          # Through the environment, never interpolated into the script body:
+          # `${{ }}` pastes text in before the shell runs, so a value carrying a
+          # quote or a backtick would be executed rather than read.
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+          SSH_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
+          # Where the checkout lives on the server. Overridable because the fleet
+          # registry's deploy_cmd names it, and that is the one true copy.
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/root/Polaris' }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # Raw ssh rather than a marketplace action. This repository is public and
+          # this is the one job holding a production key: a third-party action here
+          # is a supply-chain dependency on somebody else's release process, for
+          # the sake of six lines of shell.
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pin the host key instead of accepting whatever answers on the night.
+          # StrictHostKeyChecking=no would make this job hand a root shell to a
+          # machine-in-the-middle without a word in the log.
+          if [ -z "$SSH_HOST_KEY" ]; then
+            echo "::error::DEPLOY_HOST_KEY is not set. Generate it on your own machine with:"
+            echo "  ssh-keyscan -p $SSH_PORT <host>"
+            echo "and paste the line for your host. Without it this job cannot tell your"
+            echo "server from anything else that answers on that address."
+            exit 1
+          fi
+          printf '%s\n' "$SSH_HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s <<EOF
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          git fetch origin
+          # The commit this run tested, not origin/main as it stands now.
+          git reset --hard "$SHA"
+          GIT_SHA=\$(git rev-parse --short HEAD) docker compose up -d --build
+          EOF
+
+      - name: Check it came back up
+        env:
+          HEALTH_URL: ${{ secrets.DEPLOY_HEALTH_URL || 'https://polaris.peixotolabs.com/healthz' }}
+        run: |
+          set -euo pipefail
+          # A deploy that returns zero and leaves the site down is the failure mode
+          # worth catching: `docker compose up -d` exits as soon as the containers
+          # are created, long before anything serves a request.
+          for attempt in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$HEALTH_URL" || true)
+            if [ "$code" = "200" ]; then
+              echo "healthy after ${attempt} attempt(s)"
+              exit 0
+            fi
+            echo "attempt ${attempt}: $HEALTH_URL -> ${code:-no answer}"
+            sleep 10
+          done
+          echo "::error::$HEALTH_URL never returned 200. The deploy ran; the site is not serving."
+          exit 1

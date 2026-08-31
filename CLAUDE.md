@@ -10,9 +10,36 @@ Five containers: `Polaris_web`, `Polaris_api`, `Polaris_sync`, `Polaris_worker`,
 
 ## Deploying to prod
 
-Polaris is **`deploy: manual`** in the fleet registry (not tag-driven auto-deploy).
+**A merge to `main` deploys itself.** The `deploy` job at the end of
+`.github/workflows/ci.yml` runs after every other check passes, and only on a push to
+`main` — never on a pull request, never on a tag. It ships the exact commit that run
+validated rather than whatever `main` points at by then, so two merges a minute apart
+cannot deploy the same tree twice and skip one.
 
-From registry `deploy_cmd`:
+Deploys run one at a time and are never cancelled mid-flight: `docker compose up --build`
+interrupted halfway leaves the stack half-new. Afterwards the job polls
+https://polaris.peixotolabs.com/healthz for up to five minutes, because
+`docker compose up -d` returns as soon as containers exist and long before anything serves
+a request.
+
+It needs these repository secrets. Without them the job fails loudly rather than passing
+without deploying:
+
+| Secret | What it is |
+|---|---|
+| `DEPLOY_HOST` | The server's address |
+| `DEPLOY_USER` | The SSH user (`root` on this fleet) |
+| `DEPLOY_SSH_KEY` | Private key for that user |
+| `DEPLOY_HOST_KEY` | The server's public host key, from `ssh-keyscan <host>`. Pinned so the job cannot be talked onto another machine |
+| `DEPLOY_PORT` | Optional, defaults to `22` |
+| `DEPLOY_PATH` | Optional, defaults to `/root/Polaris` |
+| `DEPLOY_HEALTH_URL` | Optional, defaults to the healthz URL above |
+
+The fleet registry at `/root/AdminPanel/registry.yml` still carries `deploy: manual` for
+Polaris. That is now a description of a path nobody takes, not a constraint — worth
+reconciling so the registry does not disagree with what actually happens.
+
+To deploy by hand anyway — a rollback, or a server-side change with no commit behind it:
 
 ```bash
 cd /root/Polaris && git fetch origin && git reset --hard origin/main \
