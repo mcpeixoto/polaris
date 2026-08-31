@@ -1,0 +1,19 @@
+# Findings gitleaks has already reported and a human has already read.
+#
+# One line per finding, as `commit:path:rule:line`. Entries are pinned to the commit that
+# introduced them, so this file cannot quietly exempt a future leak in the same place: a new
+# secret on the same line of the same file is a new commit, a new fingerprint, and a fresh
+# failure. Nothing here is a rule-wide or path-wide exemption, deliberately — a `paths`
+# allowlist covering `*_test.go` would hide a real key somebody pastes into a fixture, which
+# is one of the likelier ways a key actually escapes.
+#
+# Adding a line here is a claim that the string has no value. Check it before you believe it.
+
+# `const testStripeSecret = "whsec_ZmFrZV9zZWNyZXRfZm9yX3Rlc3Rz"`, a webhook signing secret
+# in the unit test for signature verification. The base64 decodes to "fake_secret_for_tests";
+# it authenticates nothing, and no Stripe account has ever held it. gitleaks matched it under
+# generic-api-key on entropy alone (4.19) rather than on Stripe's key format. The constant
+# was rewritten as `whsec_not_a_real_secret` in the following commit — but the original is
+# still in this branch's history, which is what the scan reads, and rewriting published
+# history to delete a string that was never a secret is the more dangerous of the two moves.
+cec60448a9196d4ca5c60924b1f130eafad8a4c7:services/internal/platform/stripe_hmac_test.go:generic-api-key:12
