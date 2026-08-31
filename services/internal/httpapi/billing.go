@@ -53,7 +53,7 @@ func (h *billingHandlers) state(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, platform.Unauthorized("this request must name a workspace"))
 		return
 	}
-	record, err := h.svc.BillingFor(r.Context(), p)
+	record, err := h.svc.GetBilling(r.Context(), p)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -109,9 +109,9 @@ func (h *billingHandlers) checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// BillingFor is the authorization check as well as the read: it refuses anybody who is
+	// GetBilling is the authorization check as well as the read: it refuses anybody who is
 	// not an administrator, which is the same gate the portal and the state endpoint use.
-	record, err := h.svc.BillingFor(r.Context(), p)
+	record, err := h.svc.GetBilling(r.Context(), p)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -151,7 +151,7 @@ func (h *billingHandlers) portal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, platform.Validation("", "this deployment has no billing configured"))
 		return
 	}
-	record, err := h.svc.BillingFor(r.Context(), p)
+	record, err := h.svc.GetBilling(r.Context(), p)
 	if err != nil {
 		writeError(w, r, err)
 		return

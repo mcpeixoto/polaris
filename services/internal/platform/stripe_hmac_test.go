@@ -9,7 +9,11 @@ import (
 	"time"
 )
 
-const testStripeSecret = "whsec_ZmFrZV9zZWNyZXRfZm9yX3Rlc3Rz"
+// Deliberately low-entropy and self-describing. The first version of this was a base64
+// blob, which is exactly the shape gitleaks' generic-api-key rule is looking for — it
+// failed the secret scan on a string that never had any value. A test double should be
+// unmistakable to a scanner as well as to a reader.
+const testStripeSecret = "whsec_not_a_real_secret"
 
 func stripeHeader(t *testing.T, secret string, body []byte, at time.Time) string {
 	t.Helper()

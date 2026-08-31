@@ -194,8 +194,10 @@ func TestBillingConfigReportsWhetherAnybodyCanBuy(t *testing.T) {
 // that was paid for, and the sync stream carries it.
 func TestStripeWebhookAppliesAPaidSubscription(t *testing.T) {
 	h := billingRouter(t, true, nil)
-	if got := h.plan(t); got != "free" {
-		t.Fatalf("fixture workspace starts on %s, want free", got)
+	// Whatever the fixture starts on — POLARIS_DEFAULT_PLAN decides, and it is self_hosted —
+	// the point is that the paid subscription moves it.
+	if got := h.plan(t); got == "pro" {
+		t.Fatalf("fixture workspace already starts on pro, so this test proves nothing")
 	}
 
 	body := subscriptionEvent(t, "evt_1", "customer.subscription.created",
@@ -274,6 +276,9 @@ func TestStripeWebhookReadsTheSubscriptionACheckoutCreated(t *testing.T) {
 
 func TestStripeWebhookRefusesWhatItCannotVerify(t *testing.T) {
 	h := billingRouter(t, true, nil)
+	// The assertion is that nothing moved, not that the workspace is on any particular
+	// plan: what a refused delivery must not do is change the answer.
+	before := h.plan(t)
 	body := subscriptionEvent(t, "evt_forged", "customer.subscription.created",
 		h.fixture.WorkspaceID.String(), "active", testPriceMonthly, 500, time.Now().Add(time.Hour))
 
@@ -288,8 +293,8 @@ func TestStripeWebhookRefusesWhatItCannotVerify(t *testing.T) {
 			if rec.Code != http.StatusUnauthorized {
 				t.Fatalf("status %d body %s — an unverified delivery must be refused", rec.Code, rec.Body)
 			}
-			if got := h.plan(t); got != "free" {
-				t.Fatalf("plan = %s — an unverified delivery granted a plan", got)
+			if got := h.plan(t); got != before {
+				t.Fatalf("plan moved from %s to %s — an unverified delivery granted a plan", before, got)
 			}
 		})
 	}
@@ -299,6 +304,7 @@ func TestStripeWebhookRefusesWhatItCannotVerify(t *testing.T) {
 // verifies nothing. Without this the endpoint would be an open grant on every self-host.
 func TestStripeWebhookRefusesEverythingWhenBillingIsOff(t *testing.T) {
 	h := billingRouter(t, false, nil)
+	before := h.plan(t)
 	body := subscriptionEvent(t, "evt_x", "customer.subscription.created",
 		h.fixture.WorkspaceID.String(), "active", testPriceMonthly, 9, time.Now().Add(time.Hour))
 
@@ -306,8 +312,8 @@ func TestStripeWebhookRefusesEverythingWhenBillingIsOff(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d — an unconfigured deployment accepted a billing event", rec.Code)
 	}
-	if got := h.plan(t); got != "free" {
-		t.Fatalf("plan = %s, want free", got)
+	if got := h.plan(t); got != before {
+		t.Fatalf("plan moved from %s to %s on a deployment with no billing", before, got)
 	}
 }
 
@@ -346,14 +352,15 @@ func TestStripeWebhookIgnoresEventsItDoesNotRead(t *testing.T) {
 // be attributed, must not be guessed at, and must not be retried forever.
 func TestStripeWebhookIgnoresAnUnattributableSubscription(t *testing.T) {
 	h := billingRouter(t, true, nil)
+	before := h.plan(t)
 	body := subscriptionEvent(t, "evt_orphan", "customer.subscription.updated",
 		"", "active", testPriceMonthly, 1, time.Now().Add(time.Hour))
 	rec := h.postWebhook(t, body, signStripe(t, body, time.Now()))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body %s", rec.Code, rec.Body)
 	}
-	if got := h.plan(t); got != "free" {
-		t.Fatalf("plan = %s — an unattributable event moved a workspace", got)
+	if got := h.plan(t); got != before {
+		t.Fatalf("plan moved from %s to %s — an unattributable event moved a workspace", before, got)
 	}
 }
 

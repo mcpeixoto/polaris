@@ -354,7 +354,12 @@ type BillingRecord struct {
 	Lapsed           bool
 }
 
-// BillingFor reads the billing state of the caller's own workspace.
+// GetBilling reads the billing state of the caller's own workspace.
+//
+// Named with a read verb because it is one, and because graph/api_parity_coverage_test.go
+// classifies by prefix: a method outside readPrefixes is taken for a write whose API parity
+// nothing checks, and it fails rather than assuming. `BillingFor` read better in a sentence
+// and was wrong by that rule.
 //
 // Administrators only: this is the money screen, and a member who can read it can read how
 // many seats the company is paying for and when the card is next charged. The check is
@@ -365,7 +370,7 @@ type BillingRecord struct {
 // A workspace with no subscription row is not an error. It is every free workspace, and it
 // returns the plan and seat count with an empty customer, which is exactly what the screen
 // needs to offer a first checkout.
-func (s *Service) BillingFor(ctx context.Context, p *authz.Principal) (BillingRecord, error) {
+func (s *Service) GetBilling(ctx context.Context, p *authz.Principal) (BillingRecord, error) {
 	if p == nil || !p.Role.IsAdmin() {
 		return BillingRecord{}, platform.Forbidden("only an administrator can see billing")
 	}
