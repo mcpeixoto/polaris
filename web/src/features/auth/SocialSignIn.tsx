@@ -12,7 +12,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, auth } from '~/sync/api';
 
 import { fetchAuthProviders } from './providers';
-import { mountGoogleButton, signInWithApple, type Assertion } from './social';
+import {
+  appleFailureMessage,
+  mountGoogleButton,
+  prepareApple,
+  signInWithApple,
+  type Assertion,
+} from './social';
 import styles from './SocialSignIn.module.css';
 
 interface SocialSignInProps {
@@ -81,17 +87,31 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
     );
   }, [providers, googleClientId, exchange]);
 
-  const onApple = useCallback(async () => {
+  // Apple's SDK is loaded and initialised here rather than on the click, because
+  // `AppleID.auth.signIn()` opens a popup and a browser only permits that while it can still
+  // see the gesture. Awaiting a script download inside the handler is the difference between
+  // a sign-in window and a silently blocked one.
+  useEffect(() => {
+    if (!providers.includes('apple') || appleClientId === '') return;
+    void prepareApple(appleClientId).catch(() => {
+      // Left to the click to report. An SDK that failed to load is not something to
+      // announce on a page the reader may be about to use a password on.
+    });
+  }, [providers, appleClientId]);
+
+  const onApple = useCallback(() => {
     setError(null);
-    try {
-      await exchange('apple', await signInWithApple(appleClientId));
-    } catch (failure) {
-      // A cancelled popup is not a failure worth shouting about: Apple rejects with
-      // `popup_closed_by_user`, which is somebody changing their mind.
-      const message = failure instanceof Error ? failure.message : String(failure);
-      if (!message.includes('popup_closed')) setError(message);
-    }
-  }, [appleClientId, exchange]);
+    // Not awaited before `signInWithApple`: the popup has to be opened in the same task as
+    // the click, or the browser blocks it.
+    signInWithApple()
+      .then((assertion) => exchange('apple', assertion))
+      .catch((failure: unknown) => {
+        // Apple rejects with a plain object, not an Error. `appleFailureMessage` returns
+        // null for the cases that are somebody changing their mind.
+        const message = appleFailureMessage(failure);
+        if (message !== null) setError(message);
+      });
+  }, [exchange]);
 
   if (providers.length === 0) return null;
 
@@ -111,12 +131,7 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
       {providers.includes('google') ? <div ref={googleSlot} className={styles.slot} /> : null}
 
       {providers.includes('apple') && appleClientId !== '' ? (
-        <button
-          type="button"
-          className={styles.apple}
-          disabled={busy}
-          onClick={() => void onApple()}
-        >
+        <button type="button" className={styles.apple} disabled={busy} onClick={onApple}>
           <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
             <path d="M11.2 8.5c0-1.4 1.1-2.1 1.2-2.1-.6-1-1.6-1.1-2-1.1-.8-.1-1.6.5-2 .5s-1.1-.5-1.8-.5c-.9 0-1.8.5-2.3 1.4-1 1.7-.3 4.2.7 5.6.5.7 1 1.4 1.8 1.4.7 0 1-.5 1.9-.5s1.1.5 1.9.4c.8 0 1.3-.7 1.8-1.4.6-.8.8-1.6.8-1.6s-1.5-.6-1.5-2.1zM9.9 3.9c.4-.5.7-1.2.6-1.9-.6 0-1.3.4-1.7.9-.4.4-.7 1.1-.6 1.8.7.1 1.3-.3 1.7-.8z" />
           </svg>

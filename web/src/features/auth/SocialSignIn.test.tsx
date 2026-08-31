@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { auth } from '~/sync/api';
 
 import { SocialSignIn } from './SocialSignIn';
-import { signInWithApple, mountGoogleButton } from './social';
+import { appleFailureMessage, mountGoogleButton, prepareApple, signInWithApple } from './social';
 
 vi.mock('~/sync/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('~/sync/api')>();
@@ -17,15 +17,23 @@ vi.mock('~/sync/api', async (importOriginal) => {
 
 // The SDK boundary. Loading Google's and Apple's scripts is what `social.ts` is for; this
 // file is about what the screen does with the assertions they produce.
-vi.mock('./social', () => ({
-  mountGoogleButton: vi.fn(),
-  signInWithApple: vi.fn(),
-}));
+vi.mock('./social', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./social')>();
+  return {
+    mountGoogleButton: vi.fn(),
+    signInWithApple: vi.fn(),
+    prepareApple: vi.fn().mockResolvedValue(undefined),
+    // The real one: turning Apple's rejection into a sentence is the thing under test in
+    // the cases below, not something to stub out.
+    appleFailureMessage: actual.appleFailureMessage,
+  };
+});
 
 const providers = vi.mocked(auth.providers);
 const exchange = vi.mocked(auth.signInWithOIDC);
 const apple = vi.mocked(signInWithApple);
 const google = vi.mocked(mountGoogleButton);
+const prepare = vi.mocked(prepareApple);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -67,7 +75,10 @@ describe('SocialSignIn', () => {
     await userEvent.click(await screen.findByRole('button', { name: /continue with apple/i }));
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled());
-    expect(apple).toHaveBeenCalledWith('apple-services-id');
+    // The SDK is prepared with the Services ID on mount, and the click carries nothing:
+    // opening the popup has to happen in the same task as the gesture.
+    expect(prepare).toHaveBeenCalledWith('apple-services-id');
+    expect(apple).toHaveBeenCalledWith();
     // The nonce goes back with the token, or the server cannot tell a fresh assertion from
     // a replayed one. The display name too: Apple sends it exactly once, ever.
     expect(exchange).toHaveBeenCalledWith('apple', {
@@ -102,7 +113,9 @@ describe('SocialSignIn', () => {
    */
   it('stays quiet when the popup is closed', async () => {
     offering(['apple']);
-    apple.mockRejectedValue(new Error('popup_closed_by_user'));
+    // Apple's real rejection shape: a plain object, not an Error. Rendering it with
+    // String() produced "[object Object]" on the live sign-in page.
+    apple.mockRejectedValue({ error: 'popup_closed_by_user' });
 
     render(<SocialSignIn onSignedIn={() => {}} />);
     await userEvent.click(await screen.findByRole('button', { name: /continue with apple/i }));
@@ -116,5 +129,41 @@ describe('SocialSignIn', () => {
     const { container } = render(<SocialSignIn onSignedIn={() => {}} />);
     await waitFor(() => expect(providers).toHaveBeenCalled());
     expect(container.textContent).toBe('');
+  });
+
+  /**
+   * The failure the preloading exists to prevent, and the one a reader can act on: a blocked
+   * popup has to say so rather than render Apple's rejection object as "[object Object]".
+   */
+  it('explains a blocked popup instead of printing an object', async () => {
+    offering(['apple']);
+    apple.mockRejectedValue({ error: 'popup_blocked_by_browser' });
+
+    render(<SocialSignIn onSignedIn={() => {}} />);
+    await userEvent.click(await screen.findByRole('button', { name: /continue with apple/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toMatch(/blocked/i);
+    expect(alert.textContent).not.toContain('[object Object]');
+  });
+});
+
+describe('appleFailureMessage', () => {
+  it('is silent for the cases that are somebody changing their mind', () => {
+    expect(appleFailureMessage({ error: 'popup_closed_by_user' })).toBeNull();
+    expect(appleFailureMessage({ error: 'user_cancelled_authorize' })).toBeNull();
+  });
+
+  it('never renders an object', () => {
+    for (const failure of [
+      { error: 'popup_blocked_by_browser' },
+      { error: 'invalid_client' },
+      {},
+      new Error('the SDK never loaded'),
+      'a bare string',
+    ]) {
+      const message = appleFailureMessage(failure);
+      if (message !== null) expect(message).not.toContain('[object Object]');
+    }
   });
 });
