@@ -5,11 +5,24 @@
  * and that is the point: a hand-maintained help sheet is wrong within a fortnight of the
  * first feature landing, and a *wrong* help sheet is worse than none — it teaches people
  * keys that do nothing and they stop trusting the overlay at all.
+ *
+ * It is a `Modal` rather than a div wearing `role="dialog"`, which is what it was. The
+ * difference is everything a modal owes: focus went nowhere when the sheet opened, so a
+ * screen reader carried on reading the page behind it and a `?` pressed from the issue list
+ * put a dialog on screen that its user was never told about; Tab walked straight out the back
+ * of it; there was no close button, so a pointer user who had not guessed at Escape had only
+ * the backdrop; and the page kept scrolling underneath. Modal's own header names this overlay
+ * as one of the three things it exists for, and it had been the one not using it.
+ *
+ * Escape stays the registry's `app.dismiss` as well as Modal's own handler — Modal stops the
+ * press reaching the window, so the two do not both fire. Nothing about the keymap changed
+ * here.
  */
 
 import { useMemo } from 'react';
 
-import { formatKeySpec } from '~/keys';
+import { Kbd, Modal } from '~/components';
+import type { Platform } from '~/keys';
 import { os } from '~/platform/runtime';
 import { useKeymap } from './keymap';
 import styles from './HelpOverlay.module.css';
@@ -40,50 +53,46 @@ export function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => v
           .map((action) => ({
             id: action.id,
             title: action.title,
-            keys: (action.keys ?? []).map((k) => formatKeySpec(k, os === 'mac' ? 'mac' : 'other')),
+            // The specs, not strings drawn from them. `Kbd` is what turns a spec into
+            // glyphs everywhere else in the product, and formatting them here left this
+            // sheet drawing `G I` as one chip where the command menu drew two.
+            keys: action.keys ?? [],
           }))
           .sort((a, b) => a.title.localeCompare(b.title)),
       }))
       .sort((a, b) => a.group.localeCompare(b.group));
   }, [open, registry, context]);
 
+  // Returned before the Modal rather than handed `open`, so the memo above keeps its guard:
+  // a sheet that emptied itself on the way out would show the reader the list being taken
+  // apart. It costs the exit animation, which this overlay never had.
   if (!open) return null;
 
   return (
-    <div className={styles.backdrop} onMouseDown={onClose}>
-      <div
-        className={styles.panel}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="help-overlay-title"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <h2 className={styles.heading} id="help-overlay-title">
-          Keyboard shortcuts
-        </h2>
-
-        <div className={styles.columns}>
-          {groups.map(({ group, entries }) => (
-            <section key={group} className={styles.section}>
-              <h3 className={styles.group}>{group}</h3>
-              <dl className={styles.list}>
-                {entries.map((entry) => (
-                  <div key={entry.id} className={styles.row}>
-                    <dt className={styles.label}>{entry.title}</dt>
-                    <dd className={styles.keys}>
-                      {entry.keys.map((k) => (
-                        <kbd key={k} className={styles.kbd}>
-                          {k}
-                        </kbd>
-                      ))}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          ))}
-        </div>
+    <Modal open onClose={onClose} title="Keyboard shortcuts" size="lg">
+      <div className={styles.columns}>
+        {groups.map(({ group, entries }) => (
+          <section key={group} className={styles.section}>
+            <h3 className={styles.group}>{group}</h3>
+            <dl className={styles.list}>
+              {entries.map((entry) => (
+                <div key={entry.id} className={styles.row}>
+                  <dt className={styles.label}>{entry.title}</dt>
+                  <dd className={styles.keys}>
+                    {entry.keys.map((spec) => (
+                      <Kbd key={spec} keys={spec} platform={platform()} />
+                    ))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
       </div>
-    </div>
+    </Modal>
   );
+}
+
+function platform(): Platform {
+  return os === 'mac' ? 'mac' : 'other';
 }

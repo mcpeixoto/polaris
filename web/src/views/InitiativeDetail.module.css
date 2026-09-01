@@ -6,48 +6,10 @@
   overflow-y: auto;
 }
 
-.header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  flex: none;
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.titleRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.title {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  letter-spacing: -0.018em;
-}
-
-.status {
-  flex: none;
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  text-transform: capitalize;
-}
-
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
+/* The header, the title and the status chip used to live here. They are `InitiativeShell`'s
+   now — this screen is the shell's body — and the rules were left behind styling nothing.
+   Removed rather than kept "in case", because a stylesheet nobody can trace to markup is
+   the next person's fifteen minutes. */
 
 .section {
   display: flex;
@@ -68,7 +30,7 @@
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
-  line-height: 1.5;
+  line-height: var(--line-height-normal);
   white-space: pre-wrap;
 }
 
@@ -81,19 +43,32 @@
   background: var(--bg-primary);
   color: var(--text-primary);
   font: inherit;
-  line-height: 1.5;
+  line-height: var(--line-height-normal);
   resize: vertical;
 }
 
 .descriptionInput:focus-visible {
-  outline: 2px solid var(--border-focus);
+  outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: 0;
 }
 
+/*
+ * A field and the button that acts on it.
+ *
+ * Aligned on the baseline of the controls rather than centred, because the field now has
+ * a visible label above it: centring would float the button halfway up the label and leave
+ * the two things that are actually a pair sitting at different heights.
+ */
 .addRow {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-2);
+}
+
+/* The field takes the row's spare width; the button keeps its own. */
+.addField {
+  flex: 1;
+  min-width: 0;
 }
 
 .projectList {
@@ -106,7 +81,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: var(--row-height);
+  min-height: var(--row-height);
   padding-inline: var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -158,10 +133,14 @@
   gap: var(--space-1);
 }
 
+/* The detail rail's label treatment — see `.propertyLabel` in IssueDetail.module.css.
+   These name controls this screen frames itself rather than ones `Field` frames, and the
+   two have to look like one vertical rhythm. */
 .fieldLabel {
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-none);
 }
 
 .properties {
@@ -176,19 +155,29 @@
   gap: var(--space-1);
 }
 
+/*
+ * The labels trigger, shaped to stand in a grid of native selects.
+ *
+ * It is the one control in the property grid that is not a `Field`, and one group gets one
+ * affordance: the same border, the same radius and the same height as the selects beside
+ * it, so the row does not read as five controls and one piece of static text. The height
+ * is `--control-height-lg`, the ladder's rung for a form field on its own line, rather
+ * than the 32px issue row's `--row-height` it used to borrow — the two happen to be equal
+ * today, and only one of them is a statement about this control.
+ */
 .propertyButton {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   width: fit-content;
-  min-height: var(--row-height);
-  padding: var(--space-1) var(--space-2);
+  min-height: var(--control-height-lg);
+  padding-inline: var(--space-2);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--bg-primary);
   color: var(--text-primary);
   font: inherit;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   cursor: pointer;
   transition: background-color var(--duration-fast) var(--ease-out);
 }
@@ -198,8 +187,8 @@
 }
 
 .propertyButton:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: 0;
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .labelRun {

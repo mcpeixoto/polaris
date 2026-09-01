@@ -19,7 +19,7 @@
  * one query is the backfill on mount, for rows written while this client was away.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -79,6 +79,17 @@ interface InboxAnswer {
   readonly rows: readonly Row[];
   readonly unread: number;
   readonly wakeAt: number | null;
+  /**
+   * How many rows the two display toggles are holding back, split by which toggle is doing
+   * it.
+   *
+   * Only the empty state reads these, and only to say which kind of empty this is. An inbox
+   * with forty read notifications and Show read off is not the same screen as an inbox with
+   * nothing in it, and it used to say the same sentence on both — a first-run explanation of
+   * what the inbox is for, to somebody who had just cleared theirs.
+   */
+  readonly hiddenRead: number;
+  readonly hiddenSnoozed: number;
 }
 
 export function Inbox() {
@@ -100,16 +111,24 @@ export function Inbox() {
     hydrateInbox(engine).catch(report);
   }, [engine]);
 
-  const { rows, unread } = useWakingQuery<InboxAnswer>(
+  const { rows, unread, hiddenRead, hiddenSnoozed } = useWakingQuery<InboxAnswer>(
     useCallback(
       (store: Store, now: number) => {
         const ids = visibleNotificationIds(store, now, display);
         const built: Row[] = [];
         let unreadCount = 0;
+        let hiddenReadCount = 0;
+        let hiddenSnoozedCount = 0;
         let wake: number | null = null;
 
         for (const row of store.notifications.values()) {
           if (row.readAt === undefined && isAwake(row, now)) unreadCount++;
+          // The same two questions `visibleNotificationIds` asks, in the same order, so the
+          // count of what is held back cannot disagree with what is drawn. Read wins the tie:
+          // a row that is both read and asleep is one row, and counting it twice would put
+          // "read or snoozed" on screen for a single hidden notification.
+          if (row.readAt !== undefined && !display.showRead) hiddenReadCount++;
+          else if (!isAwake(row, now) && !display.showSnoozed) hiddenSnoozedCount++;
           if (row.snoozedUntil === undefined) continue;
           const until = Date.parse(row.snoozedUntil);
           if (!Number.isNaN(until) && until > now && (wake === null || until < wake)) {
@@ -189,7 +208,13 @@ export function Inbox() {
           built.push(builtRow);
         }
 
-        return { rows: built, unread: unreadCount, wakeAt: wake };
+        return {
+          rows: built,
+          unread: unreadCount,
+          wakeAt: wake,
+          hiddenRead: hiddenReadCount,
+          hiddenSnoozed: hiddenSnoozedCount,
+        };
       },
       [display, query],
     ),
@@ -326,6 +351,66 @@ export function Inbox() {
 
   const days = groupByDay(rows, timezone);
 
+  /**
+   * Which kind of empty this is, and the way out of it.
+   *
+   * Three of them, and they were one. A find that matched nothing, an inbox whose contents
+   * are all read or all snoozed, and an inbox that has genuinely never had anything in it are
+   * different situations with different answers, and the sentence that fits the third — an
+   * explanation of what subscribes you to an issue — is faintly insulting to somebody who has
+   * just finished clearing the first two.
+   *
+   * Each carries the action that undoes the state it describes, which is the same thing the
+   * control above it does: Escape and the find box, the two display checkboxes. Nothing here
+   * is a new command.
+   */
+  const emptyState = ((): { title: string; description: string; action?: ReactNode } => {
+    if (query.trim() !== '') {
+      return {
+        title: 'No matches',
+        description: 'Nothing in the inbox matches that find. Escape clears it.',
+        action: (
+          <Button
+            size="sm"
+            onClick={() => {
+              setQuery('');
+              findRef.current?.focus();
+            }}
+          >
+            Clear find
+          </Button>
+        ),
+      };
+    }
+    if (hiddenRead > 0 || hiddenSnoozed > 0) {
+      const kinds = [hiddenRead > 0 ? 'read' : null, hiddenSnoozed > 0 ? 'snoozed' : null]
+        .filter((kind): kind is string => kind !== null)
+        .join(' or ');
+      return {
+        title: 'Nothing unread',
+        description: `The rest of this inbox is ${kinds}, and hidden by the boxes above.`,
+        action: (
+          <Button
+            size="sm"
+            onClick={() =>
+              setDisplay((prev) => ({
+                showRead: prev.showRead || hiddenRead > 0,
+                showSnoozed: prev.showSnoozed || hiddenSnoozed > 0,
+              }))
+            }
+          >
+            {`Show ${kinds.replace(' or ', ' and ')}`}
+          </Button>
+        ),
+      };
+    }
+    return {
+      title: 'Nothing here',
+      description:
+        'You are subscribed to the issues you create, are assigned, comment on or are mentioned in. Anything that happens to them lands here.',
+    };
+  })();
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
@@ -370,12 +455,9 @@ export function Inbox() {
       {rows.length === 0 ? (
         <div className={styles.empty}>
           <EmptyState
-            title={query.trim() === '' ? 'Nothing here' : 'No matches'}
-            description={
-              query.trim() === ''
-                ? 'You are subscribed to the issues you create, are assigned, comment on or are mentioned in. Anything that happens to them lands here.'
-                : 'Nothing in the inbox matches that find. Escape clears it.'
-            }
+            title={emptyState.title}
+            description={emptyState.description}
+            action={emptyState.action}
           />
         </div>
       ) : (
@@ -411,6 +493,11 @@ export function Inbox() {
                       }}
                     >
                       <span className={styles.dot} aria-hidden="true" />
+                      {/* The dot is a picture, so it says nothing to a screen reader, and
+                          weight says nothing either: read and unread were the same row
+                          announced the same way. One hidden word is the whole fix, and it
+                          leads the option so it is heard before the sentence it qualifies. */}
+                      {row.unread ? <span className={styles.unreadName}>Unread</span> : null}
                       <span className={styles.text}>
                         <Avatar name={row.avatarName} size="xs" />
                         <span className={styles.actor}>{row.actor}</span>

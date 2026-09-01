@@ -158,6 +158,43 @@ describe('CreateIssueModal', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  /**
+   * `docs/03-architecture/08-ui-composition.md`: three or more sibling fields all get visible
+   * labels. This row is the specimen the rule was written against — eight controls with every
+   * label suppressed, reading "No assignee · No priority · No project · No form" and naming
+   * none of its own fields.
+   *
+   * The association is what is asserted rather than the pixels, because that is what a
+   * regression would take away: a label reachable by `getByLabelText` is a real `<label for>`
+   * on the page, and a trigger whose `aria-describedby` resolves to the word "Project" is a
+   * button somebody can find out the meaning of without opening it.
+   */
+  it('names every property field, rather than showing eight unlabelled controls', () => {
+    renderComposer();
+
+    for (const field of ['Team', 'Status', 'Assignee', 'Priority', 'Repeat']) {
+      const control = screen.getByLabelText(field) as HTMLSelectElement | HTMLInputElement;
+      // `.labels` is the DOM's own answer to "what names this control", so it is only
+      // populated by a real `<label for>` — an aria-label would pass `getByLabelText` and
+      // leave nothing visible on the page.
+      const labels = [...(control.labels ?? [])];
+      expect(labels.map((label) => label.textContent?.trim())).toEqual([field]);
+    }
+
+    // The menu triggers cannot take a `<label for>` — a button's own text is its name — so
+    // they carry the same word as a description, exactly as the detail rail's triggers do.
+    for (const [value, field] of [
+      ['No project', 'Project'],
+      ['No template', 'Template'],
+      ['No form', 'Form'],
+    ]) {
+      const trigger = screen.getByRole('button', { name: value as string });
+      const describedBy = trigger.getAttribute('aria-describedby');
+      expect(describedBy).not.toBeNull();
+      expect(document.getElementById(describedBy as string)?.textContent?.trim()).toBe(field);
+    }
+  });
+
   it('closes on an ordinary create, as it always did', async () => {
     const { user, onClose } = renderComposer();
 

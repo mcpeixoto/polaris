@@ -1,5 +1,14 @@
 /**
  * One initiative overview — properties, latest update, description, and curated projects.
+ *
+ * The property grid answers to the issue detail rail: every field names itself, and a
+ * field whose value has a canonical glyph shows it. Priority and health used to be bare
+ * selects on a screen whose sibling — `IssueDetail` — puts a `PriorityIcon` on the
+ * equivalent trigger, which made the same fact harder to read here than three clicks away.
+ *
+ * The three add-rows at the bottom carry visible labels too. "Name a nested initiative…",
+ * "Nest an existing initiative…" and "Choose a project…" were placeholders doing a label's
+ * job, and a placeholder is gone the moment anyone types into it.
  */
 
 import { useMemo, useRef, useState, type FormEvent } from 'react';
@@ -12,8 +21,10 @@ import {
   Input,
   LabelChip,
   PRIORITY_LEVELS,
+  PriorityIcon,
   priorityLabel,
   Select,
+  StateIcon,
   useNativeValue,
 } from '~/components';
 import {
@@ -21,6 +32,7 @@ import {
   addInitiativeRelation,
   createInitiative,
   formatInitiativeStatus,
+  INITIATIVE_STATUS_ICON,
   removeInitiativeProject,
   removeInitiativeRelation,
   updateInitiative,
@@ -32,7 +44,7 @@ import {
 import { InitiativeLabelPicker } from '~/features/initiative-labels/InitiativeLabelPicker';
 import { createInitiativeUpdate } from '~/features/initiative-updates/mutations';
 import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
-import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
+import { HealthDot, ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { report } from '~/features/issue/mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
@@ -342,6 +354,7 @@ export function InitiativeDetail() {
           <Select
             label="Health"
             value={health}
+            prefix={<HealthDot health={health} />}
             onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
           >
             {HEALTH_OPTIONS.map((option) => (
@@ -396,6 +409,7 @@ export function InitiativeDetail() {
           <Select
             label="Status"
             value={initiative.status}
+            prefix={<StateIcon category={INITIATIVE_STATUS_ICON[initiative.status]} decorative />}
             onChange={(event) => save({ status: event.target.value as InitiativeStatus })}
           >
             {STATUSES.map((status) => (
@@ -407,6 +421,7 @@ export function InitiativeDetail() {
           <Select
             label="Priority"
             value={String(initiative.priority)}
+            prefix={<PriorityIcon priority={initiative.priority} decorative />}
             onChange={(event) => save({ priority: Number(event.target.value) })}
           >
             {PRIORITY_LEVELS.map((level) => (
@@ -550,7 +565,7 @@ export function InitiativeDetail() {
         <div className={styles.addRow}>
           <Input
             label="New sub-initiative"
-            hideLabel
+            className={styles.addField}
             value={nestedName}
             onChange={(event) => setNestedName(event.target.value)}
             placeholder="Name a nested initiative…"
@@ -562,7 +577,7 @@ export function InitiativeDetail() {
         <div className={styles.addRow}>
           <Select
             label="Initiative to nest"
-            hideLabel
+            className={styles.addField}
             value={chosenChild}
             onChange={(event) => setChosenChild(event.target.value)}
             disabled={nestable.length === 0}
@@ -608,7 +623,7 @@ export function InitiativeDetail() {
         <div className={styles.addRow}>
           <Select
             label="Project to add"
-            hideLabel
+            className={styles.addField}
             value={chosenProject}
             onChange={(event) => setChosenProject(event.target.value)}
             disabled={availableProjects.length === 0}

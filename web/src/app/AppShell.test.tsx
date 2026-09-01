@@ -14,7 +14,7 @@
  * has since left. A row with a blank name that navigates nowhere is worse than one fewer row.
  */
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -522,5 +522,40 @@ describe('the leftover jump pickers', () => {
     await user.keyboard('ov');
     expect(screen.getByRole('menu', { name: 'Views' })).toBeTruthy();
     expect(screen.getByRole('menuitem', { name: 'All bugs' })).toBeTruthy();
+  });
+});
+
+/**
+ * The two surfaces that float above every screen, and the properties that are not about
+ * what they list.
+ *
+ * The help sheet is a dialog and had none of a dialog's obligations: nothing was focused
+ * when it opened, so a screen reader carried on reading the page behind it, and there was
+ * no control to close it with. It is a `Modal` now, and this is the test that says so
+ * rather than a note in a comment that a later refactor can quietly falsify.
+ *
+ * The command menu answered "No matching command" to every query, including the ones that
+ * were not about commands. Which kind of nothing this is, is the only useful thing an empty
+ * result can say.
+ */
+describe('the surfaces above the shell', () => {
+  it('opens the shortcut sheet as a named dialog with a way out', async () => {
+    const user = userEvent.setup();
+    renderShell(seeded());
+    await user.keyboard('?');
+    const sheet = screen.getByRole('dialog', { name: 'Keyboard shortcuts' });
+    expect(within(sheet).getByRole('button', { name: 'Close' })).toBeTruthy();
+    expect(sheet.contains(document.activeElement)).toBe(true);
+  });
+
+  it('says which kind of nothing the command menu found', async () => {
+    const user = userEvent.setup();
+    renderShell(seeded());
+    await user.keyboard('{Control>}k{/Control}');
+    await user.keyboard('#zzz');
+    expect(screen.getByText('No issue matches “zzz”')).toBeTruthy();
+    await user.clear(screen.getByRole('combobox', { name: 'Search commands' }));
+    await user.keyboard('@zzz');
+    expect(screen.getByText('Nobody matches “zzz”')).toBeTruthy();
   });
 });

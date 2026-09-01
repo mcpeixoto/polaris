@@ -138,9 +138,19 @@
   line-height: var(--line-height-tight);
 }
 
+/*
+ * Secondary, not tertiary, for contrast rather than for emphasis.
+ *
+ * The dialog sits on --bg-elevated, a step up from the page that --text-tertiary is tuned
+ * against, and tertiary ink measures 4.08:1 there in dark — under the floor. This line is
+ * the sentence explaining what the dialog is for and is often the only prose in it, so it is
+ * a poor candidate for being the hardest text on screen to read. Secondary is 6.50:1 and the
+ * title above it still carries the weight, the size and the primary ink, which is what
+ * actually separates them.
+ */
 .description {
   margin: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
 }

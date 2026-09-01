@@ -1,9 +1,22 @@
 /*
- * The create dialog's fields, in one column with the properties as a compact chip row.
+ * The create dialog: a document at the top, a labelled property grid under it.
  *
- * Title and description are unboxed because they are a document, not a form. The property
- * selects sit in one wrapping row of 28px controls, matching the rest of the product's
- * pickers rather than a labelled settings grid.
+ * Title and description are unboxed because they are a document and not a form. The
+ * properties below them used to be a wrapping flex row of `flex: 0 1 14ch` chips with every
+ * visible label suppressed, and that row is the specimen `docs/03-architecture/08-ui-
+ * composition.md` was written against: it wrapped raggedly, it truncated "Does not repeat"
+ * mid-word, and it named none of its own fields — the whole group read as
+ * "No assignee · No priority · No project · No form".
+ *
+ * It is a grid of equal columns now. A grid cannot wrap raggedly and cannot size a cell
+ * smaller than the column it shares, so the truncation and the ragged wrap are gone by
+ * construction rather than by a chosen basis width; it collapses three columns to two to one
+ * rather than letting a cell shrink under its content.
+ *
+ * Every cell carries a visible label in the detail rail's treatment — see `.propertyLabel` in
+ * IssueDetail.module.css, which this deliberately matches — because a row of eight
+ * placeholders names nothing, and the person filling it in should not have to open a control
+ * to discover what it is.
  */
 
 .form {
@@ -11,23 +24,82 @@
   gap: var(--space-2);
 }
 
-.form :global(input) {
+/*
+ * The title's typography, and the title's alone.
+ *
+ * This was `.form :global(input)`, which set a page heading's size and weight on every input
+ * in the subtree — the `First due` date field and every form-template answer came out
+ * oversized and semibold, which is exactly the failure the house rule against bare-element
+ * `:global()` selectors describes. The selector is now scoped to one field's wrapper, so it
+ * cannot reach an input this dialog has not put there itself.
+ *
+ * It has to go through the element rather than through the wrapper: `Input` hands a caller's
+ * className to the field frame, and the control inside it takes `font-size` from its own box
+ * rather than by inheritance, so a rule on the frame would never arrive.
+ */
+.title input {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.016em;
 }
 
 .properties {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-2);
   padding-top: var(--space-2);
 }
 
-.properties > * {
-  flex: 0 1 14ch;
-  min-width: 11ch;
+/* Three to two to one. A cell never shrinks under its content; the grid loses a column
+   instead, which is the one move that cannot truncate a product string. */
+@media (max-width: 720px) {
+  .properties {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .properties {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.property {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/*
+ * The label, in the detail rail's treatment rather than the form frame's.
+ *
+ * These sit above eight sibling controls of two different kinds — native selects and menu
+ * triggers — and the label is the only thing that makes the group read as one row of
+ * properties. `Field` would style the selects' own labels and could not reach the buttons',
+ * which would leave one row wearing two label treatments; written here, all eight agree.
+ */
+.propertyLabel {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-none);
+}
+
+/*
+ * The four menu triggers, shaped to sit in a group of native selects.
+ *
+ * They were `variant="ghost"` with no border and no fill, so half this row looked like
+ * controls and half looked like static text. `secondary` is the rule for a trigger standing
+ * in a horizontal group; the border colour is pulled to the selects' own so the group has one
+ * affordance rather than two hairlines a shade apart, and the inline padding matches the
+ * select's text inset so the eight values line up in their columns.
+ */
+.propertyTrigger {
+  justify-content: flex-start;
+  min-width: 0;
+  padding-inline: var(--space-2);
+  border-color: var(--border-subtle);
 }
 
 .error {
@@ -35,24 +107,6 @@
   color: var(--priority-urgent);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
-}
-
-.template {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.templateLabel {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  clip-path: inset(50%);
 }
 
 .dropped {

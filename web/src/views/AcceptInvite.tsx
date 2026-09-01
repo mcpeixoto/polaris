@@ -17,7 +17,7 @@
  */
 
 import { useState, type FormEvent } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 
 import { Button, Input } from '~/components';
 import { ApiError, auth, isSignedIn } from '~/sync/api';
@@ -98,7 +98,17 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
     return (
       <AuthLayout
         title="That link is incomplete"
-        subtitle="An invitation link carries a token. Follow the one in the email exactly as it was sent, or ask for a new invitation."
+        subtitle="An invitation link carries a token. Follow the one in the email exactly as it was sent, or ask whoever invited you for a new one."
+        // A dead end otherwise: this screen has no form, no button and — until now — nothing
+        // to click. Somebody who already has an account and mangled the link on the way here
+        // does not need a new invitation at all, they need the sign-in page.
+        footer={
+          <>
+            Already have an account? <Link to="/signin">Sign in</Link>
+            {' · '}
+            <Link to="/">What is Polaris?</Link>
+          </>
+        }
       />
     );
   }
@@ -111,18 +121,35 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
           ? 'You have been invited. Accepting adds this account to the workspace.'
           : 'You have been invited. Create an account or sign in, and you will be taken straight in.'
       }
+      // Switching modes clears the failure with it. A registration refused as invite-only,
+      // left standing over a sign-in form, is a red sentence about a flow the reader has just
+      // left — and the obvious next move after that refusal is exactly this button.
       footer={
         signedIn ? undefined : mode === 'register' ? (
           <>
             Already have an account?{' '}
-            <Button variant="ghost" size="sm" onClick={() => setMode('login')}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setError(null);
+                setMode('login');
+              }}
+            >
               Sign in instead
             </Button>
           </>
         ) : (
           <>
             New to Polaris?{' '}
-            <Button variant="ghost" size="sm" onClick={() => setMode('register')}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setError(null);
+                setMode('register');
+              }}
+            >
               Create an account
             </Button>
           </>
@@ -156,12 +183,17 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
           </>
         )}
 
+        {/* autoFocus only when it is the first field on the form. Somebody already signed in
+            sees this and nothing above it, and a screen that arrives with nothing focused
+            leaves a keyboard user tabbing in from the address bar. */}
         <Input
           label="Your name in this workspace"
+          name="name"
           value={displayName}
           placeholder="Ada Lovelace"
           hint="Optional. Leave it blank to keep the name you already use."
           autoComplete="name"
+          autoFocus={signedIn}
           onChange={(event) => setDisplayName(event.target.value)}
         />
 

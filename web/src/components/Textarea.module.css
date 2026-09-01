@@ -10,20 +10,55 @@
   line-height: var(--line-height-normal);
 }
 
-.plain {
+/*
+ * `.textarea.plain`, doubled on purpose — do not collapse it to `.plain`.
+ *
+ * This file had exactly Input's bug and was getting away with it. `.textarea` composes
+ * `.control`, so both names land here at weight (0,1,0) and emission order picks the winner;
+ * this file simply happened to be printed after Field's, so the transparent border and fill
+ * held. That is not a property of the design, it is a property of the module graph, and it
+ * flips the day someone reorders an import or splits a chunk. Two classes beat one always.
+ */
+.textarea.plain {
   border-color: transparent;
   background-color: transparent;
   padding: var(--space-1) 0;
 }
 
-.plain:focus,
-.plain:focus-within {
+/*
+ * The plain textarea's focus edge, which until now did not exist.
+ *
+ * The old rule here removed the outline and set the border transparent and stopped — so the
+ * unboxed description field answered a Tab with nothing at all. That is the one thing the
+ * house rules call non-negotiable: focus is never removed, only relocated, and `outline:
+ * none` is legitimate only where the same rule draws something else. This rule did the first
+ * half and skipped the second.
+ *
+ * It gets Input's answer, because it is Input's problem: a single bottom edge, no ring, no
+ * box. The two `plain` surfaces sit on the same create-issue dialog — title above,
+ * description below — and a title that lights one edge beside a description that lights
+ * nothing reads as one of them being broken, which one of them was.
+ *
+ * `:focus` as well as `:focus-within`, since here the element carrying the border *is* the
+ * focusable control rather than a box around one.
+ */
+.textarea.plain:focus,
+.textarea.plain:focus-within {
   border-color: transparent;
+  border-bottom-color: var(--border-focus);
   outline: none;
 }
 
 .invalid {
   composes: controlInvalid from './Field.module.css';
+}
+
+/* As in Input: three classes, because `.control.controlInvalid` already ties with
+ * `.textarea.plain` and a red box round a boxless field is not the intended mark. Declared
+ * after the focus rule so invalid wins over focused, matching Field and Input. */
+.textarea.plain.invalid {
+  border-color: transparent;
+  border-bottom-color: var(--priority-urgent);
 }
 
 .textarea::placeholder {

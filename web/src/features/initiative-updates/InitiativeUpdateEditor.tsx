@@ -16,6 +16,7 @@ import { Button, Select, Textarea } from '~/components';
 import type { InitiativeUpdate, ProjectUpdateHealth } from '~/store';
 import { ApiError } from '~/sync/api';
 
+import { HealthDot } from '~/features/project-updates/ProjectHealthBadge';
 import { INITIATIVE_UPDATE_HEALTH_LABEL } from './helpers';
 import { updateInitiativeUpdate } from './mutations';
 import styles from './InitiativeUpdateEditor.module.css';
@@ -50,14 +51,10 @@ export function InitiativeUpdateEditor({ update, onDone }: InitiativeUpdateEdito
 
   return (
     <form className={styles.form} onSubmit={onSubmit}>
-      {error === null ? null : (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
       <Select
         label="Health"
         value={health}
+        prefix={<HealthDot health={health} />}
         onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
       >
         {HEALTH_ORDER.map((value) => (
@@ -72,6 +69,14 @@ export function InitiativeUpdateEditor({ update, onDone }: InitiativeUpdateEdito
         onChange={(event) => setBody(event.target.value)}
         minRows={4}
       />
+      {/* Fields, then the message, then the actions — same order as the project update
+          editor, and for the same reason: a refusal belongs beside the button that was
+          refused. */}
+      {error === null ? null : (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
       <div className={styles.actions}>
         <Button type="submit" variant="primary" size="sm" disabled={saving}>
           Save changes

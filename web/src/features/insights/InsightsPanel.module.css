@@ -46,9 +46,26 @@
   transition: opacity var(--duration-fast) var(--ease-out);
 }
 
-.barClick:hover,
+.barClick:hover {
+  opacity: 1;
+}
+
+/*
+ * A focused bar gets an outline, not a change of opacity.
+ *
+ * These rects are `role="button"` with `tabIndex=0` — real keyboard stops, and the only
+ * thing that used to mark the focused one was 0.85 opacity going to 1, which is the same
+ * change hovering makes and is invisible against most of the chart. An outline in
+ * --border-focus is what every other focusable thing in the product draws, and drawing it
+ * as a stroke rather than an `outline` is because an SVG child's outline is clipped by the
+ * viewBox at the edges of the chart, which is exactly where the first and last bars are.
+ */
 .barClick:focus-visible {
   opacity: 1;
+  outline: none;
+  stroke: var(--border-focus);
+  stroke-width: var(--focus-ring-width);
+  paint-order: stroke;
 }
 
 .percentile {
@@ -56,6 +73,15 @@
   stroke-dasharray: 3 3;
   stroke-width: 1;
   opacity: 0.7;
+}
+
+/* What the dashed lines across the scatter are. Four unexplained rules over a cloud of
+   dots is a chart asking the reader to guess; the caption is cheaper than a legend and
+   says the whole thing. */
+.caption {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
 }
 
 .area {

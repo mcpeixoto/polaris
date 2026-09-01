@@ -23,13 +23,15 @@
   gap: var(--space-2);
 }
 
+/* The detail rail's label treatment — `.propertyLabel` in IssueDetail.module.css. This
+   panel is mounted inside the project sidebar beside `properties.module.css`'s own section
+   titles, and two caption treatments in one column reads as two panels. */
 .sectionTitle {
   margin: 0;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  color: var(--text-tertiary);
+  line-height: var(--line-height-none);
 }
 
 .empty {
@@ -84,9 +86,20 @@
   white-space: nowrap;
 }
 
+/*
+ * --relation-blocking, not --priority-urgent.
+ *
+ * A violated dependency is a relation flag, and relation flags have tokens of their own for
+ * exactly this reason: a theme that recolours urgency must not silently recolour the reason
+ * a project is stuck. The two are the same red today, which is why the borrow was easy to
+ * miss and why fixing it costs nothing to look at.
+ *
+ * The word "Violated" is rendered beside the row regardless — the colour is emphasis, never
+ * the message.
+ */
 .violated {
   flex: none;
-  color: var(--priority-urgent);
+  color: var(--relation-blocking);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
 }

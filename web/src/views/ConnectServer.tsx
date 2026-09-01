@@ -8,9 +8,24 @@
  *
  * It comes before sign-in because it has to. There is nowhere to send credentials until
  * somebody says where the server is.
+ *
+ * ## Why the address complaint is on the field and not above the form
+ *
+ * It was an `AuthError` — the banner the other screens use for a failure that came back from
+ * a server. This one never left the browser: it is `normaliseServerUrl` saying that what was
+ * typed is not an address, which is a fact about one field, and `Input` puts it under that
+ * field, marks the control `aria-invalid` and wires `aria-describedby` without anyone here
+ * doing it by hand.
+ *
+ * It also fixes an announcement bug that the banner could not. The banner is announced by
+ * mounting, so the same sentence set twice in a row is silent the second time — and typing
+ * the same bad address twice is the ordinary way to meet this message. Clearing it on the
+ * next keystroke, which is what a field message can do and a form banner cannot, means the
+ * element genuinely goes away and comes back. `AuthError` stays for a real failure from
+ * somewhere else, which is why the slot is still here.
  */
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 
 import { Button, Input } from '~/components';
 import { setDesktopServerUrl } from '~/platform/runtime';
@@ -27,18 +42,28 @@ export interface ConnectServerProps {
 
 export function ConnectServer({ current }: ConnectServerProps) {
   const [address, setAddress] = useState(current ?? '');
+  const [invalid, setInvalid] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const addressRef = useRef<HTMLInputElement>(null);
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
 
-    const origin = normaliseServerUrl(address);
-    if (origin === null) {
-      setError('That does not look like a web address. Try something like polaris.acme.com.');
+    if (address.trim() === '') {
+      setInvalid('Enter the address your administrator gave you.');
+      addressRef.current?.focus();
       return;
     }
+
+    const origin = normaliseServerUrl(address);
+    if (origin === null) {
+      setInvalid('That does not look like a web address. Try something like polaris.acme.com.');
+      addressRef.current?.focus();
+      return;
+    }
+    setInvalid(null);
 
     // No reachability check before saving, and that is deliberate. A probe here would need
     // its own timeout, its own error vocabulary and its own retry, and it would still be
@@ -59,19 +84,29 @@ export function ConnectServer({ current }: ConnectServerProps) {
         <AuthError message={error} />
 
         <Input
+          ref={addressRef}
           label="Server address"
+          name="server"
           value={address}
           placeholder="polaris.acme.com"
           hint="https:// is assumed unless you say otherwise."
+          error={invalid ?? undefined}
           autoFocus
           required
           autoComplete="url"
+          inputMode="url"
           spellCheck={false}
           autoCapitalize="none"
-          onChange={(event) => setAddress(event.target.value)}
+          onChange={(event) => {
+            setAddress(event.target.value);
+            if (invalid !== null) setInvalid(null);
+          }}
         />
 
-        <Button type="submit" variant="primary" fullWidth loading={busy} disabled={address === ''}>
+        {/* Not disabled on an empty address. The submit says what is missing and puts the
+            cursor in the field that is missing it, which a greyed-out button cannot do —
+            and which is the same bargain the rest of these screens make. */}
+        <Button type="submit" variant="primary" fullWidth loading={busy}>
           Connect
         </Button>
       </AuthForm>

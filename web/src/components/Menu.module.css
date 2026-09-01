@@ -125,8 +125,22 @@
   outline: none;
 }
 
+/*
+ * Secondary, and so are the heading, the hint and the empty message below.
+ *
+ * All four are tertiary ink in every other panel in this product, and tertiary is the right
+ * weight for them — but tertiary is tuned against --bg-primary, where it clears 4.5:1 by
+ * a tenth (4.60:1 in dark). This panel is not on the page. It floats on --bg-elevated, one
+ * surface step up, and every one of these measured 4.08:1 there in dark: a fail, on four
+ * separate pieces of text, in the surface a keyboard-first product opens most often.
+ *
+ * Secondary is 6.50:1 on the same ground and is still two steps below the item labels, so
+ * the panel's hierarchy is unchanged — the quiet text is merely quiet rather than unreadable.
+ * The disabled item below keeps tertiary on purpose; disabled controls are the one thing the
+ * contrast floor exempts, and dimming is the whole message.
+ */
 .filterInput::placeholder {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .list {
@@ -150,7 +164,8 @@
 
 .heading {
   padding: var(--space-2) var(--space-2) var(--space-1);
-  color: var(--text-tertiary);
+  /* See the placeholder above: tertiary fails 4.5:1 on this panel's surface in dark. */
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-none);
@@ -243,7 +258,8 @@
 .hint {
   flex: none;
   margin-left: var(--space-4);
-  color: var(--text-tertiary);
+  /* See the placeholder above: tertiary fails 4.5:1 on this panel's surface in dark. */
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
 
@@ -255,7 +271,10 @@
 
 .empty {
   padding: var(--space-3) var(--space-2);
-  color: var(--text-tertiary);
+  /* See the placeholder above: tertiary fails 4.5:1 on this panel's surface in dark. And
+   * this one is the panel's only content when it shows, so it is the last text that should
+   * be hard to read. */
+  color: var(--text-secondary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-none);
   text-align: center;

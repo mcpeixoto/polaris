@@ -61,13 +61,26 @@
 }
 
 /*
- * The identity palette, and the one place in this directory that reads the raw ramps.
+ * The identity palette — the third standing exception to "semantic tokens only", alongside
+ * Button's destructive fill and Field's error text, and the one place in this directory that
+ * reads the raw ramps.
+ *
+ * It is written out here at the same length as those two because the rule says a third
+ * exception may not be added without the reasoning, and because a file that quietly reaches
+ * past the semantic layer is indistinguishable from a file that forgot the rule existed.
  *
  * Every other colour here asks for a semantic token, because a semantic is a role the theme
  * gets to reassign. "Which of eight hues is this person" is not a role — there is no
  * --avatar-3 to ask for, and inventing one would put eight values in the theme layer that
  * mean nothing to a theme author. A custom theme that replaces the ramps still moves these,
  * which is the coupling that matters.
+ *
+ * The white on `.avatar` above is part of the same exception rather than a fourth one: it is
+ * the foreground laid on these eight fills, so it belongs to them and not to the page.
+ * --accent-contrast is the semantic that means exactly this, and it is the same white in both
+ * themes — but it names the foreground for *the accent*, and six of these eight are not the
+ * accent. Borrowing it would make a theme that restyled its accent's foreground silently
+ * restyle seven unrelated fills.
  *
  * All eight sit at stops dark enough to carry white initials. The initials repeat the name
  * that is already in the accessible name, so their contrast is a legibility target rather

@@ -176,8 +176,12 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
             <Button variant="ghost" onClick={() => setCreating(false)}>
               Cancel
             </Button>
-            <Button onClick={() => void submitCreate()} disabled={name.trim() === ''}>
-              Create
+            <Button
+              variant="primary"
+              onClick={() => void submitCreate()}
+              disabled={name.trim() === ''}
+            >
+              Create view
             </Button>
           </>
         }

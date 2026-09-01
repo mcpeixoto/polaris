@@ -63,7 +63,11 @@ export function RecurringDialog({
       size="sm"
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          {/* One primary and a ghost cancel: leaving is not a second command, and drawing it
+              as one asks the reader to choose between two equal-looking buttons. */}
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
           <Button
             variant="primary"
             loading={busy}

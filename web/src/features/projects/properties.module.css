@@ -10,27 +10,38 @@
   gap: var(--space-2);
 }
 
+/*
+ * A property's name, in the detail rail's treatment.
+ *
+ * This is the project sidebar's answer to `IssueDetail`'s `.propertyLabel`, and it used to
+ * be an uppercase 11px semibold caption instead — which made the same six words ("Status",
+ * "Priority", "Labels") look like section furniture here and like field labels one screen
+ * over. The rail is the reference implementation; this now matches it.
+ */
 .sectionTitle {
   margin: 0;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  color: var(--text-tertiary);
+  line-height: var(--line-height-none);
 }
 
+/* Bordered, because it stands in a column beside a native select and one group gets one
+   affordance. --control-height-lg is the ladder's rung for a form field on its own line,
+   which is what each of these is. */
 .propertyButton {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   width: fit-content;
-  padding: var(--space-1) var(--space-2);
+  min-height: var(--control-height-lg);
+  padding-inline: var(--space-2);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--bg-primary);
   color: var(--text-primary);
   font: inherit;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   cursor: pointer;
   transition: background-color var(--duration-fast) var(--ease-out);
 }
@@ -40,8 +51,8 @@
 }
 
 .propertyButton:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: 0;
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .labelRun {
@@ -58,6 +69,8 @@
 }
 
 .customLabel {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  color: var(--text-tertiary);
+  line-height: var(--line-height-none);
 }

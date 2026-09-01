@@ -1,10 +1,17 @@
 /**
  * Projects timeline — Gantt bars, milestones and dependency lines from the local replica.
+ *
+ * The dependency arcs are the reason this view exists rather than the list, and until now
+ * the only thing separating a satisfied arc from a violated one was its colour. They are
+ * drawn dashed and heavier when violated, and each arc carries a `<title>` naming both
+ * projects and saying "violated" or "satisfied" in words, so the drawing does not depend on
+ * the reader being able to tell accent from red.
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router';
 
+import { Button, EmptyState } from '~/components';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 
@@ -19,6 +26,12 @@ export interface ProjectTimelineProps {
   readonly depFilter: ProjectDependencyFilter;
   readonly customerFilter?: ProjectCustomerFilter;
   readonly display: RequiredProjectDisplay;
+  /**
+   * Reset the toolbar's filters. The timeline does not own them, so an empty timeline
+   * cannot clear them by itself — and "no projects match" with no way out is the dead end
+   * the empty-state rule is about.
+   */
+  onClearFilters?: (() => void) | undefined;
 }
 
 export function ProjectTimeline({
@@ -26,6 +39,7 @@ export function ProjectTimeline({
   depFilter,
   customerFilter = 'all',
   display,
+  onClearFilters,
 }: ProjectTimelineProps) {
   const data = useLiveQuery(
     (store) =>
@@ -83,11 +97,34 @@ export function ProjectTimeline({
     [syncScroll],
   );
 
+  // An arc knows the two project ids and nothing else; the names are on the rows. Built
+  // once per render rather than searched per arc, because a dense team draws hundreds.
+  const nameOf = useMemo(() => {
+    const names = new Map<UUID, string>();
+    for (const bar of data.bars) names.set(bar.projectId, bar.name);
+    for (const row of data.unscheduled) names.set(row.id, row.name);
+    return (id: UUID) => names.get(id) ?? 'a project';
+  }, [data.bars, data.unscheduled]);
+
+  const filtered = depFilter !== 'all' || customerFilter !== 'all';
+
   if (data.bars.length === 0 && data.unscheduled.length === 0) {
     return (
-      <p className={styles.empty}>
-        No projects match this filter. Add start or target dates to see them on the timeline.
-      </p>
+      <EmptyState
+        title={filtered ? 'Nothing matches these filters' : 'No projects on this timeline'}
+        description={
+          filtered
+            ? 'Every project here is excluded by the dependency or customer filter above.'
+            : 'A project draws as a bar once it has a start and a target date. Add them, and it appears here.'
+        }
+        action={
+          filtered && onClearFilters !== undefined ? (
+            <Button variant="secondary" onClick={onClearFilters}>
+              Clear the filters
+            </Button>
+          ) : undefined
+        }
+      />
     );
   }
 
@@ -174,7 +211,12 @@ export function ProjectTimeline({
                     key={dep.depId}
                     d={dependencyPath(dep.x1, dep.y1, dep.x2, dep.y2)}
                     className={dep.violated ? styles.depViolated : styles.depSatisfied}
-                  />
+                  >
+                    <title>
+                      {nameOf(dep.blockingProjectId)} blocks {nameOf(dep.blockedProjectId)} —{' '}
+                      {dep.violated ? 'dates violate this dependency' : 'dates satisfy this'}
+                    </title>
+                  </path>
                 ))}
               </svg>
             )}

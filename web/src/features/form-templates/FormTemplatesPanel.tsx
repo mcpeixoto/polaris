@@ -1,5 +1,17 @@
 /**
  * Form templates settings: structured intake templates and their fields.
+ *
+ * A form template is an issue template turned inside out. An issue template prefills the
+ * fields the composer already has; a form template replaces them with questions of its own —
+ * "what did you expect to happen", "which customer" — and folds the answers into the
+ * description when the issue is filed. That is why the two are edited on separate screens and
+ * why the composer refuses to apply both at once.
+ *
+ * The editor is inline rather than a dialog, and the list is grouped by scope — the
+ * workspace's forms and each team's — because this screen is a settings page and a modal on
+ * top of one is a dialog for a dialog. It borrows `views/Templates.module.css` on purpose: the
+ * two screens are the same shape, and a second stylesheet describing it would be a second
+ * answer to what a template row looks like.
  */
 
 import { useMemo, useState, type FormEvent } from 'react';
@@ -403,10 +415,15 @@ function FormTemplateEditor({
         </>
       )}
 
+      {/* One primary and a ghost cancel, in that order. The submit used to be a plain
+          secondary sitting beside the cancel, which left the form with no button claiming to
+          be what Enter does — and Enter does submit it. */}
       <div className={styles.editorActions}>
-        <Button type="submit">Save</Button>
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
+        </Button>
+        <Button type="submit" variant="primary">
+          Save form template
         </Button>
       </div>
     </form>

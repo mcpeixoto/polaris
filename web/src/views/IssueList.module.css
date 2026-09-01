@@ -127,11 +127,16 @@
   width: 100%;
 }
 
+/*
+ * The group heading. --control-height-md rather than the literal 28px it used to carry: the
+ * ladder in tokens.css already owns that number, and a heading pinned to a hard-coded pixel
+ * is one a density change would leave behind while every control around it moved.
+ */
 .group {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: 28px;
+  height: var(--control-height-md);
   padding-inline: var(--space-4);
   font-size: var(--font-size-sm);
 }
@@ -203,14 +208,9 @@
   text-overflow: ellipsis;
 }
 
-.labels {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
+/* The labels are LabelList's, which brings its own layout — it has to, because deciding what
+   fits means measuring, and it is the component that does the measuring. There is no `.labels`
+   rule here any more; a second opinion about the run's width would fight the one that counts. */
 
 .chipLink {
   display: inline-flex;
@@ -243,6 +243,31 @@
   height: var(--space-4);
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-full);
+}
+
+/*
+ * The estimate and the due date, drawn exactly as a board card draws them — same size, same
+ * tone, same tabular figures — because they are the same two facts and a reader who has
+ * learned one should not have to learn the other. Both are optional properties; a row that is
+ * showing neither loses their width rather than reserving it.
+ */
+.estimate {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.due {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+/* Overdue is the one fact on a row worth interrupting a scan for, and it says so in words as
+   well — "Yesterday" is already the text; the colour only makes it findable. */
+.overdue {
+  color: var(--priority-urgent);
 }
 
 .empty {

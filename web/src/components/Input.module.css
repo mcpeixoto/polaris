@@ -7,7 +7,21 @@
   padding-inline: var(--space-2);
 }
 
-.plain {
+/*
+ * `.box.plain`, and the doubled class is deliberate — do not "simplify" it to `.plain`.
+ *
+ * `.box` composes `.control` from Field, so both class names land on this element at the
+ * same weight (0,1,0) and the cascade falls through to emission order, which the bundler
+ * decides. It decided against this file: in the shipped `dist/assets/*.css`, `.plain` was
+ * emitted at byte 23150 and `.control` at 37102, so `.control`'s `border` shorthand and its
+ * `background-color` both won. The unboxed variant was rendering as a fully boxed field —
+ * white fill, grey border — on the create-issue title and the issue heading, which is
+ * precisely the surface it exists to *not* be.
+ *
+ * Two classes beat one regardless of what order they are printed in. That is the whole
+ * reason for the repetition; see the note over `.control` in Field.module.css.
+ */
+.box.plain {
   border-color: transparent;
   background-color: transparent;
   height: auto;
@@ -29,8 +43,13 @@
  *
  * `outline: none` stays. The ring is a claim that this is a control with a boundary, and
  * this one deliberately has none.
+ *
+ * Doubled for the same reason as the rule above, and here the loss was total rather than
+ * partial: `.control:focus-within` draws the full border *and* a two-pixel ring, and it was
+ * emitted after this rule, so a focused plain field showed the entire boxed treatment this
+ * paragraph spends nine lines arguing against.
  */
-.plain:focus-within {
+.box.plain:focus-within {
   border-color: transparent;
   border-bottom-color: var(--border-focus);
   outline: none;
@@ -38,6 +57,28 @@
 
 .invalid {
   composes: controlInvalid from './Field.module.css';
+}
+
+/*
+ * An invalid plain field, and the third rule this file has to write out longhand.
+ *
+ * `.control.controlInvalid` is already two classes, so it ties with `.box.plain` and the
+ * winner is once again whichever file the bundler printed last — Field, as it happens, which
+ * would put a red box round a field that has no box. Three classes settle it for good.
+ *
+ * The mark is the same single edge the focus rule uses, in the error colour rather than the
+ * focus one. That is the whole argument for consistency here: `plain` says this text is the
+ * page, and there is no state — focused, invalid, both — in which that stops being true.
+ * The message underneath is what actually names the problem; the edge only points at it.
+ *
+ * Declared after the focus rule and tying with it on specificity, so a plain field that is
+ * both invalid and focused shows red rather than blue — the same call Field.module.css makes
+ * for the boxed surface, and safe to leave to order here because both rules are in this file
+ * and no bundler gets a say in which of two lines comes first.
+ */
+.box.plain.invalid {
+  border-color: transparent;
+  border-bottom-color: var(--priority-urgent);
 }
 
 .input {

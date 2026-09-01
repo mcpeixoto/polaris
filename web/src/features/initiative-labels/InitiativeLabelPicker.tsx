@@ -1,3 +1,13 @@
+/**
+ * The menu that applies initiative labels.
+ *
+ * The project label picker's twin, over the initiative label table, and sharing
+ * `labels/LabelPicker.module.css` for the same reason: three tables, one drawing. Kept as
+ * a separate component rather than a generic one because the three offerings differ in
+ * what they query and in nothing else, and a picker parameterised over its store index is
+ * harder to read than three that each name their own.
+ */
+
 import type { CSSProperties, RefObject } from 'react';
 
 import { Menu, type MenuNode, type MenuPlacement } from '~/components';

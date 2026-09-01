@@ -81,7 +81,9 @@ export function CreateDashboardModal({ onClose }: CreateDashboardModalProps) {
       initialFocus={nameRef}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
           <Button form={formId} type="submit" variant="primary" loading={saving}>
             Create dashboard
           </Button>

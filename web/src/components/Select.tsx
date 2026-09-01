@@ -3,11 +3,19 @@ import type { ReactNode, Ref, SelectHTMLAttributes } from 'react';
 import { Field, fieldDescribedBy, fieldInvalid, useFieldIds } from './Field';
 import styles from './Select.module.css';
 
-export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+// `prefix` is omitted for the same reason Input omits it: React's HTMLAttributes carries the
+// RDFa `prefix` attribute as a string, and the slot below takes a node.
+export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'prefix'> {
   label?: string | undefined;
   hideLabel?: boolean | undefined;
   hint?: string | undefined;
   error?: string | undefined;
+  /**
+   * The selected value's icon, drawn inside the box at the leading edge: a `StateIcon` for a
+   * workflow state, a `PriorityIcon` for a priority, an `Avatar` for a person. Decorative —
+   * the chosen `<option>` is the accessible value, and this only repeats it in a glyph.
+   */
+  prefix?: ReactNode | undefined;
   className?: string | undefined;
   /** `<option>` and `<optgroup>` elements, as for a plain select. */
   children?: ReactNode | undefined;
@@ -25,12 +33,19 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
  * Where the choice is part of the keyboard flow — assignee, status, priority, opened with
  * `A`, `S`, `P` from the issue list — the Menu is the right component, because those are
  * commands with shortcuts and a filter, not form fields.
+ *
+ * `prefix` exists so that a select can carry its value's icon the way the detail rail's
+ * triggers do. It is painted over the control rather than laid out beside it — see the
+ * stylesheet — so nothing about the native popup, the platform type-ahead or the keyboard
+ * handling changes: the `<select>` still fills the box and is still the only thing in it a
+ * click can land on.
  */
 export function Select({
   label,
   hideLabel,
   hint,
   error,
+  prefix,
   className,
   id,
   children,
@@ -48,7 +63,20 @@ export function Select({
       error={error}
       className={className}
     >
-      <div className={[styles.box, invalid ? styles.invalid : null].filter(Boolean).join(' ')}>
+      <div
+        className={[
+          styles.box,
+          prefix === undefined ? null : styles.hasPrefix,
+          invalid ? styles.invalid : null,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {prefix === undefined ? null : (
+          <span className={styles.prefix} aria-hidden="true">
+            {prefix}
+          </span>
+        )}
         <select
           {...rest}
           id={ids.controlId}

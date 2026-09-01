@@ -38,9 +38,17 @@
   flex: 1;
 }
 
+/*
+ * The find box shrinks before anything else in this header does.
+ *
+ * It was `flex: none` at a fixed twelve rems, in a row that also holds a title, a live count,
+ * two checkboxes and a button — so on a narrow window the row overflowed and the button, the
+ * only thing here that acts on the whole inbox, was the part pushed off the end. A search box
+ * is the one control in the row that still works at half its width: the text scrolls.
+ */
 .find {
-  width: 12rem;
-  flex: none;
+  flex: 0 1 12rem;
+  min-width: 6rem;
 }
 
 .list {
@@ -70,6 +78,9 @@
 }
 
 .row {
+  /* So the hidden "Unread" word below has this row as its containing block rather than
+     whatever happens to be positioned further up the page. */
+  position: relative;
   display: grid;
   grid-template-columns: var(--space-3) minmax(0, 1fr) auto;
   align-items: center;
@@ -117,6 +128,27 @@
 
 .unread .dot {
   background-color: var(--accent);
+}
+
+/*
+ * The same fact as the dot, in words, for the readers the dot is not drawn for.
+ *
+ * Read and unread differ by a coloured dot, an ink and a font weight — three signals, none of
+ * which reaches the accessibility tree, so every row in this listbox was announced identically
+ * whether it had been read or not. Out of flow rather than hidden: `display: none` and
+ * `visibility: hidden` would take it out of the name too, and the row is a grid, so anything
+ * left in flow would claim a fourth column.
+ */
+.unreadName {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .text {

@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 
 import { Button } from '~/components';
 import {
@@ -97,6 +97,13 @@ export function OAuthAuthorize() {
     .map((part) => part.trim())
     .filter((part) => part !== '');
 
+  // A refusal with nothing to press. The link was malformed, or the application could not be
+  // looked up, so there is no Deny to send the caller back with and no Authorize to grant —
+  // and this screen deliberately has no chrome to escape through. One way out is the
+  // difference between an explanation and a dead end. It is offered only in that state: on a
+  // working consent screen a link away is a way to wander off mid-decision.
+  const stranded = info === null && error !== null;
+
   return (
     <AuthLayout
       title={info ? `Authorize ${info.name}` : 'Authorize application'}
@@ -105,10 +112,22 @@ export function OAuthAuthorize() {
           ? `${info.developer ?? info.name} is asking to access this workspace${actor === 'app' ? ' as itself' : ' as you'}.`
           : 'Review the application before granting access.'
       }
+      footer={
+        stranded ? (
+          <>
+            Nothing was granted. <Link to="/">Back to Polaris</Link>
+          </>
+        ) : undefined
+      }
     >
-      {error ? <AuthError message={error} /> : null}
+      <AuthError message={error} />
+      {/* role="status", because this line is replaced by the whole body of the card a round
+          trip later and a screen reader is otherwise told neither that it is waiting nor that
+          the wait is over. Polite, not assertive: it is not an answer, it is a delay. */}
       {info === null && error === null ? (
-        <p className={styles.pending}>Loading application…</p>
+        <p className={styles.pending} role="status">
+          Loading application…
+        </p>
       ) : null}
       {info === null ? null : (
         <>

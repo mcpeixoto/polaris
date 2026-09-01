@@ -1,3 +1,13 @@
+/*
+ * A team's home: an overview, not a list view.
+ *
+ * The density rules relax here the way they do on the settings pages. Nothing on this screen
+ * is scanned twenty rows at a time — it is a paragraph, a row of links and a short list of
+ * people, all read once — so the body is measured in characters and given room, while the
+ * member rows still take --row-height so that a team page and the issue list underneath it
+ * agree about what a row is.
+ */
+
 .screen {
   display: flex;
   flex-direction: column;
@@ -23,18 +33,6 @@
   align-items: center;
   gap: var(--space-2);
   font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.key {
-  display: inline-flex;
-  align-items: center;
-  height: 16px;
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-sm);
-  background: var(--bg-tertiary);
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
 }
 

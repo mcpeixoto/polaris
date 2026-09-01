@@ -79,6 +79,26 @@
 }
 
 /*
+ * The one animation on this page the token collapse cannot reach.
+ *
+ * Every other duration here is written as a motion token, so the block at the bottom of
+ * tokens.css takes them all to 1ms for somebody who asked for less movement. This one is a
+ * literal 26s, because a wash that crosses the viewport over half a minute is not a duration
+ * the entrance scale has an opinion about — and a literal survives the collapse untouched.
+ * A loop also has no end state to settle into, so shortening it is not an answer: it would
+ * become a 1ms cycle running for ever. Stopped outright is the only correct reading, and it
+ * is what Landing.module.css does with its own aurora for the same reason.
+ *
+ * The gradient itself stays. It is colour, not motion, and nothing about it is a problem for
+ * a reader who simply did not want the page to move.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .aurora {
+    animation: none;
+  }
+}
+
+/*
  * A hairline grid under the card, faded out before it reaches any edge.
  *
  * The wash alone left the page soft in every direction, which reads as unfinished rather
@@ -199,11 +219,22 @@
   animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 2) backwards;
 }
 
-/* Pulled back against the card's gap so the line reads as belonging to the title above it
-   rather than as the first item in the stack below. */
+/*
+ * Pulled back against the card's gap so the line reads as belonging to the title above it
+ * rather than as the first item in the stack below.
+ *
+ * --text-secondary, and it used to be --text-tertiary. That is a contrast fix, not a
+ * loudness preference. In dark — which is what the shipped default preference resolves to —
+ * --text-tertiary is neutral-500 and the card is neutral-900, which measures 4.08:1: under
+ * the 4.5:1 floor body text owes. It clears comfortably on the darker --bg-primary that
+ * settings pages use, which is why the same token is fine there and not here. --text-secondary
+ * is 6.50:1 on this surface and 10.23:1 in light.
+ *
+ * The same correction applies to .footer and .refusal below, for the same measurement.
+ */
 .subtitle {
   margin: calc(var(--space-4) * -1) 0 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
   animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 3) backwards;
@@ -248,14 +279,31 @@
 .footer {
   max-width: 420px;
   text-align: center;
-  color: var(--text-tertiary);
+  /* See .subtitle: --text-tertiary on the page colour is 4.08:1 in dark, and this line sits
+     on the page rather than on the card, so there is no lift to make up the difference. */
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   /* Last, because it is the way out of a screen the user has only just been shown. */
   animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 5) backwards;
 }
 
+/*
+ * Underlined, and that is the fix rather than the decoration.
+ *
+ * These links sit inside a sentence — "New here? Create an account" — so colour is the only
+ * thing separating the link from the prose around it, and colour alone has to clear 3:1
+ * against that prose to count. --accent-text against --text-secondary measures 1.63:1 in
+ * light and 1.30:1 in dark. Nowhere near it, and in dark the two are very nearly the same
+ * weight of blue-grey. An underline is the ordinary answer and the one the reader already
+ * knows; the product's own `underline-links` preference draws exactly this, and this line is
+ * not a link a preference should have to be found before it looks like one.
+ *
+ * Both colours are themselves fine on this surface — 6.07:1 light, 5.00:1 dark.
+ */
 .footer a {
   color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
   transition: color var(--duration-fast) var(--ease-out);
 }
 
@@ -275,6 +323,20 @@
  * Takes --priority-urgent for the same reason Field.module.css does: the token layer has no
  * --danger role, and that pair is the only red already tuned for both page colours.
  *
+ * ## The fill is 8%, and it was 12%
+ *
+ * Red text on a red tint is where this construction quietly stops being readable, because
+ * the tint is made of the same colour as the words. --priority-urgent on the bare card is
+ * 5.00:1 in light and 5.70:1 in dark; a 12% wash of itself under it drags the light figure
+ * to 4.27:1, under the 4.5:1 body-text floor, on the first screen anybody sees. Measured
+ * against the composited card colour, not against the token, because the card is 92% opaque
+ * over the wash. 8% comes back to 4.54:1 light and 5.21:1 dark.
+ *
+ * A lighter fill on its own reads as a stain rather than a panel, so the edge does the work
+ * the fill used to. It is an inset ring rather than a border on purpose: a real border adds
+ * two pixels the reveal below cannot take away — `errorPad` can flatten padding and cannot
+ * flatten a border — and the row would then open from a 2px line instead of from nothing.
+ *
  * min-height and overflow are what make the slot below able to close over it: a grid item
  * refuses to shrink below its content unless told it may, and a message that overflowed a
  * closed row would be drawn outside the row it is supposed to be hidden in.
@@ -285,7 +347,8 @@
   overflow: hidden;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  background-color: color-mix(in srgb, var(--priority-urgent) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--priority-urgent) 30%, transparent);
   color: var(--priority-urgent);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
@@ -357,14 +420,14 @@
  *
  * Deliberately not red. It sits below `.error`, and repeating the alarm would read as a
  * second thing having gone wrong rather than as the way forward from the first — this is
- * ordinary prose, in the tertiary text colour the subtitle uses.
+ * ordinary prose, in the same body colour the subtitle uses.
  *
  * One beat behind the message for the same reason it is a different colour: it is the answer
  * to the refusal, and an answer that arrives with the bad news reads as part of it.
  */
 .refusal {
   margin: calc(var(--space-2) * -1) 0 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
   animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 2) backwards;

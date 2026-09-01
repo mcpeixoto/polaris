@@ -1,3 +1,11 @@
+/*
+ * The in-place comment editor, and the pencil-and-bin row that opens it.
+ *
+ * Both live here rather than in IssueDetail.module.css so the affordance and the form it
+ * opens are one file: a reviewer looking for why a comment has buttons finds the editor next
+ * door without leaving the directory.
+ */
+
 .form {
   display: flex;
   flex-direction: column;
@@ -5,26 +13,26 @@
   width: 100%;
 }
 
+/* Trailing, like every other footer in the product, so the primary lands where the eye
+   already expects the submit to be. */
 .actions {
   display: flex;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
 
-/*
- * The pencil and the bin, sitting in a comment's header line.
- *
- * They live here rather than in IssueDetail.module.css so that the affordance and its
- * layout are one file: the editor this row opens is next door, and a reviewer looking for
- * why a comment has buttons finds both without leaving the directory.
- */
+/* The pencil and the bin, sitting in a comment's header line. */
 .rowActions {
   display: flex;
   align-items: center;
   gap: var(--space-1);
 }
 
+/* `Field`'s message treatment, restated because this message belongs to the form rather than
+   to one control: the same colour, the same size, the same line height. */
 .error {
   margin: 0;
   color: var(--priority-urgent);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
 }

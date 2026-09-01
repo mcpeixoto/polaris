@@ -52,8 +52,8 @@
 }
 
 .row:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: -2px;
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
 .body {

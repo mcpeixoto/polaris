@@ -5,11 +5,19 @@
  * A deployment with no Google client id gets no Google button — the alternative is a button
  * that opens a popup, completes a sign-in at Google, and then fails against a route that
  * answers 404, which is the worst of both.
+ *
+ * The failure here is drawn by `AuthError`, the same component the password form above it
+ * uses, rather than by a red line of this file's own. There is one card, and a sign-in that
+ * failed at Google is the same kind of news as a sign-in that failed against the password —
+ * two different-looking answers to the same question is how a form comes to look assembled
+ * from parts. Importing a view's component from a feature is the layering this codebase
+ * already accepts for exactly this reason; see `features/projects/ProjectStatusSettings`.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApiError, auth } from '~/sync/api';
+import { AuthError } from '~/views/AuthLayout';
 
 import { fetchAuthProviders } from './providers';
 import {
@@ -107,6 +115,8 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
   }, [providers, appleClientId]);
 
   const onApple = useCallback(() => {
+    // Guarded here rather than by `disabled` on the element; see the button below.
+    if (busy) return;
     setError(null);
     // Not awaited before `signInWithApple`: the popup has to be opened in the same task as
     // the click, or the browser blocks it.
@@ -127,27 +137,38 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
           // Same silence as on mount: the click that needs it is the one that reports it.
         });
       });
-  }, [appleClientId, exchange]);
+  }, [appleClientId, busy, exchange]);
 
   if (providers.length === 0) return null;
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.divider} role="separator">
+      {/* No `role="separator"`. A separator is a structural role with no accessible name, so
+          the word inside it was being announced as a divider or not at all — and "or" is the
+          only thing on this card that says the two halves are alternatives rather than steps.
+          As plain text in the flow it is simply read. The rules either side are pseudo-
+          elements and were never in the accessibility tree to begin with. */}
+      <div className={styles.divider}>
         <span>or</span>
       </div>
 
-      {error === null ? null : (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
+      <AuthError message={error} />
 
       {/* Google renders its own button in here — their terms require theirs, not ours. */}
       {providers.includes('google') ? <div ref={googleSlot} className={styles.slot} /> : null}
 
       {providers.includes('apple') && appleClientId !== '' ? (
-        <button type="button" className={styles.apple} disabled={busy} onClick={onApple}>
+        // `aria-disabled`, not `disabled`, for the reason spelled out in Button: a disabled
+        // element cannot hold focus, so a keyboard user who pressed this is dropped to the
+        // top of the document the instant the exchange starts. The click handler refuses
+        // instead, which is the same guarantee without the focus loss.
+        <button
+          type="button"
+          className={styles.apple}
+          aria-disabled={busy ? true : undefined}
+          aria-busy={busy ? true : undefined}
+          onClick={onApple}
+        >
           <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
             <path d="M11.2 8.5c0-1.4 1.1-2.1 1.2-2.1-.6-1-1.6-1.1-2-1.1-.8-.1-1.6.5-2 .5s-1.1-.5-1.8-.5c-.9 0-1.8.5-2.3 1.4-1 1.7-.3 4.2.7 5.6.5.7 1 1.4 1.8 1.4.7 0 1-.5 1.9-.5s1.1.5 1.9.4c.8 0 1.3-.7 1.8-1.4.6-.8.8-1.6.8-1.6s-1.5-.6-1.5-2.1zM9.9 3.9c.4-.5.7-1.2.6-1.9-.6 0-1.3.4-1.7.9-.4.4-.7 1.1-.6 1.8.7.1 1.3-.3 1.7-.8z" />
           </svg>

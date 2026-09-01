@@ -144,6 +144,12 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
         }}
       />
 
+      {data.chart === 'scatter' && data.percentiles.length > 0 && (
+        <p className={styles.caption}>
+          Each dot is one issue. The dashed lines are the 25th, 50th, 75th and 95th percentiles.
+        </p>
+      )}
+
       {data.chart !== 'area' && data.buckets.length > 0 && (
         <table className={styles.table}>
           <thead>

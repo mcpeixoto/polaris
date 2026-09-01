@@ -17,6 +17,7 @@ import type { ProjectUpdate, ProjectUpdateHealth } from '~/store';
 import { ApiError } from '~/sync/api';
 
 import { PROJECT_UPDATE_HEALTH_LABEL } from './helpers';
+import { HealthDot } from './ProjectHealthBadge';
 import { updateProjectUpdate } from './mutations';
 import styles from './ProjectUpdateEditor.module.css';
 
@@ -50,14 +51,10 @@ export function ProjectUpdateEditor({ update, onDone }: ProjectUpdateEditorProps
 
   return (
     <form className={styles.form} onSubmit={onSubmit}>
-      {error === null ? null : (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
       <Select
         label="Health"
         value={health}
+        prefix={<HealthDot health={health} />}
         onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
       >
         {HEALTH_ORDER.map((value) => (
@@ -72,6 +69,14 @@ export function ProjectUpdateEditor({ update, onDone }: ProjectUpdateEditorProps
         onChange={(event) => setBody(event.target.value)}
         minRows={4}
       />
+      {/* Fields, then the message, then the actions. A refusal belongs beside the button
+          that was refused rather than above the form, where it scrolls out of the way of
+          the thing the reader is about to press again. */}
+      {error === null ? null : (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
       <div className={styles.actions}>
         <Button type="submit" variant="primary" size="sm" disabled={saving}>
           Save changes

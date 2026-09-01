@@ -47,6 +47,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
   type ReactNode,
   type Ref,
@@ -54,14 +55,17 @@ import {
 
 import { useActions, useKeyContext } from '~/app/keymap';
 import {
+  Avatar,
   Button,
   Checkbox,
   IconButton,
   Input,
   Menu,
+  PriorityIcon,
   priorityLabel,
   PRIORITY_LEVELS,
   Select,
+  StateIcon,
   STATE_LABELS,
   Tooltip,
   type MenuNode,
@@ -287,7 +291,12 @@ export function FilterBar({
           onToggleConjunction={toggleConjunction}
         />
 
-        <Button {...add.props} size="sm" variant="ghost" icon={<PlusGlyph />}>
+        {/* Secondary, not ghost. It stands in a horizontal group beside the clause chips,
+            which carry a border and a background of their own, and a borderless word at the
+            end of a run of bordered pills reads as a caption on the last one rather than as
+            the control that adds the next. Ghost is for a full-width trigger inside a
+            labelled row, where the label supplies the affordance; there is no label here. */}
+        <Button {...add.props} size="sm" icon={<PlusGlyph />}>
           Add filter
         </Button>
         <Menu
@@ -709,11 +718,46 @@ function OptionList({
 
 function OptionLabel({ option }: { option: ValueOption }): ReactNode {
   return (
-    <>
-      {option.label}
-      {option.hint === undefined ? null : <span className={styles.hint}> {option.hint}</span>}
-    </>
+    <span className={styles.optionLabel}>
+      {option.glyph === undefined ? null : <OptionGlyphMark glyph={option.glyph} />}
+      <span className={styles.optionName}>{option.label}</span>
+      {option.hint === undefined ? null : <span className={styles.hint}>{option.hint}</span>}
+    </span>
   );
+}
+
+/**
+ * One value's glyph.
+ *
+ * Decorative in every case: the option's own text names it, and the tick or the radio says
+ * whether it is chosen. An icon announced beside the name it duplicates is the same word
+ * twice for anybody listening rather than looking.
+ */
+function OptionGlyphMark({ glyph }: { glyph: OptionGlyph }): ReactNode {
+  switch (glyph.kind) {
+    case 'state':
+      return <StateIcon category={glyph.category} color={glyph.color} decorative />;
+    case 'priority':
+      return <PriorityIcon priority={glyph.level} decorative />;
+    case 'person':
+      return (
+        <Avatar
+          name={glyph.name}
+          src={glyph.avatar ?? null}
+          size="xs"
+          colorKey={glyph.personId}
+          decorative
+        />
+      );
+    case 'label':
+      return (
+        <span
+          className={styles.swatch}
+          style={{ '--label-color': glyph.color } as CSSProperties}
+          aria-hidden="true"
+        />
+      );
+  }
 }
 
 interface TypedValuesProps {
@@ -1346,11 +1390,45 @@ interface UuidRef {
   readonly id: UUID;
 }
 
+/**
+ * The canonical mark for a value, carried as data rather than as a rendered node.
+ *
+ * Every one of these options is produced inside a `useLiveQuery` selector, and the store
+ * compares a selector's answer structurally to decide whether anything changed. A React
+ * element is an object with a symbol tag and a props bag that is rebuilt on every pass, so
+ * putting one here would make every answer compare as different and wake every picker on
+ * every delta. Plain data compares; `OptionGlyphMark` turns it into the icon.
+ */
+type OptionGlyph =
+  | {
+      readonly kind: 'state';
+      readonly category: StateCategory;
+      readonly color?: string | undefined;
+    }
+  | { readonly kind: 'priority'; readonly level: number }
+  | {
+      readonly kind: 'person';
+      readonly personId: string;
+      readonly name: string;
+      readonly avatar?: string | undefined;
+    }
+  | { readonly kind: 'label'; readonly color: string };
+
 interface ValueOption {
   readonly id: string;
   readonly label: string;
   /** A second line of identification: a status's category, a label's team. */
   readonly hint?: string | undefined;
+  /**
+   * What the value looks like everywhere else in the product.
+   *
+   * A status, a priority, a person and a label each have a glyph the rest of the interface
+   * uses to say which one they are — and this picker showed none of them, so choosing a
+   * status here meant reading a column of names that the list it filters draws as icons.
+   * Absent for the values that genuinely have no mark: a team, a template, a customer, yes
+   * and no.
+   */
+  readonly glyph?: OptionGlyph | undefined;
 }
 
 function nameKey(field: FilterField, id: string): string {
@@ -1424,6 +1502,41 @@ function entityName(store: Store, field: FilterField, id: UUID): string | null {
 }
 
 /**
+ * The glyph for one entity, for the fields that have one.
+ *
+ * Deliberately separate from `entityName` rather than folded into it: a name is wanted in
+ * places a glyph is not — the chip's sentence, the accessible name of the remove button —
+ * and a function that returned both would have every caller throwing half of it away.
+ */
+function entityGlyph(store: Store, field: FilterField, id: UUID): OptionGlyph | undefined {
+  switch (field) {
+    case 'state': {
+      const state = store.get('workflowState', id);
+      return state === undefined
+        ? undefined
+        : { kind: 'state', category: state.category, color: state.color };
+    }
+    case 'assignee':
+    case 'creator':
+    case 'subscriber': {
+      const user = store.get('user', id);
+      return user === undefined
+        ? undefined
+        : { kind: 'person', personId: user.id, name: user.displayName, avatar: user.avatarUrl };
+    }
+    case 'label': {
+      const label = store.get('label', id);
+      return label === undefined ? undefined : { kind: 'label', color: label.color };
+    }
+    default:
+      // A team, a template, a customer, a tier, an issue, yes and no. None of them has a
+      // canonical mark anywhere else in the product, and inventing one here would be this
+      // picker teaching a vocabulary no other screen speaks.
+      return undefined;
+  }
+}
+
+/**
  * What a picker offers for this field.
  *
  * The values already chosen always lead the list, whatever the search box says. Without
@@ -1458,6 +1571,9 @@ function staticOptions(field: FilterField): readonly ValueOption[] {
       return (Object.keys(CATEGORY_ORDER) as StateCategory[]).map((category) => ({
         id: category,
         label: STATE_LABELS[category],
+        // No colour: a category is not a status, so there is no workspace colour to draw it
+        // in — StateIcon's own default for the category is exactly what is meant here.
+        glyph: { kind: 'state', category } as const,
       }));
     case 'boolean':
       return [
@@ -1469,6 +1585,7 @@ function staticOptions(field: FilterField): readonly ValueOption[] {
       return PRIORITY_LEVELS.map((level) => ({
         id: String(level),
         label: priorityLabel(level),
+        glyph: { kind: 'priority', level } as const,
       }));
     default:
       return [];
@@ -1486,7 +1603,15 @@ function storeOptions(
 
   const chosen: ValueOption[] = [];
   for (const id of values) {
-    chosen.push({ id, label: entityName(store, field, id) ?? UNKNOWN_ENTITY[field] ?? id });
+    // The values already ticked lead the list, so they get their glyph the same way the
+    // candidates below do. Without this the chosen half of a status picker would be the only
+    // rows in it drawn as bare text, which reads as those rows being a different kind of
+    // thing rather than as the same rows, already chosen.
+    chosen.push({
+      id,
+      label: entityName(store, field, id) ?? UNKNOWN_ENTITY[field] ?? id,
+      glyph: entityGlyph(store, field, id),
+    });
   }
   const needle = search.trim().toLowerCase();
   const taken = new Set(values);
@@ -1535,6 +1660,7 @@ function candidates(
             teamId === undefined
               ? `${teamName(store, state.teamId)} · ${STATE_LABELS[state.category]}`
               : STATE_LABELS[state.category],
+          glyph: { kind: 'state', category: state.category, color: state.color } as const,
         }));
     }
     case 'assignee':
@@ -1547,6 +1673,12 @@ function candidates(
           id: user.id,
           label: user.displayName,
           hint: user.status === 'active' ? undefined : 'Suspended',
+          glyph: {
+            kind: 'person',
+            personId: user.id,
+            name: user.displayName,
+            avatar: user.avatarUrl,
+          } as const,
         }));
     case 'label':
       return (
@@ -1564,6 +1696,7 @@ function candidates(
             id: label.id,
             label: label.name,
             hint: label.teamId === undefined ? undefined : teamName(store, label.teamId),
+            glyph: { kind: 'label', color: label.color } as const,
           }))
       );
     case 'team':

@@ -2,10 +2,20 @@
  * The rules two sidebars share.
  *
  * The shell draws one of two navigations — the workspace one, or the settings one — and
- * they are the same object seen twice: same width, same 28px rows, same active treatment.
+ * they are the same object seen twice: same width, same row height, same active treatment.
  * Keeping the rules in one module rather than copying them into a second is what stops the
  * two drifting a pixel apart, which is exactly the kind of difference that reads as a
  * different application rather than a different screen of the same one.
+ *
+ * A nav row states four different facts and each has to look like a different one:
+ *
+ *   hover    --bg-hover, the weakest wash: the pointer is over this row
+ *   active   --bg-selected, the rail, and medium weight: this row is the screen you are on
+ *   both     the two washes stacked, below — pointing at the row you are already on must not
+ *            make it look *less* current than its neighbours
+ *   focus    the ring from styles/reset.css, which is a different channel entirely: an
+ *            outline outside the box rather than a fill inside it, so it reads on top of any
+ *            of the three above. Nothing here may remove it.
  */
 
 .sidebar {
@@ -41,7 +51,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: 28px;
+  /* The ladder, not the number. This was `28px`, which is what --control-height-md happens
+     to be today: the same row, written in a way that would stop answering to the density
+     scale the moment anybody tuned it. */
+  height: var(--control-height-md);
   padding: 0 var(--space-2);
   border-radius: var(--radius-md);
   color: var(--text-secondary);
@@ -101,6 +114,25 @@
 .navItemActive::before {
   opacity: 1;
   transform: translateY(-50%) scaleY(1);
+}
+
+/*
+ * The current row, hovered.
+ *
+ * `.navItem:hover` and `.navItemActive` are one class each, so which of them dressed a
+ * hovered active row was decided by their order in this file — and the hover won, wearing
+ * --bg-hover, the *weaker* of the two washes. Pointing at the row you are already on made it
+ * look less current than the ones you are not on.
+ *
+ * Written at two classes so specificity settles it rather than emission order, and the washes
+ * are stacked rather than swapped: both tokens are alpha overlays of the same ink — black in
+ * the light theme, white in the dark one — so a --bg-hover layer over a --bg-selected fill
+ * composites further from the page than either, whichever direction that is. Hover on the
+ * current row is a fourth state, not a replacement for the third.
+ */
+.navItem.navItemActive:hover {
+  background-color: var(--bg-selected);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
 .navIcon {

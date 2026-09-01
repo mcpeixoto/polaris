@@ -9,7 +9,7 @@
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useKeymap } from '~/app/keymap';
-import { Avatar, Button, EmptyState } from '~/components';
+import { Avatar, Badge, Button, EmptyState } from '~/components';
 import { personName } from '~/features/prefs/prefs';
 import { triageQueueCount } from '~/features/triage/queue';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -82,7 +82,11 @@ export function TeamHome() {
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.title}>
-          <span className={styles.key}>{team.key}</span>
+          {/* Badge, not a chip of this screen's own. Archives draws the same fact — this
+              team's key, beside this team's heading — with a Badge, and two spellings of one
+              chip is how a product ends up with two of everything. It also takes the height
+              off the control ladder, which the local rule's hard-coded 16px did not. */}
+          <Badge>{team.key}</Badge>
           {team.name}
         </h1>
         {retired ? null : (

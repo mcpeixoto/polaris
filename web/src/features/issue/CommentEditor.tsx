@@ -81,11 +81,6 @@ export function CommentEditor({ comment, onDone }: CommentEditorProps) {
 
   return (
     <form className={styles.form} onSubmit={onSubmit}>
-      {error === null ? null : (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
       <Textarea
         label="Edit comment"
         hideLabel
@@ -97,12 +92,26 @@ export function CommentEditor({ comment, onDone }: CommentEditorProps) {
         // keymap-lint-allow: see onKeyDown above — a trap, not a shortcut
         onKeyDown={onKeyDown}
       />
+      {/*
+        Under the field rather than over it, and at the size every other message in the
+        product is. It sat above the textarea at --font-size-xs, which is smaller than any
+        validation message a `Field` draws — so the one line explaining why an edit did not
+        save was the quietest thing in the thread. Still a paragraph of this form's rather
+        than the Textarea's `error`: the save was refused, the text in the box was not, and
+        marking the control `aria-invalid` would say the writing is the problem.
+      */}
+      {error === null ? null : (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
+      {/* Cancel first and ghost, matching the reply composer this form replaces on screen. */}
       <div className={styles.actions}>
+        <Button type="button" variant="ghost" size="sm" onClick={onDone} disabled={saving}>
+          Cancel
+        </Button>
         <Button type="submit" variant="primary" size="sm" disabled={saving || body.trim() === ''}>
           Save changes
-        </Button>
-        <Button type="button" size="sm" onClick={onDone} disabled={saving}>
-          Cancel
         </Button>
       </div>
     </form>

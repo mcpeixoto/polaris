@@ -98,7 +98,12 @@ export function SaveViewModal({ filter, display, teamId, onClose }: SaveViewModa
       initialFocus={nameRef}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          {/* Ghost, not the default secondary. A footer says what Enter does with exactly one
+              primary; a bordered Cancel beside it is a second control making the same visual
+              claim, and the only one of the two that throws the form away. */}
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
           <Button form={formId} type="submit" variant="primary" loading={saving}>
             Save view
           </Button>

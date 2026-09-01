@@ -295,6 +295,7 @@ export function Projects() {
           depFilter={depFilter}
           customerFilter={hideCustomers ? 'all' : customerFilter}
           display={display}
+          onClearFilters={clearFilters}
         />
       ) : rowCount === 0 ? (
         <EmptyState

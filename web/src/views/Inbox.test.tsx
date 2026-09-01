@@ -172,3 +172,54 @@ describe('Inbox leftovers', () => {
     expect(mutate.mock.calls[0]?.[0].variables).toEqual({ id: 'n-unread', read: true });
   });
 });
+
+/**
+ * What an empty inbox says, which is three different things wearing one sentence.
+ *
+ * "Nothing here" followed by an explanation of what subscribes you to an issue is the right
+ * answer exactly once — on a first run. Said to somebody who has just read everything, or who
+ * has a find in the box, it is the screen failing to notice what it is showing them.
+ */
+describe('the empty inbox', () => {
+  it('distinguishes a filtered inbox from an empty one, and offers the box that unhides it', async () => {
+    const { user } = renderInbox([notification('n-read', { readAt: AT, type: 'comment' })]);
+
+    await user.click(screen.getByRole('checkbox', { name: 'Show read' }));
+    expect(screen.getByText('Nothing unread')).toBeTruthy();
+    expect(screen.queryByText(/You are subscribed/)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Show read' }));
+    expect(screen.getByText(/commented on ENG-4/)).toBeTruthy();
+  });
+
+  it('says a find matched nothing, and clears it from the empty state', async () => {
+    const { user } = renderInbox([notification('n-assign')]);
+
+    await user.type(screen.getByRole('textbox', { name: 'Find in inbox' }), 'nothingatall');
+    expect(screen.getByText('No matches')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Clear find' }));
+    expect(screen.getByText(/assigned ENG-4 to you/)).toBeTruthy();
+  });
+
+  it('explains itself on a genuinely empty inbox', () => {
+    renderInbox([]);
+    expect(screen.getByText('Nothing here')).toBeTruthy();
+    expect(screen.getByText(/You are subscribed/)).toBeTruthy();
+  });
+});
+
+/**
+ * Read and unread differ by a dot, an ink and a font weight — three signals, none of which a
+ * screen reader can see. The row's own name has to carry it.
+ */
+describe('the unread mark', () => {
+  it('names an unread row as unread', () => {
+    renderInbox([
+      notification('n-unread'),
+      notification('n-read', { readAt: AT, type: 'comment' }),
+    ]);
+    const rows = screen.getAllByRole('option');
+    expect(rows.map((row) => (row.textContent ?? '').startsWith('Unread'))).toEqual([true, false]);
+  });
+});

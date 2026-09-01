@@ -54,6 +54,11 @@
   background: var(--bg-hover);
 }
 
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
 .unassigned {
   flex: none;
   width: 1.25rem;

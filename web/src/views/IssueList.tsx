@@ -41,7 +41,6 @@ import {
   Badge,
   Button,
   EmptyState,
-  LabelChip,
   Menu,
   PriorityIcon,
   StateIcon,
@@ -62,12 +61,7 @@ import { offerUndo } from '~/features/undo/UndoToast';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { liveIssueCountForTeam } from '~/features/team/issueLimit';
 import { TeamIssueLimitBanner } from '~/features/team/TeamIssueLimitBanner';
-import {
-  issueIdsForLabelView,
-  labelViewPath,
-  labelViewTitle,
-  userViewPath,
-} from '~/features/labels/labelView';
+import { issueIdsForLabelView, labelViewTitle, userViewPath } from '~/features/labels/labelView';
 import { setViewSubscription, updateView } from '~/features/view/mutations';
 import { SaveViewModal } from '~/features/view/SaveViewModal';
 import {
@@ -81,8 +75,9 @@ import { personName, subscribePrefs, getPrefs } from '~/features/prefs/prefs';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { DueDatePicker, EstimatePicker } from '~/features/issue/properties';
-import { estimatesEnabled } from '~/features/estimate';
+import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
+import { LabelList } from '~/features/labels/LabelList';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { Peek } from '~/features/peek/Peek';
@@ -111,7 +106,14 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useSelection } from '~/hooks/useSelection';
 import { browserTimezone } from '~/features/locale';
-import { EMPTY_FILTER, isFilterGroup, parseDisplayParams, type FilterNode } from '~/filter';
+import { isOverdue, whenDay } from '~/features/time';
+import {
+  EMPTY_FILTER,
+  isFilterGroup,
+  parseDisplayParams,
+  type DisplayProperty,
+  type FilterNode,
+} from '~/filter';
 import type { DateOnly, DueDateSource, Issue, StateCategory, Store, UUID } from '~/store';
 import styles from './IssueList.module.css';
 
@@ -260,7 +262,14 @@ const TRIAGE_SOURCE_FILTER: FilterNode = { field: 'stateCategory', op: 'eq', val
  * frame of slightly mis-sized scrollbar and nothing else.
  */
 const ESTIMATED_ROW_PX = 32;
-const ESTIMATED_HEADER_PX = 36;
+/*
+ * 28 and not 36. A group heading is `.group`, which is --control-height-md and has no padding
+ * of its own, so the old guess over-reported every unmeasured heading by eight pixels — in a
+ * team grouped by status that is the scroll range being wrong by a heading's worth per group
+ * until the user scrolls far enough for each one to be measured. Keep this in step with
+ * `.group` in IssueList.module.css.
+ */
+const ESTIMATED_HEADER_PX = 28;
 
 /** Rows kept mounted beyond the viewport, so a held-down `J` never outruns the renderer. */
 const OVERSCAN = 12;
@@ -451,6 +460,18 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
     preferenceKey,
     defaultDisplay: savedMeta?.display,
   });
+
+  /**
+   * The optional properties every row draws, resolved once for the whole list.
+   *
+   * Built here rather than in the row for the reason the board builds it in the column: a
+   * `Set` made inside a memoised row is a new reference on every render of the parent, which
+   * would defeat the memo on all thirty mounted rows for a scroll that changed nothing.
+   */
+  const rowProperties = useMemo(
+    () => new Set<DisplayProperty>(view.display.properties),
+    [view.display.properties],
+  );
 
   /**
    * Saves what is on screen as the view's own display options.
@@ -1606,9 +1627,13 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             </Tooltip>
           </>
         ) : null}
+        {/* Secondary, like every other trigger in this row. These two were `ghost`, which put
+            two borderless words at the end of a row of bordered buttons — one group wearing
+            two affordances, and at the end where a scan stops looking. Demoting the two
+            riskiest commands by removing their edges was the wrong lever anyway: what makes
+            Delete safe is the confirmation and the undo, not it being hard to see. */}
         <Tooltip label="Archive" keys="e">
           <Button
-            variant="ghost"
             disabled={!canAct}
             onClick={() => commands.current.archive()}
             icon={<ArchiveGlyph />}
@@ -1620,7 +1645,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
             is recoverable for thirty days and offers an undo for the next few seconds. Red is
             for the things that are not. */}
         <Tooltip label="Delete" keys="mod+Backspace">
-          <Button variant="ghost" disabled={!canAct} onClick={() => commands.current.askDelete()}>
+          <Button disabled={!canAct} onClick={() => commands.current.askDelete()}>
             Delete
           </Button>
         </Tooltip>
@@ -1863,6 +1888,7 @@ export function IssueList({ source = TEAM_SOURCE, heading }: IssueListProps = {}
                     ) : (
                       <IssueRow
                         id={row.id}
+                        properties={rowProperties}
                         selected={selection.ids.has(row.id)}
                         active={row.id === cursorId}
                         onOpen={onOpenRow}
@@ -1912,6 +1938,18 @@ function GroupHeader({ row }: { row: HeaderRow }) {
 
 interface IssueRowProps {
   id: UUID;
+  /**
+   * Which optional properties this view draws, from the display menu.
+   *
+   * The menu has always offered these five and the board has always honoured them; the list
+   * ignored the set entirely, so ticking "Estimate" on the layout people actually use did
+   * nothing at all, and "Assignee" could not be turned off. A control that visibly does
+   * nothing is worse than an absent one — it teaches the user that the menu is decorative.
+   *
+   * Passed as a resolved `Set` built once by the parent, so a memoised row still compares by
+   * identity rather than rebuilding the set thirty times per scroll frame.
+   */
+  properties: ReadonlySet<DisplayProperty>;
   selected: boolean;
   /** Under the keyboard cursor. One row at a time, and not the same thing as selected. */
   active: boolean;
@@ -1929,9 +1967,18 @@ interface IssueRowProps {
  * re-renders this row and nothing else, and the list's own render never allocates five
  * thousand objects to find out. The subscription is compared structurally, so a delta that
  * moves an issue this row does not care about costs a comparison and no render at all.
+ *
+ * The labels are `LabelList`'s job rather than this row's, which is where they had been on a
+ * board card all along. The row used to slice its own run at three chips, drop the group name
+ * a grouped label is meaningless without — "P0" rather than "Priority: P0" — and say nothing
+ * at all about the fourth. `LabelList` measures what actually fits in the width the title
+ * leaves and collapses the rest into a "+2" that names them, which is both the honest answer
+ * and the one the board already gives. It reads its own labels, so `label` and `issueLabel`
+ * leave this row's subscription with them.
  */
 const IssueRow = memo(function IssueRow({
   id,
+  properties,
   selected,
   active,
   onOpen,
@@ -1951,13 +1998,11 @@ const IssueRow = memo(function IssueRow({
       const state = store.workflowStates.get(found.stateId);
       const assignee =
         found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
-      const labels: { id: UUID; name: string; color: string }[] = [];
-      for (const labelId of store.labelIdsFor(found.id)) {
-        const label = store.get('label', labelId);
-        if (label === undefined) continue;
-        labels.push({ id: label.id, name: label.name, color: label.color });
-      }
-      labels.sort((a, b) => a.name.localeCompare(b.name));
+      // The team, for the two properties that cannot be read without it: the scale an
+      // estimate is a number in, and the zone a due date is a day in. Resolved here rather
+      // than in the row's markup so a row subscribes to its own team and not to every team.
+      const team = store.get('team', found.teamId);
+      const zone = team?.timezone;
       return {
         identifier: store.identifierOf(found),
         title: found.title,
@@ -1968,10 +2013,15 @@ const IssueRow = memo(function IssueRow({
         assigneeId: assignee?.id ?? null,
         assigneeName: assignee === undefined ? null : personName(assignee),
         assigneeAvatar: assignee?.avatarUrl ?? null,
-        labels,
+        estimate:
+          team !== undefined && estimatesEnabled(team)
+            ? issueEstimateLabel(found.estimate, team)
+            : null,
+        dueDate: found.dueDate === undefined ? null : whenDay(found.dueDate, zone),
+        overdue: found.dueDate !== undefined && isOverdue(found.dueDate, zone),
       };
     },
-    ['issue', 'team', 'user', 'workflowState', 'label', 'issueLabel'],
+    ['issue', 'team', 'user', 'workflowState'],
     [id, fullNames],
   );
 
@@ -1996,26 +2046,32 @@ const IssueRow = memo(function IssueRow({
         else onOpen(issue.identifier);
       }}
     >
+      {/* The status is not one of the optional properties, and neither is the identifier. A
+          row that dropped either would stop being readable the moment somebody grouped by
+          assignee, and a row whose contents depend on the grouping is one people cannot learn
+          to read — the same call the board card makes about its own StateIcon. */}
       <StateIcon category={issue.stateCategory} color={issue.stateColor} label={issue.stateName} />
       <span className={styles.identifier}>{issue.identifier}</span>
       <span className={styles.rowTitle}>{issue.title}</span>
-      {issue.labels.length > 0 && (
-        <span className={styles.labels}>
-          {issue.labels.slice(0, 3).map((label) => (
-            <Link
-              key={label.id}
-              className={styles.chipLink}
-              to={labelViewPath(label.id)}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <LabelChip name={label.name} color={label.color} compact />
-            </Link>
-          ))}
-        </span>
-      )}
+      {properties.has('labels') ? <LabelList issueId={id} /> : null}
       <span className={styles.meta}>
-        <PriorityIcon priority={issue.priority} decorative />
-        {issue.assigneeName === null || issue.assigneeId === null ? (
+        {properties.has('estimate') && issue.estimate !== null ? (
+          <span className={styles.estimate}>{issue.estimate}</span>
+        ) : null}
+        {/* Overdue says so in words as well — the date already reads "Yesterday"; the colour
+            only makes it findable in a column of them. */}
+        {properties.has('dueDate') && issue.dueDate !== null ? (
+          <span
+            className={[styles.due, issue.overdue ? styles.overdue : null]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            {issue.dueDate}
+          </span>
+        ) : null}
+        {properties.has('priority') ? <PriorityIcon priority={issue.priority} decorative /> : null}
+        {!properties.has('assignee') ? null : issue.assigneeName === null ||
+          issue.assigneeId === null ? (
           <span className={styles.unassigned} aria-label="Unassigned" role="img" />
         ) : (
           <Link

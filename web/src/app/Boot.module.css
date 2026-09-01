@@ -81,16 +81,15 @@
  * The retry appears with the failure, one beat behind the sentence that explains it — read
  * first, then act. Before this it arrived in the same frame as the message, which put a
  * button under the cursor before there was any reason to press it.
+ *
+ * The timing is all that is left here. The box — the border, the surface, the hover, the
+ * pointer — was a second, slightly different copy of `Button`'s secondary variant, sitting on
+ * the one screen a user reaches when something has already gone wrong. It is `Button` now, and
+ * this class carries only the delay, so the two cannot disagree and nothing here has to be
+ * re-tuned when the primitive is. A class that sets nothing a component also sets is also a
+ * class the cascade cannot lose an argument with.
  */
 .retry {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  font: inherit;
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-out);
   animation: retryIn var(--duration-fast) var(--ease-out) var(--duration-instant) backwards;
 }
 
@@ -99,8 +98,4 @@
     opacity: 0;
     transform: translateY(4px);
   }
-}
-
-.retry:hover {
-  background: var(--bg-hover);
 }

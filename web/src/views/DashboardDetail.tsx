@@ -1,5 +1,11 @@
 /**
  * One dashboard — a dense grid of Insights tiles over the replica.
+ *
+ * A tile's three controls carry visible labels. They were suppressed, which left a row
+ * reading "Count · Assignee · chart" — three values that name none of their own fields, on
+ * a surface whose entire job is to let someone reshape a measure until it answers their
+ * question. They sit in a grid rather than a wrapping flex row, so a long measure name
+ * cannot squeeze the display picker into an ellipsis.
  */
 
 import { useNavigate, useParams } from 'react-router';
@@ -47,6 +53,14 @@ const SLICES: readonly DashboardSlice[] = [
 ];
 
 const DISPLAYS: readonly DashboardTileDisplay[] = ['chart', 'table', 'metric'];
+
+// The stored values are lower-case identifiers; the menu is prose. Sentence case, like
+// every other option list in the product.
+const DISPLAY_LABELS: Readonly<Record<DashboardTileDisplay, string>> = {
+  chart: 'Chart',
+  table: 'Table',
+  metric: 'Metric',
+};
 
 export function DashboardDetail() {
   const navigate = useNavigate();
@@ -183,7 +197,6 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
       <div className={styles.tileControls}>
         <Select
           label="Measure"
-          hideLabel
           value={tile.measure}
           onChange={(event) =>
             void updateDashboardTile(engine, tile.id, {
@@ -200,7 +213,6 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
         {tile.measure !== 'burn_up' && (
           <Select
             label="Slice"
-            hideLabel
             value={tile.slice}
             onChange={(event) =>
               void updateDashboardTile(engine, tile.id, {
@@ -217,7 +229,6 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
         )}
         <Select
           label="Display"
-          hideLabel
           value={tile.display}
           onChange={(event) =>
             void updateDashboardTile(engine, tile.id, {
@@ -227,7 +238,7 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
         >
           {DISPLAYS.map((value) => (
             <option key={value} value={value}>
-              {value}
+              {DISPLAY_LABELS[value]}
             </option>
           ))}
         </Select>
@@ -237,7 +248,10 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
       )}
       {tile.display === 'chart' && <InsightChart data={data} />}
       {tile.display === 'table' && rows === 0 && (
-        <p className={styles.empty}>Nothing in this view to list yet.</p>
+        <p className={styles.empty}>
+          Nothing to list yet. Change the measure, or file work that this dashboard&rsquo;s scope
+          covers.
+        </p>
       )}
       {tile.display === 'table' && rows > 0 && data.chart === 'area' && (
         <table className={styles.table}>
