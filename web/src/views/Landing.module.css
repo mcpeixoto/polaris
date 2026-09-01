@@ -378,7 +378,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-3) var(--space-5) var(--space-5);
+  padding: var(--space-4) var(--space-5) var(--space-8);
   border-top: 1px solid var(--border-subtle);
   background-color: var(--bg-primary);
   animation: menu-open var(--duration-normal) var(--ease-out);
@@ -389,19 +389,26 @@
 }
 
 /*
- * 40px rows, not the 32px of --control-height-lg. This list is reached by thumb on a phone
+ * 56px rows, not the 32px of --control-height-lg. This list is reached by thumb on a phone
  * held one-handed, where 32px is under every touch-target guideline going and the rows sit
  * close enough together to mis-hit; the product's density argument is about how many issues
- * fit on a laptop screen and has nothing to say about five links on a phone.
+ * fit on a laptop screen and has nothing to say about six links on a phone.
+ *
+ * 40px cleared the guideline and still read as a dropdown squeezed out of a desktop menu —
+ * six short words stacked in the top third of a phone screen, each one small enough to look
+ * like a mistake. This panel is the whole navigation at this width, so it is sized like a
+ * screen rather than like a menu: the row is a comfortable thumb target with air around the
+ * word, and the type is --font-size-xl, which is the first step on the ladder that is not
+ * asking to be read at laptop distance.
  */
 .navMenu a {
   display: flex;
   align-items: center;
-  height: var(--space-10);
-  padding-inline: var(--space-3);
-  border-radius: var(--radius-md);
+  height: calc(var(--space-12) + var(--space-2));
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-lg);
   color: var(--text-secondary);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
   text-decoration: none;
 }
 
@@ -509,9 +516,30 @@
   line-height: var(--line-height-tight);
 }
 
+/*
+ * One line, at every width.
+ *
+ * The ceiling used to be 22ch, which is a count of characters, and the sentence is 32 of
+ * them. It fit only because those characters average narrower than the "0" that ch is
+ * measured from — so the headline sat a hair inside its own cap, and any step in the type
+ * that the cap did not follow pushed it over: at 521px, the first pixel above the small
+ * -screen override, it broke after "without" and left one word alone on a second line.
+ *
+ * The cap is now the width the line actually has — the hero's own box, minus its padding —
+ * divided by the 12.3em this sentence measures at this weight and tracking, with the
+ * remainder as headroom for a system font whose metrics are not ours to assume. The type
+ * shrinks to the line rather than the line breaking to the type, which is the property the
+ * headline needs and a character count cannot express.
+ *
+ * Above ~560px this changes nothing: --landing-display is already the smaller of the two,
+ * and min() picks it.
+ */
 .heroTitle {
-  max-width: 22ch;
-  font-size: var(--landing-display);
+  max-width: none;
+  font-size: min(
+    var(--landing-display),
+    calc((min(var(--landing-max), 100vw) - 2 * var(--space-5)) / 13.4)
+  );
   letter-spacing: -0.045em;
 }
 
@@ -1651,7 +1679,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .heroTitle,
+  /* .heroTitle is not here: it sizes itself off the width of its own line, which is the
+     only way it stays on one. The manifesto is two sentences and is meant to wrap. */
   .manifesto {
     font-size: var(--font-size-2xl);
   }
