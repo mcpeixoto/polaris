@@ -249,8 +249,8 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
       {tile.display === 'chart' && <InsightChart data={data} />}
       {tile.display === 'table' && rows === 0 && (
         <p className={styles.empty}>
-          Nothing to list yet. Change the measure, or file work that this dashboard&rsquo;s scope
-          covers.
+          Nothing in this view to list yet. Change the measure, or file work that this
+          dashboard&rsquo;s scope covers.
         </p>
       )}
       {tile.display === 'table' && rows > 0 && data.chart === 'area' && (
