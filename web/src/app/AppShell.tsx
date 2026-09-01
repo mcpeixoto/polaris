@@ -1195,6 +1195,7 @@ function FavoritesSection({ userId }: { userId: UUID }) {
       {creating ? (
         <form className={styles.folderCreate} onSubmit={submitFolder}>
           <input
+            className={styles.folderInput}
             aria-label="Folder name"
             value={draft}
             placeholder="Folder name"
@@ -1263,6 +1264,7 @@ function FolderHeader({
         }}
       >
         <input
+          className={styles.folderInput}
           aria-label={`Folder ${folder.name}`}
           value={name}
           onChange={(event) => setName(event.target.value)}

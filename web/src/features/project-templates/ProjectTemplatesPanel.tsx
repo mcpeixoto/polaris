@@ -476,8 +476,12 @@ function ProjectTemplateEditor({
         </>
       )}
 
+      {/* One primary action, and it is the command the form's own submit runs. Two
+          neutral buttons side by side is an editor declining to say which one Enter is. */}
       <div className={styles.editorActions}>
-        <Button type="submit">Save</Button>
+        <Button type="submit" variant="primary">
+          Save template
+        </Button>
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>

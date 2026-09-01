@@ -1,5 +1,27 @@
-import { Input, Select, Textarea } from '~/components';
+/**
+ * The questions a form template asks, rendered as fields in the create dialog.
+ *
+ * A form template is a workspace's own intake shape — "what did you expect to happen", "which
+ * customer", "how urgent" — and this file turns those rows into controls and turns the answers
+ * back into an issue. Two of those jobs are deliberately separate: the components below only
+ * collect, and the three functions at the foot only fold. Nothing here writes.
+ *
+ * Some field types are *property bound*: a `title` field is the issue's title, a `priority`
+ * field is its priority. Those are not drawn at all — the dialog already has a control for
+ * each of them, and a second one underneath would be two inputs claiming the same value.
+ * `title` and `priority` are read back out by the two functions at the foot; `due_date` and
+ * `label_group` are skipped and nothing yet reads them, which is a gap rather than a rule.
+ * Every other type becomes a labelled paragraph in the description.
+ *
+ * Every question keeps its visible label. These are a group of sibling fields with no other
+ * cue to what they are, and the labels are also the headings the answers are filed under in
+ * the description, so hiding one would leave a value in the issue whose question is nowhere.
+ */
+
+import { Checkbox, Input, Select, Textarea } from '~/components';
 import type { FormTemplateField, FormTemplateFieldType } from '~/store';
+
+import styles from './FormFillFields.module.css';
 
 export type FormAnswers = Readonly<Record<string, string>>;
 
@@ -11,7 +33,7 @@ export interface FormFillFieldsProps {
 
 export function FormFillFields({ fields, answers, onChange }: FormFillFieldsProps) {
   return (
-    <div>
+    <div className={styles.fields}>
       {fields.map((field) => (
         <FormFieldInput
           key={field.id}
@@ -39,7 +61,7 @@ function FormFieldInput({
         ? field.config.content
         : (field.description ?? field.label);
     return (
-      <p>
+      <p className={styles.instructions}>
         <strong>{field.label}</strong>
         {content === '' ? null : `: ${content}`}
       </p>
@@ -85,12 +107,17 @@ function FormFieldInput({
       const options = optionsOf(field);
       const selected = new Set(value === '' ? [] : value.split('\n'));
       return (
-        <fieldset>
-          <legend>{label}</legend>
-          {options.map((option) => (
-            <label key={option}>
-              <input
-                type="checkbox"
+        <fieldset className={styles.group}>
+          <legend className={styles.groupLabel}>{label}</legend>
+          <div className={styles.options}>
+            {options.map((option) => (
+              // The product's checkbox rather than a bare `<input type="checkbox">`: the
+              // platform default is a different size, a different tick and a different focus
+              // ring from every other checkbox in the app, in a dialog that has one directly
+              // above it.
+              <Checkbox
+                key={option}
+                label={option}
                 checked={selected.has(option)}
                 onChange={(e) => {
                   const next = new Set(selected);
@@ -99,9 +126,8 @@ function FormFieldInput({
                   onChange(field.id, [...next].join('\n'));
                 }}
               />
-              {option}
-            </label>
-          ))}
+            ))}
+          </div>
         </fieldset>
       );
     }

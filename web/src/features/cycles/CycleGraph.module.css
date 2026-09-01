@@ -25,22 +25,38 @@
   display: block;
 }
 
+/*
+ * Four series, four silhouettes.
+ *
+ * They used to be four colours and one dash: scope grey, started amber, completed accent,
+ * target accent-dashed — which meant scope and started were separated by hue alone, and so
+ * were completed and target once you stopped being able to see the dash at 7rem tall. Each
+ * line now has a stroke pattern of its own, and the legend below draws the same patterns,
+ * so a reader can map a line to its name without relying on colour at all.
+ *
+ * Started takes --state-started rather than --priority-medium. It is the same amber in both
+ * themes today, and that is exactly why the old value was easy to miss: "started" is a
+ * workflow state category, and binding it to the priority ramp meant a theme recolouring
+ * urgency would silently recolour this line.
+ */
 .scope {
   fill: none;
   stroke: var(--text-tertiary);
   stroke-width: 1.5;
+  stroke-dasharray: 1 3;
+  stroke-linecap: round;
 }
 
 .started {
   fill: none;
-  stroke: var(--priority-medium);
+  stroke: var(--state-started);
   stroke-width: 1.5;
 }
 
 .completed {
   fill: none;
   stroke: var(--accent-text);
-  stroke-width: 2;
+  stroke-width: 2.5;
 }
 
 .target {
@@ -70,6 +86,11 @@
   gap: var(--space-1);
 }
 
+/*
+ * A legend swatch is a 12px sample of the line it names, so it has to carry the line's dash
+ * as well as its colour. A repeating gradient is how a background draws a dash; the stops
+ * mirror the `stroke-dasharray` above rather than approximating it.
+ */
 .swatch {
   width: var(--space-3);
   height: 2px;
@@ -77,19 +98,20 @@
 }
 
 .scopeSwatch {
-  background: var(--text-tertiary);
+  background: repeating-linear-gradient(to right, var(--text-tertiary) 0 1px, transparent 1px 4px);
 }
 
 .targetSwatch {
-  background: var(--accent-text);
+  background: repeating-linear-gradient(to right, var(--accent-text) 0 4px, transparent 4px 7px);
   opacity: 0.55;
 }
 
 .startedSwatch {
-  background: var(--priority-medium);
+  background: var(--state-started);
 }
 
 .completedSwatch {
+  height: 3px;
   background: var(--accent-text);
 }
 

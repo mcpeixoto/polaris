@@ -514,9 +514,13 @@ function IssueResult({ row, terms, active, onFocus }: ResultProps<IssueRow>) {
       className={[styles.row, active ? styles.active : null].filter(Boolean).join(' ')}
       onClick={() => onFocus(row.key)}
     >
-      <PriorityIcon priority={row.priority} decorative />
-      <span className={styles.identifier}>{row.identifier}</span>
+      {/* The issue list's column order, and it is the same row: status, identifier, title,
+          labels, then the trailing pair. It used to lead with the priority and put the status
+          after the identifier, so the two densest lists in the product asked the eye to find
+          the same four facts in two different places — which is most of what makes a screen
+          feel like a different product from the one beside it. */}
       <StateIcon category={row.stateCategory} color={row.stateColor} label={row.stateName} />
+      <span className={styles.identifier}>{row.identifier}</span>
       <span className={styles.title}>
         <Highlighted text={row.title} terms={terms} />
       </span>
@@ -533,16 +537,19 @@ function IssueResult({ row, terms, active, onFocus }: ResultProps<IssueRow>) {
           ))}
         </span>
       )}
-      {row.assigneeName === null ? (
-        <span className={styles.unassigned} aria-label="Unassigned" role="img" />
-      ) : (
-        <Avatar
-          name={row.assigneeName}
-          src={row.assigneeAvatar}
-          size="xs"
-          colorKey={row.assigneeId ?? row.assigneeName}
-        />
-      )}
+      <span className={styles.meta}>
+        <PriorityIcon priority={row.priority} decorative />
+        {row.assigneeName === null ? (
+          <span className={styles.unassigned} aria-label="Unassigned" role="img" />
+        ) : (
+          <Avatar
+            name={row.assigneeName}
+            src={row.assigneeAvatar}
+            size="xs"
+            colorKey={row.assigneeId ?? row.assigneeName}
+          />
+        )}
+      </span>
     </Link>
   );
 }

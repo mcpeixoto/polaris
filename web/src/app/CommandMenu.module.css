@@ -97,7 +97,21 @@
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+/*
+ * Focus relocated, not removed.
+ *
+ * `outline: none` sat on the rule above with nothing drawn in its place, which is the one
+ * thing the composition rules say a focus style may never do. A ring around a box that fills
+ * the top of the panel is wrong here — the panel *is* the focus, it opened on a keystroke and
+ * holds it until it closes — so the affordance moves to the divider the input already draws:
+ * the line under the query goes accent while the query is live. Same information, on the edge
+ * the eye is already reading along.
+ */
+.input:focus-visible {
   outline: none;
+  border-bottom-color: var(--border-focus);
 }
 
 .input::placeholder {
@@ -130,16 +144,24 @@
   font-size: var(--font-size-md);
   color: var(--text-primary);
   cursor: pointer;
-  transition: background-color var(--duration-instant) var(--ease-out);
+  transition:
+    background-color var(--duration-instant) var(--ease-out),
+    box-shadow var(--duration-instant) var(--ease-out);
 }
 
 /*
  * Driven by data-active rather than :hover. The active row is chosen by the arrow keys as
  * often as by the mouse, and a :hover rule would fight the keyboard whenever the pointer
  * happens to be resting over the list.
+ *
+ * The rail is the same mark the inbox and the pulse draw on their cursor row, and it is here
+ * for the same reason it is there: a wash alone is one thing said in one channel, and Enter
+ * runs whatever this row is. It is also the mark that survives a theme, a bad screen and a
+ * user who cannot separate the wash from the panel behind it.
  */
 .item[data-active='true'] {
   background: var(--bg-selected);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .title {
@@ -149,15 +171,14 @@
   white-space: nowrap;
 }
 
-.keys {
-  flex: none;
-  font-family: var(--font-sans);
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-sm);
-  padding: 1px var(--space-1);
-}
+/*
+ * There is no rule for the shortcut hint here any more, and that is the fix rather than an
+ * omission: this file drew its own chip — its own surface, its own tertiary ink, its own
+ * padding — beside a `Kbd` component that exists to draw exactly that, and the two had already
+ * drifted. Kbd's ink is `--text-secondary` because tertiary on `--bg-tertiary` measures 3.38:1
+ * in dark and fails as text; the copy here was the version with that bug still in it, in the
+ * one surface every shortcut in the product is read from.
+ */
 
 .empty {
   display: flex;

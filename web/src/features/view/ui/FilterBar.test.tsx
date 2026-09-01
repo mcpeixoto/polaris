@@ -337,6 +337,31 @@ describe('FilterBar', () => {
     expect(isValidFilter(emitted(onChange))).toBe(true);
   });
 
+  /**
+   * The picker used to be a column of plain names.
+   *
+   * Every one of these values is drawn with a glyph everywhere else in the product — a
+   * StateIcon for a status, an Avatar for a person, a dot for a label — so choosing one here
+   * meant reading a list that looked nothing like the list it filters. The assertion is on
+   * the mark being inside the option's own label, because a glyph rendered anywhere else in
+   * the popover is not the one that says which row it belongs to.
+   */
+  it('draws a value with the glyph the rest of the product uses for it', async () => {
+    const { user } = renderBar({
+      filter: { conj: 'and', nodes: [{ field: 'state', op: 'in', values: [] }] },
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Status needs a value' }));
+
+    // Reached through the name rather than through the checkbox, because Checkbox paints its
+    // own tick as an svg and "there is an svg in here somewhere" would have passed before the
+    // glyph existed. The mark is the element immediately before the name, which is the one
+    // place it can be and still read as belonging to this row. Decorative, and so not
+    // reachable by role: the text already names the status.
+    const name = screen.getByText('In Progress');
+    expect(name.previousElementSibling?.tagName.toLowerCase()).toBe('svg');
+  });
+
   it('renders a nested group with its own conjunction, without offering to edit it', () => {
     renderBar({
       filter: {

@@ -1,3 +1,15 @@
+/**
+ * The menu that applies project labels.
+ *
+ * Same contract as every other property picker: controlled, does not own its trigger, does
+ * not perform the write. It shares `labels/LabelPicker.module.css` rather than restating the
+ * swatch and the group heading, because a project label and an issue label are the same
+ * drawing over a different table, and two stylesheets would be two chances to drift.
+ *
+ * Groups come from the label groups the workspace defined, and an exclusive group carries
+ * the labels a choice would displace, so the menu can say what applying this one costs.
+ */
+
 import type { CSSProperties, RefObject } from 'react';
 
 import { Menu, type MenuNode, type MenuPlacement } from '~/components';

@@ -1,5 +1,10 @@
 /**
  * Project progress graph — scope, started and completed at weekly granularity.
+ *
+ * Every series on the canvas has a line in the legend, and every legend swatch draws the
+ * stroke pattern its series is actually drawn with. The prediction was the one series with
+ * no legend entry at all: a dashed accent line running off past the last week of data, the
+ * single most consequential mark on the chart, and nothing on screen said what it was.
  */
 
 import { useMemo } from 'react';
@@ -99,6 +104,12 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
           <span className={`${styles.swatch} ${styles.completedSwatch}`} aria-hidden="true" />
           Completed
         </span>
+        {data.prediction !== undefined && (
+          <span className={styles.legendItem}>
+            <span className={`${styles.swatch} ${styles.predictionSwatch}`} aria-hidden="true" />
+            Predicted
+          </span>
+        )}
         {data.targetDate !== undefined && (
           <span className={styles.legendItem}>
             <span className={`${styles.swatch} ${styles.targetSwatch}`} aria-hidden="true" />
@@ -107,7 +118,7 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
         )}
       </div>
       {data.assignees.length > 0 && (
-        <ul className={styles.assignees}>
+        <ul className={styles.assignees} aria-label="Distribution">
           {data.assignees.map((row) => (
             <li key={row.assigneeId ?? 'none'} className={styles.assigneeRow}>
               <span className={styles.assigneeName}>{row.name}</span>

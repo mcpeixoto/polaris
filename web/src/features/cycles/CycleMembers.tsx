@@ -1,3 +1,13 @@
+/**
+ * Who is carrying the cycle, and a one-click filter down to any one of them.
+ *
+ * Each row is a toggle rather than a link: pressing it narrows the issue list beside it to
+ * that assignee, pressing it again widens it back. That state is announced through
+ * `aria-pressed` — it used to be carried by a background tint alone, which is a selection
+ * marked by colour and by nothing else, and a keyboard user tabbing the panel had no way
+ * to tell which filter was already on.
+ */
+
 import { useNavigate, useSearchParams } from 'react-router';
 
 import { Avatar } from '~/components';
@@ -42,6 +52,7 @@ export function CycleMembers({
               <button
                 type="button"
                 className={[styles.row, active ? styles.active : null].filter(Boolean).join(' ')}
+                aria-pressed={active}
                 onClick={() => {
                   const next = new URLSearchParams(params);
                   if (active) next.delete(FILTER_PARAM);

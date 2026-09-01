@@ -77,10 +77,24 @@
   animation-delay: calc(var(--oauth-beat) * 3);
 }
 
+/*
+ * `overflow-wrap: anywhere`, because one of these is a redirect URI somebody else chose.
+ *
+ * The card is 420px and a redirect URI is a single unbroken token that can easily be three
+ * times that — `https://app.example.com/integrations/polaris/oauth/callback` and longer. With
+ * the default `normal` there is no break opportunity in it at all, so it does not wrap: it
+ * runs out of the card and takes the page's horizontal scroll with it, on the one screen
+ * where the reader is supposed to be checking exactly where they are about to be sent.
+ *
+ * `anywhere` rather than `break-word` so the long token is also allowed to shrink the line
+ * box it is measured in; `break-word` breaks the word but still asks the container to be as
+ * wide as the longest unbreakable run when it computes intrinsic size.
+ */
 .scopes code,
 .hint code {
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
 }
 
 .hint {

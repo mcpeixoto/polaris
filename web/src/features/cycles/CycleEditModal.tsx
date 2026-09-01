@@ -92,7 +92,11 @@ export function CycleEditModal({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
+          {/* Primary, because it is the one thing this dialog is for and the command
+              Enter runs. Two neutral buttons beside each other is a dialog declining to
+              say what happens when you press return. */}
           <Button
+            variant="primary"
             onClick={() => nameRef.current?.form?.requestSubmit()}
             disabled={name.trim() === ''}
           >

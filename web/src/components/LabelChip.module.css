@@ -102,12 +102,29 @@
   white-space: nowrap;
 }
 
-/* Present but quieter: the group qualifies the label, it is not the label. */
+/*
+ * Present but quieter: the group qualifies the label, it is not the label.
+ *
+ * Quieter by weight rather than by colour, and that is the whole point. The obvious version
+ * was --text-tertiary, and it is the one colour on this chip that cannot be checked: every
+ * other value here is derived from --label-color, but the *ground* is too — a 14% wash of a
+ * hex somebody picked in a colour well, over --bg-tertiary. Tertiary ink starts at 3.38:1
+ * against the unwashed surface in dark, and which side of the floor it lands on after the
+ * mix is a property of workspace data. That is exactly the arithmetic the header comment
+ * says this component exists to avoid: contrast is the theme's problem, solved once, and
+ * the only ink allowed here is ink the theme already guaranteed.
+ *
+ * So the group name keeps the chip's own --text-secondary and steps back a weight instead.
+ * Weight is invariant under the wash. It also matters that this is the half of "Priority: P0"
+ * that makes the other half mean anything — the header comment argues that at length — and a
+ * qualifier below the contrast floor qualifies nothing.
+ */
 .group {
-  color: var(--text-tertiary);
+  font-weight: var(--font-weight-normal);
 }
 
 .remove {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -130,6 +147,28 @@
 .remove svg {
   width: var(--space-3);
   height: var(--space-3);
+}
+
+/*
+ * The hit target, which is twice the size of the thing you can see.
+ *
+ * The glyph is twelve pixels because a 22px chip has no room for more, and twelve pixels is
+ * not a target — this component's own type definition refuses the dismiss control at the
+ * compact size on exactly that argument, then offers it at 12px on the full-size chip, which
+ * is the same objection one step quieter. The mark can stay small; what has to grow is the
+ * area that answers a press.
+ *
+ * An `::after` overlay rather than padding or a bigger box: both of those would change the
+ * chip's layout, and the chip's height is load-bearing — --control-height-sm is what lets it
+ * ride an issue row. An absolutely positioned pseudo-element has no layout at all, so this
+ * costs nothing and moves nothing. It bleeds over the trailing padding and a few pixels of
+ * the label text, which is inert, and stops well short of the dot.
+ */
+.remove::after {
+  content: '';
+  position: absolute;
+  /* -6px on each axis, taking the 12px glyph to a 24px target. */
+  inset: calc(var(--space-1) * -1.5);
 }
 
 .remove:hover {

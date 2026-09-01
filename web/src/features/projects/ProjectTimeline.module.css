@@ -1,4 +1,28 @@
+/*
+ * The Gantt view: a label column, a scrolling date canvas, and the dependency arcs over it.
+ *
+ * A timeline has geometry no token scale can supply. A bar is centred in its row, a
+ * milestone tick is a hairline that has to stay visible at any zoom, and the two panes'
+ * row heights must be *identical* or the name beside a bar becomes somebody else's
+ * project. Those numbers are stated here, in one place, with the reason attached — which
+ * is different from the heights and paddings below them, where a scale already exists and
+ * a hand-measured pixel was just nobody having looked.
+ */
+
+/*
+ * Bespoke, and load-bearing: `--timeline-row` is the one number the label column and the
+ * date canvas must agree on. Nothing lines the two panes up but this, and
+ * computeProjectTimeline.ts lays the bars out against the same figure (`ROW_HEIGHT`), so
+ * it is declared once here and inherited by both `.sidebarRow` and `.row` rather than
+ * written twice and left to drift.
+ *
+ * It is taller than --row-height (the 32px issue row) on purpose: a Gantt row carries a
+ * bar with milestone ticks inside it, and 32px leaves the ticks touching the row edge.
+ */
 .timeline {
+  --timeline-row: 36px;
+  --timeline-bar: 16px;
+
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -12,6 +36,9 @@
   overflow: hidden;
 }
 
+/* Bespoke: the label column's width is a reading measure, not a control size. 240px holds
+   a project name, a status and a colour mark without wrapping at the sizes this view uses,
+   and nothing in the spacing scale is a sentence long. */
 .sidebar {
   flex: none;
   width: 240px;
@@ -22,7 +49,7 @@
 }
 
 .sidebarHeader {
-  height: 28px;
+  height: var(--control-height-md);
   padding-inline: var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-tertiary);
@@ -30,14 +57,14 @@
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  line-height: 28px;
+  line-height: var(--control-height-md);
 }
 
 .sidebarRow {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: 36px;
+  height: var(--timeline-row);
   padding-inline: var(--space-4);
   color: inherit;
   text-decoration: none;
@@ -50,9 +77,10 @@
   background: var(--bg-hover);
 }
 
+/* Inset, because a full-bleed row's ring would be clipped by the pane's own overflow. */
 .sidebarRow:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: -2px;
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
 .mark {
@@ -71,6 +99,8 @@
   white-space: nowrap;
 }
 
+/* Ellipsis is allowed here: a project status name is workspace data, not a product string
+   this file controls, so there is no fixed set of words that could be sized to. */
 .sidebarStatus {
   overflow: hidden;
   flex: none;
@@ -96,9 +126,9 @@
 .months {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: var(--z-sticky);
   display: flex;
-  height: 28px;
+  height: var(--control-height-md);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-primary);
 }
@@ -106,18 +136,18 @@
 .month {
   position: absolute;
   top: 0;
-  height: 28px;
+  height: var(--control-height-md);
   padding-inline: var(--space-2);
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  line-height: 28px;
+  line-height: var(--control-height-md);
   white-space: nowrap;
 }
 
 .row {
   position: relative;
-  height: 36px;
+  height: var(--timeline-row);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -125,10 +155,12 @@
   background: color-mix(in srgb, var(--bg-secondary) 40%, transparent);
 }
 
+/* Bespoke: centred in its row, which is arithmetic on the two figures above rather than a
+   third number to keep in step with them. */
 .bar {
   position: absolute;
-  top: 10px;
-  height: 16px;
+  top: calc((var(--timeline-row) - var(--timeline-bar)) / 2);
+  height: var(--timeline-bar);
   border-radius: var(--radius-sm);
   opacity: 0.85;
 }
@@ -141,10 +173,13 @@
 }
 
 .barLink:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
+/* Bespoke: a 2px tick that overhangs the bar top and bottom by 2px, so it stays visible
+   against a bar in any status colour. Both numbers are hairline geometry — the spacing
+   scale starts at 2px and would make this a 2px tick 8px tall, which is a different mark. */
 .milestone {
   position: absolute;
   top: 2px;
@@ -162,16 +197,29 @@
   pointer-events: none;
 }
 
+/*
+ * A dependency arc, and whether the dates honour it.
+ *
+ * The two used to differ by hue alone — accent for satisfied, red for violated — which put
+ * the whole point of the drawing in the one channel a colour-blind reader does not have,
+ * on a screen whose entire subject is which arcs are wrong. A violated arc is dashed and
+ * drawn heavier now, so it reads as broken in greyscale, and each path carries a <title>
+ * naming the two projects and the verdict in words.
+ */
 .depSatisfied {
   fill: none;
   stroke: var(--accent-text);
   stroke-width: 1.5;
 }
 
+/* --relation-blocking rather than --priority-urgent: a violated dependency is a relation
+   flag, and the relation tokens exist so a theme recolouring urgency cannot recolour the
+   reason a project is stuck. Same red today; different meaning. */
 .depViolated {
   fill: none;
-  stroke: var(--priority-urgent);
-  stroke-width: 1.5;
+  stroke: var(--relation-blocking);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
 }
 
 .unscheduled {
@@ -188,18 +236,9 @@
   letter-spacing: 0.04em;
 }
 
-.empty {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  text-align: center;
-}
-
 .muted {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
 }

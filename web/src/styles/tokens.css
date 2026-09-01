@@ -273,6 +273,25 @@
   --border-subtle: var(--color-neutral-200);
   --border-default: var(--color-neutral-300);
   --border-strong: var(--color-neutral-400);
+  /*
+   * The border that *is* the control.
+   *
+   * Every other border in this list separates two things that are both already visible, and
+   * is decorative under WCAG 1.4.11 — which is why --border-subtle and --border-default are
+   * allowed to sit under 3:1 and look like hairlines. An unchecked checkbox is the case where
+   * that reading breaks: nothing else on screen says a control is there, so its edge is the
+   * control's only visual affordance and owes the full 3:1 non-text contrast.
+   *
+   * --border-strong does not clear it — 2.60:1 light, 2.74:1 dark against the page — so this
+   * is a separate role rather than a change to that one. Widening --border-strong would drag
+   * every decorative separator in the product up with it, which is a heavier visual change
+   * than the accessibility fix needs, and the two are genuinely different jobs.
+   *
+   * Neutral 500 in both themes, and the symmetry is a coincidence worth stating: it clears
+   * against white (4.26:1) and against the near-black page (4.44:1) alike, and still clears
+   * on the raised surfaces a checkbox actually appears on (3.93:1 on --bg-elevated in dark).
+   */
+  --border-control: var(--color-neutral-500);
   --border-focus: var(--color-accent-500);
 
   /* --accent is the fill; --accent-text is the accent used as text on a normal surface,
@@ -354,6 +373,7 @@
   --border-subtle: var(--color-neutral-800);
   --border-default: var(--color-neutral-700);
   --border-strong: var(--color-neutral-600);
+  --border-control: var(--color-neutral-500);
   --border-focus: var(--color-accent-400);
 
   /* The accent wash is translucent here rather than a ramp stop, because in dark it has
@@ -424,6 +444,7 @@
     --border-subtle: var(--color-neutral-800);
     --border-default: var(--color-neutral-700);
     --border-strong: var(--color-neutral-600);
+    --border-control: var(--color-neutral-500);
     --border-focus: var(--color-accent-400);
 
     --accent: var(--color-accent-500);

@@ -68,6 +68,14 @@
   background: var(--bg-secondary);
 }
 
+/* NavLink sets aria-current on the active tab, so selection is announced; this is the
+   keyboard's own mark. :focus-visible rather than :focus, so clicking a tab does not draw
+   a ring around the thing the pointer just landed on. */
+.tab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .body {
   display: flex;
   flex: 1;

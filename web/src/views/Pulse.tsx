@@ -146,21 +146,31 @@ export function Pulse() {
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.title}>Pulse</h1>
-        <div className={styles.tabs} role="tablist" aria-label="Pulse tabs">
-          <TabButton current={tab} id="for-me" onSelect={selectTab}>
-            For me
-          </TabButton>
-          <TabButton current={tab} id="popular" onSelect={selectTab}>
-            Popular
-          </TabButton>
-          <TabButton current={tab} id="recent" onSelect={selectTab}>
-            Recent
-          </TabButton>
-          {feeds.map((feed) => (
-            <TabButton key={feed.id} current={tab} id={`feed:${feed.id}`} onSelect={selectTab}>
-              {feed.name}
+        {/*
+          The add button is a sibling of the tablist, not a member of it.
+
+          It sat inside, so a screen reader counted it as a tab — "tab, five of five" for a
+          control that selects nothing and opens a dialog instead — and arrow-key support
+          would have had to walk through it. It is also the one control here that should not
+          scroll away with the tabs when a workspace has more feeds than the header can hold.
+        */}
+        <div className={styles.tabs}>
+          <div className={styles.tabList} role="tablist" aria-label="Pulse tabs">
+            <TabButton current={tab} id="for-me" onSelect={selectTab}>
+              For me
             </TabButton>
-          ))}
+            <TabButton current={tab} id="popular" onSelect={selectTab}>
+              Popular
+            </TabButton>
+            <TabButton current={tab} id="recent" onSelect={selectTab}>
+              Recent
+            </TabButton>
+            {feeds.map((feed) => (
+              <TabButton key={feed.id} current={tab} id={`feed:${feed.id}`} onSelect={selectTab}>
+                {feed.name}
+              </TabButton>
+            ))}
+          </div>
           <button
             type="button"
             className={styles.tabAdd}
@@ -325,13 +335,19 @@ function PulseFeedEditor({
       size="md"
       initialFocus={nameRef}
       footer={
+        // Three buttons of one weight is three claims about what Enter does. The footer rule
+        // is one primary, at most one secondary, and cancel demoted to ghost — so the only
+        // bordered control left beside the primary is the destructive one, which is also the
+        // one that most needs to look unlike the button next to it.
         <>
           {feed !== null && (
-            <Button onClick={() => void remove()} disabled={saving}>
+            <Button variant="danger" onClick={() => void remove()} disabled={saving}>
               Delete
             </Button>
           )}
-          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
           <Button form={formId} type="submit" variant="primary" loading={saving}>
             {feed === null ? 'Create feed' : 'Save feed'}
           </Button>

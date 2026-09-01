@@ -23,14 +23,33 @@
 
 .tabs {
   display: flex;
+  align-items: center;
   gap: var(--space-1);
   margin-inline-start: var(--space-2);
   min-width: 0;
+}
+
+/*
+ * Only the tabs scroll. `+ New feed` is outside this box, so a workspace with eight personal
+ * feeds pushes the feeds sideways and not the control that makes another one.
+ *
+ * The block padding is what keeps the focus ring: a scroll container clips in both axes, and
+ * an outline drawn one pixel outside a tab that fills its parent's height is drawn outside the
+ * parent. The header is 44px and a padded row of 28px tabs still fits inside it.
+ */
+.tabList {
+  display: flex;
+  gap: var(--space-1);
+  min-width: 0;
+  padding-block: var(--space-1);
   overflow-x: auto;
 }
 
 .tab {
-  height: var(--space-6);
+  /* The toolbar rung, which is what a tab in a 44px header is. It was --space-6: a spacing
+     step standing in for a control height, which is the same drift as a literal 24px and
+     harder to spot. */
+  height: var(--control-height-md);
   padding-inline: var(--space-3);
   border: 0;
   border-radius: var(--radius-md);
@@ -50,8 +69,17 @@
   color: var(--text-primary);
 }
 
-.tabActive {
-  background-color: var(--bg-hover);
+/*
+ * The selected tab, and it has to outweigh a hovered one.
+ *
+ * Both wore --bg-hover, so the tab under the pointer and the tab whose contents are on screen
+ * were the same rectangle, and moving the mouse across the row made the selection appear to
+ * move with it. Selected is the stronger wash — the same pair the sidebar uses for the same
+ * distinction — and written at two classes so the cascade is not settling it by file order.
+ */
+.tab.tabActive,
+.tab.tabActive:hover {
+  background-color: var(--bg-selected);
   color: var(--text-primary);
   font-weight: var(--font-weight-medium);
 }
@@ -62,7 +90,9 @@
 }
 
 .tabAdd {
-  height: var(--space-6);
+  flex: none;
+  /* The same rung as the tabs it sits beside. */
+  height: var(--control-height-md);
   padding-inline: var(--space-3);
   border: 0;
   border-radius: var(--radius-md);

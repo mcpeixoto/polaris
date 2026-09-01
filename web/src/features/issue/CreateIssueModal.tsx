@@ -17,6 +17,14 @@
  *
  * Project, cycle and template stay Menu pickers: ranking and typeahead are the whole point of
  * those lists, and a native select cannot do either.
+ *
+ * That split is about *behaviour*, and for a while it was allowed to decide appearance too:
+ * the selects were bordered, the pickers were borderless ghost buttons, and half the property
+ * row looked like controls while the other half looked like static text. It is one group and
+ * it now has one affordance — every trigger is bordered, every value carries its own glyph the
+ * way the detail rail's triggers do, and every field says its own name above itself instead of
+ * leaving a line reading "No assignee · No priority · No project · No form" to be decoded by
+ * opening each control in turn.
  */
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -25,12 +33,15 @@ import { useLocation } from 'react-router';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
 import {
+  Avatar,
   Button,
   Input,
   Modal,
   priorityLabel,
+  PriorityIcon,
   PRIORITY_LEVELS,
   Select,
+  StateIcon,
   STATE_LABELS,
   Textarea,
 } from '~/components';
@@ -78,6 +89,8 @@ export interface CreateIssueModalProps {
 interface StateOption {
   readonly id: UUID;
   readonly name: string;
+  /** The workspace's own colour for the state, so the trigger's glyph is the rail's glyph. */
+  readonly color: string;
   readonly category: StateCategory;
   readonly position: string;
   readonly isDefault: boolean;
@@ -132,7 +145,12 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     (store) =>
       [...store.users.values()]
         .filter((user) => user.status === 'active' && user.archivedAt === undefined)
-        .map((user) => ({ id: user.id, name: user.displayName }))
+        .map((user) => ({
+          id: user.id,
+          name: user.displayName,
+          // Carried for the trigger's avatar, which is the same glyph the detail rail draws.
+          avatarUrl: user.avatarUrl ?? null,
+        }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     ['user'],
   );
@@ -359,6 +377,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
             .map((state) => ({
               id: state.id,
               name: state.name,
+              color: state.color,
               category: state.category,
               position: state.position,
               isDefault: state.isDefault,
@@ -386,6 +405,17 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     }
     return (states.find((state) => state.isDefault) ?? states[0])?.id ?? '';
   }, [chosenState, states, fromTriage]);
+
+  /**
+   * The two chosen rows the property triggers draw a glyph from.
+   *
+   * A select cannot render anything inside itself, so the icon rides `Select`'s `prefix` slot
+   * and this is where the value it depicts is resolved. Both may be absent — a replica still
+   * hydrating has no states, and nobody is a real answer for an assignee — and the trigger
+   * then shows no glyph rather than a placeholder one.
+   */
+  const selectedState = states.find((state) => state.id === stateId);
+  const selectedPerson = people.find((person) => person.id === assigneeId);
 
   const seededTemplate = useRef(false);
   useEffect(() => {
@@ -727,8 +757,17 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
         size="lg"
         initialFocus={titleRef}
         footer={
+          /*
+            One primary, one secondary, and cancel demoted to ghost. "Cancel" and "Create more"
+            used to be two identical neutral buttons beside the primary, which is three
+            competing claims about what ⌘⏎ does — and ⌘⏎ files the issue, so "Create issue" is
+            the only one that should look like the answer. "Create more" is a real second
+            command (⌘⇧⏎) and keeps a border; leaving is not a command at all.
+          */
           <>
-            <Button onClick={requestClose}>Cancel</Button>
+            <Button variant="ghost" onClick={requestClose}>
+              Cancel
+            </Button>
             <Button onClick={() => void save({ another: true })} loading={saving}>
               Create more
             </Button>
@@ -743,6 +782,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
             ref={titleRef}
             label="Title"
             hideLabel
+            className={styles.title}
             surface="plain"
             value={title}
             error={titleError ?? undefined}
@@ -774,82 +814,133 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
             </p>
           )}
 
+          {/*
+            The properties, in a grid of equal columns rather than a wrapping row of 14ch
+            chips, and every one of them labelled. Both are the same decision: eight siblings
+            that name themselves and cannot be sized under their own content. The labels are
+            written here rather than left to `Field` because four of these controls are menu
+            triggers, which have no `Field` around them — one row must not wear two label
+            treatments. See the stylesheet.
+          */}
           <div className={styles.properties}>
-            <Select
-              label="Team"
-              hideLabel
-              value={teamId}
-              onChange={(event) => {
-                setChosenTeam(event.target.value);
-                setChosenState(null);
-                setCycleId(null);
-                // The offering is team-scoped, so a template chosen for one team is not a
-                // template in another. Back to `auto` rather than `cleared`: the new team's
-                // default is a different template, and silently keeping "no template" across
-                // that change would skip a default the filer never saw.
-                setTemplateIntent('auto');
-                setTemplate(null);
-              }}
-            >
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.key} · {team.name}
-                </option>
-              ))}
-            </Select>
+            <div className={styles.property}>
+              <label className={styles.propertyLabel} htmlFor={`${formId}-team`}>
+                Team
+              </label>
+              <Select
+                id={`${formId}-team`}
+                value={teamId}
+                onChange={(event) => {
+                  setChosenTeam(event.target.value);
+                  setChosenState(null);
+                  setCycleId(null);
+                  // The offering is team-scoped, so a template chosen for one team is not a
+                  // template in another. Back to `auto` rather than `cleared`: the new team's
+                  // default is a different template, and silently keeping "no template" across
+                  // that change would skip a default the filer never saw.
+                  setTemplateIntent('auto');
+                  setTemplate(null);
+                }}
+              >
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.key} · {team.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
 
-            <Select
-              label="Status"
-              hideLabel
-              value={stateId}
-              onChange={(event) => setChosenState(event.target.value)}
-            >
-              {groupByCategory(states).map(([category, group]) => (
-                <optgroup key={category} label={STATE_LABELS[category]}>
-                  {group.map((state) => (
-                    <option key={state.id} value={state.id}>
-                      {state.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </Select>
+            <div className={styles.property}>
+              <label className={styles.propertyLabel} htmlFor={`${formId}-status`}>
+                Status
+              </label>
+              <Select
+                id={`${formId}-status`}
+                value={stateId}
+                prefix={
+                  selectedState === undefined ? undefined : (
+                    <StateIcon
+                      category={selectedState.category}
+                      color={selectedState.color}
+                      decorative
+                    />
+                  )
+                }
+                onChange={(event) => setChosenState(event.target.value)}
+              >
+                {groupByCategory(states).map(([category, group]) => (
+                  <optgroup key={category} label={STATE_LABELS[category]}>
+                    {group.map((state) => (
+                      <option key={state.id} value={state.id}>
+                        {state.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </Select>
+            </div>
 
-            <Select
-              label="Assignee"
-              hideLabel
-              value={assigneeId}
-              onChange={(event) => setAssigneeId(event.target.value)}
-            >
-              <option value={UNASSIGNED}>No assignee</option>
-              {people.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.name}
-                </option>
-              ))}
-            </Select>
+            <div className={styles.property}>
+              <label className={styles.propertyLabel} htmlFor={`${formId}-assignee`}>
+                Assignee
+              </label>
+              <Select
+                id={`${formId}-assignee`}
+                value={assigneeId}
+                prefix={
+                  selectedPerson === undefined ? undefined : (
+                    <Avatar
+                      name={selectedPerson.name}
+                      src={selectedPerson.avatarUrl}
+                      size="xs"
+                      colorKey={selectedPerson.id}
+                      decorative
+                    />
+                  )
+                }
+                onChange={(event) => setAssigneeId(event.target.value)}
+              >
+                <option value={UNASSIGNED}>No assignee</option>
+                {people.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
 
-            <Select
-              label="Priority"
-              hideLabel
-              value={String(priority)}
-              onChange={(event) => setPriority(Number(event.target.value))}
-            >
-              {PRIORITY_LEVELS.map((level) => (
-                <option key={level} value={level}>
-                  {priorityLabel(level)}
-                </option>
-              ))}
-            </Select>
+            <div className={styles.property}>
+              <label className={styles.propertyLabel} htmlFor={`${formId}-priority`}>
+                Priority
+              </label>
+              <Select
+                id={`${formId}-priority`}
+                value={String(priority)}
+                prefix={<PriorityIcon priority={priority} decorative />}
+                onChange={(event) => setPriority(Number(event.target.value))}
+              >
+                {PRIORITY_LEVELS.map((level) => (
+                  <option key={level} value={level}>
+                    {priorityLabel(level)}
+                  </option>
+                ))}
+              </Select>
+            </div>
 
-            <div className={styles.template}>
-              <span className={styles.templateLabel} id={`${formId}-project`}>
+            {/*
+              The four menu triggers. A `<span>` and `aria-describedby` rather than a
+              `<label>`, because a button's accessible name is its own text — the value —
+              and a label pointing at one is not an association the platform makes. This is
+              the arrangement the detail rail uses for the same four properties.
+            */}
+            <div className={styles.property}>
+              <span className={styles.propertyLabel} id={`${formId}-project`}>
                 Project
               </span>
               <Button
                 {...projectMenu.props}
-                variant="ghost"
                 fullWidth
+                className={styles.propertyTrigger}
                 aria-describedby={`${formId}-project`}
               >
                 {projectName ?? 'No project'}
@@ -857,14 +948,14 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
             </div>
 
             {teamRunsCycles ? (
-              <div className={styles.template}>
-                <span className={styles.templateLabel} id={`${formId}-cycle`}>
+              <div className={styles.property}>
+                <span className={styles.propertyLabel} id={`${formId}-cycle`}>
                   Cycle
                 </span>
                 <Button
                   {...cycleMenu.props}
-                  variant="ghost"
                   fullWidth
+                  className={styles.propertyTrigger}
                   aria-describedby={`${formId}-cycle`}
                 >
                   {cycleName ?? 'No cycle'}
@@ -872,14 +963,14 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
               </div>
             ) : null}
 
-            <div className={styles.template}>
-              <span className={styles.templateLabel} id={`${formId}-template`}>
+            <div className={styles.property}>
+              <span className={styles.propertyLabel} id={`${formId}-template`}>
                 Template
               </span>
               <Button
                 {...templateMenu.props}
-                variant="ghost"
                 fullWidth
+                className={styles.propertyTrigger}
                 aria-describedby={`${formId}-template`}
                 disabled={teamId === ''}
               >
@@ -887,14 +978,14 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
               </Button>
             </div>
 
-            <div className={styles.template}>
-              <span className={styles.templateLabel} id={`${formId}-form-template`}>
+            <div className={styles.property}>
+              <span className={styles.propertyLabel} id={`${formId}-form-template`}>
                 Form
               </span>
               <Button
                 {...formTemplateMenu.props}
-                variant="ghost"
                 fullWidth
+                className={styles.propertyTrigger}
                 aria-describedby={`${formId}-form-template`}
                 disabled={teamId === ''}
               >
@@ -902,36 +993,44 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
               </Button>
             </div>
 
-            <Select
-              label="Repeat"
-              hideLabel
-              value={cadence ?? ''}
-              onChange={(event) => {
-                const next = event.target.value;
-                if (next === '') {
-                  setCadence(null);
-                  return;
-                }
-                setCadence(next as RecurringCadence);
-                if (firstDueDate === '') setFirstDueDate(today(teamTimezone));
-              }}
-            >
-              <option value="">Does not repeat</option>
-              {CADENCES.map((option) => (
-                <option key={option} value={option}>
-                  {CADENCE_LABELS[option]}
-                </option>
-              ))}
-            </Select>
+            <div className={styles.property}>
+              <label className={styles.propertyLabel} htmlFor={`${formId}-repeat`}>
+                Repeat
+              </label>
+              <Select
+                id={`${formId}-repeat`}
+                value={cadence ?? ''}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  if (next === '') {
+                    setCadence(null);
+                    return;
+                  }
+                  setCadence(next as RecurringCadence);
+                  if (firstDueDate === '') setFirstDueDate(today(teamTimezone));
+                }}
+              >
+                <option value="">Does not repeat</option>
+                {CADENCES.map((option) => (
+                  <option key={option} value={option}>
+                    {CADENCE_LABELS[option]}
+                  </option>
+                ))}
+              </Select>
+            </div>
 
             {cadence === null ? null : (
-              <Input
-                label="First due"
-                hideLabel
-                type="date"
-                value={firstDueDate === '' ? today(teamTimezone) : firstDueDate}
-                onChange={(event) => setFirstDueDate(event.target.value)}
-              />
+              <div className={styles.property}>
+                <label className={styles.propertyLabel} htmlFor={`${formId}-first-due`}>
+                  First due
+                </label>
+                <Input
+                  id={`${formId}-first-due`}
+                  type="date"
+                  value={firstDueDate === '' ? today(teamTimezone) : firstDueDate}
+                  onChange={(event) => setFirstDueDate(event.target.value)}
+                />
+              </div>
             )}
           </div>
 
@@ -1017,7 +1116,11 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
               <Button variant="danger" onClick={() => void discardAndLeave()}>
                 Discard
               </Button>
-              <Button onClick={() => setLeaving(false)}>Keep editing</Button>
+              {/* The way out of the question, so it is the ghost. Discard is destructive and
+                  says so; saving is what the dialog is asking for. */}
+              <Button variant="ghost" onClick={() => setLeaving(false)}>
+                Keep editing
+              </Button>
               <Button
                 variant="primary"
                 loading={draftBusy}

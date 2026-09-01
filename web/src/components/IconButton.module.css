@@ -52,8 +52,23 @@
   border-color: var(--border-default);
 }
 
-/* See Button.module.css for why destructive red is read off the ramp. Here it is the glyph
- * rather than a fill, so it is the theme-aware pair: the icon is judged against the page. */
+/*
+ * See Button.module.css for why destructive red is read off the ramp rather than off a
+ * semantic token: there is no --danger role, and binding this to --priority-urgent would let
+ * a theme that recolours priority recolour destruction with it.
+ *
+ * The comment that used to sit here called 500 "the theme-aware pair", which it is not —
+ * --color-red-500 is a single ramp stop and resolves to the same value in both themes. The
+ * real argument is the one Button makes in the other direction, and it is why the two files
+ * legitimately pick different stops off the same ramp. Button's red is a fill read against
+ * its own white foreground, so it needs the stop that clears 4.5:1 with white: 600.
+ *
+ * This one is a glyph read against the page, so it needs 3:1 from a single value against
+ * *both* page colours, and it is the balance that picks 500 rather than a threshold. 500
+ * measures 3.91:1 light and 4.87:1 dark; 600 measures 5.12:1 light and 3.72:1 dark. Both
+ * clear the bar — 500 is chosen because the thin side of its margin is the thicker of the
+ * two, and because the dark page is where this product is mostly used.
+ */
 .danger {
   color: var(--color-red-500);
 }
@@ -76,12 +91,24 @@
   background-color: var(--bg-selected);
 }
 
-.button:disabled {
+/*
+ * `aria-disabled` alongside `:disabled`, matching Button.
+ *
+ * Button styles both because a loading button is marked busy rather than disabled — it has
+ * to stay focusable, which `disabled` would prevent. IconButton has no `loading` of its own,
+ * so nothing here sets `aria-disabled`; but the prop spreads through `...rest`, and a caller
+ * that marks one busy for exactly Button's reason currently gets a control that announces
+ * itself as unavailable while looking and behaving entirely live. Two primitives that answer
+ * the same attribute differently is a worse thing to leave lying around than an unused rule.
+ */
+.button:disabled,
+.button[aria-disabled='true'] {
   opacity: 0.5;
   cursor: default;
 }
 
-.button:disabled::after {
+.button:disabled::after,
+.button[aria-disabled='true']::after {
   background-color: transparent;
 }
 
@@ -103,9 +130,10 @@
  * the control to disturb.
  *
  * See Button.module.css for why the duration is overridden rather than the shorthand
- * replaced, and why `:disabled` is excluded.
+ * replaced, and why neither disabled form is allowed to dip: a control that presses down to
+ * a click it is going to swallow has promised something it will not do.
  */
-.button:active:not(:disabled) .icon {
+.button:active:not(:disabled):not([aria-disabled='true']) .icon {
   transform: scale(0.9);
   transition-duration: var(--duration-instant);
 }

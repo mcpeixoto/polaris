@@ -1,3 +1,11 @@
+/*
+ * The landing pad behind an open composer.
+ *
+ * There is almost nothing to style, and that is the point: this route's whole job is to open
+ * the create dialog with the query string already applied, so what is underneath it is a
+ * screen shell and a heading nobody sees.
+ */
+
 .screen {
   display: flex;
   flex-direction: column;
@@ -5,6 +13,14 @@
   min-height: 0;
 }
 
+/*
+ * The screen's heading, hidden from the page and not from the accessibility tree.
+ *
+ * The visible words here belong to the dialog on top, so a second copy of "New issue" behind
+ * it would be a heading for a screen the reader is not looking at — but a route with no
+ * heading at all leaves somebody navigating by headings with nothing saying where they
+ * landed. `clip-path` and not `display: none`, which would take it out of both trees.
+ */
 .screenTitle {
   position: absolute;
   width: 1px;

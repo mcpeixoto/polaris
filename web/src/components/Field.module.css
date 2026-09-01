@@ -37,6 +37,17 @@
  * It sets no `display` and no padding on purpose: a one-line box, a growing textarea and a
  * native select need different insides, and composition puts both class names on the
  * element, where two rules of equal weight would then be settled by stylesheet order.
+ *
+ * That last clause is not a caution, it is a rule, and it had already been broken twice by
+ * the time anyone checked. `composes` lands `.control` and the variant class on the same
+ * element at the same weight, and which one wins is decided by the order the *bundler*
+ * happened to emit them in — a fact about module graph traversal, not about design. Input's
+ * `plain` surface lost its border, its fill and its focus edge that way, in the shipped
+ * build, while Textarea's identical construction won by luck.
+ *
+ * So anything overriding a declaration made here must be written `.box.plain`, not `.plain`.
+ * Two classes beat one at every emission order there is. There is no import order, no
+ * `@layer` and no file rename that makes the single-class form safe.
  */
 .control {
   min-width: 0;

@@ -119,7 +119,10 @@
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  height: 28px;
+  /* The ladder owns this number — it is the issue list's group heading, and the two are the
+     same thing on two screens. It was a literal 28px, which is the same height today and
+     would silently stop being one the moment the ladder moved. */
+  height: var(--control-height-md);
   padding-inline: var(--space-4);
   background-color: var(--bg-primary);
   font-size: var(--font-size-sm);
@@ -168,12 +171,16 @@
   outline-offset: calc(var(--focus-ring-offset) * -1);
 }
 
+/* The same measure and the same size as the issue list's identifier column, because it is the
+   same column: a reader who has learned where ENG-14 sits in one list should find it in the
+   same place here. It was --font-size-sm and 8ch, which is a hair wider and a step larger than
+   the list for no reason either screen could name. */
 .identifier {
   flex: none;
-  min-width: 8ch;
+  min-width: 7.5ch;
   color: var(--text-tertiary);
   font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -196,6 +203,17 @@
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
+}
+
+/* The trailing pair, pushed to the end of the row so that priority and assignee sit in one
+   column down the list rather than wherever the title happened to stop. Same arrangement as
+   the issue list's `.meta`. */
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  margin-left: auto;
 }
 
 /*

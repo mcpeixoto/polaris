@@ -11,9 +11,18 @@
  * moment somebody edits them. That is what makes a suggestion a suggestion: a field that
  * silently reverts your correction is worse than one that was never filled in, and a field
  * you have to fill in yourself for no reason is a step nobody enjoys.
+ *
+ * ## The submit button is never disabled, and that is the second decision
+ *
+ * It used to be, on a `ready` flag covering three fields. A greyed-out primary action is the
+ * worst kind of refusal: it names nothing, it is not in the tab order, and the person looking
+ * at it has to work out by elimination which of five fields it is unhappy about. So the button
+ * stays live, the submit runs the same three checks, and each one lands as a message on the
+ * field it is about with focus moved there. `Button`'s `loading` is the only state that stops
+ * this form, and it does so with `aria-disabled` so the button keeps focus.
  */
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 
 import { Button, Input } from '~/components';
 import { ApiError, auth } from '~/sync/api';
@@ -37,7 +46,14 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
   const [teamName, setTeamName] = useState('');
   const [teamKey, setTeamKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Which field the submit refused, and what to say about it. One at a time: the form is
+   *  short, and three messages at once is a list of complaints rather than a next step. */
+  const [problem, setProblem] = useState<{ field: Field; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const nameRef = useRef<HTMLInputElement>(null);
+  const urlKeyRef = useRef<HTMLInputElement>(null);
+  const userNameRef = useRef<HTMLInputElement>(null);
 
   // Held as null until edited, so the suggestion keeps following the name it is derived from
   // and stops the instant somebody disagrees with it.
@@ -45,9 +61,45 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
   const effectiveTeamName = teamName.trim() === '' ? name : teamName;
   const effectiveTeamKey = teamKey ?? suggestTeamKey(effectiveTeamName);
 
+  /** The message for `field`, or undefined — so `Input` decides between hint and error. */
+  const messageFor = (field: Field) => (problem?.field === field ? problem.message : undefined);
+
+  /** Clearing on the next keystroke: a message about a field somebody is already fixing is
+   *  in the way, and re-mounting it on the next submit is what re-announces it. */
+  const clear = (field: Field) => {
+    if (problem?.field === field) setProblem(null);
+  };
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
+
+    // Checked here rather than by the browser, because AuthForm is `noValidate`: the platform
+    // bubble is in the browser's wording, appears over the field, and vanishes on the next
+    // keystroke, which is the wrong shape for everything else on these screens.
+    if (name.trim() === '') {
+      setProblem({ field: 'name', message: 'Give the workspace a name — your company or team.' });
+      nameRef.current?.focus();
+      return;
+    }
+    if (effectiveUrlKey.length < 2) {
+      setProblem({
+        field: 'urlKey',
+        message: 'An address needs at least two characters. Letters, digits and hyphens.',
+      });
+      urlKeyRef.current?.focus();
+      return;
+    }
+    if (userName.trim() === '') {
+      setProblem({
+        field: 'userName',
+        message: 'Add your own name — this is what your teammates will see.',
+      });
+      userNameRef.current?.focus();
+      return;
+    }
+
+    setProblem(null);
     setBusy(true);
     setError(null);
     try {
@@ -72,8 +124,6 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
     }
   };
 
-  const ready = name.trim() !== '' && userName.trim() !== '' && effectiveUrlKey.length >= 2;
-
   return (
     <AuthLayout
       title="Create a workspace"
@@ -82,59 +132,98 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
       <AuthForm onSubmit={(event) => void onSubmit(event)}>
         <AuthError message={error} />
 
-        <AuthFieldPair>
-          <Input
-            label="Workspace name"
-            value={name}
-            placeholder="Acme"
-            autoFocus
-            required
-            onChange={(event) => setName(event.target.value)}
-          />
-          <Input
-            label="Address"
-            value={effectiveUrlKey}
-            prefix="polaris.app/"
-            hint="Lowercase letters, digits and hyphens."
-            maxLength={URL_KEY_MAX}
-            required
-            onChange={(event) => setUrlKey(cleanUrlKey(event.target.value))}
-          />
-        </AuthFieldPair>
+        <Input
+          ref={nameRef}
+          label="Workspace name"
+          name="workspace"
+          value={name}
+          placeholder="Acme"
+          // The browser's own suggestion for a company name is a better guess than nothing,
+          // and it is the only field on this form that maps to something it already knows.
+          autoComplete="organization"
+          error={messageFor('name')}
+          autoFocus
+          required
+          onChange={(event) => {
+            setName(event.target.value);
+            clear('name');
+          }}
+        />
+
+        {/* On its own line rather than beside the name, because of the prefix.
+            "polaris.app/" is a fixed product string, so it may not be truncated, and `.affix`
+            correctly refuses to shrink — which in the narrow half of a 2fr/1fr pair inside a
+            420px card left the input itself about 20px wide. The pair below has no affix and
+            is fine. */}
+        <Input
+          ref={urlKeyRef}
+          label="Address"
+          name="urlKey"
+          value={effectiveUrlKey}
+          prefix="polaris.app/"
+          hint="Lowercase letters, digits and hyphens."
+          error={messageFor('urlKey')}
+          maxLength={URL_KEY_MAX}
+          // Not a field any password manager or address book has an answer for, and a
+          // suggestion dropdown over it would be offering a name where a URL segment goes.
+          autoComplete="off"
+          spellCheck={false}
+          autoCapitalize="none"
+          required
+          onChange={(event) => {
+            setUrlKey(cleanUrlKey(event.target.value));
+            clear('urlKey');
+          }}
+        />
 
         <Input
+          ref={userNameRef}
           label="Your name"
+          name="name"
           value={userName}
           placeholder="Ada Lovelace"
           hint="What your teammates will see beside your issues."
+          error={messageFor('userName')}
           autoComplete="name"
           required
-          onChange={(event) => setUserName(event.target.value)}
+          onChange={(event) => {
+            setUserName(event.target.value);
+            clear('userName');
+          }}
         />
 
         <AuthFieldPair>
           <Input
             label="First team"
+            name="teamName"
             value={effectiveTeamName}
             placeholder="Engineering"
+            autoComplete="off"
             onChange={(event) => setTeamName(event.target.value)}
           />
           <Input
             label="Team key"
+            name="teamKey"
             value={effectiveTeamKey}
             hint="The prefix in every identifier."
             maxLength={TEAM_KEY_MAX}
+            autoComplete="off"
+            spellCheck={false}
+            autoCapitalize="characters"
             onChange={(event) => setTeamKey(cleanTeamKey(event.target.value))}
           />
         </AuthFieldPair>
 
-        <Button type="submit" variant="primary" fullWidth loading={busy} disabled={!ready}>
+        <Button type="submit" variant="primary" fullWidth loading={busy}>
           Create workspace
         </Button>
       </AuthForm>
     </AuthLayout>
   );
 }
+
+/** The three fields a submit can refuse. The other two are optional and derived. */
+type Field = 'name' | 'urlKey' | 'userName';
 
 /**
  * A workspace name as a URL segment: lowercase, hyphenated, no punctuation.

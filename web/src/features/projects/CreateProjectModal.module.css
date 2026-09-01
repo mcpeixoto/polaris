@@ -1,12 +1,58 @@
+/*
+ * The create-project dialog: a document at the top, a labelled property grid under it.
+ *
+ * Name and summary are unboxed because they are a document and not a form — the same
+ * division the create-issue composer makes, and for the same reason. Below them, Team and
+ * Template are properties, and properties carry their names.
+ */
+
 .form {
   display: grid;
   gap: var(--space-3);
 }
 
-.form :global(input) {
+/*
+ * The name's typography, and the name's alone.
+ *
+ * This was `.form :global(input)`, which set a page heading's size and weight on every
+ * input in the subtree. Today that is the name field and nothing else, but the selector
+ * was written to match a subtree that has since grown a template picker and will grow
+ * more, and it is the same rule that shipped the create-issue composer's date field at
+ * title size. The house rule against bare-element `:global()` exists precisely because a
+ * blanket descendant selector styles children that do not exist yet.
+ *
+ * It has to reach the element rather than the wrapper: `Input` hands a caller's className
+ * to the field frame, and the control inside takes `font-size` from its own box rather
+ * than by inheritance, so a rule on the frame would never arrive. Scoped to one field's
+ * wrapper class, it cannot reach an input this dialog has not put there itself.
+ */
+.name input {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.016em;
+}
+
+/*
+ * Team and template, in a grid of equal columns rather than a flex row.
+ *
+ * A grid cannot wrap raggedly and cannot size a cell smaller than the column it shares, so
+ * a long team name and a long template name stay whole. It collapses to one column rather
+ * than letting either cell shrink under its content.
+ *
+ * Both carry a visible label. They used to be `hideLabel`, which left a pair of controls
+ * reading "ENG · Engineering" and "No template" — the second of which names nothing at all,
+ * and the person filling the dialog in had to open it to find out what it was.
+ */
+.properties {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-2);
+}
+
+@media (max-width: 520px) {
+  .properties {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .error {

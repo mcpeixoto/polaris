@@ -1,5 +1,10 @@
 /**
  * Trailing-velocity capacity for a cycle that has not started yet.
+ *
+ * Over-capacity says "over". It used to be signalled by turning the ratio red and nothing
+ * else, which in the compact form — a `12/10` at the end of a cycle row — left the only
+ * warning in the product about over-committing a sprint entirely in a hue. The ratio is
+ * still red, and now the word is beside it.
  */
 
 import { Progress } from '~/components';
@@ -32,6 +37,7 @@ export function CapacityDial({ data, compact = false }: CapacityDialProps) {
         />
         <span className={over ? styles.over : styles.muted}>
           {data.scoped}/{data.capacity}
+          {over ? ' over' : ''}
         </span>
       </span>
     );
@@ -45,7 +51,7 @@ export function CapacityDial({ data, compact = false }: CapacityDialProps) {
           <strong className={over ? styles.over : undefined}>
             {data.scoped} / {data.capacity}
           </strong>{' '}
-          {unit} scoped
+          {unit} scoped{over ? ' — over capacity' : ''}
         </p>
         <p className={styles.muted}>Capacity {source}.</p>
       </div>

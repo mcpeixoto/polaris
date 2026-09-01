@@ -4,6 +4,12 @@
  * Mounted from the projects list and from the command menu. Compact on purpose: a project
  * is a name and a team, and a form that asks for a timeframe, a lead and a colour before
  * the first issue is filed is the form-builder look this product is not allowed to ship.
+ *
+ * It reads top to bottom the way the create-issue composer does: the document first — a
+ * name and a summary, unboxed, because they are prose and not form values — then the
+ * properties, in a labelled grid. Team and template used to be unlabelled controls sitting
+ * under two unlabelled text fields, which made four fields in a row that named none of
+ * themselves; the two that are properties now say what they are.
  */
 
 import { useId, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -132,7 +138,9 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
       initialFocus={nameRef}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
           <Button form={formId} type="submit" variant="primary" loading={saving}>
             Create project
           </Button>
@@ -150,8 +158,11 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
         <Input
           ref={nameRef}
           label="Name"
+          // The placeholder is the label here, which is the one case `hideLabel` is for:
+          // a document field whose own text is the heading of the thing being created.
           hideLabel
           surface="plain"
+          className={styles.name}
           value={name}
           error={nameError ?? undefined}
           placeholder="Project name"
@@ -170,36 +181,36 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
           autoComplete="off"
           onChange={(event) => setSummary(event.target.value)}
         />
-        <Select
-          label="Team"
-          hideLabel
-          value={teamId}
-          onChange={(event) => {
-            setChosenTeam(event.target.value);
-            setTemplateId(NO_TEMPLATE);
-          }}
-        >
-          {teams.map((team) => (
-            <option key={team.id} value={team.id}>
-              {team.key} · {team.name}
-            </option>
-          ))}
-        </Select>
-        {templates.length === 0 ? null : (
+        <div className={styles.properties}>
           <Select
-            label="Template"
-            hideLabel
-            value={templateId}
-            onChange={(event) => onTemplateChange(event.target.value)}
+            label="Team"
+            value={teamId}
+            onChange={(event) => {
+              setChosenTeam(event.target.value);
+              setTemplateId(NO_TEMPLATE);
+            }}
           >
-            <option value={NO_TEMPLATE}>No template</option>
-            {templates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.key} · {team.name}
               </option>
             ))}
           </Select>
-        )}
+          {templates.length === 0 ? null : (
+            <Select
+              label="Template"
+              value={templateId}
+              onChange={(event) => onTemplateChange(event.target.value)}
+            >
+              <option value={NO_TEMPLATE}>No template</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </div>
         {saveError === null ? null : (
           <p className={styles.error} role="alert">
             {saveError}

@@ -1,14 +1,48 @@
+/* --space-1 rather than --space-0-5: the off-track mark is a square rotated 45°, and its
+   diagonal is a shade over 11px inside an 8px box. At 2px of gap the corners of two
+   adjacent diamonds meet. */
 .row {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: var(--space-1);
 }
 
 .dot {
   width: var(--space-2);
   height: var(--space-2);
-  border-radius: var(--radius-full);
   flex: none;
+}
+
+/*
+ * Shape, not only colour.
+ *
+ * Every mark in this strip used to be the same 8px circle in a different hue, which put
+ * the entire meaning in a channel a colour-blind reader does not have. A disc, a rounded
+ * square, a diamond and a ring are four silhouettes at 8px, and they survive greyscale,
+ * a projector and a screenshot pasted into a chat.
+ *
+ * The order is deliberate: the calmer the news, the rounder the mark. Off track is the
+ * only one with corners pointing outward, so trouble is what the eye lands on first.
+ */
+.onTrack {
+  border-radius: var(--radius-full);
+}
+
+.atRisk {
+  border-radius: var(--radius-sm);
+}
+
+.offTrack {
+  border-radius: var(--radius-sm);
+  rotate: 45deg;
+}
+
+/* No update at all: an outline, because there is no value to fill it with. It borrows the
+ * control border rather than a health colour — the project has not said anything, and
+ * painting it green or amber would be the strip inventing an answer. */
+.unreported {
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-full);
 }
 
 .muted {

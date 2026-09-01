@@ -1,0 +1,57 @@
+/*
+ * The answers to a form template, rendered inside the create dialog.
+ *
+ * This file exists because the fields had no stylesheet at all: they were a bare `<div>` of
+ * stacked controls with no rhythm between them, and the checkbox question was a browser
+ * default `<fieldset>` — a grey inset border and a legend notch — sitting in the middle of a
+ * dialog that has no other boxes in it. The controls themselves are the product's, so the
+ * only job here is spacing them and making the one group that is not a `Field` wear the same
+ * label as the ones that are.
+ */
+
+.fields {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+}
+
+/*
+ * An instruction is prose the form's author wrote to the person filling it in, so it reads as
+ * prose: secondary rather than primary, because it is context for the field under it rather
+ * than a thing to answer.
+ */
+.instructions {
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * A checkbox question. The fieldset is the right element — these options are one answer — and
+ * it is stripped of its default frame so it sits in the column with the text fields rather
+ * than announcing itself as a section.
+ */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Matched to `Field`'s own label, because this legend is the label for a control group in a
+   form whose every other label comes from `Field`. One form, one label treatment. */
+.groupLabel {
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}

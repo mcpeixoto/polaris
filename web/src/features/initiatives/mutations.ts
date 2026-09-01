@@ -1,5 +1,11 @@
 import { fromWire, toWire } from '~/gql/enums';
-import { uuidv7, type EntityOf, type InitiativeStatus, type UUID } from '~/store';
+import {
+  uuidv7,
+  type EntityOf,
+  type InitiativeStatus,
+  type StateCategory,
+  type UUID,
+} from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -162,6 +168,27 @@ export async function archiveInitiative(engine: SyncEngine, id: UUID): Promise<v
     throw error;
   }
 }
+
+/**
+ * Which state glyph an initiative status wears.
+ *
+ * An initiative's five statuses are the project status categories under different names,
+ * so they borrow the same drawings — `PROJECT_STATUS_ICON` in `features/projects/
+ * statusCategories.ts` makes the identical mapping for a project, and the two agreeing is
+ * the point. "Proposed" is a backlog: an objective somebody has written down and nobody
+ * has committed to. "Active" is started.
+ *
+ * These are the state tokens' own categories, not a colour borrowed from somewhere else,
+ * so a theme that recolours "in progress" recolours an active initiative too — which is
+ * what a reader looking at both screens expects.
+ */
+export const INITIATIVE_STATUS_ICON: Readonly<Record<InitiativeStatus, StateCategory>> = {
+  proposed: 'backlog',
+  planned: 'unstarted',
+  active: 'started',
+  completed: 'completed',
+  canceled: 'canceled',
+};
 
 export function formatInitiativeStatus(status: InitiativeStatus): string {
   switch (status) {

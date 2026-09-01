@@ -30,6 +30,8 @@
   transition: opacity var(--duration-fast) var(--ease-out);
 }
 
+/* The ring is drawn by `.box` around this select, exactly as in Input: leaving the
+ * element's own outline in place as well gives a doubled ring on every focused field. */
 .select:focus {
   outline: none;
 }
@@ -39,13 +41,70 @@
   opacity: 0.6;
 }
 
+/*
+ * The value's icon, painted over the leading edge.
+ *
+ * The issue detail rail puts a StateIcon, a PriorityIcon or an Avatar on every property
+ * trigger, and a select could not — so the same eight properties were iconless the moment
+ * they appeared in a dialog rather than in the rail. An icon is what makes a property row
+ * scannable without reading it, and a screen that drops it is strictly harder to use than
+ * the one beside it.
+ *
+ * Laid over the control rather than placed beside it, and for the same reason the chevron
+ * is: the whole box has to stay one click target. A glyph in the flex flow would be a hole
+ * in the middle of the control that does not open the popup. `pointer-events: none` is what
+ * makes the overlay honest, and `aria-hidden` in the markup keeps a decorative duplicate of
+ * the selected option's text out of the accessibility tree — the option is already the
+ * accessible value.
+ *
+ * No `color` here on purpose. Every glyph this slot is built for brings its own — a state's
+ * category colour, a priority's ramp stop, an avatar's identity hue — and a colour set here
+ * would either be overridden immediately or, worse, win and flatten all three.
+ */
+.prefix {
+  position: absolute;
+  inset-inline-start: var(--space-2);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+/*
+ * The room the prefix needs, opened on the select rather than the box so the control still
+ * fills its own bounds and stays clickable end to end.
+ *
+ * --space-8 is 32px and it is arithmetic, not a guess: --space-2 of inset, the 16px the
+ * canonical trigger glyphs are all drawn at (StateIcon, PriorityIcon and Avatar `xs` are
+ * each var(--space-4)), and --space-2 of gap before the text.
+ */
+.hasPrefix .select {
+  padding-inline-start: var(--space-8);
+}
+
 .chevron {
   position: absolute;
-  right: var(--space-2);
+  inset-inline-end: var(--space-2);
   display: flex;
   color: var(--text-tertiary);
   pointer-events: none;
-  transition: color var(--duration-fast) var(--ease-out);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * Both overlays dim with the control they are painted on.
+ *
+ * They are siblings of the `<select>`, not children, so `.select:disabled { opacity }` never
+ * reached them: a disabled select faded its own text to 0.6 and left a full-strength chevron
+ * sitting beside it, which reads as a live affordance on a dead control. The prefix would
+ * have arrived with the same bug. `:has` rather than a class from the component, because the
+ * disabled state already lives on the element that owns it and copying it up to the wrapper
+ * is a second source of truth waiting to disagree.
+ */
+.box:has(.select:disabled) .chevron,
+.box:has(.select:disabled) .prefix {
+  opacity: 0.6;
 }
 
 /*

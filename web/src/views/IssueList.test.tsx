@@ -257,6 +257,29 @@ describe('IssueList', () => {
   });
 
   /**
+   * The display menu's "Properties" section had never reached the list.
+   *
+   * It reached the board, which is what made the gap so hard to see: ticking Estimate on a
+   * board did something, ticking it on a list — the layout almost everybody is on — did
+   * nothing at all, and no message said why. The assignee is the property these two assert
+   * on because a seeded issue has none, so its mark is the placeholder rather than a name,
+   * and the question is entirely about whether the column is drawn.
+   */
+  it('draws every optional property on a row by default', () => {
+    renderList();
+
+    expect(screen.getAllByRole('img', { name: 'Unassigned' })).toHaveLength(3);
+  });
+
+  it('drops a property from every row when the display options leave it out', () => {
+    renderList('?show=priority');
+
+    expect(screen.queryAllByRole('img', { name: 'Unassigned' })).toHaveLength(0);
+    // The rows themselves are untouched: this is a column being turned off, not a filter.
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+  });
+
+  /**
    * A team whose scale is `none` has no state in which an estimate can be set, so the whole
    * affordance goes: no button, and no `⇧E` in the registry.
    *

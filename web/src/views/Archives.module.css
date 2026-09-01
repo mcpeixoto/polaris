@@ -47,6 +47,19 @@
   cursor: pointer;
 }
 
+.tab:hover {
+  color: var(--text-primary);
+}
+
+/* The product's ring rather than the browser's. `border: 0` above removed the only edge this
+   control had, and leaving the default outline to stand in for it is how one screen ends up
+   with a focus mark nobody recognises from the rest of the app. */
+.tab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+  border-radius: var(--radius-sm);
+}
+
 .tab[aria-current='page'] {
   color: var(--text-primary);
   border-bottom-color: var(--accent);
@@ -121,12 +134,25 @@
   font-weight: var(--font-weight-medium);
 }
 
+/*
+ * A row is clickable, because clicking one is how `#` is told what to restore. It had a
+ * pointer cursor and no hover at all, so the only feedback that the click had landed was the
+ * selection — and the selection was drawn in --bg-hover, the same wash. "Under the pointer"
+ * and "chosen" were therefore the same mark on a screen where the second one decides what a
+ * keystroke destroys. They are two facts and they get two washes.
+ */
 .row {
   cursor: pointer;
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
-.row[aria-selected='true'] {
+.row:hover {
   background: var(--bg-hover);
+}
+
+.row[aria-selected='true'],
+.row[aria-selected='true']:hover {
+  background: var(--bg-selected);
 }
 
 .issue {

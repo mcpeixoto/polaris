@@ -143,6 +143,15 @@
   text-decoration: underline;
 }
 
+/* The product's ring. These are real links into the assignee's and the label's views, and they
+   were the only interactive elements in this panel with no ring of their own — a keyboard user
+   tabbing through the facts had nothing but the browser's default to go on. */
+.entityLink:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
 .dates {
   margin: 0 0 var(--space-4);
   color: var(--text-tertiary);

@@ -1,0 +1,261 @@
+/*
+ * The workbench's own furniture.
+ *
+ * Everything here exists to hold a primitive still and label it, and nothing here is
+ * allowed to be interesting: a gallery that styles its own frame is a gallery whose
+ * frame is what you end up looking at. So the page is a plain column of sections, the
+ * cells are hairline boxes on the page background, and every caption is the smallest
+ * legible size — the eye should land on the component, never on the grid around it.
+ *
+ * Semantics only, like every other stylesheet in this repo. That is not a formality
+ * here, it is the point: this page is where a theme change is inspected, and a raw hex
+ * anywhere in this file would be the one patch of the screen that lied about it.
+ */
+
+.page {
+  min-height: 100vh;
+  padding: var(--space-6);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.headerTitle {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.headerNote {
+  max-width: 60ch;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/* Pushed to the trailing edge so the theme control is in the same place at every width. */
+.headerControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.headerControlsLabel {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/*
+ * The table of contents. Sticky, because the page is several screens tall and the whole
+ * value of the gallery is jumping straight to the primitive being worked on.
+ */
+.contents {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0 calc(var(--space-6) * -1);
+  padding: var(--space-2) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+}
+
+.contentsLink {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  text-decoration: none;
+}
+
+.contentsLink:hover {
+  color: var(--text-primary);
+}
+
+.section {
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.sectionNote {
+  max-width: 80ch;
+  margin: 0 0 var(--space-4);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * The state grid.
+ *
+ * `auto-fill` rather than a fixed column count: a Button row wants many narrow cells and
+ * an EmptyState wants one wide one, and letting the grid answer that per section is one
+ * less prop than every section declaring its own width.
+ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space-3);
+}
+
+.gridWide {
+  grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+/*
+ * The caption is what makes a screenshot self-describing, so it is above the specimen and
+ * never beside it: a label to the left of a wrapping row of controls stops lining up with
+ * anything the moment the row wraps.
+ */
+.cellLabel {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-tight);
+}
+
+/* A second line of caption, for the thing a picture cannot show — see the focus notes. */
+.cellNote {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+.specimen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--space-8);
+}
+
+/* For specimens that are a stack rather than a row — a field with its label and message. */
+.specimenStack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/*
+ * A stand-in for a page surface, used where a component is transparent and would otherwise
+ * be invisible against the cell — a plain-surface Input, a Menu's own background.
+ */
+.canvas {
+  padding: var(--space-3);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+}
+
+/* The row a Menu or Tooltip trigger sits in, given room for the thing it opens. */
+.triggerRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---------------------------------------------------------------- *
+ * Token swatches
+ * ---------------------------------------------------------------- */
+
+.tokenGroup {
+  margin-bottom: var(--space-4);
+}
+
+.tokenGroupTitle {
+  margin: 0 0 var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.tokenRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tokenChip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+/*
+ * The swatch is painted from the token being described, which is the only honest way to
+ * draw one. It carries its own border because a background token is frequently the same
+ * colour as the surface behind it — that identity is exactly what a reader is checking —
+ * and an unbordered patch would simply vanish at the moment it mattered most.
+ */
+.tokenSwatch {
+  width: var(--space-6);
+  height: var(--space-6);
+  flex: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-primary);
+}
+
+.tokenText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.tokenName {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-none);
+}
+
+.tokenValue {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-none);
+}
+
+/* Shadows have no colour to swatch, so the specimen is a tile wearing the shadow. */
+.shadowTile {
+  width: var(--space-12);
+  height: var(--space-6);
+  flex: none;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}

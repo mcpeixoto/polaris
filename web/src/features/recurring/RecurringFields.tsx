@@ -1,9 +1,15 @@
 /**
  * Cadence and first due date, the two facts a recurring schedule cannot be created without.
  *
- * Extracted so the composer, the convert dialogs and team settings all ask the same two
- * questions the same way. A native select and a date input rather than a Menu: this is a
- * form field on the way to a submit, not a command with a shortcut.
+ * Extracted so the convert dialog and team settings ask the same two questions the same way.
+ * A native select and a date input rather than a Menu: this is a form field on the way to a
+ * submit, not a command with a shortcut.
+ *
+ * Both labels are visible and there is no longer a switch to hide them. There used to be one,
+ * for a composer that was going to render these two as unlabelled chips; the composer asks
+ * the same two questions inline and never passed it, and a pair of sibling fields showing
+ * "Weekly" and a bare date picker names neither of them anyway. A control that is hard to
+ * identify is not a denser control, it is a slower one.
  */
 
 import { Input, Select } from '~/components';
@@ -17,8 +23,6 @@ export interface RecurringFieldsProps {
   firstDueDate: string;
   onCadence: (cadence: RecurringCadence) => void;
   onFirstDueDate: (day: string) => void;
-  /** Composer chips hide the labels; the convert dialogs and settings do not. */
-  hideLabels?: boolean | undefined;
 }
 
 export function RecurringFields({
@@ -26,13 +30,11 @@ export function RecurringFields({
   firstDueDate,
   onCadence,
   onFirstDueDate,
-  hideLabels = false,
 }: RecurringFieldsProps) {
   return (
     <div className={styles.fields}>
       <Select
         label="Cadence"
-        hideLabel={hideLabels}
         value={cadence}
         onChange={(event) => onCadence(event.target.value as RecurringCadence)}
       >
@@ -44,7 +46,6 @@ export function RecurringFields({
       </Select>
       <Input
         label="First due"
-        hideLabel={hideLabels}
         type="date"
         value={firstDueDate}
         onChange={(event) => onFirstDueDate(event.target.value)}

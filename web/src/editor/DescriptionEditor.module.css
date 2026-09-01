@@ -18,9 +18,31 @@
   min-height: var(--control-height-sm);
 }
 
+/*
+ * The overlay's frame, and — since this is where the focus ring had to go — the field's focus
+ * affordance.
+ *
+ * The textarea below draws its own text in `transparent` and hands the painting to the `<pre>`
+ * behind it, so its `outline: none` left the description field answering a Tab with nothing at
+ * all except a caret: two pixels wide, and blinking. That is the one thing the house rules call
+ * non-negotiable — focus is relocated, never removed — so it is relocated here, onto the
+ * element that actually bounds the field.
+ *
+ * A shadow rather than a border, and that is not a stylistic preference: `.backdrop` is
+ * `inset: 0` against this element's padding box, so growing a border on it would shorten the
+ * paint layer by a pixel and start clipping descenders off the last line. A shadow costs no
+ * layout at all. The mark itself is the single bottom edge Input and Textarea draw for their
+ * `plain` surface, which is the surface this field is: the text is the page here, and a box
+ * round it would undo that.
+ */
 .frame {
   position: relative;
   min-width: 0;
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.frame:focus-within {
+  box-shadow: 0 1px 0 var(--border-focus);
 }
 
 .backdrop,
@@ -46,10 +68,18 @@
   color: var(--text-secondary);
 }
 
+/*
+ * The real control, invisible on top of its own paint.
+ *
+ * `position: relative` and no z-index. It used to carry `z-index: 1`, which is a raw integer
+ * where the house rule says layers come from `--z-*` — and the token scale is right to have no
+ * stop for this, because this is not a layer. Both this and `.backdrop` are positioned with
+ * `z-index: auto`, so they paint in tree order and the textarea, being second, is already on
+ * top. The number was stating something the document order had already decided.
+ */
 .input {
   position: relative;
   display: block;
-  z-index: 1;
   resize: none;
   overflow: hidden;
   background: transparent;
@@ -57,6 +87,8 @@
   caret-color: var(--text-primary);
 }
 
+/* Legitimate only because the frame above draws the edge instead: an outline here would ring a
+   transparent textarea sitting on top of the paint that is the actual field. */
 .input:focus {
   outline: none;
 }

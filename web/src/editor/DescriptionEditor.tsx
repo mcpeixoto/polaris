@@ -405,8 +405,12 @@ export function DescriptionEditor({
               setRefusal(null);
             }}
           />
+          {/* One primary and a ghost cancel, as in every dialog footer: abandoning a comment
+              nobody has written yet is not a second command to weigh against posting it. */}
           <div className={styles.actions}>
-            <Button onClick={closeThread}>Cancel</Button>
+            <Button variant="ghost" onClick={closeThread}>
+              Cancel
+            </Button>
             <Button type="submit" variant="primary" disabled={composer.trim() === ''}>
               Comment
             </Button>

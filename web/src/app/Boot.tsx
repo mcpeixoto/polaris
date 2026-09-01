@@ -26,6 +26,7 @@ import {
   setWorkspace,
   type Workspace,
 } from '~/sync/api';
+import { Button } from '~/components';
 import { prefetchViewerId } from '~/hooks/useViewer';
 import { pageNeedsNoSession, shouldAttemptDevSession } from '~/sync/endpoint';
 import { SyncEngine, type EngineStatus } from '~/sync/engine';
@@ -242,7 +243,7 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
         <Splash
           message={phase.error}
           action={
-            <button
+            <Button
               className={styles.retry}
               onClick={() => {
                 if (outdated) {
@@ -253,7 +254,7 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
               }}
             >
               {outdated ? 'Reload' : 'Try again'}
-            </button>
+            </Button>
           }
         />
       );

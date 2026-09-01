@@ -19,12 +19,21 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  /* Positioned so the hidden jump triggers below can show themselves against this row when
+     they take focus, rather than against whatever ancestor happens to be positioned. */
+  position: relative;
   padding: var(--space-1) var(--space-2);
   /* Room for the macOS traffic lights, which the desktop shell draws over the app's own
      chrome. Harmless in a browser tab. */
   padding-top: var(--space-2);
 }
 
+/*
+ * The workspace's mark, and the one box in this sidebar whose size is deliberately not off
+ * the control ladder. It is a picture, not a control: the ladder's rungs answer to the 32px
+ * issue row and to hit targets, and neither has an opinion about how big a square logo should
+ * be next to a workspace name set in --font-size-md. 18px is what balances that word.
+ */
 .workspaceMark {
   flex: none;
   display: inline-flex;
@@ -55,7 +64,9 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: 28px;
+  /* The same rung as .navItem, asked for the same way: this row is the list of nav rows
+     continued upwards, and a literal here is how it would eventually stop being. */
+  height: var(--control-height-md);
   padding: 0 var(--space-1);
   border: 0;
   border-radius: var(--radius-md);
@@ -71,6 +82,19 @@
 
 .workspaceSwitch:hover {
   background: var(--bg-hover);
+}
+
+/*
+ * Held open.
+ *
+ * The button opened a menu over the sidebar and did not itself change in any way, so the one
+ * control on screen that the menu belonged to was the one control giving no sign of it. The
+ * nav rows below distinguish "pointed at" from "current" with these two washes; a trigger
+ * whose menu is up is current in the same sense, and says so with the same token.
+ */
+.workspaceSwitch[aria-expanded='true'],
+.workspaceSwitch[aria-expanded='true']:hover {
+  background: var(--bg-selected);
 }
 
 .workspaceName {
@@ -169,7 +193,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  height: 28px;
+  /* A row in the same column as the nav rows, so the same rung. */
+  height: var(--control-height-md);
   padding: 0 var(--space-2);
 }
 
@@ -178,8 +203,15 @@
   min-width: 0;
 }
 
-.folderName input,
-.folderCreate input {
+/*
+ * The folder name, edited in place.
+ *
+ * A class rather than the `.folderName input, .folderCreate input` this used to be. A bare
+ * element selector under a container styles whatever ends up inside it later — the composer's
+ * date picker wearing a page title's typography is the standing example — and the rule is
+ * simple enough that nothing was gained by leaving the element unnamed.
+ */
+.folderInput {
   width: 100%;
   border: none;
   background: transparent;
@@ -211,13 +243,25 @@
   color: var(--text-primary);
 }
 
+/*
+ * The team's key, riding inside a nav row.
+ *
+ * The height is --control-height-xs, which is the rung the ladder describes as "never
+ * interactive, for chips riding inside a row" — this is that, and it was 16px, a number on no
+ * scale at all.
+ *
+ * The minimum width stays a literal on purpose. It is not a height and answers to nothing on
+ * the ladder: it is the width of the widest key this chip is expected to hold, and it exists
+ * so that ENG and PLT start their team names in the same column instead of each sizing to its
+ * own glyphs. Tie it to a rung and a density change would silently ragged the list.
+ */
 .teamKey {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 22px;
-  height: 16px;
+  height: var(--control-height-xs);
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
   background: var(--bg-tertiary);
@@ -272,6 +316,20 @@
   }
 }
 
+/*
+ * The anchors the jump pickers hang off. `O V` opens a Menu, and a Menu positions itself
+ * against a real element rather than inventing one, so nine of these sit inside the workspace
+ * nav holding a name and nothing else.
+ *
+ * Hidden the accessible way — clipped, not `display: none` — because they are named buttons a
+ * screen reader should still find. But clipped and focusable is the combination that strands a
+ * sighted keyboard user: nine Tab stops between the workspace name and the first nav row,
+ * every one of them a one-pixel box with an invisible focus ring around it.
+ *
+ * So focus reveals them, the way a skip link does. Still out of the flow — showing one may not
+ * push the navigation around — and anchored to `.workspace` directly above, which is where the
+ * ring would otherwise be landing invisibly.
+ */
 .gotoTrigger {
   position: absolute;
   width: 1px;
@@ -282,6 +340,49 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+.gotoTrigger:focus-visible {
+  display: inline-flex;
+  align-items: center;
+  top: 100%;
+  inset-inline: var(--space-2);
+  width: auto;
+  height: var(--control-height-md);
+  margin: 0;
+  padding: 0 var(--space-2);
+  overflow: visible;
+  clip: auto;
+  z-index: var(--z-sticky);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-align: start;
+}
+
+/*
+ * What the sidebar does when there is not enough window for it.
+ *
+ * Nothing, until now: 232px of navigation was taken off the top of a 600px window before the
+ * issue list saw any of it, and the same list that has room for a title, a state and an
+ * assignee on a laptop was down to the title. 720px is the breakpoint the rest of the product
+ * already collapses its second column at — see IssueDetail and TeamSettings — and this is the
+ * same judgement one level up.
+ *
+ * Derived from the token rather than picked, so a change to --sidebar-width carries here
+ * instead of leaving the narrow case behind. The rows still hold a glyph and a readable label
+ * at this width; below it they would not, and a rail of icons is a different navigation rather
+ * than a narrower one. Collapsing the sidebar away entirely needs a control to bring it back
+ * and a shortcut bound to that control, which is a feature and not a stylesheet.
+ */
+@media (max-width: 720px) {
+  .shell {
+    grid-template-columns: calc(var(--sidebar-width) - var(--space-12)) 1fr;
+  }
 }
 
 /*

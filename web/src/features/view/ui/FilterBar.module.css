@@ -248,9 +248,51 @@ button.conj:focus-visible {
   cursor: pointer;
 }
 
+/*
+ * One option's line: its glyph, its name, and the second line of identification.
+ *
+ * A flex row rather than inline text, because the name is what gives way when the popover is
+ * too narrow for it. The glyph must not shrink — a squashed status icon is a different icon —
+ * and the hint must not either, since "Suspended" half drawn is worse than not shown.
+ */
+.optionLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.optionName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .hint {
+  flex: none;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
+}
+
+/*
+ * A label's colour, as a dot. The same mark and the same reasoning as LabelPicker's swatch: a
+ * full LabelChip would put a pill inside a row that already carries the name and a tick, and
+ * the dot is the identity at full strength.
+ *
+ * The default matters. A label whose colour did not arrive gets a visible neutral rather than
+ * the `transparent` an undeclared custom property resolves to, because an invisible dot reads
+ * as a rendering bug rather than as missing data.
+ */
+.swatch {
+  --label-color: var(--text-tertiary);
+
+  display: block;
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background-color: var(--label-color);
 }
 
 .valueBlock {

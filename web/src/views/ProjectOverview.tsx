@@ -1,5 +1,8 @@
 /**
  * Project overview — latest health, compose an update, and the project description.
+ *
+ * The health picker wears its value's dot, the same dot the badge above it draws, so the
+ * composer and the posted update read as one thing rather than as a form and a result.
  */
 
 import { useRef, useState, type FormEvent } from 'react';
@@ -10,7 +13,7 @@ import { Button, IconButton, Select, useNativeValue } from '~/components';
 import { ProjectGraph } from '~/features/projects/ProjectGraph';
 import { ProjectDependencies } from '~/features/projects/dependencies';
 import { createProjectUpdate } from '~/features/project-updates/mutations';
-import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
+import { HealthDot, ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { PencilGlyph } from '~/features/project-updates/glyphs';
 import { ProjectUpdateEditor } from '~/features/project-updates/ProjectUpdateEditor';
 import { latestProjectUpdate } from '~/features/project-updates/helpers';
@@ -126,6 +129,7 @@ export function ProjectOverview() {
             <Select
               label="Health"
               value={health}
+              prefix={<HealthDot health={health} />}
               onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
             >
               {HEALTH_OPTIONS.map((option) => (

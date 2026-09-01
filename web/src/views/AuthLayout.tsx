@@ -112,9 +112,13 @@ export function AuthFieldPair({ children }: { children: ReactNode }) {
  *    live region while the request is still in flight, announcing the *previous* failure as
  *    though it were the answer to the attempt just made.
  *
- * The one case left inert is ConnectServer's client-side address check, which sets the same
- * sentence without clearing it first. That is a fix in that file — clear, then set — and not
- * a reason for this one to grow a key.
+ * The one case that used to be left inert was ConnectServer's client-side address check,
+ * which set the same sentence twice without clearing it. "Clear, then set" was the suggested
+ * fix here and it would not have worked: both calls land in one event, React batches them
+ * into a single render, and this node never unmounts. That message has moved onto its own
+ * field, where `Input` can clear it on the next keystroke — which does unmount it — and where
+ * it is wired to the control it is about. This component is for failures that came back from
+ * somewhere else, and every one of those clears before its request.
  */
 export function AuthError({ message }: { message: string | null }) {
   if (message === null) return null;

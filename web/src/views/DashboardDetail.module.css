@@ -94,10 +94,19 @@
   white-space: nowrap;
 }
 
+/*
+ * Measure, slice and display, in a grid of equal columns rather than a wrapping flex row.
+ *
+ * A tile is narrow and its three controls now carry visible labels, so a flex row would
+ * hand the widest option string whatever space it wanted and squeeze the other two. The
+ * grid gives each column the same width and drops to one column before any cell shrinks
+ * under its content. `auto-fit` rather than a fixed count because the slice picker is
+ * absent for a burn-up, and two columns should then be two full-width halves.
+ */
 .tileControls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--space-2);
 }
 
 .metric {
@@ -140,4 +149,5 @@
   margin: 0;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
 }

@@ -6,7 +6,7 @@
  * routing of its own — it translates the URL and hands it to the router here.
  */
 
-import { useEffect, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 
 import { Button, EmptyState } from '~/components';
@@ -102,7 +102,43 @@ import { Boot, rememberWorkspace } from './Boot';
 import { KeymapProvider } from './keymap';
 import { NotYet } from './NotYet';
 
+/**
+ * The component gallery, in development builds and nowhere else.
+ *
+ * The ternary is what keeps it out of production, and it is deliberately written so that
+ * the bundler can see the answer. Vite substitutes `import.meta.env.DEV` with the literal
+ * `false` before Rollup runs, at which point this is `false ? import(…) : null` — an
+ * unreachable dynamic import, which Rollup drops along with the module behind it and its
+ * stylesheet. The gallery is therefore absent from a production bundle rather than merely
+ * unreachable in one, and `pnpm vite build` is the check: nothing in dist/ mentions it.
+ *
+ * `lazy` rather than a static import for the same reason. A static import would put the
+ * gallery in the entry chunk's module graph and rely on tree-shaking to notice the CSS
+ * module side effect is unwanted, which is a thing to hope for rather than a thing to
+ * rely on.
+ */
+const DevGallery = import.meta.env.DEV
+  ? lazy(async () => ({ default: (await import('~/views/Gallery')).Gallery }))
+  : null;
+
 export function App() {
+  /*
+    Before everything, and matched against the address bar rather than declared as a Route.
+
+    The gallery's whole value is that it renders on a cold browser with no account: no
+    session, no workspace, no replica, no sync engine. Every Route in this file is inside
+    Boot, and Boot's first act is to ask whether there is a session — so a Route could not
+    have been it. Even the `hasServer()` question below is one the gallery has no business
+    answering, since it makes no requests at all.
+  */
+  if (DevGallery !== null && window.location.pathname === '/gallery') {
+    return (
+      <Suspense fallback={null}>
+        <DevGallery />
+      </Suspense>
+    );
+  }
+
   // Before the router, because there is nothing to route to.
   //
   // A desktop app with no server configured cannot sign in, cannot bootstrap and cannot

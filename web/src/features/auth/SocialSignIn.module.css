@@ -1,17 +1,31 @@
+/*
+ * --space-4, matching AuthForm's gap rather than sitting a step tighter than it.
+ *
+ * It has to match now that the failure here is an `AuthError`: that component's reveal
+ * cancels the parent's gap with a negative margin of exactly --space-4 while its row is
+ * closed, so a container spaced any other way jumps by the difference on the first frame —
+ * which is the shove the reveal exists to remove, only smaller and harder to explain. The
+ * two being the same number is also just correct: this block and the form above it are one
+ * stack of things to try.
+ */
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin-top: var(--space-4);
 }
 
 /* A rule with the word on it, rather than a bare line: the separator has to say what the
-   choice is, and "or" is the whole sentence. */
+   choice is, and "or" is the whole sentence.
+
+   --text-secondary, where this was --text-tertiary. On the dark card — which is what the
+   shipped default preference resolves to — tertiary measures 4.08:1, under the 4.5:1 floor,
+   and this word is already the smallest type on the screen. */
 .divider {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
 }
 
@@ -29,14 +43,22 @@
   min-height: 40px;
 }
 
-.error {
-  margin: 0;
-  color: var(--priority-urgent);
-  font-size: var(--font-size-sm);
-}
-
-/* Apple's button is ours to draw, unlike Google's, and their guidelines ask for the mark
-   beside the words at the same weight as the rest of the form. */
+/*
+ * Apple's button is ours to draw, unlike Google's, and their guidelines ask for the mark
+ * beside the words at the same weight as the rest of the form.
+ *
+ * 40px, which is not on the control-height ladder, and deliberately. The button directly
+ * above it is rendered by Google's own script into `.slot`, at a height this product does
+ * not get to set; two provider buttons stacked at different heights is the first thing the
+ * eye finds on the card. Matching Google is worth more here than matching a ladder whose
+ * reason for existing is the 32px issue row, which is nowhere near this screen.
+ *
+ * --border-control rather than --border-default. This edge is the whole control: in light
+ * the button's --bg-primary fill is white on a white card, so with a decorative hairline
+ * there is nothing at all saying a button is there. That is the case --border-control was
+ * added for, and it clears the 3:1 non-text minimum in both themes where --border-default
+ * does not.
+ */
 .apple {
   display: flex;
   align-items: center;
@@ -44,7 +66,7 @@
   gap: var(--space-2);
   width: 100%;
   height: 40px;
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-md);
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -53,11 +75,21 @@
   cursor: pointer;
 }
 
-.apple:hover:not(:disabled) {
+/* This button had no focus treatment of any kind, so the only thing marking it on the
+   keyboard path was whatever the browser happened to draw. Same ring as Button, from the
+   same tokens, and :focus-visible so a mouse click does not draw one. */
+.apple:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Keyed on aria-disabled rather than :disabled, because the element is no longer disabled —
+   it stays focusable and refuses in the handler; see the note at the call site. */
+.apple:hover:not([aria-disabled='true']) {
   background-color: var(--bg-elevated);
 }
 
-.apple:disabled {
+.apple[aria-disabled='true'] {
   cursor: default;
   opacity: 0.6;
 }

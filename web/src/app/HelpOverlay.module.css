@@ -1,31 +1,12 @@
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
-  background: var(--bg-overlay);
-}
-
-.panel {
-  width: min(880px, 100%);
-  max-height: 80vh;
-  overflow-y: auto;
-  padding: var(--space-6);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-}
-
-.heading {
-  margin: 0 0 var(--space-5);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-}
+/*
+ * The shortcut sheet's own layout, and nothing else.
+ *
+ * The scrim, the panel, the heading and the key chips used to be declared here, each one a
+ * second copy of something the component library already owned — `Modal` for the first three
+ * and `Kbd` for the last. They are gone rather than tidied: a fourth surface drawing its own
+ * dialog is how a dialog ends up without a focus trap, which is exactly what happened to this
+ * one. What is left is the two-column arrangement of groups, which is genuinely local.
+ */
 
 /* Columns rather than one long list: the whole sheet should be readable without scrolling
    on a laptop, because a shortcut you have to scroll to find is one you look up in the
@@ -64,18 +45,14 @@
   color: var(--text-primary);
 }
 
+/*
+ * One row can carry two *alternatives* — `J` or `↓` — and `Kbd` draws each of them as a group
+ * whose own chips sit --space-1 apart, because inside a group that gap means "then". So the
+ * gap between the groups has to be the larger one, or "J then down-arrow" and "J or
+ * down-arrow" are drawn identically.
+ */
 .keys {
   display: flex;
-  gap: var(--space-1);
+  gap: var(--space-2);
   margin: 0;
-}
-
-.kbd {
-  font-family: var(--font-sans);
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-1);
 }

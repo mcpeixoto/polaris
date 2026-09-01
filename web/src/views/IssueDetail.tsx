@@ -1300,7 +1300,13 @@ export function Comments({
         onChange={(event) => persist(key, event.target.value)}
       />
       <div className={styles.composerActions}>
-        {key === ROOT ? null : <Button onClick={() => setReplyingTo(null)}>Cancel</Button>}
+        {/* Ghost, like every other cancel in the product: abandoning a reply is not a second
+            command competing with posting it. */}
+        {key === ROOT ? null : (
+          <Button variant="ghost" onClick={() => setReplyingTo(null)}>
+            Cancel
+          </Button>
+        )}
         <Tooltip label="Post comment" keys={enterSubmits ? 'Enter' : 'mod+Enter'}>
           <Button type="submit" variant="primary" disabled={(drafts[key] ?? '').trim() === ''}>
             Comment

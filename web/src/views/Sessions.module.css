@@ -71,14 +71,28 @@
   line-height: var(--line-height-normal);
 }
 
+/*
+ * The load failure, in the same panel the auth screens use — 8% fill, ringed edge.
+ *
+ * The fill was 12%, and red text on a 12% wash of itself measures 4.27:1 on the light page:
+ * under the 4.5:1 floor, because the tint is made of the same colour as the words and every
+ * point it adds to the background is a point taken off the contrast. 8% reads 4.55:1 light
+ * and 5.98:1 dark, and the ring is what keeps it looking like a panel rather than a stain
+ * once the fill is that light.
+ *
+ * `align-items: start` rather than centre: the offline sentence is three lines wide on a
+ * narrow settings pane, and a Try again button floated to the middle of a paragraph reads as
+ * belonging to the line it happens to be beside.
+ */
 .failure {
   display: flex;
-  align-items: center;
+  align-items: start;
   gap: var(--space-3);
   margin-bottom: var(--space-4);
   padding: var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
+  background-color: color-mix(in srgb, var(--priority-urgent) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--priority-urgent) 30%, transparent);
   color: var(--priority-urgent);
 }
 

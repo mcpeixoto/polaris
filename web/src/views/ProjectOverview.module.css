@@ -37,7 +37,7 @@
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
-  line-height: 1.5;
+  line-height: var(--line-height-normal);
   white-space: pre-wrap;
 }
 
@@ -53,10 +53,14 @@
   gap: var(--space-1);
 }
 
+/* The detail rail's label treatment — `.propertyLabel` in IssueDetail.module.css. This
+   names a textarea the screen frames itself, and it sits directly under a `Field`-framed
+   Select, so the two labels have to be one treatment rather than two. */
 .label {
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-none);
 }
 
 .textarea {
@@ -68,12 +72,12 @@
   background: var(--bg-primary);
   color: var(--text-primary);
   font: inherit;
-  line-height: 1.5;
+  line-height: var(--line-height-normal);
   resize: vertical;
 }
 
 .textarea:focus-visible {
-  outline: 2px solid var(--border-focus);
+  outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: 0;
 }
 

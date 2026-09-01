@@ -10,8 +10,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
+import { Kbd } from '~/components';
 import { usePresence } from '~/hooks/usePresence';
-import { formatKeySpec, type Action, type Platform } from '~/keys';
+import { type Action, type Platform } from '~/keys';
 import { os } from '~/platform/runtime';
 
 import {
@@ -19,6 +20,7 @@ import {
   matchUsers,
   parseCommandQuery,
   rankActions,
+  type CommandScope,
   type EntityHit,
 } from './commandMenuQuery';
 import { useKeymap } from './keymap';
@@ -182,7 +184,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
         <ul className={styles.results} id="command-menu-results" role="listbox" ref={listRef}>
           {rows.length === 0 && (
             <li className={styles.empty} role="presentation">
-              <span className={styles.emptyTitle}>No matching command</span>
+              <span className={styles.emptyTitle}>{emptyTitle(parsed.scope, parsed.needle)}</span>
               <span className={styles.emptyHint}>
                 Try &gt; for commands, # for issues, @ for people, or press Esc
               </span>
@@ -211,9 +213,10 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
                     {row.kind === 'action' ? row.action.title : row.hit.title}
                   </span>
                   {row.kind === 'action' && row.action.keys?.[0] && (
-                    <kbd className={styles.keys}>
-                      {formatKeySpec(row.action.keys[0], platform())}
-                    </kbd>
+                    // The registry's own handwriting. This drew its own <kbd> and formatted
+                    // the spec by hand, which is a second opinion about how a chord is
+                    // spelled in the surface people learn chords from.
+                    <Kbd keys={row.action.keys[0]} platform={platform()} />
                   )}
                 </li>
               );
@@ -248,6 +251,33 @@ export function grouped<T extends { group: string }>(
     else sections.push({ key: `${sections.length}-${row.group}`, group: row.group, rows: [row] });
   }
   return sections;
+}
+
+/**
+ * What "nothing" is, in the terms the query asked the question in.
+ *
+ * The box said "No matching command" whatever had been typed into it, so `#zz` — a search of
+ * the issues in the replica — answered about commands, and a first-run workspace with no
+ * issues in it at all read as a menu that had lost them. Which kind of empty this is, is the
+ * whole of what the reader needs: an empty *result* is retyped, an empty *set* is not.
+ *
+ * This is deliberately not `EmptyState`, which is the rule for an empty list everywhere else.
+ * That component holds itself invisible for --duration-normal before fading in, because a
+ * local-first list renders before its rows have arrived and "No issues yet" must not flash on
+ * the way to a full screen. Nothing here is waiting on a socket — the rows are ranked
+ * synchronously from the replica on the keystroke — so the same delay would be a fifth of a
+ * second of blank panel after every unmatched character.
+ */
+function emptyTitle(scope: CommandScope, needle: string): string {
+  if (needle === '') {
+    if (scope === 'issue') return 'No issues in this workspace yet';
+    if (scope === 'user') return 'Nobody in this workspace yet';
+    return 'Nothing to run on this screen';
+  }
+  if (scope === 'issue') return `No issue matches “${needle}”`;
+  if (scope === 'user') return `Nobody matches “${needle}”`;
+  if (scope === 'command') return `No command matches “${needle}”`;
+  return `Nothing matches “${needle}”`;
 }
 
 function platform(): Platform {
