@@ -225,6 +225,24 @@ travel on the sign-in call to redeem it in the same transaction.
 That is Apple's guideline 4.8, not a Polaris rule, and it applies to the app rather than to
 the website.
 
+**The consent screen carries the Google project's name, not yours.** Google renders "Sign in
+to *continue to X*" from the OAuth consent screen of the Cloud project that issued the client
+id — a string this deployment never sends and cannot override. Reusing a client id from some
+other project you already had is the fastest way to configure the provider and the fastest
+way to show every visitor a sign-in prompt naming an unrelated product.
+
+One project can hold many client ids, and they all share its one consent screen. So either
+give the deployment its own Cloud project and name the brand after the product, or keep one
+project for everything you run and name the brand after the organisation — what you cannot
+have is a single project whose consent screen names one of its products. Whichever you pick,
+the brand needs a homepage that explains what the app is, an app name that matches the one on
+that homepage, and a reachable privacy policy with real content on the same domain: Google
+checks all three, and a brand that fails re-verification keeps serving the *previously*
+verified name rather than the one in the console.
+
+`POLARIS_APPLE_WEB_CLIENT_ID` has the same property for Apple, where the Services ID's
+description is what the sheet shows.
+
 ### Billing, if you are the one selling
 
 Nothing in this section applies to a self-host, and the defaults are already the answer:
