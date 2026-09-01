@@ -30,6 +30,12 @@ export interface AuthLayoutProps {
 export function AuthLayout({ title, subtitle, footer, children }: AuthLayoutProps) {
   return (
     <main className={styles.page}>
+      {/* The same accent wash the marketing page opens with, so the step from the poster
+          into the product is not a step onto a blank grey field. Decorative and inert:
+          it is behind everything, it takes no pointer events, and a browser that renders
+          none of it leaves the page exactly as it was. */}
+      <div className={styles.aurora} aria-hidden="true" />
+      <div className={styles.grid} aria-hidden="true" />
       <div className={styles.card}>
         <Logo className={styles.wordmark} />
         <h1 className={styles.title}>{title}</h1>

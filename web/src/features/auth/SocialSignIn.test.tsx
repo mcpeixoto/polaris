@@ -20,7 +20,10 @@ vi.mock('~/sync/api', async (importOriginal) => {
 vi.mock('./social', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./social')>();
   return {
-    mountGoogleButton: vi.fn(),
+    // Resolved, not bare: the component chains a .catch onto this to report a script that
+    // never loaded, and a mock returning undefined would fail on the chain rather than on
+    // the behaviour under test.
+    mountGoogleButton: vi.fn().mockResolvedValue(undefined),
     signInWithApple: vi.fn(),
     prepareApple: vi.fn().mockResolvedValue(undefined),
     // The real one: turning Apple's rejection into a sentence is the thing under test in

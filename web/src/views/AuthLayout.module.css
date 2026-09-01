@@ -12,13 +12,20 @@
  */
 
 .page {
+  position: relative;
+  /* The wash sits at z-index -1, and a stacking context here is what keeps that "behind"
+     local to this page rather than a claim about everything painted under it. */
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-4);
+  gap: var(--space-5);
   min-height: 100dvh;
   padding: var(--space-6);
+  /* clip, not hidden: the wash is wider than the viewport on purpose and hidden would make
+     this element a scroll container for a page that has nothing to scroll. */
+  overflow: clip;
   background-color: var(--bg-secondary);
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -35,17 +42,87 @@
   --auth-beat: calc(var(--duration-instant) * 0.6);
 }
 
+/*
+ * The accent wash behind the card.
+ *
+ * Two radial stops from the marketing page's `.aurora`, at the same hues and roughly half
+ * the reach: this is one card on a short page, not a fold that has to carry a headline.
+ * It is the only thing on these screens that is not type or a control, and it exists so
+ * the first surface after the poster shares the poster's colour rather than resetting to a
+ * flat grey that reads as an error page.
+ *
+ * Masked to fade out before the bottom of the viewport so the card never sits on a visible
+ * edge, and drifting slowly enough that nobody watching the form notices it move. The whole
+ * thing is decorative: `aria-hidden`, no pointer events, and every property degrades to
+ * nothing rather than to something wrong.
+ */
+.aurora {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  /* Placed high-left and low-right rather than both along the top edge: the card is centred
+     in the viewport, and a wash that lives above it leaves it sitting on the flat grey this
+     is meant to replace. These two put light on the diagonal the card crosses. */
+  background:
+    radial-gradient(
+      46rem 30rem at 12% 8%,
+      color-mix(in srgb, var(--accent) 22%, transparent),
+      transparent 66%
+    ),
+    radial-gradient(
+      38rem 26rem at 88% 88%,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 68%
+    );
+  animation: auroraDrift 26s var(--ease-in-out) infinite alternate;
+}
+
+/*
+ * A hairline grid under the card, faded out before it reaches any edge.
+ *
+ * The wash alone left the page soft in every direction, which reads as unfinished rather
+ * than as calm; the grid is the one bit of structure that says this is a tool. It is drawn
+ * in --border-subtle, the same hairline the product's own rows use, so it belongs to the
+ * same drawing and cannot fight the card sitting on top of it. Masked from the centre out,
+ * because a grid that runs to the edge of the window is a background image and a grid that
+ * stops is a surface.
+ */
+.grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--border-subtle) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border-subtle) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(46rem 32rem at 50% 45%, currentcolor, transparent 70%);
+}
+
+@keyframes auroraDrift {
+  from {
+    transform: translate3d(-2%, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2%, 1.5%, 0) scale(1.06);
+  }
+}
+
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
   width: 100%;
-  max-width: 400px;
-  padding: var(--space-6);
+  max-width: 420px;
+  padding: var(--space-8);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background-color: var(--bg-elevated);
-  box-shadow: var(--shadow-md);
+  border-radius: calc(var(--radius-lg) * 2);
+  background-color: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  /* The card is translucent so the wash reads through its corners; without the blur that
+     is a smear of the gradient rather than a surface over it. */
+  backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: var(--shadow-lg);
 
   /*
    * Modal's dialogIn, turned over and given more room.
@@ -115,14 +192,17 @@
 
 .title {
   margin: 0;
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-2xl);
+  letter-spacing: -0.02em;
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
   animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 2) backwards;
 }
 
+/* Pulled back against the card's gap so the line reads as belonging to the title above it
+   rather than as the first item in the stack below. */
 .subtitle {
-  margin: calc(var(--space-3) * -1) 0 0;
+  margin: calc(var(--space-4) * -1) 0 0;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
@@ -166,6 +246,8 @@
 }
 
 .footer {
+  max-width: 420px;
+  text-align: center;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
   /* Last, because it is the way out of a screen the user has only just been shown. */

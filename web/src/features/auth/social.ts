@@ -144,7 +144,13 @@ export async function mountGoogleButton(
     theme: 'outline',
     size: 'large',
     text: 'continue_with',
-    width: 320,
+    // Google draws into an iframe at a fixed pixel width, so this button cannot be
+    // stretched by CSS the way the Apple button beside it can. 320 was a guess that left
+    // the two buttons visibly different widths in the same card; measuring the slot is what
+    // makes them one column. Clamped to the 200–400px range Google accepts, which is also
+    // what protects a slot that has not been laid out yet: a button asked for 0px wide is
+    // worse than one that is merely narrower than its neighbour.
+    width: Math.min(400, Math.max(200, Math.round(parent.getBoundingClientRect().width))),
   });
 }
 
@@ -192,7 +198,14 @@ export function signInWithApple(): Promise<Assertion> {
   const apple = window.AppleID;
   const nonce = appleNonce;
   if (apple === undefined || nonce === null) {
-    return Promise.reject(new Error('Apple sign-in is not ready yet. Try again in a moment.'));
+    // Apple's script is a third-party origin loaded on mount. It has either not landed yet
+    // or was refused, and the reader needs to know which kind of wait this is — "not ready"
+    // on its own reads as a product that is broken rather than one that is loading.
+    return Promise.reject(
+      new Error(
+        "Apple sign-in has not loaded yet. Try again in a moment — if it keeps failing, a content blocker is refusing Apple's script.",
+      ),
+    );
   }
 
   return apple.auth.signIn().then((result) => {

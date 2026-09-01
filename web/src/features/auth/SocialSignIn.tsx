@@ -79,12 +79,19 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
   useEffect(() => {
     const slot = googleSlot.current;
     if (!providers.includes('google') || googleClientId === '' || slot === null) return;
-    void mountGoogleButton(
+    mountGoogleButton(
       slot,
       googleClientId,
       (assertion) => void exchange('google', assertion),
       setError,
-    );
+    ).catch(() => {
+      // `void` used to stand here, which meant a script that never arrived became an
+      // unhandled rejection in the console and an empty rectangle on the page — the reader
+      // was left clicking at nothing with no idea why. Google's script is a third-party
+      // origin, and a content blocker or a strict privacy mode refusing it is the ordinary
+      // case, not the exotic one.
+      setError('Google sign-in could not load. A content blocker is the usual cause.');
+    });
   }, [providers, googleClientId, exchange]);
 
   // Apple's SDK is loaded and initialised here rather than on the click, because
@@ -110,8 +117,17 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
         // null for the cases that are somebody changing their mind.
         const message = appleFailureMessage(failure);
         if (message !== null) setError(message);
+
+        // Then set the SDK up again for the next click. The preparation on mount happens
+        // once, so a script that was still downloading — or that failed on a flaky
+        // connection — left the button dead for the rest of the session: every click after
+        // it said "not ready yet" and opened nothing. Re-initialising costs one call and a
+        // fresh nonce, and the nonce is only ever read by the attempt that follows it.
+        void prepareApple(appleClientId).catch(() => {
+          // Same silence as on mount: the click that needs it is the one that reports it.
+        });
       });
-  }, [exchange]);
+  }, [appleClientId, exchange]);
 
   if (providers.length === 0) return null;
 
