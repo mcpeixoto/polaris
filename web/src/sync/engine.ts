@@ -57,12 +57,36 @@ if (STORE_SCHEMA !== SOCKET_SCHEMA) {
   );
 }
 
+/**
+ * Something still working, but not the way it is supposed to.
+ *
+ * Distinct from `failed` because the app is usable: the user can read and can type, and the
+ * only honest thing to do is say what is not happening rather than either stopping them or
+ * letting them find out on the next reload.
+ */
+export interface EngineDegradation {
+  /** `storage-full` is the quota; `storage-failed` is any other refusal from IndexedDB. */
+  readonly reason: 'storage-full' | 'storage-failed';
+  readonly message: string;
+}
+
 export type EngineStatus =
   | { phase: 'idle' }
   | { phase: 'hydrating' }
   | { phase: 'bootstrapping'; received: number }
-  | { phase: 'ready'; connection: ConnectionState; pending: number }
-  | { phase: 'failed'; error: string };
+  | {
+      phase: 'ready';
+      connection: ConnectionState;
+      pending: number;
+      /** Absent while everything works. See `EngineDegradation`. */
+      degraded?: EngineDegradation;
+    }
+  | {
+      phase: 'failed';
+      error: string;
+      /** True while a retry is already scheduled, so the shell can wait rather than offer one. */
+      retrying?: boolean;
+    };
 
 export interface EngineOptions {
   onStatus?(status: EngineStatus): void;
@@ -89,6 +113,27 @@ const MAX_ATTEMPTS = 5;
  * the map stays a fixed, small cost.
  */
 const MAX_SUCCESSIONS = 500;
+
+/**
+ * Backoff bounds for retrying a failed bootstrap, and for the outbox drain.
+ *
+ * Jittered for the same reason the socket's reconnect is: the failure worth designing for is
+ * the server restarting, and a fleet that all retries on the same millisecond turns a deploy
+ * blip into an outage. Capped rather than given up on, because a resync that stops retrying
+ * parks the user on a dead screen behind a connection that is still live.
+ */
+const RETRY_MIN_MS = 1_000;
+const RETRY_MAX_MS = 60_000;
+
+/**
+ * How many bootstrap pages are written before the reader waits for the disk to catch up.
+ *
+ * The network outruns IndexedDB on any workspace worth bootstrapping, and every un-written
+ * batch is retained by the persist chain — so with no backpressure the whole snapshot is held
+ * in memory twice at the peak. Awaiting every few pages costs nothing when the disk is
+ * keeping up and bounds the queue when it is not.
+ */
+const BOOTSTRAP_BACKPRESSURE_PAGES = 8;
 
 /** `mutation CreateComment(...)` → `CreateComment`, so a thrown error names the call site. */
 function operationName(document: string): string {
@@ -130,6 +175,11 @@ export class SyncEngine {
   private successions = new Map<UUID, UUID>();
   private draining = false;
   private resyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private resyncDelay = RETRY_MIN_MS;
+  private drainTimer: ReturnType<typeof setTimeout> | null = null;
+  private drainDelay = RETRY_MIN_MS;
+  private bootstrapAbort: AbortController | null = null;
+  private degraded: EngineDegradation | undefined;
   private stopped = false;
 
   constructor(workspaceId: UUID, options: EngineOptions = {}) {
@@ -159,7 +209,10 @@ export class SyncEngine {
       // Opened here rather than in the constructor: IndexedDB is async, and a constructor
       // that cannot await would leave every method guarding against a half-open handle.
       this.db = await PolarisDB.open(this.workspaceId);
-      this.store = new Store(this.workspaceId, { db: this.db });
+      this.store = new Store(this.workspaceId, {
+        db: this.db,
+        onPersistError: (error) => this.onPersistError(error),
+      });
       this.outbox = await Outbox.open(this.db);
 
       // Databases for other workspaces, and for older schema versions, are dead weight
@@ -198,8 +251,44 @@ export class SyncEngine {
 
   stop(): void {
     this.stopped = true;
-    if (this.resyncTimer) clearTimeout(this.resyncTimer);
+    if (this.resyncTimer) {
+      clearTimeout(this.resyncTimer);
+      this.resyncTimer = null;
+    }
+    if (this.drainTimer) {
+      clearTimeout(this.drainTimer);
+      this.drainTimer = null;
+    }
+    // A bootstrap stream has no timeout of its own long enough to matter here: without this,
+    // `stop()` returns while a snapshot keeps arriving into a store nobody is watching.
+    this.bootstrapAbort?.abort();
     this.socket.disconnect();
+  }
+
+  /**
+   * A durable write that did not land.
+   *
+   * The in-memory replica carries on regardless, which is why this has to be said out loud:
+   * everything since the failure exists only in this tab, and a reload loses it. The quota is
+   * the case worth separating — it is the one a re-bootstrap onto a smaller replica can
+   * actually fix — so stale databases are dropped here in the hope of making room.
+   */
+  private onPersistError(error: unknown): void {
+    // Not `instanceof Error`: a `DOMException` is not one in every runtime this ships to,
+    // and the quota failure is precisely the one that arrives as a DOMException.
+    const named = error as { name?: unknown; message?: unknown } | null;
+    const quota =
+      named?.name === 'QuotaExceededError' ||
+      (typeof named?.message === 'string' && /quota/i.test(named.message));
+    this.degraded = {
+      reason: quota ? 'storage-full' : 'storage-failed',
+      message: quota
+        ? 'this browser is out of space, so changes are not being saved locally'
+        : 'changes are not being saved locally',
+    };
+    if (quota) void dropStaleDatabases(this.workspaceId);
+    console.error('[sync] the local replica could not be written', error);
+    this.publishStatus();
   }
 
   /**
@@ -258,6 +347,13 @@ export class SyncEngine {
       optimisticPatch: input.optimistic,
       reconcile: input.reconcile,
     });
+    // Claimed before it goes out. `pending()` filters on exactly this set, so without the
+    // claim any drain that starts while this attempt is still awaiting — and `onSocketReady`
+    // starts one on every reconnect — picks the same op up and sends it again. The server's
+    // idempotency table stops the double write, but both answers then run `settle` and
+    // `discharge`: the first resolve deletes the record while the second is mid-flight, and
+    // the stand-in is retired twice against a record that is no longer there.
+    this.outbox.markInFlight(opId);
     this.publishStatus();
 
     try {
@@ -276,13 +372,18 @@ export class SyncEngine {
         // busy to take it. In both cases the mutation may still happen, so keep it queued
         // and keep the optimistic state on screen — rolling back here is what makes an app
         // feel like it "lost" an edit the moment a lift's doors close.
+        //
+        // The claim is released with it: this caller is done, and an op left claimed is
+        // invisible to `pending()` and would never be retried at all.
+        this.outbox.release(opId);
         this.publishStatus();
-        void this.scheduleDrain();
+        this.scheduleDrain(err.retryAfterMs);
         throw err;
       }
 
       // A real rejection. Undo the optimistic patch so the user is not left looking at a
       // state the server refused.
+      this.outbox.release(opId);
       const patch = await this.outbox.rollback(opId);
       if (patch) this.store.revertOptimistic(patch);
       this.publishStatus();
@@ -324,11 +425,10 @@ export class SyncEngine {
    */
   isProvisional(id: UUID): boolean {
     if (this.successions.has(id)) return false;
-    return this.outbox
-      .list()
-      .some((record) =>
-        reconciliations(record.reconcile).some((spec) => spec.provisionalId === id),
-      );
+    // A set membership test on the outbox rather than a scan of it: this is asked from
+    // composer and render paths, so with a large offline queue the scan it used to do was an
+    // O(n·m) copy per keystroke.
+    return this.outbox.hasProvisional(id);
   }
 
   /**
@@ -390,7 +490,14 @@ export class SyncEngine {
 
   /** Retries everything queued. Called on reconnect and after an offline failure. */
   async drainOutbox(): Promise<void> {
-    if (this.draining || this.stopped) return;
+    if (this.stopped) return;
+    if (this.draining) {
+      // Not lost. A skipped drain used to be simply dropped, so a burst of offline
+      // mutations that scheduled several overlapping drains ended with a queue nothing
+      // came back for.
+      this.scheduleDrain();
+      return;
+    }
     this.draining = true;
 
     try {
@@ -429,7 +536,12 @@ export class SyncEngine {
             // Still offline. Release the claim without counting an attempt and stop:
             // nothing about this op was judged, so a try that never left the machine
             // must not move it closer to being discarded.
+            //
+            // Rearmed rather than left to `onSocketReady`. The socket and /graphql are not
+            // the same service: an API container restarting behind the same proxy leaves the
+            // socket perfectly healthy and nothing else would ever drain the queue.
             this.outbox.release(record.opId);
+            this.scheduleDrain();
             break;
           }
 
@@ -438,7 +550,9 @@ export class SyncEngine {
           // the attempt ceiling is for.
           const attempts = await this.outbox.markAttempt(record.opId);
           if (isRetriable(err) && attempts < MAX_ATTEMPTS) {
-            void this.scheduleDrain();
+            // The server's own number when it gave one. A client that answers a 429 with a
+            // guess of its own is a client that keeps hitting the same rate limit.
+            this.scheduleDrain(err instanceof ApiError ? err.retryAfterMs : undefined);
             break;
           }
 
@@ -450,9 +564,17 @@ export class SyncEngine {
       this.draining = false;
       this.publishStatus();
     }
+
+    // A drain that ran while another was in progress returned immediately; a drain that
+    // stopped early left work behind. Either way something has to come back for it, and
+    // nothing else will.
+    if (this.outbox.pending().length > 0) this.scheduleDrain();
   }
 
   private async onSocketReady(serverVersion: number): Promise<void> {
+    // A reconnected socket is evidence the network is back, so the queue starts from the
+    // bottom of the backoff curve rather than from wherever it had climbed to while down.
+    this.resetDrainBackoff();
     // Anything queued while offline goes out before anything else, so the user's own
     // edits reach the server before deltas arrive that might contradict them.
     await this.drainOutbox();
@@ -475,33 +597,73 @@ export class SyncEngine {
   }
 
   private onResync(reason: string, retryAfterMs: number): void {
-    if (this.resyncTimer) clearTimeout(this.resyncTimer);
-
+    void reason;
+    this.resyncDelay = RETRY_MIN_MS;
     // The server already jittered this. Honouring the delay is what stops a fleet-wide
     // resync — a bad deploy, a schema bump — from arriving at Postgres as one spike.
+    this.scheduleResync(retryAfterMs);
+  }
+
+  /**
+   * Rebuilds the replica, and keeps trying.
+   *
+   * A resync used to be one timer and one attempt: any failure — a 500, a dropped stream, a
+   * tunnel — set `phase: 'failed'` and stopped there, leaving the user on a dead splash
+   * behind a socket that was still connected and still delivering. Nothing retried it and
+   * nothing could, short of a reload.
+   */
+  private scheduleResync(delayMs: number): void {
+    if (this.stopped) return;
+    if (this.resyncTimer) clearTimeout(this.resyncTimer);
+
     this.resyncTimer = setTimeout(() => {
+      this.resyncTimer = null;
       void (async () => {
         try {
           await this.bootstrap();
+          this.resyncDelay = RETRY_MIN_MS;
           this.socket.connect(this.store.version);
           clearSchemaReloadAttempt();
+          // Set rather than published: `publishStatus` re-emits a non-ready phase unchanged,
+          // and the phase at this point is the `bootstrapping` this rebuild just finished.
+          this.setStatus(this.readyStatus());
         } catch (err) {
           if (isOutdatedClientError(err)) {
+            // A schema disagreement is not something a retry can resolve; only a new bundle
+            // can, and this reloads once to go and get one.
             await this.recoverOutdatedClient();
+            this.setStatus({
+              phase: 'failed',
+              error: err instanceof Error ? err.message : 'resync failed',
+            });
+            return;
           }
+          if (this.stopped) return;
+          const next = Math.min(
+            this.resyncDelay + Math.random() * this.resyncDelay * 0.5,
+            RETRY_MAX_MS,
+          );
+          this.resyncDelay = Math.min(this.resyncDelay * 2, RETRY_MAX_MS);
           this.setStatus({
             phase: 'failed',
             error: err instanceof Error ? err.message : 'resync failed',
+            retrying: true,
           });
+          this.scheduleResync(next);
         }
       })();
-    }, retryAfterMs);
-
-    void reason;
+    }, delayMs);
   }
 
   private async bootstrap(): Promise<void> {
     this.setStatus({ phase: 'bootstrapping', received: 0 });
+
+    // The socket is closed for the length of the rebuild, and this is not a tidiness.
+    // A delta delivered into a store that is mid-bootstrap is applied against a replica that
+    // does not hold the rows yet: a `revoke` that lands before the page carrying its entity
+    // forgets nothing, the page then re-inserts the row, and an entity the user has lost
+    // access to stays readable for good — the exact leak `revoke` exists to prevent.
+    this.socket.disconnect();
 
     // Clears the previous replica before the first row lands. Ingesting on top of it
     // would leave behind every entity that has since been deleted or revoked — and a
@@ -509,30 +671,52 @@ export class SyncEngine {
     // rows are the ones the client must not keep.
     await this.store.beginBootstrap();
 
-    const result = await streamBootstrap(this.workspaceId, {
-      onMeta: (meta) => {
-        if (meta.clientSchema !== STORE_SCHEMA) {
-          // Reloading is the prescribed recovery, but only a new bundle (or a rebuilt
-          // server) can actually change the number. Throwing here lets start() drop the
-          // torn replica and auto-reload once, rather than leaving the user on a splash
-          // whose "Try again" retries the same disagreement.
-          throw new ApiError('CONFLICT', OUTDATED_CLIENT_MESSAGE);
-        }
-      },
-      onBatch: (entities) => {
-        const rows: EntityRow[] = entities.map((e) => ({
-          type: e.type as EntityType,
-          entity: e.payload as Entity,
-        }));
-        this.store.ingestBootstrapPage(rows);
-      },
-      onProgress: (received) => this.setStatus({ phase: 'bootstrapping', received }),
-    });
+    // Engine-owned so `stop()` can cancel it. A snapshot has no timeout that matters at the
+    // scale of a tab being closed, and without this the stream keeps arriving into a store
+    // nothing is watching.
+    const abort = new AbortController();
+    this.bootstrapAbort?.abort();
+    this.bootstrapAbort = abort;
 
-    // The commit point. Rows were written as they streamed, but bootstrapAt is only set
-    // here — so a connection that drops mid-snapshot leaves a store the next load
-    // correctly recognises as torn and re-fetches, rather than one it mistakes for complete.
-    await this.store.finishBootstrap(result.version);
+    let pages = 0;
+    try {
+      const result = await streamBootstrap(
+        this.workspaceId,
+        {
+          onMeta: (meta) => {
+            if (meta.clientSchema !== STORE_SCHEMA) {
+              // Reloading is the prescribed recovery, but only a new bundle (or a rebuilt
+              // server) can actually change the number. Throwing here lets start() drop the
+              // torn replica and auto-reload once, rather than leaving the user on a splash
+              // whose "Try again" retries the same disagreement.
+              throw new ApiError('CONFLICT', OUTDATED_CLIENT_MESSAGE);
+            }
+          },
+          onBatch: async (entities) => {
+            const rows: EntityRow[] = entities.map((e) => ({
+              type: e.type as EntityType,
+              entity: e.payload as Entity,
+            }));
+            this.store.ingestBootstrapPage(rows);
+            // Backpressure. `ingestBootstrapPage` queues its write and returns, so with a
+            // network faster than IndexedDB — which is every workspace worth bootstrapping —
+            // every un-written batch stays retained by the persist chain and the whole
+            // snapshot is held twice at the peak. Waiting here is what lets the reader
+            // inherit the disk's pace.
+            if (++pages % BOOTSTRAP_BACKPRESSURE_PAGES === 0) await this.store.whenPersisted();
+          },
+          onProgress: (received) => this.setStatus({ phase: 'bootstrapping', received }),
+        },
+        abort.signal,
+      );
+
+      // The commit point. Rows were written as they streamed, but bootstrapAt is only set
+      // here — so a connection that drops mid-snapshot leaves a store the next load
+      // correctly recognises as torn and re-fetches, rather than one it mistakes for complete.
+      await this.store.finishBootstrap(result.version);
+    } finally {
+      if (this.bootstrapAbort === abort) this.bootstrapAbort = null;
+    }
   }
 
   /**
@@ -560,9 +744,35 @@ export class SyncEngine {
     });
   }
 
-  private scheduleDrain(): void {
-    if (this.stopped) return;
-    setTimeout(() => void this.drainOutbox(), 5000);
+  /**
+   * Arranges for one more drain, later.
+   *
+   * One timer, not one per caller. The flat five-second `setTimeout` this replaces kept no
+   * handle (so `stop()` could not clear it), had no backoff and no jitter, and was scheduled
+   * once per failing mutation: fifty offline edits armed fifty timers that all fired
+   * together, and the `draining` guard then discarded forty-nine of them for good.
+   *
+   * `retryAfterMs` is the server's own answer on a 429 and wins over the backoff, because the
+   * point of honouring it is to stop asking before it says so.
+   */
+  private scheduleDrain(retryAfterMs?: number): void {
+    if (this.stopped || this.drainTimer !== null) return;
+
+    const base = retryAfterMs ?? this.drainDelay;
+    const delay = Math.min(base + Math.random() * base * 0.5, RETRY_MAX_MS);
+    this.drainTimer = setTimeout(() => {
+      this.drainTimer = null;
+      void this.drainOutbox();
+    }, delay);
+
+    if (retryAfterMs === undefined) {
+      this.drainDelay = Math.min(this.drainDelay * 2, RETRY_MAX_MS);
+    }
+  }
+
+  /** A drain that got somewhere: the next failure starts from the bottom of the curve again. */
+  private resetDrainBackoff(): void {
+    this.drainDelay = RETRY_MIN_MS;
   }
 
   private setStatus(status: EngineStatus): void {
@@ -570,16 +780,24 @@ export class SyncEngine {
     this.options.onStatus?.(status);
   }
 
+  /** What "everything is running" looks like right now, degradation included. */
+  private readyStatus(): EngineStatus {
+    return {
+      phase: 'ready',
+      connection: this.socket.connectionState(),
+      pending: this.outbox.pending().length,
+      // Spread rather than assigned so a healthy engine publishes no key at all under
+      // `exactOptionalPropertyTypes`.
+      ...(this.degraded === undefined ? null : { degraded: this.degraded }),
+    };
+  }
+
   private publishStatus(): void {
     if (this.status.phase !== 'ready' && this.status.phase !== 'idle') {
       this.options.onStatus?.(this.status);
       return;
     }
-    this.setStatus({
-      phase: 'ready',
-      connection: this.socket.connectionState(),
-      pending: this.outbox.pending().length,
-    });
+    this.setStatus(this.readyStatus());
   }
 }
 

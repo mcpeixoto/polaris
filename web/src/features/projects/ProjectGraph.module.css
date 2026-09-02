@@ -17,10 +17,37 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* Uniform scaling: the viewBox's own aspect ratio, so a slope means a rate rather than
+   whatever the container's width made of it. */
 .chart {
-  width: 100%;
-  height: 8rem;
   display: block;
+  width: 100%;
+  aspect-ratio: 720 / 220;
+  max-height: 14rem;
+}
+
+/* The scale, under the series. Hairlines at the 3:1 floor's own token, because a gridline
+   that competes with a data line has stopped being a background. */
+.grid {
+  stroke: var(--border-subtle);
+  stroke-width: 1;
+}
+
+.axisLabel {
+  fill: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+/* Completed in the period, not cumulative. Behind the lines and washed out, so the bars
+   give the week's rhythm without arguing with the curve that runs over them. */
+.bar {
+  fill: var(--accent);
+  opacity: 0.28;
+}
+
+.targetLabel {
+  fill: var(--text-danger);
+  font-size: var(--font-size-xs);
 }
 
 /*
@@ -56,7 +83,7 @@
 }
 
 .target {
-  stroke: var(--priority-urgent);
+  stroke: var(--text-danger);
   stroke-width: 1.5;
   stroke-dasharray: 4 3;
 }
@@ -110,11 +137,7 @@
 }
 
 .targetSwatch {
-  background: repeating-linear-gradient(
-    to right,
-    var(--priority-urgent) 0 4px,
-    transparent 4px 7px
-  );
+  background: repeating-linear-gradient(to right, var(--text-danger) 0 4px, transparent 4px 7px);
 }
 
 .predictionSwatch {

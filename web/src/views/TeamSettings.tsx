@@ -25,15 +25,18 @@ import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import {
+  Avatar,
   Badge,
   Button,
   Checkbox,
   EmptyState,
   IconButton,
   Input,
+  SaveIndicator,
   Select,
   StateIcon,
   STATE_LABELS,
+  useSaveState,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
@@ -69,6 +72,7 @@ import {
   updateStatus,
   updateTeam,
 } from '~/features/team/mutations';
+import { addTeamMember, removeTeamMember } from '~/features/team/create';
 import { deleteTeam, retireTeam, unretireTeam } from '~/features/team-lifecycle/mutations';
 import { moveTeam } from '~/features/team-lifecycle/move';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -77,6 +81,7 @@ import {
   type RecurringCadence,
   type StateCategory,
   type Store,
+  type TeamRole,
   type UUID,
 } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -275,6 +280,8 @@ export function TeamSettings() {
             team={team}
             onChange={(isPrivate) => run(updateTeam(engine, team.id, { private: isPrivate }))}
           />
+
+          <TeamMembers teamId={team.id} teamName={team.name} />
 
           <CycleCadence
             team={team}
@@ -512,6 +519,206 @@ function VisibilitySettings({
       />
     </>
   );
+}
+
+/**
+ * Who is on this team.
+ *
+ * `addTeamMember` and `removeTeamMember` had existed server-side since the first release and
+ * nothing in the client called either of them — a grep for `teamMembership` across
+ * `web/src/features` returned reads only. Team membership is what gates a private team's
+ * issues, what cycle capacity is measured against, which of the two default templates a new
+ * issue gets and who sees triage, so the whole of that was configured against a set nobody
+ * could edit.
+ *
+ * The roster is a list rather than a table because it is two facts per person. Adding is a
+ * select over everyone in the workspace who is not already here — an empty select means
+ * everybody is, which is a sentence rather than a disabled control.
+ *
+ * Removing waits for the server and shows what it said: the refusal that matters is "a team
+ * keeps at least one owner", and it is the answer the user needs rather than an exception.
+ */
+function TeamMembers({ teamId, teamName }: { teamId: UUID; teamName: string }) {
+  const engine = useEngine();
+  const [adding, setAdding] = useState<UUID | ''>('');
+  const [removing, setRemoving] = useState<TeamMemberRow | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const save = useSaveState();
+
+  const members = useLiveQuery(
+    (store: Store) => readTeamMembers(store, teamId),
+    ['teamMembership', 'user'],
+    [teamId],
+  );
+
+  const candidates = useLiveQuery(
+    (store: Store) => {
+      const onTeam = new Set<UUID>();
+      for (const membershipId of store.membershipIdsForTeam(teamId)) {
+        const membership = store.teamMemberships.get(membershipId);
+        if (membership !== undefined) onTeam.add(membership.userId);
+      }
+      return [...store.users.values()]
+        .filter(
+          (user) => user.archivedAt === undefined && user.kind !== 'app' && !onTeam.has(user.id),
+        )
+        .map((user) => ({ id: user.id, name: user.name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+    ['teamMembership', 'user'],
+    [teamId],
+  );
+
+  const confirmRemove = async () => {
+    if (removing === null || busy) return;
+    setBusy(true);
+    setRemoveError(null);
+    try {
+      await removeTeamMember(engine, teamId, removing.userId);
+      setRemoving(null);
+    } catch (failure: unknown) {
+      // Inside the dialog. The page banner renders underneath the open modal, where a
+      // refusal reads as a dialog that quietly did nothing.
+      setRemoveError(
+        failure instanceof ApiError ? failure.message : 'That person could not be removed.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className={styles.section} aria-labelledby="members-heading">
+      <div className={styles.membersHead}>
+        <h2 className={styles.sectionTitle} id="members-heading">
+          Members
+        </h2>
+        <SaveIndicator state={save.state} savedLabel="Added" />
+      </div>
+      <p className={styles.sectionHint}>
+        Membership is what a private team is private from, what cycle capacity counts, and which of
+        the two default templates a new issue gets.
+      </p>
+
+      {save.error === undefined ? null : (
+        <p className={styles.error} role="alert">
+          {save.error}
+        </p>
+      )}
+
+      {members.length === 0 ? (
+        <EmptyState
+          title="Nobody is on this team"
+          description="Issues can still be filed here, but nothing that depends on membership will do anything."
+        />
+      ) : (
+        <ul className={styles.memberList}>
+          {members.map((member) => (
+            <li key={member.id} className={styles.member}>
+              <Avatar name={member.name} size="sm" colorKey={member.userId} />
+              <span className={styles.memberName}>{member.name}</span>
+              <Badge>{member.role === 'owner' ? 'Owner' : 'Member'}</Badge>
+              <Button
+                size="sm"
+                aria-label={`Remove ${member.name} from ${teamName}`}
+                onClick={() => {
+                  setRemoveError(null);
+                  setRemoving(member);
+                }}
+              >
+                Remove
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {candidates.length === 0 ? (
+        <p className={styles.sectionHint}>Everybody in this workspace is already on this team.</p>
+      ) : (
+        <div className={styles.addMember}>
+          <Select
+            label="Add somebody"
+            value={adding}
+            onChange={(event) => setAdding(event.target.value as UUID | '')}
+          >
+            <option value="">Choose a person</option>
+            {candidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name}
+              </option>
+            ))}
+          </Select>
+          <Button
+            variant="secondary"
+            loading={save.state === 'saving'}
+            onClick={() => {
+              if (adding === '') return;
+              const userId = adding;
+              void save
+                .run(() => addTeamMember(engine, teamId, userId))
+                .then((landed) => {
+                  if (landed) setAdding('');
+                });
+            }}
+          >
+            Add to team
+          </Button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={removing !== null}
+        title={removing === null ? '' : `Remove ${removing.name} from ${teamName}?`}
+        consequence={
+          removing === null
+            ? ''
+            : `${removing.name} loses access to this team's issues on their devices, and any assignment or subscription that depended on being a member. Their issues and comments stay exactly as they are.`
+        }
+        confirmLabel={removing === null ? 'Remove' : `Remove ${removing.name}`}
+        destructive
+        busy={busy}
+        error={removeError ?? undefined}
+        onClose={() => {
+          setRemoving(null);
+          setRemoveError(null);
+        }}
+        onConfirm={() => void confirmRemove()}
+      />
+    </section>
+  );
+}
+
+interface TeamMemberRow {
+  readonly id: UUID;
+  readonly userId: UUID;
+  readonly name: string;
+  readonly role: TeamRole;
+}
+
+/** Owners first, then by name — the order the roster is read in rather than insertion order. */
+function readTeamMembers(store: Store, teamId: UUID): readonly TeamMemberRow[] {
+  const rows: TeamMemberRow[] = [];
+  for (const membershipId of store.membershipIdsForTeam(teamId)) {
+    const membership = store.teamMemberships.get(membershipId);
+    if (membership === undefined) continue;
+    const user = store.users.get(membership.userId);
+    if (user === undefined || user.archivedAt !== undefined) continue;
+    rows.push({
+      id: membership.id,
+      userId: user.id,
+      // `displayName`, not `name`: the latter is the login handle and is lower-cased, which
+      // is the wrong thing to print beside an avatar and the wrong thing to put in a
+      // confirmation that names the person it is about.
+      name: user.displayName,
+      role: membership.role,
+    });
+  }
+  return rows.sort((a, b) => {
+    if (a.role !== b.role) return a.role === 'owner' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 const START_DAYS = [

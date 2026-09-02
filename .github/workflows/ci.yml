@@ -155,6 +155,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "ee/web/**/*.{ts,tsx,css}" "desktop/src/**/*.{ts,cts}"
       - run: pnpm -C web typecheck
+      # The desktop shell's two tsc invocations. They ran in no workflow at all: ci.yml
+      # prettier-checks these files and lint-desktop.sh only reads electron-builder.yml, and
+      # desktop.yml — which compiles them as a side effect of packaging — does not trigger on
+      # every pull request. A couple of seconds for the one check that reads main.ts.
+      - run: pnpm -C desktop lint
       # The enterprise resolution of `@ee`. tsconfig.json pins the alias to the stubs so that
       # the ordinary typecheck has something that always exists to check against — which
       # means the commercial modules are not compiled by the line above at all, and would

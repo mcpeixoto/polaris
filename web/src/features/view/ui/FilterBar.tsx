@@ -28,11 +28,11 @@
  * to see it.
  *
  * On the keyboard: this file owns no key handler, because the keyboard belongs to the
- * registry in web/src/keys. The one binding it needs — Escape to close the clause editor —
- * is a registered action in the `menu` context, which the bar pushes while an editor is
- * open. Pushing that context is doing a second job as well: `menu` is sealed, so `J` and
- * `K` stop reaching the issue list underneath while somebody is ticking boxes in a popover
- * over it.
+ * registry in web/src/keys. Two bindings are registered — `F` in the `list` context, which
+ * opens the field menu, and Escape in `menu`, which closes the clause editor. The bar pushes
+ * `menu` while an editor is open, and that push is doing a second job as well: `menu` is
+ * sealed, so `J`, `K` and the `F` above stop reaching the list underneath while somebody is
+ * ticking boxes in a popover over it.
  *
  * That registration is also the one thing a caller has to know: an action id is claimed
  * once, so two of these mounted at the same time is a startup error rather than a subtle
@@ -82,6 +82,7 @@ import {
   isFilterClause,
   isFilterOp,
   isFilterGroup,
+  isStateCategory,
   isRelativeToken,
   operatorApplies,
   RELATIVE_KEYWORDS,
@@ -179,8 +180,14 @@ export function FilterBar({
 
   /** Which chip has its editor open, as a path key. At most one at a time, like a menu. */
   const [editing, setEditing] = useState<string | null>(null);
-  const names = useEntityNames(root);
+  const names = useEntityMarks(root);
   const add = useMenuTrigger();
+  // The same list of fields, opened from inside a bracket. A second trigger rather than a
+  // second menu's worth of items: which group the clause lands in is the only difference,
+  // and it is held in a ref because it is answered by the click, not by a render.
+  const into = useMenuTrigger();
+  const intoPath = useRef<Path>([]);
+  const intoAnchor = useRef<HTMLElement | null>(null);
 
   // Sealed while an editor is open, so the list underneath stops treating letters typed at
   // a popover as its own shortcuts, and so the Escape below wins over the shell's dismiss.
@@ -191,8 +198,25 @@ export function FilterBar({
   const open = useRef(false);
   open.current = editing !== null;
 
+  // Reached the same way, though `useMenuTrigger` promises `show` is stable for exactly this
+  // reason. The ref is what makes that a local fact rather than a dependency on somebody
+  // else's `useCallback` deps staying empty, which is not a promise a registration made once
+  // at mount can check.
+  const showAdd = useRef(add.show);
+  showAdd.current = add.show;
+
   useActions(
     [
+      {
+        id: 'filterBar.add',
+        title: 'Filter',
+        keys: ['f'],
+        // `list`, not `menu`: F opens the add menu from the list, and while a popover is up
+        // the letter belongs to whatever box is being typed into.
+        when: 'list',
+        group: 'Filters',
+        run: () => showAdd.current(),
+      },
       {
         id: 'filterBar.closeEditor',
         title: 'Close the filter editor',
@@ -222,35 +246,88 @@ export function FilterBar({
     onChange(removeAt(root, path));
   };
 
-  const toggleConjunction = () => {
-    onChange({ ...root, conj: (root.conj ?? 'and') === 'and' ? 'or' : 'and' });
+  /**
+   * Flips one group's conjunction, at any depth.
+   *
+   * Per group rather than per filter, which is the difference between "and/or" being a
+   * switch on the bar and it being the grammar the bar renders: `(A or B) and C` has two
+   * conjunctions, the brackets on screen say so, and a control that rewrote both of them
+   * from either bracket would silently change the half nobody was pointing at.
+   */
+  const toggleConjunction = (path: Path) => {
+    const group = groupAt(root, path);
+    if (group === null) return;
+    const next: FilterGroup = { ...group, conj: (group.conj ?? 'and') === 'and' ? 'or' : 'and' };
+    if (path.length === 0) onChange(next);
+    else replace(path, next);
   };
 
   /**
-   * Adds a clause to the top-level group, and opens its editor.
+   * Adds a clause to a group, and opens its editor.
    *
-   * Only the top level, deliberately. Nested groups render — a filter written by the API or
-   * by a future builder must be readable here rather than mangled — but offering "add a
-   * clause to the third group" needs a way to say which group, and there is nothing on
-   * screen for that until nested groups can be created in the first place.
+   * The path is the bar's own row by default and a bracket when the plus inside one was
+   * used. Both exist now that brackets can be made here: an empty group nobody can put a
+   * clause into is not an advanced filter, it is a pair of parentheses somebody is stuck
+   * with.
    */
-  const addClause = (field: FilterField) => {
-    onChange({ ...root, nodes: [...nodes, newClause(field)] });
-    setEditing(pathKey([nodes.length]));
+  const addClause = (field: FilterField, path: Path = []) => {
+    const group = groupAt(root, path) ?? root;
+    const siblings = group.nodes ?? [];
+    const next: FilterGroup = { ...group, nodes: [...siblings, newClause(field)] };
+    if (path.length === 0) onChange(next);
+    else replace(path, next);
+    setEditing(pathKey([...path, siblings.length]));
   };
 
-  const addItems: MenuNode[] = [];
-  for (const group of fieldGroups(hideCustomers)) {
-    addItems.push({ kind: 'heading', label: group.heading });
-    for (const field of group.fields) {
-      addItems.push({
-        id: field,
-        label: FIELD_LABELS[field],
-        hint: FIELD_HINTS[field],
-        onSelect: () => addClause(field),
-      });
+  const openAddInto = (path: Path, anchor: HTMLElement) => {
+    intoPath.current = path;
+    intoAnchor.current = anchor;
+    into.show();
+  };
+
+  const fieldItems = (target: Path | null): MenuNode[] => {
+    const items: MenuNode[] = [];
+    for (const group of fieldGroups(hideCustomers)) {
+      items.push({ kind: 'heading', label: group.heading });
+      for (const field of group.fields) {
+        items.push({
+          id: field,
+          label: FIELD_LABELS[field],
+          hint: FIELD_HINTS[field],
+          onSelect: () => addClause(field, target ?? intoPath.current),
+        });
+      }
     }
-  }
+    return items;
+  };
+
+  /**
+   * Wraps what is there into a bracket, and opens a second one beside it.
+   *
+   * This is the only way to *make* a nested group from the interface, and it is deliberately
+   * one shape rather than a builder: "(what I have) and ()" is the step somebody is taking
+   * when they reach for an advanced filter — they have a filter that is nearly right and
+   * they want an alternative beside it — and the two conjunction buttons it leaves on screen
+   * are what turn that shape into every other one.
+   *
+   * The empty sibling matters: an AND over nothing is vacuously true, so the filter it
+   * produces matches exactly what it did a moment before, and nothing on screen jumps while
+   * the user decides what goes in the new bracket.
+   */
+  const addGroup = () => {
+    const inner: FilterGroup = { conj: root.conj ?? 'and', nodes };
+    onChange({ conj: 'and', nodes: [inner, { conj: 'and', nodes: [] }] });
+    setEditing(null);
+  };
+
+  const addItems = fieldItems([]);
+  addItems.push({ kind: 'heading', label: 'Advanced' });
+  addItems.push({
+    id: 'group',
+    label: 'Advanced filter',
+    hint: 'Group these, and start another',
+    onSelect: addGroup,
+  });
 
   return (
     <div className={[styles.bar, className].filter(Boolean).join(' ')}>
@@ -289,6 +366,7 @@ export function FilterBar({
           onReplace={replace}
           onRemove={remove}
           onToggleConjunction={toggleConjunction}
+          onAddInto={openAddInto}
         />
 
         {/* Secondary, not ghost. It stands in a horizontal group beside the clause chips,
@@ -309,6 +387,16 @@ export function FilterBar({
           filterPlaceholder="Filter by…"
           emptyLabel="Nothing to filter by under that name"
         />
+        <Menu
+          open={into.open}
+          onClose={into.hide}
+          trigger={intoAnchor}
+          items={fieldItems(null)}
+          label="Add filter to this group"
+          filterable
+          filterPlaceholder="Filter by…"
+          emptyLabel="Nothing to filter by under that name"
+        />
       </div>
     </div>
   );
@@ -317,16 +405,19 @@ export function FilterBar({
 interface NodeRunProps {
   group: FilterGroup;
   path: Path;
-  /** Zero at the top. Nested runs draw their conjunction rather than offering to change it. */
+  /** Zero at the top. Only used to tell a bracketed run from the bar's own row. */
   depth: number;
   editing: string | null;
-  names: EntityNames;
+  names: EntityMarks;
   timezone: string;
   teamId: UUID | undefined;
   onOpen: (key: string | null) => void;
   onReplace: (path: Path, next: FilterNode) => void;
   onRemove: (path: Path) => void;
-  onToggleConjunction: () => void;
+  /** Called with the path of the group whose conjunction was clicked, at any depth. */
+  onToggleConjunction: (path: Path) => void;
+  /** Opens the field menu against the plus inside one bracket, for that bracket. */
+  onAddInto: (path: Path, anchor: HTMLElement) => void;
 }
 
 /**
@@ -348,6 +439,7 @@ function NodeRun({
   onReplace,
   onRemove,
   onToggleConjunction,
+  onAddInto,
 }: NodeRunProps) {
   const nodes = group.nodes ?? [];
   const conj = group.conj ?? 'and';
@@ -362,16 +454,21 @@ function NodeRun({
           // wire shape and carries no ids. Reordering is not offered, so a position is
           // stable for as long as the node it names.
           <Fragment key={key}>
-            {index === 0 ? null : depth === 0 ? (
+            {index === 0 ? null : (
+              // Every group's own, nested ones included: the brackets on screen say the
+              // filter has more than one conjunction in it, and a bracket somebody can read
+              // and cannot change is a control missing rather than a control not needed.
               <Tooltip
                 label={conj === 'and' ? 'Match any of these instead' : 'Match all of these instead'}
               >
-                <button type="button" className={styles.conj} onClick={onToggleConjunction}>
+                <button
+                  type="button"
+                  className={styles.conj}
+                  onClick={() => onToggleConjunction(path)}
+                >
                   {conj}
                 </button>
               </Tooltip>
-            ) : (
-              <span className={styles.conj}>{conj}</span>
             )}
 
             {isFilterClause(node) ? (
@@ -410,10 +507,30 @@ function NodeRun({
                   onReplace={onReplace}
                   onRemove={onRemove}
                   onToggleConjunction={onToggleConjunction}
+                  onAddInto={onAddInto}
                 />
                 <span className={styles.bracket} aria-hidden="true">
                   )
                 </span>
+                {/* A bracket carries its own two controls, because nothing else can reach
+                    it: the bar's Add filter button writes to the top level, and a group with
+                    no clauses in it has no remove button of its own to inherit. */}
+                <IconButton
+                  className={styles.groupAction}
+                  size="sm"
+                  aria-label="Add a filter to this group"
+                  tooltip="Add filter"
+                  icon={<PlusGlyph />}
+                  onClick={(event) => onAddInto(here, event.currentTarget)}
+                />
+                <IconButton
+                  className={styles.groupAction}
+                  size="sm"
+                  aria-label="Remove this group of filters"
+                  tooltip="Remove group"
+                  icon={<CrossGlyph />}
+                  onClick={() => onRemove(here)}
+                />
               </span>
             )}
           </Fragment>
@@ -427,7 +544,7 @@ interface ClauseChipProps {
   clause: FilterClause;
   wording: Wording;
   open: boolean;
-  names: EntityNames;
+  names: EntityMarks;
   timezone: string;
   teamId: UUID | undefined;
   onOpen: (open: boolean) => void;
@@ -486,6 +603,9 @@ function ClauseChip({
         {wording.value === null ? null : (
           <>
             {' '}
+            {/* Decorative, and it must be: the sentence beside it already names the value,
+                and an icon announced next to the word it repeats is that word twice. */}
+            {wording.glyph === undefined ? null : <OptionGlyphMark glyph={wording.glyph} />}
             <span className={styles.chipValue}>{wording.value}</span>
           </>
         )}
@@ -518,7 +638,7 @@ function ClauseChip({
 
 interface ClauseEditorProps {
   clause: FilterClause;
-  names: EntityNames;
+  names: EntityMarks;
   timezone: string;
   teamId: UUID | undefined;
   onChange: (next: FilterClause) => void;
@@ -596,7 +716,7 @@ function ClauseEditor({
 
       {takesNoValues(clause.op) ? (
         <p className={styles.note}>This condition asks about presence, so it takes no value.</p>
-      ) : isEnumerable(field) ? (
+      ) : isEnumerable(field) && !typed(clause.op) ? (
         <OptionList
           field={field}
           single={takesSingleValue(clause.op)}
@@ -658,7 +778,10 @@ function OptionList({
   onChange,
 }: OptionListProps) {
   const group = useId();
-  const searchable = FILTER_FIELDS[field].type === 'uuid';
+  // Tiers are workspace-defined names and a workspace can have a dozen of them, so the box
+  // that finds one is wanted for the same reason a status list wants it. It is not a uuid
+  // field, which is why the type alone was the wrong question.
+  const searchable = FILTER_FIELDS[field].type === 'uuid' || field === 'customerTier';
 
   return (
     <fieldset className={styles.options}>
@@ -764,7 +887,7 @@ interface TypedValuesProps {
   field: FilterField;
   single: boolean;
   values: readonly string[];
-  names: EntityNames;
+  names: EntityMarks;
   timezone: string;
   onChange: (next: readonly string[]) => void;
 }
@@ -835,6 +958,20 @@ function RelativePicker({
  * the URL that will not parse when somebody opens the link. Text has no such state: the
  * empty string is a legal value meaning "matches everything", which is what a cleared
  * search box should do.
+ *
+ * The draft is also the authority, and that is the part worth the ceremony below. Publishing
+ * goes through `onChange` to `setFilter` to the URL, and `BrowserRouter` applies a location
+ * inside `React.startTransition`: the transition is interruptible, the thing that interrupts
+ * it is the next keystroke, and the location that lands afterwards carries the value from
+ * *before* that keystroke. An effect that answered every incoming `current` by writing it
+ * into the box therefore put the older value back and ate the character — the same defect,
+ * with the same cause, that `useQueryParam` in web/src/views/Search.tsx documents at length
+ * for the search box.
+ *
+ * So the box keeps a list of what it has published and has not yet seen come back. A
+ * `current` found in that list is this component's own write arriving late and is consumed;
+ * only a value it never asked for — the back button, a link, the operator switching under it
+ * — reaches `setDraft`.
  */
 function SingleTypedValue({
   field,
@@ -849,11 +986,36 @@ function SingleTypedValue({
   const current = values[0] ?? '';
   const [draft, setDraft] = useState(current);
 
-  // The clause can change underneath this — the operator switched, or the URL changed under
-  // the back button — and the box has to follow rather than keep showing what was in it.
+  /** Values this box has published and not yet seen come back. Oldest first. */
+  const written = useRef<string[]>([current]);
+
+  // What the box says, for the effect below to compare against without depending on it. An
+  // effect that re-ran on every keystroke would run against a clause one write behind,
+  // mistake it for an outside change, and put the box back a character.
+  const latest = useRef(draft);
+  latest.current = draft;
+
   useEffect(() => {
+    const mine = written.current.indexOf(current);
+    if (mine !== -1) {
+      // One of this box's own writes, arriving after it has already moved on. Everything
+      // before it in the list is older still and can never be the current value again.
+      written.current.splice(0, mine + 1);
+      return;
+    }
+    if (current === latest.current) return;
+    // The clause changed underneath this — the operator switched, or the URL changed under
+    // the back button — and the box has to follow rather than keep showing what was in it.
+    written.current = [current];
     setDraft(current);
   }, [current]);
+
+  const publish = (next: string) => {
+    setDraft(next);
+    if (!publishable(type, next)) return;
+    written.current.push(next);
+    onChange([next]);
+  };
 
   return (
     <div className={styles.valueBlock}>
@@ -866,10 +1028,7 @@ function SingleTypedValue({
           value={isRelativeToken(draft) ? '' : draft}
           autoComplete="off"
           spellCheck={false}
-          onChange={(event) => {
-            setDraft(event.target.value);
-            if (publishable(type, event.target.value)) onChange([event.target.value]);
-          }}
+          onChange={(event) => publish(event.target.value)}
         />
       )}
       {type === 'date' || type === 'timestamp' ? (
@@ -894,7 +1053,7 @@ function MultiTypedValues({
 }: {
   field: FilterField;
   values: readonly string[];
-  names: EntityNames;
+  names: EntityMarks;
   timezone: string;
   onChange: (next: readonly string[]) => void;
 }) {
@@ -982,6 +1141,18 @@ function asGroup(node: FilterNode): FilterGroup {
 
 function pathKey(path: Path): string {
   return path.join('.');
+}
+
+/** The group at a path, or null when the path names a clause or nothing at all. */
+function groupAt(root: FilterGroup, path: Path): FilterGroup | null {
+  let node: FilterNode = root;
+  for (const index of path) {
+    if (isFilterClause(node)) return null;
+    const child: FilterNode | undefined = (node.nodes ?? [])[index];
+    if (child === undefined) return null;
+    node = child;
+  }
+  return isFilterGroup(node) ? node : null;
 }
 
 function replaceAt(root: FilterGroup, path: Path, next: FilterNode): FilterGroup {
@@ -1098,11 +1269,20 @@ interface Wording {
   readonly op: string;
   /** Null when the operator takes no value, or when none has been chosen yet. */
   readonly value: string | null;
+  /**
+   * The first value's canonical mark, when it has one.
+   *
+   * The first and not all of them: a chip is one line of a sentence, and four avatars in the
+   * middle of it would be a second list competing with the names already there. It is what
+   * makes a row of chips scannable — the status icon says which chip is the status one
+   * before any of them has been read.
+   */
+  readonly glyph?: OptionGlyph | undefined;
   /** The three of them as one string, for accessible names. */
   readonly text: string;
 }
 
-function wordClause(clause: FilterClause, names: EntityNames, timezone: string): Wording {
+function wordClause(clause: FilterClause, names: EntityMarks, timezone: string): Wording {
   const field = FIELD_LABELS[clause.field];
   const values = clause.values ?? [];
 
@@ -1119,7 +1299,38 @@ function wordClause(clause: FilterClause, names: EntityNames, timezone: string):
 
   const op = operatorPhrase(clause.op, clause.field);
   const value = values.map((raw) => valueWord(clause.field, raw, names, timezone)).join(', ');
-  return { field, op, value, text: `${field} ${op} ${value}` };
+  // `text` stays the words alone. It is the remove button's accessible name, and an icon has
+  // nothing to say to somebody listening to "Remove filter: Status is Doing".
+  return {
+    field,
+    op,
+    value,
+    glyph: firstGlyph(clause, values, names),
+    text: `${field} ${op} ${value}`,
+  };
+}
+
+/**
+ * The mark for the first value of a clause, for the fields whose values have one.
+ *
+ * A priority is the case that makes this worth doing without the store: the level is the
+ * value itself, so the chip can draw the same glyph the picker does with nothing looked up.
+ */
+function firstGlyph(
+  clause: FilterClause,
+  values: readonly string[],
+  names: EntityMarks,
+): OptionGlyph | undefined {
+  const first = values[0];
+  if (first === undefined) return undefined;
+  if (clause.field === 'priority') {
+    const level = Number(first);
+    return Number.isInteger(level) ? { kind: 'priority', level } : undefined;
+  }
+  if (clause.field === 'stateCategory') {
+    return isStateCategory(first) ? { kind: 'state', category: first as StateCategory } : undefined;
+  }
+  return names[nameKey(clause.field, first)]?.glyph;
 }
 
 /**
@@ -1163,7 +1374,7 @@ function operatorPhrase(op: FilterOp, field: FilterField): string {
 function valueWord(
   field: FilterField,
   value: string,
-  names: EntityNames,
+  names: EntityMarks,
   timezone: string,
 ): string {
   switch (FILTER_FIELDS[field].type) {
@@ -1171,7 +1382,7 @@ function valueWord(
       // An id that resolves to nothing is not an error: the replica may not have that
       // entity yet, or the viewer may not be allowed to see it. What it must never be is
       // the id itself.
-      return names[nameKey(field, value)] ?? UNKNOWN_ENTITY[field] ?? 'something unknown';
+      return names[nameKey(field, value)]?.name ?? UNKNOWN_ENTITY[field] ?? 'something unknown';
     case 'enum':
       return STATE_LABELS[value as StateCategory] ?? value;
     case 'number':
@@ -1347,6 +1558,18 @@ function fieldGroups(hideCustomers: boolean): readonly FieldGroup[] {
   return rest.length === 0 ? groups : [...groups, { heading: 'Other', fields: rest }];
 }
 
+/**
+ * Whether this operator asks for typing whatever the field is.
+ *
+ * `contains` over a list of tiers is the case: the operator matches a *fragment*, and every
+ * fragment worth searching for is one no option in the list spells — a picker offering
+ * "Enterprise" and "Pro" cannot express "everything with 'ent' in it", so the panel drew
+ * checkboxes for a clause the user could not fill in.
+ */
+function typed(op: FilterOp): boolean {
+  return op === 'contains' || op === 'notContains';
+}
+
 /** Whether the field's values come from a list rather than from the keyboard. */
 function isEnumerable(field: FilterField): boolean {
   const type = FILTER_FIELDS[field].type;
@@ -1382,8 +1605,22 @@ function publishable(type: FilterValueType, value: string): boolean {
  * The store.
  */
 
-/** Names for the uuids a filter mentions, keyed by field and id. */
-type EntityNames = Readonly<Record<string, string>>;
+/**
+ * What is known about one uuid a filter mentions: how it reads, and how it is drawn.
+ *
+ * The two travel together because they are wanted together — a chip says "Status is Doing"
+ * and draws the status's icon in front of it — but they stay separate fields rather than one
+ * rendered node, for the reason `OptionGlyph` gives: this is the answer of a `useLiveQuery`
+ * selector, and a React element would compare as different on every pass.
+ */
+interface EntityMark {
+  readonly name: string;
+  /** Absent for a team, a template, a customer, an issue — the values with no canonical mark. */
+  readonly glyph?: OptionGlyph | undefined;
+}
+
+/** Marks for the uuids a filter mentions, keyed by field and id. */
+type EntityMarks = Readonly<Record<string, EntityMark>>;
 
 interface UuidRef {
   readonly field: FilterField;
@@ -1436,23 +1673,32 @@ function nameKey(field: FilterField, id: string): string {
 }
 
 /**
- * Resolves every uuid in the filter to a name.
+ * Resolves every uuid in the filter to a name and, where it has one, a glyph.
  *
  * Only the ids actually in the tree, rather than a name index over the workspace: a filter
  * mentions a handful of entities and a workspace holds thousands, and rebuilding a map of
  * five thousand issue identifiers whenever anybody edits a title would cost more than
  * everything else this component does put together.
+ *
+ * The glyph is collected here rather than in the chip because this is the one place that
+ * touches the store on the bar's behalf: the picker inside a popover already drew a status
+ * in its own colour, and the chip that popover writes to drew the name alone — the same
+ * value, in two vocabularies, a centimetre apart.
  */
-function useEntityNames(root: FilterGroup): EntityNames {
+function useEntityMarks(root: FilterGroup): EntityMarks {
   const refs = useMemo(() => collectUuids(root, []), [root]);
   const key = refs.map((ref) => nameKey(ref.field, ref.id)).join(',');
 
   return useLiveQuery(
     (store) => {
-      const out: Record<string, string> = {};
+      const out: Record<string, EntityMark> = {};
       for (const ref of refs) {
         const name = entityName(store, ref.field, ref.id);
-        if (name !== null) out[nameKey(ref.field, ref.id)] = name;
+        // Nothing is recorded for an id the replica has never seen: `valueWord` says "an
+        // unknown status" for those, and a mark carrying only a glyph would have to invent
+        // a name to sit beside it.
+        if (name === null) continue;
+        out[nameKey(ref.field, ref.id)] = { name, glyph: entityGlyph(store, ref.field, ref.id) };
       }
       return out;
     },

@@ -85,7 +85,7 @@ export function buildProjectGraph(store: Store, projectId: UUID): ProjectGraphDa
       if (issue.completedAt !== undefined && issue.completedAt <= end) {
         completed += weight;
       }
-      const startedAt = startedTimestamp(store, issue);
+      const startedAt = startedTimestamp(issue);
       if (startedAt !== undefined && startedAt <= end) {
         started += weight;
       }
@@ -147,12 +147,19 @@ function issuePoints(issue: Issue, team: Team | undefined): number {
   return issue.estimate ?? 1;
 }
 
-function startedTimestamp(store: Store, issue: Issue): string | undefined {
+/**
+ * When this issue started, or nothing.
+ *
+ * `updatedAt` used to stand in for an issue sitting in a started state without a
+ * `startedAt`, which made the Started line a function of the last edit to the row: renaming
+ * an issue moved the moment it began, and a chart of a busy week redrew itself every time
+ * somebody fixed a typo. There is no honest proxy for a fact the row does not carry, so an
+ * issue with no `startedAt` is not counted as started — except a completed one, which
+ * cannot have finished without having begun.
+ */
+function startedTimestamp(issue: Issue): string | undefined {
   if (issue.startedAt !== undefined) return issue.startedAt;
-  if (issue.completedAt !== undefined) return issue.completedAt;
-  const state = store.workflowStates.get(issue.stateId);
-  if (state?.category === 'started') return issue.updatedAt;
-  return undefined;
+  return issue.completedAt;
 }
 
 function predictCompletion(

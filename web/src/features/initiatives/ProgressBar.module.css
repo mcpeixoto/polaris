@@ -1,0 +1,41 @@
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.track {
+  flex: 1;
+  min-width: 3rem;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.compact .track {
+  min-width: 2rem;
+}
+
+/* The width is the only thing that moves, and it moves because a completed issue arriving
+   over sync should read as the bar growing rather than as a different bar. */
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+.value {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}

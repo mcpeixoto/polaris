@@ -1,42 +1,31 @@
-.screen {
+/*
+ * Only what `SettingsPage` and `SettingsSection` do not already draw. The screen, header,
+ * title, body measure, lede and section heading scale used to live here and are now the
+ * frame's.
+ */
+
+.group {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  gap: var(--space-2);
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: none;
-  height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+.group + .group {
+  margin-top: var(--space-5);
 }
 
-.title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--space-6) var(--space-4);
-  max-width: 72ch;
-}
-
-.lede {
+/*
+ * An <h3> under the section's <h2>, so the heading order is unbroken. Deliberately quieter
+ * than the section heading: a category is a divider between rows, not a thing you navigate
+ * to, and eight of them at section weight would read as eight sections.
+ */
+.groupTitle {
   margin: 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .list {
@@ -54,15 +43,29 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+/*
+ * Two sized columns and a badge. The category column that used to sit between them is gone —
+ * it was 7rem, which truncated "Source control", and the group heading says the same thing
+ * once for the whole run instead of on every row.
+ */
 .row {
   display: grid;
-  grid-template-columns: 9rem 7rem 1fr auto;
+  grid-template-columns: 9rem 1fr auto;
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-3) var(--space-4);
   color: inherit;
   text-decoration: none;
   transition: background-color var(--duration-instant) var(--ease-out);
+}
+
+/* One column at narrow widths rather than a 9rem name column squeezing the summary to
+   nothing — a cell that shrinks below its content is the wrap the composition doc bans. */
+@media (max-width: 40rem) {
+  .row {
+    grid-template-columns: 1fr;
+    row-gap: var(--space-1);
+  }
 }
 
 a.row:hover {
@@ -79,41 +82,16 @@ a.row:focus-visible {
   color: var(--text-primary);
 }
 
-.category {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-}
-
 .summary {
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
 
-.submit {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.submitTitle {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-}
-
-.error {
-  margin: 0;
-  color: var(--priority-urgent);
-  font-size: var(--font-size-sm);
 }
 
 .notice {
@@ -131,15 +109,30 @@ a.row:focus-visible {
   gap: var(--space-2);
 }
 
+.proposalsLoading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6);
+  color: var(--text-tertiary);
+}
+
 .proposal {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
+/* Underlined: a link distinguished from the prose beside it by colour alone does not clear
+   3:1 against that prose in either theme. */
 .proposalName {
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.proposalName:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .proposalSummary {

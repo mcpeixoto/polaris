@@ -15,6 +15,7 @@
 
 import { AuditLogPanel } from '@ee/audit';
 
+import { SettingsPage, SettingsSection } from '~/components';
 import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
 import { PlanBlock } from '~/features/admin/PlanBlock';
 import styles from './AuditLog.module.css';
@@ -24,37 +25,30 @@ export function AuditLog() {
   const blocked = featureBlock(entitlements, 'auditLog');
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Audit log</h1>
-      </header>
+    // `wide`, the named variant: this page's content is a table with more columns than
+    // prose has width, which is what the ad-hoc 130ch in this stylesheet used to say.
+    <SettingsPage title="Audit log" width="wide">
+      <SettingsSection title="What is recorded">
+        <p className={styles.sectionHint}>
+          Sign-ins, invitations sent and accepted, role changes, suspensions and removals, API keys
+          created and revoked, workspace settings, and any change to whether a team is private.
+          Entries are permanent and cannot be edited — not from this screen and not from the
+          database. Payloads never contain a credential: an API key appears by name and prefix,
+          never by its token.
+        </p>
+      </SettingsSection>
 
-      <div className={styles.body}>
-        <section className={styles.intro} aria-labelledby="audit-about">
-          <h2 className={styles.sectionTitle} id="audit-about">
-            What is recorded
-          </h2>
-          <p className={styles.sectionHint}>
-            Sign-ins, invitations sent and accepted, role changes, suspensions and removals, API
-            keys created and revoked, workspace settings, and any change to whether a team is
-            private. Entries are permanent and cannot be edited — not from this screen and not from
-            the database. Payloads never contain a credential: an API key appears by name and
-            prefix, never by its token.
-          </p>
-        </section>
-
-        {/* PlanBlock rather than a bare paragraph: `featureBlock` returns a reason *and* a
+      {/* PlanBlock rather than a bare paragraph: `featureBlock` returns a reason *and* a
             destination, and rendering only the sentence drops the way out of it. It defaults
             to role="status" — a plan that does not include a feature is not an error the
             reader made, and an assertive announcement would treat it as one. */}
-        <PlanBlock block={blocked} className={styles.error} />
+      <PlanBlock block={blocked} className={styles.error} />
 
-        {/* Rendered even when blocked is null-but-unknown, which is the case on a cold load:
+      {/* Rendered even when blocked is null-but-unknown, which is the case on a cold load:
             `featureBlock` deliberately does not treat an unknown answer as denied, so the
             panel asks and the server refuses with its own message if it must. Only a
             confirmed refusal keeps the query from being sent at all. */}
-        {blocked === null ? <AuditLogPanel /> : null}
-      </div>
-    </div>
+      {blocked === null ? <AuditLogPanel /> : null}
+    </SettingsPage>
   );
 }

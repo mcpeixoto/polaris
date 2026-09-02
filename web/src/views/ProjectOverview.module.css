@@ -4,6 +4,21 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+/* Four pixels and an opacity ramp, the same entrance the shell makes. The duration token
+   collapses to 1ms under prefers-reduced-motion, which is this rule's answer to it. */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .section {
@@ -47,41 +62,14 @@
   gap: var(--space-3);
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-/* The detail rail's label treatment — `.propertyLabel` in IssueDetail.module.css. This
-   names a textarea the screen frames itself, and it sits directly under a `Field`-framed
-   Select, so the two labels have to be one treatment rather than two. */
-.label {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-normal);
-  line-height: var(--line-height-none);
-}
-
-.textarea {
-  width: 100%;
-  min-height: 6rem;
-  padding: var(--space-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font: inherit;
-  line-height: var(--line-height-normal);
-  resize: vertical;
-}
-
-.textarea:focus-visible {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: 0;
-}
-
 .actions {
   display: flex;
   justify-content: flex-end;
+}
+
+/* Field's error treatment, on a message the form draws itself. */
+.error {
+  margin: 0;
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
 }

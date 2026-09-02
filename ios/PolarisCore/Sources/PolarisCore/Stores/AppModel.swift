@@ -31,6 +31,14 @@ public final class AppModel {
 
     public private(set) var issues: IssuesStore
     public private(set) var workspaceData: WorkspaceDataStore
+    public private(set) var inbox: InboxStore
+    /// A workspace switch is a whole-app reload, and it can fail. Held here because the only
+    /// screen that can start one — Settings — is not the only screen it affects.
+    public private(set) var isSwitchingWorkspace = false
+    /// A sign-out the server did not confirm. The account is signed out on this device either
+    /// way; this is the fact that the refresh token is still live somewhere, which somebody
+    /// handing a phone back deserves to be told.
+    public private(set) var signOutWarning: PolarisError?
 
     private let environment: PolarisEnvironment
 
@@ -43,12 +51,51 @@ public final class AppModel {
         return nil
     }
 
-    public init(environment: PolarisEnvironment, api: (any PolarisAPI)? = nil) {
+    /// Where the issue list's cold-start copy is kept. Injected so a test can hand in an
+    /// in-memory one, and so the fixture app does not write to the host's disk.
+    private let cache: (any IssueCache)?
+
+    public init(
+        environment: PolarisEnvironment,
+        api: (any PolarisAPI)? = nil,
+        cache: (any IssueCache)? = nil
+    ) {
         let client = api ?? LivePolarisClient(environment: environment)
         self.environment = environment
         self.api = client
-        self.issues = IssuesStore(api: client)
+        self.cache = cache
+        self.issues = IssuesStore(api: client, cache: cache)
         self.workspaceData = WorkspaceDataStore(api: client)
+        self.inbox = InboxStore(api: client)
+        wireStores()
+    }
+
+    /// Points every store's refused-read callback at one place.
+    ///
+    /// Before this, a session that expired *while the app was open* was a dead end: every
+    /// subsequent call threw `.unauthorized`, the list rendered "Your session expired. Sign in
+    /// again." over a screen with no sign-in affordance, and `.unauthorized.isRetryable` is
+    /// false so there was not even a Try again button. The only exit was Settings → Sign out.
+    /// Linear signs you out and returns you to the auth screen; so does this.
+    private func wireStores() {
+        // `weak self`, or the model holds a store which holds a closure which holds the model.
+        issues.onUnauthorized = { [weak self] error in self?.sessionExpired(error) }
+        workspaceData.onUnauthorized = { [weak self] error in self?.sessionExpired(error) }
+        inbox.onUnauthorized = { [weak self] error in self?.sessionExpired(error) }
+    }
+
+    /// Attaches the same handler to a store a screen owns — the detail screen's, the search
+    /// screen's — so a session that dies three screens deep ends in the same place.
+    public func adopt(_ handler: inout (@MainActor (PolarisError) -> Void)?) {
+        handler = { [weak self] error in self?.sessionExpired(error) }
+    }
+
+    /// One refused read is enough. Signing out is idempotent, but re-entering `.signedOut`
+    /// from four concurrent failures would replace the reason four times and re-run the
+    /// shell's transition animation with it.
+    private func sessionExpired(_ error: PolarisError) {
+        if case .signedOut = phase { return }
+        Task { await signOut(reason: error) }
     }
 
     /// Boot order, copied from the web client: resume an existing session first, then fall
@@ -148,11 +195,53 @@ public final class AppModel {
         }
     }
 
-    public func signOut() async {
-        await api.signOut()
-        issues = IssuesStore(api: api)
+    public func signOut(reason: PolarisError? = nil) async {
+        let failure = await api.signOut()
+        // A logout the server refused is worth saying — the refresh token outlives the local
+        // session. It is not worth *replacing* the reason the user is being signed out with,
+        // so an expiry keeps its own sentence.
+        signOutWarning = reason == nil ? failure : nil
+        cache?.clear()
+        issues = IssuesStore(api: api, cache: cache)
         workspaceData = WorkspaceDataStore(api: api)
-        phase = .signedOut(nil)
+        inbox = InboxStore(api: api)
+        wireStores()
+        phase = .signedOut(reason)
+    }
+
+    public func clearSignOutWarning() {
+        signOutWarning = nil
+    }
+
+    /// Switches workspace and reloads everything scoped to one.
+    ///
+    /// Settings knew there was more than one workspace and offered no way to reach it — it
+    /// rendered the *count*. Every store is rebuilt rather than refreshed: they hold issues,
+    /// teams, states and people belonging to the workspace being left.
+    public func switchWorkspace(to workspace: Workspace) async -> PolarisError? {
+        guard !isSwitchingWorkspace else { return nil }
+        isSwitchingWorkspace = true
+        defer { isSwitchingWorkspace = false }
+
+        await api.useWorkspace(id: workspace.id)
+        // The cached list belongs to the workspace being left. Keeping it would hydrate the
+        // next cold start with another workspace's issues.
+        cache?.clear()
+        issues = IssuesStore(api: api, cache: cache)
+        workspaceData = WorkspaceDataStore(api: api)
+        inbox = InboxStore(api: api)
+        wireStores()
+
+        do {
+            let viewer = try await api.viewer()
+            phase = .ready(viewer)
+            await workspaceData.load()
+            await issues.load()
+            await inbox.load()
+            return nil
+        } catch {
+            return PolarisError.mapped(error)
+        }
     }
 
     private func finishSignIn(_ session: Session) async {
@@ -171,8 +260,13 @@ public final class AppModel {
             let viewer = try await api.viewer()
             await api.useWorkspace(id: viewer.workspace.id)
             phase = .ready(viewer)
+            // Last week's list, on screen before the first request goes out. A cold launch
+            // with no network was an error screen; now it is what the reader saw last, and
+            // the request that follows replaces it.
+            issues.hydrateFromCache()
             await workspaceData.load()
             await issues.load()
+            await inbox.load()
         } catch let error as PolarisError {
             phase = .signedOut(error)
         } catch {

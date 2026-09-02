@@ -15,6 +15,7 @@ import { formatSubtitle } from '~/features/attachments/tokens';
 import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Attachment, UUID } from '~/store';
+import { ApiError } from '~/sync/api';
 
 import { createAttachment, deleteAttachment } from './mutations';
 import styles from './Links.module.css';
@@ -25,6 +26,7 @@ export function Links({ issueId }: { issueId: UUID }) {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [removing, setRemoving] = useState<Attachment | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   const rows = useLiveQuery(
     (store) =>
@@ -54,14 +56,27 @@ export function Links({ issueId }: { issueId: UUID }) {
     event.preventDefault();
     const trimmed = url.trim();
     if (trimmed === '') return;
-    // `report`, not `void`: the server refuses a URL it cannot parse and one over 2048
-    // characters, and a floating promise that rejects is an unhandled rejection nobody
-    // reads rather than a line in the console.
-    createAttachment(engine, { issueId, url: trimmed, title: title.trim() || undefined }).catch(
-      report,
-    );
+    const typedTitle = title.trim();
+    setRefusal(null);
     setUrl('');
     setTitle('');
+    // `report` still writes the line, because a console trace is what a developer reads. It
+    // was the whole answer, which it cannot be: the server refuses a URL it cannot parse and
+    // one over 2048 characters, the optimistic card is rolled back, and the person who typed
+    // it watched it vanish with no reason given anywhere they were looking. So the message
+    // goes on the screen and the box gets its text back to correct.
+    createAttachment(engine, { issueId, url: trimmed, title: typedTitle || undefined }).catch(
+      (error: unknown) => {
+        report(error);
+        setUrl(trimmed);
+        setTitle(typedTitle);
+        setRefusal(
+          error instanceof ApiError && error.message !== ''
+            ? error.message
+            : 'That link could not be added.',
+        );
+      },
+    );
   };
 
   return (
@@ -113,6 +128,12 @@ export function Links({ issueId }: { issueId: UUID }) {
           Add
         </Button>
       </form>
+
+      {refusal === null ? null : (
+        <p className={styles.refusal} role="alert">
+          {refusal}
+        </p>
+      )}
 
       <ConfirmDialog
         open={removing !== null}

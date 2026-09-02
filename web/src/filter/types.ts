@@ -245,9 +245,20 @@ export function operatorApplies(field: FilterField, op: FilterOp): boolean {
   switch (op) {
     case 'eq':
     case 'neq':
+      return true;
     case 'in':
     case 'notIn':
-      return true;
+      // A list of prose is the one pairing the URL cannot carry. `title in [""]` and
+      // `title in []` both write as `title.in()` — the empty string encodes to nothing —
+      // and the reader has to pick one, so a filter somebody built came back meaning the
+      // opposite of what they said. It is also a pairing nobody wants: a title is matched
+      // by `contains`, and an exact list of full titles is a query for an id.
+      //
+      // `customerTier` is the exception and keeps both, because it is text an issue holds
+      // a *set* of: "tier is any of Enterprise, Pro" is the natural question about it, its
+      // values are workspace-defined names rather than prose, and none of them is empty —
+      // `filterContextFor` drops the blank ones before they reach the index.
+      return spec.type !== 'text' || spec.multi;
     case 'contains':
     case 'notContains':
       return spec.type === 'text';
@@ -304,6 +315,16 @@ export function isFilterGroup(node: FilterNode): node is FilterGroup {
 export interface DisplayOptions {
   readonly layout?: ViewLayout;
   readonly groupBy?: DisplayGroupBy;
+  /**
+   * The swimlane inside each group, or `none`. The same vocabulary as `groupBy` because it
+   * is the same question asked twice — "status by assignee" and "assignee by status" are
+   * one list read two ways, and a second union would have to be kept in step with the
+   * first for no gain.
+   *
+   * Grouping by the dimension already grouped on is not a state the menu offers: every
+   * swimlane would hold one row and the header above it would repeat the header above that.
+   */
+  readonly subGroupBy?: DisplayGroupBy;
   readonly orderBy?: DisplayOrderBy;
   readonly direction?: DisplayDirection;
   /** False hides children whose parent is in the same view. */
@@ -314,6 +335,15 @@ export interface DisplayOptions {
    * edit) unless this is on — Linear's view-options toggle for the queue.
    */
   readonly showSnoozed?: boolean;
+  /**
+   * Whether a group with nothing in it is still drawn.
+   *
+   * Off by default, and the default is the interesting half: an empty status column is a
+   * place to drop work into, but an assignee with no issues is a person the list has no
+   * reason to name. Off keeps the common case quiet; on is what somebody planning a board
+   * turns on so every column they can drag into is on screen.
+   */
+  readonly showEmptyGroups?: boolean;
   /** Which properties each row shows. Unknown names are ignored, never fatal. */
   readonly properties?: readonly DisplayProperty[];
 }
@@ -343,7 +373,32 @@ export type DisplayOrderBy =
 
 export type DisplayDirection = 'asc' | 'desc';
 
-export type DisplayProperty = 'priority' | 'assignee' | 'labels' | 'estimate' | 'dueDate';
+/**
+ * Every property a row can be told to show, as data rather than as a bare union.
+ *
+ * The union is derived from it, and `url.ts` filters an incoming `show=` against this same
+ * array — which is the point. The two were written separately once, and the URL's list had
+ * grown five names the union had never heard of: `isDisplayProperty` narrowed a string to
+ * `DisplayProperty` and returned true for `'progress'`, so a link could put a value into
+ * `DisplayOptions` that no exhaustive switch over the union would ever handle. A list and a
+ * type that must agree, kept in two places, is a list and a type that will not.
+ */
+export const DISPLAY_PROPERTIES = [
+  'priority',
+  'assignee',
+  'labels',
+  'estimate',
+  'dueDate',
+  'state',
+  'team',
+  'project',
+  'cycle',
+  'createdAt',
+  'updatedAt',
+  'progress',
+] as const;
+
+export type DisplayProperty = (typeof DISPLAY_PROPERTIES)[number];
 
 /**
  * What absence means, mirroring the block in docs/03-architecture/06-filter-grammar.md.
@@ -355,10 +410,12 @@ export type DisplayProperty = 'priority' | 'assignee' | 'labels' | 'estimate' | 
 export const DEFAULT_DISPLAY: Required<DisplayOptions> = {
   layout: 'list',
   groupBy: 'state',
+  subGroupBy: 'none',
   orderBy: 'manual',
   direction: 'asc',
   showSubIssues: true,
   showCompleted: true,
   showSnoozed: false,
+  showEmptyGroups: false,
   properties: ['priority', 'assignee', 'labels', 'estimate', 'dueDate'],
 };

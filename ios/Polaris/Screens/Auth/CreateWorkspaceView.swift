@@ -21,7 +21,6 @@ struct CreateWorkspaceView: View {
 
     private enum Field: Hashable { case name, urlKey, teamName, teamKey }
 
-    private var canSubmit: Bool { blockingProblem == nil }
 
     /// What holds Create closed, phrased as the sentence the reader needs.
     ///
@@ -73,11 +72,11 @@ struct CreateWorkspaceView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
-                    .background(Color.white.opacity(0.08))
+                    .background(Theme.fieldFill)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                            .stroke(Theme.fieldStroke, lineWidth: 1)
                     )
                 }
 
@@ -151,7 +150,11 @@ struct CreateWorkspaceView: View {
             // The creator's own name, not the workspace's. They are different facts and the
             // server stores them in different tables.
             let person = model.accountDisplayName?.trimmingCharacters(in: .whitespaces)
-            let creator = (person?.isEmpty == false ? person! : name.trimmingCharacters(in: .whitespaces))
+            // `flatMap` rather than the force unwrap this was. Safe as written, and the only `!`
+        // on a non-constant in the app target — which is exactly the kind of thing that stops
+        // being safe when the line above it changes.
+        let creator = person.flatMap { $0.isEmpty ? nil : $0 }
+            ?? name.trimmingCharacters(in: .whitespaces)
             let draft = WorkspaceDraft(
                 name: name.trimmingCharacters(in: .whitespaces),
                 urlKey: urlKey,

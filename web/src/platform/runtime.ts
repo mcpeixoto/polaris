@@ -7,6 +7,32 @@
  * the web build's behaviour an accident of which branch somebody remembered to write.
  */
 
+/**
+ * What the shell's window looks like.
+ *
+ * The desktop app hides the title bar so the sidebar can run to the top edge, which makes
+ * two things the renderer's problem: something has to be a drag region, and something has to
+ * leave room for the window controls. The shell describes its own chrome rather than the web
+ * app sniffing the platform, because the shell is the side that chose those numbers.
+ */
+export interface DesktopChrome {
+  readonly titleBar: 'hidden' | 'native';
+  readonly insetTop: number;
+  readonly insetLeft: number;
+  readonly os: 'mac' | 'windows' | 'linux';
+}
+
+// Imported for the web badge fallback below, which composes with the screen's own title.
+import { setTitleBadge } from '~/hooks/useDocumentTitle';
+
+export type UpdateStatus =
+  | { readonly state: 'idle' }
+  | { readonly state: 'checking' }
+  | { readonly state: 'available'; readonly version: string }
+  | { readonly state: 'downloading'; readonly percent: number }
+  | { readonly state: 'ready'; readonly version: string }
+  | { readonly state: 'error'; readonly message: string };
+
 interface DesktopBridge {
   readonly isDesktop: true;
   /**
@@ -17,12 +43,15 @@ interface DesktopBridge {
    * loading state wrapped around the entire application.
    */
   readonly serverUrl: string;
+  readonly chrome?: DesktopChrome;
   /** Persists a new server and reloads the window, because the replica belongs to a server. */
-  setServerUrl(url: string): void;
+  setServerUrl(url: string): Promise<{ ok: boolean; reason?: string }>;
   platform(): Promise<{ os: string; version: string; isDesktop: boolean }>;
-  setBadgeCount(count: number): void;
+  setBadgeCount(count: number, icon?: string): void;
   notify(payload: { title: string; body: string; route?: string }): void;
   onNavigate(handler: (route: string) => void): () => void;
+  onUpdateStatus?(handler: (status: UpdateStatus) => void): () => void;
+  installUpdate?(): void;
 }
 
 declare global {
@@ -58,19 +87,104 @@ function detectOS(): OS {
 
 export const isApple = os === 'mac';
 
+/** The window chrome the shell built, or null in a browser tab where there is none. */
+export function desktopChrome(): DesktopChrome | null {
+  return bridge?.chrome ?? null;
+}
+
+/**
+ * Tells the stylesheets which window they are in.
+ *
+ * An attribute on `<html>` rather than a class on the shell, because the two screens that
+ * most need it — Connect to your server, and sign-in — are not inside the shell: on first
+ * run the app is a centred card in a window with no title bar, and without a drag region
+ * there is no way to move it at all.
+ *
+ * Stamped at module load, before React renders, so the first paint already has the inset.
+ */
+function applyDesktopChrome(): void {
+  const chrome = bridge?.chrome;
+  if (chrome === undefined || typeof document === 'undefined') return;
+  if (chrome.titleBar !== 'hidden') return;
+  document.documentElement.dataset.desktopChrome = chrome.os;
+}
+
+applyDesktopChrome();
+
+/**
+ * What the Windows taskbar overlay says.
+ *
+ * Two digits and a plus, because the overlay is 16 pixels square: anything longer is a grey
+ * smudge. Exported for the test rather than inlined, since "what happens at 100" is the part
+ * that is easy to get wrong and impossible to see.
+ */
+export function badgeLabel(count: number): string {
+  if (count <= 0) return '';
+  return count > 99 ? '99+' : String(count);
+}
+
+/**
+ * Draws the unread count as a PNG the shell can hand to `setOverlayIcon`.
+ *
+ * Windows has no text badge: the taskbar overlay is an image or it is nothing. The renderer
+ * is the side with a canvas and a font, so it draws, and the shell places. Null whenever
+ * there is no canvas to draw on — a test environment, or a browser tab, where the caller
+ * falls back to the tab title.
+ */
+export function badgeIcon(count: number): string | null {
+  const label = badgeLabel(count);
+  if (label === '') return null;
+  if (typeof document === 'undefined') return null;
+
+  const size = 32; // 16pt at 2x, which is what a high-DPI taskbar asks for
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx === null) return null;
+
+  // The colours are read from the live document rather than written here, so the badge
+  // follows the theme and the token file stays the only place a colour is chosen.
+  const style = getComputedStyle(document.documentElement);
+  const background = style.getPropertyValue('--accent').trim() || '#5e6ad2';
+  const text = style.getPropertyValue('--accent-contrast').trim() || '#ffffff';
+
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+  ctx.fillStyle = background;
+  ctx.fill();
+
+  ctx.fillStyle = text;
+  ctx.font = `600 ${label.length > 2 ? 14 : 18}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, size / 2, size / 2 + 1);
+
+  try {
+    return canvas.toDataURL('image/png');
+  } catch {
+    // A tainted or unsupported canvas. No badge is better than a thrown error in an effect.
+    return null;
+  }
+}
+
 /**
  * Sets the unread count on the dock, taskbar or tab title.
  *
  * The web fallback writes it into document.title because that is the only badge a browser
  * tab has — and an unread count nobody can see is a notification system that does not work.
+ *
+ * It composes with the screen's own title rather than replacing it. The base used to be the
+ * literal `'Polaris'` here, which meant that the moment any screen named itself in the tab,
+ * the next delta that changed the unread count would overwrite the name with the product's.
+ * `hooks/useDocumentTitle` owns the string; this only prefixes the count onto it.
  */
 export function setBadgeCount(count: number): void {
   if (bridge) {
-    bridge.setBadgeCount(count);
+    bridge.setBadgeCount(count, badgeIcon(count) ?? undefined);
     return;
   }
-  const base = 'Polaris';
-  document.title = count > 0 ? `(${count}) ${base}` : base;
+  setTitleBadge(count);
 }
 
 /**
@@ -131,8 +245,41 @@ export function desktopServerUrl(): string | null {
  * installation's issues that the new server will never send a revoke for. Starting again is
  * the only correct answer, and doing it here means no screen has to remember to.
  */
-export function setDesktopServerUrl(url: string): void {
-  bridge?.setServerUrl(url);
+export async function setDesktopServerUrl(url: string): Promise<{ ok: boolean; reason?: string }> {
+  if (!bridge) return { ok: false, reason: 'Not running in the desktop app.' };
+  try {
+    // The window is usually destroyed and rebuilt before this settles, so the happy path
+    // often never returns at all. The unhappy one always does, and that is the point: the
+    // screen that called it has a spinner running until somebody tells it otherwise.
+    return await bridge.setServerUrl(url);
+  } catch {
+    return { ok: false, reason: 'The app could not save that address.' };
+  }
+}
+
+/**
+ * Auto-update progress from the shell. A no-op subscription on the web, where the page is
+ * whatever the server last served.
+ */
+export function onUpdateStatus(handler: (status: UpdateStatus) => void): () => void {
+  if (!bridge?.onUpdateStatus) return () => {};
+  return bridge.onUpdateStatus(handler);
+}
+
+/** Restarts into a downloaded update. Only ever called from the `ready` state. */
+export function installUpdate(): void {
+  bridge?.installUpdate?.();
+}
+
+/**
+ * Whether the app window is the one the user is looking at.
+ *
+ * `document.hasFocus()` rather than a bridge call: in Electron it already reflects the
+ * OS window's focus, and a notification decision that has to await an IPC round trip is one
+ * that fires after the moment it was deciding about.
+ */
+export function isWindowFocused(): boolean {
+  return typeof document !== 'undefined' && document.hasFocus();
 }
 
 /**

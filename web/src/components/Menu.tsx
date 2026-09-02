@@ -1,4 +1,7 @@
 import {
+  createContext,
+  useCallback,
+  useContext,
   useEffect,
   useId,
   useLayoutEffect,
@@ -14,7 +17,9 @@ import { createPortal } from 'react-dom';
 
 import { usePresence } from '~/hooks/usePresence';
 
+import { horizontalShift, verticalShift } from './anchor';
 import { Kbd } from './Kbd';
+import { useOptionalKeyContext } from './keyContext';
 import styles from './Menu.module.css';
 
 /**
@@ -45,10 +50,30 @@ export interface MenuItem {
   /** Trailing content, for a count or a secondary value. Ignored when `keys` is set. */
   readonly hint?: ReactNode;
   readonly disabled?: boolean;
-  /** The property's current value: drawn with a tick and announced as the current item. */
+  /** The property's current value: drawn with a tick and announced as the current choice. */
   readonly selected?: boolean;
   readonly danger?: boolean;
   readonly onSelect: () => void;
+}
+
+/**
+ * A row that opens another menu beside it rather than choosing anything itself.
+ *
+ * The case it exists for is the one that turns a picker into a scroll: "Move to → team →
+ * project" is three short lists, and the same choice flattened is one list of every project
+ * in the workspace. A submenu is therefore a grouping device and not a place to hide
+ * commands — anything a user might look for by typing should still be a plain item, because
+ * type-ahead reaches the parent row and not what is inside it.
+ */
+export interface MenuSubmenu {
+  readonly kind: 'submenu';
+  readonly id: string;
+  readonly label: ReactNode;
+  /** As on an item: what typing matches. Defaults to `label` when that is a string. */
+  readonly text?: string;
+  readonly icon?: ReactNode;
+  readonly disabled?: boolean;
+  readonly items: readonly MenuNode[];
 }
 
 export interface MenuSeparator {
@@ -60,9 +85,13 @@ export interface MenuHeading {
   readonly label: string;
 }
 
-export type MenuNode = MenuItem | MenuSeparator | MenuHeading;
+export type MenuNode = MenuItem | MenuSubmenu | MenuSeparator | MenuHeading;
 
-export type MenuPlacement = 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end';
+/** A node that occupies a row and can hold the active mark: an item or a submenu. */
+type MenuRow = MenuItem | MenuSubmenu;
+
+export type MenuPlacement =
+  'bottom-start' | 'bottom-end' | 'top-start' | 'top-end' | 'right-start' | 'left-start';
 
 export interface MenuProps {
   open: boolean;
@@ -82,8 +111,20 @@ export interface MenuProps {
   /** Adds a filter box. Lists shorter than a screen do not need one and are worse for it. */
   filterable?: boolean | undefined;
   filterPlaceholder?: string | undefined;
+  /**
+   * Told what the filter box now holds. The menu still owns the text and still narrows its
+   * own list by it — this is for a caller that has to run a *different* search off the same
+   * keystrokes, such as the triage duplicate picker ranking issues across the replica.
+   */
+  onFilterChange?: ((value: string) => void) | undefined;
   /** Shown when the filter matches nothing. */
   emptyLabel?: string | undefined;
+  /**
+   * Set by the submenu renderer below, and by nothing else. It says "there is a menu to the
+   * left of this one", which is the fact ArrowLeft needs: in a top-level menu the key means
+   * nothing and must fall through to the page, and in a submenu it means "go back".
+   */
+  nested?: boolean | undefined;
   className?: string | undefined;
 }
 
@@ -92,14 +133,14 @@ interface Point {
   readonly left: number;
 }
 
-/** A heading and the items under it, or a rule. What actually gets rendered. */
+/** A heading and the rows under it, or a rule. What actually gets rendered. */
 type MenuBlock =
   | { readonly kind: 'separator'; readonly key: string }
   | {
       readonly kind: 'group';
       readonly key: string;
       readonly heading: string | null;
-      readonly items: readonly MenuItem[];
+      readonly items: readonly MenuRow[];
     };
 
 /**
@@ -109,33 +150,59 @@ type MenuBlock =
  */
 const TYPEAHEAD_RESET_MS = 700;
 
-/** Kept off the viewport edge by this much when a menu has to be shifted to fit. */
-const VIEWPORT_MARGIN_PX = 8;
+/**
+ * How long the pointer has to rest on a submenu row before it opens.
+ *
+ * A pointer crossing the list on its way to something below passes over every row between,
+ * and a submenu that opened on contact would fling a second panel across the screen for
+ * each one. It is deliberately shorter than the tooltip's quarter second: the row it is
+ * about is already under the pointer, so this is a pause rather than a wait.
+ */
+const SUBMENU_HOVER_MS = 180;
 
 const FLIPPED: Readonly<Record<MenuPlacement, MenuPlacement>> = {
   'bottom-start': 'top-start',
   'bottom-end': 'top-end',
   'top-start': 'bottom-start',
   'top-end': 'bottom-end',
+  'right-start': 'left-start',
+  'left-start': 'right-start',
 };
 
 function isItem(node: MenuNode): node is MenuItem {
   return node.kind === undefined || node.kind === 'item';
 }
 
+function isSubmenu(node: MenuNode): node is MenuSubmenu {
+  return node.kind === 'submenu';
+}
+
+/** Every node that draws a row. Headings and rules are the punctuation between them. */
+function isRow(node: MenuNode): node is MenuRow {
+  return isItem(node) || isSubmenu(node);
+}
+
 function isSeparator(node: MenuNode): node is MenuSeparator {
   return node.kind === 'separator';
 }
 
-function searchTextOf(item: MenuItem): string {
-  return item.text ?? (typeof item.label === 'string' ? item.label : '');
+function searchTextOf(row: MenuRow): string {
+  return row.text ?? (typeof row.label === 'string' ? row.label : '');
 }
 
 function isBelow(placement: MenuPlacement): boolean {
   return placement === 'bottom-start' || placement === 'bottom-end';
 }
 
+/** A submenu opens beside its row rather than under it, and flips on the other axis. */
+function isBeside(placement: MenuPlacement): boolean {
+  return placement === 'right-start' || placement === 'left-start';
+}
+
 function anchorPointFor(rect: DOMRect, placement: MenuPlacement): Point {
+  if (isBeside(placement)) {
+    return { top: rect.top, left: placement === 'right-start' ? rect.right : rect.left };
+  }
   return {
     top: isBelow(placement) ? rect.bottom : rect.top,
     left: placement.endsWith('start') ? rect.left : rect.right,
@@ -149,6 +216,16 @@ function anchorPointFor(rect: DOMRect, placement: MenuPlacement): Point {
  * apart the first time someone adjusts the spacing.
  */
 function flipIfClipped(rect: DOMRect, placement: MenuPlacement): MenuPlacement {
+  if (isBeside(placement)) {
+    if (placement === 'right-start') {
+      return rect.right > window.innerWidth && rect.width < rect.left
+        ? FLIPPED[placement]
+        : placement;
+    }
+    return rect.left < 0 && rect.width < window.innerWidth - rect.right
+      ? FLIPPED[placement]
+      : placement;
+  }
   if (isBelow(placement)) {
     return rect.bottom > window.innerHeight && rect.height < rect.top
       ? FLIPPED[placement]
@@ -157,18 +234,6 @@ function flipIfClipped(rect: DOMRect, placement: MenuPlacement): MenuPlacement {
   return rect.top < 0 && rect.height < window.innerHeight - rect.bottom
     ? FLIPPED[placement]
     : placement;
-}
-
-/** How far the menu must move horizontally to stay on screen. Zero when it already fits. */
-function horizontalShift(rect: DOMRect): number {
-  if (rect.right > window.innerWidth - VIEWPORT_MARGIN_PX) {
-    return Math.max(
-      window.innerWidth - VIEWPORT_MARGIN_PX - rect.right,
-      VIEWPORT_MARGIN_PX - rect.left,
-    );
-  }
-  if (rect.left < VIEWPORT_MARGIN_PX) return VIEWPORT_MARGIN_PX - rect.left;
-  return 0;
 }
 
 /**
@@ -184,30 +249,30 @@ function tidy(nodes: readonly MenuNode[]): MenuNode[] {
   for (const node of nodes) {
     const previous = out[out.length - 1];
     if (isSeparator(node)) {
-      // A rule needs something above it to separate. That is an item and not a heading:
+      // A rule needs something above it to separate. That is a row and not a heading:
       // a rule between a heading and the items it names cuts the heading off from them.
-      if (previous !== undefined && isItem(previous)) out.push(node);
+      if (previous !== undefined && isRow(previous)) out.push(node);
       continue;
     }
     // A heading directly under another heading means the first one's items have all been
     // filtered away, so it is replaced rather than stacked on.
-    if (!isItem(node) && previous !== undefined && !isItem(previous) && !isSeparator(previous)) {
+    if (!isRow(node) && previous !== undefined && !isRow(previous) && !isSeparator(previous)) {
       out.pop();
     }
     out.push(node);
   }
   while (out.length > 0) {
     const last = out[out.length - 1];
-    if (last === undefined || isItem(last)) break;
+    if (last === undefined || isRow(last)) break;
     out.pop();
   }
   return out;
 }
 
-/** Groups the tidied list so a heading can name the items beneath it via `aria-labelledby`. */
+/** Groups the tidied list so a heading can name the rows beneath it via `aria-labelledby`. */
 function blocksOf(nodes: readonly MenuNode[]): MenuBlock[] {
   const blocks: MenuBlock[] = [];
-  let current: { heading: string | null; items: MenuItem[] } | null = null;
+  let current: { heading: string | null; items: MenuRow[] } | null = null;
 
   // Keyed by position among the blocks rather than by heading text: the key becomes part
   // of an element id that `aria-labelledby` has to resolve, and a heading with a space in
@@ -229,7 +294,7 @@ function blocksOf(nodes: readonly MenuNode[]): MenuBlock[] {
       blocks.push({ kind: 'separator', key: `separator-${blocks.length}` });
       return;
     }
-    if (!isItem(node)) {
+    if (!isRow(node)) {
       flush();
       current = { heading: node.label, items: [] };
       return;
@@ -240,6 +305,21 @@ function blocksOf(nodes: readonly MenuNode[]): MenuBlock[] {
   flush();
   return blocks;
 }
+
+/**
+ * How a menu learns that a click landed inside one of its own submenus.
+ *
+ * Each submenu is a `Menu` of its own, portalled to `document.body` beside its parent
+ * rather than inside it, so the parent's outside-pointerdown guard cannot answer "is this
+ * mine?" with `contains`. A child therefore registers a predicate with its parent, and the
+ * predicate is recursive — a grandchild registers with the child — so one press anywhere in
+ * a cascade is inside every menu in it.
+ */
+interface MenuNesting {
+  readonly register: (contains: (node: Node) => boolean) => () => void;
+}
+
+const MenuNestingContext = createContext<MenuNesting | null>(null);
 
 /**
  * Menu is the floating list behind every property picker in the product — status,
@@ -260,11 +340,20 @@ function blocksOf(nodes: readonly MenuNode[]): MenuBlock[] {
  * item, because a filter you have to Tab out of to use is not a filter. Setting both on one
  * element is how a screen reader ends up announcing two different active items.
  *
+ * Both shapes take one set of ARIA roles: a `menu` of `menuitem`s, with the current value
+ * marked `aria-current` beside its tick. The combobox-over-a-listbox pattern is the better
+ * announcement for the filterable shape — an input owning `aria-activedescendant` is read
+ * more reliably when what it points at is an `option` — but the role is also the handle every
+ * caller in this product identifies a row by, so changing it here is not a local decision.
+ * If it is ever made, it is made once for every picker and its callers together.
+ *
  * This component and Modal are the only two in the directory allowed their own key
  * handler; everywhere else the keymap in web/src/keys owns the keyboard. The exception is
  * deliberate and narrow: what an arrow key does inside an open menu is a property of the
  * menu, and a registry binding would have to be registered, gated on "is a menu open", and
- * unregistered again on every open and close.
+ * unregistered again on every open and close. What the menu *does* tell the keymap is that
+ * it exists — it pushes the `menu` context while open, so Escape closes this layer and not
+ * the screen behind it as well.
  */
 export function Menu({
   open,
@@ -275,7 +364,9 @@ export function Menu({
   placement = 'bottom-start',
   filterable = false,
   filterPlaceholder = 'Filter…',
+  onFilterChange,
   emptyLabel = 'No matches',
+  nested = false,
   className,
 }: MenuProps) {
   const baseId = useId();
@@ -283,13 +374,21 @@ export function Menu({
 
   const [filter, setFilter] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null);
   const [point, setPoint] = useState<Point | null>(null);
   const [placementUsed, setPlacementUsed] = useState<MenuPlacement>(placement);
 
+  // Measured, never animated. The flip and shift heuristics below read this element's rect
+  // on the frame the entrance starts, and the panel inside it is scaling on that frame; a
+  // transform changes nothing about the wrapper's layout box, which is what makes the
+  // entrance in Menu.module.css possible at all.
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const filterRef = useRef<HTMLInputElement | null>(null);
   const itemRefs = useRef(new Map<string, HTMLElement>());
+  const submenuTriggerRef = useRef<HTMLElement | null>(null);
+  const hoverTimerRef = useRef<number | null>(null);
   const typedRef = useRef({ text: '', at: 0 });
   // Positioning settles once per opening, and flips at most once within that. A menu with
   // no room on either side would otherwise flip forever, and the side the caller asked for
@@ -297,29 +396,67 @@ export function Menu({
   const settledRef = useRef(false);
   const flippedRef = useRef(false);
 
+  // Escape closes this menu and stops there. Without the push, an AppShell menu opened over
+  // a surface the shell owns hands the same keystroke to `app.dismiss`, which closes the
+  // menu and everything else `closeAll` reaches.
+  useOptionalKeyContext('menu', open);
+
+  const childContains = useRef(new Set<(node: Node) => boolean>());
+  const parentNesting = useContext(MenuNestingContext);
+
+  const containsDeep = useCallback((node: Node): boolean => {
+    if (surfaceRef.current?.contains(node) === true) return true;
+    for (const test of childContains.current) {
+      if (test(node)) return true;
+    }
+    return false;
+  }, []);
+
+  useEffect(() => parentNesting?.register(containsDeep), [parentNesting, containsDeep]);
+
+  const nesting = useMemo<MenuNesting>(
+    () => ({
+      register: (contains) => {
+        childContains.current.add(contains);
+        return () => {
+          childContains.current.delete(contains);
+        };
+      },
+    }),
+    [],
+  );
+
   // The surface outlives `open` by the length of its fade. Everything that positions or
   // focuses the menu still keys on `open` and so stops the instant it closes — which is what
   // frees the exit from the constraint the entrance is under: nothing measures this element
   // any more, and `settledRef` is still true, so the box the flip heuristic decided on is
-  // the box that fades. The exit stays opacity-only anyway, because an entrance that fades
-  // and an exit that slides are two different objects wearing the same shadow.
-  const { present, exitProps } = usePresence(open, surfaceRef);
+  // the box that fades.
+  const { present, exitProps } = usePresence(open, panelRef);
 
   const nodes = useMemo(() => {
     const needle = filter.trim().toLowerCase();
     if (needle === '') return tidy(items);
     return tidy(
-      items.filter((node) => !isItem(node) || searchTextOf(node).toLowerCase().includes(needle)),
+      items.filter((node) => !isRow(node) || searchTextOf(node).toLowerCase().includes(needle)),
     );
   }, [items, filter]);
 
   const blocks = useMemo(() => blocksOf(nodes), [nodes]);
   const navigable = useMemo(
-    () => nodes.filter(isItem).filter((item) => item.disabled !== true),
+    () => nodes.filter(isRow).filter((row) => row.disabled !== true),
     [nodes],
   );
 
   const domIdFor = (itemId: string) => `${baseId}-${itemId}`;
+
+  const cancelHover = () => {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => cancelHover, []);
 
   // Keyed on `present` rather than on `open`, and the distinction is the whole reason this
   // effect is worth a second look. It clears the position the menu is drawn at, so running it
@@ -332,6 +469,7 @@ export function Menu({
     // rendered for a frame in the state the last opening left them in.
     setFilter('');
     setActiveId(null);
+    setOpenSubmenuId(null);
     setPoint(null);
     settledRef.current = false;
     flippedRef.current = false;
@@ -350,8 +488,8 @@ export function Menu({
   // highlight, or Enter chooses something that is no longer on screen.
   useEffect(() => {
     if (!open) return;
-    if (activeId !== null && navigable.some((item) => item.id === activeId)) return;
-    const preferred = navigable.find((item) => item.selected === true) ?? navigable[0];
+    if (activeId !== null && navigable.some((row) => row.id === activeId)) return;
+    const preferred = navigable.find((row) => isItem(row) && row.selected === true) ?? navigable[0];
     setActiveId(preferred?.id ?? null);
   }, [open, navigable, activeId]);
 
@@ -374,9 +512,44 @@ export function Menu({
       return;
     }
     settledRef.current = true;
+    // The cross axis, whichever one that is: a menu under its trigger is pushed back on
+    // screen sideways, and a submenu beside its row is pushed back up or down.
+    if (isBeside(placementUsed)) {
+      const shift = verticalShift(rect);
+      if (shift !== 0) setPoint({ top: point.top + shift, left: point.left });
+      return;
+    }
     const shift = horizontalShift(rect);
     if (shift !== 0) setPoint({ top: point.top, left: point.left + shift });
   }, [open, point, placementUsed]);
+
+  /**
+   * Re-anchoring, because a menu is positioned in viewport coordinates and the viewport is
+   * not still.
+   *
+   * Scroll is listened for in the capture phase: the thing that moves under an open picker
+   * is almost never the document, it is the issue list's own scroller, and a scroll event on
+   * an element does not bubble. Resize covers the window and, with it, every reflow a
+   * changed width causes. Both re-run the anchor measurement and clear `settledRef` so the
+   * shift is recomputed against the new position — the flip is not, because `flippedRef`
+   * survives, and a menu that flipped sides every time the list scrolled past would be
+   * worse than one drawn slightly off the ideal edge.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const reanchor = () => {
+      const anchor = trigger.current;
+      if (anchor === null) return;
+      settledRef.current = false;
+      setPoint(anchorPointFor(anchor.getBoundingClientRect(), placementUsed));
+    };
+    window.addEventListener('scroll', reanchor, { capture: true, passive: true });
+    window.addEventListener('resize', reanchor);
+    return () => {
+      window.removeEventListener('scroll', reanchor, { capture: true });
+      window.removeEventListener('resize', reanchor);
+    };
+  }, [open, trigger, placementUsed]);
 
   useEffect(() => {
     if (!open || !filterable) return;
@@ -418,22 +591,26 @@ export function Menu({
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (surfaceRef.current?.contains(target) === true) return;
+      if (containsDeep(target)) return;
       if (trigger.current?.contains(target) === true) return;
       onClose();
     };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open, onClose, trigger]);
+    // Capture, because a press that a row or a drag handle stops the propagation of never
+    // reaches a bubble-phase document listener — and a menu that cannot be dismissed by
+    // clicking away is a menu with no way out but the keyboard. The inside-the-surface guard
+    // above is what makes capture safe: the menu's own presses are still ignored.
+    document.addEventListener('pointerdown', onPointerDown, { capture: true });
+    return () => document.removeEventListener('pointerdown', onPointerDown, { capture: true });
+  }, [open, onClose, trigger, containsDeep]);
 
   const moveTo = (index: number) => {
-    const item = navigable[index];
-    if (item !== undefined) setActiveId(item.id);
+    const row = navigable[index];
+    if (row !== undefined) setActiveId(row.id);
   };
 
   const moveBy = (delta: number) => {
     if (navigable.length === 0) return;
-    const at = navigable.findIndex((item) => item.id === activeId);
+    const at = navigable.findIndex((row) => row.id === activeId);
     if (at === -1) {
       moveTo(delta > 0 ? 0 : navigable.length - 1);
       return;
@@ -441,19 +618,31 @@ export function Menu({
     moveTo((at + delta + navigable.length) % navigable.length);
   };
 
-  const choose = (item: MenuItem) => {
-    if (item.disabled === true) return;
-    item.onSelect();
+  const openSubmenu = (row: MenuSubmenu) => {
+    if (row.disabled === true) return;
+    cancelHover();
+    submenuTriggerRef.current = itemRefs.current.get(row.id) ?? null;
+    setActiveId(row.id);
+    setOpenSubmenuId(row.id);
+  };
+
+  const choose = (row: MenuRow) => {
+    if (row.disabled === true) return;
+    if (isSubmenu(row)) {
+      openSubmenu(row);
+      return;
+    }
+    row.onSelect();
     onClose();
   };
 
   const chooseActive = () => {
-    const item = navigable.find((candidate) => candidate.id === activeId);
-    if (item !== undefined) choose(item);
+    const row = navigable.find((candidate) => candidate.id === activeId);
+    if (row !== undefined) choose(row);
   };
 
   /**
-   * Jumps to the item whose text starts with what has just been typed.
+   * Jumps to the row whose text starts with what has just been typed.
    *
    * The two cases are the platform convention and are worth the branch: repeating one
    * letter cycles through the items starting with it, while a longer string narrows.
@@ -469,16 +658,16 @@ export function Menu({
     const head = text[0] ?? '';
     const cycling = text.length > 1 && [...text].every((c) => c === head);
     const needle = (cycling ? head : text).toLowerCase();
-    const at = navigable.findIndex((item) => item.id === activeId);
+    const at = navigable.findIndex((row) => row.id === activeId);
     // Only a repeat moves off the current item. Searching from the one after it would mean
     // that typing "a" in a freshly opened menu skips the first thing starting with "a" —
     // which is the item the user was looking straight at.
     const from = cycling ? at + 1 : Math.max(at, 0);
 
     for (let step = 0; step < navigable.length; step++) {
-      const item = navigable[(from + step) % navigable.length];
-      if (item !== undefined && searchTextOf(item).toLowerCase().startsWith(needle)) {
-        setActiveId(item.id);
+      const row = navigable[(from + step) % navigable.length];
+      if (row !== undefined && searchTextOf(row).toLowerCase().startsWith(needle)) {
+        setActiveId(row.id);
         return;
       }
     }
@@ -511,6 +700,20 @@ export function Menu({
       case 'ArrowUp':
         consume(event);
         moveBy(-1);
+        return;
+      case 'ArrowRight': {
+        const row = navigable.find((candidate) => candidate.id === activeId);
+        if (row === undefined || !isSubmenu(row)) return;
+        consume(event);
+        openSubmenu(row);
+        return;
+      }
+      case 'ArrowLeft':
+        // Only in a submenu. At the top level the key belongs to whatever is behind the
+        // menu — a caret in the field the picker was opened from, usually.
+        if (!nested) return;
+        consume(event);
+        onClose();
         return;
       case 'Home':
         consume(event);
@@ -552,42 +755,66 @@ export function Menu({
   const style: CSSProperties = point === null ? {} : { top: point.top, left: point.left };
   const activeDomId = activeId === null ? undefined : domIdFor(activeId);
 
-  const renderItem = (item: MenuItem) => {
-    const active = item.id === activeId;
-    const disabled = item.disabled === true;
+  /**
+   * The pointer landing on a row.
+   *
+   * Movement, not entry: the pointer resting where the list scrolled underneath it must not
+   * take the active item back from the arrow keys. A row that is not a submenu also closes
+   * whichever submenu is open, because a cascade the pointer has left is a panel covering
+   * the list the user is now reading.
+   */
+  const onRowMouseMove = (row: MenuRow) => {
+    if (row.disabled === true) return;
+    setActiveId(row.id);
+    cancelHover();
+    if (isSubmenu(row)) {
+      if (openSubmenuId === row.id) return;
+      hoverTimerRef.current = window.setTimeout(() => openSubmenu(row), SUBMENU_HOVER_MS);
+      return;
+    }
+    if (openSubmenuId !== null) setOpenSubmenuId(null);
+  };
+
+  const renderRow = (row: MenuRow) => {
+    const active = row.id === activeId;
+    const disabled = row.disabled === true;
+    const submenu = isSubmenu(row);
+    const selected = isItem(row) && row.selected === true;
+    const classes = [
+      styles.item,
+      active ? styles.active : null,
+      !submenu && row.danger === true ? styles.danger : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
     return (
       <div
-        key={item.id}
+        key={row.id}
         ref={(node) => {
-          if (node === null) itemRefs.current.delete(item.id);
-          else itemRefs.current.set(item.id, node);
+          if (node === null) itemRefs.current.delete(row.id);
+          else itemRefs.current.set(row.id, node);
         }}
-        id={domIdFor(item.id)}
+        id={domIdFor(row.id)}
         role="menuitem"
-        className={[
-          styles.item,
-          active ? styles.active : null,
-          item.danger === true ? styles.danger : null,
-        ]
-          .filter(Boolean)
-          .join(' ')}
+        // Not aria-checked, and not a promotion to menuitemradio. ARIA does not allow
+        // aria-checked on a menuitem, so announcing selection as "checked" means changing
+        // the role — and the role is what every caller in the product, and the tests that
+        // hold them, identify a row by. The tick plus aria-current is what selection has,
+        // in both shapes; see the note on `filterable` in the component docstring.
+        aria-current={selected ? true : undefined}
+        aria-haspopup={submenu ? 'menu' : undefined}
+        aria-expanded={submenu ? openSubmenuId === row.id : undefined}
+        className={classes}
         // Roving tabindex, and only where it is the focus model: with a filter box the
         // items are never focused, so none of them may be in the tab order either.
         tabIndex={filterable || !active ? -1 : 0}
         aria-disabled={disabled ? true : undefined}
-        // Not aria-checked: ARIA does not allow it on a menuitem, and promoting the item to
-        // a menuitemradio would make the same list announce differently depending on
-        // whether the caller happened to pass `selected`.
-        aria-current={item.selected === true ? true : undefined}
-        onClick={() => choose(item)}
-        // Movement, not entry: the pointer resting where the list scrolled underneath it
-        // must not take the active item back from the arrow keys.
-        onMouseMove={() => {
-          if (!disabled) setActiveId(item.id);
-        }}
+        onClick={() => choose(row)}
+        onMouseMove={() => onRowMouseMove(row)}
       >
         <span className={styles.tick} aria-hidden="true">
-          {item.selected === true ? (
+          {selected ? (
             <svg viewBox="0 0 16 16" width="16" height="16" fill="none">
               <path
                 d="M3.5 8.25 6.5 11l6-6.5"
@@ -599,82 +826,136 @@ export function Menu({
             </svg>
           ) : null}
         </span>
-        {item.icon === undefined ? null : (
+        {row.icon === undefined ? null : (
           <span className={styles.icon} aria-hidden="true">
-            {item.icon}
+            {row.icon}
           </span>
         )}
-        <span className={styles.label}>{item.label}</span>
-        {item.keys === undefined ? (
-          item.hint === undefined ? null : (
-            <span className={styles.hint}>{item.hint}</span>
+        <span className={styles.label}>{row.label}</span>
+        {submenu ? (
+          <span className={styles.chevron} aria-hidden="true">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none">
+              <path
+                d="m6.5 4 4 4-4 4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        ) : row.keys === undefined ? (
+          row.hint === undefined ? null : (
+            <span className={styles.hint}>{row.hint}</span>
           )
         ) : (
-          <Kbd keys={item.keys} className={styles.hint} />
+          <Kbd keys={row.keys} className={styles.hint} />
         )}
       </div>
     );
   };
 
+  const openSubmenuNode = nodes.find(
+    (node): node is MenuSubmenu => isSubmenu(node) && node.id === openSubmenuId,
+  );
+
   return createPortal(
-    <div
-      ref={surfaceRef}
-      className={[styles.surface, styles[placementUsed], className].filter(Boolean).join(' ')}
-      style={style}
-      onKeyDown={onKeyDown}
-      {...exitProps}
-    >
-      {filterable ? (
-        <div className={styles.filter}>
-          <input
-            ref={filterRef}
-            type="text"
-            className={styles.filterInput}
-            value={filter}
-            placeholder={filterPlaceholder}
-            aria-label={label}
-            aria-controls={listId}
-            aria-activedescendant={activeDomId}
-            // The browser's own suggestion list would open on top of the menu and swallow
-            // the arrow keys the menu is listening for.
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(event) => setFilter(event.target.value)}
-          />
-        </div>
-      ) : null}
+    <MenuNestingContext.Provider value={nesting}>
       <div
-        ref={listRef}
-        id={listId}
-        role="menu"
-        aria-label={label}
-        className={styles.list}
-        tabIndex={-1}
+        ref={surfaceRef}
+        className={[styles.surface, styles[placementUsed]].filter(Boolean).join(' ')}
+        style={style}
+        onKeyDown={onKeyDown}
       >
-        {blocks.map((block) => {
-          if (block.kind === 'separator') {
-            return <div key={block.key} role="separator" className={styles.separator} />;
-          }
-          if (block.heading === null) {
-            return (
-              <div key={block.key} role="presentation" className={styles.group}>
-                {block.items.map(renderItem)}
-              </div>
-            );
-          }
-          const headingId = `${baseId}-${block.key}`;
-          return (
-            <div key={block.key} role="group" aria-labelledby={headingId} className={styles.group}>
-              <div id={headingId} role="presentation" className={styles.heading}>
-                {block.heading}
-              </div>
-              {block.items.map(renderItem)}
+        <div
+          ref={panelRef}
+          className={[styles.panel, styles[`origin-${placementUsed}`], className]
+            .filter(Boolean)
+            .join(' ')}
+          {...exitProps}
+        >
+          {filterable ? (
+            <div className={styles.filter}>
+              <input
+                ref={filterRef}
+                type="text"
+                className={styles.filterInput}
+                value={filter}
+                placeholder={filterPlaceholder}
+                aria-label={label}
+                aria-controls={listId}
+                aria-activedescendant={activeDomId}
+                // The browser's own suggestion list would open on top of the menu and swallow
+                // the arrow keys the menu is listening for.
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(event) => {
+                  setFilter(event.target.value);
+                  onFilterChange?.(event.target.value);
+                }}
+              />
             </div>
-          );
-        })}
+          ) : null}
+          <div
+            ref={listRef}
+            id={listId}
+            role="menu"
+            aria-label={label}
+            className={styles.list}
+            tabIndex={-1}
+          >
+            {blocks.map((block) => {
+              if (block.kind === 'separator') {
+                return <div key={block.key} role="separator" className={styles.separator} />;
+              }
+              if (block.heading === null) {
+                return (
+                  <div key={block.key} role="presentation" className={styles.group}>
+                    {block.items.map(renderRow)}
+                  </div>
+                );
+              }
+              const headingId = `${baseId}-${block.key}`;
+              return (
+                <div
+                  key={block.key}
+                  role="group"
+                  aria-labelledby={headingId}
+                  className={styles.group}
+                >
+                  <div id={headingId} role="presentation" className={styles.heading}>
+                    {block.heading}
+                  </div>
+                  {block.items.map(renderRow)}
+                </div>
+              );
+            })}
+            {/* Inside the list and not beside it, so that a filter narrowed to nothing leaves
+             * the container the input's `aria-controls` names holding an explanation rather
+             * than holding nothing. `role="status"` is what makes it arrive: without it the
+             * only announcement is "0 items", which a screen reader may not make at all. */}
+            {nodes.length === 0 ? (
+              <p className={styles.empty} role="status">
+                {emptyLabel}
+              </p>
+            ) : null}
+          </div>
+        </div>
       </div>
-      {nodes.length === 0 ? <p className={styles.empty}>{emptyLabel}</p> : null}
-    </div>,
+      {openSubmenuNode === undefined ? null : (
+        <Menu
+          open
+          onClose={() => {
+            setOpenSubmenuId(null);
+          }}
+          trigger={submenuTriggerRef}
+          items={openSubmenuNode.items}
+          label={searchTextOf(openSubmenuNode)}
+          placement="right-start"
+          nested
+        />
+      )}
+    </MenuNestingContext.Provider>,
     document.body,
   );
 }

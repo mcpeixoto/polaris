@@ -26,6 +26,7 @@ import {
   type CycleCalendarFeed,
   type Issue,
   type IssueLabel,
+  type Reaction,
   type IssueRelation,
   type IssueSubscription,
   type IssueTemplate,
@@ -277,6 +278,7 @@ interface PolarisSchema extends DBSchema {
   attachment: { key: UUID; value: Attachment };
   document: { key: UUID; value: Document };
   comment: { key: UUID; value: Comment };
+  reaction: { key: UUID; value: Reaction };
   issueSubscription: { key: UUID; value: IssueSubscription };
   notification: { key: UUID; value: Notification };
   view: { key: UUID; value: View };

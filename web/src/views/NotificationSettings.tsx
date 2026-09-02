@@ -16,8 +16,18 @@
  * explains why — so a key this build does not render survives being here.
  */
 
+import { useState } from 'react';
+
 import { useEngine } from '~/app/context';
-import { Button, Checkbox, EmptyState, Select } from '~/components';
+import {
+  Button,
+  Checkbox,
+  EmptyState,
+  SaveIndicator,
+  SettingsPage,
+  SettingsSection,
+  Select,
+} from '~/components';
 import { report, updateNotificationPrefs } from '~/features/inbox/mutations';
 import { requestNotificationPermission } from '~/platform/runtime';
 import {
@@ -29,6 +39,7 @@ import { setViewSubscription } from '~/features/view/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import type { NotificationPrefs, NotificationType } from '~/store';
+import { ApiError } from '~/sync/api';
 
 import styles from './NotificationSettings.module.css';
 
@@ -155,6 +166,10 @@ const TYPES: readonly {
 export function NotificationSettings() {
   const engine = useEngine();
   const viewerId = useViewerId();
+  // One slot for both answers, beside the controls. The page had neither: `.error` did not
+  // exist in its stylesheet at all, unlike every sibling settings page.
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   const prefs = useLiveQuery(
     (store) => (viewerId === null ? null : (store.users.get(viewerId)?.notificationPrefs ?? {})),
@@ -278,17 +293,47 @@ export function NotificationSettings() {
 
   if (viewerId === null || prefs === null) {
     return (
-      <div className={styles.screen}>
+      <SettingsPage title="Notifications">
         <EmptyState
           title="Loading your preferences"
           description="This needs to know who you are, which arrives a moment after the workspace does."
         />
-      </div>
+      </SettingsPage>
     );
   }
 
+  /*
+   * A refusal here is reported on the page, not only as a toast.
+   *
+   * This is where the digest email's List-Unsubscribe link lands, so it is the one screen in
+   * the product where a save that did not happen must not look like one that did: a failed
+   * unsubscribe that says nothing reads as a successful unsubscribe, and the next digest is
+   * the first the reader hears of it. `engine.mutate` has already reverted the optimistic
+   * patch by the time this runs, so the control has snapped back — the message is what tells
+   * anybody why.
+   *
+   * Offline is not a failure and is not reported as one. The op is queued in the outbox and
+   * goes out when the connection returns; saying "not saved" would be untrue. It gets its own
+   * sentence rather than the silence `report` gives it, because a preference the user just
+   * changed sitting in a queue is worth one line.
+   */
   const write = (patch: NotificationPrefs) => {
-    updateNotificationPrefs(engine, viewerId, patch).catch(report);
+    setSaveError(null);
+    setSaved(false);
+    updateNotificationPrefs(engine, viewerId, patch)
+      .then(() => setSaved(true))
+      .catch((failure: unknown) => {
+        if (failure instanceof ApiError && failure.isOffline) {
+          setSaveError('Not saved yet — this device is offline. It will go out on reconnect.');
+          return;
+        }
+        setSaveError(
+          failure instanceof ApiError
+            ? failure.message
+            : 'That preference could not be saved, so it has been put back.',
+        );
+        report(failure);
+      });
   };
 
   const muted = new Set(prefs.muted ?? []);
@@ -302,288 +347,266 @@ export function NotificationSettings() {
   };
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Notifications</h1>
-      </header>
-
-      <div className={styles.body}>
-        <section className={styles.section} aria-labelledby="desktop-heading">
-          <h2 className={styles.sectionTitle} id="desktop-heading">
-            Desktop
-          </h2>
-          <p className={styles.sectionNote}>
-            Browser notifications for new inbox items. The tab badge still updates either way.
+    <SettingsPage
+      title="Notifications"
+      description="What reaches you, and where. Every control here writes as you move it."
+      actions={<SaveIndicator state={saved ? 'saved' : 'idle'} />}
+      error={saveError ?? undefined}
+    >
+      <SettingsSection title="Desktop">
+        <p className={styles.sectionNote}>
+          Browser notifications for new inbox items. The tab badge still updates either way.
+        </p>
+        <Checkbox
+          checked={prefs.desktop === true}
+          onChange={(event) => {
+            const on = event.target.checked;
+            if (!on) {
+              write({ desktop: false });
+              return;
+            }
+            void requestNotificationPermission().then((granted) => {
+              if (granted) write({ desktop: true });
+            });
+          }}
+          label="Browser notifications"
+        />
+        {prefs.desktop === true ? (
+          <p className={styles.warning}>
+            New unread items also appear as a system notification once this page has permission.
           </p>
-          <Checkbox
-            checked={prefs.desktop === true}
-            onChange={(event) => {
-              const on = event.target.checked;
-              if (!on) {
-                write({ desktop: false });
-                return;
-              }
-              void requestNotificationPermission().then((granted) => {
-                if (granted) write({ desktop: true });
-              });
-            }}
-            label="Browser notifications"
-          />
-          {prefs.desktop === true ? (
-            <p className={styles.warning}>
-              New unread items also appear as a system notification once this page has permission.
-            </p>
-          ) : null}
-        </section>
+        ) : null}
+      </SettingsSection>
 
-        <section className={styles.section} aria-labelledby="email-heading">
-          <h2 className={styles.sectionTitle} id="email-heading">
-            Email
-          </h2>
-          <p className={styles.sectionNote}>
-            Everything still arrives in your inbox here. This is only about what is also sent to you
-            by email.
-          </p>
+      <SettingsSection title="Email">
+        <p className={styles.sectionNote}>
+          Everything still arrives in your inbox here. This is only about what is also sent to you
+          by email.
+        </p>
 
-          <div className={styles.field}>
-            <Select
-              label="Digest"
-              hint="One message summarising what happened, rather than one per event."
-              value={cadence}
-              onChange={(event) =>
-                write({ emailDigest: event.target.value as NotificationPrefs['emailDigest'] })
-              }
-            >
-              {CADENCES.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
+        <div className={styles.field}>
+          <Select
+            label="Digest"
+            hint="One message summarising what happened, rather than one per event."
+            value={cadence}
+            onChange={(event) =>
+              write({ emailDigest: event.target.value as NotificationPrefs['emailDigest'] })
+            }
+          >
+            {CADENCES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </div>
 
-          <Checkbox
-            checked={prefs.emailPerNotification === true}
-            onChange={(event) => write({ emailPerNotification: event.target.checked })}
-            label="Email me for every notification"
-          />
-          {/* Said plainly rather than left to be discovered. This is the switch that turns a
+        <Checkbox
+          checked={prefs.emailPerNotification === true}
+          onChange={(event) => write({ emailPerNotification: event.target.checked })}
+          label="Email me for every notification"
+        />
+        {/* Said plainly rather than left to be discovered. This is the switch that turns a
               quiet product into a noisy one, and somebody turning it on should know that
               before their inbox tells them. */}
-          <p className={styles.warning}>
-            One message per event. On a busy team this is a great deal of mail.
-          </p>
-        </section>
+        <p className={styles.warning}>
+          One message per event. On a busy team this is a great deal of mail.
+        </p>
+      </SettingsSection>
 
-        <section className={styles.section} aria-labelledby="types-heading">
-          <h2 className={styles.sectionTitle} id="types-heading">
-            What to notify me about
-          </h2>
-          <p className={styles.sectionNote}>
-            Switching one off stops it entirely — it will not reach your inbox here either, and it
-            cannot reach an email. You stay subscribed to the issue.
-          </p>
+      <SettingsSection title="What to notify me about">
+        <p className={styles.sectionNote}>
+          Switching one off stops it entirely — it will not reach your inbox here either, and it
+          cannot reach an email. You stay subscribed to the issue.
+        </p>
 
+        <ul className={styles.types}>
+          {TYPES.map((type) => (
+            <li key={type.value} className={styles.type}>
+              <Checkbox
+                checked={!muted.has(type.value)}
+                onChange={(event) => setMuted(type.value, !event.target.checked)}
+                label={type.label}
+              />
+              <span className={styles.typeHint}>{type.hint}</span>
+            </li>
+          ))}
+        </ul>
+      </SettingsSection>
+
+      <SettingsSection title="Saved views you follow">
+        <p className={styles.sectionNote}>
+          Subscribe from a saved view’s header. Turning both kinds of event off here is the same as
+          unsubscribing.
+        </p>
+        {watches.length === 0 ? (
+          <p className={styles.warning}>You are not watching any saved views.</p>
+        ) : (
           <ul className={styles.types}>
-            {TYPES.map((type) => (
-              <li key={type.value} className={styles.type}>
-                <Checkbox
-                  checked={!muted.has(type.value)}
-                  onChange={(event) => setMuted(type.value, !event.target.checked)}
-                  label={type.label}
-                />
-                <span className={styles.typeHint}>{type.hint}</span>
+            {watches.map((watch) => (
+              <li key={watch.id} className={styles.watch}>
+                <div className={styles.watchMeta}>
+                  <span>{watch.name}</span>
+                  <span className={styles.typeHint}>
+                    {[
+                      watch.added ? 'issues added' : null,
+                      watch.completed ? 'issues completed' : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setViewSubscription(engine, {
+                      viewId: watch.viewId,
+                      userId: viewerId,
+                      added: false,
+                      completed: false,
+                    }).catch(report);
+                  }}
+                >
+                  Unsubscribe
+                </Button>
               </li>
             ))}
           </ul>
-        </section>
+        )}
+      </SettingsSection>
 
-        <section className={styles.section} aria-labelledby="views-heading">
-          <h2 className={styles.sectionTitle} id="views-heading">
-            Saved views you follow
-          </h2>
-          <p className={styles.sectionNote}>
-            Subscribe from a saved view’s header. Turning both kinds of event off here is the same
-            as unsubscribing.
-          </p>
-          {watches.length === 0 ? (
-            <p className={styles.warning}>You are not watching any saved views.</p>
-          ) : (
-            <ul className={styles.types}>
-              {watches.map((watch) => (
-                <li key={watch.id} className={styles.watch}>
-                  <div className={styles.watchMeta}>
-                    <span>{watch.name}</span>
-                    <span className={styles.typeHint}>
-                      {[
-                        watch.added ? 'issues added' : null,
-                        watch.completed ? 'issues completed' : null,
-                      ]
-                        .filter(Boolean)
-                        .join(', ')}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setViewSubscription(engine, {
-                        viewId: watch.viewId,
-                        userId: viewerId,
-                        added: false,
-                        completed: false,
-                      }).catch(report);
-                    }}
-                  >
-                    Unsubscribe
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+      <SettingsSection title="Projects you follow">
+        <p className={styles.sectionNote}>
+          Subscribe from a project’s header. Turning every event off here is the same as
+          unsubscribing.
+        </p>
+        {projectWatches.length === 0 ? (
+          <p className={styles.warning}>You are not watching any projects.</p>
+        ) : (
+          <ul className={styles.types}>
+            {projectWatches.map((watch) => (
+              <li key={watch.id} className={styles.watch}>
+                <div className={styles.watchMeta}>
+                  <span>{watch.name}</span>
+                  <span className={styles.typeHint}>
+                    {[
+                      watch.issuesAdded ? 'issues added' : null,
+                      watch.issuesCompleted ? 'issues completed' : null,
+                      watch.updates ? 'updates' : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setProjectSubscription(engine, {
+                      projectId: watch.projectId,
+                      userId: viewerId,
+                      issuesAdded: false,
+                      issuesCompleted: false,
+                      updates: false,
+                    }).catch(report);
+                  }}
+                >
+                  Unsubscribe
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SettingsSection>
 
-        <section className={styles.section} aria-labelledby="projects-heading">
-          <h2 className={styles.sectionTitle} id="projects-heading">
-            Projects you follow
-          </h2>
-          <p className={styles.sectionNote}>
-            Subscribe from a project’s header. Turning every event off here is the same as
-            unsubscribing.
-          </p>
-          {projectWatches.length === 0 ? (
-            <p className={styles.warning}>You are not watching any projects.</p>
-          ) : (
-            <ul className={styles.types}>
-              {projectWatches.map((watch) => (
-                <li key={watch.id} className={styles.watch}>
-                  <div className={styles.watchMeta}>
-                    <span>{watch.name}</span>
-                    <span className={styles.typeHint}>
-                      {[
-                        watch.issuesAdded ? 'issues added' : null,
-                        watch.issuesCompleted ? 'issues completed' : null,
-                        watch.updates ? 'updates' : null,
-                      ]
-                        .filter(Boolean)
-                        .join(', ')}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setProjectSubscription(engine, {
-                        projectId: watch.projectId,
-                        userId: viewerId,
-                        issuesAdded: false,
-                        issuesCompleted: false,
-                        updates: false,
-                      }).catch(report);
-                    }}
-                  >
-                    Unsubscribe
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+      <SettingsSection title="Initiatives you follow">
+        <p className={styles.sectionNote}>
+          Subscribe from an initiative’s header. Turning every event off here is the same as
+          unsubscribing.
+        </p>
+        {initiativeWatches.length === 0 ? (
+          <p className={styles.warning}>You are not watching any initiatives.</p>
+        ) : (
+          <ul className={styles.types}>
+            {initiativeWatches.map((watch) => (
+              <li key={watch.id} className={styles.watch}>
+                <div className={styles.watchMeta}>
+                  <span>{watch.name}</span>
+                  <span className={styles.typeHint}>
+                    {[
+                      watch.issuesAdded ? 'issues added' : null,
+                      watch.issuesCompleted ? 'issues completed' : null,
+                      watch.updates ? 'updates' : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setInitiativeSubscription(engine, {
+                      initiativeId: watch.initiativeId,
+                      userId: viewerId,
+                      issuesAdded: false,
+                      issuesCompleted: false,
+                      updates: false,
+                    }).catch(report);
+                  }}
+                >
+                  Unsubscribe
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SettingsSection>
 
-        <section className={styles.section} aria-labelledby="initiatives-heading">
-          <h2 className={styles.sectionTitle} id="initiatives-heading">
-            Initiatives you follow
-          </h2>
-          <p className={styles.sectionNote}>
-            Subscribe from an initiative’s header. Turning every event off here is the same as
-            unsubscribing.
-          </p>
-          {initiativeWatches.length === 0 ? (
-            <p className={styles.warning}>You are not watching any initiatives.</p>
-          ) : (
-            <ul className={styles.types}>
-              {initiativeWatches.map((watch) => (
-                <li key={watch.id} className={styles.watch}>
-                  <div className={styles.watchMeta}>
-                    <span>{watch.name}</span>
-                    <span className={styles.typeHint}>
-                      {[
-                        watch.issuesAdded ? 'issues added' : null,
-                        watch.issuesCompleted ? 'issues completed' : null,
-                        watch.updates ? 'updates' : null,
-                      ]
-                        .filter(Boolean)
-                        .join(', ')}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setInitiativeSubscription(engine, {
-                        initiativeId: watch.initiativeId,
-                        userId: viewerId,
-                        issuesAdded: false,
-                        issuesCompleted: false,
-                        updates: false,
-                      }).catch(report);
-                    }}
-                  >
-                    Unsubscribe
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className={styles.section} aria-labelledby="customers-heading">
-          <h2 className={styles.sectionTitle} id="customers-heading">
-            Customers you follow
-          </h2>
-          <p className={styles.sectionNote}>
-            Subscribe from a customer’s page. Turning every event off here is the same as
-            unsubscribing.
-          </p>
-          {customerWatches.length === 0 ? (
-            <p className={styles.warning}>You are not watching any customers.</p>
-          ) : (
-            <ul className={styles.types}>
-              {customerWatches.map((watch) => (
-                <li key={watch.id} className={styles.watch}>
-                  <div className={styles.watchMeta}>
-                    <span>{watch.name}</span>
-                    <span className={styles.typeHint}>
-                      {[
-                        watch.requestAdded ? 'requests added' : null,
-                        watch.requestImportant ? 'marked important' : null,
-                        watch.requestCompleted ? 'requests completed' : null,
-                      ]
-                        .filter(Boolean)
-                        .join(', ')}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setCustomerSubscription(engine, {
-                        customerId: watch.customerId,
-                        userId: viewerId,
-                        requestAdded: false,
-                        requestImportant: false,
-                        requestCompleted: false,
-                      }).catch(report);
-                    }}
-                  >
-                    Unsubscribe
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-    </div>
+      <SettingsSection title="Customers you follow">
+        <p className={styles.sectionNote}>
+          Subscribe from a customer’s page. Turning every event off here is the same as
+          unsubscribing.
+        </p>
+        {customerWatches.length === 0 ? (
+          <p className={styles.warning}>You are not watching any customers.</p>
+        ) : (
+          <ul className={styles.types}>
+            {customerWatches.map((watch) => (
+              <li key={watch.id} className={styles.watch}>
+                <div className={styles.watchMeta}>
+                  <span>{watch.name}</span>
+                  <span className={styles.typeHint}>
+                    {[
+                      watch.requestAdded ? 'requests added' : null,
+                      watch.requestImportant ? 'marked important' : null,
+                      watch.requestCompleted ? 'requests completed' : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCustomerSubscription(engine, {
+                      customerId: watch.customerId,
+                      userId: viewerId,
+                      requestAdded: false,
+                      requestImportant: false,
+                      requestCompleted: false,
+                    }).catch(report);
+                  }}
+                >
+                  Unsubscribe
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SettingsSection>
+    </SettingsPage>
   );
 }

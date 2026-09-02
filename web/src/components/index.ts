@@ -1,6 +1,5 @@
 /**
- * The component library: eighteen primitives, and the whole of what a screen is allowed to
- * build from.
+ * The component library: the whole of what a screen is allowed to build from.
  *
  * Everything here obeys the same three rules, and they are what make the set a system
  * rather than a folder. Nothing owns a colour or a measurement — every value is a token
@@ -25,6 +24,11 @@ export type { ButtonProps, ButtonSize, ButtonVariant } from './Button';
 
 export { Checkbox } from './Checkbox';
 export type { CheckboxProps } from './Checkbox';
+
+// Exported so that the second confirm dialogue never gets written. It was missing from this
+// list while every caller deep-imported it, which is exactly how a second one appears.
+export { ConfirmDialog } from './ConfirmDialog';
+export type { ConfirmDialogProps } from './ConfirmDialog';
 
 export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
@@ -55,6 +59,7 @@ export type {
   MenuPlacement,
   MenuProps,
   MenuSeparator,
+  MenuSubmenu,
 } from './Menu';
 
 export { Modal } from './Modal';
@@ -66,8 +71,14 @@ export type { PriorityIconProps } from './PriorityIcon';
 export { Progress } from './Progress';
 export type { ProgressProps } from './Progress';
 
+export { SecretField } from './SecretField';
+export type { SecretFieldProps } from './SecretField';
+
 export { Select } from './Select';
 export type { SelectProps } from './Select';
+
+export { Skeleton, SkeletonRows } from './Skeleton';
+export type { SkeletonProps, SkeletonRowsProps } from './Skeleton';
 
 export { Spinner } from './Spinner';
 export type { SpinnerProps, SpinnerSize } from './Spinner';
@@ -83,3 +94,28 @@ export { useNativeValue } from './nativeValue';
 
 export { Tooltip } from './Tooltip';
 export type { TooltipPlacement, TooltipProps } from './Tooltip';
+
+// The settings frame. One page chrome, one section shape, one danger zone and one way of
+// saying a write landed — added because ten settings stylesheets had each grown their own.
+export { SettingsPage } from './SettingsPage';
+export type { SettingsPageProps } from './SettingsPage';
+
+export { SettingsSection } from './SettingsSection';
+export type { SettingsSectionProps } from './SettingsSection';
+
+export { DangerZone, DangerZoneRow } from './DangerZone';
+export type { DangerZoneProps, DangerZoneRowProps } from './DangerZone';
+
+export { SaveIndicator, useSaveState } from './SaveIndicator';
+export type { SaveIndicatorProps, SaveState, SaveStateHandle } from './SaveIndicator';
+
+// A colour that is data rather than paint: swatches for the common answer, a hex field for
+// the workspace's own, and one commit per choice instead of one per frame of a drag.
+export { ColorPicker, SWATCHES, contrastRatio } from './ColorPicker';
+export type { ColorPickerProps } from './ColorPicker';
+
+// One value, one clipboard write, one announcement. Lifted out of SecretField because three
+// screens had each hand-rolled a version that went silent when the clipboard was refused and
+// renamed its own button "Copied" for good.
+export { CopyButton } from './CopyButton';
+export type { CopyButtonProps } from './CopyButton';

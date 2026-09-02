@@ -475,6 +475,26 @@ export interface Comment {
 }
 
 /**
+ * One person's emoji on one comment.
+ *
+ * A row per (comment, person, emoji) rather than a count or a set on the comment, for the
+ * reason IssueLabel is a row: a set written as a whole loses writes, and reactions are the
+ * one thing several people click at the same moment. An add is an upsert of one row and a
+ * remove is a delete of one, so both survive with no merge logic.
+ *
+ * There is no `updatedAt`: a reaction is never edited, only added and removed.
+ */
+export interface Reaction {
+  readonly id: UUID;
+  readonly workspaceId: UUID;
+  readonly commentId: UUID;
+  readonly userId: UUID;
+  /** The character itself, not a shortcode — that is what is rendered and compared. */
+  readonly emoji: string;
+  readonly createdAt: Timestamp;
+}
+
+/**
  * A link card on an issue. The URL is unique per issue: posting the same URL again
  * updates this row rather than minting a second card.
  */
@@ -1338,6 +1358,7 @@ export interface EntityByType {
   attachment: Attachment;
   document: Document;
   comment: Comment;
+  reaction: Reaction;
   issueSubscription: IssueSubscription;
   notification: Notification;
   view: View;
@@ -1413,6 +1434,8 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'attachment',
   'document',
   'comment',
+  // After comments, because a reaction names one.
+  'reaction',
   'issueSubscription',
   // After comments, because a notification may name one.
   'notification',

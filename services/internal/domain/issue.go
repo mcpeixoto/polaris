@@ -263,11 +263,31 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 
 		var siblingOrder *string
 		if in.ParentID != nil {
-			pos, err := s.resolveParent(ctx, q, p, in.TeamID, *in.ParentID)
+			pos, parent, err := s.resolveParent(ctx, q, p, in.TeamID, *in.ParentID)
 			if err != nil {
 				return err
 			}
 			siblingOrder = &pos
+
+			// Feature 3.9's inheritance half. Breaking work down must not drop it out of
+			// the plan it belongs to: a sub-issue created without an explicit project,
+			// milestone or cycle used to land in none of them even when its parent was in
+			// all three, so the project tab and the cycle burndown quietly stopped
+			// counting the work that was actually being done.
+			//
+			// Defaults, not overrides — an explicit nil in the input is a caller who has
+			// said where this goes, and only an ABSENT field inherits. The cycle is
+			// inherited only when the child is in the same team, because a cycle belongs
+			// to one team and pointing at another team's cycle is not renderable.
+			if in.ProjectID == nil {
+				in.ProjectID = parent.ProjectID
+			}
+			if in.ProjectMilestoneID == nil {
+				in.ProjectMilestoneID = parent.ProjectMilestoneID
+			}
+			if in.CycleID == nil && parent.TeamID == in.TeamID {
+				in.CycleID = parent.CycleID
+			}
 		}
 
 		// A new issue may only be created in a backlog or unstarted status, so no
@@ -706,7 +726,7 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 		// across would drop the issue at an arbitrary point in a list it has never been in.
 		var siblingOrder *string
 		if in.ParentID != nil {
-			pos, err := s.resolveParent(ctx, q, p, before.TeamID, *in.ParentID)
+			pos, _, err := s.resolveParent(ctx, q, p, before.TeamID, *in.ParentID)
 			if err != nil {
 				return err
 			}
@@ -1326,31 +1346,38 @@ func parseDueDate(v *model.Date) (time.Time, bool, error) {
 // same statement that writes the row; a second walk in Go would be a slower copy of it that
 // can disagree under a concurrent re-parent, and the two of them disagreeing is worse than
 // either alone. mapParentTriggerError turns its refusal into something readable.
+// resolveParent validates the parent and returns both the child's sibling sort order and
+// the parent row itself.
+//
+// The row is returned rather than discarded because CreateIssue needs it: sub-issue
+// inheritance defaults the child's project, milestone and cycle from the parent, and this
+// call has already read it. Reading it twice would be a second round trip for a row that
+// is already in hand.
 func (s *Service) resolveParent(
 	ctx context.Context, q *store.Queries, p *authz.Principal, childTeamID, parentID uuid.UUID,
-) (string, error) {
+) (string, store.GetIssueRow, error) {
 	parent, err := q.GetIssue(ctx, parentID)
 	if err != nil {
 		if store.IsNotFound(err) {
-			return "", platform.Validation("parentId", "no such issue")
+			return "", store.GetIssueRow{}, platform.Validation("parentId", "no such issue")
 		}
-		return "", platform.Internal(err)
+		return "", store.GetIssueRow{}, platform.Internal(err)
 	}
 	if parent.WorkspaceID != p.WorkspaceID || !authz.CanRelateIssues(p, childTeamID, parent.TeamID) {
-		return "", platform.Validation("parentId", "no such issue")
+		return "", store.GetIssueRow{}, platform.Validation("parentId", "no such issue")
 	}
 
 	last, err := q.GetLastSubIssueSortOrder(ctx, &parentID)
 	if err != nil {
 		if store.IsNotFound(err) {
-			return fractional.First(), nil
+			return fractional.First(), parent, nil
 		}
-		return "", platform.Internal(err)
+		return "", store.GetIssueRow{}, platform.Internal(err)
 	}
 	if last == nil {
-		return fractional.First(), nil
+		return fractional.First(), parent, nil
 	}
-	return fractional.After(*last), nil
+	return fractional.After(*last), parent, nil
 }
 
 // mapParentTriggerError turns the parent-cycle trigger's refusal into a message.

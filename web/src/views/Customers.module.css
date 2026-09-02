@@ -3,6 +3,20 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  /* The page's entrance. Reduced motion is answered at the token: the duration steps
+     collapse to 1ms, so there is no media query here to drift out of step. */
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {

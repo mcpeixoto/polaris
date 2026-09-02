@@ -42,7 +42,7 @@ import {
 import type { SyncEngine } from '~/sync/engine';
 import { settle } from '~/sync/reconcile';
 
-import { createIssue, createRelation, updateIssues } from './mutations';
+import { createIssue, createRelation, createSubIssue, updateIssues } from './mutations';
 
 /**
  * The one device preference these mutations read, held where a test can move it.
@@ -537,5 +537,182 @@ describe('updateIssues', () => {
     expect(mutate.mock.calls[0]?.[0].variables).toEqual({
       input: { ids: [ISSUE_A, ISSUE_B], priority: 2 },
     });
+  });
+});
+
+/**
+ * What a child takes from its parent, and what it deliberately does not.
+ *
+ * The list is 03-issue-properties.md's and it is short: team, priority and project always;
+ * cycle only into an active status; assignee only when the person creating it is the parent's
+ * assignee; **labels never**. Before this the provisional row hardcoded `priority: 0` and the
+ * input carried nothing but team, title, parent and status — so a sub-issue filed under an
+ * urgent epic in a project arrived unprioritised and unfiled, and somebody had to set both by
+ * hand on every child.
+ */
+describe('createSubIssue', () => {
+  const PARENT = '01900000-0000-7000-8000-0000000000a1';
+  const PROJECT = '01900000-0000-7000-8000-0000000000a2';
+  const CYCLE = '01900000-0000-7000-8000-0000000000a3';
+  const OTHER = '01900000-0000-7000-8000-0000000000a4';
+  const BACKLOG = '01900000-0000-7000-8000-0000000000a5';
+
+  function withParent(store: Store, over: Record<string, unknown>, v = 90): Store {
+    store.applyChanges([
+      {
+        v,
+        type: 'issue',
+        id: PARENT,
+        op: 'upsert' as const,
+        actor: { type: 'system' as const },
+        payload: { ...(issue(PARENT, 7) as object), ...over },
+      },
+    ] as unknown as Change[]);
+    return store;
+  }
+
+  /** The engine, echoing the optimistic row back the way the server's response does. */
+  function engineOver(store: Store) {
+    const mutate = vi.fn(async (call: { optimistic?: OptimisticPatch }) => {
+      const patch = call.optimistic ?? [];
+      store.applyOptimistic(patch);
+      return { createIssue: { issue: patch[patch.length - 1]?.after } };
+    });
+    return { mutate, engine: { store, mutate } as unknown as SyncEngine };
+  }
+
+  function inputOf(mutate: ReturnType<typeof vi.fn>): Record<string, unknown> {
+    const [call] = mutate.mock.calls[0] as [{ variables: { input: Record<string, unknown> } }];
+    return call.variables.input;
+  }
+
+  it('carries the parent’s priority, project and cycle into the row and onto the wire', async () => {
+    const store = withParent(seeded(), {
+      priority: 1,
+      projectId: PROJECT,
+      cycleId: CYCLE,
+      assigneeId: OTHER,
+    });
+    const { mutate, engine } = engineOver(store);
+
+    const id = await createSubIssue(engine, {
+      parentId: PARENT,
+      teamId: TEAM,
+      title: 'Parse the CSV',
+      creatorId: USER,
+    });
+
+    // Both, and this is the point of asserting both: the optimistic row is what the screen
+    // draws, and the input is what survives the swap when the server answers.
+    expect(store.issues.get(id)).toMatchObject({
+      priority: 1,
+      projectId: PROJECT,
+      cycleId: CYCLE,
+    });
+    expect(inputOf(mutate)).toMatchObject({ priority: 1, projectId: PROJECT, cycleId: CYCLE });
+  });
+
+  it('leaves the cycle behind when the child lands in a status that is not active', async () => {
+    const store = seeded();
+    store.applyChanges([
+      // The seeded Todo stops being the default, or `resolveState` picks it and the child
+      // lands in an active status after all — which is the other branch.
+      {
+        v: 79,
+        type: 'workflowState',
+        id: STATE,
+        op: 'upsert' as const,
+        actor: { type: 'system' as const },
+        payload: {
+          id: STATE,
+          workspaceId: WORKSPACE,
+          teamId: TEAM,
+          name: 'Todo',
+          category: 'unstarted',
+          position: 'V',
+          isDefault: false,
+          isSystem: false,
+          createdAt: AT,
+          updatedAt: AT,
+        },
+      },
+      {
+        v: 80,
+        type: 'workflowState',
+        id: BACKLOG,
+        op: 'upsert' as const,
+        actor: { type: 'system' as const },
+        payload: {
+          id: BACKLOG,
+          workspaceId: WORKSPACE,
+          teamId: TEAM,
+          name: 'Backlog',
+          category: 'backlog',
+          position: 'F',
+          // The team's default, so `resolveState` picks it for a child created with no status.
+          isDefault: true,
+          isSystem: false,
+          createdAt: AT,
+          updatedAt: AT,
+        },
+      },
+    ] as Change[]);
+    withParent(store, { projectId: PROJECT, cycleId: CYCLE });
+    const { mutate, engine } = engineOver(store);
+
+    await createSubIssue(engine, {
+      parentId: PARENT,
+      teamId: TEAM,
+      title: 'Later',
+      creatorId: USER,
+    });
+
+    // A cycle is a commitment to finish inside a fortnight. A child sitting in the backlog has
+    // not been committed to anything, and inheriting the cycle would inflate its scope with
+    // work nobody planned. The project still comes across — that is not a commitment.
+    const input = inputOf(mutate);
+    expect(input.projectId).toBe(PROJECT);
+    expect(input.cycleId).toBeUndefined();
+  });
+
+  it('inherits the assignee only when the creator is the parent’s assignee', async () => {
+    const mine = engineOver(withParent(seeded(), { assigneeId: USER }));
+    await createSubIssue(mine.engine, {
+      parentId: PARENT,
+      teamId: TEAM,
+      title: 'Mine to finish',
+      creatorId: USER,
+    });
+    expect(inputOf(mine.mutate).assigneeId).toBe(USER);
+
+    // Somebody else breaking down that issue is proposing work, not continuing it — silently
+    // putting it on the parent's owner's plate is a decision they have not been told about.
+    const theirs = engineOver(withParent(seeded(), { assigneeId: OTHER }));
+    await createSubIssue(theirs.engine, {
+      parentId: PARENT,
+      teamId: TEAM,
+      title: 'Theirs to decide',
+      creatorId: USER,
+    });
+    expect(inputOf(theirs.mutate).assigneeId).toBeUndefined();
+  });
+
+  it('inherits no labels, and still creates the child when the parent is not in the replica', async () => {
+    const store = seeded();
+    const { mutate, engine } = engineOver(store);
+
+    await createSubIssue(engine, {
+      parentId: PARENT,
+      teamId: TEAM,
+      title: 'Orphan',
+      creatorId: USER,
+    });
+
+    const input = inputOf(mutate);
+    // Labels are the documented exception: a parent's "needs design" is rarely true of the
+    // sub-issue somebody just typed.
+    expect(input.labelIds).toBeUndefined();
+    expect(input.priority).toBeUndefined();
+    expect(input.title).toBe('Orphan');
   });
 });

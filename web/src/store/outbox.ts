@@ -232,6 +232,24 @@ export class Outbox {
    * which is exactly the resume behaviour `opId` idempotency exists to make safe.
    */
   private readonly inFlight = new Set<UUID>();
+  /**
+   * The stand-in ids the queue is currently holding a pairing for.
+   *
+   * Derived from `records`, kept rather than recomputed because `SyncEngine.isProvisional`
+   * is asked on composer and render paths — per keystroke — and answering it by copying the
+   * whole queue and flat-scanning its reconciliations makes a large offline queue cost O(n·m)
+   * per character typed.
+   */
+  private readonly provisional = new Set<UUID>();
+  /**
+   * The pairings that can be matched against a delta row, or null when it must be rebuilt.
+   *
+   * `adopt` runs on every delta batch. It short-circuits on an empty queue, which is the
+   * common case — but the case that is not common is precisely the expensive one: a client
+   * that reconnects with hundreds of queued ops rebuilt this list per batch at the exact
+   * moment delta volume is highest.
+   */
+  private matchable: readonly Reconciliation[] | null = null;
 
   constructor(db: PolarisDB | null = null) {
     this.db = db;
@@ -257,7 +275,37 @@ export class Outbox {
       await db.putOutbox(entry);
       outbox.records.set(entry.opId, entry);
     }
+    outbox.reindex();
     return outbox;
+  }
+
+  /** Rebuilds the derived views of the queue. Cheap, and only on a change to `records`. */
+  private reindex(): void {
+    this.provisional.clear();
+    for (const record of this.records.values()) {
+      for (const spec of reconciliations(record.reconcile))
+        this.provisional.add(spec.provisionalId);
+    }
+    this.matchable = null;
+  }
+
+  /**
+   * Whether a queued mutation is still standing in for this id.
+   *
+   * A set membership test rather than a scan: see `provisional`.
+   */
+  hasProvisional(id: UUID): boolean {
+    return this.provisional.has(id);
+  }
+
+  /** Every pairing in the queue that can be matched against a delta row. See `matchable`. */
+  matchableReconciliations(): readonly Reconciliation[] {
+    if (this.matchable === null) {
+      this.matchable = this.list()
+        .flatMap((record) => reconciliations(record.reconcile))
+        .filter((spec) => spec.match !== undefined);
+    }
+    return this.matchable;
   }
 
   get size(): number {
@@ -311,6 +359,8 @@ export class Outbox {
     if (this.db) journalWrite(this.db.workspaceId, record);
     await this.db?.putOutbox(record);
     this.records.set(record.opId, record);
+    for (const spec of reconciliations(record.reconcile)) this.provisional.add(spec.provisionalId);
+    this.matchable = null;
     if (this.db) journalForget(this.db.workspaceId, record.opId);
     return record;
   }
@@ -359,6 +409,9 @@ export class Outbox {
     await this.db?.deleteOutbox(opId);
     this.records.delete(opId);
     this.inFlight.delete(opId);
+    // Rebuilt rather than subtracted: two queued ops may name the same stand-in, and
+    // removing the id because one of them resolved would report the other's row as real.
+    if (reconciliations(record.reconcile).length > 0) this.reindex();
     return record;
   }
 
@@ -378,5 +431,7 @@ export class Outbox {
     await this.db?.clearOutbox();
     this.records.clear();
     this.inFlight.clear();
+    this.provisional.clear();
+    this.matchable = null;
   }
 }

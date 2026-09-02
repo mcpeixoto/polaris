@@ -130,6 +130,23 @@ enum PolarisJSON {
         return base.addingTimeInterval(fraction - Double(offsetSeconds))
     }
 
+    /// The inverse of `parseRFC3339`, for the one place this client sends a timestamp: a
+    /// snooze deadline. Written by hand for the same reason it is read by hand — the
+    /// formatter types are either non-Sendable or fussy — and always in UTC, so a server
+    /// reading it cannot inherit the phone's timezone.
+    static func rfc3339(_ date: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let parts = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second], from: date
+        )
+        return String(
+            format: "%04d-%02d-%02dT%02d:%02d:%02dZ",
+            parts.year ?? 1970, parts.month ?? 1, parts.day ?? 1,
+            parts.hour ?? 0, parts.minute ?? 0, parts.second ?? 0
+        )
+    }
+
     static func encoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

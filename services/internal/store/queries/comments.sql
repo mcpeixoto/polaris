@@ -69,3 +69,28 @@ WHERE c.workspace_id = sqlc.arg(workspace_id)
   AND c.id > sqlc.arg(after_id)
 ORDER BY c.id
 LIMIT sqlc.arg(page_size);
+
+-- ListCommentsForIssues is ListCommentsForIssue for a whole page of issues at once.
+--
+-- Every other collection on Issue was given a batched verb; these three were not, and the
+-- per-issue loop underneath them ran GetIssue + GetTeam + the listing for every row. On a
+-- two-thousand-issue team asking for `issues { comments { body } }` that is six thousand
+-- sequential queries, and the in-code comment claiming a list view never asks for them was
+-- a hope rather than an enforcement — the issue-detail screen asks for exactly this.
+--
+-- The visibility predicate is applied once, here, by joining the issue and its team: a
+-- comment is readable when its issue is, and the batched caller has no per-issue place to
+-- check it. Membership is passed as the team id array the principal already carries.
+--
+-- name: ListCommentsForIssues :many
+SELECT c.id, c.workspace_id, c.issue_id, c.parent_id, c.body, c.actor_type, c.actor_id,
+       c.edited_at, c.resolved_at, c.resolved_by, c.archived_at, c.deleted_at,
+       c.created_at, c.updated_at, c.anchor_start, c.anchor_end, c.quote
+FROM comment c
+JOIN issue i ON i.id = c.issue_id
+JOIN team  t ON t.id = i.team_id
+WHERE c.issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+  AND c.workspace_id = sqlc.arg(workspace_id)
+  AND c.deleted_at IS NULL
+  AND (NOT t.private OR t.id = ANY(sqlc.arg(team_ids)::uuid[]))
+ORDER BY c.issue_id, c.created_at;

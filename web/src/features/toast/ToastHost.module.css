@@ -1,0 +1,119 @@
+/*
+ * The toast stack.
+ *
+ * Bottom right, above everything, and deliberately not where the undo toast is. The undo
+ * toast is bottom centre because it is a deadline the user is meant to look at; these are
+ * reports the user is meant to be able to ignore, and putting them in the same place would
+ * mean a failure notice covering the one button that takes something back.
+ *
+ * `--z-toast` sits above the modal layer on purpose: a mutation refused from inside a dialog
+ * is exactly the refusal somebody needs to read, and a message painted underneath the surface
+ * that caused it is a message nobody sees.
+ *
+ * The host is always in the document, because it holds the live regions — see ToastHost.tsx
+ * — so it must not eat pointer events while it is empty.
+ */
+
+.host {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-6);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: min(46ch, calc(100vw - var(--space-8)));
+  pointer-events: none;
+}
+
+.region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  /* Tighter on the trailing side because the buttons carry their own padding, and a control
+     inset by a full gutter reads as floating away from the edge it belongs to. */
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-tertiary);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  pointer-events: auto;
+  /* It arrives during the frame something failed in, so it has to be seen without being
+     waited for. Reduced motion collapses this at the token. */
+  animation: slide var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * The failure tone, carried by a leading rule rather than by tinting the whole card.
+ *
+ * Colour is never the only carrier of meaning here either: the title is a written sentence
+ * about what was refused, and the rule is the scanning aid on top of it.
+ */
+.error {
+  border-inline-start: var(--space-1) solid var(--text-danger);
+}
+
+.text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block: var(--space-1);
+}
+
+.title {
+  font-weight: var(--font-weight-medium);
+}
+
+/*
+ * --text-secondary, not tertiary: this sits on --bg-tertiary, where tertiary measures
+ * 3.38:1 and fails body text in dark. See the contrast rule in the composition doc.
+ */
+.description {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  /* A server sentence can be long; three lines is enough to say what happened and short
+     enough that the stack cannot cover the content it is describing. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+@keyframes slide {
+  from {
+    opacity: 0;
+    transform: translateX(var(--space-3));
+  }
+}
+
+/*
+ * And the way back out, mirroring the entrance — same distance, same direction, reversed.
+ *
+ * `forwards` because usePresence keeps the node alive until the animation ends, and without
+ * it the card would snap back to full opacity for the frame between the last keyframe and
+ * the unmount. The pointer-events rule is not a duplicate of styles/motion.css's: that one
+ * is `[data-exiting]`, which ties with `.toast`'s own `pointer-events: auto` on specificity
+ * and would be settled by bundler emission order. A leaving card whose Retry could still be
+ * hit would re-run a mutation the user had already stopped being offered.
+ */
+.toast[data-exiting] {
+  animation: slideOut var(--duration-instant) var(--ease-in) forwards;
+  pointer-events: none;
+}
+
+@keyframes slideOut {
+  to {
+    opacity: 0;
+    transform: translateX(var(--space-3));
+  }
+}

@@ -256,3 +256,18 @@ form.addForm > *:first-child {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: calc(var(--focus-ring-offset) * -1);
 }
+
+/*
+ * Why a write was refused, under the form that made it.
+ *
+ * Every write in this file used to end at `report` — a console line — while the optimistic
+ * row was rolled back, so the person who added a blocker or a sub-issue watched it appear and
+ * then leave with nothing said anywhere they were looking. `--text-danger` rather than the
+ * priority ramp: a refused write is not an urgency, and the two must not recolour together.
+ */
+.refusal {
+  margin: 0;
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

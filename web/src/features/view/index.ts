@@ -13,5 +13,5 @@
 export { filterContextFor } from './context';
 export type { ViewClock } from './context';
 
-export { groupIssues, sortIssues } from './group';
+export { groupIssues, sortIssues, subGroupIssues } from './group';
 export type { IssueGroup } from './group';

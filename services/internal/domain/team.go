@@ -49,6 +49,9 @@ func (s *Service) CreateTeam(ctx context.Context, p *authz.Principal, in CreateT
 	if in.Timezone == "" {
 		in.Timezone = "UTC"
 	}
+	if err := validateTimezone(in.Timezone); err != nil {
+		return model.Team{}, 0, err
+	}
 	if in.Private {
 		ent, err := entitlementSetFor(ctx, s.db.Queries(), p.WorkspaceID)
 		if err != nil {
@@ -244,6 +247,11 @@ func (s *Service) UpdateTeam(ctx context.Context, p *authz.Principal, in UpdateT
 			return model.Team{}, 0, err
 		}
 		if err := ent.Allow(entitlement.FeaturePrivateTeams); err != nil {
+			return model.Team{}, 0, err
+		}
+	}
+	if in.Timezone != nil {
+		if err := validateTimezone(*in.Timezone); err != nil {
 			return model.Team{}, 0, err
 		}
 	}
@@ -656,6 +664,24 @@ func validateTeamKey(key string) error {
 	if !teamKeyPattern.MatchString(key) {
 		return platform.Validation("key",
 			"team key must be 1-8 characters, start with a letter, and use only uppercase letters and digits")
+	}
+	return nil
+}
+
+// validateTimezone refuses a zone Go cannot load.
+//
+// Every read site does `loc, err := time.LoadLocation(tz); if err != nil { loc = time.UTC }`
+// — cycles.go, cycle_editing.go, slas.go, recurring.go. Falling back at read time is right;
+// accepting the bad value at write time is not, because the result is that every cycle
+// boundary, SLA deadline and recurring due date for that team is computed in UTC instead,
+// permanently, with no error anybody could ever see. A typo becomes a silent wrong answer
+// hours off, which is the worst kind.
+func validateTimezone(tz string) error {
+	if strings.TrimSpace(tz) == "" {
+		return platform.Validation("timezone", "a timezone is required")
+	}
+	if _, err := time.LoadLocation(tz); err != nil {
+		return platform.Validation("timezone", "not a known IANA time zone")
 	}
 	return nil
 }

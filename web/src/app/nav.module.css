@@ -18,6 +18,16 @@
  *            of the three above. Nothing here may remove it.
  */
 
+/*
+ * The column itself, and the one entrance in this file.
+ *
+ * Settings is a mode, and switching into it replaces this whole element — the two navs are
+ * different components, so React unmounts one and mounts the other. That was the only
+ * transition in the shell that cut hard while the pane beside it faded, which read as the
+ * sidebar having been *replaced by* something rather than the same column changing subject.
+ * Opacity only, at the same length as `.view`: navigation is a keyboard path, and the token
+ * layer folds this to 1ms under prefers-reduced-motion, which is the right answer for a fade.
+ */
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -26,6 +36,13 @@
   border-right: 1px solid var(--border-subtle);
   background: var(--bg-sidebar);
   overflow-y: auto;
+  animation: sidebarIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes sidebarIn {
+  from {
+    opacity: 0;
+  }
 }
 
 .section {
@@ -34,16 +51,85 @@
   gap: 1px;
 }
 
-.sectionTitle {
+/*
+ * A section's label, split into the row and the type on it.
+ *
+ * There are two elements wearing this now — the settings nav's `h2`, which names a group
+ * that is always there, and the workspace nav's disclosure button, which names one that
+ * opens and closes. They have to look identical and they cannot share an element, so what
+ * they share is the treatment: `.sectionHeader` is the row, `.sectionHeading` is the type,
+ * and neither overrides a property the other sets. Composing rather than duplicating is
+ * what stops the settings sidebar drifting a pixel from the workspace one.
+ *
+ * --text-secondary rather than --text-tertiary: this label sits on --bg-sidebar, which is
+ * not --bg-primary in the light theme, and the composition doc measures tertiary as unsafe
+ * the moment it leaves the page's own surface. The size and the weight are what keep it
+ * recessive; the contrast is not what was doing that work.
+ */
+.sectionHeader {
   margin: 0 0 var(--space-1);
   padding: 0 var(--space-2);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+.sectionHeading {
+  margin: 0;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
+}
+
+.sectionTitle {
+  composes: sectionHeader sectionHeading;
+}
+
+/*
+ * The disclosure that opens a section.
+ *
+ * A button and not a heading. The workspace sidebar's three sections are furniture the user
+ * opens and closes, and a heading is a landmark in the document outline — `SettingsNav`
+ * keeps its `h2`s because those name groups that are always there. This one names a control,
+ * and `aria-expanded` on it is the whole announcement.
+ */
+.sectionToggle {
+  composes: sectionHeading;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.sectionToggle:hover {
+  color: var(--text-primary);
+}
+
+/*
+ * The chevron, rotated rather than swapped for a second glyph, so the state change is one
+ * continuous thing turning instead of two drawings taking turns.
+ */
+.chevron {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+/* Written at two classes so specificity settles it rather than the bundler's emission
+   order — both land on the same element and `composes` gives them equal weight. */
+.chevron.chevronOpen {
+  transform: rotate(0deg);
 }
 
 .navItem {
@@ -156,6 +242,64 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/*
+ * A count riding at the trailing edge of a nav row.
+ *
+ * Inbox and Triage both knew their number and both drew a glyph and a label instead — the
+ * unread count went to the dock badge and nowhere else, and the triage queue was counted
+ * only to decide where `G T` should land. A sidebar that can say "9" and does not is asking
+ * the user to open the screen to find out whether it was worth opening.
+ *
+ * Tabular figures because the number changes while the row sits still: proportional digits
+ * re-lay the row out every time 9 becomes 10, and a count that twitches is read as motion
+ * rather than as information. --text-secondary rather than tertiary for the reason the
+ * section headings give: this sits on --bg-sidebar, which is not the page's own surface.
+ */
+.navCount {
+  flex: none;
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.navItemActive .navCount {
+  color: var(--text-primary);
+}
+
+/*
+ * The workspace's mark, and the one box in this sidebar whose size is deliberately not off
+ * the control ladder. It is a picture, not a control: the ladder's rungs answer to the 32px
+ * issue row and to hit targets, and neither has an opinion about how big a square logo should
+ * be next to a workspace name set in --font-size-md. 18px is what balances that word.
+ *
+ * It lives here rather than in AppShell because both sidebars draw it now — the workspace one
+ * as the trigger for its menu, the settings one as a read-only reminder of which workspace is
+ * being edited.
+ */
+.workspaceMark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-none);
+}
+
+.workspaceLogo {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  /* Cover rather than contain: the box is 18px square and a letterboxed logo inside it is
+     three or four pixels of artwork surrounded by accent colour. */
+  object-fit: cover;
 }
 
 .spacer {

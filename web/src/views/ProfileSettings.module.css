@@ -1,0 +1,15 @@
+/*
+ * One line, and it needs a stylesheet because a bare <p> inside a settings section inherits
+ * the document's margins and the body size — which puts an aside about the account at the
+ * same weight as the fields above it.
+ *
+ * It is a note about a value the screen cannot change, not a hint attached to a control, so
+ * it does not belong in `Field`'s hint slot and it is not the section's description either:
+ * it appears only when the account carries an address.
+ */
+.accountNote {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

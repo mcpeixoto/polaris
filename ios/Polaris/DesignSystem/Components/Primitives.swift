@@ -167,11 +167,11 @@ struct DarkFieldStyle: ViewModifier {
             // effect: the field grows and the text stays whole.
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
+                    .fill(Theme.fieldFill)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                    .stroke(Theme.fieldStroke, lineWidth: 1)
             )
     }
 }

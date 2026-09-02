@@ -7,6 +7,7 @@ import { Link, Navigate } from 'react-router';
 import { useKeymap } from '~/app/keymap';
 import { Avatar, Button, EmptyState } from '~/components';
 import { formatCustomerStatus } from '~/features/customers/mutations';
+import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerRole } from '~/hooks/useViewer';
 import type { CustomerStatus, Store, UUID } from '~/store';
@@ -25,6 +26,9 @@ interface CustomerRow {
 export function Customers() {
   const { registry, context } = useKeymap();
   const viewerRole = useViewerRole();
+  // An empty replica and an empty workspace look identical from here, and only one of them
+  // should be told "No customers yet" with a button to make the first one.
+  const settled = useStoreSettled();
   const create = () => registry.invoke('customer.create', { source: 'menu', context });
 
   const workspace = useLiveQuery(
@@ -67,7 +71,9 @@ export function Customers() {
         </Button>
       </header>
 
-      {rows.length === 0 ? (
+      {rows.length === 0 && !settled ? (
+        <EntityLoading label="Loading customers…" lines={4} />
+      ) : rows.length === 0 ? (
         <EmptyState
           title="No customers yet"
           description="A customer is an organisation you attribute feedback to. Requests attach that feedback to issues and projects."

@@ -1,0 +1,131 @@
+/*
+ * The reading half of triage. It scrolls on its own so the queue beside it keeps its
+ * position: a reviewer reading a long bug report must not be scrolling the list they are
+ * working down.
+ *
+ * The action bar is pinned to the bottom rather than sitting after the description, because
+ * it is the point of the screen and a description of any length would otherwise push it off
+ * the bottom of the window.
+ */
+.pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  /* Wide enough for a bug report and the four buttons under it; narrower than this and the
+     action bar wraps, which is the one row on this screen that may not. */
+  min-width: 22rem;
+  min-height: 0;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+}
+
+.identifier {
+  align-self: flex-start;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  text-decoration: none;
+}
+
+.identifier:hover {
+  text-decoration: underline;
+}
+
+.identifier:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-sm);
+}
+
+.fact dt {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.fact dd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.entityLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.entityLink:hover {
+  text-decoration: underline;
+}
+
+.entityLink:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+}

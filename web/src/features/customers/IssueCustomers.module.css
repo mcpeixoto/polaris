@@ -87,3 +87,12 @@
   gap: var(--space-1);
   margin-left: auto;
 }
+
+/* A write this section could not land. --text-danger rather than the priority ramp: a theme
+   that recolours urgency must not recolour "this did not work". */
+.error {
+  margin: 0;
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

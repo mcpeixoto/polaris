@@ -30,7 +30,21 @@ if (!container) {
   throw new Error('#root is missing from index.html');
 }
 
-createRoot(container).render(
+createRoot(container, {
+  /*
+   * The errors no boundary got to see.
+   *
+   * `app/ErrorBoundary` catches everything thrown during a render it encloses, which is the
+   * case that matters to a user. This is the other one: a throw React could not deliver to a
+   * boundary at all — inside a passive effect's cleanup during an unmount, say — where React
+   * would otherwise re-throw to the window and the only trace is a stack with no component in
+   * it. Logging it here is not recovery, and is not pretending to be: it is the difference
+   * between a support ticket that names a component and one that says "it went blank".
+   */
+  onUncaughtError: (error, info) => {
+    console.error('[polaris] an error escaped every boundary', error, info.componentStack);
+  },
+}).render(
   <StrictMode>
     <App />
   </StrictMode>,

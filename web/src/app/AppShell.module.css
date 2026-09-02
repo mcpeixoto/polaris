@@ -7,11 +7,95 @@
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
   height: 100dvh;
+  /* The resize handle and the collapsed sidebar's way back are both positioned against this
+     box rather than taking a column of their own — see their rules below. */
+  position: relative;
   overflow: hidden;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-md);
+  /*
+   * The one transition on a layout property in this file, and it is here because the
+   * alternative is worse: a sidebar that vanishes between two frames reads as the
+   * application having lost it rather than as the user having put it away. Column widths are
+   * cheap to interpolate — one track, two values — and --duration-fast keeps it on the right
+   * side of the keyboard rule, because `⌘.` is how most people will do this.
+   *
+   * The token layer folds this to 1ms under prefers-reduced-motion, which is the answer:
+   * the sidebar still goes, it just stops sliding.
+   */
+  transition: grid-template-columns var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * The collapsed state, and what it does not do.
+ *
+ * The navigation is unmounted rather than hidden, so the column has nothing in it to clip
+ * and no links left in the tab order — a sidebar somebody closed should be closed for a
+ * screen reader too. The width comes from an inline custom property on the element, so this
+ * rule exists only for the two controls that need to know.
+ */
+.shellCollapsed {
+  grid-template-columns: 0 1fr;
+}
+
+/*
+ * The way back to a sidebar that is not there.
+ *
+ * Floating over the top-left of the pane, which is where the sidebar was, because unmounting
+ * the navigation takes the obvious home for this control with it. --z-sticky rather than a
+ * number: it has to clear a screen's own header and nothing else.
+ */
+.showSidebar {
+  position: absolute;
+  top: var(--space-2);
+  inset-inline-start: var(--space-2);
+  z-index: var(--z-sticky);
+}
+
+/*
+ * The edge between the panes, made draggable.
+ *
+ * Drawn over the sidebar's own border rather than taking a grid track, so the columns stay
+ * `var(--sidebar-width) 1fr` and the transition above has two values to move between. Wider
+ * than the border it sits on, because a one-pixel hit target is a hit target only in theory;
+ * it is transparent, so what the user sees is still the hairline.
+ */
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  inset-inline-start: var(--sidebar-width);
+  width: var(--space-2);
+  transform: translateX(-50%);
+  z-index: var(--z-sticky);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resizeHandle:hover,
+.resizeHandle:focus-visible {
+  /* The affordance the transparent box does not otherwise have. A focus ring alone would be
+     an outline around a strip of nothing, so the strip fills in as well. */
+  background: var(--accent);
+}
+
+/*
+ * The route announcement, and the only element in this shell drawn for people who cannot see
+ * it. Clipped rather than `display: none`, which would take it out of the accessibility tree
+ * along with everything it is for.
+ */
+.routeStatus {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .workspace {
@@ -23,39 +107,60 @@
      they take focus, rather than against whatever ancestor happens to be positioned. */
   position: relative;
   padding: var(--space-1) var(--space-2);
-  /* Room for the macOS traffic lights, which the desktop shell draws over the app's own
-     chrome. Harmless in a browser tab. */
   padding-top: var(--space-2);
 }
 
 /*
- * The workspace's mark, and the one box in this sidebar whose size is deliberately not off
- * the control ladder. It is a picture, not a control: the ladder's rungs answer to the 32px
- * issue row and to hit targets, and neither has an opinion about how big a square logo should
- * be next to a workspace name set in --font-size-md. 18px is what balances that word.
+ * The desktop window's own chrome.
+ *
+ * The shell hides the title bar so this sidebar reaches the top edge, and then nothing draws
+ * the two things a title bar was providing: a place to grab the window, and room for the
+ * close/minimise/zoom buttons. Eight pixels of top padding claimed to be the second one and
+ * was not — the traffic lights sit at y16 and are 12px tall, so the workspace mark and the
+ * workspace name rendered underneath them.
+ *
+ * `data-desktop-chrome` is stamped on <html> by the runtime shim from what the shell reports
+ * (platform/runtime.ts), rather than by sniffing the platform here: the shell is the side
+ * that chose `trafficLightPosition`, so it is the side that knows how much room to leave. A
+ * browser tab never has the attribute and is untouched.
+ *
+ * The ancestor selector is global because <html> is not in this module's subtree; the element
+ * being styled still is.
  */
-.workspaceMark {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--radius-sm);
-  background: var(--accent-subtle);
-  color: var(--accent-text);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-none);
+:global(html[data-desktop-chrome]) .workspace {
+  /* Drag inherits into children and swallows their clicks, so every control inside this row
+     opts back out below. That is not optional — without it the workspace menu stops opening. */
+  -webkit-app-region: drag;
 }
 
-.workspaceLogo {
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  /* Cover rather than contain: the box is 18px square and a letterboxed logo inside it is
-     three or four pixels of artwork surrounded by accent colour. */
-  object-fit: cover;
+:global(html[data-desktop-chrome]) .workspace :where(button, a, input) {
+  -webkit-app-region: no-drag;
+}
+
+/* The macOS traffic lights are top-left, over this row. 38px clears them: 16 above, 12 of
+   button, and the rest is the gap the platform's own title bars leave. */
+:global(html[data-desktop-chrome='mac']) .workspace {
+  padding-top: 38px;
+}
+
+/*
+ * Windows puts its controls top-right, over the main pane rather than over the sidebar. The
+ * strip they sit in is a drag region the pane starts below, so the sidebar still runs to the
+ * top edge and no view header is ever underneath a close button.
+ */
+:global(html[data-desktop-chrome='windows']) .main {
+  padding-top: 38px;
+}
+
+:global(html[data-desktop-chrome='windows']) .shell::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  height: 38px;
+  -webkit-app-region: drag;
+  z-index: var(--z-sticky);
 }
 
 .workspaceSwitch {
@@ -125,7 +230,10 @@
 .status {
   flex: none;
   font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
+  /* --text-secondary, not tertiary: this sits on --bg-sidebar, which is not --bg-primary in
+     the light theme, and the composition doc measures tertiary as unsafe the moment it
+     leaves the page's own surface. */
+  color: var(--text-secondary);
   white-space: nowrap;
   animation: statusIn var(--duration-fast) var(--ease-out);
   transition: color var(--duration-fast) var(--ease-out);
@@ -178,8 +286,31 @@
   }
 }
 
+/*
+ * --text-danger rather than --priority-urgent. A failed sync is not an urgent issue, and
+ * borrowing across the ramps is what makes a theme that recolours urgency silently recolour
+ * "Offline" — the composition doc names that as a rule rather than a preference.
+ */
 .statusError {
-  color: var(--priority-urgent);
+  color: var(--text-danger);
+}
+
+/*
+ * The failed badge, which is a button.
+ *
+ * It has to look exactly like the other three states — this is one badge changing its mind,
+ * not a control that appears beside it — so it borrows everything and adds only the pointer
+ * and the underline that says it can be pressed.
+ */
+.statusRetry {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .folder {
@@ -198,9 +329,62 @@
   padding: 0 var(--space-2);
 }
 
+/*
+ * The folder's name, which is a name until somebody asks to change it.
+ *
+ * It used to be a permanently live borderless input: it looked like static text, was a Tab
+ * stop per folder, and renamed the folder on blur after any stray keystroke. The same class
+ * dresses the span and the form that replaces it, so choosing Rename does not move the word.
+ */
 .folderName {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+/*
+ * A team row, and the disclosure that opens it.
+ *
+ * The chevron is a sibling of the link rather than inside it: a button inside an anchor is
+ * not valid, and more to the point pressing it must open the team's screens rather than
+ * navigate to the team, which is exactly what nesting them would make ambiguous.
+ */
+.teamRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* A class rather than `.teamRow > a`: a bare element selector under a container styles
+   whatever ends up inside it later, which is the argument .folderInput makes above. */
+.teamLink {
+  flex: 1;
+  min-width: 0;
+}
+
+.teamDisclosure {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.teamDisclosure:hover {
+  color: var(--text-primary);
 }
 
 /*
@@ -225,22 +409,60 @@
   padding: 0 var(--space-2) var(--space-1);
 }
 
-.folderAction {
+/*
+ * A folder's actions, revealed rather than resident.
+ *
+ * Two permanently visible text buttons — "Delete" among them — on every folder row is a
+ * sidebar that spends its width on the two things somebody does to a folder once. The `…`
+ * appears on hover, and on `:focus-within` so it is reachable without a pointer at all; it
+ * is still in the tab order when hidden, which is what makes that true.
+ */
+.folderMenu {
   flex: none;
-  border: none;
-  background: transparent;
-  color: var(--text-tertiary);
-  font: inherit;
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-  /* Matches .navItem in nav.module.css. These are the two-pixel affordances that only exist on hover, so the
-     ramp is the whole of their arrival — snapping one on is how a control reads as an
-     accident rather than as something that was always there waiting. */
-  transition: color var(--duration-fast) var(--ease-out);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
-.folderAction:hover {
-  color: var(--text-primary);
+.folderHeader:hover .folderMenu,
+.folderHeader:focus-within .folderMenu,
+.folderMenu[aria-expanded='true'] {
+  opacity: 1;
+}
+
+/*
+ * What an empty Favourites section says.
+ *
+ * Not an EmptyState: this is a line under a section header in a 232px column, and the
+ * primitive is a centred block with a title, a description and an action. What it needs to
+ * do is name the gesture — starring something — so the header above it stops looking like a
+ * section that failed to load.
+ */
+.favoritesHint {
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+/*
+ * Where a favourite goes to leave a folder.
+ *
+ * The minimum height is the whole fix: this was a container whose only children were the
+ * unfiled rows, so with nothing unfiled it was zero pixels tall and a favourite dragged into
+ * a folder could never be dragged back out. One row's worth of height is enough to aim at.
+ */
+.unfiled {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: var(--control-height-md);
+  border-radius: var(--radius-md);
+}
+
+.folder[data-drop-active],
+.unfiled[data-drop-active] {
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
 }
 
 /*
@@ -265,7 +487,9 @@
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
   background: var(--bg-tertiary);
-  color: var(--text-tertiary);
+  /* On --bg-tertiary, which the composition doc measures at 3.38:1 for tertiary ink in the
+     dark theme. This is the clearest case of the rule in the file. */
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.01em;

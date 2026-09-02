@@ -176,7 +176,13 @@ func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
 	h.AroundFields(graph.EnforceOauthScopes)
 
 	if !cfg.IsDevelopment() {
-		return h
+		// The loaders are what make a list query cost three reads instead of three per
+		// row, and they only widen past a single resolver call when this middleware has
+		// put one set on the request context. It was missing here for long enough that
+		// every hydrate call minted its own private cache and the batching layer was
+		// dead code in production — a performance bug nothing fails on, which is why it
+		// is wired at the one place both return paths pass through.
+		return graph.LoaderMiddleware(svc)(h)
 	}
 
 	// Development only. Introspection is genuinely useful to integration authors, but it
@@ -188,5 +194,5 @@ func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/", h)
 	mux.Handle("/playground", playground.Handler("Polaris", "/graphql"))
-	return mux
+	return graph.LoaderMiddleware(svc)(mux)
 }

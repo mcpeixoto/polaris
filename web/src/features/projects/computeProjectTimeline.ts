@@ -7,8 +7,8 @@ import { compareProjectsByPriority } from './projectHelpers';
 import { isDependencyViolated, matchesDependencyFilter } from './dependencyHelpers';
 import type { ProjectDependencyFilter } from './dependencyHelpers';
 import { matchesProjectCustomerFilter, type ProjectCustomerFilter } from './customerFilter';
-import type { ProjectTimelineZoom } from './display';
-import { ZOOM_PX_PER_DAY } from './display';
+import type { ProjectStatusFilter, ProjectTimelineZoom } from './display';
+import { matchesProjectStatusFilter, ZOOM_PX_PER_DAY } from './display';
 import type { Project, ProjectMilestone, Store, UUID } from '~/store';
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -85,9 +85,10 @@ export function buildProjectTimeline(
   showMilestones: boolean,
   showDependencies: boolean,
   customerFilter: ProjectCustomerFilter = 'all',
+  statusFilter: ProjectStatusFilter = 'all',
 ): ProjectTimelineData {
   const pxPerDay = ZOOM_PX_PER_DAY[zoom];
-  const projects = listTimelineProjects(store, teamId, depFilter, customerFilter);
+  const projects = listTimelineProjects(store, teamId, depFilter, customerFilter, statusFilter);
 
   const dated: { project: Project; startDay: string; endDay: string }[] = [];
   const unscheduled: UnscheduledProject[] = [];
@@ -217,12 +218,14 @@ function listTimelineProjects(
   teamId: UUID | undefined,
   depFilter: ProjectDependencyFilter,
   customerFilter: ProjectCustomerFilter,
+  statusFilter: ProjectStatusFilter,
 ): Project[] {
   const projects: Project[] = [];
   for (const project of store.projects.values()) {
     if (project.archivedAt !== undefined || project.deletedAt !== undefined) continue;
     if (!matchesDependencyFilter(store, project.id, depFilter)) continue;
     if (!matchesProjectCustomerFilter(store, project.id, customerFilter)) continue;
+    if (!matchesProjectStatusFilter(store, project.id, statusFilter)) continue;
     if (teamId !== undefined) {
       const onTeam = [...store.projectTeamIdsFor(project.id)].some(
         (id) => store.projectTeams.get(id)?.teamId === teamId,

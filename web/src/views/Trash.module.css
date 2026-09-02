@@ -14,6 +14,20 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  /* The page's entrance. Reduced motion is answered at the token: the duration steps
+     collapse to 1ms, so there is no media query here to drift out of step. */
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {
@@ -67,16 +81,16 @@
 /*
  * A failed restore.
  *
- * Takes the urgent pair rather than a --danger role, which the token layer does not have —
- * the same bargain MemberSettings makes, and for the same reason: that pair is the only red
- * already tuned against both page colours.
+ * --text-danger, not the urgent step of the priority ramp. A theme that recolours urgency
+ * must not silently recolour "this did not work", and the semantic layer now has the role
+ * this rule always wanted.
  */
 .error {
   margin: 0 0 var(--space-4);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }

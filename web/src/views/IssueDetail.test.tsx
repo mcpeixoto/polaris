@@ -26,7 +26,13 @@ import { Store, type Change, type Comment, type OptimisticPatch, type UUID } fro
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
-import { Comments, TitleField } from './IssueDetail';
+import {
+  Comments,
+  describe as describeEntry,
+  TitleField,
+  type HistoryEntry,
+  type TitleHandle,
+} from './IssueDetail';
 
 afterEach(cleanup);
 
@@ -260,5 +266,172 @@ describe('TitleField', () => {
     await userEvent.setup().click(screen.getByLabelText('Issue title'));
     view.unmount();
     expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The title field's reset, and the way out of an edit.
+ *
+ * `key` used to be on the inner `<form>`, which remounts the DOM element and leaves this
+ * component's state exactly where it was — so a half-typed title followed the route onto the
+ * next issue and the next commit renamed *that* one. The key belongs at the call site, and
+ * these two cases are the difference.
+ */
+describe('TitleField across a route change', () => {
+  it('drops the draft when the call site keys it on the issue', async () => {
+    const view = render(
+      <TitleField key={ISSUE} issueId={ISSUE} title="Old name" onSave={vi.fn()} />,
+    );
+    const user = userEvent.setup();
+
+    const field = screen.getByLabelText('Issue title');
+    await user.click(field);
+    await user.clear(field);
+    await user.type(field, 'Half a rename');
+
+    // The route moves. React discards the component because the key changed, which is the
+    // whole of the reset — a key on the form inside would not have done it.
+    view.rerender(
+      <TitleField
+        key={'i2' as UUID}
+        issueId={'i2' as UUID}
+        title="Something else"
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect((screen.getByLabelText('Issue title') as HTMLTextAreaElement).value).toBe(
+      'Something else',
+    );
+  });
+
+  it('abandons an edit without saving it, and says when there is one to abandon', async () => {
+    const onSave = vi.fn();
+    const handle = { current: null } as { current: TitleHandle | null };
+    const view = render(
+      <TitleField issueId={ISSUE} title="Old name" handle={handle} onSave={onSave} />,
+    );
+    const user = userEvent.setup();
+
+    // Nothing typed: Escape has nothing to do and falls through to whatever else claims it.
+    expect(handle.current?.editing()).toBe(false);
+
+    const field = screen.getByLabelText('Issue title');
+    await user.click(field);
+    await user.clear(field);
+    await user.type(field, 'Renamed by accident');
+    expect(handle.current?.editing()).toBe(true);
+
+    act(() => handle.current?.revert());
+
+    // The blur `revert` causes is the same blur that commits every other exit, so the draft
+    // has to be gone before it fires or Escape would save the edit it was pressed to drop.
+    expect(onSave).not.toHaveBeenCalled();
+    expect((screen.getByLabelText('Issue title') as HTMLTextAreaElement).value).toBe('Old name');
+
+    view.unmount();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('commits on Enter rather than typing a newline into the title', async () => {
+    const onSave = vi.fn();
+    render(<TitleField issueId={ISSUE} title="Old name" onSave={onSave} />);
+    const user = userEvent.setup();
+
+    const field = screen.getByLabelText('Issue title');
+    await user.click(field);
+    await user.clear(field);
+    await user.type(field, 'New name{Enter}');
+
+    // A textarea takes Enter as a newline; an issue title is one line, so the field supplies
+    // the submit the single-line input gave for free.
+    expect(onSave).toHaveBeenCalledWith('New name');
+    expect((screen.getByLabelText('Issue title') as HTMLTextAreaElement).value).toBe('Old name');
+  });
+});
+
+/**
+ * ⌘⏎ posts the composer that has focus, and `focused` is only ever *set* — by a composer's
+ * `onFocus`. Cancelling a reply unmounted that composer and left the id behind, so a later
+ * ⌘⏎ from anywhere on the page posted the abandoned sentence as a reply nobody could see.
+ */
+describe('Comments and the submit chord', () => {
+  function mountWithCommands(store: Store, engine: SyncEngine) {
+    const commands = { current: {} as { submitComment?: () => void } };
+    render(
+      <KeymapProvider>
+        <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+          <Comments
+            issueId={ISSUE}
+            identifier="ENG-1"
+            fetched={[]}
+            names={{ [ADA]: 'Ada' }}
+            viewerId={ADA}
+            commands={commands as never}
+            enterSubmits={false}
+          />
+        </EngineProvider>
+      </KeymapProvider>,
+    );
+    return { commands, user: userEvent.setup() };
+  }
+
+  it('does not post a cancelled reply when the chord is pressed later', async () => {
+    const store = storeWith([comment(STAND_IN)]);
+    const { engine, mutate } = engineFor(store);
+    const { commands, user } = mountWithCommands(store, engine);
+
+    await user.click(screen.getByRole('button', { name: /^reply to Ada$/i }));
+    await user.type(replyBox(), 'Something I thought better of.');
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+
+    act(() => commands.current.submitComment?.());
+
+    // The root composer is empty, so the fallback posts nothing at all. What must not happen
+    // is the abandoned reply going up under a parent the writer is no longer looking at.
+    expect(createComments(mutate)).toEqual([]);
+  });
+});
+
+/**
+ * The feed is a permanent, curated record, and half of it was rendering machine identifiers:
+ * "Ada changed dueDate". Every kind the server records now has a sentence, and a kind this
+ * build has never heard of is still read out as English rather than as a field name.
+ */
+describe('activity sentences', () => {
+  function entry(kind: string, from: unknown, to: unknown): HistoryEntry {
+    return {
+      id: 'h1' as UUID,
+      issueId: ISSUE,
+      actor: { type: 'user', id: ADA },
+      kind,
+      fromValue: from,
+      toValue: to,
+      createdAt: AT,
+    };
+  }
+
+  const names = { [ADA]: 'Ada' };
+
+  it('writes a sentence for each kind the rail can change', () => {
+    expect(describeEntry(entry('dueDate', null, '2026-09-10'), names)).toBe(
+      'set the due date to 2026-09-10',
+    );
+    expect(describeEntry(entry('dueDate', '2026-09-10', null), names)).toBe('cleared the due date');
+    expect(describeEntry(entry('estimate', null, 3), names)).toBe('estimated it at 3');
+    expect(describeEntry(entry('label', null, 'importer'), names)).toBe('added the label importer');
+    expect(describeEntry(entry('project', null, 'Importer v2'), names)).toBe(
+      'put it in Importer v2',
+    );
+    expect(describeEntry(entry('cycle', 'Cycle 4', null), names)).toBe('took it out of the cycle');
+    expect(describeEntry(entry('subscribe', null, false), names)).toBe(
+      'stopped watching the issue',
+    );
+  });
+
+  it('reads an unknown kind as English rather than as a field name', () => {
+    // A newer server records something this build has never seen. Dropping the row would
+    // leave a gap in a permanent record; printing `slaBreached` would be a machine talking.
+    expect(describeEntry(entry('slaBreached', null, true), names)).toBe('changed the sla breached');
   });
 });

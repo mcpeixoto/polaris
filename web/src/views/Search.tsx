@@ -27,7 +27,10 @@
  * **Nothing blinks.** A request in flight leaves the previous answer on screen and puts a
  * spinner in the box; a failure leaves it there too and offers a retry above it. Results
  * that vanish on every keystroke are worse than results that are a fraction of a second
- * stale, and a search box that empties itself when the network hiccups reads as broken.
+ * stale, and a search box that empties itself when the network hiccups reads as broken. The
+ * one moment with no previous answer to keep — the first query of a session — shows skeleton
+ * rows rather than a bare pane, because a listbox with nothing in it is indistinguishable
+ * from a search that came back empty.
  *
  * **Replies are matched to their request.** Every request takes a sequence number and only
  * the newest one is allowed to write state. A search fires on every keystroke, responses do
@@ -53,10 +56,18 @@ import {
   Input,
   LabelChip,
   PriorityIcon,
+  SkeletonRows,
   Spinner,
   StateIcon,
 } from '~/components';
-import { FILTER_PARAM, parseFilterParam } from '~/filter';
+import {
+  FILTER_PARAM,
+  filterSearchString,
+  parseFilterParam,
+  toFilterParam,
+  type FilterNode,
+} from '~/filter';
+import { FilterBar } from '~/features/view/ui/FilterBar';
 import {
   SEARCH_QUERY,
   type SearchComment,
@@ -65,6 +76,7 @@ import {
   type SearchResults,
   type SearchVariables,
 } from '~/features/search/operations';
+import { clearRecentSearches, readRecentSearches, rememberSearch } from '~/features/search/recent';
 import {
   canShowMore,
   describeCommentCount,
@@ -80,7 +92,7 @@ import {
 import { when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { EntityType, StateCategory, Store, UUID } from '~/store';
-import { ApiError, gql } from '~/sync/api';
+import { ApiError, currentWorkspace, gql } from '~/sync/api';
 import styles from './Search.module.css';
 
 /**
@@ -93,6 +105,15 @@ import styles from './Search.module.css';
  * of a result row visible before anybody has typed anything.
  */
 const RECENT_COUNT = 20;
+
+/**
+ * How long a keystroke that refines an answer waits before it is sent, in milliseconds.
+ *
+ * About the length of one hesitation between words and well under the threshold at which a
+ * list feels like it is lagging the typing, so a run of characters becomes one query and a
+ * pause becomes an answer. See `useSearchResults` for which requests it applies to.
+ */
+const REFINE_DELAY = 150;
 
 /** The entity types a row is drawn from. Anything else moving must not wake this screen. */
 const ROW_DEPS: readonly EntityType[] = [
@@ -173,9 +194,36 @@ export function Search() {
   const navigate = useNavigate();
 
   const [query, setQuery] = useQueryParam();
-  const filterParam = params.get(FILTER_PARAM);
   const asked = query.trim();
   const showingRecent = asked === '';
+
+  /**
+   * The filter, read out of the URL here rather than inside the request.
+   *
+   * It used to be parsed where the variables are built, which meant the one thing worth
+   * saying about a filter — that this build could not read the one in the link — was
+   * discovered in a place with nothing to say it with, and the reader got unfiltered results
+   * with no indication that they had asked for anything else. Lifting the parse is what puts
+   * a bar on screen holding the clauses the link carried, and `parseFilterParam`'s `onError`
+   * where `FilterBar` can announce it. Same shape as `useView.readFilter`, for the same
+   * reason: one parser, and the interface says what it made of the URL.
+   */
+  const filterParam = params.get(FILTER_PARAM);
+  const { filter, error: filterError } = useMemo(() => readFilter(filterParam), [filterParam]);
+
+  /**
+   * The filter as the *request* sees it: absent unless there is something to send.
+   *
+   * A filter this build could not read is dropped rather than forwarded — the parser
+   * declines to throw on a hand-edited URL, and sending whatever it salvaged would make the
+   * server refuse a query the reader can now see on screen and repair. A filter that matches
+   * everything is dropped for a plainer reason: it says nothing, and `toFilterParam` is the
+   * one place that decides what "says nothing" means.
+   */
+  const sentFilter = useMemo(
+    () => (filterError !== null || toFilterParam(filter) === '' ? undefined : filter),
+    [filter, filterError],
+  );
 
   /**
    * Which query the reader pressed "show more" for.
@@ -191,7 +239,50 @@ export function Search() {
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
   const limit = expandedFor === query ? SEARCH_MAX_RESULTS : SEARCH_PAGE_SIZE;
 
-  const request = useSearchResults(query, filterParam, limit);
+  const request = useSearchResults(query, sentFilter, limit);
+
+  /**
+   * What this browser has been asked before, and the writes that keep it.
+   *
+   * Recorded from the query the answer came back for rather than from the box, so a request
+   * that never settled — a network that dropped, a word somebody typed and deleted before
+   * the server replied — leaves nothing behind. See `features/search/recent` for why a
+   * refinement replaces the prefix it grew out of instead of sitting beside it.
+   */
+  const workspaceId = currentWorkspace();
+  const [recent, setRecent] = useState<readonly string[]>(() => readRecentSearches(workspaceId));
+
+  useEffect(() => {
+    if (request.results === null || request.answered.trim() === '') return;
+    setRecent(rememberSearch(workspaceId, request.answered));
+  }, [workspaceId, request.results, request.answered]);
+
+  const forgetRecent = useCallback(() => {
+    clearRecentSearches(workspaceId);
+    setRecent([]);
+  }, [workspaceId]);
+
+  // The bar as it stands rather than as this render saw it, for the reason `useQueryParam`
+  // gives about its own copy: `navigate` replaces the entry synchronously, so a filter edit
+  // and a keystroke landing between two commits must both write onto the newer location.
+  const latestParams = useRef(params);
+  latestParams.current = params;
+
+  const setFilterParam = useCallback(
+    (next: FilterNode) => {
+      const search = new URLSearchParams(latestParams.current);
+      const encoded = toFilterParam(next);
+      // Deleted rather than left empty: a bare `?filter=` in a shared link says "filtered"
+      // about a search that is not.
+      if (encoded === '') search.delete(FILTER_PARAM);
+      else search.set(FILTER_PARAM, encoded);
+      // `filterSearchString`, never `URLSearchParams.toString()`: the serialiser escapes the
+      // parentheses and commas the grammar is built from, and a link nobody can read before
+      // clicking it is the one thing this grammar exists to avoid. See `filter/url.ts`.
+      void navigate({ search: filterSearchString(search) }, { replace: true });
+    },
+    [navigate],
+  );
 
   // The terms the *answer* was matched on, not the ones currently in the box. While a
   // request is in flight those differ by a keystroke, and highlighting the newer ones would
@@ -360,6 +451,8 @@ export function Search() {
   const cursor = cursorIndex === -1 ? undefined : rows[cursorIndex];
   const nothingFound =
     !showingRecent && request.results !== null && rows.length === 0 && !request.busy;
+  /** The one state with nothing to keep on screen: asked, and never yet answered. */
+  const firstAnswer = request.results === null && request.busy;
 
   return (
     <div className={styles.screen}>
@@ -386,6 +479,16 @@ export function Search() {
         />
       </header>
 
+      {/* No `teamId`: a search spans the workspace, so every team's statuses and labels are
+          on offer, each named by its team. See `FilterBarProps.teamId`, which documents this
+          screen as the absent case. */}
+      <FilterBar
+        className={styles.filters}
+        filter={filter}
+        onChange={setFilterParam}
+        error={filterError}
+      />
+
       {request.error === null ? null : (
         <div className={styles.failure} role="alert">
           <span>{request.error}</span>
@@ -407,7 +510,22 @@ export function Search() {
       )}
 
       <div className={styles.results}>
-        {nothingFound ? (
+        {!showingRecent || recent.length === 0 ? null : (
+          <RecentSearches queries={recent} params={params} onForget={forgetRecent} />
+        )}
+
+        {firstAnswer ? (
+          // Skeleton rows rather than the empty listbox this used to fall through to. There
+          // is no previous answer to keep — this is the first query of the session — and the
+          // only thing saying anything was happening was the spinner inside the box, which
+          // is eight pixels of a screen the reader is not looking at. The rows also state the
+          // shape of what is coming, which is the difference between "loading" and "empty" in
+          // a client where both are ordinary. `SkeletonRows` owns the reduced-motion answer;
+          // the box's own spinner owns the announcement, so this is silent.
+          <div className={styles.loading} aria-busy="true">
+            <SkeletonRows count={8} height="var(--row-height)" />
+          </div>
+        ) : nothingFound ? (
           <EmptyState
             className={styles.empty}
             title={`Nothing matches "${asked}"`}
@@ -475,6 +593,57 @@ export function Search() {
       </div>
     </div>
   );
+}
+
+/**
+ * What this browser has been asked before, above the recent work rather than instead of it.
+ *
+ * Links rather than buttons, and each one carries the rest of the query string with it, so a
+ * remembered search opened while a filter is on the bar stays inside that filter. That also
+ * makes every one of them middle-clickable and copyable, which a button that called
+ * `setQuery` would not be — and the box picks the query up from the location it lands on,
+ * exactly as it does for a link somebody was sent.
+ *
+ * Outside the listbox on purpose: the arrow keys move a cursor through *results*, and a
+ * chip row that joined that sequence would put six stops between the box and the first
+ * issue. These are in the tab order instead, which is where a handful of links belong.
+ */
+function RecentSearches({
+  queries,
+  params,
+  onForget,
+}: {
+  readonly queries: readonly string[];
+  readonly params: URLSearchParams;
+  readonly onForget: () => void;
+}) {
+  return (
+    <section className={styles.recent} aria-labelledby="search-recent-heading">
+      <div className={styles.sectionHead}>
+        <span className={styles.sectionName} id="search-recent-heading">
+          Recent searches
+        </span>
+        <div className={styles.spacer} />
+        <Button size="sm" variant="ghost" onClick={onForget}>
+          Clear
+        </Button>
+      </div>
+      <div className={styles.recentList}>
+        {queries.map((asked) => (
+          <Link key={asked} className={styles.recentChip} to={searchLink(params, asked)}>
+            {asked}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** The link to one remembered query: everything the bar already says, with `?q=` replaced. */
+function searchLink(params: URLSearchParams, asked: string): string {
+  const search = new URLSearchParams(params);
+  search.set(QUERY_PARAM, asked);
+  return `/search${filterSearchString(search)}`;
 }
 
 /**
@@ -679,8 +848,13 @@ function useQueryParam(): [string, (next: string) => void] {
     if (typed === '') search.delete(QUERY_PARAM);
     else search.set(QUERY_PARAM, typed);
 
-    const rest = search.toString();
-    void navigate({ search: rest === '' ? '' : `?${rest}` }, { replace: true });
+    // `filterSearchString` rather than `URLSearchParams.toString()`, which is what this used
+    // to be. The serialiser escapes the parentheses and commas the filter grammar is built
+    // from, so one keystroke in the box turned `?filter=priority.in(1,2)&q=x` into
+    // `?filter=priority.in%281%2C2%29&q=x` — still legal, still parsed, and no longer a link
+    // anybody can read before they click it, which is the whole reason `filter/url.ts`
+    // exports this.
+    void navigate({ search: filterSearchString(search) }, { replace: true });
   }, [typed, navigate]);
 
   // What the box says, for the effect below to compare against without depending on it. An
@@ -737,49 +911,88 @@ const IDLE: RequestState = { results: null, answered: '', busy: false, error: nu
  * microsecond after the server replied still delivers. So the controller is there to stop
  * paying for work nobody wants, and the counter is what decides who is allowed to write.
  *
- * Nothing is debounced, deliberately. An empty or unparseable query returns empty results
- * rather than an error, so a request per keystroke is safe; and a debounce would put the
- * list permanently behind the typing, which is the one thing this product cannot look like.
+ * A keystroke that changes the query while an answer is on screen waits `REFINE_DELAY`
+ * before it is sent. Everything else goes straight out: the first query of a session, a
+ * retry, and "show more" — the last two being the same question asked again rather than a
+ * new one.
+ *
+ * That is a narrower rule than "nothing here is debounced", which is what this said while
+ * borrowing the filter bar's reasoning, and the two cases are not alike. A local filter is
+ * under a millisecond over five thousand issues, so delaying it adds latency to hide a cost
+ * that is not there. This is a GIN scan and a `ts_rank` over the wire: typing "authentication
+ * redirect" is twenty-four ranked queries, twenty-three of which the sequence guard above
+ * throws away after the server has already paid for them. What a delay costs is the wait
+ * before an answer appears, so it is spent only where the previous answer is still on screen
+ * to read while it elapses, and never where the reader is looking at skeleton rows. The
+ * guard stays as the backstop it always was — a delay makes overlapping replies rarer, not
+ * impossible.
+ *
+ * The box and the URL are not debounced at all. What is typed is in the address bar the
+ * moment it is typed, so a link copied mid-search says what the screen says.
  */
-function useSearchResults(query: string, filterParam: string | null, limit: number): SearchRequest {
+function useSearchResults(
+  query: string,
+  filter: FilterNode | undefined,
+  limit: number,
+): SearchRequest {
   const [state, setState] = useState<RequestState>(IDLE);
   const [attempt, setAttempt] = useState(0);
   const latest = useRef(0);
+
+  // Whether there is an answer on screen, read through a ref so that arriving at one does
+  // not re-run the effect and re-ask the question it just answered.
+  const showing = useRef(false);
+  /** The query this effect last ran for, which is how a keystroke is told from a click. */
+  const asked = useRef<string | null>(null);
 
   useEffect(() => {
     if (query.trim() === '') {
       // Bumped as well as cleared, so a reply to the query the user has just deleted cannot
       // land on top of the recent-work list that replaced it.
       latest.current += 1;
+      showing.current = false;
+      asked.current = null;
       setState(IDLE);
       return;
     }
+
+    const typed = asked.current !== query;
+    asked.current = query;
 
     latest.current += 1;
     const sequence = latest.current;
     const controller = new AbortController();
 
+    // Set now rather than when the request leaves, so the spinner covers the delay too. A
+    // box that looks idle for a sixth of a second after a keystroke reads as a dropped one.
     setState((previous) => ({ ...previous, busy: true, error: null }));
 
-    void gql<SearchQueryData>(SEARCH_QUERY, variablesFor(query, filterParam, limit), {
-      signal: controller.signal,
-    })
-      .then((data) => {
-        if (sequence !== latest.current) return;
-        setState({ results: data.search, answered: query, busy: false, error: null });
+    const send = () => {
+      void gql<SearchQueryData>(SEARCH_QUERY, variablesFor(query, filter, limit), {
+        signal: controller.signal,
       })
-      .catch((error: unknown) => {
-        if (sequence !== latest.current) return;
-        // The previous results are kept. They are still the best thing on the screen, and
-        // clearing them would punish the reader for the network's problem.
-        setState((previous) => ({ ...previous, busy: false, error: describeFailure(error) }));
-      });
+        .then((data) => {
+          if (sequence !== latest.current) return;
+          showing.current = true;
+          setState({ results: data.search, answered: query, busy: false, error: null });
+        })
+        .catch((error: unknown) => {
+          if (sequence !== latest.current) return;
+          // The previous results are kept. They are still the best thing on the screen, and
+          // clearing them would punish the reader for the network's problem.
+          setState((previous) => ({ ...previous, busy: false, error: describeFailure(error) }));
+        });
+    };
+
+    const held = typed && showing.current ? setTimeout(send, REFINE_DELAY) : undefined;
+    if (held === undefined) send();
 
     return () => {
+      clearTimeout(held);
       latest.current += 1;
       controller.abort();
     };
-  }, [query, filterParam, limit, attempt]);
+  }, [query, filter, limit, attempt]);
 
   const retry = useCallback(() => setAttempt((count) => count + 1), []);
   return { ...state, retry };
@@ -797,29 +1010,38 @@ function describeFailure(error: unknown): string {
 /**
  * The variables for one search.
  *
- * The filter is read from the URL with the grammar's own parser and passed through as the
- * AST, untouched — which is what makes a search and a saved view with the same filter return
- * the same issues, because there is one compiler on each side and no third encoding in
- * between. A filter this build cannot read is dropped rather than sent: the parser already
- * declines to throw on a hand-edited URL, and forwarding whatever it salvaged would make the
- * server refuse a query the user could not see anything wrong with.
+ * The filter arrives already parsed and already judged sendable — see the screen, which owns
+ * both because it is the thing that can put a broken one on the bar and say so. It is passed
+ * through as the AST, untouched, which is what makes a search and a saved view with the same
+ * filter return the same issues: one compiler on each side and no third encoding in between.
  */
-function variablesFor(query: string, filterParam: string | null, limit: number): SearchVariables {
-  let broken = false;
-  const filter =
-    filterParam === null || filterParam.trim() === ''
-      ? undefined
-      : parseFilterParam(filterParam, () => {
-          broken = true;
-        });
-
+function variablesFor(
+  query: string,
+  filter: FilterNode | undefined,
+  limit: number,
+): SearchVariables {
   return {
     input: {
       query,
       first: limit,
-      ...(filter === undefined || broken ? null : { filter }),
+      ...(filter === undefined ? null : { filter }),
     },
   };
+}
+
+/**
+ * The URL's filter, and what went wrong with it if anything did.
+ *
+ * The same two lines `useView` keeps, and deliberately the same shape: a URL is untrusted
+ * input, `parseFilterParam` reports rather than throws, and the only way a link's broken
+ * filter reaches the reader is a caller that holds on to the message.
+ */
+function readFilter(raw: string | null): { filter: FilterNode; error: string | null } {
+  let error: string | null = null;
+  const filter = parseFilterParam(raw, (message) => {
+    error = message;
+  });
+  return { filter, error };
 }
 
 /**

@@ -10,7 +10,13 @@ struct PolarisApp: App {
                 signedIn: !LaunchOptions.startsSignedOut,
                 hasWorkspace: !LaunchOptions.startsWithoutWorkspace
             )
-            : nil
+            : nil,
+        // The fixture app gets an in-memory cache: a UI test run must not leave a real one on
+        // disk for the next run to hydrate from, which would make every test depend on the
+        // order the previous ones happened to finish in.
+        cache: LaunchOptions.usesFixtures
+            ? InMemoryIssueCache()
+            : FileIssueCache()
     )
 
     var body: some Scene {

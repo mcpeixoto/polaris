@@ -36,3 +36,18 @@ public enum Loadable<Value: Sendable>: Sendable {
 }
 
 extension Loadable: Equatable where Value: Equatable {}
+
+/// `Result`, but for an `async throws` call.
+///
+/// `Result.init(catching:)` is synchronous only, and the alternative at the call site is
+/// `try?` — which is exactly how a store ends up reporting "That's not here any more" for a
+/// network drop. Keeping the error is the whole point.
+func attempt<T: Sendable>(
+    _ operation: @Sendable () async throws -> T
+) async -> Result<T, any Error> {
+    do {
+        return .success(try await operation())
+    } catch {
+        return .failure(error)
+    }
+}

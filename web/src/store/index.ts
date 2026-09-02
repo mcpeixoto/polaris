@@ -39,7 +39,7 @@ export type {
   Reconciliation,
 } from './outbox';
 
-export { byOrderKey, byOrderKeyThen, compareOrderKeys } from './order';
+export { byOrderKey, byOrderKeyThen, compareOrderKeys, orderKeyBetween } from './order';
 
 export { queryIssues, subIssueProgress } from './query';
 export type {

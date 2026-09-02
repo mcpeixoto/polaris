@@ -106,12 +106,58 @@ public actor LivePolarisClient: PolarisAPI {
         try await refresh()
     }
 
-    public func signOut() async {
-        _ = try? await postAuth(path: "/auth/logout", body: [:], authorized: true)
+    /// Signs out, and says whether the server agreed.
+    ///
+    /// The local half happens unconditionally, and the *cookie* is the local half that
+    /// matters. Swallowing a failed `/auth/logout` left the refresh cookie in the session's
+    /// store, so the next launch restored the session and signed the user straight back in —
+    /// on a borrowed device, having been told they had signed out. Offline is exactly when
+    /// somebody hands a phone back.
+    ///
+    /// The returned error is not a failure of *this* call: the account is signed out here
+    /// either way. It is the fact that the refresh token is still live server-side, which is
+    /// worth telling somebody so they can revoke it from a machine that has a network.
+    @discardableResult
+    public func signOut() async -> PolarisError? {
+        var failure: PolarisError?
+        do {
+            _ = try await postAuth(path: "/auth/logout", body: [:], authorized: true)
+        } catch let error as PolarisError {
+            // A 401 means the session was already gone, which is the outcome asked for.
+            if case .unauthorized = error {} else { failure = error }
+        } catch {
+            failure = .badResponse
+        }
+
+        clearCookies()
         accessToken = nil
         accessTokenExpiry = nil
         workspaceId = nil
         refreshTask = nil
+        return failure
+    }
+
+    /// Drops every cookie this build's backend set, whatever the logout call did.
+    ///
+    /// Scoped to `apiBaseURL` rather than emptying the store: a shared `URLSession` cookie jar
+    /// belongs to the process, and deleting unrelated cookies would be a side effect nobody
+    /// asked for.
+    private func clearCookies() {
+        let storage = urlSession.configuration.httpCookieStorage ?? HTTPCookieStorage.shared
+        guard let host = environment.apiBaseURL.host else { return }
+        for cookie in storage.cookies ?? [] where LivePolarisClient.cookie(cookie.domain, covers: host) {
+            storage.deleteCookie(cookie)
+        }
+    }
+
+    /// Cookie-domain matching, as RFC 6265 defines it: a leading dot means "and every
+    /// subdomain". Written out because the obvious `domain.hasSuffix(host)` is backwards for
+    /// exactly the case that matters — a cookie set on `.peixotolabs.com` for a request to
+    /// `polaris.peixotolabs.com` — and would leave the refresh cookie in place on the hosted
+    /// build while passing on localhost.
+    static func cookie(_ domain: String, covers host: String) -> Bool {
+        let bare = domain.hasPrefix(".") ? String(domain.dropFirst()) : domain
+        return host == bare || host.hasSuffix("." + bare)
     }
 
     public func useWorkspace(id: String) {
@@ -224,7 +270,16 @@ public actor LivePolarisClient: PolarisAPI {
         // An explicit null for a nullable field — `issue(id:)` on something deleted — is a
         // not-found, not a decoding failure.
         guard let value = payload[field], !(value is NSNull) else { throw PolarisError.notFound }
-        return try JSONSerialization.data(withJSONObject: value)
+        // `.fragmentsAllowed`, because not every field is an object or an array.
+        // `unreadNotificationCount` returns a bare Int, and without this option
+        // `data(withJSONObject:)` raises NSInvalidArgumentException for a top-level fragment —
+        // an Objective-C exception, which Swift cannot catch. The caller does not get a
+        // PolarisError; the process dies.
+        do {
+            return try JSONSerialization.data(withJSONObject: value, options: [.fragmentsAllowed])
+        } catch {
+            throw PolarisError.badResponse
+        }
     }
 
     private func mapGraphQLError(code: String?, field: String?, message: String) -> PolarisError {
@@ -402,18 +457,99 @@ public actor LivePolarisClient: PolarisAPI {
         return try decodePayloadIssue(from: data)
     }
 
-    public func createComment(issueId: String, body: String) async throws -> Comment {
+    public func createComment(issueId: String, body: String, opId: String) async throws -> Comment {
         struct Payload: Decodable { let comment: Comment }
         let data = try await graphQL(
             GraphQLDocuments.createComment,
             variables: [
                 "input": .object(["issueId": .string(issueId), "body": .string(body)]),
                 "clientId": .string(clientId),
-                "opId": .string(UUIDv7.string()),
+                // The caller's, deliberately. See the protocol comment: minted here it would
+                // be a different value on every retry, and the server would take the retry
+                // for a second comment.
+                "opId": .string(opId),
             ],
             field: "createComment"
         )
         return try decode(Payload.self, from: data).comment
+    }
+
+    public func archiveIssue(id: String, archived: Bool, opId: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.archiveIssue,
+            variables: [
+                "id": .string(id),
+                "archived": .bool(archived),
+                "clientId": .string(clientId),
+                "opId": .string(opId),
+            ],
+            field: "archiveIssue"
+        )
+    }
+
+    // MARK: - Inbox
+
+    public func notifications(
+        includeRead: Bool,
+        includeSnoozed: Bool,
+        first: Int?
+    ) async throws -> [PolarisNotification] {
+        var variables: [String: JSONValue] = [
+            "includeRead": .bool(includeRead),
+            "includeSnoozed": .bool(includeSnoozed),
+        ]
+        if let first { variables["first"] = .int(first) }
+        let data = try await graphQL(
+            GraphQLDocuments.notifications, variables: variables, field: "notifications"
+        )
+        return try decode([PolarisNotification].self, from: data)
+    }
+
+    public func markNotificationRead(id: String, read: Bool) async throws -> PolarisNotification {
+        struct Payload: Decodable { let notification: PolarisNotification }
+        let data = try await graphQL(
+            GraphQLDocuments.markNotificationRead,
+            variables: ["id": .string(id), "read": .bool(read)],
+            field: "markNotificationRead"
+        )
+        return try decode(Payload.self, from: data).notification
+    }
+
+    public func snoozeNotification(id: String, until: Date?) async throws -> PolarisNotification {
+        struct Payload: Decodable { let notification: PolarisNotification }
+        let data = try await graphQL(
+            GraphQLDocuments.snoozeNotification,
+            variables: [
+                "id": .string(id),
+                // Explicit null rather than an absent key: nil here means "un-snooze", which
+                // the server can only be told by being sent a null.
+                "until": until.map { JSONValue.string(PolarisJSON.rfc3339($0)) } ?? .null,
+            ],
+            field: "snoozeNotification"
+        )
+        return try decode(Payload.self, from: data).notification
+    }
+
+    public func deleteNotification(id: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.deleteNotification,
+            variables: ["id": .string(id)],
+            field: "deleteNotification"
+        )
+    }
+
+    // MARK: - Search
+
+    public func search(query: String, teamId: String?, first: Int?) async throws -> SearchResults {
+        let input = JSONValue.object(compacting: [
+            "query": .string(query),
+            "teamId": teamId.map(JSONValue.string),
+            "first": first.map(JSONValue.int),
+        ])
+        let data = try await graphQL(
+            GraphQLDocuments.search, variables: ["input": input], field: "search"
+        )
+        return try decode(SearchResults.self, from: data)
     }
 
     private func decodePayloadIssue(from data: Data) throws -> Issue {

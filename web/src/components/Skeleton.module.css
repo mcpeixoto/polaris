@@ -1,0 +1,67 @@
+/*
+ * The placeholder block, and the sweep that says it is a placeholder rather than a bug.
+ *
+ * The ground is --bg-tertiary, i.e. the same raised tone a row's hover state uses, so a list
+ * of skeletons occupies the space its rows will occupy at roughly the weight they will have.
+ * A darker or louder placeholder reads as content, which is the failure mode: the user waits
+ * for something that is already "there".
+ */
+
+.skeleton {
+  display: block;
+  width: 100%;
+  height: var(--font-size-md);
+  background-color: var(--bg-tertiary);
+  /* The sweep is drawn as a moving highlight over that ground rather than as an opacity
+     pulse, because a pulse at list scale flashes the whole pane at once. */
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--bg-elevated) 50%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 40% 100%;
+  animation: sweep calc(var(--duration-normal) * 6) var(--ease-in-out) infinite;
+}
+
+.sm {
+  border-radius: var(--radius-sm);
+}
+
+.md {
+  border-radius: var(--radius-md);
+}
+
+.full {
+  border-radius: var(--radius-full);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+@keyframes sweep {
+  from {
+    background-position: -60% 0;
+  }
+
+  to {
+    background-position: 160% 0;
+  }
+}
+
+/*
+ * The same exception Spinner takes, for the same reason: tokens.css folds every duration to
+ * 1ms under this preference, and an infinite animation at 1ms is a strobe rather than a
+ * calmer version of itself. So the sweep stops and the block states its business by being a
+ * block.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    background-image: none;
+    animation: none;
+  }
+}

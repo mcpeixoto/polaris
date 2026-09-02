@@ -33,6 +33,12 @@ export function Webhooks() {
   const [creating, setCreating] = useState(false);
   const [removing, setRemoving] = useState<WebhookSummary | null>(null);
   const [busy, setBusy] = useState(false);
+  // The refusal belongs inside the dialog that asked. loadError renders underneath the open
+  // modal, where it reads as a dialog that quietly did nothing.
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  // Keyed by webhook id: a failed toggle is a fact about one row, not about the page.
+  const [toggleError, setToggleError] = useState<{ id: UUID; message: string } | null>(null);
+  const [toggling, setToggling] = useState<UUID | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -162,13 +168,45 @@ export function Webhooks() {
                   </td>
                   <td className={styles.actions}>
                     <Button
+                      loading={toggling === hook.id}
+                      aria-label={`${hook.enabled ? 'Disable' : 'Enable'} the webhook for ${hook.url}`}
                       onClick={() => {
-                        void setWebhookEnabled(hook.id, !hook.enabled).then(reload);
+                        if (toggling !== null) return;
+                        setToggling(hook.id);
+                        setToggleError(null);
+                        setWebhookEnabled(hook.id, !hook.enabled)
+                          .then(reload)
+                          .catch((failure: unknown) => {
+                            // The screen deliberately holds no optimistic patch, so a
+                            // refusal that says nothing leaves the badge unchanged and the
+                            // user pressing the button a second time.
+                            setToggleError({
+                              id: hook.id,
+                              message:
+                                failure instanceof ApiError
+                                  ? failure.message
+                                  : 'That webhook could not be changed.',
+                            });
+                          })
+                          .finally(() => setToggling(null));
                       }}
                     >
                       {hook.enabled ? 'Disable' : 'Enable'}
                     </Button>{' '}
-                    <Button onClick={() => setRemoving(hook)}>Delete</Button>
+                    <Button
+                      aria-label={`Delete the webhook for ${hook.url}`}
+                      onClick={() => {
+                        setRemoveError(null);
+                        setRemoving(hook);
+                      }}
+                    >
+                      Delete
+                    </Button>
+                    {toggleError !== null && toggleError.id === hook.id ? (
+                      <p className={styles.rowError} role="alert">
+                        {toggleError.message}
+                      </p>
+                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -193,14 +231,28 @@ export function Webhooks() {
         confirmLabel="Delete webhook"
         destructive
         busy={busy}
-        onClose={() => setRemoving(null)}
+        error={removeError ?? undefined}
+        onClose={() => {
+          setRemoving(null);
+          setRemoveError(null);
+        }}
         onConfirm={() => {
           if (removing === null || busy) return;
           setBusy(true);
-          void deleteWebhook(removing.id)
+          setRemoveError(null);
+          deleteWebhook(removing.id)
             .then(() => {
               setRemoving(null);
               reload();
+            })
+            .catch((failure: unknown) => {
+              // The dialog stays open holding its own refusal. Closing first would land the
+              // message on a page the user has already stopped looking at.
+              setRemoveError(
+                failure instanceof ApiError
+                  ? failure.message
+                  : 'That webhook could not be deleted.',
+              );
             })
             .finally(() => setBusy(false));
         }}
@@ -338,7 +390,7 @@ function CreateWebhookDialog({
             consequence="It cannot be shown again. A lost secret means a new webhook."
           />
           {nudged ? (
-            <p className={styles.nudge}>
+            <p className={styles.nudge} role="status">
               The secret is still on this screen. Copy it before leaving.
             </p>
           ) : null}

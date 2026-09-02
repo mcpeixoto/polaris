@@ -1,0 +1,60 @@
+/*
+ * A quiet row in the bottom-left corner, over the sidebar's own footer area.
+ *
+ * Fixed rather than in the sidebar's flow because the sidebar scrolls: an update that is
+ * ready should not be something you scroll past. Toast layer, since it outlives whatever
+ * screen is on when it arrives, and below a modal so it never covers a decision.
+ */
+.banner {
+  position: fixed;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: calc(var(--sidebar-width) - var(--space-3) * 2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  /* The desktop window's drag region covers the chrome, not this; stated because the banner
+     sits inside a shell that declares one and a draggable button cannot be clicked. */
+  -webkit-app-region: no-drag;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dismiss {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.dismiss:hover {
+  color: var(--text-primary);
+}
+
+.dismiss:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}

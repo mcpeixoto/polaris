@@ -62,6 +62,12 @@ export function ConfirmDialog({
       open={open}
       onClose={onClose}
       title={title}
+      // The consequence is handed to Modal rather than drawn here, and that is the whole
+      // point of the prop: `description` is the only thing that wires `aria-describedby`.
+      // Rendered locally, the one sentence explaining what is about to be lost was read by
+      // nobody using a screen reader — they heard the question, landed on Cancel, and were
+      // never told what the other button does.
+      description={consequence}
       size="sm"
       initialFocus={cancelRef}
       footer={
@@ -75,7 +81,6 @@ export function ConfirmDialog({
         </>
       }
     >
-      <p className={styles.consequence}>{consequence}</p>
       {error === undefined ? null : (
         <p className={styles.error} role="alert">
           {error}

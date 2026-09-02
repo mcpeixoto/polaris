@@ -97,6 +97,17 @@
   color: var(--text-tertiary);
 }
 
+/*
+ * The block menu's anchor: a zero-width box sitting at the `/` in the paint layer, so the
+ * menu opens at the caret rather than under the whole field. It draws nothing.
+ */
+.slashAnchor {
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  vertical-align: text-bottom;
+}
+
 .mark {
   border-radius: var(--radius-sm);
   background-color: var(--comment-mark);
@@ -171,12 +182,11 @@
   font-size: var(--font-size-sm);
 }
 
+/* `white-space: pre-wrap` used to be the whole of this product's formatting story. The body
+   goes through the markdown renderer now, which draws its own paragraphs and line breaks. */
 .body {
   margin: var(--space-1) 0 0;
-  color: var(--text-secondary);
   font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-  white-space: pre-wrap;
 }
 
 .actions {

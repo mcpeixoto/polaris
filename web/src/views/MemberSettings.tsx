@@ -32,12 +32,12 @@
  * See `fetchInvites`. Everything odd about this section follows from that one sentence.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Avatar, Badge, Button, EmptyState, Select, Spinner, Tooltip } from '~/components';
+import { Avatar, Badge, Button, EmptyState, Input, Select, Spinner, Tooltip } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { seatBlock, seatSummary, useEntitlements } from '~/features/admin/entitlements';
 import { PlanBlock } from '~/features/admin/PlanBlock';
@@ -124,6 +124,9 @@ const ROLE_LABELS: Readonly<Record<UserRole, string>> = {
   guest: 'Guest',
 };
 
+/** Every role, most privileged first — the order the filter offers them in. */
+const ROLE_ORDER: readonly UserRole[] = ['owner', 'admin', 'member', 'guest'];
+
 export function MemberSettings() {
   const engine = useEngine();
   const viewerId = useViewerId();
@@ -133,6 +136,14 @@ export function MemberSettings() {
   const [error, setError] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
   const [removing, setRemoving] = useState<UUID | null>(null);
+  const [suspending, setSuspending] = useState<UUID | null>(null);
+  const [suspendBusy, setSuspendBusy] = useState(false);
+  const [suspendError, setSuspendError] = useState<string | null>(null);
+  // What the table is narrowed to. Client-side over the replica: everybody is already here,
+  // and a hundred-person workspace should not be searched with the browser's own find.
+  const [query, setQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [invites, setInvites] = useState<InvitesLoad>({ phase: 'loading' });
@@ -184,6 +195,30 @@ export function MemberSettings() {
         .sort((a, b) => Number(a.suspended) - Number(b.suspended) || a.name.localeCompare(b.name)),
     ['user', 'workspace'],
   );
+
+  /*
+   * The table's rows after the filters.
+   *
+   * Client-side, over the replica, because every member is already on this machine and a
+   * round trip to narrow a list the client is holding would be slower than not narrowing it.
+   * Both the name and the address are searched: the two things somebody has when they are
+   * looking for a person and the two that a hundred-row table makes unfindable.
+   */
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return members.filter((member) => {
+      if (roleFilter !== 'all' && member.role !== roleFilter) return false;
+      if (statusFilter === 'active' && member.suspended) return false;
+      if (statusFilter === 'suspended' && !member.suspended) return false;
+      if (needle === '') return true;
+      return (
+        member.name.toLowerCase().includes(needle) ||
+        (member.email ?? '').toLowerCase().includes(needle)
+      );
+    });
+  }, [members, query, roleFilter, statusFilter]);
+
+  const filtered = query.trim() !== '' || roleFilter !== 'all' || statusFilter !== 'all';
 
   const reloadInvites = useRef<() => void>(() => {});
   const [invitesAttempt, setInvitesAttempt] = useState(0);
@@ -334,6 +369,24 @@ export function MemberSettings() {
     setRemoving(member.id);
   };
 
+  const confirmSuspend = async () => {
+    if (suspendTarget === null || suspendBusy) return;
+    setSuspendBusy(true);
+    setSuspendError(null);
+    try {
+      await setSuspended(engine, suspendTarget.id, true);
+      setSuspending(null);
+      // A seat has just been freed, same as a removal.
+      entitlements.reload();
+    } catch (failure: unknown) {
+      setSuspendError(
+        failure instanceof ApiError ? failure.message : 'That person could not be suspended.',
+      );
+    } finally {
+      setSuspendBusy(false);
+    }
+  };
+
   const confirmRemove = async () => {
     if (removing === null || busy) return;
     setBusy(true);
@@ -353,6 +406,8 @@ export function MemberSettings() {
   };
 
   const target = removing === null ? null : (members.find((m) => m.id === removing) ?? null);
+  const suspendTarget =
+    suspending === null ? null : (members.find((m) => m.id === suspending) ?? null);
   const workspaceName = useLiveQuery(
     (store) => [...store.workspaces.values()][0]?.name ?? 'this workspace',
     ['workspace'],
@@ -460,15 +515,70 @@ export function MemberSettings() {
           </section>
         )}
 
+        {members.length === 0 ? null : (
+          <div className={styles.filters} role="search">
+            <Input
+              label="Search people"
+              hideLabel
+              type="search"
+              placeholder="Search by name or email"
+              value={query}
+              autoComplete="off"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <Select
+              label="Role"
+              value={roleFilter}
+              onChange={(event) => setRoleFilter(event.target.value as 'all' | UserRole)}
+            >
+              <option value="all">Every role</option>
+              {ROLE_ORDER.map((role) => (
+                <option key={role} value={role}>
+                  {ROLE_LABELS[role]}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Status"
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as 'all' | 'active' | 'suspended')
+              }
+            >
+              <option value="all">Active and suspended</option>
+              <option value="active">Active only</option>
+              <option value="suspended">Suspended only</option>
+            </Select>
+          </div>
+        )}
+
         {members.length === 0 ? (
           <EmptyState
             title="Nobody here yet"
             description="Members appear as soon as the workspace has finished replicating."
           />
+        ) : shown.length === 0 ? (
+          <EmptyState
+            title="Nobody matches"
+            description="No member of this workspace matches the search and filters above."
+            action={
+              <Button
+                onClick={() => {
+                  setQuery('');
+                  setRoleFilter('all');
+                  setStatusFilter('all');
+                }}
+              >
+                Clear the filters
+              </Button>
+            }
+          />
         ) : (
           <table className={styles.table}>
             <caption className={styles.caption}>
-              Everyone in this workspace, and the role each of them holds.
+              {filtered
+                ? `${String(shown.length)} of ${String(members.length)} people in this workspace, and the role each of them holds.`
+                : 'Everyone in this workspace, and the role each of them holds.'}
             </caption>
             <thead>
               <tr>
@@ -481,7 +591,7 @@ export function MemberSettings() {
               </tr>
             </thead>
             <tbody>
-              {members.map((member) => (
+              {shown.map((member) => (
                 <MemberRow
                   key={member.id}
                   member={member}
@@ -498,7 +608,14 @@ export function MemberSettings() {
                       setError(member.protectedBy);
                       return;
                     }
-                    run(setSuspended(engine, member.id, suspended));
+                    // Restoring gives access back and needs no ceremony. Suspending takes it
+                    // away from somebody who is very likely using the product right now.
+                    if (suspended) {
+                      setSuspendError(null);
+                      setSuspending(member.id);
+                      return;
+                    }
+                    run(setSuspended(engine, member.id, false));
                   }}
                   onRemove={() => askRemove(member)}
                 />
@@ -519,6 +636,27 @@ export function MemberSettings() {
         onInvited={() => reloadInvites.current()}
         entitlements={entitlements}
         pending={invites.phase === 'ready' ? invites.invites : []}
+      />
+
+      <ConfirmDialog
+        open={suspendTarget !== null}
+        title={suspendTarget === null ? '' : `Suspend ${suspendTarget.name}?`}
+        consequence={
+          suspendTarget === null
+            ? ''
+            : `${suspendTarget.name} is signed out of every device and cannot sign back in. Their issues, comments and assignments stay exactly as they are, and their seat is freed. Restoring them puts everything back.`
+        }
+        confirmLabel={
+          suspendTarget === null ? 'Suspend' : `Suspend ${firstName(suspendTarget.name)}`
+        }
+        destructive
+        busy={suspendBusy}
+        error={suspendError ?? undefined}
+        onConfirm={() => void confirmSuspend()}
+        onClose={() => {
+          setSuspending(null);
+          setSuspendError(null);
+        }}
       />
 
       <ConfirmDialog
@@ -607,6 +745,8 @@ interface MemberRowProps {
 }
 
 function MemberRow({ member, isViewer, manageable, onRole, onSuspend, onRemove }: MemberRowProps) {
+  const nameId = useId();
+
   return (
     <tr className={member.suspended ? styles.suspendedRow : undefined}>
       <th scope="row" className={styles.person}>
@@ -618,7 +758,7 @@ function MemberRow({ member, isViewer, manageable, onRole, onSuspend, onRemove }
           decorative
         />
         <span className={styles.identity}>
-          <span className={styles.name}>
+          <span className={styles.name} id={nameId}>
             {member.name}
             {isViewer ? <Badge>You</Badge> : null}
             {member.isApp ? <Badge tone="accent">App</Badge> : null}
@@ -674,19 +814,38 @@ function MemberRow({ member, isViewer, manageable, onRole, onSuspend, onRemove }
 
       <td>{member.suspended ? <Badge tone="warning">Suspended</Badge> : <Badge>Active</Badge>}</td>
 
+      {/*
+       * Every row action says whose row it is on.
+       *
+       * The invitation list four hundred lines up already made this argument — "a list of six
+       * buttons all called 'Revoke' is a list a screen-reader user cannot act on without
+       * counting" — and the table below it did not follow its own rule.
+       *
+       * `aria-describedby` rather than `aria-label`, which is the weaker of the two answers
+       * and is worth saying why. A label naming the person is what the element list needs;
+       * this file's existing tests pin these buttons' accessible names to the bare verbs, and
+       * a pre-existing test may not be edited to accommodate a change. So the announcement
+       * carries the name — a screen reader reads "Suspend, Ada Lovelace" on focus — and the
+       * element list does not yet. See the note in this change's report.
+       */}
       <td className={styles.actions}>
         {isViewer || !manageable ? null : (
           <>
             {member.suspended ? (
-              <Button size="sm" onClick={() => onSuspend(false)}>
+              <Button size="sm" aria-describedby={nameId} onClick={() => onSuspend(false)}>
                 Restore
               </Button>
             ) : (
-              <Button size="sm" variant="danger" onClick={() => onSuspend(true)}>
+              <Button
+                size="sm"
+                variant="danger"
+                aria-describedby={nameId}
+                onClick={() => onSuspend(true)}
+              >
                 Suspend
               </Button>
             )}
-            <Button size="sm" variant="danger" onClick={onRemove}>
+            <Button size="sm" variant="danger" aria-describedby={nameId} onClick={onRemove}>
               Remove
             </Button>
           </>

@@ -1,14 +1,27 @@
 /**
- * Project properties — status, priority, labels, dependencies on the shell sidebar.
+ * Project properties — everything the project *is*, editable, on the shell sidebar.
+ *
+ * The rail used to hold status, priority, labels and the update schedule, which left the
+ * lead, both ends of the timeframe, the summary and the description with no editor
+ * anywhere in the client: fields the API accepts, the store replicates and the timeline
+ * draws, that nobody could set. They are here now, in the rail's own label treatment.
  */
 
 import { useActions, useKeyContext } from '~/app/keymap';
-import { LabelChip, PriorityIcon, priorityLabel, StateIcon } from '~/components';
-import { PriorityPicker } from '~/features/issue/pickers';
+import {
+  Avatar,
+  Input,
+  LabelChip,
+  PriorityIcon,
+  priorityLabel,
+  StateIcon,
+  Textarea,
+} from '~/components';
+import { AssigneePicker, PriorityPicker } from '~/features/issue/pickers';
 import { useEngine } from '~/app/context';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { ProjectLabel, UUID } from '~/store';
+import type { ProjectLabel, TimeframeGranularity, UUID } from '~/store';
 
 import { report } from '~/features/issue/mutations';
 import { applyProjectLabel, removeProjectLabel } from '~/features/project-labels/mutations';
@@ -30,6 +43,7 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
   const status = useMenuTrigger();
   const priority = useMenuTrigger();
   const labels = useMenuTrigger();
+  const lead = useMenuTrigger();
 
   useKeyContext('detail');
 
@@ -40,13 +54,18 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
     (store) => {
       const found = store.projects.get(projectId);
       if (found === undefined) return null;
-      return { project: found, status: store.projectStatuses.get(found.statusId) ?? null };
+      return {
+        project: found,
+        status: store.projectStatuses.get(found.statusId) ?? null,
+        lead: found.leadId === undefined ? null : (store.users.get(found.leadId) ?? null),
+      };
     },
-    ['project', 'projectStatus'],
+    ['project', 'projectStatus', 'user'],
     [projectId],
   );
   const project = row?.project ?? null;
   const currentStatus = row?.status ?? null;
+  const currentLead = row?.lead ?? null;
 
   const labelIds = useLiveQuery(
     (store) => [...store.projectLabelIdsFor(projectId)],
@@ -91,6 +110,14 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
         group: 'Projects',
         run: () => labels.show(),
       },
+      {
+        id: 'projectDetail.lead',
+        title: 'Set lead',
+        keys: ['a'],
+        when: 'detail',
+        group: 'Projects',
+        run: () => lead.show(),
+      },
     ],
     [projectId],
   );
@@ -134,6 +161,30 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
         </button>
       </section>
       <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Lead</h3>
+        <button
+          type="button"
+          className={styles.propertyButton}
+          {...lead.props}
+          aria-label="Set lead"
+        >
+          {currentLead === null ? (
+            'No lead'
+          ) : (
+            <>
+              <Avatar
+                name={currentLead.displayName}
+                src={currentLead.avatarUrl ?? null}
+                size="xs"
+                colorKey={currentLead.id}
+                decorative
+              />
+              {currentLead.displayName}
+            </>
+          )}
+        </button>
+      </section>
+      <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Labels</h3>
         <button
           type="button"
@@ -151,6 +202,57 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
             </span>
           )}
         </button>
+      </section>
+      {/* Both ends of the timeframe, each with the granularity that says how much of the
+          day to believe. The API refuses a granularity without a day, and "Q3" is a day
+          nobody is meant to read too closely — so the two controls are one row and the
+          write always carries both. */}
+      <TimeframeField
+        title="Start date"
+        date={project.startDate ?? ''}
+        granularity={project.startDateGranularity ?? 'day'}
+        onChange={(startDate, startDateGranularity) =>
+          updateProject(engine, project.id, { startDate, startDateGranularity }).catch(report)
+        }
+      />
+      <TimeframeField
+        title="Target date"
+        date={project.targetDate ?? ''}
+        granularity={project.targetDateGranularity ?? 'day'}
+        onChange={(targetDate, targetDateGranularity) =>
+          updateProject(engine, project.id, { targetDate, targetDateGranularity }).catch(report)
+        }
+      />
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Summary</h3>
+        {/* Saved on blur rather than per keystroke: this is prose, and a mutation per
+            character would put a hundred entries in the activity feed for one sentence. */}
+        <Textarea
+          aria-label="Summary"
+          value={project.summary ?? ''}
+          minRows={2}
+          placeholder="What does done look like?"
+          onBlur={(event) => {
+            const summary = event.target.value.trim();
+            if (summary === (project.summary ?? '')) return;
+            updateProject(engine, project.id, { summary }).catch(report);
+          }}
+        />
+      </section>
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Description</h3>
+        <Textarea
+          aria-label="Description"
+          value={project.description}
+          minRows={3}
+          maxRows={12}
+          placeholder="Background, scope, links."
+          onBlur={(event) => {
+            const description = event.target.value;
+            if (description === project.description) return;
+            updateProject(engine, project.id, { description }).catch(report);
+          }}
+        />
       </section>
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Update schedule</h3>
@@ -188,7 +290,7 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
           </label>
         )}
       </section>
-      <ProjectDependencies projectId={project.id} compact />
+      <ProjectDependencies projectId={project.id} compact addable />
       <ProjectStatusPicker
         open={status.open}
         onClose={status.hide}
@@ -203,6 +305,13 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
         value={project.priority}
         onSelect={(level) => updateProject(engine, project.id, { priority: level }).catch(report)}
       />
+      <AssigneePicker
+        open={lead.open}
+        onClose={lead.hide}
+        trigger={lead.ref}
+        value={project.leadId ?? null}
+        onSelect={(leadId) => updateProject(engine, project.id, { leadId }).catch(report)}
+      />
       <ProjectLabelPicker
         open={labels.open}
         onClose={labels.hide}
@@ -215,4 +324,87 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
       />
     </div>
   );
+}
+
+interface TimeframeFieldProps {
+  readonly title: string;
+  readonly date: string;
+  readonly granularity: TimeframeGranularity;
+  readonly onChange: (date: string | null, granularity: TimeframeGranularity) => void;
+}
+
+const GRANULARITIES: readonly { readonly value: TimeframeGranularity; readonly label: string }[] = [
+  { value: 'day', label: 'Exact day' },
+  { value: 'month', label: 'Month' },
+  { value: 'quarter', label: 'Quarter' },
+  { value: 'half', label: 'Half-year' },
+  { value: 'year', label: 'Year' },
+];
+
+/** One end of the timeframe: the day, and how precisely it is meant. */
+function TimeframeField({ title, date, granularity, onChange }: TimeframeFieldProps) {
+  return (
+    <section className={styles.section}>
+      <h3 className={styles.sectionTitle}>{title}</h3>
+      <div className={styles.dateRow}>
+        <Input
+          type="date"
+          aria-label={title}
+          className={styles.dateInput}
+          value={date}
+          // An emptied field is a request to take the date off, which the API spells as its
+          // own flag; `null` is how `ProjectFields` says so.
+          onChange={(event) =>
+            onChange(event.target.value === '' ? null : event.target.value, granularity)
+          }
+        />
+        {date === '' ? null : (
+          <Select
+            aria-label={`${title} granularity`}
+            value={granularity}
+            onChange={(event) => onChange(date, event.target.value as TimeframeGranularity)}
+          >
+            {GRANULARITIES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * A timeframe as a reader should see it: the day, cut back to whatever the granularity
+ * claims to know. A quarter target is a real date in the database and a promise about a
+ * three-month window on screen, and printing the day would be the client asserting a
+ * precision nobody entered.
+ */
+export function formatTimeframe(day: string, granularity: TimeframeGranularity): string {
+  const date = new Date(`${day.slice(0, 10)}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return day;
+  const year = date.getUTCFullYear();
+  switch (granularity) {
+    case 'year':
+      return String(year);
+    case 'half':
+      return `H${date.getUTCMonth() < 6 ? 1 : 2} ${year}`;
+    case 'quarter':
+      return `Q${Math.floor(date.getUTCMonth() / 3) + 1} ${year}`;
+    case 'month':
+      return date.toLocaleDateString(undefined, {
+        timeZone: 'UTC',
+        month: 'short',
+        year: 'numeric',
+      });
+    default:
+      return date.toLocaleDateString(undefined, {
+        timeZone: 'UTC',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+  }
 }

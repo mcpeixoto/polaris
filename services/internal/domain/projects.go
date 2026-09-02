@@ -149,6 +149,12 @@ func (s *Service) CreateProject(ctx context.Context, p *authz.Principal, in Crea
 	if in.Priority < 0 || in.Priority > 4 {
 		return model.Project{}, 0, platform.Validation("priority", "priority must be 0 (none) to 4 (low)")
 	}
+	if err := validateProjectText(&in.Name, in.Summary, &in.Description, in.Icon); err != nil {
+		return model.Project{}, 0, err
+	}
+	if err := validateHexColor("color", in.Color); err != nil {
+		return model.Project{}, 0, err
+	}
 	in.Color = normaliseColor(in.Color)
 
 	var out model.Project
@@ -359,6 +365,12 @@ func (s *Service) UpdateProject(ctx context.Context, p *authz.Principal, in Upda
 		in.UpdateReminderWeekday,
 		in.UpdateReminderHour,
 	); err != nil {
+		return model.Project{}, 0, err
+	}
+	if err := validateProjectText(in.Name, in.Summary, in.Description, in.Icon); err != nil {
+		return model.Project{}, 0, err
+	}
+	if err := validateHexColor("color", in.Color); err != nil {
 		return model.Project{}, 0, err
 	}
 	in.Color = normaliseColor(in.Color)
@@ -1481,4 +1493,38 @@ func dateOf(d pgtype.Date) *model.Date {
 	}
 	v := model.Date(d.Time.Format(dateLayout))
 	return &v
+}
+
+// maxProjectIconLength bounds the icon. It holds an emoji or a short token, never prose.
+const maxProjectIconLength = 64
+
+// validateProjectText bounds the four free-text fields on a project.
+//
+// CreateIssue caps its title at maxTitleLength and its description at maxDescriptionLength;
+// CreateProject only trimmed and rejected empty, and summary, description and icon were
+// never measured at all. The columns are `text`, so a one-megabyte project description was
+// accepted — and then replayed into every /sync/bootstrap snapshot and every connected
+// socket's change payload for that workspace, for ever. That is how an unvalidated field
+// becomes a sync-layer problem.
+//
+// The same caps as an issue, because a project description is the same kind of thing and
+// two different answers to "how long may this be" is one more than anybody can remember.
+func validateProjectText(name, summary, description, icon *string) error {
+	if name != nil && len(*name) > maxTitleLength {
+		return platform.Validation("name",
+			fmt.Sprintf("a project name is at most %d characters", maxTitleLength))
+	}
+	if summary != nil && len(*summary) > maxTitleLength {
+		return platform.Validation("summary",
+			fmt.Sprintf("a project summary is at most %d characters", maxTitleLength))
+	}
+	if description != nil && len(*description) > maxDescriptionLength {
+		return platform.Validation("description",
+			fmt.Sprintf("a project description is at most %d characters", maxDescriptionLength))
+	}
+	if icon != nil && len(*icon) > maxProjectIconLength {
+		return platform.Validation("icon",
+			fmt.Sprintf("an icon is at most %d characters", maxProjectIconLength))
+	}
+	return nil
 }

@@ -4,6 +4,18 @@
  * found without reading, and can the whole list be crossed without the pointer.
  */
 
+/*
+ * Two elements, one panel, and the split is what buys the entrance below.
+ *
+ * `.surface` is the positioned box: fixed, at the coordinates Menu.tsx measured, carrying
+ * the placement offset. It is also the box Menu.tsx *reads back* — twice, to decide whether
+ * to flip to the other side of the trigger and how far to shift it on screen — and that read
+ * lands on the same frame the animation starts. `.panel` is everything the eye sees, and it
+ * is the only thing that animates. A transform on a child changes nothing about its parent's
+ * layout box, so the wrapper's rect is the box the menu comes to rest in whatever the panel
+ * is doing on its way there. Before the split, the whole surface was measured and animated,
+ * and the entrance was held to opacity because of it.
+ */
 .surface {
   /* Fixed, not absolute. The menu is portalled to <body>, and an absolutely positioned
    * portal child is placed against whichever ancestor last set a containing block — which
@@ -14,6 +26,11 @@
   top: 0;
   left: 0;
   z-index: var(--z-dropdown);
+  display: flex;
+  width: max-content;
+}
+
+.panel {
   display: flex;
   flex-direction: column;
   min-width: 18ch;
@@ -28,14 +45,17 @@
 }
 
 /*
- * Opacity and nothing else, and that is a constraint rather than a preference.
+ * Three per cent, from the corner nearest the trigger.
  *
- * Menu.tsx measures this element's rendered rect in a layout effect — twice, to decide
- * whether to flip to the other side of the trigger and how far to shift it back on screen —
- * and that measurement lands on the same frame the animation starts. A keyframe that moved
- * or scaled the surface would therefore be measured mid-flight, and the flip heuristic
- * would answer a question about a box that is not where the box comes to rest. Opacity is
- * the one property that changes nothing `getBoundingClientRect` can see.
+ * The point is direction rather than movement: a panel that grows out of the control reads
+ * as having come from it, and one that simply fades reads as having been painted on top. The
+ * amount is deliberately below the threshold where anyone can name what happened — Modal
+ * makes the same argument at two per cent for a box four times the size.
+ *
+ * The reduced-motion answer is the one in tokens.css: every duration collapses to 1ms, so
+ * the scale is over before it can be perceived as motion. That is the right answer here and
+ * not a shortcut, because nothing in this entrance travels — the panel is where it is going
+ * to be from the first frame, and only its size is in question.
  *
  * --duration-fast, not --duration-normal: every picker in this product is opened from the
  * keyboard — S, A, P — and tokens.css says nothing on that path may outlast a keystroke.
@@ -43,15 +63,15 @@
 @keyframes surfaceIn {
   from {
     opacity: 0;
+    transform: scale(0.97);
   }
 }
 
 /*
- * The way out. Opacity again, and this time not because anything is measuring: by the time a
- * menu is closing, `settledRef` has long since been set and every layout effect in Menu.tsx
- * is gated on `open`, so the box is free to move. It does not, because the pair has to read
- * as one object. A picker that appears by fading and leaves by sliding is two behaviours
- * sharing a stylesheet.
+ * The way out. Opacity only, and the asymmetry is deliberate: an entrance says where the
+ * panel came from, and there is nothing equivalent to say on the way out — a menu closing is
+ * a decision already taken, and shrinking it back into the trigger animates a journey the
+ * user has stopped watching.
  *
  * --duration-instant, half the entrance. These menus are opened with S, A, P and closed with
  * Escape, and the closing keystroke is nearly always followed immediately by another one.
@@ -62,16 +82,46 @@
   }
 }
 
-/* `forwards` holds the surface at zero for the frames between the animation ending and React
+/* `forwards` holds the panel at zero for the frames between the animation ending and React
  * removing the node; without it the menu snaps back to full opacity to say goodbye. */
-.surface[data-exiting] {
+.panel[data-exiting] {
   animation: surfaceOut var(--duration-instant) var(--ease-in) forwards;
+}
+
+/*
+ * The corner each placement grows from, mirroring the anchor point the component computes:
+ * a menu below its trigger is pinned by its top edge, so that is the edge it expands from.
+ * The names are `origin-` plus the `placement` prop's own values, so the component looks the
+ * class up rather than keeping a second table that can disagree with this one.
+ */
+.origin-bottom-start {
+  transform-origin: top left;
+}
+
+.origin-bottom-end {
+  transform-origin: top right;
+}
+
+.origin-top-start {
+  transform-origin: bottom left;
+}
+
+.origin-top-end {
+  transform-origin: bottom right;
+}
+
+.origin-right-start {
+  transform-origin: top left;
+}
+
+.origin-left-start {
+  transform-origin: top right;
 }
 
 /*
  * The gap between the trigger and the menu is a margin rather than arithmetic in the
  * positioning code, so it stays a design token. The component sets the anchor point; these
- * four rules move the panel onto the right side of it.
+ * rules move the panel onto the right side of it.
  *
  * Their names are the `placement` prop's own values, hyphens and all, so the component
  * looks the class up rather than keeping a second table that can disagree with this one.
@@ -93,6 +143,17 @@
 .top-end {
   transform: translate(-100%, -100%);
   margin-top: calc(var(--space-1) * -1);
+}
+
+/* A submenu sits beside its row rather than under it, which is the whole reason it reads as
+ * a continuation of that row instead of a second menu over the first. */
+.right-start {
+  margin-left: var(--space-1);
+}
+
+.left-start {
+  transform: translateX(-100%);
+  margin-left: calc(var(--space-1) * -1);
 }
 
 .filter {
@@ -219,8 +280,11 @@
   cursor: default;
 }
 
+/* The semantic danger ink, not --priority-urgent. Borrowing the priority ramp meant a theme
+ * that recoloured urgency silently recoloured "Delete issue", which is the cross-ramp
+ * coupling the composition doc forbids. */
 .danger {
-  color: var(--priority-urgent);
+  color: var(--text-danger);
 }
 
 /*
@@ -248,6 +312,22 @@
   flex: none;
 }
 
+/* The chevron is the whole affordance for a submenu row — there is no other way to tell it
+ * from an item that chooses something — so it sits at the trailing edge where the shortcut
+ * hint would be, and takes the same quiet ink. */
+.chevron {
+  display: flex;
+  align-items: center;
+  flex: none;
+  margin-left: var(--space-4);
+  color: var(--text-secondary);
+}
+
+.chevron svg {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
 .label {
   flex: 1 1 auto;
   min-width: 0;
@@ -261,12 +341,6 @@
   /* See the placeholder above: tertiary fails 4.5:1 on this panel's surface in dark. */
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
-}
-
-/* Inside the panel the key chips sit on the raised grey the panel already uses, so they
- * step to the neighbouring surface or they disappear. */
-.hint kbd {
-  background-color: var(--bg-tertiary);
 }
 
 .empty {

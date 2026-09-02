@@ -147,3 +147,18 @@ WHERE ip.workspace_id = sqlc.arg(workspace_id)
   AND ip.id > sqlc.arg(after_id)
 ORDER BY ip.id
 LIMIT sqlc.arg(page_size);
+
+-- ListInitiativeProjectsForInitiatives is the listing above for a whole page of initiatives
+-- at once, for the reason ListIssueLabelsForIssues is: `initiatives { projects { … } }`
+-- hydrates a list in one pass, and a per-initiative query there is a query per row.
+--
+-- Visibility comes from the initiative, which the caller has already resolved: this reads
+-- only the join rows, and the projects behind them are hydrated through the same
+-- permission-filtered path every other project read uses.
+--
+-- name: ListInitiativeProjectsForInitiatives :many
+SELECT id, workspace_id, initiative_id, project_id, created_at
+FROM initiative_project
+WHERE initiative_id = ANY(sqlc.arg(initiative_ids)::uuid[])
+  AND workspace_id = sqlc.arg(workspace_id)
+ORDER BY initiative_id, created_at;

@@ -1,0 +1,39 @@
+/*
+ * Settings → Customer requests. The chrome comes from SettingsPage and SettingsSection; this
+ * file holds the two shapes those do not cover — the add-a-tier form and the tier list.
+ *
+ * It used to import the labels feature's stylesheet wholesale, which meant a change made for
+ * labels silently restyled this page and half of these class names did not describe anything
+ * on it.
+ */
+
+.hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.create {
+  display: flex;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.tiers {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tier {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+}

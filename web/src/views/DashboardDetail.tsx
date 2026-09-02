@@ -8,20 +8,25 @@
  * cannot squeeze the display picker into an ellipsis.
  */
 
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, EmptyState, Select } from '~/components';
+import { Button, EmptyState, Input, Select } from '~/components';
+import { ConfirmDialog } from '~/components/ConfirmDialog';
 import {
   createDashboardTile,
   deleteDashboard,
   deleteDashboardTile,
+  renameDashboard,
   updateDashboardTile,
 } from '~/features/dashboards/mutations';
+import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { issueIdsForTile, TILE_MEASURE, TILE_SLICE } from '~/features/dashboards/issueIds';
 import { buildInsights, MEASURE_LABELS, SLICE_LABELS } from '~/features/insights/computeInsights';
 import { formatTotal, formatValue, InsightChart } from '~/features/insights/InsightChart';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { ApiError } from '~/sync/api';
 import { compareOrderKeys } from '~/store';
 import type {
   Dashboard,
@@ -66,6 +71,9 @@ export function DashboardDetail() {
   const navigate = useNavigate();
   const engine = useEngine();
   const { dashboardId = '' } = useParams<{ dashboardId: string }>();
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
 
   const dashboard = useLiveQuery(
     (store) => store.dashboards.get(dashboardId) ?? null,
@@ -88,6 +96,11 @@ export function DashboardDetail() {
     [dashboardId],
   );
 
+  const state = useEntityState(dashboard);
+
+  // A cold start used to answer a deep link with "No such dashboard" while the row was
+  // still arriving, and offer a button away from a page that was about to work.
+  if (state === 'loading') return <EntityLoading label="Loading dashboard…" lines={4} />;
   if (dashboard === null) {
     return (
       <EmptyState
@@ -99,11 +112,41 @@ export function DashboardDetail() {
   }
 
   const addTile = () => {
-    void createDashboardTile(engine, { dashboardId: dashboard.id });
+    setFailure(null);
+    void createDashboardTile(engine, { dashboardId: dashboard.id }).catch((error: unknown) =>
+      setFailure(messageFor(error, 'That tile could not be added.')),
+    );
   };
 
-  const remove = () => {
-    void deleteDashboard(engine, dashboard.id).then(() => navigate('/dashboards'));
+  /**
+   * Deleting the dashboard, behind the confirmation the rest of the product uses.
+   *
+   * It was `void deleteDashboard(…).then(navigate)` — no catch, so a refusal was an
+   * unhandled rejection and the screen navigated away regardless, leaving the dashboard in
+   * place and the user believing it was gone.
+   */
+  const confirmRemoval = () => {
+    setRemoving(true);
+    setFailure(null);
+    void deleteDashboard(engine, dashboard.id)
+      .then(() => {
+        setConfirming(false);
+        void navigate('/dashboards');
+      })
+      .catch((error: unknown) => setFailure(messageFor(error, 'That could not be deleted.')))
+      .finally(() => setRemoving(false));
+  };
+
+  const rename = (name: string) => {
+    const trimmed = name.trim();
+    // An emptied name is not a rename, and the store keeping the old one while the field
+    // shows nothing is the bug this guard exists to avoid — the value below is controlled
+    // by the record, so the field snaps back on the next render.
+    if (trimmed === '' || trimmed === dashboard.name) return;
+    setFailure(null);
+    void renameDashboard(engine, dashboard.id, trimmed).catch((error: unknown) =>
+      setFailure(messageFor(error, 'That name could not be saved.')),
+    );
   };
 
   let scope = 'Workspace';
@@ -114,18 +157,35 @@ export function DashboardDetail() {
     <div className={styles.screen}>
       <header className={styles.header}>
         <div className={styles.titleRow}>
-          <h1 className={styles.title}>{dashboard.name}</h1>
+          <h1 className={styles.title}>
+            <Input
+              label="Dashboard name"
+              hideLabel
+              surface="plain"
+              defaultValue={dashboard.name}
+              key={dashboard.name}
+              onBlur={(event) => rename(event.target.value)}
+            />
+          </h1>
           <span className={styles.scope}>{scope}</span>
         </div>
         <div className={styles.actions}>
           <Button variant="primary" size="sm" onClick={addTile}>
             Add tile
           </Button>
-          <Button variant="ghost" size="sm" onClick={remove}>
+          <Button variant="danger" size="sm" onClick={() => setConfirming(true)}>
             Delete
           </Button>
         </div>
       </header>
+
+      {/* While the dialog is open it owns the refusal — saying it twice, once behind the
+       * scrim, is one message the reader has to reconcile with itself. */}
+      {failure === null || confirming ? null : (
+        <p className={styles.error} role="alert">
+          {failure}
+        </p>
+      )}
 
       {tiles.length === 0 ? (
         <EmptyState
@@ -144,8 +204,29 @@ export function DashboardDetail() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirming}
+        title="Delete this dashboard?"
+        consequence={`“${dashboard.name}” and its ${tiles.length === 1 ? 'tile' : `${tiles.length} tiles`} go for good. The issues they count are untouched.`}
+        confirmLabel="Delete"
+        destructive
+        busy={removing}
+        error={failure ?? undefined}
+        onConfirm={confirmRemoval}
+        onClose={() => {
+          setConfirming(false);
+          setFailure(null);
+        }}
+      />
     </div>
   );
+}
+
+/** The server's own words where there are any, and a plain sentence where there are not. */
+function messageFor(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.message !== '') return error.message;
+  return fallback;
 }
 
 function listTiles(store: Store, dashboardId: UUID): DashboardTile[] {
@@ -160,6 +241,20 @@ function listTiles(store: Store, dashboardId: UUID): DashboardTile[] {
 
 function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTile }) {
   const engine = useEngine();
+  const [failure, setFailure] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  /**
+   * Every tile write goes through here.
+   *
+   * The controls were `void updateDashboardTile(…)` with no catch: a refused measure change
+   * left the select showing the value the server had rejected, and said nothing.
+   */
+  const run = (work: Promise<void>, fallback: string) => {
+    setFailure(null);
+    void work.catch((error: unknown) => setFailure(messageFor(error, fallback)));
+  };
   const data = useLiveQuery(
     (store) => {
       const ids = issueIdsForTile(store, dashboard, tile);
@@ -179,6 +274,8 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
     [dashboard.id, tile.id, tile.measure, tile.slice, tile.display],
   );
 
+  // The fallback used to be the only branch that ever ran: `tile.title` is a stored field
+  // that nothing in the interface could write. The control grid below writes it now.
   const title = tile.title !== '' ? tile.title : MEASURE_LABELS[TILE_MEASURE[tile.measure]];
   // A burn-up is rows of periods and everything else is rows of buckets. Counted here so
   // the table can say it has nothing rather than rendering as a blank space under the
@@ -190,18 +287,40 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
       <div className={styles.tileHead}>
         <h2 className={styles.tileTitle}>{title}</h2>
         <span className={styles.tileTotal}>{formatTotal(data.total, data.unit)}</span>
-        <Button variant="ghost" size="sm" onClick={() => void deleteDashboardTile(engine, tile.id)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`Remove ${title}`}
+          onClick={() => setConfirming(true)}
+        >
           Remove
         </Button>
       </div>
       <div className={styles.tileControls}>
+        <Input
+          label="Title"
+          placeholder={MEASURE_LABELS[TILE_MEASURE[tile.measure]]}
+          defaultValue={tile.title}
+          key={tile.title}
+          onBlur={(event) => {
+            const next = event.target.value.trim();
+            if (next === tile.title) return;
+            run(
+              updateDashboardTile(engine, tile.id, { title: next }),
+              'That title could not be saved.',
+            );
+          }}
+        />
         <Select
           label="Measure"
           value={tile.measure}
           onChange={(event) =>
-            void updateDashboardTile(engine, tile.id, {
-              measure: event.target.value as DashboardMeasure,
-            })
+            run(
+              updateDashboardTile(engine, tile.id, {
+                measure: event.target.value as DashboardMeasure,
+              }),
+              'That measure could not be saved.',
+            )
           }
         >
           {MEASURES.map((value) => (
@@ -215,9 +334,12 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
             label="Slice"
             value={tile.slice}
             onChange={(event) =>
-              void updateDashboardTile(engine, tile.id, {
-                slice: event.target.value as DashboardSlice,
-              })
+              run(
+                updateDashboardTile(engine, tile.id, {
+                  slice: event.target.value as DashboardSlice,
+                }),
+                'That slice could not be saved.',
+              )
             }
           >
             {SLICES.map((value) => (
@@ -231,9 +353,12 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
           label="Display"
           value={tile.display}
           onChange={(event) =>
-            void updateDashboardTile(engine, tile.id, {
-              display: event.target.value as DashboardTileDisplay,
-            })
+            run(
+              updateDashboardTile(engine, tile.id, {
+                display: event.target.value as DashboardTileDisplay,
+              }),
+              'That display could not be saved.',
+            )
           }
         >
           {DISPLAYS.map((value) => (
@@ -243,6 +368,11 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
           ))}
         </Select>
       </div>
+      {failure === null ? null : (
+        <p className={styles.error} role="alert">
+          {failure}
+        </p>
+      )}
       {tile.display === 'metric' && (
         <p className={styles.metric}>{formatTotal(data.total, data.unit)}</p>
       )}
@@ -291,6 +421,30 @@ function TileCard({ dashboard, tile }: { dashboard: Dashboard; tile: DashboardTi
           </tbody>
         </table>
       )}
+
+      <ConfirmDialog
+        open={confirming}
+        title="Remove this tile?"
+        consequence={`“${title}” leaves this dashboard. The issues it counts are untouched, and the tile can be added again.`}
+        confirmLabel="Remove"
+        destructive
+        busy={removing}
+        error={failure ?? undefined}
+        onConfirm={() => {
+          setRemoving(true);
+          setFailure(null);
+          void deleteDashboardTile(engine, tile.id)
+            .then(() => setConfirming(false))
+            .catch((error: unknown) =>
+              setFailure(messageFor(error, 'That tile could not be removed.')),
+            )
+            .finally(() => setRemoving(false));
+        }}
+        onClose={() => {
+          setConfirming(false);
+          setFailure(null);
+        }}
+      />
     </article>
   );
 }

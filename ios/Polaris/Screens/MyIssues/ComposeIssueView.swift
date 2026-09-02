@@ -9,6 +9,10 @@ struct ComposeIssueView: View {
     @State private var details = ""
     @State private var teamId: String?
     @State private var priority: Priority = .none
+    /// The status the issue is created in. Nil means "the team's default", which is what the
+    /// server picks when `stateId` is absent — offering a status picker that cannot express
+    /// "leave it to the workspace" would be a worse default than not offering one.
+    @State private var stateId: String?
     @State private var assignToMe = true
     @State private var isSaving = false
     @State private var error: PolarisError?
@@ -18,6 +22,10 @@ struct ComposeIssueView: View {
     private enum Field: Hashable { case title, details }
 
     private var teams: [Team] { model.workspaceData.teams.value ?? [] }
+    private var states: [WorkflowState] {
+        guard let teamId else { return [] }
+        return model.workspaceData.states(forTeam: teamId)
+    }
 
     private var hasDraft: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -98,6 +106,21 @@ struct ComposeIssueView: View {
 
                                 HairlineDivider().padding(.horizontal, 16)
 
+                                Picker(selection: $stateId) {
+                                    Text("Team default").tag(String?.none)
+                                    ForEach(states) { state in
+                                        Text(state.name).tag(String?.some(state.id))
+                                    }
+                                } label: {
+                                    Text("Status").bodyFont(14).foregroundStyle(Theme.textSecondary)
+                                }
+                                .tint(Theme.accentBright)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 4)
+                                .accessibilityIdentifier("compose.status")
+
+                                HairlineDivider().padding(.horizontal, 16)
+
                                 Picker(selection: $priority) {
                                     ForEach(Priority.allCases, id: \.self) { value in
                                         Text(value.label).tag(value)
@@ -147,6 +170,12 @@ struct ComposeIssueView: View {
             }
             .onAppear {
                 if teamId == nil { teamId = teams.first?.id }
+            }
+            // Not `.onAppear`. Setting @FocusState in the same runloop turn a sheet presents
+            // frequently no-ops on iOS: the keyboard does not come up and the reader taps the
+            // field themselves. The auth screens get away with it because they are pushed.
+            .task {
+                try? await Task.sleep(for: .milliseconds(350))
                 focused = .title
             }
             // Teams may not have loaded when the sheet opens. Without this the selection stays
@@ -154,6 +183,10 @@ struct ComposeIssueView: View {
             .onChange(of: teams) { _, loaded in
                 if teamId == nil { teamId = loaded.first?.id }
             }
+            // A state belongs to one team. Keeping the selection across a team change would
+            // send the new team an id it does not own, which the server refuses.
+            .onChange(of: teamId) { _, _ in stateId = nil }
+            .presentationDragIndicator(.visible)
             .confirmationDialog(
                 "Discard this issue?",
                 isPresented: $isConfirmingDiscard,
@@ -184,6 +217,7 @@ struct ComposeIssueView: View {
                     // trailing newlines and renders them back on the detail screen.
                     description: details.trimmingCharacters(in: .whitespacesAndNewlines),
                     priority: priority,
+                    stateId: stateId,
                     assigneeId: assignToMe ? model.currentUser?.id : nil
                 )
                 _ = try await model.issues.create(draft)

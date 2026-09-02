@@ -91,6 +91,30 @@ type ServerFrame = ReadyFrame | DeltaFrame | ResyncFrame | ErrorFrame | PongFram
 const RECONNECT_MIN_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 
+/**
+ * Bounds on the heartbeat interval the server asks for.
+ *
+ * The number arrives in a frame, and a frame is not a promise. A `heartbeat: 0` — a bug,
+ * an older or newer server, a proxy that rewrote the JSON — becomes `setInterval(fn, 0)`,
+ * which spins the main thread and floods the socket with pings for as long as the tab is
+ * open. The floor is what makes that impossible; the ceiling keeps a nonsense large value
+ * from disabling liveness detection entirely.
+ */
+const HEARTBEAT_MIN_S = 5;
+const HEARTBEAT_MAX_S = 300;
+
+/**
+ * How many heartbeat intervals may pass with no word from the server before the socket is
+ * treated as dead.
+ *
+ * Two, because that is what the protocol says: "Missed pongs: 2 (60s) - close; client
+ * reconnects". The server implements its half. Without this half a half-open connection —
+ * laptop resume, a NAT or load-balancer idle timeout, a proxy that drops the stream without
+ * a FIN — stays `readyState === OPEN` forever, so the app shows "ready", receives nothing,
+ * and only recovers on a manual reload.
+ */
+const MISSED_PONGS = 2;
+
 export class SyncSocket {
   private ws: WebSocket | null = null;
   private handlers: SocketHandlers;
@@ -103,6 +127,8 @@ export class SyncSocket {
   private reconnectDelay = RECONNECT_MIN_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  /** When the server was last heard from at all — a pong, a delta, anything. */
+  private lastHeardAt = 0;
 
   constructor(clientId: string, handlers: SocketHandlers) {
     this.clientId = clientId;
@@ -134,6 +160,7 @@ export class SyncSocket {
     this.clearTimers();
     this.ws?.close(1000, 'client closing');
     this.ws = null;
+    this.lastHeardAt = 0;
     this.setState('offline');
   }
 
@@ -149,6 +176,19 @@ export class SyncSocket {
 
     const token = await ensureFreshToken();
     if (!token) return;
+
+    // `disconnect()` may have run during the await above. Without this the socket it just
+    // tore down is replaced by a live one nobody asked for, which then delivers deltas into
+    // an engine that believes it is stopped.
+    if (this.closedByUs) return;
+
+    // Any socket still around is abandoned here rather than left to overlap. `connect()` on
+    // a live socket is the resync path — the engine calls it after every bootstrap — and two
+    // sockets is not the worst of it: the old one's `onclose` used to clear the *new* one's
+    // heartbeat, null out its reference and schedule a third connection.
+    const previous = this.ws;
+    this.ws = null;
+    previous?.close(1000, 'replaced');
 
     this.setState('connecting');
 
@@ -174,7 +214,11 @@ export class SyncSocket {
       );
     };
 
+    // Every handler is guarded on the socket it was installed for. A socket this instance
+    // has already moved past is entitled to finish closing; it is not entitled to speak for
+    // the connection that replaced it.
     ws.onmessage = (event) => {
+      if (this.ws !== ws) return;
       let frame: ServerFrame;
       try {
         frame = JSON.parse(event.data as string) as ServerFrame;
@@ -189,6 +233,7 @@ export class SyncSocket {
     };
 
     ws.onclose = () => {
+      if (this.ws !== ws) return;
       this.clearTimers();
       this.ws = null;
       if (this.closedByUs) return;
@@ -198,6 +243,11 @@ export class SyncSocket {
   }
 
   private handleFrame(frame: ServerFrame): void {
+    // Any frame at all proves the stream is alive, not just a pong. A busy workspace may
+    // never idle long enough to need one, and counting only pongs would close a connection
+    // that is delivering deltas the moment a heartbeat reply is dropped.
+    this.lastHeardAt = Date.now();
+
     switch (frame.t) {
       case 'ready': {
         // A successful handshake is the only proof the backoff should reset. Resetting on
@@ -211,10 +261,30 @@ export class SyncSocket {
         break;
       }
 
-      case 'delta':
-        this.handlers.onDelta(frame.changes, frame.from, frame.to);
+      case 'delta': {
+        // A frame that starts after where this replica stands means something was lost or
+        // reordered: applying it would leave a hole nothing ever fills, and the replica would
+        // diverge silently for the life of the tab. `version > 0` because a client that has
+        // not yet resumed from anywhere has no position to be gapped against.
+        if (this.version > 0 && frame.from > this.version) {
+          this.setState('resyncing');
+          this.handlers.onResync('gap_too_large', 0);
+          break;
+        }
+        try {
+          this.handlers.onDelta(frame.changes, frame.from, frame.to);
+        } catch (err) {
+          // The batch did not land. Advancing the version now would skip it for good, and
+          // an exception thrown out of `onmessage` is swallowed by the browser — so this is
+          // the only place that can notice.
+          console.error('[sync] could not apply a delta batch', err);
+          this.setState('resyncing');
+          this.handlers.onResync('gap_too_large', 0);
+          break;
+        }
         this.setVersion(frame.to);
         break;
+      }
 
       case 'resync':
         this.setState('resyncing');
@@ -222,6 +292,8 @@ export class SyncSocket {
         break;
 
       case 'pong':
+        // Already recorded above. The frame exists so that a quiet connection still has
+        // something to prove itself with.
         break;
 
       case 'error':
@@ -234,14 +306,25 @@ export class SyncSocket {
 
   private startHeartbeat(intervalSeconds: number): void {
     this.clearHeartbeat();
+    const intervalMs = Math.max(HEARTBEAT_MIN_S, Math.min(intervalSeconds, HEARTBEAT_MAX_S)) * 1000;
+    this.lastHeardAt = Date.now();
+
     // Required by the protocol whether or not anything is happening: Cloudflare cuts an
     // idle proxied WebSocket at about 100 seconds, so a quiet connection has to prove it
     // is alive or it silently stops delivering.
     this.heartbeatTimer = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ t: 'ping' }));
+      const ws = this.ws;
+      if (ws?.readyState !== WebSocket.OPEN) return;
+
+      // `readyState` is the browser's opinion about a TCP connection, and on a half-open one
+      // it says OPEN indefinitely. Silence is the only evidence available, so it is what the
+      // decision is made on: closing hands the existing `onclose` its ordinary reconnect.
+      if (Date.now() - this.lastHeardAt > MISSED_PONGS * intervalMs) {
+        ws.close(4000, 'no response to heartbeat');
+        return;
       }
-    }, intervalSeconds * 1000);
+      ws.send(JSON.stringify({ t: 'ping' }));
+    }, intervalMs);
   }
 
   private scheduleReconnect(): void {

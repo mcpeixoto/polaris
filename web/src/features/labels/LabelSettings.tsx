@@ -20,10 +20,21 @@
  * could not is an error message.
  */
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
-import { Badge, Button, Checkbox, EmptyState, IconButton, Input, Select } from '~/components';
+import {
+  Badge,
+  Button,
+  Checkbox,
+  ColorPicker,
+  EmptyState,
+  IconButton,
+  Input,
+  Menu,
+  Select,
+} from '~/components';
+import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -261,14 +272,7 @@ function CreateLabel({ scope, groups, onCreate }: CreateLabelProps) {
         ))}
       </Select>
 
-      <div className={styles.color}>
-        <Input
-          type="color"
-          label="Colour"
-          value={color}
-          onChange={(event) => setColor(event.target.value)}
-        />
-      </div>
+      <ColorPicker label="Colour" className={styles.color} value={color} onChange={setColor} />
 
       <Button type="submit" variant="primary" disabled={name.trim() === ''}>
         Add
@@ -294,6 +298,12 @@ function CreateLabel({ scope, groups, onCreate }: CreateLabelProps) {
   );
 }
 
+/** "Fourteen issues" / "One issue", as prose rather than as a machine's output. */
+function mergeUses(row: LabelView): string {
+  if (row.uses === 0) return 'No issues';
+  return row.uses === 1 ? 'The one issue' : `All ${String(row.uses)} issues`;
+}
+
 interface LabelRowProps {
   row: LabelView;
   mergeInto?: readonly LabelView[];
@@ -305,6 +315,9 @@ interface LabelRowProps {
 
 function LabelRow({ row, mergeInto = [], onEdit, onArchive, onMerge, onUngroup }: LabelRowProps) {
   const [name, setName] = useState(row.name);
+  const mergeRef = useRef<HTMLButtonElement>(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState<LabelView | null>(null);
 
   // Committed on blur rather than on every keystroke. Each keystroke is a mutation with its
   // own version and its own change row, and a fourteen-character rename would put fourteen
@@ -343,17 +356,22 @@ function LabelRow({ row, mergeInto = [], onEdit, onArchive, onMerge, onUngroup }
         />
       </form>
 
-      <div className={styles.color}>
-        <Input
-          type="color"
-          label={`Colour of ${row.name}`}
-          hideLabel
-          value={row.color}
-          // Colour has no blur to wait for and no half-typed state: the native picker emits
-          // one change when the user is done with it.
-          onChange={(event) => onEdit({ color: event.target.value })}
-        />
-      </div>
+      {/*
+       * One mutation per chosen colour.
+       *
+       * This was a bare `<Input type="color">` whose comment claimed "the native picker emits
+       * one change when the user is done with it". It does not — React maps a colour input's
+       * onChange to the DOM `input` event, which fires continuously while the picker is
+       * dragged, so one colour change emitted dozens of `updateLabel` calls, each with its own
+       * version and change row, fanned out to every other client. `ColorPicker` commits on a
+       * discrete act, the way `commitName` right above it does.
+       */}
+      <ColorPicker
+        label={`Colour of ${row.name}`}
+        className={styles.color}
+        value={row.color}
+        onChange={(color) => onEdit({ color })}
+      />
 
       {row.isGroup ? <Badge>Group</Badge> : <span />}
 
@@ -361,26 +379,60 @@ function LabelRow({ row, mergeInto = [], onEdit, onArchive, onMerge, onUngroup }
         {row.isGroup ? '' : `${row.uses} ${row.uses === 1 ? 'issue' : 'issues'}`}
       </span>
 
+      {/*
+       * Merge is a command, not a form value, and it is now drawn as one.
+       *
+       * It used to be a `<select>` calling `onMerge` straight out of `onChange`: one arrow
+       * key on a keyboard-navigated control relabelled every issue that carried the label
+       * and destroyed the label, with no confirmation and nothing to undo it. Archiving —
+       * strictly the milder of the two — was already guarded. The composition doc draws the
+       * same line: a native select is for a plain form value, a Menu is for a command.
+       */}
       {onMerge === undefined || mergeInto.length === 0 ? (
         <span />
       ) : (
-        <Select
-          label={`Merge ${row.name} into`}
-          hideLabel
-          value=""
-          onChange={(event) => {
-            const intoId = event.target.value;
-            if (intoId === '') return;
-            onMerge(intoId);
-          }}
-        >
-          <option value="">Merge into…</option>
-          {mergeInto.map((other) => (
-            <option key={other.id} value={other.id}>
-              {other.name}
-            </option>
-          ))}
-        </Select>
+        <>
+          <Button
+            ref={mergeRef}
+            size="sm"
+            aria-label={`Merge ${row.name} into another label`}
+            aria-haspopup="menu"
+            aria-expanded={mergeOpen}
+            onClick={() => setMergeOpen(true)}
+          >
+            Merge…
+          </Button>
+          <Menu
+            open={mergeOpen}
+            onClose={() => setMergeOpen(false)}
+            trigger={mergeRef}
+            label={`Merge ${row.name} into`}
+            filterable={mergeInto.length > 8}
+            filterPlaceholder="Find a label"
+            items={mergeInto.map((other) => ({
+              id: other.id,
+              label: other.name,
+              onSelect: () => setMergeTarget(other),
+            }))}
+          />
+          <ConfirmDialog
+            open={mergeTarget !== null}
+            title={mergeTarget === null ? '' : `Merge ${row.name} into ${mergeTarget.name}?`}
+            consequence={
+              mergeTarget === null
+                ? ''
+                : `${mergeUses(row)} that carry ${row.name} will carry ${mergeTarget.name} instead, and ${row.name} will be deleted. There is no undo for this.`
+            }
+            confirmLabel={mergeTarget === null ? 'Merge' : `Merge into ${mergeTarget.name}`}
+            destructive
+            onClose={() => setMergeTarget(null)}
+            onConfirm={() => {
+              const into = mergeTarget;
+              setMergeTarget(null);
+              if (into !== null) onMerge(into.id);
+            }}
+          />
+        </>
       )}
 
       <span>

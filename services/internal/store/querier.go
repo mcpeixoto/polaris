@@ -44,6 +44,14 @@ type Querier interface {
 	// ---------------------------------------------------------------------------------------
 	// project_team
 	AddProjectTeam(ctx context.Context, arg AddProjectTeamParams) (ProjectTeam, error)
+	// AddReaction is idempotent by construction.
+	//
+	// DO NOTHING on the unique key rather than a read-then-insert: a second tap on the same
+	// face, and a retried mutation, are the same statement and the same outcome. The RETURNING
+	// clause is therefore empty when nothing was written, which is exactly the signal the
+	// caller needs — no row means no change, so no version and no change_log entry.
+	//
+	AddReaction(ctx context.Context, arg AddReactionParams) ([]Reaction, error)
 	AddTeamMember(ctx context.Context, arg AddTeamMemberParams) (TeamMembership, error)
 	// Advanced only after the batch's rows commit, so a crash re-processes rather than skips.
 	// The guard makes the advance monotonic: two workers racing on one workspace can otherwise
@@ -658,6 +666,9 @@ type Querier interface {
 	GetPulseDigestCursor(ctx context.Context, arg GetPulseDigestCursorParams) (time.Time, error)
 	GetPulseFeed(ctx context.Context, id uuid.UUID) (PulseFeed, error)
 	GetPulseFeedForUpdate(ctx context.Context, id uuid.UUID) (PulseFeed, error)
+	// GetReaction reads one row by id, for the delete path that names the reaction directly.
+	//
+	GetReaction(ctx context.Context, id uuid.UUID) (Reaction, error)
 	GetRecurringIssue(ctx context.Context, id uuid.UUID) (GetRecurringIssueRow, error)
 	// GetRecurringIssueForUpdate locks the row for a mint pass. Two workers racing on the
 	// same due date would otherwise both decide it had passed and file two issues.
@@ -746,6 +757,14 @@ type Querier interface {
 	//
 	ListArchivedProjectsForTeam(ctx context.Context, teamID uuid.UUID) ([]Project, error)
 	ListAttachmentsForIssue(ctx context.Context, issueID uuid.UUID) ([]Attachment, error)
+	// ListAttachmentsForIssues is ListAttachmentsForIssue for a whole page of issues at once,
+	// for the reason ListCommentsForIssues gives.
+	//
+	// attachment carries its own team_id, but the issue's team is what decides visibility: the
+	// denormalised column is there for the bootstrap's scoping and follows the issue on a
+	// duplicate merge, so reading it here would answer a slightly different question.
+	//
+	ListAttachmentsForIssues(ctx context.Context, arg ListAttachmentsForIssuesParams) ([]Attachment, error)
 	ListAttachmentsForURL(ctx context.Context, arg ListAttachmentsForURLParams) ([]Attachment, error)
 	// ListChildIssues feeds the sub-issue list and the progress rollup on the parent. The
 	// rollup counts states rather than sums them, so it needs the rows, not an aggregate —
@@ -769,6 +788,19 @@ type Querier interface {
 	ListChildIssuesForParents(ctx context.Context, arg ListChildIssuesForParentsParams) ([]ListChildIssuesForParentsRow, error)
 	ListChildTeams(ctx context.Context, parentTeamID *uuid.UUID) ([]Team, error)
 	ListCommentsForIssue(ctx context.Context, issueID uuid.UUID) ([]Comment, error)
+	// ListCommentsForIssues is ListCommentsForIssue for a whole page of issues at once.
+	//
+	// Every other collection on Issue was given a batched verb; these three were not, and the
+	// per-issue loop underneath them ran GetIssue + GetTeam + the listing for every row. On a
+	// two-thousand-issue team asking for `issues { comments { body } }` that is six thousand
+	// sequential queries, and the in-code comment claiming a list view never asks for them was
+	// a hope rather than an enforcement — the issue-detail screen asks for exactly this.
+	//
+	// The visibility predicate is applied once, here, by joining the issue and its team: a
+	// comment is readable when its issue is, and the batched caller has no per-issue place to
+	// check it. Membership is passed as the team id array the principal already carries.
+	//
+	ListCommentsForIssues(ctx context.Context, arg ListCommentsForIssuesParams) ([]Comment, error)
 	ListCustomerRequestIDsForCustomer(ctx context.Context, customerID *uuid.UUID) ([]uuid.UUID, error)
 	ListCustomerRequestsForIssue(ctx context.Context, issueID *uuid.UUID) ([]CustomerRequest, error)
 	ListCustomerSubscriptionsForCustomer(ctx context.Context, customerID uuid.UUID) ([]CustomerSubscription, error)
@@ -854,6 +886,15 @@ type Querier interface {
 	ListInitiativeLabelsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListInitiativeLabelsInWorkspaceRow, error)
 	ListInitiativeProjectIDs(ctx context.Context, initiativeID uuid.UUID) ([]uuid.UUID, error)
 	ListInitiativeProjects(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeProject, error)
+	// ListInitiativeProjectsForInitiatives is the listing above for a whole page of initiatives
+	// at once, for the reason ListIssueLabelsForIssues is: `initiatives { projects { … } }`
+	// hydrates a list in one pass, and a per-initiative query there is a query per row.
+	//
+	// Visibility comes from the initiative, which the caller has already resolved: this reads
+	// only the join rows, and the projects behind them are hydrated through the same
+	// permission-filtered path every other project read uses.
+	//
+	ListInitiativeProjectsForInitiatives(ctx context.Context, arg ListInitiativeProjectsForInitiativesParams) ([]InitiativeProject, error)
 	ListInitiativeRelationsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]InitiativeRelation, error)
 	// One row per (subscription, linked project). An initiative with no projects still returns
 	// one row with a null project_id so update watches fire.
@@ -864,6 +905,11 @@ type Querier interface {
 	ListInitiativesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]Initiative, error)
 	ListIntegrationSubmissions(ctx context.Context, workspaceID uuid.UUID) ([]IntegrationSubmission, error)
 	ListIssueHistory(ctx context.Context, issueID uuid.UUID) ([]IssueHistory, error)
+	// ListIssueHistoryForIssues is ListIssueHistory for a whole page of issues at once, for the
+	// reason ListCommentsForIssues gives: the API hydrates a list in one pass, and a per-issue
+	// read there is three queries per visible row.
+	//
+	ListIssueHistoryForIssues(ctx context.Context, arg ListIssueHistoryForIssuesParams) ([]IssueHistory, error)
 	ListIssueLabels(ctx context.Context, issueID uuid.UUID) ([]IssueLabel, error)
 	// ListIssueLabelsForIssues is the same listing for a whole page of issues at once.
 	//
@@ -885,6 +931,12 @@ type Querier interface {
 	// Visibility is "a member of either team", the same rule relationScope writes onto the
 	// change row, because a link is a fact about two issues and hiding it from one side would
 	// leave the two teams disagreeing about whether it exists.
+	//
+	// Both join their far end and exclude archived and deleted issues, which they did not.
+	// ListLiveIssueRelationsForIssue below has always applied exactly these predicates, and the
+	// comment there says why it must: a relation whose far end is in the trash is in no
+	// bootstrap snapshot, so a client that has one is holding a chip nobody can open. These are
+	// the batched reads the issue-detail screen actually uses, and they were showing them.
 	//
 	ListIssueRelationsForIssues(ctx context.Context, arg ListIssueRelationsForIssuesParams) ([]IssueRelation, error)
 	// ListIssueSubscribers is the fan-out's only read: who is watching this issue and still
@@ -1015,6 +1067,13 @@ type Querier interface {
 	// Pulse digest worker. The feed itself is replica-derived; this file is the
 	// scheduled inbox summary and the cursor that keeps a restart from sending twice.
 	ListPulseDigestWorkspaces(ctx context.Context) ([]ListPulseDigestWorkspacesRow, error)
+	// ListReactionsForComments is the batched read, for the reason ListCommentsForIssues is:
+	// a thread is a page of comments and a per-comment query there is a query per row.
+	//
+	// Visibility comes from the comment's issue, applied here so the batched caller has no
+	// per-comment place to check it.
+	//
+	ListReactionsForComments(ctx context.Context, arg ListReactionsForCommentsParams) ([]Reaction, error)
 	ListRecurringIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]ListRecurringIssuesForTeamRow, error)
 	// ListReverseIssueRelations is the same links read from the far end: what blocks this
 	// issue, and what it is a duplicate of. Both listings are needed on the issue panel, which
@@ -1238,6 +1297,13 @@ type Querier interface {
 	RemoveProjectLabelLink(ctx context.Context, arg RemoveProjectLabelLinkParams) (ProjectLabelLink, error)
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) (int64, error)
 	RemoveProjectTeam(ctx context.Context, arg RemoveProjectTeamParams) (int64, error)
+	// RemoveReaction deletes one person's own reaction and returns the row that disappeared.
+	//
+	// The row is returned because its id is the entity's name on the change stream and the
+	// caller knows only the comment, the emoji and themselves. Reading it first would be a
+	// second round trip that a concurrent removal could invalidate anyway.
+	//
+	RemoveReaction(ctx context.Context, arg RemoveReactionParams) (Reaction, error)
 	RemoveTeamMember(ctx context.Context, arg RemoveTeamMemberParams) (int64, error)
 	// RemoveUserFromWorkspace takes somebody out of the workspace without taking their work.
 	//
@@ -1588,6 +1654,11 @@ type Querier interface {
 	// replica.
 	//
 	StreamPulseFeedsForBootstrap(ctx context.Context, arg StreamPulseFeedsForBootstrapParams) ([]PulseFeed, error)
+	// StreamReactionsForBootstrap pages the workspace's reactions into a snapshot, scoped the
+	// way the comment stream is: through the issue's team, because a reaction is only ever as
+	// visible as the comment it sits on.
+	//
+	StreamReactionsForBootstrap(ctx context.Context, arg StreamReactionsForBootstrapParams) ([]Reaction, error)
 	// StreamRecurringIssuesForBootstrap feeds the initial snapshot. The predicate is the
 	// team's: a recurring schedule is team-scoped the same way a cycle is, and the change
 	// rows are emitted under TeamScope, so the snapshot must not ship a private team's

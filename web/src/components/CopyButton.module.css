@@ -1,0 +1,44 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * The fallback field for a refused clipboard.
+ *
+ * It cannot be `display: none` or `hidden`: neither can hold a selection, and a selection is
+ * the entire point of it. So it is one pixel, clipped, and out of the tab order — present
+ * enough for `select()` to mean something, absent enough that nothing lays out around it.
+ */
+.fallback {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/*
+ * The confirmation, with its width reserved in `ch` — reserving pixels would be a guess the
+ * next translation breaks, and a status that widens when it appears shoves the button out
+ * from under the pointer that just pressed it.
+ *
+ * Secondary rather than tertiary: this sits inside dialogs and cards as often as on the page,
+ * and tertiary is only measured against the page. See Field's `.message`.
+ */
+.copied {
+  flex: none;
+  min-width: 7ch;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+/* The element persists and empties rather than unmounting — see SecretField.module.css for
+   why that makes the fade free. */
+.copied:empty {
+  opacity: 0;
+}

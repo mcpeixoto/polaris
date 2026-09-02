@@ -1,0 +1,10 @@
+DROP INDEX IF EXISTS audit_log_created_at_idx;
+DROP INDEX IF EXISTS change_log_created_at_idx;
+DROP INDEX IF EXISTS webhook_delivery_created_at_idx;
+DROP INDEX IF EXISTS favorite_target_idx;
+DROP INDEX IF EXISTS notification_comment_idx;
+DROP INDEX IF EXISTS notification_issue_idx;
+DROP INDEX IF EXISTS issue_creator_idx;
+DROP INDEX IF EXISTS issue_archived_idx;
+DROP INDEX IF EXISTS issue_assignee_updated_idx;
+DROP INDEX IF EXISTS issue_team_sort_idx;

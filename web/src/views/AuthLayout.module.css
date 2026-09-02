@@ -129,6 +129,26 @@
   }
 }
 
+/*
+ * A drag strip, for the desktop shell only.
+ *
+ * These screens are the first thing a desktop user sees, and they are shown in a window with
+ * no title bar: on first run "Connect to your Polaris" is a centred card in a 1440×900 window
+ * that, without this, cannot be moved anywhere. The strip is the height the shell reserves
+ * for its window controls (platform/runtime.ts stamps the attribute), and it sits above the
+ * wash and below the card so nothing interactive is inside it.
+ */
+:global(html[data-desktop-chrome]) .page::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  -webkit-app-region: drag;
+  z-index: var(--z-sticky);
+}
+
 .card {
   display: flex;
   flex-direction: column;
@@ -320,13 +340,15 @@
 }
 
 /*
- * Takes --priority-urgent for the same reason Field.module.css does: the token layer has no
- * --danger role, and that pair is the only red already tuned for both page colours.
+ * --text-danger, which is the token layer's own name for this red. It used to borrow
+ * --priority-urgent, because there was no danger role to take and that pair was the only red
+ * tuned for both page colours; there is one now, and a theme that recolours urgency should not
+ * silently recolour a failed sign-in.
  *
  * ## The fill is 8%, and it was 12%
  *
  * Red text on a red tint is where this construction quietly stops being readable, because
- * the tint is made of the same colour as the words. --priority-urgent on the bare card is
+ * the tint is made of the same colour as the words. The red on the bare card is
  * 5.00:1 in light and 5.70:1 in dark; a 12% wash of itself under it drags the light figure
  * to 4.27:1, under the 4.5:1 body-text floor, on the first screen anybody sees. Measured
  * against the composited card colour, not against the token, because the card is 92% opaque
@@ -347,9 +369,9 @@
   overflow: hidden;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 8%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--priority-urgent) 30%, transparent);
-  color: var(--priority-urgent);
+  background-color: color-mix(in srgb, var(--text-danger) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-danger) 30%, transparent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
   /*

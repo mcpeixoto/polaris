@@ -8,6 +8,7 @@ package graph
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -246,6 +247,51 @@ func (r *mutationResolver) DeleteComment(ctx context.Context, id uuid.UUID, clie
 		return nil, PresentError(ctx, err)
 	}
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// AddReaction is the resolver for the addReaction field.
+func (r *mutationResolver) AddReaction(ctx context.Context, commentID uuid.UUID, emoji string, clientID *uuid.UUID, opID *uuid.UUID) (*generated.ReactionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	type key struct {
+		Comment uuid.UUID `json:"comment"`
+		Emoji   string    `json:"emoji"`
+	}
+	reaction, version, err := idempotent(ctx, r.Svc, p, clientID, opID, key{commentID, emoji},
+		func(ctx context.Context) (model.Reaction, int64, error) {
+			return r.Svc.AddReaction(ctx, p, commentID, emoji)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toReaction(reaction)
+	return &generated.ReactionPayload{Version: int(version), Reaction: &out}, nil
+}
+
+// RemoveReaction is the resolver for the removeReaction field.
+func (r *mutationResolver) RemoveReaction(ctx context.Context, commentID uuid.UUID, emoji string, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	type key struct {
+		Comment uuid.UUID `json:"comment"`
+		Emoji   string    `json:"emoji"`
+	}
+	removed, version, err := idempotent(ctx, r.Svc, p, clientID, opID, key{commentID, emoji},
+		func(ctx context.Context) (uuid.UUID, int64, error) {
+			return r.Svc.RemoveReaction(ctx, p, commentID, emoji)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	// The nil id when there was nothing to remove, which is a success: removing something
+	// already gone is the outcome the caller asked for, and a retry must not fail.
+	return &generated.DeletePayload{Version: int(version), ID: removed}, nil
 }
 
 // CreateAttachment is the resolver for the createAttachment field.
@@ -514,11 +560,13 @@ func (r *mutationResolver) CreateInitiative(ctx context.Context, input generated
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out, err := toInitiative(init)
+	out, err := r.hydrateInitiatives(ctx, p,
+		selectionFor(ctx, "InitiativePayload").childOrNone("initiative", "Initiative"),
+		[]model.Initiative{init})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	return &generated.InitiativePayload{Version: int(version), Initiative: &out}, nil
+	return &generated.InitiativePayload{Version: int(version), Initiative: &out[0]}, nil
 }
 
 // UpdateInitiative is the resolver for the updateInitiative field.
@@ -538,11 +586,13 @@ func (r *mutationResolver) UpdateInitiative(ctx context.Context, input generated
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out, err := toInitiative(init)
+	out, err := r.hydrateInitiatives(ctx, p,
+		selectionFor(ctx, "InitiativePayload").childOrNone("initiative", "Initiative"),
+		[]model.Initiative{init})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	return &generated.InitiativePayload{Version: int(version), Initiative: &out}, nil
+	return &generated.InitiativePayload{Version: int(version), Initiative: &out[0]}, nil
 }
 
 // ArchiveInitiative is the resolver for the archiveInitiative field.
@@ -1661,6 +1711,12 @@ func (r *mutationResolver) BulkUpdateIssues(ctx context.Context, input generated
 		ClearEstimate: deref(input.ClearEstimate),
 		DueDate:       toDate(input.DueDate),
 		ClearDueDate:  deref(input.ClearDueDate),
+
+		// Declared in the schema since the multi-select shipped and read by nothing until
+		// now: the resolver built the input from nine fields and dropped these two, so a
+		// bulk label edit answered `success` with the version bumped and applied nothing.
+		AddLabelIDs:    input.AddLabelIds,
+		RemoveLabelIDs: input.RemoveLabelIds,
 	}
 
 	type bulkResult struct {
@@ -2398,10 +2454,22 @@ func (r *mutationResolver) CreateIssueRelation(ctx context.Context, issueID uuid
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out, err := toIssueRelation(relation)
+	// Through the hydrator rather than the bare converter, for the reason its doc comment
+	// gives: `issue` and `relatedIssue` are non-null, so a caller that names either on the
+	// payload gets a failed mutation — after the write has landed — if nothing fills them.
+	hydrated, err := r.hydrateIssueRelations(ctx, p,
+		selectionFor(ctx, "IssueRelationPayload").childOrNone("relation", "IssueRelation"),
+		[]model.IssueRelation{relation})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
+	if len(hydrated) == 0 {
+		// hydrateIssueRelations drops a link whose far issue the reader cannot open. The
+		// caller just created this one, so both ends are reachable by construction.
+		return nil, PresentError(ctx, platform.Internal(
+			errors.New("a relation was created and then could not be read back")))
+	}
+	out := hydrated[0]
 	return &generated.IssueRelationPayload{Version: int(version), Relation: &out}, nil
 }
 
@@ -3289,7 +3357,8 @@ func (r *mutationResolver) CreateProject(ctx context.Context, input generated.Cr
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out, err := r.hydrateProject(ctx, p, project)
+	out, err := r.hydrateProject(ctx, p,
+		selectionFor(ctx, "ProjectPayload").childOrNone("project", "Project"), project)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -3313,7 +3382,8 @@ func (r *mutationResolver) UpdateProject(ctx context.Context, input generated.Up
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out, err := r.hydrateProject(ctx, p, project)
+	out, err := r.hydrateProject(ctx, p,
+		selectionFor(ctx, "ProjectPayload").childOrNone("project", "Project"), project)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -3350,7 +3420,8 @@ func (r *mutationResolver) RestoreProject(ctx context.Context, id uuid.UUID, cli
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out, err := r.hydrateProject(ctx, p, project)
+	out, err := r.hydrateProject(ctx, p,
+		selectionFor(ctx, "ProjectPayload").childOrNone("project", "Project"), project)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -5076,7 +5147,7 @@ func (r *queryResolver) Projects(ctx context.Context) ([]generated.Project, erro
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	return r.hydrateProjects(ctx, p, projects)
+	return r.hydrateProjects(ctx, p, selectionFor(ctx, "Project"), projects)
 }
 
 // Project is the resolver for the project field.
@@ -5089,7 +5160,8 @@ func (r *queryResolver) Project(ctx context.Context, id uuid.UUID) (*generated.P
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out, err := r.hydrateProject(ctx, p, project)
+	out, err := r.hydrateProject(ctx, p,
+		selectionFor(ctx, "ProjectPayload").childOrNone("project", "Project"), project)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -5149,7 +5221,9 @@ func (r *queryResolver) Notifications(ctx context.Context, includeRead *bool, in
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out, err := toNotifications(notifications)
+	// Through the hydrator so `notifications { issue { title } }` is one batched read for
+	// the whole inbox rather than one issue(id:) round trip per row from the client.
+	out, err := r.hydrateNotifications(ctx, p, selectionFor(ctx, "Notification"), notifications)
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
@@ -5466,7 +5540,7 @@ func (r *queryResolver) ArchivedProjects(ctx context.Context, teamID uuid.UUID) 
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	return r.hydrateProjects(ctx, p, projects)
+	return r.hydrateProjects(ctx, p, selectionFor(ctx, "Project"), projects)
 }
 
 // AttachmentsForURL is the resolver for the attachmentsForURL field.
@@ -5616,13 +5690,11 @@ func (r *queryResolver) Initiatives(ctx context.Context) ([]generated.Initiative
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out := make([]generated.Initiative, 0, len(rows))
-	for _, row := range rows {
-		converted, err := toInitiative(row)
-		if err != nil {
-			return nil, PresentError(ctx, err)
-		}
-		out = append(out, converted)
+	// Through the hydrator: `projects` is non-null, so a bare conversion fails the whole
+	// field rather than returning an initiative without them.
+	out, err := r.hydrateInitiatives(ctx, p, selectionFor(ctx, "Initiative"), rows)
+	if err != nil {
+		return nil, PresentError(ctx, err)
 	}
 	return out, nil
 }
@@ -5637,11 +5709,11 @@ func (r *queryResolver) Initiative(ctx context.Context, id uuid.UUID) (*generate
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	out, err := toInitiative(row)
+	out, err := r.hydrateInitiatives(ctx, p, selectionFor(ctx, "Initiative"), []model.Initiative{row})
 	if err != nil {
 		return nil, PresentError(ctx, err)
 	}
-	return &out, nil
+	return &out[0], nil
 }
 
 // Customers is the resolver for the customers field.

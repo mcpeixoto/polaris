@@ -57,4 +57,28 @@ describe('ConnectServer', () => {
     await user.click(screen.getByRole('button', { name: 'Connect' }));
     expect(vi.mocked(setDesktopServerUrl)).toHaveBeenCalledWith('https://polaris.acme.com');
   });
+
+  /**
+   * The shell refuses two addresses without replacing the window: one it cannot parse, and
+   * the one this installation is already connected to — which is exactly what somebody
+   * retypes when they are trying to fix a connection. Until the call replied, the button
+   * span forever and force-quitting the app was the only way out.
+   */
+  it('stops spinning and says why when the shell refuses the address', async () => {
+    const user = userEvent.setup();
+    vi.mocked(setDesktopServerUrl).mockResolvedValueOnce({
+      ok: false,
+      reason: 'Already connected to https://polaris.acme.com.',
+    });
+    render(<ConnectServer />);
+
+    await user.type(screen.getByLabelText('Server address'), 'polaris.acme.com');
+    await user.click(screen.getByRole('button', { name: 'Connect' }));
+
+    const submit = await screen.findByRole('button', { name: 'Connect' });
+    await waitFor(() => {
+      expect(submit.getAttribute('aria-busy')).not.toBe('true');
+    });
+    expect(screen.getByText(/Already connected/)).toBeTruthy();
+  });
 });

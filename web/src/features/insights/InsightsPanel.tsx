@@ -1,6 +1,12 @@
 /**
  * Insights panel for an issue view: measure × slice over the replica.
  *
+ * Measure, period and slice carry visible labels. They were hidden here while the dashboard
+ * tile — the same three controls, one screen away — showed them, so the same question was
+ * labelled in one place and anonymous in the other. Three sibling fields all get labels:
+ * "Count · Assignee · chart" names none of its own fields, and this is a surface whose whole
+ * job is reshaping a measure until it answers something.
+ *
  * There is deliberately no "show archived" control, and `docs/01-features/12-analytics-*.md`
  * records why rather than listing it as a feature. Archiving an issue emits a *delete* to
  * every client — `Service.ArchiveIssue`: "archived issues are never part of the bootstrap
@@ -97,7 +103,6 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
         <h2 className={styles.title}>Insights</h2>
         <Select
           label="Measure"
-          hideLabel
           value={measure}
           onChange={(event) => setMeasure(event.target.value as InsightMeasure)}
         >
@@ -110,7 +115,6 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
         {measure === 'burnUp' ? (
           <Select
             label="Burn-up period"
-            hideLabel
             value={burnPeriod}
             onChange={(event) => setBurnPeriod(event.target.value as BurnPeriod)}
           >
@@ -120,7 +124,6 @@ export function InsightsPanel({ issueIds, filter, onFilter, onClose }: InsightsP
         ) : (
           <Select
             label="Slice"
-            hideLabel
             value={slice}
             onChange={(event) => setSlice(event.target.value as InsightSlice)}
           >

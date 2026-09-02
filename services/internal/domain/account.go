@@ -795,9 +795,18 @@ func (s *Service) applyInvite(
 		return model.User{}, err
 	}
 
+	// Trimmed before the empty test, not after it: " " used to pass straight through to
+	// both name columns. The fallback to the local part of the address is what an invite
+	// accepted without a name has always done.
+	displayName = strings.TrimSpace(displayName)
 	if displayName == "" {
 		displayName = strings.SplitN(accountEmail, "@", 2)[0]
 	}
+	validated, err := validateDisplayName("displayName", displayName)
+	if err != nil {
+		return model.User{}, err
+	}
+	displayName = validated
 	userID, err := uuid.NewV7()
 	if err != nil {
 		return model.User{}, platform.Internal(err)

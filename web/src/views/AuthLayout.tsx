@@ -54,17 +54,33 @@ export function AuthLayout({ title, subtitle, footer, children }: AuthLayoutProp
  * browser's wording rather than the product's, and they disappear on the next keystroke —
  * which makes them exactly the wrong shape for the errors that matter here, all of which come
  * back from the server. `required` stays on the fields, because it is also what tells
- * assistive technology that a field is not optional.
+ * assistive technology that a field is not optional. What the browser stopped doing, each
+ * screen does for itself — see `features/auth/validation.ts` for the checks they share.
+ *
+ * ## `step`
+ *
+ * Some of these screens are two forms in one place: accept-invite swaps between registering
+ * and signing in without navigating anywhere. Passing the step's name keys the form on it, so
+ * the swap replays the entrance in `.form > *` instead of the fields silently becoming
+ * different fields under a cursor that has not moved. It is the same beat every other screen
+ * gets on mount, which is the point — a step change should feel like arriving at a screen,
+ * because that is what it is. The animation is `--duration-fast`/`--ease-out` and collapses
+ * with the rest of them under `prefers-reduced-motion`.
+ *
+ * The key is the step and nothing else. Keying on anything that changes during a submit would
+ * tear the form down mid-request and take the focused field with it.
  */
 export function AuthForm({
   onSubmit,
+  step,
   children,
 }: {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  step?: string | undefined;
   children: ReactNode;
 }) {
   return (
-    <form className={styles.form} onSubmit={onSubmit} noValidate>
+    <form key={step} className={styles.form} onSubmit={onSubmit} noValidate>
       {children}
     </form>
   );

@@ -12,6 +12,7 @@ import { Link } from 'react-router';
 import {
   Avatar,
   EmptyState,
+  IconButton,
   LabelChip,
   PriorityIcon,
   priorityLabel,
@@ -35,7 +36,20 @@ import styles from './Peek.module.css';
  * a cheap one — the selector returns `null` on sight when the panel is not present, so a
  * closed Peek does no reading and re-renders on nothing.
  */
-export function Peek({ open, issueId }: { open: boolean; issueId: UUID | null }) {
+export interface PeekProps {
+  open: boolean;
+  issueId: UUID | null;
+  /**
+   * Shut the panel. Optional, and the button exists only when it is supplied.
+   *
+   * The panel used to have no exit but Escape and the line of text saying so, which is a
+   * keyboard affordance offered to somebody who opened it from the command menu with a
+   * pointer. The list owns the state, so it owns the close; this is the request.
+   */
+  onClose?: (() => void) | undefined;
+}
+
+export function Peek({ open, issueId, onClose }: PeekProps) {
   const panelRef = useRef<HTMLElement>(null);
   const { present, exitProps } = usePresence(open, panelRef);
 
@@ -79,6 +93,25 @@ export function Peek({ open, issueId }: { open: boolean; issueId: UUID | null })
       <header className={styles.header}>
         <span className={styles.identifier}>{issue.identifier}</span>
         <h2 className={styles.title}>{issue.title}</h2>
+        {onClose === undefined ? null : (
+          <IconButton
+            aria-label="Close peek"
+            keys="Escape"
+            size="sm"
+            className={styles.close}
+            onClick={onClose}
+            icon={
+              <svg viewBox="0 0 16 16" fill="none">
+                <path
+                  d="m4.5 4.5 7 7m0-7-7 7"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            }
+          />
+        )}
       </header>
 
       <p className={styles.description}>

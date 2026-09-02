@@ -22,6 +22,7 @@ import {
   toggleCustomerRequestImportant,
   updateCustomer,
 } from '~/features/customers/mutations';
+import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { report } from '~/features/issue/mutations';
 import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { setCustomerSubscription } from '~/features/subscriptions/mutations';
@@ -58,6 +59,10 @@ export function CustomerDetail() {
   const [merging, setMerging] = useState(false);
   const [mergeBusy, setMergeBusy] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
+  // Every write on this page used to end in `.catch(report)`: the console heard about it and
+  // the person who pressed the control did not. One region, because these are all edits to
+  // the same customer and a banner per control would be four banners saying one thing.
+  const [writeError, setWriteError] = useState<string | null>(null);
 
   const customer = useLiveQuery(
     (store) => store.customers.get(customerId) ?? null,
@@ -107,14 +112,23 @@ export function CustomerDetail() {
     [customerId],
   );
 
+  const customerState = useEntityState(customer);
+
   // Same gate as the list: a guest reaching a customer page by its id sees the workspace
   // home instead, and the role is read from the session rather than the replica.
   if (viewerRole === 'guest') {
     return <Navigate to="/" replace />;
   }
 
+  // `useLiveQuery` answers null both for "archived or deleted" and for "the replica has not
+  // reached this row yet", and only the first of those deserves a dead end with a Go back
+  // button on it. See features/entity-gate.
   if (customer === null) {
-    return (
+    return customerState === 'loading' ? (
+      <div className={styles.screen}>
+        <EntityLoading label="Loading customer…" lines={4} />
+      </div>
+    ) : (
       <EmptyState
         title="No such customer"
         description="It may have been archived or deleted."
@@ -123,8 +137,15 @@ export function CustomerDetail() {
     );
   }
 
+  /** Turns a rejected write into something the page says out loud, not only the console. */
+  const fail = (message: string) => (failure: unknown) => {
+    setWriteError(failure instanceof ApiError ? failure.message : message);
+    report(failure);
+  };
+
   const save = (fields: Parameters<typeof updateCustomer>[2]) => {
-    updateCustomer(engine, customer.id, fields).catch(report);
+    setWriteError(null);
+    updateCustomer(engine, customer.id, fields).catch(fail('That change could not be saved.'));
   };
 
   const confirmArchive = () => {
@@ -206,7 +227,7 @@ export function CustomerDetail() {
                     id === 'requestCompleted'
                       ? watch?.requestCompleted !== true
                       : watch?.requestCompleted === true,
-                }).catch(report);
+                }).catch(fail('Your notification setting could not be saved.'));
               }}
             />
           ) : null}
@@ -239,6 +260,12 @@ export function CustomerDetail() {
           )}
         </div>
       </header>
+
+      {writeError === null ? null : (
+        <p className={styles.error} role="alert">
+          {writeError}
+        </p>
+      )}
 
       <section className={styles.section} aria-labelledby="properties-heading">
         <h2 className={styles.sectionTitle} id="properties-heading">
@@ -400,9 +427,12 @@ export function CustomerDetail() {
                   className={row.important ? styles.importantOn : styles.important}
                   aria-pressed={row.important}
                   aria-label={row.important ? 'Marked important' : 'Mark important'}
-                  onClick={() =>
-                    void toggleCustomerRequestImportant(engine, row.id, !row.important)
-                  }
+                  onClick={() => {
+                    setWriteError(null);
+                    toggleCustomerRequestImportant(engine, row.id, !row.important).catch(
+                      fail('That request could not be marked.'),
+                    );
+                  }}
                 >
                   ▲
                 </button>
@@ -458,7 +488,10 @@ export function CustomerDetail() {
         onConfirm={() => {
           if (removingRequest !== null) {
             if (editingRequest === removingRequest) setEditingRequest(null);
-            deleteCustomerRequest(engine, removingRequest).catch(report);
+            setWriteError(null);
+            deleteCustomerRequest(engine, removingRequest).catch(
+              fail('That request could not be removed.'),
+            );
           }
           setRemovingRequest(null);
         }}

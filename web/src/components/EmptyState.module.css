@@ -39,7 +39,10 @@
    * line length is kept well under the page's. */
   max-width: 48ch;
   margin: 0;
-  color: var(--text-tertiary);
+  /* Secondary, not tertiary: an empty state is rendered inside cards, dialogs and panels as
+   * well as on the page, and tertiary only clears 4.5:1 on the page. See Field's
+   * `.message`. */
+  color: var(--text-secondary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
 }

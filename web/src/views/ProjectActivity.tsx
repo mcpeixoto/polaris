@@ -48,7 +48,7 @@ export function ProjectActivity() {
 
   return (
     <>
-      <ul className={styles.list}>
+      <ul className={`${styles.list ?? ''} ${styles.enter ?? ''}`}>
         {rows.map(({ update, authorName }) => {
           // Both edit and delete are author-only on the server. Drawing them for anyone
           // else would be an affordance whose only outcome is a refusal.

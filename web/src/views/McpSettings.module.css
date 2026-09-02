@@ -1,58 +1,31 @@
-.screen {
+/*
+ * Only what `SettingsPage` and `SettingsSection` do not already draw. The screen, header,
+ * title, body measure and section heading scale all used to live here and are now the
+ * frame's — which is the point of the frame.
+ */
+
+.endpoint {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  align-items: flex-start;
+  gap: var(--space-2);
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: none;
-  height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-10);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--space-6) var(--space-4);
-  max-width: 68ch;
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.sectionTitle {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.sectionNote {
+.note {
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
 
+/*
+ * A URL and a shell command are read character by character when somebody is checking a
+ * paste, so this wraps rather than truncating: a value ending in "…" is a value the reader
+ * cannot tell apart from the one they meant.
+ */
 .code {
   margin: 0;
+  align-self: stretch;
   padding: var(--space-3);
   overflow-x: auto;
   border-radius: var(--radius-md);
@@ -65,11 +38,10 @@
   word-break: break-all;
 }
 
+/* Underlined, not merely coloured: a link inside a sentence distinguished by colour alone
+   does not clear 3:1 against the prose around it in either theme. */
 .link {
   color: var(--text-primary);
-}
-
-.link:hover {
   text-decoration: underline;
 }
 

@@ -5,13 +5,13 @@
  * composer and the posted update read as one thing rather than as a form and a result.
  */
 
-import { useRef, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, IconButton, Select, useNativeValue } from '~/components';
+import { Button, IconButton, Select, Textarea } from '~/components';
 import { ProjectGraph } from '~/features/projects/ProjectGraph';
-import { ProjectDependencies } from '~/features/projects/dependencies';
+import { MilestoneSection } from '~/features/project-milestones/MilestoneSection';
 import { createProjectUpdate } from '~/features/project-updates/mutations';
 import { HealthDot, ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { PencilGlyph } from '~/features/project-updates/glyphs';
@@ -21,6 +21,7 @@ import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { IssueCustomers } from '~/features/customers/IssueCustomers';
 import type { ProjectUpdateHealth } from '~/store';
+import { ApiError } from '~/sync/api';
 import styles from './ProjectOverview.module.css';
 
 const HEALTH_OPTIONS: readonly { readonly value: ProjectUpdateHealth; readonly label: string }[] = [
@@ -36,13 +37,8 @@ export function ProjectOverview() {
   const [health, setHealth] = useState<ProjectUpdateHealth>('on_track');
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
   const [editingLatest, setEditingLatest] = useState(false);
-
-  // The composer takes its text through the element rather than through a `value` prop. See
-  // components/nativeValue.ts: a controlled textarea has its text content rewritten by React
-  // on every commit, and that costs the browser's undo grouping.
-  const updateBodyRef = useRef<HTMLTextAreaElement | null>(null);
-  useNativeValue(updateBodyRef, body);
 
   const project = useLiveQuery(
     (store) => store.projects.get(projectId) ?? null,
@@ -68,15 +64,28 @@ export function ProjectOverview() {
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (posting || viewerId === null) return;
+    // A blank post is a health change with nothing said about it, and the feed reads as a
+    // row of empty entries. Refused here rather than at the API, so the answer is instant.
+    const written = body.trim();
+    if (written === '') {
+      setPostError('An update needs something to say.');
+      return;
+    }
     setPosting(true);
+    setPostError(null);
     try {
       await createProjectUpdate(engine, {
         projectId: project.id,
         health,
-        body,
+        body: written,
         authorId: viewerId,
       });
       setBody('');
+    } catch (failure) {
+      // Without this the promise rejected into nothing: the form cleared its posting flag
+      // in `finally` and looked exactly as it does after a successful post, so a refused
+      // update — offline, a server that said no — read as one that had gone out.
+      setPostError(failure instanceof ApiError ? failure.message : 'That update was not posted.');
     } finally {
       setPosting(false);
     }
@@ -138,17 +147,24 @@ export function ProjectOverview() {
                 </option>
               ))}
             </Select>
-            <label className={styles.field}>
-              <span className={styles.label}>Update</span>
-              {/* No `value` prop by design — the text arrives through the ref above. */}
-              <textarea
-                ref={updateBodyRef}
-                className={styles.textarea}
-                onChange={(event) => setBody(event.target.value)}
-                placeholder="What changed since the last update?"
-                rows={4}
-              />
-            </label>
+            <Textarea
+              label="Update"
+              value={body}
+              minRows={4}
+              placeholder="What changed since the last update?"
+              onChange={(event) => {
+                setBody(event.target.value);
+                if (postError !== null) setPostError(null);
+              }}
+            />
+            {/* Fields, then the message, then the actions — the refusal beside the button
+                that was refused rather than above the form, where it scrolls out of the way
+                of the thing the reader is about to press again. */}
+            {postError === null ? null : (
+              <p className={styles.error} role="alert">
+                {postError}
+              </p>
+            )}
             <div className={styles.actions}>
               <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
                 Post update
@@ -158,11 +174,9 @@ export function ProjectOverview() {
         </section>
       )}
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Dependencies</h2>
-        <ProjectDependencies projectId={project.id} />
-      </section>
-
+      {/* Dependencies are drawn once, in the properties rail. They used to be here as well,
+          which put two copies of the same two lists on one screen — and the two disagreed
+          about whether you could add to them. */}
       {project.description !== undefined && project.description !== '' && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Description</h2>
@@ -170,14 +184,24 @@ export function ProjectOverview() {
         </section>
       )}
 
+      <MilestoneSection projectId={project.id} />
+
       <IssueCustomers projectId={project.id} />
     </div>
   );
 }
 
+/**
+ * The year is here on purpose, and it matches `ProjectActivity`'s formatter.
+ *
+ * The two used to disagree — this one printed "12 Jan 09:30" and the activity feed printed
+ * the year — so the same update was dated differently depending on which tab you read it
+ * on, and a year-old update looked recent on the overview.
+ */
 function formatWhen(iso: string): string {
   const date = new Date(iso);
   return date.toLocaleDateString(undefined, {
+    year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',

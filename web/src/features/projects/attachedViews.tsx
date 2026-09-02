@@ -1,12 +1,21 @@
 /**
  * Attached view tabs on a project — create, reorder, and open saved filters.
+ *
+ * Rename and delete are the product's own dialogs rather than `window.prompt` and
+ * `window.confirm`: the native pair cannot be themed, cannot be reached by the keymap, and
+ * on delete asks a yes/no question without naming what is lost. The "New view" modal below
+ * was already the right shape, so rename reuses it and delete uses `ConfirmDialog`.
+ *
+ * Every write here goes through `run`, because a tab bar that silently drops a failed
+ * reorder or a failed delete looks like it worked until the next reload disagrees.
  */
 
 import { useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, IconButton, Input, Menu, Modal } from '~/components';
+import { Button, ConfirmDialog, IconButton, Input, Menu, Modal } from '~/components';
+import { report } from '~/features/issue/mutations';
 import {
   createView,
   deleteView,
@@ -19,6 +28,7 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import { byOrderKeyThen } from '~/store';
 import type { Store, UUID, View } from '~/store';
+import { ApiError } from '~/sync/api';
 import styles from './attachedViews.module.css';
 
 function tabClass({ isActive }: { isActive: boolean }): string {
@@ -48,6 +58,12 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [renameName, setRenameName] = useState('');
+  const renameRef = useRef<HTMLInputElement>(null);
+  const [removing, setRemoving] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<UUID | null>(null);
 
   const viewerId = useViewerId();
@@ -63,8 +79,28 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
     [menuViewId, views],
   );
 
+  /**
+   * One place a write can fail loudly. `fallback` is what to say when the server did not
+   * send words of its own — an offline outbox rejection carries none.
+   */
+  const run = useCallback(async (fallback: string, write: () => Promise<unknown>) => {
+    setError(null);
+    setBusy(true);
+    try {
+      await write();
+      return true;
+    } catch (failure) {
+      setError(failure instanceof ApiError ? failure.message : fallback);
+      report(failure);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const openCreate = useCallback(() => {
     setName('');
+    setError(null);
     setCreating(true);
   }, []);
 
@@ -72,13 +108,12 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
     const trimmed = name.trim();
     if (trimmed === '') return;
     setCreating(false);
-    const id = await createView(engine, {
-      name: trimmed,
-      projectId,
-      filter: EMPTY_FILTER,
+    let id = '';
+    const ok = await run('That view could not be created.', async () => {
+      id = await createView(engine, { name: trimmed, projectId, filter: EMPTY_FILTER });
     });
-    if (id !== '') void navigate(`${base}/view/${id}`);
-  }, [base, engine, name, navigate, projectId]);
+    if (ok && id !== '') void navigate(`${base}/view/${id}`);
+  }, [base, engine, name, navigate, projectId, run]);
 
   const onDragStart = useCallback((id: UUID) => {
     setDraggingId(id);
@@ -91,10 +126,13 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
   const onDropAfter = useCallback(
     async (targetId: UUID) => {
       if (draggingId === null || draggingId === targetId) return;
+      const movingId = draggingId;
       setDraggingId(null);
-      await updateView(engine, draggingId, { afterViewId: targetId });
+      await run('That view could not be moved.', () =>
+        updateView(engine, movingId, { afterViewId: targetId }),
+      );
     },
-    [draggingId, engine],
+    [draggingId, engine, run],
   );
 
   const onContextMenu = useCallback((event: ReactMouseEvent<HTMLElement>, viewId: UUID) => {
@@ -117,28 +155,48 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
 
   const toggleStar = useCallback(async () => {
     if (menuView === null || viewerId === null) return;
-    await toggleFavorite(engine, viewerId, 'view', menuView.id);
+    const id = menuView.id;
     closeMenu();
-  }, [closeMenu, engine, menuView, viewerId]);
+    await run('That view could not be favourited.', () =>
+      toggleFavorite(engine, viewerId, 'view', id),
+    );
+  }, [closeMenu, engine, menuView, run, viewerId]);
 
-  const renameView = useCallback(async () => {
+  const openRename = useCallback(() => {
     if (menuView === null) return;
-    const next = window.prompt('View name', menuView.name)?.trim();
-    if (next === undefined || next === '' || next === menuView.name) {
-      closeMenu();
+    setRenameName(menuView.name);
+    setError(null);
+    closeMenu();
+    setRenaming(true);
+  }, [closeMenu, menuView]);
+
+  const submitRename = useCallback(async () => {
+    if (menuView === null) return;
+    const next = renameName.trim();
+    if (next === '' || next === menuView.name) {
+      setRenaming(false);
       return;
     }
-    await updateView(engine, menuView.id, { name: next });
-    closeMenu();
-  }, [closeMenu, engine, menuView]);
+    setRenaming(false);
+    await run('That view could not be renamed.', () =>
+      updateView(engine, menuView.id, { name: next }),
+    );
+  }, [engine, menuView, renameName, run]);
 
-  const removeView = useCallback(async () => {
+  const openRemove = useCallback(() => {
     if (menuView === null) return;
-    if (!window.confirm(`Delete “${menuView.name}”?`)) return;
-    await deleteView(engine, menuView.id);
+    setError(null);
     closeMenu();
+    setRemoving(true);
+  }, [closeMenu, menuView]);
+
+  const confirmRemove = useCallback(async () => {
+    if (menuView === null) return;
+    const ok = await run('That view could not be deleted.', () => deleteView(engine, menuView.id));
+    if (!ok) return;
+    setRemoving(false);
     void navigate(`${base}/issues`);
-  }, [base, closeMenu, engine, menuView, navigate]);
+  }, [base, engine, menuView, navigate, run]);
 
   const starred =
     menuView !== null &&
@@ -164,6 +222,15 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
         </NavLink>
       ))}
       <IconButton aria-label="New view" className={styles.newTab} icon="+" onClick={openCreate} />
+
+      {/* Beside the tabs rather than in a toast: the failure belongs to the row of tabs the
+          reader is looking at, and a toast is gone before a reorder is retried. Suppressed
+          while the delete dialog is up, which shows the same message in its own alert. */}
+      {error === null || removing ? null : (
+        <span className={styles.error} role="alert">
+          {error}
+        </span>
+      )}
 
       <Modal
         open={creating}
@@ -203,6 +270,54 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
         </form>
       </Modal>
 
+      <Modal
+        open={renaming}
+        onClose={() => setRenaming(false)}
+        title="Rename view"
+        description="Everyone with access to this project sees the new name."
+        initialFocus={renameRef}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRenaming(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => void submitRename()}
+              disabled={renameName.trim() === ''}
+            >
+              Rename view
+            </Button>
+          </>
+        }
+      >
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (renameName.trim() !== '') void submitRename();
+          }}
+        >
+          <Input
+            ref={renameRef}
+            label="View name"
+            value={renameName}
+            onChange={(event) => setRenameName(event.target.value)}
+          />
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={removing}
+        title={menuView === null ? 'Delete view' : `Delete ${menuView.name}?`}
+        consequence="The tab goes away for everyone on this project. The issues it filtered are untouched."
+        confirmLabel="Delete view"
+        destructive
+        busy={busy}
+        error={error ?? undefined}
+        onConfirm={() => void confirmRemove()}
+        onClose={() => setRemoving(false)}
+      />
+
       <Menu
         open={menuOpen}
         onClose={closeMenu}
@@ -219,8 +334,8 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
                   onSelect: () => void toggleStar(),
                 },
               ]),
-          { id: 'rename', label: 'Rename', onSelect: () => void renameView() },
-          { id: 'delete', label: 'Delete', onSelect: () => void removeView(), danger: true },
+          { id: 'rename', label: 'Rename', onSelect: openRename },
+          { id: 'delete', label: 'Delete', onSelect: openRemove, danger: true },
         ]}
       />
     </>

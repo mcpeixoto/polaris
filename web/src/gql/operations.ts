@@ -145,6 +145,44 @@ export const COMMENT_FIELDS = /* GraphQL */ `
   }
 `;
 
+export const REACTION_FIELDS = /* GraphQL */ `
+  fragment ReactionFields on Reaction {
+    id
+    workspaceId
+    commentId
+    userId
+    emoji
+    createdAt
+  }
+`;
+
+/**
+ * Adding a reaction that is already there succeeds with `version: 0` — nothing was
+ * written, so no delta is coming and the optimistic state should settle immediately
+ * rather than wait for one.
+ */
+export const ADD_REACTION = /* GraphQL */ `
+  ${REACTION_FIELDS}
+  mutation AddReaction($commentId: UUID!, $emoji: String!, $clientId: UUID!, $opId: UUID!) {
+    addReaction(commentId: $commentId, emoji: $emoji, clientId: $clientId, opId: $opId) {
+      version
+      reaction {
+        ...ReactionFields
+      }
+    }
+  }
+`;
+
+/** Removing one that is not there is also a success, with `version: 0` and the nil id. */
+export const REMOVE_REACTION = /* GraphQL */ `
+  mutation RemoveReaction($commentId: UUID!, $emoji: String!, $clientId: UUID!, $opId: UUID!) {
+    removeReaction(commentId: $commentId, emoji: $emoji, clientId: $clientId, opId: $opId) {
+      version
+      id
+    }
+  }
+`;
+
 export const ATTACHMENT_FIELDS = /* GraphQL */ `
   fragment AttachmentFields on Attachment {
     id
@@ -341,8 +379,8 @@ export const DELETE_ATTACHMENT = /* GraphQL */ `
 export const CREATE_TEAM = /* GraphQL */ `
   ${TEAM_FIELDS}
   ${STATE_FIELDS}
-  mutation CreateTeam($input: CreateTeamInput!) {
-    createTeam(input: $input) {
+  mutation CreateTeam($input: CreateTeamInput!, $clientId: UUID!, $opId: UUID!) {
+    createTeam(input: $input, clientId: $clientId, opId: $opId) {
       version
       team {
         ...TeamFields

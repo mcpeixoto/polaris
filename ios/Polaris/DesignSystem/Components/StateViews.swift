@@ -39,6 +39,10 @@ struct EmptyStateView: View {
                     .font(.system(size: 30, weight: .light))
                     .foregroundStyle(Theme.accentBright.opacity(0.8))
                     .padding(.bottom, 2)
+                    // Inside the combined group, VoiceOver announced the SF Symbol's name
+                    // ahead of the title. Its siblings — ErrorStateView, InlineErrorLabel —
+                    // both hide theirs.
+                    .accessibilityHidden(true)
                 Text(title)
                     .displayFont(20)
                     .foregroundStyle(Theme.textPrimary)
@@ -70,7 +74,7 @@ struct EmptyStateView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)
         .padding(.vertical, 30)
-        .background(Color.white.opacity(0.03))
+        .background(Theme.card)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)

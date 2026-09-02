@@ -205,6 +205,9 @@ function LabelRow({
   onUngroup?: () => void;
 }) {
   const [name, setName] = useState(row.name);
+  // Dragging through the colour picker fires an event per pixel; committing each one sent a
+  // mutation per pixel. The draft draws the swatch, and leaving the control writes once.
+  const [color, setColor] = useState<string | null>(null);
 
   const commitName = () => {
     const trimmed = name.trim();
@@ -236,8 +239,13 @@ function LabelRow({
           type="color"
           label={`Colour of ${row.name}`}
           hideLabel
-          value={row.color}
-          onChange={(event) => onEdit({ color: event.target.value })}
+          value={color ?? row.color}
+          onChange={(event) => setColor(event.target.value)}
+          onBlur={() => {
+            const next = color;
+            setColor(null);
+            if (next !== null && next !== row.color) onEdit({ color: next });
+          }}
         />
       </div>
       {row.isGroup ? <span className={styles.quiet}>Group</span> : <span />}

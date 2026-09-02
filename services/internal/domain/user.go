@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -96,18 +97,23 @@ type UpdateProfileInput struct {
 // from the activity feed.
 func (s *Service) UpdateProfile(ctx context.Context, p *authz.Principal, in UpdateProfileInput) (model.User, int64, error) {
 	if in.Name != nil {
-		trimmed := strings.TrimSpace(*in.Name)
-		if trimmed == "" {
-			return model.User{}, 0, platform.Validation("name", "name is required")
+		trimmed, err := validateDisplayName("name", *in.Name)
+		if err != nil {
+			return model.User{}, 0, err
 		}
 		in.Name = &trimmed
 	}
 	if in.DisplayName != nil {
-		trimmed := strings.TrimSpace(*in.DisplayName)
-		if trimmed == "" {
-			return model.User{}, 0, platform.Validation("displayName", "display name is required")
+		trimmed, err := validateDisplayName("displayName", *in.DisplayName)
+		if err != nil {
+			return model.User{}, 0, err
 		}
 		in.DisplayName = &trimmed
+	}
+	if in.Timezone != nil {
+		if err := validateTimezone(*in.Timezone); err != nil {
+			return model.User{}, 0, err
+		}
 	}
 
 	var out model.User
@@ -389,4 +395,26 @@ func (s *Service) ListWorkspacesForAccount(ctx context.Context, accountID uuid.U
 		})
 	}
 	return out, nil
+}
+
+// maxDisplayNameLength bounds a person's name. Generous for a real one and far short of
+// anything that would break a mention, an avatar initial or an activity-feed line.
+const maxDisplayNameLength = 128
+
+// validateDisplayName trims, refuses empty and bounds the length.
+//
+// Shared with the invite-acceptance path, which had neither check: applyInvite tested
+// `displayName == ""` WITHOUT trimming, so " " was accepted and produced a user who is
+// invisible in every mention, avatar and activity feed — on the one call a person makes
+// once, from an email link, and cannot easily redo.
+func validateDisplayName(field, raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", platform.Validation(field, "a name is required")
+	}
+	if len(trimmed) > maxDisplayNameLength {
+		return "", platform.Validation(field,
+			fmt.Sprintf("a name is at most %d characters", maxDisplayNameLength))
+	}
+	return trimmed, nil
 }

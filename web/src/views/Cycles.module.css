@@ -3,6 +3,21 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+/* The duration tokens collapse to 1ms under prefers-reduced-motion, which is the product's
+   answer for an entrance: it arrives, it just does not travel. */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {
@@ -115,6 +130,34 @@
   font-size: var(--font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The window you are in is the one the page is about, so it is the row that carries a
+   mark and a heavier name. Every other row is history or a plan. */
+.currentItem {
+  background: var(--accent-subtle);
+  box-shadow: inset 2px 0 0 0 var(--accent);
+}
+
+.currentItem .name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.currentItem .phase {
+  color: var(--accent-text);
+}
+
+.progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+
+.ratio {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 .count {

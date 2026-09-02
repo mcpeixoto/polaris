@@ -7,6 +7,7 @@ import type { Cycle, Team, UUID } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
 import { START_CYCLE_TODAY, UPDATE_CYCLE } from './operations';
+import { dayIn, startOfDayInstant } from './zone';
 
 export interface CycleCadence {
   readonly enabled?: boolean | undefined;
@@ -112,7 +113,11 @@ export async function startCycleToday(engine: SyncEngine, cycleId: UUID): Promis
   if (before === undefined) return;
 
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  // 12:00 AM in the *team's* zone, per the spec. Browser-local midnight was a third
+  // reckoning of the same day in one feature — the graph's, the input's and this one — so a
+  // cycle started from Lisbon and a cycle started from São Paulo began on different days.
+  const zone = engine.store.get('team', before.teamId)?.timezone ?? 'UTC';
+  const todayStart = new Date(startOfDayInstant(dayIn(now.getTime(), zone), zone)).toISOString();
   const durationMs = Date.parse(before.endsAt) - Date.parse(before.startsAt);
   const after: Cycle = {
     ...before,

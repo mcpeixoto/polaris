@@ -46,6 +46,20 @@ export interface IssueComposerSeed {
   readonly templateId?: UUID;
   /** A saved draft this seed is resuming. Submitting or discarding clears it. */
   readonly draftId?: UUID;
+  /**
+   * The URL's values that named nothing in this workspace, as prose the composer can show.
+   *
+   * A miss is still not an error — the issue is worth filing without the field — but it was
+   * previously also not visible, so `?status=Tood` opened a composer that looked exactly
+   * like a correct one and filed with the team default. Carried on the seed rather than
+   * returned beside it so that every caller which already passes a seed around passes the
+   * explanation with it.
+   */
+  readonly unresolved?: readonly string[];
+  /** Open with the template menu already up: the `Alt+C` entry point. */
+  readonly openTemplatePicker?: boolean;
+  /** Open filling the window rather than as a centred dialog: the `V` entry point. */
+  readonly fullScreen?: boolean;
 }
 
 const T_SHIRT: Readonly<Record<string, number>> = {
@@ -104,14 +118,21 @@ export function parseCreateURL(
  * Turns names, keys and "me" into ids the composer can set without thinking.
  *
  * Unknown names are dropped rather than failing the whole URL: a stale status name should
- * still create the issue, just without that field. The filer can see the empty picker.
+ * still create the issue, just without that field. What the filer cannot see is *which*
+ * field was dropped — an empty picker looks the same as a picker nobody filled in — so every
+ * miss is also written down on `seed.unresolved` for the composer to say out loud.
  */
 export function resolveCreateURL(
   store: Store,
   params: CreateURLParams,
   viewerId: UUID | null,
 ): IssueComposerSeed {
+  const unresolved: string[] = [];
+  /** "status “Tood”" — the field the URL used, and the value it asked for. */
+  const missed = (field: string, raw: string) => unresolved.push(`${field} \u201c${raw}\u201d`);
+
   const team = resolveTeam(store, params.team);
+  if (params.team !== undefined && team === undefined) missed('team', params.team);
   const seed: IssueComposerSeed = {
     ...(team === undefined ? null : { teamId: team.id, teamKey: team.key }),
     ...(params.title === undefined ? null : { title: params.title }),
@@ -129,13 +150,25 @@ export function resolveCreateURL(
   const scope = team ?? defaultTeam(store);
 
   const stateId = scope === undefined ? undefined : resolveState(store, scope.id, params.status);
+  if (params.status !== undefined && stateId === undefined) missed('status', params.status);
   const assigneeId = resolveAssignee(store, params.assignee, viewerId);
+  if (params.assignee !== undefined && assigneeId === undefined)
+    missed('assignee', params.assignee);
   const projectId = resolveProject(store, params.project, team?.id);
+  if (params.project !== undefined && projectId === undefined) missed('project', params.project);
   const cycleId = scope === undefined ? undefined : resolveCycle(store, scope.id, params.cycle);
+  if (params.cycle !== undefined && cycleId === undefined) missed('cycle', params.cycle);
   const templateId = resolveTemplate(store, params.template, team?.id);
-  const labelIds = resolveLabels(store, params.labels, team?.id);
+  if (params.template !== undefined && templateId === undefined)
+    missed('template', params.template);
+  const labels = resolveLabels(store, params.labels, team?.id);
+  for (const name of labels.missing) missed('label', name);
   const projectMilestoneId =
     projectId === undefined ? undefined : resolveMilestone(store, projectId, params.milestone);
+  // Only when the project resolved: a milestone belongs to a project, and reporting both
+  // halves of one broken link twice says nothing the first line did not.
+  if (params.milestone !== undefined && projectId !== undefined && projectMilestoneId === undefined)
+    missed('milestone', params.milestone);
 
   return {
     ...seed,
@@ -144,8 +177,9 @@ export function resolveCreateURL(
     ...(projectId === undefined ? null : { projectId }),
     ...(cycleId === undefined ? null : { cycleId }),
     ...(templateId === undefined ? null : { templateId }),
-    ...(labelIds === undefined ? null : { labelIds }),
+    ...(labels.ids.length === 0 ? null : { labelIds: labels.ids }),
     ...(projectMilestoneId === undefined ? null : { projectMilestoneId }),
+    ...(unresolved.length === 0 ? null : { unresolved }),
   };
 }
 
@@ -166,6 +200,7 @@ export function buildCreateURL(input: {
   readonly cycle?: string | undefined;
   readonly labels?: readonly string[] | undefined;
   readonly project?: string | undefined;
+  readonly milestone?: string | undefined;
   readonly template?: string | undefined;
 }): string {
   const path = input.teamKey ? `/team/${encodeURIComponent(input.teamKey)}/new` : '/new';
@@ -182,6 +217,7 @@ export function buildCreateURL(input: {
   if (input.labels !== undefined && input.labels.length > 0)
     query.set('labels', input.labels.join(','));
   if (input.project) query.set('project', input.project);
+  if (input.milestone) query.set('milestone', input.milestone);
   if (input.template) query.set('template', input.template);
   const encoded = query.toString();
   return encoded === '' ? path : `${path}?${encoded}`;
@@ -297,30 +333,40 @@ function resolveTemplate(
   return undefined;
 }
 
+/**
+ * The labels a comma-separated list names, and the names that matched nothing.
+ *
+ * Both halves, because a list is the one parameter that can be half right: `?labels=bug,plaform`
+ * used to apply "bug" and say nothing about the typo, which is indistinguishable from a URL
+ * that only ever asked for one label.
+ */
 function resolveLabels(
   store: Store,
   raw: string | undefined,
   teamId: UUID | undefined,
-): readonly UUID[] | undefined {
-  if (raw === undefined) return undefined;
+): { readonly ids: readonly UUID[]; readonly missing: readonly string[] } {
+  if (raw === undefined) return { ids: [], missing: [] };
   const names = raw
     .split(',')
     .map((part) => part.trim())
     .filter((part) => part !== '');
-  if (names.length === 0) return undefined;
   const ids: UUID[] = [];
+  const missing: string[] = [];
   for (const name of names) {
     const folded = name.toLowerCase();
+    let found: UUID | undefined;
     for (const label of store.labels.values()) {
       if (label.archivedAt !== undefined) continue;
       if (teamId !== undefined && label.teamId !== undefined && label.teamId !== teamId) continue;
       if (label.id === name || label.name.toLowerCase() === folded) {
-        ids.push(label.id);
+        found = label.id;
         break;
       }
     }
+    if (found === undefined) missing.push(name);
+    else ids.push(found);
   }
-  return ids.length === 0 ? undefined : ids;
+  return { ids, missing };
 }
 
 function resolveMilestone(

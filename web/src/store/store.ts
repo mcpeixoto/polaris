@@ -105,6 +105,16 @@ import {
  * answer changes and at no other time.
  */
 
+/**
+ * How many tombstones are kept per entity type. See `forgotten`.
+ *
+ * A tombstone exists to answer one question — "did this session watch that row go away?" —
+ * for a read that was already in flight when the delete arrived. That is a window of
+ * seconds, and a thousand ids of one type covers any burst of deletes a workspace can
+ * produce inside it while the cost stays fixed for a tab left open for a week.
+ */
+const MAX_TOMBSTONES_PER_TYPE = 1_000;
+
 export interface StoreOptions {
   /** Omit for a store with no durable backing — the shape used by tests and previews. */
   readonly db?: PolarisDB | null | undefined;
@@ -275,6 +285,7 @@ export class Store {
     attachment: new Map(),
     document: new Map(),
     comment: new Map(),
+    reaction: new Map(),
     issueSubscription: new Map(),
     notification: new Map(),
     view: new Map(),
@@ -375,6 +386,12 @@ export class Store {
    * replica that already has the delete in it, so the tombstone has nothing to protect —
    * and a tombstone that outlived its reason would be a row this client could never see
    * again.
+   *
+   * Bounded per type, oldest first. A tombstone only has to outlive an in-flight network
+   * read — seconds — and this is an app people leave open for days: the inbox alone emits
+   * deletes continuously, so an unbounded set is a leak that grows for as long as the tab
+   * lives. An id evicted from here is indistinguishable from one that was never recorded,
+   * which is the same answer the client would have given a minute later anyway.
    */
   private readonly forgotten = new Map<EntityType, Set<UUID>>();
 
@@ -382,6 +399,14 @@ export class Store {
   private readonly db: PolarisDB | null;
   private readonly onPersistError: (error: unknown) => void;
   private persistQueue: Promise<void> = Promise.resolve();
+  /**
+   * The last durable write that failed, if any.
+   *
+   * Kept because the in-memory store carries on regardless: without a record of it, a
+   * `QuotaExceededError` is a silent divergence between what the user is looking at and what
+   * survives a reload, and the first they hear of it is their afternoon's work missing.
+   */
+  private lastPersistFailure: unknown = null;
 
   private currentVersion = 0;
   private bootstrappedAt: Timestamp | null = null;
@@ -975,8 +1000,21 @@ export class Store {
    * changed would silently lose edits the user watched succeed.
    */
   async beginBootstrap(): Promise<void> {
+    // Drained first, then chained. Issuing the clear outside `persistQueue` — which is what
+    // this used to do — let a batch already queued (the last delta's puts, an optimistic
+    // patch) commit *after* the wipe and reinstate rows the bootstrap was about to replace,
+    // including the ones a permissions resync exists to revoke.
+    await this.whenPersisted();
     this.reset();
-    await this.db?.clearEntities();
+    const db = this.db;
+    if (db === null) return;
+    this.persistQueue = this.persistQueue
+      .then(() => db.clearEntities())
+      .catch((error: unknown) => {
+        this.lastPersistFailure = error;
+        this.onPersistError(error);
+      });
+    await this.persistQueue;
   }
 
   /**
@@ -1002,9 +1040,13 @@ export class Store {
    * than a complete one.
    */
   async finishBootstrap(version: number): Promise<void> {
-    this.currentVersion = version;
+    // Never backwards. The snapshot's version is where the stream was consistent as of, and
+    // anything the store has already applied past it — a delta that arrived while the pages
+    // were still streaming — would otherwise be un-remembered, so the socket would resume
+    // from before it and the batch would be requested and applied twice, or lost.
+    this.currentVersion = Math.max(version, this.currentVersion);
     this.bootstrappedAt = new Date().toISOString();
-    this.persist({ meta: this.metaAt(version) });
+    this.persist({ meta: this.metaAt(this.currentVersion) });
     await this.whenPersisted();
     this.notify(new Set(ENTITY_TYPES));
   }
@@ -1132,6 +1174,22 @@ export class Store {
     return this.persistQueue;
   }
 
+  /**
+   * Whether every durable write so far has landed.
+   *
+   * False means the replica on disk is behind the one on screen and will stay behind: a
+   * caller that renders anything about sync state should say so rather than let the user
+   * keep typing into memory.
+   */
+  get persistenceHealthy(): boolean {
+    return this.lastPersistFailure === null;
+  }
+
+  /** What the last failed durable write threw. Null while nothing has failed. */
+  get persistenceFailure(): unknown {
+    return this.lastPersistFailure;
+  }
+
   /** Flushes pending writes and releases the database handle. */
   async close(): Promise<void> {
     await this.whenPersisted();
@@ -1222,9 +1280,22 @@ export class Store {
    * one where they are still holding the row and the store is not.
    */
   private entomb(type: EntityType, id: UUID, touched: Set<EntityType>): void {
-    const seen = this.forgotten.get(type);
-    if (seen === undefined) this.forgotten.set(type, new Set([id]));
-    else seen.add(id);
+    let seen = this.forgotten.get(type);
+    if (seen === undefined) {
+      seen = new Set();
+      this.forgotten.set(type, seen);
+    }
+    // Re-recorded rather than merely kept, so a repeat delete moves the id back to the young
+    // end of the queue instead of being evicted on its original insertion.
+    seen.delete(id);
+    seen.add(id);
+    // A `Set` iterates in insertion order, so this drops the oldest — the ids least likely
+    // to still be held by a read that has not landed yet.
+    while (seen.size > MAX_TOMBSTONES_PER_TYPE) {
+      const oldest = seen.values().next();
+      if (oldest.done === true) break;
+      seen.delete(oldest.value);
+    }
     touched.add(type);
   }
 
@@ -2025,6 +2096,7 @@ export class Store {
     this.persistQueue = this.persistQueue
       .then(() => db.write(batch))
       .catch((error: unknown) => {
+        this.lastPersistFailure = error;
         this.onPersistError(error);
       });
   }

@@ -80,8 +80,8 @@
   margin-bottom: var(--space-4);
   padding: var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
 }
 
 .failureText {
@@ -186,6 +186,19 @@
 }
 
 /*
+ * A refused enable/disable is a fact about one row. It sits in the row's own actions cell
+ * rather than in the page banner, because the page banner is about the load and its retry
+ * re-runs the fetch, not the toggle that just failed.
+ */
+.rowError {
+  margin: var(--space-1) 0 0;
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  text-align: end;
+}
+
+/*
  * Available to a screen reader, absent from the page. `display: none` would take it out of
  * the accessibility tree as well, which is the whole thing this class exists not to do — the
  * actions column needs a header a table navigator can announce and a sighted reader does not
@@ -249,8 +262,8 @@
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }

@@ -48,6 +48,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -156,12 +157,20 @@ const DIRECTION_LABELS: Readonly<Record<DisplayDirection, string>> = {
   desc: 'Descending',
 };
 
-const PROPERTY_LABELS: Readonly<Record<DisplayProperty, string>> = {
+/** Exported so a test can assert that nothing a URL can carry is missing a word here. */
+export const PROPERTY_LABELS: Readonly<Record<DisplayProperty, string>> = {
   priority: 'Priority',
   assignee: 'Assignee',
   labels: 'Labels',
   estimate: 'Estimate',
   dueDate: 'Due date',
+  state: 'Status',
+  team: 'Team',
+  project: 'Project',
+  cycle: 'Cycle',
+  createdAt: 'Created',
+  updatedAt: 'Updated',
+  progress: 'Progress',
 };
 
 /**
@@ -200,7 +209,52 @@ const PROPERTY_ORDER: readonly DisplayProperty[] = [
   'labels',
   'estimate',
   'dueDate',
+  'state',
+  'team',
+  'project',
+  'cycle',
+  'createdAt',
+  'updatedAt',
+  'progress',
 ];
+
+/**
+ * What the browser will put focus on, as a selector. The same list Modal keeps, and for the
+ * same reason: `[tabindex^="-"]` rather than `[tabindex="-1"]`, because any negative value
+ * is programmatic-focus only and `-2` is legal.
+ *
+ * Copied rather than imported because Modal does not export it, and a shared focus module is
+ * a refactor of that component rather than of this one.
+ */
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'area[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'summary',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[tabindex]:not([tabindex^="-"])',
+].join(',');
+
+/**
+ * The focusable elements inside the panel, in tab order.
+ *
+ * Visibility is consulted through `checkVisibility` where the host has it and skipped
+ * otherwise — every other way of asking reports "invisible" for the whole document under
+ * jsdom, which would leave the trap with nothing to trap and the tests unable to see it fail.
+ */
+function focusableWithin(root: HTMLElement): HTMLElement[] {
+  const found: HTMLElement[] = [];
+  for (const element of root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)) {
+    if (element.closest('[inert],[aria-hidden="true"]') !== null) continue;
+    const visible = (element as { checkVisibility?: () => boolean }).checkVisibility;
+    if (typeof visible === 'function' && !visible.call(element)) continue;
+    found.push(element);
+  }
+  return found;
+}
 
 /** Kept off the viewport edge by this much when the panel has to be shifted to fit. */
 const VIEWPORT_MARGIN_PX = 8;
@@ -247,12 +301,24 @@ export function orderingNote(orderBy: DisplayOrderBy, groupBy: DisplayGroupBy): 
   return null;
 }
 
+/**
+ * The sub-grouping as it means anything, which is not always what the options hold.
+ *
+ * A view whose sub-grouping is the dimension it is already grouped by is not sub-grouped at
+ * all — every swimlane would hold the rows of the header above it. The menu cannot produce
+ * that pairing, but a hand-edited link can, so it is read as "none" here rather than drawn
+ * as a choice nobody can have made and counted as a change from the default.
+ */
+function subGroupValue(display: Required<DisplayOptions>): DisplayGroupBy {
+  return display.subGroupBy === display.groupBy ? 'none' : display.subGroupBy;
+}
+
 /** Whether two property sets are the same choice, order included — see `onProperty`. */
 function sameProperties(a: readonly DisplayProperty[], b: readonly DisplayProperty[]): boolean {
   return a.length === b.length && a.every((value, index) => b[index] === value);
 }
 
-/** How many of the seven options are not what a fresh view would have shown. */
+/** How many of the options are not what a fresh view would have shown. */
 function changedCount(
   display: Required<DisplayOptions>,
   defaults: Required<DisplayOptions>,
@@ -260,6 +326,8 @@ function changedCount(
   let count = 0;
   if (display.layout !== defaults.layout) count++;
   if (display.groupBy !== defaults.groupBy) count++;
+  if (subGroupValue(display) !== subGroupValue(defaults)) count++;
+  if (display.showEmptyGroups !== defaults.showEmptyGroups) count++;
   if (display.orderBy !== defaults.orderBy) count++;
   if (display.direction !== defaults.direction) count++;
   if (display.showSubIssues !== defaults.showSubIssues) count++;
@@ -404,9 +472,49 @@ export function DisplayMenu({
   );
 
   const changed = changedCount(display, defaults);
+  const subGroup = subGroupValue(display);
   const note = orderingNote(display.orderBy, display.groupBy);
 
   if (!present) return null;
+
+  /**
+   * Tab, kept inside the panel.
+   *
+   * It is a `role="dialog"` and it took the focus on opening, so Tab out of the last control
+   * dropped a keyboard user behind a surface they cannot see past into the list this panel is
+   * drawn over — which is worse than a plain popover, because the panel is still open and
+   * every further Tab walks further away from the way back. Only the two edges are handled:
+   * everything between them is the browser's own order, which already accounts for tabindex,
+   * disabled controls and anything the selector cannot see.
+   *
+   * Not `aria-modal`, and not a scroll lock — the list behind stays readable, which is the
+   * whole point of a live preview. Escape is still the registered action, and still the way
+   * out.
+   */
+  const trapTab = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Tab') return;
+    const panel = panelRef.current;
+    if (panel === null) return;
+
+    const focusable = focusableWithin(panel);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (first === undefined || last === undefined) {
+      // Nothing to move to, so Tab must not move: the browser's next stop is the page behind.
+      event.preventDefault();
+      panel.focus();
+      return;
+    }
+
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || active === panel)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   const style: CSSProperties = point === null ? {} : { top: point.top, left: point.left };
   const layoutLabelId = `${baseId}-layout`;
@@ -424,6 +532,11 @@ export function DisplayMenu({
       className={[styles.panel, className].filter(Boolean).join(' ')}
       style={style}
       tabIndex={-1}
+      onKeyDown={
+        /* keymap-lint-allow: a focus trap intercepts Tab before the surrounding context
+           sees it, which is the one thing the registry cannot express — see Modal. */
+        trapTab
+      }
       {...exitProps}
     >
       <div className={styles.head}>
@@ -497,6 +610,39 @@ export function DisplayMenu({
         ))}
       </Select>
 
+      {/* The swimlane inside each group. Offered second because it is a refinement of the
+          answer above it: "status, then by assignee" is one sentence read downwards. */}
+      <Select
+        label="Sub-grouping"
+        className={styles.section}
+        value={subGroup}
+        // Nothing to slice when the list is one run of rows, and a swimlane inside no group
+        // is simply a grouping — which the control above already is.
+        disabled={display.groupBy === 'none'}
+        hint={
+          display.groupBy === 'none'
+            ? 'Choose a grouping first'
+            : subGroup === subGroupValue(defaults)
+              ? undefined
+              : `Default: ${GROUP_LABELS[subGroupValue(defaults)]}`
+        }
+        onChange={(event) => {
+          const next = GROUP_ORDER.find((candidate) => candidate === event.target.value);
+          if (next !== undefined) onChange({ subGroupBy: next });
+        }}
+      >
+        {/* "No sub-grouping" rather than GROUP_LABELS' "No grouping": the same value, and a
+            different sentence, because this select is answering a different question. */}
+        <option value="none">No sub-grouping</option>
+        {GROUP_ORDER.filter((value) => value !== 'none' && value !== display.groupBy).map(
+          (value) => (
+            <option key={value} value={value}>
+              {GROUP_LABELS[value]}
+            </option>
+          ),
+        )}
+      </Select>
+
       <Select
         label="Ordering"
         className={styles.section}
@@ -567,6 +713,18 @@ export function DisplayMenu({
           <p className={styles.changed}>
             Default: {defaults.showCompleted ? 'shown' : 'hidden'}. Canceled work is not affected
             either way — it is not finished work.
+          </p>
+        )}
+        <Checkbox
+          label="Show empty groups"
+          checked={display.showEmptyGroups}
+          onChange={(event) => onChange({ showEmptyGroups: event.target.checked })}
+        />
+        {display.showEmptyGroups === defaults.showEmptyGroups ? null : (
+          <p className={styles.changed}>
+            Default: {defaults.showEmptyGroups ? 'shown' : 'hidden'}. An empty status column is
+            somewhere to drop work; an assignee with nothing in this view is a name the list has no
+            reason to carry.
           </p>
         )}
         {triage ? (

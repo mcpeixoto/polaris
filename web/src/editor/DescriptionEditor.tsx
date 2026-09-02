@@ -14,6 +14,8 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from 'react';
 
 import { useActions, useKeyContext } from '~/app/keymap';
@@ -26,7 +28,18 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Comment, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 
-import { hitTest, isInlineRoot, paint, placeAnchors, type CommentAnchor } from './marks';
+import { insertBlock, type BlockKind } from './blocks';
+import { applyEnterRule, applySpaceRule, type EditorState } from './inputRules';
+import { Markdown } from './Markdown';
+import {
+  hitTest,
+  isInlineRoot,
+  paint,
+  placeAnchors,
+  type CommentAnchor,
+  type TextSegment,
+} from './marks';
+import { SlashMenu } from './SlashMenu';
 import styles from './DescriptionEditor.module.css';
 
 interface DescriptionEditorProps {
@@ -54,6 +67,8 @@ export function DescriptionEditor({
 }: DescriptionEditorProps) {
   const engine = useEngine();
   const areaRef = useRef<HTMLTextAreaElement | null>(null);
+  const backdropRef = useRef<HTMLPreElement | null>(null);
+  const slashAnchorRef = useRef<HTMLSpanElement | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
   const [selection, setSelection] = useState<Draft | null>(null);
   const [pending, setPending] = useState<Draft | null>(null);
@@ -62,6 +77,8 @@ export function DescriptionEditor({
   const [composer, setComposer] = useState('');
   const [composerFocused, setComposerFocused] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
+  /** Offset of the `/` that opened the block menu, or null when it is closed. */
+  const [slashAt, setSlashAt] = useState<number | null>(null);
 
   const text = draft ?? description;
 
@@ -153,6 +170,25 @@ export function DescriptionEditor({
   // undoing a sentence matters most.
   useNativeValue(areaRef, text);
 
+  /**
+   * Puts the paint layer where the text is.
+   *
+   * Past the 30-line ceiling the textarea scrolls inside itself while `.backdrop` is
+   * `inset: 0` with `overflow: hidden`, so without this the highlights stay pinned to the
+   * top of the field and every mark lands on the wrong words — and `hitTest`, which reads a
+   * caret offset the reader chose by clicking on the *painted* span, then opens the wrong
+   * thread. It is called from the scroll event and again from the resize layout effect,
+   * because a re-render resets the `<pre>`'s own scroll position to zero while the textarea
+   * keeps its own.
+   */
+  const syncScroll = useCallback(() => {
+    const element = areaRef.current;
+    const backdrop = backdropRef.current;
+    if (element === null || backdrop === null) return;
+    backdrop.scrollTop = element.scrollTop;
+    backdrop.scrollLeft = element.scrollLeft;
+  }, []);
+
   const resize = useCallback(() => {
     const element = areaRef.current;
     if (element === null) return;
@@ -168,7 +204,8 @@ export function DescriptionEditor({
       height = Math.min(height, ceiling);
     }
     element.style.height = `${height}px`;
-  }, []);
+    syncScroll();
+  }, [syncScroll]);
 
   useLayoutEffect(resize, [resize, text]);
 
@@ -179,6 +216,92 @@ export function DescriptionEditor({
     const end = element.selectionEnd;
     if (end <= start) return null;
     return { start, end, quote: element.value.slice(start, end) };
+  };
+
+  /**
+   * Write an edit the browser did not make.
+   *
+   * The element is written first and the state second, so that `useNativeValue` finds the
+   * DOM already holding what the prop says and leaves it alone — which is what keeps the
+   * caret where this puts it rather than where the last commit left it. The cost is one
+   * undo entry per rule, which is the right grain anyway: ⌘Z after Enter-continues-a-list
+   * should take back the bullet, not the paragraph above it.
+   */
+  const applyEdit = (next: EditorState) => {
+    const element = areaRef.current;
+    if (element === null) return;
+    element.value = next.text;
+    element.setSelectionRange(next.caret, next.caret);
+    setDraft(next.text);
+    flight.current = { text: next.text, base: description, save: onSave };
+  };
+
+  const stateOf = (): EditorState | null => {
+    const element = areaRef.current;
+    if (element === null || element.selectionStart !== element.selectionEnd) return null;
+    return { text: element.value, caret: element.selectionStart };
+  };
+
+  const closeSlash = () => {
+    setSlashAt(null);
+    // Focus is handed back here rather than left to `Menu`'s own restore, because the menu
+    // is anchored to a marker span in the aria-hidden paint layer: a span cannot take focus,
+    // so the restore would drop the writer onto `<body>` mid-sentence.
+    areaRef.current?.focus();
+  };
+
+  const chooseBlock = (kind: BlockKind) => {
+    const from = slashAt;
+    const state = stateOf();
+    setSlashAt(null);
+    if (from === null || state === null) return;
+    applyEdit(insertBlock(state, from, kind));
+    areaRef.current?.focus();
+  };
+
+  /**
+   * The three keystrokes that are typing rather than commands.
+   *
+   * Local, and deliberately so: the keymap registry is for actions that belong in the
+   * command menu and the help overlay, and "the space that turns `*` into a bullet" is
+   * neither — it is an input rule, meaningful only at one caret position in one field, and
+   * `app/keymap.tsx` returns early for a TEXTAREA target precisely so ordinary typing
+   * reaches the element. `web/src/editor/` is on the allowlist in scripts/lint-keymap.sh for
+   * this category. Everything here that *is* a command — commenting on a selection, posting,
+   * closing a thread — is registered below.
+   */
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const state = stateOf();
+    if (state === null) return;
+
+    if (event.key === '/') {
+      // Only a `/` that starts a word opens the menu, so `and/or` and a URL path stay text.
+      const before = state.text.slice(state.caret - 1, state.caret);
+      if (state.caret !== 0 && before !== '' && !/\s/.test(before)) return;
+      event.preventDefault();
+      applyEdit({
+        text: `${state.text.slice(0, state.caret)}/${state.text.slice(state.caret)}`,
+        caret: state.caret + 1,
+      });
+      setSlashAt(state.caret);
+      return;
+    }
+
+    if (event.key === 'Enter' && !event.shiftKey) {
+      const next = applyEnterRule(state);
+      if (next === null) return;
+      event.preventDefault();
+      applyEdit(next);
+      return;
+    }
+
+    if (event.key === ' ') {
+      const next = applySpaceRule(state);
+      if (next === null) return;
+      event.preventDefault();
+      applyEdit(next);
+    }
   };
 
   const startComment = (span: Draft | null) => {
@@ -305,6 +428,59 @@ export function DescriptionEditor({
     [enterSubmits, pending, open, composer, issueId, viewerId],
   );
 
+  /**
+   * The paint layer, with a zero-width marker spliced in at the `/` that opened the block
+   * menu.
+   *
+   * The menu belongs at the caret rather than at the foot of a thirty-line field, and this
+   * `<pre>` is already a character-exact mirror of the textarea — same font, same padding,
+   * same wrapping — so an empty inline-block at the right offset is a caret rectangle for
+   * free, with no second measurement pass and no font metrics in this file.
+   */
+  const painted = useMemo(() => {
+    const renderSegment = (segment: TextSegment, body: string, key: string): ReactNode => {
+      if (segment.commentIds.length === 0) return body;
+      const active = open !== null && segment.commentIds.includes(open.id);
+      return (
+        <mark
+          key={key}
+          className={[
+            styles.mark,
+            segment.resolved ? styles.markResolved : null,
+            active ? styles.markActive : null,
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {body}
+        </mark>
+      );
+    };
+
+    const marker = <span key="slash-anchor" ref={slashAnchorRef} className={styles.slashAnchor} />;
+    const nodes: ReactNode[] = [];
+    let at = 0;
+    let placed = slashAt === null;
+    segments.forEach((segment, index) => {
+      const end = at + segment.text.length;
+      if (!placed && slashAt !== null && slashAt > at && slashAt < end) {
+        nodes.push(renderSegment(segment, segment.text.slice(0, slashAt - at), `${index}-a`));
+        nodes.push(marker);
+        nodes.push(renderSegment(segment, segment.text.slice(slashAt - at), `${index}-b`));
+        placed = true;
+      } else {
+        if (!placed && slashAt === at) {
+          nodes.push(marker);
+          placed = true;
+        }
+        nodes.push(renderSegment(segment, segment.text, `${index}`));
+      }
+      at = end;
+    });
+    if (!placed) nodes.push(marker);
+    return nodes;
+  }, [segments, open, slashAt]);
+
   return (
     <div className={styles.wrap}>
       {resolvedCount > 0 ? (
@@ -318,37 +494,25 @@ export function DescriptionEditor({
       ) : null}
 
       <div className={styles.frame}>
-        <pre className={styles.backdrop} aria-hidden="true">
-          {segments.map((segment, index) => {
-            if (segment.commentIds.length === 0) return segment.text;
-            const active = open !== null && segment.commentIds.includes(open.id);
-            return (
-              <mark
-                key={`${segment.commentIds.join('-')}-${index}`}
-                className={[
-                  styles.mark,
-                  segment.resolved ? styles.markResolved : null,
-                  active ? styles.markActive : null,
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                {segment.text}
-              </mark>
-            );
-          })}
+        <pre ref={backdropRef} className={styles.backdrop} aria-hidden="true">
+          {painted}
         </pre>
         <textarea
           ref={areaRef}
           className={styles.input}
           aria-label="Description"
           placeholder="Add a description…"
-          onFocus={() => setDraft(description)}
+          // Seeded only when there is no draft yet. Refocusing a field that is already being
+          // edited — coming back from the block menu, for one — must not throw the typing
+          // away and reinstate the last saved text.
+          onFocus={() => setDraft((current) => current ?? description)}
           onChange={(event) => {
             const next = event.target.value;
             setDraft(next);
             flight.current = { text: next, base: description, save: onSave };
           }}
+          onKeyDown={onKeyDown}
+          onScroll={syncScroll}
           onSelect={() => setSelection(readSelection())}
           onMouseUp={() => {
             const span = readSelection();
@@ -363,6 +527,11 @@ export function DescriptionEditor({
             }
           }}
           onBlur={() => {
+            // The block menu takes focus for as long as it is open, and that is not the
+            // writer leaving the field. Saving here would also hand `useNativeValue` the
+            // last *saved* description while the caret is still in the typed one, which puts
+            // the text back a paragraph the moment a block is chosen.
+            if (slashAt !== null) return;
             const next = draft;
             setDraft(null);
             flight.current = null;
@@ -370,6 +539,13 @@ export function DescriptionEditor({
           }}
         />
       </div>
+
+      <SlashMenu
+        open={slashAt !== null}
+        onClose={closeSlash}
+        trigger={slashAnchorRef}
+        onInsert={chooseBlock}
+      />
 
       {selection !== null && pending === null ? (
         <div className={styles.toolbar}>
@@ -436,7 +612,7 @@ export function DescriptionEditor({
                     {when(comment.createdAt)}
                   </time>
                 </div>
-                <p className={styles.body}>{comment.body}</p>
+                <Markdown className={styles.body} text={comment.body} />
               </li>
             ))}
           </ol>

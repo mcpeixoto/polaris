@@ -132,6 +132,58 @@ func (q *Queries) ListIssueHistory(ctx context.Context, issueID uuid.UUID) ([]Is
 	return items, nil
 }
 
+const listIssueHistoryForIssues = `-- name: ListIssueHistoryForIssues :many
+SELECT h.id, h.workspace_id, h.issue_id, h.actor_type, h.actor_id, h.kind,
+       h.from_value, h.to_value, h.grouped_at, h.created_at
+FROM issue_history h
+JOIN issue i ON i.id = h.issue_id
+JOIN team  t ON t.id = i.team_id
+WHERE h.issue_id = ANY($1::uuid[])
+  AND h.workspace_id = $2
+  AND (NOT t.private OR t.id = ANY($3::uuid[]))
+ORDER BY h.issue_id, h.created_at
+`
+
+type ListIssueHistoryForIssuesParams struct {
+	IssueIds    []uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamIds     []uuid.UUID
+}
+
+// ListIssueHistoryForIssues is ListIssueHistory for a whole page of issues at once, for the
+// reason ListCommentsForIssues gives: the API hydrates a list in one pass, and a per-issue
+// read there is three queries per visible row.
+func (q *Queries) ListIssueHistoryForIssues(ctx context.Context, arg ListIssueHistoryForIssuesParams) ([]IssueHistory, error) {
+	rows, err := q.db.Query(ctx, listIssueHistoryForIssues, arg.IssueIds, arg.WorkspaceID, arg.TeamIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueHistory{}
+	for rows.Next() {
+		var i IssueHistory
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.Kind,
+			&i.FromValue,
+			&i.ToValue,
+			&i.GroupedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateIssueHistoryTarget = `-- name: UpdateIssueHistoryTarget :exec
 UPDATE issue_history SET to_value = $1, grouped_at = now()
 WHERE id = $2

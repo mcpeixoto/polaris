@@ -1,0 +1,151 @@
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Drawn like a secondary Button — one affordance for the row — with the value as its glyph. */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.trigger:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.current {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+}
+
+.value {
+  line-height: 1;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  animation: panelIn var(--duration-fast) var(--ease-out);
+}
+
+/* Reduced motion is answered at the token: --duration-fast collapses to 1ms. */
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(8, var(--control-height-md));
+  gap: var(--space-1);
+}
+
+/*
+ * A swatch is a button and is drawn as one: a hairline so a pale colour still has an edge
+ * against the page, and the pressed state carried by a ring rather than by the fill, which
+ * is already spoken for by the value itself.
+ */
+.swatch {
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+  padding: 0;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.swatch[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 2px var(--bg-primary),
+    0 0 0 4px var(--text-primary);
+}
+
+.swatch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.custom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Seven characters and a hash. A full-width box for eight glyphs reads as a prose field. */
+.hex {
+  width: 11ch;
+  font-family: var(--font-mono);
+  text-transform: lowercase;
+}
+
+.native {
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.native:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * A warning, not a refusal. The workspace decides its own colours; this only says what the
+ * consequence is, once, in words rather than by colouring itself.
+ */
+.warning {
+  margin: 0;
+  max-width: 48ch;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

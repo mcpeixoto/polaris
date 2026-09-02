@@ -24,6 +24,11 @@ on:
   pull_request:
     paths:
       - 'desktop/**'
+      # The renderer too, and not for symmetry. The smoke test is the only check that catches
+      # a CSP violation, and a CSP violation is a *renderer* change — a new font host, a new
+      # connect-src target, an inline worker. Without this the one check that can fail on it
+      # only runs after the merge, on main, in a workflow nobody is watching.
+      - 'web/**'
       - '.github/workflows/desktop.yml'
   workflow_dispatch:
 

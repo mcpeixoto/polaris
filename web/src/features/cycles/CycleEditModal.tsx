@@ -1,34 +1,55 @@
 /**
  * Edit a cycle's name, description, and — depending on phase — its dates.
+ *
+ * The dates are the hard part, and both halves of the problem are timezone-shaped. A
+ * `<input type="date">` speaks calendar days and the store speaks instants, so the
+ * conversion happens in the team's zone in both directions: reading a UTC calendar date out
+ * of the instant made a no-op edit move the window by a day for every reader west of
+ * Greenwich, and pasting the chosen day onto the stored time-of-day moved it back the other
+ * way for everybody east.
+ *
+ * The dialog also refuses an end that is not after its start, and stays open when the write
+ * is refused. It used to do neither: an inverted window collapsed the cycle graph to a
+ * single point, and the caller wrapped every save in an empty catch, so a rejected edit
+ * closed the dialog and looked like it had worked.
  */
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { Button, Input, Modal } from '~/components';
 import type { Cycle } from '~/store';
+import { ApiError } from '~/sync/api';
 
+import { dayIn, withDay } from './zone';
 import styles from './CycleEditModal.module.css';
 
 export interface CycleEditModalProps {
   open: boolean;
   cycle: Cycle | null;
   phase: 'Current' | 'Upcoming' | 'Previous';
+  /** The team's zone: the one the cycle's days are reckoned in. */
+  timezone: string;
   /** Dates follow a parent team; only name and description stay editable. */
   datesLocked?: boolean | undefined;
   onClose: () => void;
+  /**
+   * Performs the write. Rejecting keeps the dialog open with the reason on it, so the
+   * caller hands back the mutation's promise rather than swallowing it.
+   */
   onSave: (edit: {
     name: string;
     description: string;
     clearDescription: boolean;
     startsAt?: string;
     endsAt?: string;
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 export function CycleEditModal({
   open,
   cycle,
   phase,
+  timezone,
   datesLocked = false,
   onClose,
   onSave,
@@ -38,15 +59,20 @@ export function CycleEditModal({
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [dateError, setDateError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const cycleId = cycle?.id ?? null;
   useEffect(() => {
     if (cycle === null) return;
     setName(cycle.name);
     setDescription(cycle.description ?? '');
-    setStartDate(toDateInput(cycle.startsAt));
-    setEndDate(toDateInput(cycle.endsAt));
-  }, [cycleId, cycle]);
+    setStartDate(dayIn(cycle.startsAt, timezone));
+    setEndDate(dayIn(cycle.endsAt, timezone));
+    setDateError(null);
+    setError(null);
+  }, [cycleId, cycle, timezone]);
 
   if (cycle === null) return null;
 
@@ -63,13 +89,35 @@ export function CycleEditModal({
       description: description.trim(),
       clearDescription: description.trim() === '',
     };
-    if (canEditStart && startDate !== toDateInput(cycle.startsAt)) {
-      edit.startsAt = mergeDate(startDate, cycle.startsAt);
+    if (canEditStart && startDate !== dayIn(cycle.startsAt, timezone)) {
+      edit.startsAt = withDay(startDate, cycle.startsAt, timezone);
     }
-    if (canEditEnd && endDate !== toDateInput(cycle.endsAt)) {
-      edit.endsAt = mergeDate(endDate, cycle.endsAt);
+    if (canEditEnd && endDate !== dayIn(cycle.endsAt, timezone)) {
+      edit.endsAt = withDay(endDate, cycle.endsAt, timezone);
     }
-    onSave(edit);
+
+    const start = Date.parse(edit.startsAt ?? cycle.startsAt);
+    const end = Date.parse(edit.endsAt ?? cycle.endsAt);
+    if (end <= start) {
+      setDateError('The end has to come after the start.');
+      return;
+    }
+    setDateError(null);
+
+    setBusy(true);
+    setError(null);
+    void Promise.resolve()
+      .then(() => onSave(edit))
+      .then(
+        () => {
+          setBusy(false);
+          onClose();
+        },
+        (cause: unknown) => {
+          setBusy(false);
+          setError(cause instanceof ApiError ? cause.message : 'Could not save this cycle.');
+        },
+      );
   };
 
   return (
@@ -97,6 +145,7 @@ export function CycleEditModal({
               say what happens when you press return. */}
           <Button
             variant="primary"
+            loading={busy}
             onClick={() => nameRef.current?.form?.requestSubmit()}
             disabled={name.trim() === ''}
           >
@@ -122,7 +171,10 @@ export function CycleEditModal({
             label="Starts"
             type="date"
             value={startDate}
-            onChange={(event) => setStartDate(event.target.value)}
+            onChange={(event) => {
+              setStartDate(event.target.value);
+              setDateError(null);
+            }}
           />
         ) : null}
         {canEditEnd ? (
@@ -130,21 +182,21 @@ export function CycleEditModal({
             label="Ends"
             type="date"
             value={endDate}
-            onChange={(event) => setEndDate(event.target.value)}
+            error={dateError ?? undefined}
+            onChange={(event) => {
+              setEndDate(event.target.value);
+              setDateError(null);
+            }}
           />
         ) : null}
+        {error === null ? null : (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        )}
       </form>
     </Modal>
   );
-}
-
-function toDateInput(iso: string): string {
-  return iso.slice(0, 10);
-}
-
-/** Keep the time-of-day from the existing instant; swap the calendar date from the input. */
-function mergeDate(date: string, templateIso: string): string {
-  return `${date}${templateIso.slice(10)}`;
 }
 
 export function phaseOf(cycle: Cycle, now: number): 'Current' | 'Upcoming' | 'Previous' {

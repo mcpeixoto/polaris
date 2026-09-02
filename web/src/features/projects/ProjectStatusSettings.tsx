@@ -157,6 +157,10 @@ function StatusRow({
   onArchive: () => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  // The colour input fires on every pixel of a drag through the picker, and each of those
+  // was a mutation with an optimistic patch broadcast to every client. The swatch follows
+  // the drag from the draft; only leaving the control writes.
+  const [colorDraft, setColorDraft] = useState<string | null>(null);
 
   return (
     <li className={styles.status} role="group" aria-label={`${status.name} status`}>
@@ -181,8 +185,13 @@ function StatusRow({
         hideLabel
         type="color"
         className={styles.statusColor}
-        value={status.color}
-        onChange={(event) => onRecolor(event.target.value)}
+        value={colorDraft ?? status.color}
+        onChange={(event) => setColorDraft(event.target.value)}
+        onBlur={() => {
+          const next = colorDraft;
+          setColorDraft(null);
+          if (next !== null && next !== status.color) onRecolor(next);
+        }}
       />
 
       {status.isDefault ? (

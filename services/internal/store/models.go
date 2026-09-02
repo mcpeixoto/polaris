@@ -952,6 +952,15 @@ type PulseFeed struct {
 	UpdatedAt   time.Time
 }
 
+type Reaction struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	CommentID   uuid.UUID
+	UserID      uuid.UUID
+	Emoji       string
+	CreatedAt   time.Time
+}
+
 type RecurringIssue struct {
 	ID            uuid.UUID
 	WorkspaceID   uuid.UUID

@@ -307,3 +307,69 @@
 .empty {
   padding: var(--space-12) var(--space-4);
 }
+
+/*
+ * The filter bar sits between the box and the results, matching the issue list's own order:
+ * what is being asked, then what narrows it, then the answer. It draws its own chips and its
+ * own error, so all this owes it is the screen's gutter and the rule under it.
+ */
+.filters {
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/*
+ * The skeleton stands where the rows will be, so the first answer does not shift the page as
+ * it lands. Same gutter and the same row height as a result row for exactly that reason.
+ */
+.loading {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2) var(--space-4);
+}
+
+/*
+ * Recent searches, above the recent work and below the bar. A wrapping row of chips rather
+ * than a list of rows: they are two or three words each, and a full-width row per query would
+ * push the work somebody actually came to look at off the first screen.
+ */
+.recent {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.recentList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-inline: var(--space-4);
+}
+
+.recentChip {
+  max-width: 24rem;
+  overflow: hidden;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background-color: var(--bg-secondary);
+  /* Secondary rather than tertiary: the chip is a raised surface, and tertiary is only
+     measured against the page. See the contrast rule in 08-ui-composition. */
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  transition: background-color var(--duration-instant) var(--ease-out);
+}
+
+.recentChip:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.recentChip:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}

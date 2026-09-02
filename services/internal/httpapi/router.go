@@ -134,12 +134,19 @@ func NewRouter(d Deps) http.Handler {
 
 	// --- the API ----------------------------------------------------------------
 	//
-	// The limiter is inside RequireAuth, so an unauthenticated POST is refused before it can
-	// spend anybody's budget and everything that gets past it has a caller to charge. The
-	// development-only GET has no such guard and falls back to the source address, which is
-	// the right answer for a playground.
+	// The GraphQL limiter is inside RequireAuth, so everything that gets past it has a caller
+	// to charge. The anonymous budget is OUTSIDE it, because RequireAuth answering 401 is not
+	// free: Authenticate has already spent an indexed read per attempt in AuthenticateApiKey
+	// or AuthenticateOauthToken on the way there. Without this wrapper a caller with no token
+	// at all was charged to no bucket and got unlimited database round trips.
+	//
+	// Anonymous no-ops for an identified caller, so authenticated traffic is untouched and
+	// only the unidentified path is metered by source address.
+	//
+	// The development-only GET has no auth guard and falls back to the source address, which
+	// is the right answer for a playground.
 	if d.GraphQL != nil {
-		mux.Handle("POST /graphql", RequireAuth(d.Limits.GraphQL(d.GraphQL)))
+		mux.Handle("POST /graphql", d.Limits.Anonymous(RequireAuth(d.Limits.GraphQL(d.GraphQL))))
 		// GET is allowed so that the SDK and integrations can use persisted queries and
 		// so a browser can hit the playground in development.
 		if d.Config.IsDevelopment() {
@@ -153,7 +160,13 @@ func NewRouter(d Deps) http.Handler {
 	if d.Sync != nil {
 		// The socket authenticates itself with a hello frame rather than a header,
 		// because browsers cannot set headers on a WebSocket handshake.
-		mux.Handle("GET /sync", d.Sync)
+		//
+		// Metered by address, which is the only identity that exists before the hello
+		// frame. hub.Register runs only after a successful handshake, so a pre-auth
+		// socket was counted by nothing at all — and each attempt costs a token verify
+		// plus a principal read. A client stuck in a reconnect loop is a self-inflicted
+		// flood on Postgres, and that loop is the failure mode this layer produces most.
+		mux.Handle("GET /sync", d.Limits.Anonymous(d.Sync))
 	}
 
 	// One guard for all three inbound integrations. They share the same weakness — a

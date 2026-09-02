@@ -189,10 +189,10 @@ export function adopt(
   // The overwhelmingly common case: nothing is waiting, and this runs on every delta batch
   // the socket delivers. Checking the size first keeps that path free of an array copy.
   if (outbox.size === 0) return [];
-  const pending = outbox
-    .list()
-    .flatMap((record) => reconciliations(record.reconcile))
-    .filter((spec) => spec.match !== undefined);
+  // Cached on the outbox and invalidated when the queue changes. Rebuilding it here meant a
+  // full copy of the queue plus a flatMap per delta batch — paid hardest by a client that
+  // reconnects with hundreds of queued ops, which is exactly when batches arrive fastest.
+  const pending = outbox.matchableReconciliations();
   if (pending.length === 0) return [];
 
   const drops: EntityPatch[] = [];

@@ -3,6 +3,20 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  /* The page's entrance. Reduced motion is answered at the token: the duration steps
+     collapse to 1ms, so there is no media query here to drift out of step. */
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {
@@ -146,15 +160,17 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* Secondary, not tertiary: this line is drawn inside the feed dialog, and tertiary only
+   clears 4.5:1 against the page itself. */
 .hint {
   margin: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
 
 .error {
   margin: 0;
-  color: var(--priority-urgent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
 }
 

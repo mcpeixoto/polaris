@@ -37,6 +37,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
+import { ApiError } from '~/sync/api';
 import { useActions } from '~/app/keymap';
 import { Badge, Button, IconButton, Input, Progress, Select, StateIcon } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
@@ -50,7 +51,7 @@ import {
   type UUID,
 } from '~/store';
 
-import { createRelation, createSubIssue, deleteRelation, report } from './mutations';
+import { createRelation, createSubIssue, deleteRelation, report, updateIssue } from './mutations';
 import styles from './relations.module.css';
 
 /**
@@ -128,6 +129,7 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [detaching, setDetaching] = useState<Child | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   /**
    * The documented way in from the keyboard.
@@ -199,12 +201,25 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
     // form that dismissed itself after each one would make the second child cost two clicks
     // more than the first.
     setTitle('');
+    setRefusal(null);
     createSubIssue(engine, {
       parentId: issueId,
       teamId,
       title: next,
       creatorId: viewerId ?? undefined,
-    }).catch(report);
+      // A refusal rolls the optimistic child back out from under its parent, so without this
+      // the person who typed it watched a row appear and then leave with nothing said. The
+      // title goes back in the box, because retyping a sentence the product threw away is
+      // the part people actually resent.
+    }).catch((error: unknown) => {
+      report(error);
+      setTitle(next);
+      setRefusal(
+        error instanceof ApiError && error.message !== ''
+          ? error.message
+          : 'That sub-issue could not be created.',
+      );
+    });
   };
 
   return (
@@ -274,7 +289,12 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
             value={title}
             autoFocus
             autoComplete="off"
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              // Typing again is the answer to "try again", so the refusal stops being shown
+              // rather than sitting under a box whose contents it no longer describes.
+              setRefusal(null);
+            }}
           />
           <Button type="submit" size="sm" variant="primary" disabled={title.trim() === ''}>
             Add
@@ -285,12 +305,19 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
             onClick={() => {
               setAdding(false);
               setTitle('');
+              setRefusal(null);
             }}
           >
             Cancel
           </Button>
         </form>
       ) : null}
+
+      {refusal === null ? null : (
+        <p className={styles.refusal} role="alert">
+          {refusal}
+        </p>
+      )}
 
       {detaching === null ? null : (
         // Confirmed, because "remove" is the word people read as "delete" — and the whole
@@ -477,6 +504,7 @@ export function Relations({ issueId, className }: RelationsProps) {
   const [adding, setAdding] = useState(false);
   const [kind, setKind] = useState<RelationKind>('blockedBy');
   const [query, setQuery] = useState('');
+  const [refusal, setRefusal] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   /**
@@ -522,14 +550,61 @@ export function Relations({ issueId, className }: RelationsProps) {
     [issueId, query],
   );
 
+  /**
+   * Writes the link, and — for a duplicate — closes the issue it was written from.
+   *
+   * Marking something a duplicate is a decision about the issue's *status* as much as about
+   * its neighbours: 03-issue-properties.md has the duplicate taking the team's reserved
+   * Duplicate status, and until now the panel wrote the relation row alone and left the issue
+   * open in every list it was in. The status is system-managed and `StatusPicker` deliberately
+   * refuses to offer it, so this is the only way it is ever reached from the client — which is
+   * why it happens here rather than being left to whoever notices.
+   *
+   * The relation is the write that matters, so the status follows it rather than gating it: a
+   * team whose replica has not yet received its Duplicate state still gets the link, and gets
+   * the status from the server's own side of the same decision.
+   *
+   * A refusal restores the search box with what was typed. The optimistic row is rolled back,
+   * and a link that appears and then silently leaves is the failure this panel had.
+   */
   const link = (otherId: UUID) => {
     const make = NEW_LINK[kind];
     if (make === undefined) return;
-    createRelation(engine, { ...make(issueId, otherId), createdBy: viewerId ?? undefined }).catch(
-      report,
-    );
+    const typed = query;
+    const linking = kind;
     setQuery('');
     setAdding(false);
+    setRefusal(null);
+    createRelation(engine, { ...make(issueId, otherId), createdBy: viewerId ?? undefined })
+      .then(() => {
+        if (linking !== 'duplicateOf') return;
+        const stateId = duplicateStateFor(engine.store, issueId);
+        if (stateId === null) return;
+        return updateIssue(engine, issueId, { stateId });
+      })
+      .catch((error: unknown) => {
+        report(error);
+        setKind(linking);
+        setAdding(true);
+        setQuery(typed);
+        setRefusal(
+          error instanceof ApiError && error.message !== ''
+            ? error.message
+            : 'That link could not be added.',
+        );
+      });
+  };
+
+  const unlink = (relationId: UUID, label: string) => {
+    setRefusal(null);
+    deleteRelation(engine, relationId).catch((error: unknown) => {
+      report(error);
+      setRefusal(
+        error instanceof ApiError && error.message !== ''
+          ? error.message
+          : `The ${label} link could not be removed.`,
+      );
+    });
   };
 
   const sections = KIND_ORDER.map((section) => ({
@@ -538,12 +613,12 @@ export function Relations({ issueId, className }: RelationsProps) {
   })).filter((section) => section.rows.length > 0);
 
   return (
-    <section
-      className={[styles.panel, className].filter(Boolean).join(' ')}
-      aria-label="Linked issues"
-    >
+    <section className={[styles.panel, className].filter(Boolean).join(' ')} aria-label="Relations">
       <div className={styles.head}>
-        <h2 className={styles.title}>Links</h2>
+        {/* "Relations", not "Links": the attachments panel directly beneath this one is
+            called Links, and two adjacent headings with one name are indistinguishable in a
+            screen reader's heading list. */}
+        <h2 className={styles.title}>Relations</h2>
         <div className={styles.spacer} />
         <Button size="sm" variant="ghost" icon={<PlusGlyph />} onClick={() => setAdding(true)}>
           Add link
@@ -570,7 +645,7 @@ export function Relations({ issueId, className }: RelationsProps) {
                   icon={<CrossGlyph />}
                   aria-label={`Remove the ${KIND_HEADINGS[section.kind].toLowerCase()} link to ${row.identifier ?? 'an issue you cannot see'}`}
                   tooltip="Remove this link"
-                  onClick={() => deleteRelation(engine, row.relationId).catch(report)}
+                  onClick={() => unlink(row.relationId, KIND_HEADINGS[section.kind].toLowerCase())}
                 />
               </li>
             ))}
@@ -603,7 +678,10 @@ export function Relations({ issueId, className }: RelationsProps) {
             autoFocus
             autoComplete="off"
             spellCheck={false}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setRefusal(null);
+            }}
           />
 
           {query.trim() === '' ? (
@@ -634,6 +712,7 @@ export function Relations({ issueId, className }: RelationsProps) {
               onClick={() => {
                 setAdding(false);
                 setQuery('');
+                setRefusal(null);
               }}
             >
               Cancel
@@ -641,6 +720,12 @@ export function Relations({ issueId, className }: RelationsProps) {
           </div>
         </div>
       ) : null}
+
+      {refusal === null ? null : (
+        <p className={styles.refusal} role="alert">
+          {refusal}
+        </p>
+      )}
     </section>
   );
 }
@@ -677,6 +762,25 @@ function RelationSubject({ row }: { row: RelationRow }): ReactNode {
       {row.teamName === null ? null : <Badge>{row.teamName}</Badge>}
     </>
   );
+}
+
+/**
+ * The team's reserved Duplicate status, or null when this replica cannot name it.
+ *
+ * One per team and system-managed — `domain.seedReservedStatuses` creates it — so it is found
+ * by category and by the `isSystem` flag rather than by name, which a team may not rename but
+ * a future one might. Null is a real answer: a team whose statuses have not arrived yet, or an
+ * issue that has left the replica, and in both cases the link is still worth writing.
+ */
+function duplicateStateFor(store: Store, issueId: UUID): UUID | null {
+  const issue = store.issues.get(issueId);
+  if (issue === undefined) return null;
+  for (const id of store.workflowStateIdsFor(issue.teamId)) {
+    const state = store.get('workflowState', id);
+    if (state === undefined || state.archivedAt !== undefined) continue;
+    if (state.category === 'duplicate' && state.isSystem) return state.id;
+  }
+  return null;
 }
 
 /** Reads one relation row from the end this issue is standing at, and appends it. */

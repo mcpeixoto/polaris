@@ -182,8 +182,24 @@ func (s *Server) handshake(ctx context.Context, conn *websocket.Conn) (*Session,
 	return session, nil
 }
 
-// catchUp delivers everything committed while the client was away.
+// catchUp delivers everything committed while the client was away, and tells the client
+// to bootstrap if it could not.
+//
+// The resync on failure is the whole point of the error path. `ready` has already gone out
+// by the time this runs, so a client whose catch-up failed silently is a client that says
+// it is online and current while holding a cursor nobody checked — it renders a stale list
+// and corrects itself on the next write to the workspace, which on a quiet Sunday is a day
+// later. That is precisely the failure this function exists to prevent, and logging the
+// error and carrying on reintroduces it.
 func (s *Server) catchUp(ctx context.Context, session *Session) error {
+	if err := s.deliverBacklog(ctx, session); err != nil {
+		session.requestResync(ReasonGapTooLarge)
+		return err
+	}
+	return nil
+}
+
+func (s *Server) deliverBacklog(ctx context.Context, session *Session) error {
 	current, err := s.svc.WorkspaceVersion(ctx, session.Principal().WorkspaceID)
 	if err != nil {
 		return err
@@ -195,12 +211,21 @@ func (s *Server) catchUp(ctx context.Context, session *Session) error {
 			session.requestResync(ReasonGapTooLarge)
 			return nil
 		}
-		changes, err := s.svc.ReadChanges(ctx, session.Principal().WorkspaceID, cursor, current, changeFetchPageSize)
+		changes, scannedThrough, err := s.svc.ReadChangesScanned(ctx, session.Principal().WorkspaceID, cursor, current, changeFetchPageSize)
 		if err != nil {
 			return err
 		}
 		if len(changes) == 0 {
-			// The watermark is ahead of anything readable: those rows were pruned.
+			if scannedThrough > cursor {
+				// The rows are there, they just could not be read — an unparseable scope,
+				// already logged by ReadChangesScanned. Step over them rather than reading it as
+				// a retention gap, which would hand every connecting client an instant
+				// bootstrap for as long as the offending row is inside the window.
+				session.advanceCursor(scannedThrough)
+				continue
+			}
+			// Nothing readable at all between here and the watermark: those rows were
+			// pruned.
 			session.requestResync(ReasonGapTooLarge)
 			return nil
 		}

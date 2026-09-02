@@ -27,14 +27,29 @@
  * see the note on `showMemberSettings` there.
  */
 
+import type { ReactNode } from 'react';
 import { NavLink } from 'react-router';
 
-import { NavGlyph, navClass, navStyles, type NavGlyphName } from './nav';
+import { NavGlyph, WorkspaceMark, navClass, navStyles, type NavGlyphName } from './nav';
 import styles from './SettingsNav.module.css';
 
 export interface SettingsNavProps {
   showMemberSettings: boolean;
   showAdminSettings: boolean;
+  /** The workspace being edited, drawn read-only. See the identity row below. */
+  workspaceName: string;
+  workspaceLogoUrl?: string | undefined;
+  /**
+   * The sync badge, and the control that collapses the sidebar.
+   *
+   * Both are the shell's, rendered by the shell and handed down, because both belong to the
+   * application rather than to either navigation. The badge in particular used to be mounted
+   * inside the workspace `<nav>`, which meant "Offline", "Reconnecting" and "Syncing 3" were
+   * invisible on all thirty-one settings screens — the screens whose saves are single,
+   * deliberate writes that are the worst ones to lose quietly.
+   */
+  status?: ReactNode;
+  collapseControl?: ReactNode;
 }
 
 type Gate = 'all' | 'member' | 'admin';
@@ -68,6 +83,9 @@ const GROUPS: readonly SettingsGroup[] = [
       { to: '/settings/workspace', label: 'General', glyph: 'apps', gate: 'admin' },
       { to: '/settings/billing', label: 'Billing', glyph: 'key', gate: 'admin' },
       { to: '/settings/members', label: 'Members', glyph: 'members', gate: 'member' },
+      // Live teams. "Deleted teams" was listed here long before the teams themselves were,
+      // which meant the settings nav could restore a team it offered no way to create.
+      { to: '/settings/teams', label: 'Teams', glyph: 'members', gate: 'member' },
       { to: '/settings/labels', label: 'Labels', glyph: 'labels', gate: 'member' },
       { to: '/settings/project-labels', label: 'Project labels', glyph: 'labels', gate: 'admin' },
       {
@@ -124,12 +142,39 @@ const GROUPS: readonly SettingsGroup[] = [
   },
 ];
 
-export function SettingsNav({ showMemberSettings, showAdminSettings }: SettingsNavProps) {
+export function SettingsNav({
+  showMemberSettings,
+  showAdminSettings,
+  workspaceName,
+  workspaceLogoUrl,
+  status,
+  collapseControl,
+}: SettingsNavProps) {
   const allowed = (gate: Gate) =>
     gate === 'all' || (gate === 'member' ? showMemberSettings : showAdminSettings);
 
   return (
     <nav className={navStyles.sidebar} aria-label="Settings">
+      {/*
+        Which workspace this is, before anything about it can be changed.
+
+        Entering settings used to unwind the workspace entirely: the mark, the name and the
+        switcher all vanished, so nothing on a page editing labels, members or billing said
+        *whose* labels, members or billing. That is a bad question to have to answer by
+        reading the URL, and a worse one to guess at with two workspaces open in two tabs.
+
+        Read-only, and deliberately not the menu the workspace nav draws. Switching workspace
+        from inside a settings screen would leave the person on the same path in a different
+        workspace, looking at a form they had half-filled for the other one. The way out is
+        the row directly below.
+      */}
+      <div className={styles.identity}>
+        <WorkspaceMark name={workspaceName} logoUrl={workspaceLogoUrl} />
+        <span className={styles.identityName}>{workspaceName}</span>
+        {status}
+        {collapseControl}
+      </div>
+
       {/*
         The way out, first and on its own.
 

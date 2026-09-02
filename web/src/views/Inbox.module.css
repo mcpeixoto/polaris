@@ -62,6 +62,16 @@
 }
 
 /*
+ * The list takes focus itself when a menu opened from a row closes — the row may have been
+ * snoozed away by then, and the list is what owns the cursor. So it needs a ring of its own:
+ * the alternative is a keyboard user whose focus is somewhere with nothing to show for it.
+ */
+.list:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+/*
  * Sticky, because the answer to "when did this happen" has to stay on screen while the day
  * it heads is being read. It is the one piece of chrome in the list and is quiet enough to
  * disappear when it is not being looked for.

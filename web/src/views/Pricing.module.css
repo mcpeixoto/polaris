@@ -169,7 +169,9 @@
 
 .kicker {
   margin: 0 0 var(--space-2);
-  color: var(--text-tertiary);
+  /* --text-secondary, not tertiary: this kicker also renders inside .ctaBand, which is
+     --bg-secondary, and tertiary is only measured against --bg-primary. */
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   letter-spacing: 0.08em;
@@ -256,7 +258,8 @@
 }
 
 .planPer {
-  color: var(--text-tertiary);
+  /* On .plan, which is --bg-secondary. See .kicker. */
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-normal);
   letter-spacing: 0;
@@ -310,7 +313,8 @@
 .caption {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
-  color: var(--text-tertiary);
+  /* Inside .tableWrap, which is --bg-secondary. See .kicker. */
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
   text-align: start;
@@ -353,7 +357,9 @@
 .rowHead {
   position: sticky;
   inset-inline-start: 0;
-  z-index: 1;
+  /* The house rule is a token, never an integer: this cell only has to clear the cells it
+     scrolls over, and --z-sticky is the layer that means exactly that. */
+  z-index: var(--z-sticky);
   min-width: 11rem;
   background-color: var(--bg-secondary);
   font-weight: var(--font-weight-medium);
@@ -363,7 +369,8 @@
   display: block;
   margin-top: var(--space-1);
   max-width: 24ch;
-  color: var(--text-tertiary);
+  /* In the table, which sits on --bg-secondary. See .kicker. */
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-normal);
   white-space: normal;
@@ -375,7 +382,7 @@
 }
 
 .no {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .coming {
@@ -383,7 +390,7 @@
   padding: 0 var(--space-2);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-full);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
 }
 
@@ -514,10 +521,11 @@
   }
 }
 
-/* A plan whose price is announced but whose checkout is not open. Tertiary and small: it
-   qualifies the price above it rather than competing with it. */
+/* A plan whose price is announced but whose checkout is not open. Small, so it qualifies the
+   price above it rather than competing with it — but --text-secondary, because it sits on the
+   card's --bg-secondary and it is the one sentence on this page that must be read. */
 .planNote {
   margin: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
 }

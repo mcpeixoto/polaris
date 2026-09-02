@@ -123,19 +123,27 @@
 }
 
 /*
- * The title is an input that does not look like one until it is being used. An issue title is
+ * The title is a field that does not look like one until it is being used. An issue title is
  * edited about once in its life and read hundreds of times, so at rest it is a heading; the
  * border and the surface arrive on focus, when the field has become a control.
+ *
+ * `.title` is the wrapper `Textarea` hands a caller's className to, and the typography has to
+ * reach the control through a descendant selector rather than through it — the control takes
+ * `font-size` from its own box, so a rule on the frame never arrives. This is the same
+ * wrapper-scoped shape `CreateIssueModal.module.css` argues for at `.title input`, and it is
+ * not the bare-element `:global()` the house rule forbids: it cannot match anything this
+ * screen has not put inside this one field.
  */
 .title {
-  width: 100%;
-  padding: var(--space-1) var(--space-2);
+  flex: 1;
+  min-width: 0;
   margin-left: calc(var(--space-2) * -1);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
+}
+
+.title textarea {
+  padding: var(--space-1) var(--space-2);
+  border-color: transparent;
   background-color: transparent;
-  color: var(--text-primary);
-  font-family: inherit;
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
@@ -148,22 +156,39 @@
     background-color var(--duration-fast) var(--ease-out);
 }
 
-.title:hover {
+.title textarea:hover {
   border-color: var(--border-subtle);
 }
 
-.title:focus-visible {
+/*
+ * `:focus` rather than `:focus-visible`, which is the rule for a text field and not the
+ * exception: Field's own `.control:focus-within` already says so — "unlike a button this
+ * fires for pointer users too, which is correct — a text field the pointer clicked into
+ * really is focused, and it is about to receive typing".
+ */
+.title textarea:focus {
   border-color: var(--border-focus);
   background-color: var(--bg-primary);
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
 }
 
-.description textarea {
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  line-height: var(--line-height-relaxed);
+/*
+ * The issue this one duplicates, said before anything else on the page.
+ *
+ * A status strip rather than an error tone: being a duplicate is a settled fact about the
+ * issue, not a failure. It borrows the same surface a menu sits on, so it reads as a note
+ * attached to the document rather than as part of it.
+ */
+.duplicateBanner {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
   color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
 }
 
 .properties {
@@ -192,6 +217,39 @@
   justify-content: flex-start;
   min-width: 0;
   padding-inline: var(--space-2);
+}
+
+/*
+ * A rail value that opens nothing: the milestone, the subscribers, the recurrence.
+ *
+ * Deliberately *not* `.propertyTrigger`. Trigger styling on a non-interactive span is the row
+ * offering an affordance it does not have, which is the "one group, one affordance" rule read
+ * from the other side — and it is exactly what the Repeats row was doing.
+ */
+.propertyValue {
+  min-width: 0;
+  padding-inline: var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The glyph on a rail trigger, when the value under it changes.
+ *
+ * A status set from the keyboard changes an icon three characters wide, at the edge of where
+ * somebody is looking, with nothing between the old drawing and the new one — so the fastest
+ * way to use this screen is the one that gives the least confirmation that anything happened.
+ * Held to `--duration-fast` because this is the keyboard path, which the motion rule caps.
+ * Reduced motion is answered once, at the token layer (`styles/tokens.css`), which collapses
+ * every duration to 1ms; a second answer here would be a second place to keep in step.
+ */
+.propertyTrigger svg {
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    fill var(--duration-fast) var(--ease-out),
+    stroke var(--duration-fast) var(--ease-out);
 }
 
 .provenance {
@@ -332,4 +390,45 @@
   margin: 0;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+}
+
+/*
+ * A settled thread, folded down to its opening line.
+ *
+ * Recessive rather than hidden: the decision is part of the record, and a conversation that
+ * disappeared when somebody ticked it would make the tick feel like a delete. The replies and
+ * the reply box go — those are for a conversation that is still running — and the line saying
+ * who settled it takes their place.
+ */
+.resolved .commentBody {
+  color: var(--text-secondary);
+}
+
+.resolvedBy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/*
+ * The history that did not arrive.
+ *
+ * One line and a retry, on the same row, because a failed footnote must not look like a
+ * failed page — 08-ui-composition.md asks a failed load to say what failed and offer a way
+ * back, and this is the smallest thing that does both.
+ */
+.feedFailure {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.feedSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }

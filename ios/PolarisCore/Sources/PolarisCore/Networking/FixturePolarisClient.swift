@@ -12,6 +12,11 @@ import Foundation
 public actor FixturePolarisClient: PolarisAPI {
     public private(set) var storedIssues: [Issue]
     public private(set) var storedComments: [String: [Comment]]
+    public private(set) var storedNotifications: [PolarisNotification]
+    /// Comments already accepted, keyed by the caller's `opId`. The server is idempotent on
+    /// this key and so is the double, because a retry posting twice is the bug the key exists
+    /// to prevent.
+    private var commentsByOpId: [String: Comment] = [:]
     private let people: [User]
     private let allTeams: [Team]
     private let states: [WorkflowState]
@@ -36,7 +41,8 @@ public actor FixturePolarisClient: PolarisAPI {
         people: [User] = FixtureData.users,
         teams: [Team] = [FixtureData.team],
         states: [WorkflowState] = FixtureData.states,
-        comments: [String: [Comment]] = QAFixtureSwitches.seededComments
+        comments: [String: [Comment]] = QAFixtureSwitches.seededComments,
+        notifications: [PolarisNotification] = FixtureData.notifications
     ) {
         self.signedIn = signedIn
         self.hasWorkspace = hasWorkspace
@@ -45,6 +51,7 @@ public actor FixturePolarisClient: PolarisAPI {
         self.allTeams = teams
         self.states = states
         self.storedComments = comments
+        self.storedNotifications = notifications
         if let armed = QAFixtureSwitches.armedWriteFailure { self.failNextWrite = armed }
     }
 
@@ -118,7 +125,8 @@ public actor FixturePolarisClient: PolarisAPI {
         throw PolarisError.unauthorized(nil)
     }
 
-    public func signOut() async {}
+    @discardableResult
+    public func signOut() async -> PolarisError? { nil }
     public func useWorkspace(id: String) async {}
 
     // MARK: - Reads
@@ -158,7 +166,43 @@ public actor FixturePolarisClient: PolarisAPI {
         QAFixtureSwitches.noStates ? [] : states
     }
     public func users() async throws -> [User] { people }
-    public func unreadNotificationCount() async throws -> Int { 0 }
+
+    public func unreadNotificationCount() async throws -> Int {
+        storedNotifications.filter { !$0.isRead }.count
+    }
+
+    public func notifications(
+        includeRead: Bool,
+        includeSnoozed: Bool,
+        first: Int?
+    ) async throws -> [PolarisNotification] {
+        var list = storedNotifications
+        if !includeRead { list = list.filter { !$0.isRead } }
+        if !includeSnoozed { list = list.filter { $0.snoozedUntil == nil } }
+        list.sort { $0.createdAt > $1.createdAt }
+        if let first { list = Array(list.prefix(first)) }
+        return list
+    }
+
+    /// Substring matching over title, identifier and description.
+    ///
+    /// Not the server's tokeniser and not pretending to be: what a double owes a search screen
+    /// is that a query narrows the list, that an empty result set is reachable, and that
+    /// `issueCount` and `issues.count` can disagree — all three of which drive a branch in the
+    /// UI.
+    public func search(query: String, teamId: String?, first: Int?) async throws -> SearchResults {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !needle.isEmpty else { return SearchResults(issues: [], issueCount: 0) }
+        var hits = storedIssues.filter { issue in
+            issue.title.lowercased().contains(needle)
+                || issue.identifier.lowercased().contains(needle)
+                || issue.description.lowercased().contains(needle)
+        }
+        if let teamId { hits = hits.filter { $0.team.id == teamId } }
+        let total = hits.count
+        if let first { hits = Array(hits.prefix(first)) }
+        return SearchResults(issues: hits, issueCount: total)
+    }
 
     // MARK: - Writes
 
@@ -204,11 +248,55 @@ public actor FixturePolarisClient: PolarisAPI {
         return updated
     }
 
-    public func createComment(issueId: String, body: String) async throws -> Comment {
+    /// Idempotent on `opId`, like the server.
+    ///
+    /// Without this the double cannot show the difference the fix is about: a retry with the
+    /// same `opId` must return the original comment, not append a second one.
+    public func createComment(issueId: String, body: String, opId: String) async throws -> Comment {
+        if let existing = commentsByOpId[opId] { return existing }
         try consumeFailure()
         let comment = FixtureData.comment(body: body)
+        commentsByOpId[opId] = comment
         storedComments[issueId, default: []].append(comment)
         return comment
+    }
+
+    public func archiveIssue(id: String, archived: Bool, opId: String) async throws {
+        try consumeFailure()
+        guard let index = storedIssues.firstIndex(where: { $0.id == id }) else {
+            throw PolarisError.notFound
+        }
+        if archived { storedIssues.remove(at: index) }
+    }
+
+    public func markNotificationRead(id: String, read: Bool) async throws -> PolarisNotification {
+        try consumeFailure()
+        guard let index = storedNotifications.firstIndex(where: { $0.id == id }) else {
+            throw PolarisError.notFound
+        }
+        var updated = storedNotifications[index]
+        updated.readAt = read ? Date() : nil
+        storedNotifications[index] = updated
+        return updated
+    }
+
+    public func snoozeNotification(id: String, until: Date?) async throws -> PolarisNotification {
+        try consumeFailure()
+        guard let index = storedNotifications.firstIndex(where: { $0.id == id }) else {
+            throw PolarisError.notFound
+        }
+        var updated = storedNotifications[index]
+        updated.snoozedUntil = until
+        storedNotifications[index] = updated
+        return updated
+    }
+
+    public func deleteNotification(id: String) async throws {
+        try consumeFailure()
+        guard storedNotifications.contains(where: { $0.id == id }) else {
+            throw PolarisError.notFound
+        }
+        storedNotifications.removeAll { $0.id == id }
     }
 }
 
@@ -366,6 +454,51 @@ public enum FixtureData {
          "team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF"},
          "assignee":\(assigneeJSON),"creator":null,"labels":[],
          "createdAt":"2026-08-01T09:00:00Z","updatedAt":"2026-08-20T09:00:00Z"}
+        """)
+    }
+
+    /// The inbox, as the fixture serves it: one unread mention, one unread assignment, and
+    /// one already-read status change — enough for the list to show both row states and for a
+    /// badge to be non-zero.
+    ///
+    /// `-qa-empty-inbox` empties it, which is the state the inbox's own empty view exists for
+    /// and the one a stock fixture can never reach.
+    public static let notifications: [PolarisNotification] = {
+        if ProcessInfo.processInfo.arguments.contains("-qa-empty-inbox") { return [] }
+        let issues = FixtureData.issues
+        guard !issues.isEmpty else { return [] }
+        return [
+            notification(id: "n1", type: "MENTION", issue: issues[0],
+                         at: "2026-08-25T09:00:00Z", readAt: nil),
+            notification(id: "n2", type: "ISSUE_ASSIGNED", issue: issues.count > 1 ? issues[1] : issues[0],
+                         at: "2026-08-24T16:30:00Z", readAt: nil),
+            notification(id: "n3", type: "ISSUE_STATUS_CHANGED", issue: issues[0],
+                         at: "2026-08-23T11:00:00Z", readAt: "2026-08-23T12:00:00Z"),
+        ]
+    }()
+
+    public static func notification(
+        id: String,
+        type: String,
+        issue: Issue?,
+        at: String,
+        readAt: String?
+    ) -> PolarisNotification {
+        // Re-encoded rather than hand-built, for the reason the whole file gives: the wire
+        // type has a custom `init(from:)` and a fixture that skips it would keep passing
+        // after a decoding bug was introduced.
+        let issueJSON: String
+        if let issue, let data = try? PolarisJSON.encoder().encode(issue),
+           let text = String(data: data, encoding: .utf8) {
+            issueJSON = text
+        } else {
+            issueJSON = "null"
+        }
+        let readJSON = readAt.map { "\"\($0)\"" } ?? "null"
+        return decoded("""
+        {"id":"\(id)","type":"\(type)","issueId":\(issue.map { "\"\($0.id)\"" } ?? "null"),
+         "commentId":null,"actor":{"type":"USER","id":"u2"},"count":1,
+         "readAt":\(readJSON),"snoozedUntil":null,"createdAt":"\(at)","issue":\(issueJSON)}
         """)
     }
 

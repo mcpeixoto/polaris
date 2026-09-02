@@ -14,14 +14,31 @@
  * Accepting is a REST call rather than a mutation: it creates the workspace-scoped user that
  * every GraphQL request is authorised against, so there is nothing yet to scope one to. The
  * same reasoning puts sign-in and workspace creation outside the API.
+ *
+ * ## The two refusals that pressing the button again cannot fix
+ *
+ * They are also the two most likely ones, and the screen used to treat both as retryable — a
+ * red sentence over a button that would fail identically for ever, and, for somebody already
+ * signed in, no footer at all, so the card was a dead end with no sign-out and no way back.
+ *
+ *  - `FORBIDDEN` is "this invitation was sent to a different email address". The invitation is
+ *    fine; the session is the wrong one. So the answer is to drop the session and land back on
+ *    this same `/invite/:token` URL as a stranger, which is the form that can redeem it.
+ *  - `VALIDATION` on `token` is "this invitation is no longer valid". Nothing on this screen
+ *    can change that, so the form goes away and what is left is an explanation and a route
+ *    back into the product.
+ *
+ * Everything else keeps the form, because everything else may work next time.
  */
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { Button, Input } from '~/components';
+import { looksLikeEmail } from '~/features/auth/validation';
 import { ApiError, auth, isSignedIn } from '~/sync/api';
 import { AuthError, AuthForm, AuthLayout, authSubmitClass } from './AuthLayout';
+import styles from './AuthLayout.module.css';
 
 export interface AcceptInviteProps {
   /**
@@ -34,6 +51,15 @@ export interface AcceptInviteProps {
 
 type Mode = 'register' | 'login';
 
+/** The credentials fields, which exist only while nobody is signed in. */
+type Field = 'email' | 'password';
+
+/**
+ * A refusal this screen cannot retry its way out of. `null` is every other outcome,
+ * including the ordinary failures that keep the form.
+ */
+type Dead = 'wrong-account' | 'spent' | null;
+
 export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
   const { token = '' } = useParams<{ token: string }>();
   // Read once, at mount. It flips as a side effect of the submit below, and a value that
@@ -45,11 +71,65 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<{ field: Field; message: string } | null>(null);
+  const [dead, setDead] = useState<Dead>(null);
   const [busy, setBusy] = useState(false);
+
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  const messageFor = (field: Field) => (problem?.field === field ? problem.message : undefined);
+  const clear = (field: Field) => {
+    if (problem?.field === field) setProblem(null);
+  };
+
+  const refuse = (field: Field, message: string) => {
+    setProblem({ field, message });
+    (field === 'email' ? emailRef : passwordRef).current?.focus();
+  };
+
+  /**
+   * Drop the session and come back to this URL as a stranger.
+   *
+   * A reload rather than a state flip, because `signedIn` is read once at mount on purpose,
+   * and because the boot sequence and the auth client both hold session state this screen
+   * does not own. The URL carries the token, so the invitation survives the trip.
+   */
+  const signOutAndRetry = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await auth.logout();
+    } catch {
+      // The local session is cleared either way, and the whole point of this button is to
+      // get back to the form. A failed server-side logout is not a reason to stay stuck.
+    }
+    window.location.reload();
+  };
 
   const accept = async (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
+
+    if (!signedIn) {
+      if (email.trim() === '') {
+        refuse('email', 'Enter the email this invitation was sent to.');
+        return;
+      }
+      if (!looksLikeEmail(email)) {
+        refuse('email', 'That does not look like an email address.');
+        return;
+      }
+      if (password === '') {
+        refuse(
+          'password',
+          mode === 'register' ? 'Choose a password for your account.' : 'Enter your password.',
+        );
+        return;
+      }
+    }
+
+    setProblem(null);
     setBusy(true);
     setError(null);
     try {
@@ -91,6 +171,22 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
           ? failure.message
           : 'The invitation could not be accepted. Ask for a new one.',
       );
+      if (!(failure instanceof ApiError)) return;
+
+      if (failure.code === 'FORBIDDEN') {
+        setDead('wrong-account');
+        return;
+      }
+      if (failure.code === 'VALIDATION' && failure.field === 'token') {
+        setDead('spent');
+        return;
+      }
+      // Field-scoped and retryable: it belongs on the control, not in the banner above it.
+      const scoped = asField(failure.field);
+      if (scoped !== null && !signedIn) {
+        setError(null);
+        refuse(scoped, failure.message);
+      }
     }
   };
 
@@ -113,6 +209,23 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
     );
   }
 
+  // A spent invitation: nothing on the form can redeem it, so the form goes.
+  if (dead === 'spent') {
+    return (
+      <AuthLayout
+        title="This invitation has expired"
+        subtitle="Invitations are one-time and they lapse. Ask whoever invited you to send a new one — the link in that email will bring you straight back here."
+        footer={
+          <>
+            Already have an account? <Link to="/signin">Sign in</Link>
+            {' · '}
+            <Link to="/">What is Polaris?</Link>
+          </>
+        }
+      />
+    );
+  }
+
   return (
     <AuthLayout
       title="Join the workspace"
@@ -124,8 +237,14 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
       // Switching modes clears the failure with it. A registration refused as invite-only,
       // left standing over a sign-in form, is a red sentence about a flow the reader has just
       // left — and the obvious next move after that refusal is exactly this button.
+      //
+      // There is always something here. Somebody already signed in used to get no footer at
+      // all, which made a refusal a card with one red sentence and a button that could not
+      // work — no sign out, no way back to the workspace they already have.
       footer={
-        signedIn ? undefined : mode === 'register' ? (
+        signedIn ? (
+          <Link to="/">Back to Polaris</Link>
+        ) : mode === 'register' ? (
           <>
             Already have an account?{' '}
             <Button
@@ -156,29 +275,59 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
         )
       }
     >
-      <AuthForm onSubmit={(event) => void accept(event)}>
+      <AuthForm onSubmit={(event) => void accept(event)} step={signedIn ? 'signed-in' : mode}>
         <AuthError message={error} />
+
+        {/* The invitation is fine and the session is the wrong one, so the way forward is to
+            stop being this account. Under the server's sentence rather than instead of it:
+            the server says which side of the mismatch it saw, and this says what to do. */}
+        {dead === 'wrong-account' ? (
+          <>
+            <p className={styles.refusal}>
+              This invitation belongs to a different email address. Sign out and follow the link
+              again with the account it was sent to — the invitation stays where it is.
+            </p>
+            <Button
+              variant="secondary"
+              fullWidth
+              loading={busy}
+              onClick={() => void signOutAndRetry()}
+            >
+              Sign out and use another account
+            </Button>
+          </>
+        ) : null}
 
         {signedIn ? null : (
           <>
             <Input
+              ref={emailRef}
               label="Email"
               type="email"
               name="email"
               value={email}
               autoComplete="email"
+              error={messageFor('email')}
               autoFocus
               required
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                clear('email');
+              }}
             />
             <Input
+              ref={passwordRef}
               label="Password"
               type="password"
               name="password"
               value={password}
               autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+              error={messageFor('password')}
               required
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                clear('password');
+              }}
             />
           </>
         )}
@@ -213,4 +362,9 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
       </AuthForm>
     </AuthLayout>
   );
+}
+
+/** The server's field name, if this screen has a control to put it on. */
+function asField(field: string | undefined): Field | null {
+  return field === 'email' || field === 'password' ? field : null;
 }

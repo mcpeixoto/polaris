@@ -1059,7 +1059,7 @@ func (s *Service) createIssueFromProjectTemplateIssue(
 
 	var siblingOrder *string
 	if parentID != nil {
-		pos, err := s.resolveParent(ctx, q, p, *teamID, *parentID)
+		pos, _, err := s.resolveParent(ctx, q, p, *teamID, *parentID)
 		if err != nil {
 			return nil, uuid.Nil, err
 		}

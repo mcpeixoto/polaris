@@ -8,6 +8,20 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  /* The page's entrance. Reduced motion is answered at the token: the duration steps
+     collapse to 1ms, so there is no media query here to drift out of step. */
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {
@@ -94,8 +108,8 @@
   margin: 0 0 var(--space-4);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
@@ -148,6 +162,13 @@
 
 .row:hover {
   background: var(--bg-hover);
+}
+
+/* The grid's single tab stop is a row, so the row owns a ring. Inset, because a table row
+   cannot draw an outline outside itself without it being clipped by the scrolling body. */
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
 }
 
 .row[aria-selected='true'],

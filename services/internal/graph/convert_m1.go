@@ -283,6 +283,29 @@ func toSubscriptionReason(v string) (generated.SubscriptionReason, error) {
 	return "", platform.Internal(fmt.Errorf("unknown subscription reason %q", v))
 }
 
+// ----------------------------------------------------------------------------- reactions
+
+func toReaction(r model.Reaction) generated.Reaction {
+	return generated.Reaction{
+		ID:          r.ID,
+		WorkspaceID: r.WorkspaceID,
+		CommentID:   r.CommentID,
+		UserID:      r.UserID,
+		Emoji:       r.Emoji,
+		CreatedAt:   r.CreatedAt,
+	}
+}
+
+func toReactions(rows []model.Reaction) []generated.Reaction {
+	// Minted empty rather than nil: Comment.reactions is non-null, and a comment with no
+	// reactions is the ordinary case rather than a failure.
+	out := make([]generated.Reaction, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, toReaction(r))
+	}
+	return out
+}
+
 // --------------------------------------------------------------------------- notifications
 
 func toNotification(n model.Notification) (generated.Notification, error) {

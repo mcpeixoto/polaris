@@ -130,6 +130,9 @@ const ENUM_FIELDS: Readonly<Record<EntityType, readonly string[]>> = {
   attachment: [],
   document: [],
   comment: ['actor.type'],
+  // A reaction's only string is the emoji itself, which is a character rather than an
+  // enumerated value — there is nothing here to case-convert.
+  reaction: [],
   issueSubscription: ['reason'],
   notification: ['type', 'actor.type'],
   view: [],

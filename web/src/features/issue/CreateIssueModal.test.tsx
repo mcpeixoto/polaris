@@ -7,7 +7,7 @@
  * the words are cleared between them and the dialog is never closed.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,15 +17,34 @@ import { KeymapProvider } from '~/app/keymap';
 import { Store, type Change, type Entity } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
+import { writeIssueComposerDraft } from '~/features/drafts/local';
+
 import { CreateIssueModal } from './CreateIssueModal';
 import { createIssue } from './mutations';
+import type { IssueComposerSeed } from './create-url';
 
 vi.mock('./mutations', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./mutations')>();
   return { ...actual, createIssue: vi.fn(() => Promise.resolve('issue-1')) };
 });
 
+/**
+ * The local composer slot is a real sessionStorage write, and what these cases are about is
+ * *whether it happens at all* — which sitting owns the one slot per workspace. Mocked rather
+ * than driven through storage because `currentWorkspace()` is null in a test, so the real
+ * module is a no-op and would agree with every hypothesis.
+ */
+vi.mock('~/features/drafts/local', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~/features/drafts/local')>();
+  return {
+    ...actual,
+    readIssueComposerDraft: vi.fn(() => null),
+    writeIssueComposerDraft: vi.fn(),
+  };
+});
+
 const filed = vi.mocked(createIssue);
+const wroteLocalDraft = vi.mocked(writeIssueComposerDraft);
 
 const WORKSPACE = '01900000-0000-7000-8000-000000000001';
 const TEAM = '01900000-0000-7000-8000-000000000002';
@@ -113,8 +132,89 @@ function renderComposer() {
   return { user: userEvent.setup(), onClose };
 }
 
+/**
+ * A composer over a store this test wants to be different — a team that estimates, a label
+ * to apply. Written beside `renderComposer` rather than through it, so the cases that were
+ * here first keep the fixture they were written against.
+ */
+function renderVariant(
+  options: { team?: Partial<Entity>; rows?: [string, Entity][]; seed?: IssueComposerSeed } = {},
+) {
+  const onClose = vi.fn();
+  const store = seeded();
+  const changes: Change[] = [];
+  let version = 100;
+  const team = store.get('team', TEAM) as Entity;
+  if (options.team !== undefined) {
+    changes.push({
+      v: (version += 1),
+      type: 'team',
+      id: TEAM,
+      op: 'upsert',
+      actor: { type: 'system' },
+      payload: { ...team, ...options.team },
+    } as Change);
+  }
+  for (const [type, payload] of options.rows ?? []) {
+    changes.push({
+      v: (version += 1),
+      type,
+      id: (payload as { id: string }).id,
+      op: 'upsert',
+      actor: { type: 'system' },
+      payload,
+    } as Change);
+  }
+  store.applyChanges(changes);
+  const engine = { store, mutate: vi.fn() } as unknown as SyncEngine;
+  render(
+    <MemoryRouter>
+      <KeymapProvider>
+        <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+          <CreateIssueModal onClose={onClose} seed={options.seed} />
+        </EngineProvider>
+      </KeymapProvider>
+    </MemoryRouter>,
+  );
+  return { user: userEvent.setup(), onClose };
+}
+
+const BUG = '01900000-0000-7000-8000-000000000005';
+const CHORE = '01900000-0000-7000-8000-000000000006';
+const TEMPLATE = '01900000-0000-7000-8000-000000000007';
+
+function template(id: string, labelIds: string[]): Entity {
+  return {
+    id,
+    workspaceId: WORKSPACE,
+    teamId: TEAM,
+    name: 'Chores',
+    title: '',
+    body: '',
+    properties: { labelIds },
+    subIssues: [],
+    position: 'V',
+    createdAt: AT,
+    updatedAt: AT,
+  } as Entity;
+}
+
+function label(id: string, name: string): Entity {
+  return {
+    id,
+    workspaceId: WORKSPACE,
+    teamId: TEAM,
+    name,
+    color: '#ff0000',
+    isGroup: false,
+    createdAt: AT,
+    updatedAt: AT,
+  } as Entity;
+}
+
 beforeEach(() => {
   filed.mockClear();
+  wroteLocalDraft.mockClear();
 });
 
 describe('CreateIssueModal', () => {
@@ -203,5 +303,151 @@ describe('CreateIssueModal', () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(filed).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Finding 3: the double-submit guard read `saving`, which is state and a frame late — so
+   * two ⌘⏎ in one tick, or ⌘⏎ and a click on the button, both passed it and filed two issues
+   * with two ids. `createIssue` is optimistic, so both landed in the list.
+   *
+   * `fireEvent` rather than `userEvent` because the point is two presses inside one tick,
+   * which is exactly what `userEvent`'s awaited, act-wrapped clicks cannot produce.
+   */
+  it('drops a second submit made while the first create is still in flight', async () => {
+    let settle: (id: string) => void = () => {};
+    filed.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const { user } = renderComposer();
+
+    await user.type(screen.getByLabelText('Title'), 'Only once');
+    const button = screen.getByRole('button', { name: 'Create issue' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(filed).toHaveBeenCalledTimes(1);
+    settle('issue-1');
+    await waitFor(() => expect(filed).toHaveBeenCalledTimes(1));
+  });
+
+  /**
+   * Finding 27: the footer's "Create issue" is the form's default submit button, so a bare
+   * Enter in the title fired implicit submission and shipped a half-written issue on a reflex
+   * keystroke. Enter belongs to the composer's own flow — title, then description — and only
+   * ⌘⏎ files.
+   */
+  it('moves Enter from the title into the description instead of filing', async () => {
+    const { user, onClose } = renderComposer();
+
+    await user.type(screen.getByLabelText('Title'), 'Half a thought{Enter}');
+
+    expect(filed).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByLabelText('Description'));
+  });
+
+  /**
+   * Finding 26: the shell mounts the composer whether or not it is open, so the dialog can
+   * play its exit. A shut one must render nothing at all — and, just as importantly, claim
+   * none of the chords, which is what would otherwise collide with the next modal to ask for
+   * ⌘⏎ in the `modal` context.
+   */
+  it('renders nothing while it is shut', () => {
+    const onClose = vi.fn();
+    const store = seeded();
+    const engine = { store, mutate: vi.fn() } as unknown as SyncEngine;
+    render(
+      <MemoryRouter>
+        <KeymapProvider>
+          <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+            <CreateIssueModal open={false} onClose={onClose} />
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  /**
+   * Finding 28: the property grid had no way to set labels, and the only labels an issue
+   * could be filed with came from a URL or a template. The trigger carries the chosen
+   * labels the way the detail rail's does, so the cell says what it holds before it is opened.
+   */
+  it('offers a label picker whose trigger names the labels it holds', async () => {
+    const { user } = renderVariant({ rows: [['label', label(BUG, 'Bug')]] });
+
+    const trigger = screen.getByRole('button', { name: 'No labels' });
+    expect(
+      document.getElementById(trigger.getAttribute('aria-describedby') ?? '')?.textContent,
+    ).toBe('Labels');
+
+    await user.click(trigger);
+    await user.click(await screen.findByRole('menuitem', { name: 'Bug' }));
+
+    expect(await screen.findByRole('button', { name: /Bug/ })).toBeTruthy();
+  });
+
+  /**
+   * Finding 28, the other half: an estimate control, and only where the team estimates.
+   * `none` is a team saying it does not size work, and a points field on such a team can
+   * only produce a value nothing will ever read.
+   */
+  it('shows an estimate control only on a team that estimates', () => {
+    renderComposer();
+    expect(screen.queryByLabelText('Estimate')).toBeNull();
+
+    cleanup();
+    renderVariant({ team: { estimateScale: 'fibonacci' } as Partial<Entity> });
+    expect(screen.getByLabelText('Estimate')).toBeTruthy();
+  });
+
+  /**
+   * Finding 5: there is one `polaris.draft.issue.<ws>` per workspace and it belongs to the
+   * blank composer, which is the only sitting that reads it back. A seeded one wrote into it
+   * anyway, so following `/new?title=…` — or resuming a saved draft — destroyed the
+   * half-written issue somebody had walked away from, without ever offering to restore it.
+   */
+  it('leaves the local draft slot alone when it opened from a link', async () => {
+    const { user } = renderVariant({ seed: { title: 'From a link' } });
+
+    await user.type(screen.getByLabelText('Title'), ' and then some');
+
+    expect(wroteLocalDraft).not.toHaveBeenCalled();
+  });
+
+  it('still keeps the local draft slot for a blank composer', async () => {
+    const { user } = renderComposer();
+
+    await user.type(screen.getByLabelText('Title'), 'Typed here');
+
+    await waitFor(() => expect(wroteLocalDraft).toHaveBeenCalled());
+    expect(wroteLocalDraft.mock.calls.at(-1)?.[0]).toMatchObject({ title: 'Typed here' });
+  });
+
+  /**
+   * Finding 4: the seed's labels were spread first and the template's second, so the later
+   * key won and a link that asked for a label filed with the template's instead — silently.
+   * A template fills in what was left empty; it does not overrule what was asked for.
+   */
+  it('keeps the labels a link asked for when a template names others', async () => {
+    const { user } = renderVariant({
+      rows: [
+        ['label', label(BUG, 'Bug')],
+        ['label', label(CHORE, 'Chore')],
+        ['issueTemplate', template(TEMPLATE, [CHORE])],
+      ],
+      seed: { title: 'From a link', labelIds: [BUG] },
+    });
+
+    await user.click(screen.getByRole('button', { name: 'No template' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Chores' }));
+    await user.click(screen.getByRole('button', { name: 'Create issue' }));
+
+    await waitFor(() => expect(filed).toHaveBeenCalledTimes(1));
+    expect(filed.mock.calls[0]?.[1]).toMatchObject({ labelIds: [BUG] });
   });
 });

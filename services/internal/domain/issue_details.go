@@ -177,7 +177,8 @@ func (s *Service) ListRelationsForIssues(
 		return out, nil
 	}
 
-	rows, err := s.db.Queries().ListIssueRelationsForIssues(ctx, store.ListIssueRelationsForIssuesParams{
+	q := s.db.Queries()
+	rows, err := q.ListIssueRelationsForIssues(ctx, store.ListIssueRelationsForIssuesParams{
 		IssueIds:    issueIDs,
 		WorkspaceID: p.WorkspaceID,
 		TeamIds:     p.Teams.IDs(),
@@ -187,6 +188,34 @@ func (s *Service) ListRelationsForIssues(
 	}
 	for _, r := range rows {
 		out[r.IssueID] = append(out[r.IssueID], toIssueRelation(r))
+	}
+
+	// `related` is symmetric, and CreateIssueRelation canonicalises it smaller-uuid-first —
+	// so reading forward only means the issue with the LARGER uuid lists the link nowhere.
+	// Half of every "related to" was invisible from one of its two ends, and which half
+	// depended on a uuid comparison no user can see or predict.
+	//
+	// Only `related` is read backwards here. `blocks` read from the far end is "blocked by"
+	// and has its own field; `duplicate` read backwards says the opposite of what it means.
+	reverse, err := q.ListReverseIssueRelationsForIssues(ctx, store.ListReverseIssueRelationsForIssuesParams{
+		IssueIds:    issueIDs,
+		WorkspaceID: p.WorkspaceID,
+		TeamIds:     p.Teams.IDs(),
+	})
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, r := range reverse {
+		if r.Type != model.RelationRelated {
+			continue
+		}
+		// Presented from the reader's end: the issue being hydrated is `issue`, and the
+		// far one is `relatedIssue`. The row keeps its own id, so a client that already
+		// holds it from the canonical end does not gain a second copy of the same link.
+		flipped := toIssueRelation(r)
+		flipped.IssueID, flipped.RelatedIssueID = r.RelatedIssueID, r.IssueID
+		flipped.TeamID, flipped.RelatedTeamID = r.RelatedTeamID, r.TeamID
+		out[r.RelatedIssueID] = append(out[r.RelatedIssueID], flipped)
 	}
 	return out, nil
 }
@@ -267,4 +296,104 @@ func (s *Service) teamKeys(ctx context.Context, workspaceID uuid.UUID) (map[uuid
 		keys[t.ID] = t.Key
 	}
 	return keys, nil
+}
+
+// ListCommentsForIssues, ListIssueHistoryForIssues and ListAttachmentsForIssues are the
+// batched forms of the three single-issue readers in comment.go and attachment.go.
+//
+// Every other collection on Issue already had one. These three did not, so the resolver
+// looped — and each iteration of that loop is GetIssue + GetTeam + the listing, three
+// sequential round trips per visible row. `issues(teamId:) { comments { body } history
+// { kind } attachments { url } }` on a two-thousand-issue team was roughly eighteen
+// thousand queries, which is what the issue-detail screen asks for one issue at a time and
+// what any integration asks for in bulk.
+//
+// Visibility is applied inside the statement rather than per row: a comment is readable
+// when its issue is, and the batched caller has no per-issue place to check it. That is
+// also why an issue the caller cannot see simply produces no rows here instead of an
+// error — a batch is a page of a list, and one unreachable row in it is not a failure of
+// the request.
+
+// ListCommentsForIssues returns each issue's comments, oldest first.
+func (s *Service) ListCommentsForIssues(
+	ctx context.Context, p *authz.Principal, issueIDs []uuid.UUID,
+) (map[uuid.UUID][]model.Comment, error) {
+	out := make(map[uuid.UUID][]model.Comment, len(issueIDs))
+	if len(issueIDs) == 0 {
+		return out, nil
+	}
+
+	rows, err := s.db.Queries().ListCommentsForIssues(ctx, store.ListCommentsForIssuesParams{
+		IssueIds:    issueIDs,
+		WorkspaceID: p.WorkspaceID,
+		TeamIds:     p.Teams.IDs(),
+	})
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, r := range rows {
+		out[r.IssueID] = append(out[r.IssueID], toComment(r))
+	}
+	return out, nil
+}
+
+// ListIssueHistoryForIssues returns each issue's activity feed, oldest first.
+func (s *Service) ListIssueHistoryForIssues(
+	ctx context.Context, p *authz.Principal, issueIDs []uuid.UUID,
+) (map[uuid.UUID][]model.IssueHistoryEntry, error) {
+	out := make(map[uuid.UUID][]model.IssueHistoryEntry, len(issueIDs))
+	if len(issueIDs) == 0 {
+		return out, nil
+	}
+
+	rows, err := s.db.Queries().ListIssueHistoryForIssues(ctx, store.ListIssueHistoryForIssuesParams{
+		IssueIds:    issueIDs,
+		WorkspaceID: p.WorkspaceID,
+		TeamIds:     p.Teams.IDs(),
+	})
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, r := range rows {
+		e := model.IssueHistoryEntry{
+			ID:        r.ID,
+			IssueID:   r.IssueID,
+			Actor:     model.Actor{Type: r.ActorType, ID: r.ActorID},
+			Kind:      r.Kind,
+			CreatedAt: r.CreatedAt,
+		}
+		// Already JSON in the column; handed through raw so a string stays a string and a
+		// uuid stays a uuid on the wire. Same as ListIssueHistory.
+		if len(r.FromValue) > 0 {
+			e.FromValue = r.FromValue
+		}
+		if len(r.ToValue) > 0 {
+			e.ToValue = r.ToValue
+		}
+		out[r.IssueID] = append(out[r.IssueID], e)
+	}
+	return out, nil
+}
+
+// ListAttachmentsForIssues returns each issue's attachment cards, oldest first.
+func (s *Service) ListAttachmentsForIssues(
+	ctx context.Context, p *authz.Principal, issueIDs []uuid.UUID,
+) (map[uuid.UUID][]model.Attachment, error) {
+	out := make(map[uuid.UUID][]model.Attachment, len(issueIDs))
+	if len(issueIDs) == 0 {
+		return out, nil
+	}
+
+	rows, err := s.db.Queries().ListAttachmentsForIssues(ctx, store.ListAttachmentsForIssuesParams{
+		IssueIds:    issueIDs,
+		WorkspaceID: p.WorkspaceID,
+		TeamIds:     p.Teams.IDs(),
+	})
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+	for _, r := range rows {
+		out[r.IssueID] = append(out[r.IssueID], toAttachment(store.Attachment(r)))
+	}
+	return out, nil
 }

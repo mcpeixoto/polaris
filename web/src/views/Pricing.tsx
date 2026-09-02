@@ -309,14 +309,18 @@ function answers(billingLive: boolean): readonly { q: string; a: string }[] {
   ];
 }
 
+/**
+ * The questions whose answer is the same on every deployment.
+ *
+ * Nothing here may restate a question `answers()` already owns. This list used to carry its
+ * own "Can I pay for Cloud Pro today?" saying "Not yet", which on a server with billing live
+ * printed a flat contradiction three questions under "Yes" — and, because the `<dl>` is keyed
+ * on the question, a React duplicate-key warning on every render besides.
+ */
 const ANSWERS: readonly { q: string; a: string }[] = [
   {
     q: 'What counts as a user?',
     a: 'Somebody active and not suspended. Suspending a person frees their seat the moment you do it, and bots and integrations are not seats.',
-  },
-  {
-    q: 'Can I pay for Cloud Pro today?',
-    a: 'Not yet. The price is settled and the server already enforces the plan, but the checkout that would take your money is still being built, so nothing on this page can charge a card. Write to us and we will arrange a workspace directly.',
   },
   {
     q: 'What happens when billing lapses?',

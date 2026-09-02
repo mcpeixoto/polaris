@@ -198,3 +198,18 @@
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
 }
+
+/*
+ * The row's own metadata — an issue's identifier, a person's handle.
+ *
+ * --text-secondary rather than tertiary: the panel is a raised surface, where tertiary
+ * measures 4.08:1 and fails body text. Tabular numerals so a column of identifiers lines up
+ * rather than shimmering as the list filters.
+ */
+.hint {
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}

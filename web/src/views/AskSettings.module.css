@@ -1,0 +1,106 @@
+/*
+ * Asks settings. The page chrome and the section shape come from SettingsPage and
+ * SettingsSection — this file holds only what is particular to a list of intake forms, which
+ * is the link row: a read-only value, a copy button and the region that says what happened.
+ */
+
+.hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.create {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: end;
+}
+
+@media (max-width: 720px) {
+  .create {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.forms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.formHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.formName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.formTeam {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/*
+ * Read-only rather than static text, so focus selects the whole URL and ⌘C works without a
+ * mouse — and so the fallback when the clipboard is refused has something to select.
+ */
+.linkValue {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.linkValue:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Width reserved whether or not it says anything, so the confirmation does not move the
+   button sideways under the pointer that just pressed it. */
+.copied {
+  flex: none;
+  min-width: 22ch;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}

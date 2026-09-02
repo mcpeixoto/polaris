@@ -170,6 +170,7 @@ type ComplexityRoot struct {
 		IssueID     func(childComplexity int) int
 		ParentID    func(childComplexity int) int
 		Quote       func(childComplexity int) int
+		Reactions   func(childComplexity int) int
 		ResolvedAt  func(childComplexity int) int
 		ResolvedBy  func(childComplexity int) int
 		UpdatedAt   func(childComplexity int) int
@@ -898,6 +899,7 @@ type ComplexityRoot struct {
 		AddProjectLabel                func(childComplexity int, projectID uuid.UUID, labelID uuid.UUID) int
 		AddProjectMember               func(childComplexity int, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddProjectTeam                 func(childComplexity int, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		AddReaction                    func(childComplexity int, commentID uuid.UUID, emoji string, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddTeamMember                  func(childComplexity int, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) int
 		ArchiveAskForm                 func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveCustomer                func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -1023,6 +1025,7 @@ type ComplexityRoot struct {
 		RemoveProjectLabel             func(childComplexity int, projectID uuid.UUID, labelID uuid.UUID) int
 		RemoveProjectMember            func(childComplexity int, projectID uuid.UUID, userID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveProjectTeam              func(childComplexity int, projectID uuid.UUID, teamID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		RemoveReaction                 func(childComplexity int, commentID uuid.UUID, emoji string, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveTeamMember               func(childComplexity int, teamID uuid.UUID, userID uuid.UUID) int
 		RemoveUser                     func(childComplexity int, userID uuid.UUID) int
 		ResolveComment                 func(childComplexity int, id uuid.UUID, resolved bool, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -1549,6 +1552,20 @@ type ComplexityRoot struct {
 		Workspace                    func(childComplexity int) int
 	}
 
+	Reaction struct {
+		CommentID   func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		Emoji       func(childComplexity int) int
+		ID          func(childComplexity int) int
+		UserID      func(childComplexity int) int
+		WorkspaceID func(childComplexity int) int
+	}
+
+	ReactionPayload struct {
+		Reaction func(childComplexity int) int
+		Version  func(childComplexity int) int
+	}
+
 	RecurringIssue struct {
 		ArchivedAt    func(childComplexity int) int
 		Body          func(childComplexity int) int
@@ -1919,6 +1936,8 @@ type MutationResolver interface {
 	UpdateComment(ctx context.Context, id uuid.UUID, body string, clientID *uuid.UUID, opID *uuid.UUID) (*CommentPayload, error)
 	ResolveComment(ctx context.Context, id uuid.UUID, resolved bool, clientID *uuid.UUID, opID *uuid.UUID) (*CommentPayload, error)
 	DeleteComment(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
+	AddReaction(ctx context.Context, commentID uuid.UUID, emoji string, clientID *uuid.UUID, opID *uuid.UUID) (*ReactionPayload, error)
+	RemoveReaction(ctx context.Context, commentID uuid.UUID, emoji string, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
 	CreateAttachment(ctx context.Context, input CreateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) (*AttachmentPayload, error)
 	UpdateAttachment(ctx context.Context, input UpdateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) (*AttachmentPayload, error)
 	DeleteAttachment(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*DeletePayload, error)
@@ -2790,6 +2809,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Comment.Quote(childComplexity), true
+	case "Comment.reactions":
+		if e.ComplexityRoot.Comment.Reactions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Comment.Reactions(childComplexity), true
 	case "Comment.resolvedAt":
 		if e.ComplexityRoot.Comment.ResolvedAt == nil {
 			break
@@ -5916,6 +5941,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AddProjectTeam(childComplexity, args["projectId"].(uuid.UUID), args["teamId"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.addReaction":
+		if e.ComplexityRoot.Mutation.AddReaction == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addReaction_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AddReaction(childComplexity, args["commentId"].(uuid.UUID), args["emoji"].(string), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.addTeamMember":
 		if e.ComplexityRoot.Mutation.AddTeamMember == nil {
 			break
@@ -7251,6 +7287,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RemoveProjectTeam(childComplexity, args["projectId"].(uuid.UUID), args["teamId"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.removeReaction":
+		if e.ComplexityRoot.Mutation.RemoveReaction == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeReaction_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RemoveReaction(childComplexity, args["commentId"].(uuid.UUID), args["emoji"].(string), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.removeTeamMember":
 		if e.ComplexityRoot.Mutation.RemoveTeamMember == nil {
 			break
@@ -10372,6 +10419,56 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.Workspace(childComplexity), true
 
+	case "Reaction.commentId":
+		if e.ComplexityRoot.Reaction.CommentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reaction.CommentID(childComplexity), true
+	case "Reaction.createdAt":
+		if e.ComplexityRoot.Reaction.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reaction.CreatedAt(childComplexity), true
+	case "Reaction.emoji":
+		if e.ComplexityRoot.Reaction.Emoji == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reaction.Emoji(childComplexity), true
+	case "Reaction.id":
+		if e.ComplexityRoot.Reaction.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reaction.ID(childComplexity), true
+	case "Reaction.userId":
+		if e.ComplexityRoot.Reaction.UserID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reaction.UserID(childComplexity), true
+	case "Reaction.workspaceId":
+		if e.ComplexityRoot.Reaction.WorkspaceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reaction.WorkspaceID(childComplexity), true
+
+	case "ReactionPayload.reaction":
+		if e.ComplexityRoot.ReactionPayload.Reaction == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReactionPayload.Reaction(childComplexity), true
+	case "ReactionPayload.version":
+		if e.ComplexityRoot.ReactionPayload.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReactionPayload.Version(childComplexity), true
+
 	case "RecurringIssue.archivedAt":
 		if e.ComplexityRoot.RecurringIssue.ArchivedAt == nil {
 			break
@@ -13133,6 +13230,40 @@ type Comment {
   to render "in ENG-142", which is a second round trip per hit.
   """
   issue: Issue!
+  """
+  Emoji reactions on this comment, oldest first.
+
+  Non-null and possibly empty: a comment with no reactions is the ordinary case, and a null
+  here would make every client write the same emptiness check.
+  """
+  reactions: [Reaction!]!
+}
+
+"""
+One person's emoji on one comment.
+
+The smallest entity in the product: no body, no edit, no soft delete. Adding is an insert
+and removing is a delete, so there is nothing to reconcile and no updatedAt to carry.
+"""
+type Reaction {
+  id: UUID!
+  workspaceId: UUID!
+  commentId: UUID!
+  userId: UUID!
+  """The character itself, not a shortcode — that is what is rendered and what is compared."""
+  emoji: String!
+  createdAt: Time!
+}
+
+"""
+A reaction that was added.
+
+` + "`" + `version` + "`" + ` is 0 when the reaction was already there: nothing was written, so there is no
+delta coming and the client should stop holding its optimistic state.
+"""
+type ReactionPayload implements MutationResult {
+  version: Int!
+  reaction: Reaction!
 }
 
 """
@@ -15559,6 +15690,18 @@ type Mutation {
   resolveComment(id: UUID!, resolved: Boolean!, clientId: UUID, opId: UUID): CommentPayload! @idempotent
   deleteComment(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
 
+  """
+  Add your own emoji to a comment. Adding one you already added is a no-op that succeeds.
+  """
+  addReaction(commentId: UUID!, emoji: String!, clientId: UUID, opId: UUID): ReactionPayload! @idempotent
+  """
+  Remove your own emoji from a comment. You may only remove your own, admins included: a
+  reaction is a signature, and an admin who can delete the comment deletes them with it.
+
+  Removing one that is not there succeeds with ` + "`" + `version` + "`" + ` 0 and the nil id.
+  """
+  removeReaction(commentId: UUID!, emoji: String!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
+
   createAttachment(input: CreateAttachmentInput!, clientId: UUID, opId: UUID): AttachmentPayload! @idempotent
   updateAttachment(input: UpdateAttachmentInput!, clientId: UUID, opId: UUID): AttachmentPayload! @idempotent
   deleteAttachment(id: UUID!, clientId: UUID, opId: UUID): DeletePayload! @idempotent
@@ -16185,6 +16328,8 @@ func (ec *executionContext) childFields_Comment(ctx context.Context, field graph
 		return ec.fieldContext_Comment_updatedAt(ctx, field)
 	case "issue":
 		return ec.fieldContext_Comment_issue(ctx, field)
+	case "reactions":
+		return ec.fieldContext_Comment_reactions(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Comment", field.Name)
 }
@@ -18315,6 +18460,34 @@ func (ec *executionContext) childFields_PurgePayload(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type PurgePayload", field.Name)
 }
 
+func (ec *executionContext) childFields_Reaction(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Reaction_id(ctx, field)
+	case "workspaceId":
+		return ec.fieldContext_Reaction_workspaceId(ctx, field)
+	case "commentId":
+		return ec.fieldContext_Reaction_commentId(ctx, field)
+	case "userId":
+		return ec.fieldContext_Reaction_userId(ctx, field)
+	case "emoji":
+		return ec.fieldContext_Reaction_emoji(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Reaction_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Reaction", field.Name)
+}
+
+func (ec *executionContext) childFields_ReactionPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_ReactionPayload_version(ctx, field)
+	case "reaction":
+		return ec.fieldContext_ReactionPayload_reaction(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ReactionPayload", field.Name)
+}
+
 func (ec *executionContext) childFields_RecurringIssue(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -19456,6 +19629,44 @@ func (ec *executionContext) field_Mutation_addProjectTeam_args(ctx context.Conte
 		return nil, err
 	}
 	args["teamId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_addReaction_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "commentId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["commentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "emoji",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["emoji"] = arg1
 	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
 		func(ctx context.Context, v any) (*uuid.UUID, error) {
 			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
@@ -22654,6 +22865,44 @@ func (ec *executionContext) field_Mutation_removeProjectTeam_args(ctx context.Co
 		return nil, err
 	}
 	args["teamId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_removeReaction_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "commentId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["commentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "emoji",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["emoji"] = arg1
 	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
 		func(ctx context.Context, v any) (*uuid.UUID, error) {
 			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
@@ -27370,6 +27619,38 @@ func (ec *executionContext) fieldContext_Comment_issue(_ context.Context, field 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Issue(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Comment_reactions(ctx context.Context, field graphql.CollectedField, obj *Comment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Comment_reactions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Reactions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []Reaction) graphql.Marshaler {
+			return ec.marshalNReaction2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐReactionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Comment_reactions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Comment",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Reaction(ctx, field)
 		},
 	}
 	return fc, nil
@@ -39624,6 +39905,120 @@ func (ec *executionContext) fieldContext_Mutation_deleteComment(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteComment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_addReaction(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_addReaction(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AddReaction(ctx, fc.Args["commentId"].(uuid.UUID), fc.Args["emoji"].(string), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *ReactionPayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *ReactionPayload) graphql.Marshaler {
+			return ec.marshalNReactionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐReactionPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_addReaction(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ReactionPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addReaction_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeReaction(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_removeReaction(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RemoveReaction(ctx, fc.Args["commentId"].(uuid.UUID), fc.Args["emoji"].(string), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *DeletePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_removeReaction(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeReaction_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -59262,6 +59657,199 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Reaction_id(ctx context.Context, field graphql.CollectedField, obj *Reaction) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reaction_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reaction_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reaction", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Reaction_workspaceId(ctx context.Context, field graphql.CollectedField, obj *Reaction) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reaction_workspaceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkspaceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reaction_workspaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reaction", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Reaction_commentId(ctx context.Context, field graphql.CollectedField, obj *Reaction) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reaction_commentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CommentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reaction_commentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reaction", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Reaction_userId(ctx context.Context, field graphql.CollectedField, obj *Reaction) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reaction_userId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reaction_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reaction", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Reaction_emoji(ctx context.Context, field graphql.CollectedField, obj *Reaction) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reaction_emoji(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Emoji, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reaction_emoji(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reaction", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Reaction_createdAt(ctx context.Context, field graphql.CollectedField, obj *Reaction) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reaction_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reaction_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reaction", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ReactionPayload_version(ctx context.Context, field graphql.CollectedField, obj *ReactionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReactionPayload_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ReactionPayload_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ReactionPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ReactionPayload_reaction(ctx context.Context, field graphql.CollectedField, obj *ReactionPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReactionPayload_reaction(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Reaction, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Reaction) graphql.Marshaler {
+			return ec.marshalNReaction2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐReaction(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ReactionPayload_reaction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ReactionPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Reaction(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _RecurringIssue_id(ctx context.Context, field graphql.CollectedField, obj *RecurringIssue) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -73092,6 +73680,13 @@ func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.Selecti
 			return graphql.Null
 		}
 		return ec._RecurringIssuePayload(ctx, sel, obj)
+	case ReactionPayload:
+		return ec._ReactionPayload(ctx, sel, &obj)
+	case *ReactionPayload:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ReactionPayload(ctx, sel, obj)
 	case PurgePayload:
 		return ec._PurgePayload(ctx, sel, &obj)
 	case *PurgePayload:
@@ -74405,6 +75000,11 @@ func (ec *executionContext) _Comment(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "issue":
 			out.Values[i] = ec._Comment_issue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reactions":
+			out.Values[i] = ec._Comment_reactions(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -79406,6 +80006,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteComment":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteComment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addReaction":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addReaction(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeReaction":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeReaction(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -85370,6 +85984,112 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
+var reactionImplementors = []string{"Reaction"}
+
+func (ec *executionContext) _Reaction(ctx context.Context, sel ast.SelectionSet, obj *Reaction) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, reactionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Reaction")
+		case "id":
+			out.Values[i] = ec._Reaction_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workspaceId":
+			out.Values[i] = ec._Reaction_workspaceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "commentId":
+			out.Values[i] = ec._Reaction_commentId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userId":
+			out.Values[i] = ec._Reaction_userId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "emoji":
+			out.Values[i] = ec._Reaction_emoji(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Reaction_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var reactionPayloadImplementors = []string{"ReactionPayload", "MutationResult"}
+
+func (ec *executionContext) _ReactionPayload(ctx context.Context, sel ast.SelectionSet, obj *ReactionPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, reactionPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ReactionPayload")
+		case "version":
+			out.Values[i] = ec._ReactionPayload_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reaction":
+			out.Values[i] = ec._ReactionPayload_reaction(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var recurringIssueImplementors = []string{"RecurringIssue"}
 
 func (ec *executionContext) _RecurringIssue(ctx context.Context, sel ast.SelectionSet, obj *RecurringIssue) graphql.Marshaler {
@@ -90833,6 +91553,50 @@ func (ec *executionContext) marshalNPurgePayload2ᚖgithubᚗcomᚋpeixotolabs�
 		return graphql.Null
 	}
 	return ec._PurgePayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNReaction2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐReaction(ctx context.Context, sel ast.SelectionSet, v Reaction) graphql.Marshaler {
+	return ec._Reaction(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNReaction2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐReactionᚄ(ctx context.Context, sel ast.SelectionSet, v []Reaction) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNReaction2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐReaction(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNReaction2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐReaction(ctx context.Context, sel ast.SelectionSet, v *Reaction) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Reaction(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNReactionPayload2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐReactionPayload(ctx context.Context, sel ast.SelectionSet, v ReactionPayload) graphql.Marshaler {
+	return ec._ReactionPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNReactionPayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐReactionPayload(ctx context.Context, sel ast.SelectionSet, v *ReactionPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ReactionPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNRecurringCadence2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRecurringCadence(ctx context.Context, v any) (RecurringCadence, error) {

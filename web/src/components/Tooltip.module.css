@@ -81,10 +81,3 @@
   transform: translate(0, -50%);
   margin-left: var(--space-2);
 }
-
-/* The key hint's own chip surface is the app's raised grey, which is the tooltip's surface
- * too — so inside a tooltip it has to step to the neighbouring one or it disappears. */
-.keys kbd {
-  background-color: var(--bg-secondary);
-  color: var(--text-secondary);
-}

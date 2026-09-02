@@ -1,0 +1,24 @@
+.root {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+}
+
+/*
+ * "Saved" fades rather than disappearing, so the eye catches that something changed even
+ * when it was looking elsewhere. The element is emptied by the hook two seconds in; this
+ * ramp runs underneath that and ends held, so the last frame is not full opacity.
+ *
+ * Reduced motion gets the same information without the ramp: the token collapses to 1ms,
+ * which is a plain swap — nothing here moves position, so no further answer is owed.
+ */
+.fading {
+  animation: saveFade var(--duration-normal) var(--ease-in) 1400ms forwards;
+}
+
+@keyframes saveFade {
+  to {
+    opacity: 0;
+  }
+}

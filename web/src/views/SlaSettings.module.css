@@ -1,0 +1,93 @@
+/*
+ * This screen's own layout, at last.
+ *
+ * It used to import `features/labels/LabelSettings.module.css` — a stylesheet whose `.create`
+ * grid is five columns sized for the label form — and pad itself out with an empty `<span />`
+ * to make the columns line up. So editing the labels screen silently relaid out the SLA
+ * screen, which nobody would think to check. The grid below is sized for the controls that
+ * are actually on this page.
+ */
+
+/* `--text-danger` rather than the priority ramp: a theme that recolours urgency must not
+   silently recolour a refusal. */
+.error {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * Three controls and a button, with the duration cell simply absent when the action has no
+ * duration — `auto` last so the button never stretches, and equal `minmax(0, 1fr)` columns
+ * so nothing can be sized below its own content.
+ */
+.create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+/* Collapse rather than shrink: a select squeezed under its own longest option is the ragged
+   wrap the composition doc bans. */
+@media (max-width: 44rem) {
+  .create {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rule {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: var(--control-height-lg);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.rule:hover {
+  background-color: var(--bg-secondary);
+}
+
+/*
+ * The position, spelled out.
+ *
+ * "First match wins" is only actionable if the reader can see which one is first, and an
+ * <ol> alone does not draw its own numbers once the list-style is gone. It is `aria-hidden`
+ * because the list element already conveys position to the accessibility tree, and the move
+ * buttons name the rule rather than its number.
+ */
+.rank {
+  min-width: 2ch;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ruleText {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.ruleActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}

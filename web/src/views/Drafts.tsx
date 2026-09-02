@@ -22,6 +22,7 @@ import {
   type SavedDraft,
 } from '~/features/drafts/mutations';
 import {
+  clearCommentDraft,
   listLocalDrafts,
   writeCommentDraft,
   writeIssueComposerDraft,
@@ -43,6 +44,8 @@ export function Drafts() {
   const [load, setLoad] = useState<Load>({ phase: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [local, setLocal] = useState<readonly LocalDraft[]>(() => listLocalDrafts());
+  const [discardError, setDiscardError] = useState<string | null>(null);
+  const [retryDiscard, setRetryDiscard] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -69,8 +72,21 @@ export function Drafts() {
 
   const refreshLocal = () => setLocal(listLocalDrafts());
 
+  /**
+   * Opens the composer and re-reads both piles when it shuts.
+   *
+   * Filing a resumed draft deletes it — `deleteDraft` on the create, and the local slot is
+   * cleared with it — and this page had no way to find out: it read sessionStorage once at
+   * mount and re-fetched the saved list only when something on it was discarded. So the row
+   * that had just been filed stayed on screen, offering to resume an issue that now exists.
+   */
   const openIssue = (seed: Parameters<typeof create.open>[0]) => {
-    create.open(seed);
+    create.open(seed, {
+      onClosed: () => {
+        refreshLocal();
+        setAttempt((n) => n + 1);
+      },
+    });
   };
 
   const resumeLocal = (draft: LocalDraft) => {
@@ -106,12 +122,26 @@ export function Drafts() {
   };
 
   const discardSaved = async (id: string) => {
-    await deleteDraft(id);
-    setAttempt((n) => n + 1);
+    setDiscardError(null);
+    setRetryDiscard(null);
+    try {
+      await deleteDraft(id);
+      setAttempt((n) => n + 1);
+    } catch (failure) {
+      // The row is still there and still discardable, so this says so rather than leaving an
+      // unhandled rejection in the console and a button that appeared to do nothing.
+      setRetryDiscard(id);
+      setDiscardError(
+        failure instanceof ApiError && failure.isOffline
+          ? 'That draft could not be discarded — this device looks offline.'
+          : 'That draft could not be discarded.',
+      );
+    }
   };
 
-  const discardLocalIssue = () => {
-    writeIssueComposerDraft(null);
+  const discardLocal = (draft: LocalDraft) => {
+    if (draft.kind === 'issue') writeIssueComposerDraft(null);
+    else clearCommentDraft(draft.issueId, draft.parentId);
     refreshLocal();
   };
 
@@ -124,7 +154,9 @@ export function Drafts() {
         keys: ['n'],
         when: 'list',
         group: 'Issues',
-        run: () => create.open(),
+        run: () => {
+          create.open();
+        },
       },
     ],
     [create],
@@ -149,7 +181,12 @@ export function Drafts() {
           title="Nothing unsent"
           description="Press C to start an issue. Walking away keeps it on this device; Esc offers to save it across devices."
           action={
-            <Button variant="primary" onClick={() => create.open()}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                create.open();
+              }}
+            >
               New issue
             </Button>
           }
@@ -178,11 +215,12 @@ export function Drafts() {
                         {when(draft.updatedAt)}
                       </span>
                     </button>
-                    {draft.kind === 'issue' ? (
-                      <Button size="sm" variant="ghost" onClick={discardLocalIssue}>
-                        Discard
-                      </Button>
-                    ) : null}
+                    {/* Every row can be discarded. A comment draft used to have no control
+                        at all, so the one pile on this screen that is definitely unsent was
+                        also the one nothing could clear. */}
+                    <Button size="sm" variant="ghost" onClick={() => discardLocal(draft)}>
+                      Discard
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -197,6 +235,21 @@ export function Drafts() {
               </Button>
             </p>
           ) : null}
+
+          {discardError === null ? null : (
+            <p className={styles.error} role="alert">
+              {discardError}{' '}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  if (retryDiscard !== null) void discardSaved(retryDiscard);
+                }}
+              >
+                Try again
+              </Button>
+            </p>
+          )}
 
           {saved.length > 0 && (
             <section className={styles.section}>

@@ -3,22 +3,37 @@
  * and named tiers. The mutations already lived on workspace; this is the screen.
  */
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
-import { Button, Checkbox, Input, Select } from '~/components';
+import {
+  Button,
+  Checkbox,
+  ConfirmDialog,
+  Input,
+  SaveIndicator,
+  Select,
+  SettingsPage,
+  SettingsSection,
+  useSaveState,
+} from '~/components';
+import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { report } from '~/features/issue/mutations';
 import { updateWorkspaceCustomers } from '~/features/workspace/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store } from '~/store';
 import { ApiError } from '~/sync/api';
 
-import styles from '~/features/labels/LabelSettings.module.css';
+import styles from './CustomerRequestSettings.module.css';
 
 export function CustomerRequestSettings() {
   const engine = useEngine();
   const [error, setError] = useState<string | null>(null);
   const [tierName, setTierName] = useState('');
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const unit = useSaveState();
 
   const workspace = useLiveQuery(
     (store: Store) => store.workspaces.get(store.workspaceId) ?? null,
@@ -36,6 +51,8 @@ export function CustomerRequestSettings() {
     ['team'],
     [],
   );
+
+  const workspaceState = useEntityState(workspace);
 
   const save = (fields: Parameters<typeof updateWorkspaceCustomers>[1]) => {
     setError(null);
@@ -59,111 +76,199 @@ export function CustomerRequestSettings() {
     save({ customerTiers: [...workspace.customerTiers, name] });
   };
 
+  const confirmRemove = async () => {
+    if (removing === null || workspace === null || removeBusy) return;
+    setRemoveBusy(true);
+    setRemoveError(null);
+    try {
+      await updateWorkspaceCustomers(engine, {
+        customerTiers: workspace.customerTiers.filter((name) => name !== removing),
+      });
+      setRemoving(null);
+    } catch (failure) {
+      setRemoveError(
+        failure instanceof ApiError ? failure.message : 'That tier could not be removed.',
+      );
+      report(failure);
+    } finally {
+      setRemoveBusy(false);
+    }
+  };
+
+  // A workspace row that has not arrived yet is not a workspace without settings. This used
+  // to return null, so a cold deep link to this page rendered nothing at all — no heading, no
+  // explanation, no indication that anything was on its way.
   if (workspace === null) {
-    return null;
+    return (
+      <SettingsPage title="Customer requests">
+        {workspaceState === 'loading' ? (
+          <EntityLoading label="Loading customer request settings…" lines={4} />
+        ) : (
+          <p className={styles.hint}>
+            This workspace could not be read. Reload the page, or check that you are still signed
+            in.
+          </p>
+        )}
+      </SettingsPage>
+    );
   }
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Customer requests</h1>
-      </header>
+    <SettingsPage title="Customer requests" error={error ?? undefined}>
+      <SettingsSection
+        description="Link feedback to customers, then to issues and projects. Guests never see this. Turning it off hides the pages and refuses new requests; existing data stays."
+        status={<SaveIndicator state={unit.state} />}
+        error={unit.error}
+      >
+        <Checkbox
+          label="Enable customer requests"
+          checked={workspace.customerRequestsEnabled}
+          onChange={(event) => save({ customerRequestsEnabled: event.target.checked })}
+        />
 
-      <div className={styles.body}>
-        {error === null ? null : (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
+        <Select
+          label="Default team"
+          hint="Used when creating an issue from a customer page. Public teams only."
+          value={workspace.customerDefaultTeamId ?? ''}
+          disabled={!workspace.customerRequestsEnabled}
+          onChange={(event) =>
+            save({
+              customerDefaultTeamId: event.target.value === '' ? null : event.target.value,
+            })
+          }
+        >
+          <option value="">No default — the creator picks</option>
+          {teams.map((team) => (
+            <option key={team.id} value={team.id}>
+              {team.name}
+            </option>
+          ))}
+        </Select>
 
-        <section className={styles.section}>
-          <p className={styles.sectionHint}>
-            Link feedback to customers, then to issues and projects. Guests never see this. Turning
-            it off hides the pages and refuses new requests; existing data stays.
-          </p>
+        <RevenueUnit
+          value={workspace.customerRevenueUnit}
+          disabled={!workspace.customerRequestsEnabled}
+          save={unit}
+          onSave={(next) => updateWorkspaceCustomers(engine, { customerRevenueUnit: next })}
+        />
+      </SettingsSection>
 
-          <Checkbox
-            label="Enable customer requests"
-            checked={workspace.customerRequestsEnabled}
-            onChange={(event) => save({ customerRequestsEnabled: event.target.checked })}
-          />
-
-          <Select
-            label="Default team"
-            hint="Used when creating an issue from a customer page. Public teams only."
-            value={workspace.customerDefaultTeamId ?? ''}
-            disabled={!workspace.customerRequestsEnabled}
-            onChange={(event) =>
-              save({
-                customerDefaultTeamId: event.target.value === '' ? null : event.target.value,
-              })
-            }
-          >
-            <option value="">No default — the creator picks</option>
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </Select>
-
+      <SettingsSection
+        title="Tiers"
+        description="Named plans offered when attributing a customer — Enterprise, Pro, self-serve. The customer's tier field stores the name."
+        flush
+      >
+        <form className={styles.create} onSubmit={addTier}>
           <Input
-            label="Revenue unit"
-            hint="Shown next to a customer's revenue. USD, seats, or leave blank."
-            defaultValue={workspace.customerRevenueUnit}
-            key={`unit:${workspace.customerRevenueUnit}`}
+            label="Tier name"
+            value={tierName}
             disabled={!workspace.customerRequestsEnabled}
-            onBlur={(event) => {
-              const unit = event.target.value.trim();
-              if (unit === workspace.customerRevenueUnit) return;
-              save({ customerRevenueUnit: unit });
-            }}
+            onChange={(event) => setTierName(event.target.value)}
           />
-        </section>
+          <Button type="submit" disabled={!workspace.customerRequestsEnabled}>
+            Add
+          </Button>
+        </form>
 
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Tiers</h2>
-          <p className={styles.sectionHint}>
-            Named plans offered when attributing a customer — Enterprise, Pro, self-serve. The
-            customer's tier field stores the name.
-          </p>
+        {workspace.customerTiers.length === 0 ? (
+          <p className={styles.hint}>No tiers yet. The customer page accepts any label.</p>
+        ) : (
+          <ul className={styles.tiers}>
+            {workspace.customerTiers.map((tier) => (
+              <li key={tier} className={styles.tier}>
+                <span>{tier}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Remove ${tier}`}
+                  disabled={!workspace.customerRequestsEnabled}
+                  onClick={() => {
+                    setRemoveError(null);
+                    setRemoving(tier);
+                  }}
+                >
+                  Remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SettingsSection>
 
-          <form className={styles.create} onSubmit={addTier}>
-            <Input
-              label="Tier name"
-              value={tierName}
-              disabled={!workspace.customerRequestsEnabled}
-              onChange={(event) => setTierName(event.target.value)}
-            />
-            <Button type="submit" disabled={!workspace.customerRequestsEnabled}>
-              Add
-            </Button>
-          </form>
+      <ConfirmDialog
+        open={removing !== null}
+        title={removing === null ? '' : `Remove the ${removing} tier?`}
+        consequence="Customers already marked with it keep the word — the tier field stores the name, not a reference — but it stops being offered when somebody attributes a new one, and nothing here puts it back except typing it again."
+        confirmLabel="Remove this tier"
+        destructive
+        busy={removeBusy}
+        error={removeError ?? undefined}
+        onConfirm={() => void confirmRemove()}
+        onClose={() => {
+          if (removeBusy) return;
+          setRemoving(null);
+          setRemoveError(null);
+        }}
+      />
+    </SettingsPage>
+  );
+}
 
-          {workspace.customerTiers.length === 0 ? (
-            <p className={styles.quiet}>No tiers yet. The customer page accepts any label.</p>
-          ) : (
-            <ul className={styles.tree}>
-              {workspace.customerTiers.map((tier) => (
-                <li key={tier} className={styles.row}>
-                  <span>{tier}</span>
-                  <Button
-                    variant="ghost"
-                    disabled={!workspace.customerRequestsEnabled}
-                    onClick={() =>
-                      save({
-                        customerTiers: workspace.customerTiers.filter((name) => name !== tier),
-                      })
-                    }
-                  >
-                    Remove
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-    </div>
+interface RevenueUnitProps {
+  value: string;
+  disabled: boolean;
+  save: ReturnType<typeof useSaveState>;
+  onSave: (value: string) => Promise<unknown>;
+}
+
+/**
+ * The revenue unit, saved on blur — and now saying so.
+ *
+ * Two things were wrong with it. It was uncontrolled with a `key={`unit:${value}`}`, so every
+ * save remounted the field: the caret went to the end and the focus ring went out, on a
+ * control the user had only just left. And the save itself was silent, which on a screen with
+ * no other feedback is indistinguishable from the field having done nothing at all.
+ *
+ * So it is controlled, and the remote value is adopted only while the field is not focused —
+ * which is what the remount was really for, and the one moment adopting it cannot destroy
+ * something somebody is in the middle of typing.
+ */
+function RevenueUnit({ value, disabled, save, onSave }: RevenueUnitProps) {
+  const [draft, setDraft] = useState(value);
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(value);
+  }, [value]);
+
+  return (
+    <Input
+      label="Revenue unit"
+      hint="Shown next to a customer's revenue. USD, seats, or leave blank."
+      value={draft}
+      disabled={disabled}
+      onChange={(event) => {
+        setDraft(event.target.value);
+        save.clear();
+      }}
+      onFocus={() => {
+        focused.current = true;
+      }}
+      onBlur={() => {
+        focused.current = false;
+        const next = draft.trim();
+        if (next === value) {
+          setDraft(value);
+          return;
+        }
+        void save
+          .run(() => onSave(next))
+          .then((landed) => {
+            // A refusal leaves the typed value in the box beside the reason, rather than
+            // silently reverting to a value the user has just decided against.
+            if (landed) setDraft(next);
+          });
+      }}
+    />
   );
 }

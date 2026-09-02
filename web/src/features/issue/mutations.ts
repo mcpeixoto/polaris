@@ -15,11 +15,13 @@
  * A note on failure. `engine.mutate` already reverts the patch when the server rejects a
  * write, and leaves it standing when the request never left the building — the difference
  * between "that was not allowed" and "you are on a train". Everything here still rejects, so
- * a caller that has somewhere to put an error can, and the screens that do not pass `report`,
- * which says so once in the console: the revert has already corrected what is on screen, and
- * M0 has no toast host to say more than that.
+ * a caller that has somewhere to put an error can, and the screens that do not pass `report`
+ * — which now raises a toast as well as writing to the console. The revert corrects what is
+ * on screen; the toast is what says the change did not happen, because a value quietly
+ * returning to its old one is indistinguishable from a click that missed.
  */
 
+import { offerError } from '~/features/toast/ToastHost';
 import { fromWire, toWire } from '~/gql/enums';
 import {
   ARCHIVE_ISSUE,
@@ -33,6 +35,7 @@ import {
 } from '~/gql/operations';
 import {
   issueIdentifier,
+  orderKeyBetween,
   uuidv7,
   type Comment,
   type DateOnly,
@@ -514,6 +517,96 @@ export function deleteIssues(engine: SyncEngine, ids: readonly UUID[]): Promise<
   );
 }
 
+/**
+ * Unarchives an issue, which locally means putting it back.
+ *
+ * The mirror of `archiveIssues`, and it exists because the archive path now offers an undo.
+ * `archiveIssues` documents the consequence of matching the server's delta — "a client
+ * cannot un-archive what it no longer holds" — and that is still true of the *store*: the
+ * row leaves the replica on the keystroke. So the caller has to carry the row it took away,
+ * which is exactly what an undo closure is for. The optimistic patch is `before: null`,
+ * `after: <the row we were handed>`: an upsert of a row whose id the client already knows,
+ * so nothing here needs reconciling against a server-minted id.
+ *
+ * The row is only put back where it is still absent. An undo pressed after the same issue
+ * has been unarchived from another session would otherwise overwrite whatever has happened
+ * to it since with a snapshot taken before the archive.
+ */
+export function unarchiveIssues(engine: SyncEngine, issues: readonly Issue[]): Promise<void> {
+  return all(
+    issues.map((issue) => {
+      const held = engine.store.get('issue', issue.id);
+      if (held !== undefined) return Promise.resolve();
+      return engine.mutate({
+        mutation: ARCHIVE_ISSUE,
+        variables: { id: issue.id, archived: false },
+        optimistic: [{ type: 'issue', id: issue.id, before: null, after: issue }],
+      });
+    }),
+  );
+}
+
+/**
+ * Where an issue is being moved to in the manual order.
+ *
+ * `afterId` names the row it should land under; `null` means the top of the list. The pair
+ * is what `UpdateIssueInput` accepts — `afterIssueId` and `moveToTop` — because the server
+ * is what mints the key, and a client sending a `sortOrder` it computed itself would be two
+ * answers to one question the moment two people dragged at once.
+ */
+export interface ReorderTarget {
+  /** The row the moved issue sits after, or null for the top of the list. */
+  readonly afterId: UUID | null;
+  /**
+   * The row it sits before, or null for the bottom.
+   *
+   * Not sent — the server derives it — but needed here to mint the optimistic key, which is
+   * the whole reason the caller looks up both neighbours rather than one.
+   */
+  readonly beforeId: UUID | null;
+}
+
+/**
+ * Moves an issue in the manual order.
+ *
+ * Manual order is workspace-global and held as a fractional `sortOrder`, so a move writes
+ * one row and touches neither neighbour — see `services/internal/fractional`. The server
+ * mints the real key from `afterIssueId`/`moveToTop`; the optimistic patch mints a local one
+ * with `orderKeyBetween` so the row moves on the keystroke rather than a round trip later.
+ * Leaving `sortOrder` alone in the patch is not an option: the list sorts on it, so the row
+ * would snap straight back to where it came from and then jump when the delta landed.
+ *
+ * A gap the local neighbours no longer straddle — a stale order, two people dragging into
+ * the same place — mints nothing and the move is dropped rather than landing the row
+ * somewhere nobody asked for. The caller re-reads its neighbours from the store, which is
+ * where they came from a moment ago anyway.
+ */
+export function reorderIssue(engine: SyncEngine, id: UUID, target: ReorderTarget): Promise<void> {
+  const before = engine.store.get('issue', id);
+  if (before === undefined) return Promise.resolve();
+
+  const lower =
+    target.afterId === null ? '' : (engine.store.get('issue', target.afterId)?.sortOrder ?? '');
+  const upper =
+    target.beforeId === null ? '' : (engine.store.get('issue', target.beforeId)?.sortOrder ?? '');
+  const sortOrder = orderKeyBetween(lower, upper);
+  if (sortOrder === null || sortOrder === before.sortOrder) return Promise.resolve();
+
+  const after: Issue = { ...before, sortOrder };
+  return engine
+    .mutate({
+      mutation: UPDATE_ISSUE,
+      variables: {
+        input: {
+          id,
+          ...(target.afterId === null ? { moveToTop: true } : { afterIssueId: target.afterId }),
+        },
+      },
+      optimistic: [{ type: 'issue', id, before, after }],
+    })
+    .then(() => undefined);
+}
+
 export interface NewComment {
   readonly issueId: UUID;
   readonly body: string;
@@ -696,6 +789,7 @@ export async function createSubIssue(engine: SyncEngine, input: NewSubIssue): Pr
   const team = store.get('team', input.teamId);
   const number = nextNumberFor(store, input.teamId);
   const id = uuidv7();
+  const inherited = inheritedFrom(store, input, state);
 
   const provisional: Issue = {
     id,
@@ -707,7 +801,10 @@ export async function createSubIssue(engine: SyncEngine, input: NewSubIssue): Pr
     description: '',
     stateId: state,
     creatorId: input.creatorId,
-    priority: 0,
+    priority: inherited.priority,
+    ...(inherited.assigneeId === undefined ? null : { assigneeId: inherited.assigneeId }),
+    ...(inherited.projectId === undefined ? null : { projectId: inherited.projectId }),
+    ...(inherited.cycleId === undefined ? null : { cycleId: inherited.cycleId }),
     sortOrder: lastSortOrderIn(store, state),
     parentId: input.parentId,
     subIssueSortOrder: lastSubIssueSortOrderIn(store, input.parentId),
@@ -726,6 +823,13 @@ export async function createSubIssue(engine: SyncEngine, input: NewSubIssue): Pr
           title: input.title,
           parentId: input.parentId,
           ...(state === '' ? null : { stateId: state }),
+          // The same values the provisional row above carries, so the screen and the server
+          // are told one thing rather than two. Sending them is what makes the inheritance
+          // survive the swap: the response replaces the optimistic row wholesale.
+          ...(inherited.priority === 0 ? null : { priority: inherited.priority }),
+          ...(inherited.assigneeId === undefined ? null : { assigneeId: inherited.assigneeId }),
+          ...(inherited.projectId === undefined ? null : { projectId: inherited.projectId }),
+          ...(inherited.cycleId === undefined ? null : { cycleId: inherited.cycleId }),
         },
       },
       optimistic: [{ type: 'issue', id, before: null, after: provisional }],
@@ -738,6 +842,55 @@ export async function createSubIssue(engine: SyncEngine, input: NewSubIssue): Pr
     if (error instanceof ApiError && error.isOffline) return id;
     throw error;
   }
+}
+
+/**
+ * What a child takes from its parent.
+ *
+ * 03-issue-properties.md is explicit and the list is short: team, priority and project always;
+ * cycle only when the child lands in an active status; assignee only when the person creating
+ * it is the parent's assignee. **Labels are not inherited** — that one is stated in the doc as
+ * an exception and is worth restating here, because "carry everything across" is the obvious
+ * reading and it is wrong: a label is a claim about one piece of work, and a parent's `needs
+ * design` is rarely true of the sub-issue somebody just typed.
+ *
+ * The cycle gate is the reason this reads the resolved state rather than the parent's. A cycle
+ * is a commitment to finish something inside a fortnight, and a child filed into the backlog
+ * has not been committed to anything; putting it in the parent's cycle would quietly inflate
+ * that cycle's scope with work nobody planned.
+ *
+ * The assignee gate is narrower than it looks. Somebody breaking down their own issue is
+ * continuing their own work, so the children arrive assigned to them; somebody else breaking
+ * down that issue is proposing work, and silently assigning it to the parent's owner would put
+ * items on another person's plate without them being told.
+ *
+ * A parent that is not in the replica inherits nothing rather than guessing — the child is
+ * still created, which is the only outcome the person typing cares about.
+ */
+function inheritedFrom(
+  store: Store,
+  input: NewSubIssue,
+  stateId: UUID,
+): {
+  readonly priority: number;
+  readonly assigneeId?: UUID | undefined;
+  readonly projectId?: UUID | undefined;
+  readonly cycleId?: UUID | undefined;
+} {
+  const parent = store.issues.get(input.parentId);
+  if (parent === undefined) return { priority: 0 };
+
+  const category = store.get('workflowState', stateId)?.category;
+  const active = category === 'started' || category === 'unstarted';
+
+  return {
+    priority: parent.priority,
+    ...(input.creatorId !== undefined && input.creatorId === parent.assigneeId
+      ? { assigneeId: parent.assigneeId }
+      : null),
+    ...(parent.projectId === undefined ? null : { projectId: parent.projectId }),
+    ...(active && parent.cycleId !== undefined ? { cycleId: parent.cycleId } : null),
+  };
 }
 
 /** The two properties the detail view's rail sets that a bulk action has no shape for. */
@@ -957,16 +1110,51 @@ export async function setSubscribed(engine: SyncEngine, input: SubscriptionChang
   }
 }
 
+export interface ReportOptions {
+  /**
+   * The headline the user reads, in the words of what they were doing: "Couldn't move
+   * issue". The default is deliberately vague, because a generic sentence is better than a
+   * wrong specific one — but a caller that knows should say.
+   */
+  readonly title?: string | undefined;
+  /**
+   * Runs the same write again, offered as a button on the toast. Omit it when there is
+   * nothing useful to press: a retry that cannot work is worse than no retry, because the
+   * user presses it and learns nothing new.
+   */
+  readonly retry?: (() => void) | undefined;
+}
+
 /**
  * Reports a mutation that failed and returns.
  *
  * Exported because the screens call these helpers from click handlers and registered
  * actions, neither of which can await — and a floating promise that rejects is an unhandled
  * rejection in the console rather than a message anybody reads.
+ *
+ * It does two things, and both are load bearing. The console line is for whoever is reading
+ * a support ticket. The toast is for the person the refusal happened to: the optimistic value
+ * has already been reverted by `engine.mutate`, and a value that silently snaps back to what
+ * it was is indistinguishable from a click that never landed.
+ *
+ * Offline is still the exception and still says nothing. The write is queued in the outbox
+ * and will go out when the connection returns, so it has not failed — and `ConnectionIndicator`
+ * is already saying the one true thing about that state, once, rather than once per write.
+ *
+ * Written to be passable straight to `.catch`, which is how all seventy-seven call sites use
+ * it: the second parameter is optional and `Promise.catch` only ever supplies the first.
  */
-export function report(error: unknown): void {
+export function report(error: unknown, options: ReportOptions = {}): void {
   if (error instanceof ApiError && error.isOffline) return;
   console.error('[polaris] a change could not be saved', error);
+  offerError({
+    title: options.title ?? "Couldn't save that change",
+    // The server's own sentence, which for an ApiError is written for a human and is
+    // frequently the only thing that says *why*. Anything else is a programming fault, and
+    // its message is not something to put in front of a user.
+    description: error instanceof ApiError ? error.message : undefined,
+    retry: options.retry,
+  });
 }
 
 /**

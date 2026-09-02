@@ -104,8 +104,9 @@
 }
 
 /*
- * The conjunction between two chips. At the top level it is a button; nested it is the same
- * word drawn as text, because only the top-level group can be changed from here.
+ * The conjunction between two chips, at every depth. A bracket on screen says the filter has
+ * more than one of these in it, so each group owns its own button: "(A or B) and C" is two
+ * decisions, and one control rewriting both would change the half nobody pointed at.
  */
 .conj {
   padding: 0 var(--space-1);
@@ -130,6 +131,13 @@ button.conj:hover {
 button.conj:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
+}
+
+/* The two controls a bracket carries: add a clause to it, and take the whole bracket away.
+   Nothing else on the bar can reach a group — the Add filter button writes to the top level,
+   and an empty group has no chip whose remove button would do it. */
+.groupAction {
+  flex: none;
 }
 
 /* A nested group, drawn with its brackets so the precedence is legible rather than implied. */
@@ -379,4 +387,28 @@ button.conj:focus-visible {
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+
+/*
+ * Reduced motion: the same two beats, with nothing moving.
+ *
+ * A crossfade rather than nothing at all. The popover appears over the row it belongs to
+ * and the fade is what says which chip it came from — removing the animation entirely would
+ * make it blink into place, which reads as a repaint rather than as an opening. The exit
+ * keeps `forwards` for the reason the entrance keyframes do not need it: the panel is held
+ * on screen by `usePresence` for the length of this animation, and a fill that handed back
+ * full opacity on the last frame would flash it back before it unmounts.
+ */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes editorIn {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes editorOut {
+    to {
+      opacity: 0;
+    }
+  }
 }

@@ -108,12 +108,18 @@
  *
  * --duration-fast, not normal. A validation message is the answer to a submit the user made
  * from the keyboard, and they are waiting on it to find out what is wrong.
+ *
+ * The ink is secondary rather than tertiary, and that is the widest-reaching contrast fix in
+ * the kit: Field is the frame behind Input, Textarea, Select and SecretField, so every form
+ * hint in the product inherits this rule — including the ones inside a dialog, where the text
+ * sits on --bg-elevated and tertiary measures 4.08:1 in dark. Tertiary is tuned against the
+ * page and nothing else; see docs/03-architecture/08-ui-composition.md.
  */
 .message {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-family: var(--font-sans);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-tight);
@@ -132,14 +138,18 @@
 }
 
 /*
- * The token layer has no --danger role, and this is the only red in it that follows the
- * theme: --color-red-500 and --color-red-600 are ramp stops, and each of them fails its
- * contrast target against one of the two page colours. --priority-urgent is the pair,
- * already tuned light and dark, and the coupling it creates is the right one — a theme
- * that recolours urgency has said what it thinks red means here.
+ * --text-danger, which is the role this rule always wanted.
  *
- * A solid red *fill* is a different problem and takes the ramp directly; see Button.
+ * It used to borrow --priority-urgent, and the reasoning was sound as far as it went: the
+ * ramp stops --color-red-500 and --color-red-600 each fail their contrast target against one
+ * of the two page colours, and urgency was the only red already tuned for both. What that
+ * bought was a coupling nobody asked for — a theme recolouring urgency silently recoloured
+ * every validation message in the product, which is exactly the cross-ramp borrowing the
+ * composition doc forbids. The token layer now has the role, so the exception is spent.
+ *
+ * A solid red *fill* is a different problem and takes the ramp directly; see Button, which
+ * remains a documented exception because its red is read against its own white foreground.
  */
 .error {
-  color: var(--priority-urgent);
+  color: var(--text-danger);
 }

@@ -1,17 +1,19 @@
 {
   "colors" : [
     {
+      "comment" : "Light. #FAFBFC — --color-neutral-50, the light theme's page. The default appearance was pure white while the app was pinned to dark, so every cold start on a phone in Light mode flashed white and snapped to near-black.",
       "color" : {
         "color-space" : "srgb",
-        "components" : { "alpha" : "1.000", "blue" : "1.000", "green" : "1.000", "red" : "1.000" }
+        "components" : { "alpha" : "1.000", "blue" : "0.988", "green" : "0.984", "red" : "0.980" }
       },
       "idiom" : "universal"
     },
     {
+      "comment" : "Dark. #0E1013 — --color-neutral-950, the dark theme's page.",
       "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ],
       "color" : {
         "color-space" : "srgb",
-        "components" : { "alpha" : "1.000", "blue" : "0.071", "green" : "0.063", "red" : "0.055" }
+        "components" : { "alpha" : "1.000", "blue" : "0.075", "green" : "0.063", "red" : "0.055" }
       },
       "idiom" : "universal"
     }

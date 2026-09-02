@@ -1,0 +1,12 @@
+/*
+ * This screen used to import the labels feature's stylesheet for its entire layout, which
+ * meant editing a label row silently relaid out the workspace settings page. The frame now
+ * comes from SettingsPage; this file holds the one thing the frame does not know about.
+ */
+
+/* An address is short and lower-case, and a full-width box invites a sentence into it. */
+.urlKey {
+  max-width: 32ch;
+  font-family: var(--font-mono);
+  text-transform: lowercase;
+}

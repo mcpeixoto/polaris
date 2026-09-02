@@ -40,8 +40,13 @@
   font-size: var(--font-size-sm);
 }
 
+/*
+ * No `text-transform` any more. It was here to make the raw `pro`/`free` enum look like a
+ * word; the plan now carries a real name, and a transform over real copy is a trap the next
+ * plan with a lower-case letter in the middle of it would fall into.
+ */
 .plan {
-  text-transform: capitalize;
+  font-weight: var(--font-weight-medium);
 }
 
 .actions {

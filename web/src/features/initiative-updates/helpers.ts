@@ -42,10 +42,23 @@ export interface LinkedProjectHealth {
   readonly health: ProjectUpdateHealth | null;
 }
 
-/** Latest project-update health for each live project linked to the initiative or its descendants. */
-export function linkedProjectHealths(store: Store, initiativeId: UUID): LinkedProjectHealth[] {
+/**
+ * Every live project the initiative owns, directly or through a descendant, once each.
+ *
+ * The spec is explicit that a parent's project list includes all descendants' projects, and
+ * this is the one walk that decides what that set is. It was inlined in `linkedProjectHealths`
+ * while the overview's own Projects section walked only direct links, so the health strip and
+ * the list under it counted different projects on the same screen. Progress, the graph and
+ * the strip all read from here now, and a change to the rule moves all three together.
+ *
+ * `seen` guards the initiative side of the walk — an initiative may have several parents, so
+ * a diamond is reachable twice — and `taken` guards the project side, because two
+ * sub-initiatives commonly contribute the same project.
+ */
+export function descendantProjectIds(store: Store, initiativeId: UUID): UUID[] {
   const seen = new Set<UUID>();
-  const rows: LinkedProjectHealth[] = [];
+  const taken = new Set<UUID>();
+  const projectIds: UUID[] = [];
   const walk = (id: UUID) => {
     if (seen.has(id)) return;
     seen.add(id);
@@ -60,17 +73,29 @@ export function linkedProjectHealths(store: Store, initiativeId: UUID): LinkedPr
       ) {
         continue;
       }
-      if (rows.some((row) => row.projectId === project.id)) continue;
-      rows.push({
-        projectId: project.id,
-        name: project.name,
-        health: latestProjectUpdate(store, project.id)?.health ?? null,
-      });
+      if (taken.has(project.id)) continue;
+      taken.add(project.id);
+      projectIds.push(project.id);
     }
     for (const childId of store.initiativeChildIdsFor(id)) {
       walk(childId);
     }
   };
   walk(initiativeId);
+  return projectIds;
+}
+
+/** Latest project-update health for each live project linked to the initiative or its descendants. */
+export function linkedProjectHealths(store: Store, initiativeId: UUID): LinkedProjectHealth[] {
+  const rows: LinkedProjectHealth[] = [];
+  for (const projectId of descendantProjectIds(store, initiativeId)) {
+    const project = store.projects.get(projectId);
+    if (project === undefined) continue;
+    rows.push({
+      projectId,
+      name: project.name,
+      health: latestProjectUpdate(store, projectId)?.health ?? null,
+    });
+  }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }

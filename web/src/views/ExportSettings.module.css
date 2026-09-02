@@ -1,59 +1,18 @@
-.screen {
+/*
+ * Only what `SettingsPage` and `SettingsSection` do not already draw. The screen, header,
+ * title, body measure and section heading scale are now the frame's.
+ */
+
+.loading {
   display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: none;
-  height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-10);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--space-6) var(--space-4);
-  max-width: 68ch;
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.sectionTitle {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.sectionNote {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
+  justify-content: center;
+  padding: var(--space-8);
+  color: var(--text-tertiary);
 }
 
 .note {
   margin: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }

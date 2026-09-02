@@ -7,6 +7,19 @@
   flex: none;
 }
 
+/*
+ * The caps of one chord, held tighter than the gap between chords above.
+ *
+ * ⌘ and ⇧ and K are pressed together, so they are drawn as a run; the wider gap outside this
+ * box is what separates that run from the next thing the hand does. Same distinction, one
+ * step down, and the two gaps have to differ or `G I` and `⌘⇧K` read identically.
+ */
+.chord {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
 .key {
   display: inline-flex;
   align-items: center;
@@ -15,20 +28,15 @@
   height: var(--space-4);
   padding-inline: var(--space-1);
   border-radius: var(--radius-sm);
-  background-color: var(--bg-tertiary);
   /*
    * Secondary, not tertiary, and this is a contrast fix rather than a preference.
    *
    * --text-tertiary is tuned against the *page*, where it clears 4.5:1 with almost nothing
-   * to spare — 4.60:1 in dark. A key chip is not on the page: it sits on --bg-tertiary,
-   * which is two surface steps up, and tertiary ink on it measures 3.38:1 in dark. That is a
-   * fail for text by any reading, and these are not decorative glyphs; a shortcut hint
-   * nobody can read is a shortcut nobody learns.
-   *
-   * The evidence that this was already known is one file over: Tooltip.module.css reaches in
-   * and overrides both the surface and the ink for the chips it contains, which is the fix
-   * being applied locally to the one place somebody happened to look. Secondary here is
-   * 5.39:1 dark and 8.98:1 light, and still visibly quieter than the label beside it.
+   * to spare — 4.60:1 in dark. A key chip is not on the page: it sits a surface step up,
+   * and tertiary ink on --bg-tertiary measures 3.38:1 in dark. That is a fail for text by
+   * any reading, and these are not decorative glyphs; a shortcut hint nobody can read is a
+   * shortcut nobody learns. Secondary is 5.39:1 dark and 8.98:1 light, and still visibly
+   * quieter than the label beside it.
    */
   color: var(--text-secondary);
   /* The sans stack, not the mono one. These are not code; a monospaced ⌘ is wider than the
@@ -37,4 +45,20 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-none);
+}
+
+/*
+ * A chip is only visible against a fill it does not share, so the ground is a prop rather
+ * than something the containing stylesheet reaches in and overrides.
+ *
+ * Menu and Tooltip each used to do exactly that, with a `.hint kbd` descendant rule — which
+ * CSS modules does not hash, so it styled every `<kbd>` anywhere beneath them. `surface` is
+ * the same fix stated once, by the component that owns the chip.
+ */
+.page {
+  background-color: var(--bg-tertiary);
+}
+
+.raised {
+  background-color: var(--bg-secondary);
 }

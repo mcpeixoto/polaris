@@ -109,6 +109,12 @@ type bootstrapEnd struct {
 	Kind  string `json:"kind"`
 	Count int    `json:"count"`
 	Error string `json:"error,omitempty"`
+	// Code is the machine-readable half. The message is generic on purpose — the cause is
+	// in the server log — but the code is safe to send and is the only thing that lets the
+	// client's retry policy tell "rate limited, back off" from "retry now" from "this will
+	// never work". Without it streamBootstrap could only raise a generic INTERNAL and the
+	// engine's backoff had nothing to branch on.
+	Code string `json:"code,omitempty"`
 }
 
 func (n *ndjsonWriter) Meta(version int64, clientSchema int) error {
@@ -138,8 +144,14 @@ func (n *ndjsonWriter) done() {
 }
 
 func (n *ndjsonWriter) abort(err error) {
-	// The message is deliberately generic; the cause is in the server log.
-	_ = n.write(bootstrapEnd{Kind: "end", Count: n.count, Error: "snapshot failed"})
+	// The message is deliberately generic; the cause is in the server log. The error was
+	// accepted and never read at all until now, which is how the code went missing.
+	_ = n.write(bootstrapEnd{
+		Kind:  "end",
+		Count: n.count,
+		Error: "snapshot failed",
+		Code:  string(platform.CodeOf(err)),
+	})
 	n.flush()
 }
 

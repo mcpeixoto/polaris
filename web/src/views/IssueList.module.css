@@ -69,26 +69,100 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+/*
+ * The bulk action bar. It is drawn over the bottom of the list rather than pinned under the
+ * filter, and only while there is a selection — a permanent row of mostly-disabled buttons is
+ * a row people learn to stop reading, and the count that makes a bulk action safe was sitting
+ * in it all day saying "Nothing to act on".
+ *
+ * Over the rows and not beside them, so appearing does not reflow the list under the pointer
+ * that has just selected something. The last row is still reachable: the scroller keeps its
+ * own overscroll and the bar is short enough to scroll past.
+ */
 .toolbar {
+  position: absolute;
+  z-index: var(--z-sticky);
+  bottom: var(--space-4);
+  left: 50%;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex: none;
-  padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  max-width: calc(100% - var(--space-8));
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  overflow-x: auto;
+  transform: translateX(-50%);
+  animation: barIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes barIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, var(--space-3));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* The bar moves, so it owes an answer: the same arrival, without the travel. */
+@media (prefers-reduced-motion: reduce) {
+  .toolbar {
+    animation-name: barFade;
+  }
+
+  @keyframes barFade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }
 
 .selectionCount {
   margin-right: var(--space-2);
-  color: var(--text-tertiary);
+  /* Secondary and not tertiary: the bar is `--bg-elevated`, where tertiary is 4.08:1 in
+     dark — and this is the one line on it that says how many rows are about to change. */
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 
+/* `position: relative` so the selection bar has something to sit at the bottom of. */
 .body {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
+}
+
+/* The scroller plus the heading pinned over it. See `pinned` in IssueList.tsx for why the
+   heading is drawn a second time rather than stuck: every row is absolutely positioned by
+   the virtualiser, and an absolutely positioned element has no flow to stick within. */
+.listPane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pinned {
+  position: absolute;
+  z-index: var(--z-sticky);
+  top: 0;
+  right: 0;
+  left: 0;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-subtle);
+  pointer-events: auto;
 }
 
 .scroller {
@@ -136,9 +210,43 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  width: 100%;
   height: var(--control-height-md);
   padding-inline: var(--space-4);
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: var(--font-size-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.group:hover {
+  background-color: var(--bg-hover);
+}
+
+.group:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+/* The chevron turns rather than swapping glyph, so the two states read as one control in
+   two positions. It rotates, so it answers reduced motion by not animating at all. */
+.groupChevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-tertiary);
+  transition: transform var(--duration-instant) var(--ease-out);
+}
+
+.groupChevronShut {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .groupChevron {
+    transition: none;
+  }
 }
 
 .groupName {
@@ -149,6 +257,67 @@
 .groupCount {
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The leading slot: the status ring, with the selection checkbox stacked over it.
+ *
+ * Stacked rather than laid side by side so the row's leading edge does not shift as the
+ * pointer crosses it — in a list this dense a twenty-pixel jump reads as the whole column
+ * moving. The box is `--control-height-xs`'s footprint, which is what the ring already takes.
+ */
+.lead {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.check {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+}
+
+/*
+ * Revealed on hover, on focus, and whenever the row is in the selection — the last one
+ * because a ticked box that vanished when the pointer left would make a selection something
+ * you can only see by not looking away from it.
+ */
+.row:hover .check,
+.row:focus-within .check,
+.selected .check {
+  opacity: 1;
+}
+
+.row:hover .lead > svg,
+.row:focus-within .lead > svg,
+.selected .lead > svg {
+  opacity: 0;
+}
+
+/* A sub-issue is indented and says whose it is. The indent alone would say "this is under
+   something" without saying what, which in a filtered list is the half not worth having. */
+.child {
+  padding-inline-start: var(--space-6);
+}
+
+.parentCrumb {
+  flex: none;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.parentCrumb::after {
+  content: '›';
+  margin-inline-start: var(--space-1);
 }
 
 .row {
@@ -175,6 +344,32 @@
 }
 
 /*
+ * A row arriving fades in rather than appearing. Opacity only and `--duration-fast`: a row
+ * that slid would fight the virtualiser, which owns every vertical position on the screen,
+ * and a list that animated a scroll's worth of rows would drop the frame it is built to keep.
+ * There is deliberately no leave animation — a deleted row is gone from the replica in the
+ * same frame, and holding a ghost of it would be the list disagreeing with the store.
+ */
+.row {
+  animation: rowIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes rowIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    animation: none;
+  }
+}
+
+/*
  * Selection and the cursor are two different facts and are drawn as two different marks: a
  * wash says "this is in the set the toolbar acts on", the leading bar says "this is where
  * the keyboard is". They occur together constantly, and a design that used one mark for both
@@ -183,6 +378,19 @@
 .selected,
 .selected:hover {
   background-color: var(--bg-selected);
+}
+
+/* The status ring ramps to its new colour rather than cutting, so a status changed from the
+   picker is visible as a change on the row you were looking at. `--duration-instant`, because
+   it is on the keyboard path and `S` can be pressed twice in a second. */
+.row :global(svg) {
+  transition: color var(--duration-instant) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row :global(svg) {
+    transition: none;
+  }
 }
 
 .active {
@@ -264,10 +472,74 @@
   font-size: var(--font-size-xs);
 }
 
-/* Overdue is the one fact on a row worth interrupting a scan for, and it says so in words as
-   well — "Yesterday" is already the text; the colour only makes it findable. */
+/*
+ * A tertiary tone is only measured against `--bg-primary`. The moment a row is hovered or
+ * selected these three sit on `--bg-hover` or `--bg-selected`, where tertiary is below the
+ * floor — `08-ui-composition.md` calls this the single most repeated contrast defect in the
+ * codebase, and a row under the pointer is exactly the row being read.
+ */
+.row:hover .identifier,
+.row:hover .estimate,
+.row:hover .due,
+.row:hover .property,
+.row:hover .parentCrumb,
+.selected .identifier,
+.selected .estimate,
+.selected .due,
+.selected .property,
+.selected .parentCrumb {
+  color: var(--text-secondary);
+}
+
+/* The optional properties the display menu can add to a row — project, cycle, the two dates.
+   Drawn exactly as the estimate is, because they are the same kind of fact. */
+.property {
+  flex: none;
+  max-width: 16ch;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Overdue is the one fact on a row worth interrupting a scan for, and the word is in the text
+ * as well — `.srOnly` below. Its own token rather than `--priority-urgent`: the ramps are not
+ * to be borrowed across, or a theme that recolours urgency silently recolours a missed
+ * deadline too.
+ */
 .overdue {
-  color: var(--priority-urgent);
+  color: var(--text-danger);
+}
+
+/*
+ * Visible to a screen reader and to nothing else. Not `display: none` and not
+ * `visibility: hidden`, both of which take the text out of the accessibility tree as well —
+ * which is the entire point of the class.
+ */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * Where a right-click landed. A real element with a box, because `Menu` measures its trigger
+ * to place itself and a `hidden` one has none — and one pixel rather than none, so a browser
+ * cannot round it away.
+ */
+.contextAnchor {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
 }
 
 .empty {
@@ -285,6 +557,24 @@
   padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-secondary);
+}
+
+.viewNote {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+}
+
+.viewNoteCopy {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .exportNoteCopy {

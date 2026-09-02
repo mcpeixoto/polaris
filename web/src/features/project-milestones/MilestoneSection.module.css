@@ -1,0 +1,114 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.name {
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+/* The word, not only the colour. Same fact twice, so the highlight survives greyscale. */
+.current {
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.when {
+  margin-inline-start: auto;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.track {
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+/* The width is the only property that moves, so the browser has one number to interpolate
+   and the bar sweeps rather than stutters. The duration token collapses to 1ms under
+   prefers-reduced-motion, which is what handles that case here. */
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--text-tertiary);
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+.fillCurrent {
+  background: var(--accent);
+}
+
+.progressText {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.add,
+.edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.addName {
+  flex: 1 1 16rem;
+}
+
+.editActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+}

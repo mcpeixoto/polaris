@@ -53,24 +53,16 @@
 }
 
 /*
- * See Button.module.css for why destructive red is read off the ramp rather than off a
- * semantic token: there is no --danger role, and binding this to --priority-urgent would let
- * a theme that recolours priority recolour destruction with it.
- *
- * The comment that used to sit here called 500 "the theme-aware pair", which it is not —
- * --color-red-500 is a single ramp stop and resolves to the same value in both themes. The
- * real argument is the one Button makes in the other direction, and it is why the two files
- * legitimately pick different stops off the same ramp. Button's red is a fill read against
- * its own white foreground, so it needs the stop that clears 4.5:1 with white: 600.
- *
- * This one is a glyph read against the page, so it needs 3:1 from a single value against
- * *both* page colours, and it is the balance that picks 500 rather than a threshold. 500
- * measures 3.91:1 light and 4.87:1 dark; 600 measures 5.12:1 light and 3.72:1 dark. Both
- * clear the bar — 500 is chosen because the thin side of its margin is the thicker of the
- * two, and because the dark page is where this product is mostly used.
+ * --text-danger, not a ramp stop. This used to reach for --color-red-500 directly and argue
+ * the contrast case for it in both themes: a glyph read against the page needs 3:1 from a
+ * single value, and 500 measures 3.91:1 light and 4.87:1 dark where 600 measures 5.12:1 and
+ * 3.72:1. That argument is now the token's to make — --text-danger is the theme-aware pair,
+ * and a component reaching past the semantic layer has hard-coded a decision a custom theme
+ * cannot reach. Button keeps the ramp because its red is a *fill* read against white, which
+ * is a different threshold and a documented exception.
  */
 .danger {
-  color: var(--color-red-500);
+  color: var(--text-danger);
 }
 
 .button::after {

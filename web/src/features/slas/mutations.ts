@@ -1,10 +1,16 @@
 import { fromWire, toWire } from '~/gql/enums';
 import type { FilterNode } from '~/filter';
-import { uuidv7, type EntityOf, type Issue, type UUID } from '~/store';
+import { byOrderKey, orderKeyBetween, uuidv7, type EntityOf, type Issue, type UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
-import { CLEAR_ISSUE_SLA, CREATE_SLA_RULE, DELETE_SLA_RULE, SET_ISSUE_SLA } from './operations';
+import {
+  CLEAR_ISSUE_SLA,
+  CREATE_SLA_RULE,
+  DELETE_SLA_RULE,
+  SET_ISSUE_SLA,
+  UPDATE_SLA_RULE,
+} from './operations';
 
 type SlaRule = EntityOf<'slaRule'>;
 
@@ -58,6 +64,50 @@ export async function createSlaRule(engine: SyncEngine, input: NewSlaRule): Prom
     return data.createSlaRule.slaRule.id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return id;
+    throw error;
+  }
+}
+
+/**
+ * Moves a rule to sit immediately after another one.
+ *
+ * Order is the whole behaviour here — first match wins — so until this existed the only way
+ * to change which rule owned an issue's due date was to delete the set and retype it in a
+ * different sequence.
+ *
+ * It is expressed as "put this one after that one" because that is the only thing the server
+ * accepts: `UpdateSlaRuleInput` takes an `afterId` and mints the real position from it, and
+ * there is no way to say "move to the top". A caller wanting to raise a rule therefore lowers
+ * the rule above it instead, which is the same permutation and asks nothing new of the API.
+ *
+ * The optimistic position is minted locally with `orderKeyBetween` so the list reorders on
+ * the keystroke rather than a round trip later; the server's own key arrives in the delta and
+ * replaces it. The two need not agree on the string, only on the order. See `reorderIssue`,
+ * which is the same trade for the same reason.
+ */
+export async function moveSlaRule(engine: SyncEngine, id: UUID, afterId: UUID): Promise<void> {
+  const store = engine.store;
+  const before = store.get('slaRule', id);
+  if (before === undefined || afterId === id) return;
+
+  const ordered = [...store.slaRules.values()].sort(byOrderKey('position'));
+  const anchorAt = ordered.findIndex((rule) => rule.id === afterId);
+  if (anchorAt === -1) return;
+  // The rule the moved one lands in front of — skipping itself, because a rule already
+  // sitting in that gap is not one of its own neighbours.
+  const following = ordered.slice(anchorAt + 1).find((rule) => rule.id !== id);
+  const position = orderKeyBetween(ordered[anchorAt]!.position, following?.position ?? '');
+  if (position === null || position === before.position) return;
+
+  const after: SlaRule = { ...before, position, updatedAt: new Date().toISOString() };
+  try {
+    await engine.mutate({
+      mutation: UPDATE_SLA_RULE,
+      variables: { input: { id, afterId } },
+      optimistic: [{ type: 'slaRule', id, before, after }],
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
     throw error;
   }
 }

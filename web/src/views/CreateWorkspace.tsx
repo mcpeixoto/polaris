@@ -54,6 +54,21 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const urlKeyRef = useRef<HTMLInputElement>(null);
   const userNameRef = useRef<HTMLInputElement>(null);
+  const teamKeyRef = useRef<HTMLInputElement>(null);
+
+  const fieldRef = (field: Field) =>
+    field === 'name'
+      ? nameRef
+      : field === 'urlKey'
+        ? urlKeyRef
+        : field === 'userName'
+          ? userNameRef
+          : teamKeyRef;
+
+  const refuse = (field: Field, message: string) => {
+    setProblem({ field, message });
+    fieldRef(field).current?.focus();
+  };
 
   // Held as null until edited, so the suggestion keeps following the name it is derived from
   // and stops the instant somebody disagrees with it.
@@ -78,24 +93,24 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
     // bubble is in the browser's wording, appears over the field, and vanishes on the next
     // keystroke, which is the wrong shape for everything else on these screens.
     if (name.trim() === '') {
-      setProblem({ field: 'name', message: 'Give the workspace a name — your company or team.' });
-      nameRef.current?.focus();
+      refuse('name', 'Give the workspace a name — your company or team.');
       return;
     }
     if (effectiveUrlKey.length < 2) {
-      setProblem({
-        field: 'urlKey',
-        message: 'An address needs at least two characters. Letters, digits and hyphens.',
-      });
-      urlKeyRef.current?.focus();
+      refuse('urlKey', 'An address needs at least two characters. Letters, digits and hyphens.');
       return;
     }
     if (userName.trim() === '') {
-      setProblem({
-        field: 'userName',
-        message: 'Add your own name — this is what your teammates will see.',
-      });
-      userNameRef.current?.focus();
+      refuse('userName', 'Add your own name — this is what your teammates will see.');
+      return;
+    }
+    // The key is derived, so it is the one field somebody can reach the button without ever
+    // having looked at — and `suggestTeamKey` genuinely returns '' for a name with no leading
+    // letters ("123 Corp"), because `cleanTeamKey` strips a leading digit run. Without this
+    // check the form posts an empty key and the server refuses it, naming a field the person
+    // was never shown a problem on.
+    if (effectiveTeamKey === '') {
+      refuse('teamKey', 'Give the team a key — a letter first, then letters or digits.');
       return;
     }
 
@@ -116,6 +131,15 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
       onCreated();
     } catch (failure) {
       setBusy(false);
+      // The address is the field most likely to be refused, and "the address acme is already
+      // taken" arrives scoped to it. A banner over an unmarked field, with focus wherever it
+      // was left, is the same failure said worse — this screen's own checks already mark the
+      // control and move the cursor, and there is no reason the server's should not.
+      const scoped = failure instanceof ApiError ? asField(failure.field) : null;
+      if (scoped !== null && failure instanceof ApiError) {
+        refuse(scoped, failure.message);
+        return;
+      }
       setError(
         failure instanceof ApiError
           ? failure.message
@@ -161,7 +185,15 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
           name="urlKey"
           value={effectiveUrlKey}
           prefix="polaris.app/"
-          hint="Lowercase letters, digits and hyphens."
+          // The address as it will read, once there is one to read. The prefix inside the box
+          // says what shape the field is; this says what the answer came out as, which is the
+          // thing somebody is actually deciding about. Falls back to the rule while the field
+          // is empty, because a preview of nothing teaches nothing.
+          hint={
+            effectiveUrlKey === ''
+              ? 'Lowercase letters, digits and hyphens.'
+              : `Your workspace will live at polaris.app/${effectiveUrlKey}`
+          }
           error={messageFor('urlKey')}
           maxLength={URL_KEY_MAX}
           // Not a field any password manager or address book has an answer for, and a
@@ -202,15 +234,20 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
             onChange={(event) => setTeamName(event.target.value)}
           />
           <Input
+            ref={teamKeyRef}
             label="Team key"
             name="teamKey"
             value={effectiveTeamKey}
             hint="The prefix in every identifier."
+            error={messageFor('teamKey')}
             maxLength={TEAM_KEY_MAX}
             autoComplete="off"
             spellCheck={false}
             autoCapitalize="characters"
-            onChange={(event) => setTeamKey(cleanTeamKey(event.target.value))}
+            onChange={(event) => {
+              setTeamKey(cleanTeamKey(event.target.value));
+              clear('teamKey');
+            }}
           />
         </AuthFieldPair>
 
@@ -228,8 +265,21 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
   );
 }
 
-/** The three fields a submit can refuse. The other two are optional and derived. */
-type Field = 'name' | 'urlKey' | 'userName';
+/** The fields a submit — or the server — can refuse. The first team's name is the one that
+ *  cannot be wrong: it falls back to the workspace name. */
+type Field = 'name' | 'urlKey' | 'userName' | 'teamKey';
+
+/**
+ * The server's field name, mapped onto the control that holds it.
+ *
+ * The names differ on purpose rather than by accident: the team key is `key` on the server,
+ * because over there it is a field of a team and not of this form.
+ */
+function asField(field: string | undefined): Field | null {
+  if (field === 'name' || field === 'urlKey' || field === 'userName') return field;
+  if (field === 'key' || field === 'firstTeamKey') return 'teamKey';
+  return null;
+}
 
 /**
  * A workspace name as a URL segment: lowercase, hyphenated, no punctuation.

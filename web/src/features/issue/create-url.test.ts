@@ -193,4 +193,52 @@ describe('resolveCreateURL', () => {
     );
     expect(seed.stateId).toBeUndefined();
   });
+
+  /**
+   * Finding 65: every resolver drops what it cannot find, which is right — a stale status
+   * name should still file the issue. What it must not do is drop it silently: an empty
+   * picker looks exactly like a picker nobody filled in, so `?status=Tood` opened a composer
+   * that looked correct and filed with the team default.
+   */
+  it('names the values it could not resolve', () => {
+    const seed = resolveCreateURL(
+      seeded(),
+      parseCreateURL(new URLSearchParams('status=Tood&assignee=nobody@example.com'), 'ENG'),
+      null,
+    );
+
+    expect(seed.stateId).toBeUndefined();
+    expect(seed.unresolved).toEqual([
+      'status \u201cTood\u201d',
+      'assignee \u201cnobody@example.com\u201d',
+    ]);
+  });
+
+  it('says nothing when everything resolved', () => {
+    const seed = resolveCreateURL(
+      seeded(),
+      parseCreateURL(new URLSearchParams('status=In+Progress'), 'ENG'),
+      null,
+    );
+
+    expect(seed.unresolved).toBeUndefined();
+  });
+});
+
+describe('buildCreateURL', () => {
+  /**
+   * Finding 66: the composer's "copy create URL" produced a link that reopened it without
+   * the labels or the milestone it was carrying, so the copy was quietly lossier than the
+   * thing it copied.
+   */
+  it('carries labels and the milestone', () => {
+    expect(
+      buildCreateURL({
+        teamKey: 'ENG',
+        title: 'Fix the flake',
+        labels: ['Bug', 'Chore'],
+        milestone: 'Beta',
+      }),
+    ).toBe('/team/ENG/new?title=Fix+the+flake&labels=Bug%2CChore&milestone=Beta');
+  });
 });

@@ -10,7 +10,10 @@ import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { Button, EmptyState, Input, Textarea } from '~/components';
+import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { archiveDocument, deleteDocument, updateDocument } from '~/features/documents/mutations';
+import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
+import { Markdown } from '~/features/markdown/Markdown';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { ApiError } from '~/sync/api';
 import styles from './DocumentDetail.module.css';
@@ -20,6 +23,7 @@ export function DocumentDetail() {
   const engine = useEngine();
   const { documentId = '' } = useParams<{ documentId: string }>();
   const titleRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const document = useLiveQuery(
     (store) => store.documents.get(documentId) ?? null,
@@ -37,6 +41,15 @@ export function DocumentDetail() {
   const [bodyDirty, setBodyDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // Which of the two destructive actions is waiting on an answer, and whether its request
+  // is in flight. Both used to be one ghost button away from happening by accident.
+  const [confirming, setConfirming] = useState<'archive' | 'delete' | null>(null);
+  const [removing, setRemoving] = useState(false);
+  // The body is read as rendered markdown until somebody puts the caret in it. `editing`
+  // is what swaps the two; the textarea itself never leaves the DOM, because it is the
+  // field's accessible representation and the value every other effect on this screen
+  // reads.
+  const [editing, setEditing] = useState(false);
   const dirty = titleDirty || bodyDirty;
 
   // The fields as they stand *now*, readable from a callback that has been waiting on the
@@ -127,6 +140,12 @@ export function DocumentDetail() {
     if (!bodyDirty) setBody(document.body);
   }, [document?.id, document?.title, document?.body, document, titleDirty, bodyDirty]);
 
+  const state = useEntityState(document);
+
+  // A deep link on a cold start used to say the document had been deleted while its row was
+  // still on the wire, and offer a button off the page. The gate holds the skeleton until
+  // the replica has actually settled.
+  if (state === 'loading') return <EntityLoading label="Loading document…" lines={8} />;
   if (document === null) {
     return (
       <EmptyState
@@ -179,18 +198,36 @@ export function DocumentDetail() {
     }
   };
 
-  const onArchive = () => {
+  /**
+   * Archive and delete, behind the same confirmation the rest of the product uses.
+   *
+   * They were two identical ghost buttons side by side, one of which is reversible and one
+   * of which is not, and a document is the surface most likely to hold the only copy of
+   * something. The dialog stays open on a refusal and shows the server's own words, rather
+   * than dropping them behind a screen the navigation has already left.
+   */
+  const confirmRemoval = () => {
+    if (confirming === null) return;
+    const archiving = confirming === 'archive';
+    setRemoving(true);
     setFailure(null);
-    void archiveDocument(engine, document.id, true)
-      .then(() => navigate(backTo))
-      .catch((error: unknown) => setFailure(messageFor(error, 'That could not be archived.')));
-  };
-
-  const onDelete = () => {
-    setFailure(null);
-    void deleteDocument(engine, document.id)
-      .then(() => navigate(backTo))
-      .catch((error: unknown) => setFailure(messageFor(error, 'That could not be deleted.')));
+    const work = archiving
+      ? archiveDocument(engine, document.id, true)
+      : deleteDocument(engine, document.id);
+    void work
+      .then(() => {
+        setConfirming(null);
+        void navigate(backTo);
+      })
+      .catch((error: unknown) =>
+        setFailure(
+          messageFor(
+            error,
+            archiving ? 'That could not be archived.' : 'That could not be deleted.',
+          ),
+        ),
+      )
+      .finally(() => setRemoving(false));
   };
 
   return (
@@ -200,10 +237,10 @@ export function DocumentDetail() {
           Documents
         </Link>
         <div className={styles.actions}>
-          <Button variant="ghost" onClick={onArchive}>
+          <Button variant="ghost" onClick={() => setConfirming('archive')}>
             Archive
           </Button>
-          <Button variant="ghost" onClick={onDelete}>
+          <Button variant="danger" onClick={() => setConfirming('delete')}>
             Delete
           </Button>
           <Button variant="primary" loading={saving} disabled={!dirty} onClick={() => void save()}>
@@ -233,18 +270,72 @@ export function DocumentDetail() {
         />
       </h1>
 
-      <Textarea
-        label="Body"
-        hideLabel
-        surface="plain"
-        className={styles.body}
-        value={body}
-        minRows={16}
-        onChange={(event) => {
-          setBody(event.target.value);
-          setBodyDirty(true);
+      <div className={styles.bodyWrap}>
+        <Textarea
+          ref={bodyRef}
+          label="Body"
+          hideLabel
+          surface="plain"
+          className={styles.body}
+          value={body}
+          minRows={16}
+          onFocus={() => setEditing(true)}
+          onChange={(event) => {
+            setBody(event.target.value);
+            setBodyDirty(true);
+          }}
+          onBlur={() => {
+            setEditing(false);
+            void save();
+          }}
+        />
+        {editing ? null : (
+          /*
+           * The document as it reads, laid over the field that holds its source.
+           *
+           * A document was stored as markdown and shown as markdown, so every reader saw
+           * `## Heading` where a heading belonged. This is the read side of that; the first
+           * click puts the caret back in the textarea, which is why the rendered copy is
+           * `aria-hidden` and carries no focus stops of its own — the textarea below is the
+           * field, and duplicating it in the accessibility tree would announce the body
+           * twice. mousedown rather than click so focus lands before the browser starts a
+           * selection in a layer that is about to disappear.
+           */
+          <div
+            className={styles.reader}
+            aria-hidden="true"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              setEditing(true);
+              bodyRef.current?.focus();
+            }}
+          >
+            {body.trim() === '' ? (
+              <p className={styles.placeholder}>Empty. Click to write.</p>
+            ) : (
+              <Markdown source={body} interactive={false} />
+            )}
+          </div>
+        )}
+      </div>
+
+      <ConfirmDialog
+        open={confirming !== null}
+        title={confirming === 'archive' ? 'Archive this document?' : 'Delete this document?'}
+        consequence={
+          confirming === 'archive'
+            ? `“${document.title}” leaves the documents list and stays in the archive, where it can be restored.`
+            : `“${document.title}” and everything written in it go for good. There is no undo.`
+        }
+        confirmLabel={confirming === 'archive' ? 'Archive' : 'Delete'}
+        destructive={confirming === 'delete'}
+        busy={removing}
+        error={confirming === null ? undefined : (failure ?? undefined)}
+        onConfirm={confirmRemoval}
+        onClose={() => {
+          setConfirming(null);
+          setFailure(null);
         }}
-        onBlur={() => void save()}
       />
     </article>
   );
