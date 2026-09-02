@@ -209,12 +209,34 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
         if (chosen) run(chosen);
         break;
       }
-      case 'Escape':
-        event.preventDefault();
-        onClose();
-        break;
     }
   };
+
+  /**
+   * Escape closes the menu from wherever focus is, including outside the panel.
+   *
+   * It used to be handled on the query input alone, which holds exactly while focus is in
+   * the query input. It is not always: an empty result set leaves focus on the panel, and a
+   * screen still mounting under the menu can pull focus to itself — the trap restores it,
+   * but a keystroke in that window lands on whatever holds focus at the time. Escape then
+   * reached an element with no handler and the modal stayed up over a screen whose own keys
+   * it was now covering, with the mouse the only way out. CI caught it on one screen; it
+   * would not reproduce on a fast machine, which is what a focus race looks like.
+   *
+   * A document listener rather than a handler on the panel, because a handler on the panel
+   * can only see keys that happen inside the panel, and the failure is precisely that they
+   * did not.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onClose();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [open, onClose]);
 
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>('[data-active="true"]');
