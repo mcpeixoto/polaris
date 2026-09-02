@@ -1,4 +1,4 @@
-import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { deleteDB, openDB, type DBSchema, type IDBPDatabase, type StoreNames } from 'idb';
 
 import { clearJournal } from './journal';
 import type { OutboxRecord } from './outbox';
@@ -158,8 +158,11 @@ import {
  * (initiative labels with groups, and sub-initiative nests).
  * v53 adds projectSubscription, initiativeSubscription and customerSubscription
  * (personal bells on those pages).
+ * v54 adds reaction (emoji on comments and issues). It shipped without this bump, and
+ * every replica built before it then had no `reaction` store while every read and write
+ * names one — so the workspace did not degrade, it failed to open at all.
  */
-export const CLIENT_SCHEMA = 53;
+export const CLIENT_SCHEMA = 54;
 
 /**
  * One database per workspace per schema version.
@@ -302,6 +305,19 @@ const META_KEY = 'replica';
  */
 const IDB_VERSION = 1;
 
+/**
+ * The stores this build's transactions name, that the open database does not have.
+ *
+ * Every read and write lists all of ENTITY_TYPES at once, so one absent store is fatal
+ * rather than partial — this is the check that turns that into a rebuild.
+ */
+function missingStores(db: IDBPDatabase<PolarisSchema>): string[] {
+  const names: readonly StoreNames<PolarisSchema>[] = [...ENTITY_TYPES, 'meta', 'outbox'];
+  // `contains`, not iteration: DOMStringList is guaranteed to have it in every engine,
+  // and being wrong here means the guard silently rebuilds a healthy replica on boot.
+  return names.filter((name) => !db.objectStoreNames.contains(name));
+}
+
 export class PolarisDB {
   private readonly db: IDBPDatabase<PolarisSchema>;
   readonly workspaceId: UUID;
@@ -314,17 +330,27 @@ export class PolarisDB {
 
   /**
    * Opens the replica, dropping and recreating it if it claims a schema this build does
-   * not speak.
+   * not speak or is missing a store this build reads.
    *
-   * The name already encodes the schema, so the check can only fire if something wrote a
-   * `meta` row from a different build — but the cost is one read at boot and the failure
+   * The name already encodes the schema, so the `meta` check can only fire if something
+   * wrote a row from a different build — but the cost is one read at boot and the failure
    * it prevents is unbounded: a replica shaped for another version renders wrong data
    * confidently, and every bug report from it points somewhere else.
+   *
+   * The store check is there because the name encoding only helps when somebody remembers
+   * to bump the number. Adding `reaction` to ENTITY_TYPES without a bump shipped a build
+   * whose every transaction named a store that a year-old browser profile did not have,
+   * and IndexedDB answers that with NotFoundError before a single row is read: the
+   * workspace does not open. Rebuilding costs one bootstrap; not rebuilding costs the
+   * whole app, and no user can clear site data on our advice fast enough to matter.
    */
   static async open(workspaceId: UUID): Promise<PolarisDB> {
     let handle = await PolarisDB.connect(workspaceId);
     const meta = await handle.db.get('meta', META_KEY);
-    if (meta !== undefined && meta.clientSchema !== CLIENT_SCHEMA) {
+    if (
+      (meta !== undefined && meta.clientSchema !== CLIENT_SCHEMA) ||
+      missingStores(handle.db).length > 0
+    ) {
       handle.close();
       await dropDatabase(workspaceId);
       handle = await PolarisDB.connect(workspaceId);

@@ -1337,7 +1337,10 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // (initiative labels with groups, and sub-initiative nests).
 // v53 adds projectSubscription, initiativeSubscription and customerSubscription
 // (personal bells on those pages).
-const ClientSchemaVersion = 53
+// v54 adds reaction (emoji on comments and issues). The entity shipped without this
+// bump, so replicas built before it had no reaction store while every client
+// transaction named one, and the workspace failed to open rather than degrading.
+const ClientSchemaVersion = 54
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //
