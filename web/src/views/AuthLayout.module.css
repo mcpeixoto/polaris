@@ -434,23 +434,6 @@
 }
 
 /*
- * The height every action on this card agrees on.
- *
- * It is 44 because that is what Google's iframe paints at, whatever width it is asked for —
- * measured against the live client id at eight widths from 300 to 400, and unchanging at all
- * of them. Google's button is the one control here this product does not get to size, so it
- * is the one every other control has to answer to.
- *
- * Declared on the card rather than inside SocialSignIn because the form and the provider
- * buttons are *siblings*: a property set on the provider wrapper never reaches the submit,
- * which is how a first attempt at this silently fell back to its own default. The card is
- * the nearest node that is an ancestor of both.
- */
-.card {
-  --provider-button-height: 44px;
-}
-
-/*
  * The card's own submit, sized to the provider buttons rather than to the control ladder.
  *
  * Everywhere else in this product 28px is right, because the ladder answers to the 32px
@@ -462,9 +445,10 @@
  *
  * Taken once, here, rather than as five local overrides in the five views that render a
  * submit: sizing a boxed control screen by screen is the drift this stylesheet exists to
- * stop. The height comes from the card above, so a screen with no provider buttons at all —
- * ConnectServer, CreateWorkspace — still agrees with the ones that have them.
+ * stop. --auth-provider-height is a token rather than a property declared here, so a screen
+ * with no provider buttons at all — ConnectServer, CreateWorkspace — still agrees with the
+ * ones that have them, and the repo's token lint can see that it resolves.
  */
 .submit {
-  height: var(--provider-button-height);
+  height: var(--auth-provider-height);
 }
