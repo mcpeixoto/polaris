@@ -21,7 +21,7 @@ import { Link, useParams } from 'react-router';
 
 import { Button, Input } from '~/components';
 import { ApiError, auth, isSignedIn } from '~/sync/api';
-import { AuthError, AuthForm, AuthLayout } from './AuthLayout';
+import { AuthError, AuthForm, AuthLayout, authSubmitClass } from './AuthLayout';
 
 export interface AcceptInviteProps {
   /**
@@ -197,7 +197,13 @@ export function AcceptInvite({ onAccepted }: AcceptInviteProps) {
           onChange={(event) => setDisplayName(event.target.value)}
         />
 
-        <Button type="submit" variant="primary" fullWidth loading={busy}>
+        <Button
+          type="submit"
+          variant="primary"
+          fullWidth
+          loading={busy}
+          className={authSubmitClass}
+        >
           {signedIn
             ? 'Join workspace'
             : mode === 'register'

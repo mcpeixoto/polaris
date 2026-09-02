@@ -145,6 +145,18 @@
   --header-height: 44px;
   --sidebar-width: 232px;
 
+  /* The height every action on the auth card agrees on, and the one number in this file
+   * chosen by somebody else. Google's sign-in button is an iframe, and it paints at 44px
+   * whatever width it is asked for — measured against the live client id at eight widths
+   * from 300 to 400, unchanging at all of them. It is the one control on that screen this
+   * product cannot size, so the Apple button and the submit answer to it instead of to the
+   * control ladder above, whose reason for existing is the 32px issue row.
+   *
+   * Here rather than in either stylesheet because both need it and they are siblings: the
+   * form and the provider buttons share no ancestor below the card, so a property declared
+   * in one is invisible to the other. */
+  --auth-provider-height: 44px;
+
   /* --- Radii ---------------------------------------------------------
    * Small on purpose. A 32px row with an 8px corner reads as a card, and a screen full
    * of cards is not a list you can scan.

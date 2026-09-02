@@ -37,5 +37,5 @@ export function MyIssues() {
     );
   }
 
-  return <IssueList source={source} heading="My Issues" />;
+  return <IssueList source={source} heading="My issues" />;
 }

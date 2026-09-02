@@ -432,3 +432,23 @@
   line-height: var(--line-height-normal);
   animation: riseIn var(--duration-fast) var(--ease-out) calc(var(--auth-beat) * 2) backwards;
 }
+
+/*
+ * The card's own submit, sized to the provider buttons rather than to the control ladder.
+ *
+ * Everywhere else in this product 28px is right, because the ladder answers to the 32px
+ * issue row and a control taller than its row cannot live in it. There is no row here. What
+ * there is instead is a stack of three actions — submit, Google, Apple — and Google's is an
+ * iframe painted at a height this product does not get to choose. So the primary action was
+ * the *shortest* button on the first screen anybody sees, which inverts the one hierarchy
+ * the screen has.
+ *
+ * Taken once, here, rather than as five local overrides in the five views that render a
+ * submit: sizing a boxed control screen by screen is the drift this stylesheet exists to
+ * stop. --auth-provider-height is a token rather than a property declared here, so a screen
+ * with no provider buttons at all — ConnectServer, CreateWorkspace — still agrees with the
+ * ones that have them, and the repo's token lint can see that it resolves.
+ */
+.submit {
+  height: var(--auth-provider-height);
+}

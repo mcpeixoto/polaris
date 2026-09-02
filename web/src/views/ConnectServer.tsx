@@ -30,7 +30,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { Button, Input } from '~/components';
 import { setDesktopServerUrl } from '~/platform/runtime';
 import { normaliseServerUrl } from '~/sync/endpoint';
-import { AuthError, AuthForm, AuthLayout } from './AuthLayout';
+import { AuthError, AuthForm, AuthLayout, authSubmitClass } from './AuthLayout';
 
 export interface ConnectServerProps {
   /**
@@ -106,7 +106,13 @@ export function ConnectServer({ current }: ConnectServerProps) {
         {/* Not disabled on an empty address. The submit says what is missing and puts the
             cursor in the field that is missing it, which a greyed-out button cannot do —
             and which is the same bargain the rest of these screens make. */}
-        <Button type="submit" variant="primary" fullWidth loading={busy}>
+        <Button
+          type="submit"
+          variant="primary"
+          fullWidth
+          loading={busy}
+          className={authSubmitClass}
+        >
           Connect
         </Button>
       </AuthForm>

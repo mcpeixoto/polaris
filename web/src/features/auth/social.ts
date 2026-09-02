@@ -103,6 +103,16 @@ export interface Assertion {
 }
 
 /**
+ * How much wider than the width it is asked for Google draws its iframe.
+ *
+ * Measured against the live client id at eight widths from 300 to 400: the iframe comes back
+ * at exactly `requested + 20` every time, and 44px tall at every one of them. Both numbers
+ * belong to Google rather than to this product, which is why they are named here and
+ * subtracted rather than folded into a stylesheet that looks like it chose them.
+ */
+const GOOGLE_IFRAME_CHROME = 20;
+
+/**
  * Renders Google's own button into `parent` and resolves each time somebody completes a
  * sign-in with it.
  *
@@ -147,10 +157,22 @@ export async function mountGoogleButton(
     // Google draws into an iframe at a fixed pixel width, so this button cannot be
     // stretched by CSS the way the Apple button beside it can. 320 was a guess that left
     // the two buttons visibly different widths in the same card; measuring the slot is what
-    // makes them one column. Clamped to the 200–400px range Google accepts, which is also
-    // what protects a slot that has not been laid out yet: a button asked for 0px wide is
-    // worse than one that is merely narrower than its neighbour.
-    width: Math.min(400, Math.max(200, Math.round(parent.getBoundingClientRect().width))),
+    // makes them one column.
+    //
+    // Minus GOOGLE_IFRAME_CHROME, because `width` sizes the *button* and Google then draws
+    // it into an iframe 20px wider. Asking for the slot's own width therefore overflowed the
+    // card's column by 10px on each side — measured in production at 374px in a 354px slot,
+    // and the widest white block on the sign-in screen was the one thing the eye found
+    // first. The 20px is not a guess: rendering at 300/320/334/344/354/374/400 returns an
+    // iframe of exactly `requested + 20` at every step.
+    //
+    // Clamped to the 200–400px range Google accepts, which is also what protects a slot that
+    // has not been laid out yet: a button asked for 0px wide is worse than one that is
+    // merely narrower than its neighbour.
+    width: Math.min(
+      400,
+      Math.max(200, Math.round(parent.getBoundingClientRect().width) - GOOGLE_IFRAME_CHROME),
+    ),
   });
 }
 

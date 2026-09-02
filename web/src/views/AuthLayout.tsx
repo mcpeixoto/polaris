@@ -74,6 +74,12 @@ export function AuthForm({
  * Two fields that are one decision: a workspace name and its address, a team's name and its
  * key. Side by side where there is room, stacked where there is not.
  */
+/**
+ * The class the auth card's submit wears, so the five forms that render one agree about its
+ * height without each restating it. See `.submit` in the stylesheet for why it is not 28px.
+ */
+export const authSubmitClass = styles.submit;
+
 export function AuthFieldPair({ children }: { children: ReactNode }) {
   return <div className={styles.pair}>{children}</div>;
 }

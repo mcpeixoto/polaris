@@ -17,7 +17,7 @@ import { Link } from 'react-router';
 import { Button, Input } from '~/components';
 import { SocialSignIn } from '~/features/auth/SocialSignIn';
 import { ApiError, auth } from '~/sync/api';
-import { AuthError, AuthForm, AuthLayout } from './AuthLayout';
+import { AuthError, AuthForm, AuthLayout, authSubmitClass } from './AuthLayout';
 
 export interface SignInProps {
   /** Called once the session exists. The boot sequence takes it from there. */
@@ -82,7 +82,13 @@ export function SignIn({ onSignedIn }: SignInProps) {
           required
           onChange={(event) => setPassword(event.target.value)}
         />
-        <Button type="submit" variant="primary" fullWidth loading={busy}>
+        <Button
+          type="submit"
+          variant="primary"
+          fullWidth
+          loading={busy}
+          className={authSubmitClass}
+        >
           Sign in
         </Button>
       </AuthForm>

@@ -2123,7 +2123,7 @@ function scopeOf(
   // be in any team they can reach, which is exactly why the settings link and the team name
   // are absent from this list rather than guessed at.
   if (source.kind === 'assignee') {
-    return { heading: heading ?? 'My Issues', team: null, timezone: browserTimezone() };
+    return { heading: heading ?? 'My issues', team: null, timezone: browserTimezone() };
   }
 
   if (source.kind === 'project') {
