@@ -983,3 +983,37 @@ function blankWorkspace(): Workspace {
     updatedAt: NOW,
   };
 }
+
+describe('PolarisDB store guard', () => {
+  it('rebuilds a replica whose database is missing a store this build needs', async () => {
+    const id = workspaceId();
+    // A database created by a build with fewer entity types, under the *current* name:
+    // exactly what a forgotten CLIENT_SCHEMA bump leaves in a browser. Every read and
+    // write names all of ENTITY_TYPES in one transaction, so a single absent store is a
+    // dead workspace rather than a degraded one.
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(databaseName(id), 1);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        for (const type of ENTITY_TYPES) {
+          if (type === 'reaction') continue;
+          database.createObjectStore(type, { keyPath: 'id' });
+        }
+        database.createObjectStore('meta');
+        database.createObjectStore('outbox', { keyPath: 'opId' });
+      };
+      request.onsuccess = () => {
+        request.result.close();
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    const db = await PolarisDB.open(id);
+    await db.write({ puts: [{ type: 'issue', entity: issue('i1') }], meta: complete(1) });
+    const snapshot = await db.readAll();
+    expect(snapshot.issue.map((row) => row.id)).toEqual(['i1']);
+    db.close();
+    await dropDatabase(id);
+  });
+});
