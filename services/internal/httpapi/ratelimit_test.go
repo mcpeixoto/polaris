@@ -72,6 +72,27 @@ func errorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
 	return body.Error.Code
 }
 
+// graphqlErrorCode reads the refusal the way a GraphQL client does. A 429 on /graphql carries
+// the protocol's own envelope — errors[0].extensions.code — because no GraphQL client parses
+// the REST shape, and a refusal a client cannot read is a refusal it retries.
+func graphqlErrorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	var body struct {
+		Errors []struct {
+			Extensions struct {
+				Code string `json:"code"`
+			} `json:"extensions"`
+		} `json:"errors"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("the refusal body was not a GraphQL error envelope: %v", err)
+	}
+	if len(body.Errors) == 0 {
+		t.Fatal("the refusal body carried no errors")
+	}
+	return body.Errors[0].Extensions.Code
+}
+
 // A refusal has to be actionable. 429 alone tells a client it lost; Retry-After tells it when
 // to come back, and without that every refused client turns into a retry loop — more load
 // than the request that was refused.
@@ -90,7 +111,7 @@ func TestRateLimit_RefusesWith429AndAUsableRetryAfter(t *testing.T) {
 	if rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want 429", rec.Code)
 	}
-	if got := errorCode(t, rec); got != string(platform.CodeRateLimited) {
+	if got := graphqlErrorCode(t, rec); got != string(platform.CodeRateLimited) {
 		t.Errorf("error code = %q, want %q", got, platform.CodeRateLimited)
 	}
 

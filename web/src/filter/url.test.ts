@@ -260,7 +260,7 @@ describe('display options in a URL', () => {
       order: 'chaos',
       layout: 'timeline',
       dir: 'sideways',
-      show: 'priority,cycle,labels',
+      show: 'priority,weather,labels',
     });
     expect(parseDisplayParams(params)).toEqual({ properties: ['priority', 'labels'] });
   });
