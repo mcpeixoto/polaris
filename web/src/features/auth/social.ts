@@ -25,27 +25,29 @@ const GOOGLE_SDK = 'https://accounts.google.com/gsi/client';
 const APPLE_SDK =
   'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
 
-/**
- * The Google SDK URL, with the page's language pinned to it.
+/*
+ * A note on the button's language, so nobody spends the afternoon I spent on it.
  *
- * Unpinned, Google renders its button in the visitor's *browser* language, so a Portuguese
- * browser produced a card reading "Continuar com a Google" under an English heading, beside
- * an English "Continue with Apple". Nothing else in this product is translated, so that
- * button was not offering a localised experience — it was the only translated string on the
- * screen, and it looked like a bug because it was one.
+ * Google renders this button in the visitor's language, not the page's: on a Portuguese
+ * browser an otherwise entirely English card reads "Continuar com a Google". That looks like
+ * a bug and is not fixable from here.
  *
- * `hl` on the script URL is the only lever that works: `locale` passed to `renderButton` is
- * accepted and ignored, which was verified against the live client id with the browser
- * forced to pt-PT — the button stayed Portuguese, and only rewriting the script URL turned
- * it. Apple's SDK is already pinned the same way, in the `/en_US/` segment of APPLE_SDK.
+ * `hl` on this script URL is the documented lever and it does not move the button. Measured
+ * against the live client id with the browser forced to pt-PT, at `hl=en` and `hl=en-US`: the
+ * rendered label stayed "Continuar com a Google" in both. What `hl` *does* change is the
+ * iframe's `title` — to "Sign in with Google Button" — while the words on the button stay
+ * Portuguese, and that combination is strictly worse than the mismatch it was meant to fix.
+ * It is a WCAG 2.5.3 failure: the accessible name no longer contains the visible label, so
+ * somebody driving the page by voice can no longer say what they see. This file briefly
+ * shipped that, and reverting it is why the parameter is absent rather than merely unset.
  *
- * Read off `<html lang>` rather than hardcoded, so this follows the document if this product
- * is ever localised instead of pinning Google to English for good.
+ * `locale` passed to `renderButton` is accepted and ignored, which was the first thing tried.
+ *
+ * The remaining lever would be drawing the button ourselves, which Google's terms do not
+ * allow — see `mountGoogleButton`. So the honest position is that this one string belongs to
+ * Google, and a Portuguese reader seeing Google's own branding in Portuguese is a smaller
+ * problem than either of the alternatives.
  */
-function googleSdkUrl(): string {
-  const lang = document.documentElement.lang || 'en';
-  return `${GOOGLE_SDK}?hl=${encodeURIComponent(lang)}`;
-}
 
 /** Scripts already requested, so two buttons on one page do not load the SDK twice. */
 const loading = new Map<string, Promise<void>>();
@@ -149,7 +151,7 @@ export async function mountGoogleButton(
   onAssertion: (assertion: Assertion) => void,
   onError: (message: string) => void,
 ): Promise<void> {
-  await loadScript(googleSdkUrl());
+  await loadScript(GOOGLE_SDK);
   const google = window.google;
   if (google === undefined) {
     onError('Google sign-in is unavailable right now.');
