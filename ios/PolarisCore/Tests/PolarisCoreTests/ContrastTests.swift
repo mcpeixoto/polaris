@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import PolarisCore
 
-/// Contrast, computed rather than sampled.
+/// Contrast on the surfaces the app actually composites, computed rather than sampled.
 ///
 /// XCUITest's `performAccessibilityAudit` has a contrast check, and on these screens it is not
 /// trustworthy: it flags the welcome headline, which is pure white on a dark background at
@@ -12,85 +12,134 @@ import Testing
 /// leave the palette unguarded, so the guard lives here instead, where the arithmetic is
 /// exact and the failure names the pair.
 ///
-/// This is sRGB relative luminance per WCAG 2.1, and the pairs are the ones that actually
-/// appear on screen — three of them were genuinely failing when this was first written:
-/// the primary CTA label at 4.47:1, placeholder text at 3.59:1, and the disabled CTA label
-/// at 4.02:1.
-@Suite("Palette contrast")
-struct ContrastTests {
-    private struct RGB { let r: Double, g: Double, b: Double }
-
-    private func rgb(_ hex: UInt32) -> RGB {
-        RGB(
-            r: Double((hex >> 16) & 0xFF),
-            g: Double((hex >> 8) & 0xFF),
-            b: Double(hex & 0xFF)
-        )
-    }
-
-    /// Straight alpha compositing, which is what the renderer does to a translucent colour.
-    private func over(_ fg: RGB, _ alpha: Double, _ bg: RGB) -> RGB {
-        RGB(
-            r: alpha * fg.r + (1 - alpha) * bg.r,
-            g: alpha * fg.g + (1 - alpha) * bg.g,
-            b: alpha * fg.b + (1 - alpha) * bg.b
-        )
-    }
-
-    private func luminance(_ c: RGB) -> Double {
-        func channel(_ value: Double) -> Double {
-            let s = value / 255
-            return s <= 0.03928 ? s / 12.92 : pow((s + 0.055) / 1.055, 2.4)
-        }
-        return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
-    }
-
-    private func ratio(_ a: RGB, _ b: RGB) -> Double {
-        let la = luminance(a), lb = luminance(b)
-        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
-    }
-
-    // The tokens, as they are declared in Theme.swift.
-    private var white: RGB { rgb(0xFFFFFF) }
-    private var accent: RGB { rgb(0x5A5DE8) }
-    private var accentBright: RGB { rgb(0x8B93FF) }
-    private var danger: RGB { rgb(0xFF5C5C) }
-    /// The gradient's lightest stop — the worst case for light text.
-    private var pageLightest: RGB { rgb(0x1B2030) }
-    private var pageMid: RGB { rgb(0x141822) }
-    private var fieldFill: RGB { over(white, 0.08, pageMid) }
+/// This file used to hold its own copy of the palette as hex literals, which is how it came to
+/// assert 4.5:1 for `#5A5DE8` and `#1B2030` — colours the app stopped shipping when the tokens
+/// were aligned with the web's. A duplicated palette measures whatever it was last edited to
+/// contain. Every value here is now read from `Palette`, so a token change either keeps
+/// clearing the floor or fails this suite.
+///
+/// `PaletteContrastTests` covers the solid roles — a text token on `bgPrimary`, `bgSecondary`,
+/// `bgElevated`. This suite covers what those miss: **nothing in this app is drawn on a solid
+/// background**. A card, a field and an inbox row are translucent washes over a three-stop page
+/// gradient (`Theme.card`, `Theme.fieldFill` and `Theme.chipInactive` are all `bgHover`;
+/// `Theme.accentTint` is `accentSubtle`), and a wash over the gradient's lightest stop is
+/// several hundredths lighter than any solid surface the other suite measures. That gap is not
+/// academic: the tertiary token, whose whole reason for existing is placeholder and eyebrow
+/// text on raised surfaces, measured 4.86:1 on solid `neutral900` and 4.09:1 on the field fill
+/// that is actually drawn.
+@Suite("Composited surface contrast")
+struct CompositedSurfaceContrastTests {
 
     /// 4.5:1 for normal text. Large text may use 3:1, but nothing here relies on that, so the
     /// stricter floor is applied everywhere rather than argued per label.
-    private let floor = 4.5
+    private let textFloor = 4.5
 
-    @Test("every text pair on the auth screens clears 4.5:1")
-    func authScreens() {
-        let pairs: [(String, RGB, RGB)] = [
-            ("primary CTA label", white, accent),
-            // The label stays full white; only the fill is dimmed. Fading the whole button
-            // faded the label with it and measured 4.02:1 — which is what this line asserted
-            // in its first draft, describing the bug rather than the fix.
-            ("disabled CTA label", white, over(accent, 0.55, pageMid)),
-            ("field text", white, fieldFill),
-            ("placeholder", over(white, 0.55, fieldFill), fieldFill),
-            ("error text", danger, pageMid),
-            ("eyebrow", over(white, 0.48, pageLightest), pageLightest),
-            ("secondary text", over(white, 0.62, pageLightest), pageLightest),
-            ("accent eyebrow", accentBright, pageLightest),
-            ("headline", white, pageLightest),
-        ]
-        for (name, fg, bg) in pairs {
-            let measured = ratio(fg, bg)
-            #expect(measured >= floor, "\(name) is \(String(format: "%.2f", measured)):1, under \(floor):1")
+    /// A surface as it is rendered: a token composited over the page stop beneath it.
+    private struct Surface {
+        let name: String
+        let hex: UInt32
+    }
+
+    /// Every raised surface the app draws text on, over every stop of the page gradient.
+    ///
+    /// The gradient's stops are all worst cases for something — the lightest is the worst case
+    /// for light text and the darkest for dark text — and a card can be anywhere on the page,
+    /// so each stop is measured rather than the one a screenshot happened to be taken over.
+    private func surfaces(_ scheme: Palette.Scheme) -> [Surface] {
+        let semantic = Palette.semantic(scheme)
+        return semantic.pageGradient.flatMap { stop -> [Surface] in
+            let page = String(format: "%06X", stop.hex)
+            return [
+                Surface(name: "page \(page)", hex: stop.hex),
+                // Theme.card / Theme.fieldFill / Theme.chipInactive.
+                Surface(name: "card on \(page)", hex: Palette.composite(semantic.bgHover, over: stop.hex)),
+                // Theme.accentTint — the unread inbox row, which carries a tertiary timestamp.
+                Surface(name: "accent tint on \(page)", hex: Palette.composite(semantic.accentSubtle, over: stop.hex)),
+            ]
         }
     }
 
-    @Test("the accent is dark enough to carry white label text")
-    func accentCarriesWhite() {
-        // #6366F1 measured 4.47:1 — under the floor by three hundredths, which is the band
-        // Apple's audit reports as "Contrast nearly passed". Any future change to the accent
-        // has to keep this true.
-        #expect(ratio(white, accent) >= floor)
+    private func check(_ name: String, _ foreground: Palette.Token, on surface: Surface, floor: Double) {
+        let composited = Palette.composite(foreground, over: surface.hex)
+        let measured = Palette.contrastRatio(composited, surface.hex)
+        #expect(
+            measured >= floor,
+            "\(name) on \(surface.name) is \(String(format: "%.2f", measured)):1, under \(String(format: "%.1f", floor)):1"
+        )
     }
+
+    @Test("every text role clears 4.5:1 on every raised surface, in both schemes")
+    func textOnRaisedSurfaces() {
+        for scheme in Palette.Scheme.allCases {
+            let semantic = Palette.semantic(scheme)
+            for surface in surfaces(scheme) {
+                check("primary text", semantic.textPrimary, on: surface, floor: textFloor)
+                check("secondary text", semantic.textSecondary, on: surface, floor: textFloor)
+                // Placeholders and eyebrows are real text, whatever their role name says. WCAG
+                // exempts inactive *controls*, not the words inside an active one.
+                check("tertiary text", semantic.textTertiary, on: surface, floor: textFloor)
+            }
+        }
+    }
+
+    /// The accent's whole job on a raised surface is the primary CTA's label.
+    @Test("the CTA label clears 4.5:1 on the accent fill, in both schemes")
+    func ctaLabel() {
+        for scheme in Palette.Scheme.allCases {
+            let semantic = Palette.semantic(scheme)
+            check(
+                "CTA label",
+                semantic.accentContrast,
+                on: Surface(name: "the accent fill", hex: semantic.accent.hex),
+                floor: textFloor
+            )
+        }
+    }
+
+    /// `Theme.accentBright` on a card is an icon or a tint — the unread inbox glyph, a
+    /// progress spinner, the avatar's initials ring — not body text, so WCAG 1.4.11's 3:1 for
+    /// non-text graphics is the floor that applies. It is worth asserting because it is
+    /// genuinely close: 4.21:1 on a card over the dark gradient's lightest stop. A future
+    /// accent that is one ramp stop darker would take it under 3:1 without touching any test
+    /// that measures the accent on a page.
+    @Test("the accent stays visible as a glyph on every raised surface")
+    func accentAsGraphic() {
+        for scheme in Palette.Scheme.allCases {
+            let semantic = Palette.semantic(scheme)
+            for surface in surfaces(scheme) {
+                check("accent glyph", semantic.accentText, on: surface, floor: Palette.graphicContrastFloor)
+            }
+        }
+    }
+
+    /// Borders are what separate a wash from the page it is drawn on. `borderDefault` is a
+    /// hairline rather than a control boundary, so 3:1 is the right floor; the point is that a
+    /// card whose fill is six percent of white does not become invisible when its outline is
+    /// also dropped a step.
+    @Test("a card's outline stays visible against the page beneath it")
+    func cardOutline() {
+        for scheme in Palette.Scheme.allCases {
+            let semantic = Palette.semantic(scheme)
+            for stop in semantic.pageGradient {
+                let page = Surface(name: "page \(String(format: "%06X", stop.hex))", hex: stop.hex)
+                check("focus ring", semantic.borderFocus, on: page, floor: Palette.graphicContrastFloor)
+            }
+        }
+    }
+
+    // Two pairs are deliberately not asserted here, because both need a design decision rather
+    // than a token nudge, and asserting them at a floor they happen to clear would be a test
+    // that describes the bug:
+    //
+    //   * The disabled primary CTA in light. `PrimaryButton` dims its fill to `accent * 0.55`
+    //     and keeps the label at full `accentContrast`, which over the light page composites to
+    //     2.16:1 — in dark the same rule measures 8.61:1, because dimming toward a near-black
+    //     page darkens the fill instead of washing it out. WCAG 1.4.3 exempts inactive
+    //     controls, so this is not a conformance failure, but "Sign in" is invisible while it
+    //     is disabled, which is exactly when a user is looking for it.
+    //
+    //   * `Theme.warn` as text in light. `warn` is `amber600`, a graphic-grade hue: the
+    //     "Snoozed" label in the inbox measures 3.06:1 on the white stop and 2.66:1 on a card
+    //     over the lightest one. The web has the same value, so a fix is a token both clients
+    //     have to take.
 }

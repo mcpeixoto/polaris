@@ -100,12 +100,16 @@ desktop: ## Run Electron against the Vite dev server
 
 
 # Keep-alive local stack. Daemonized (setsid) so other agents' SIGTERM of their
-# own session cannot take Vite/API/sync down. Supervisors respawn on crash; a
+# own session cannot take Vite/API/sync/worker down. Supervisors respawn on crash; a
 # 10s watchdog restarts Vite if :5173 dies. Do NOT SIGTERM these PIDs during
 # migrate — restart API by replacing the binary (`make stack` while keep-alive
 # is running). Teardown: `make dev-down`.
+#
+# The worker is in the list because the inbox is: nothing but cmd/worker fans out
+# notifications, so a stack without it shows an empty inbox forever and the e2e
+# inbox specs fail here while passing in CI, which does start it.
 .PHONY: dev
-dev: ## Keep-alive Vite :5173 + API :8088 + sync :8089 (survives agent restarts)
+dev: ## Keep-alive Vite :5173 + API :8088 + sync :8089 + worker (survives agent restarts)
 	@bash scripts/dev-up.sh
 
 .PHONY: dev-down
@@ -240,35 +244,39 @@ e2e: ## Playwright end-to-end suite
 # Building first also means a compile error stops `make stack` instead of landing quietly at
 # the top of a log file nobody opens until the healthz loop has spun for a while.
 .PHONY: stack
-stack: ## Rebuild api/sync and start them; leaves Vite alone if keep-alive owns it
+stack: ## Rebuild api/sync/worker and start them; leaves Vite alone if keep-alive owns it
 	@$(MAKE) up
 	@cd $(SVC) && $(GO) run ./cmd/polarisctl migrate up --database "$(DB_URL)"
-	@echo "building api and sync…"
+	@echo "building api, sync and worker…"
 	@cd $(SVC) && $(GO) build -o /tmp/polaris-api ./cmd/api
 	@cd $(SVC) && $(GO) build -o /tmp/polaris-sync ./cmd/sync
+	@cd $(SVC) && $(GO) build -o /tmp/polaris-worker ./cmd/worker
 	@if bash scripts/dev-up.sh keepalive-running; then \
-	  echo "keep-alive is running — respawning api/sync children only (Vite is not touched)"; \
-	  bash scripts/dev-up.sh respawn-api-sync; \
+	  echo "keep-alive is running — respawning api/sync/worker children only (Vite is not touched)"; \
+	  bash scripts/dev-up.sh respawn-services; \
 	else \
-	  echo "starting api and sync…"; \
-	  DATABASE_URL="$(DB_URL)" /tmp/polaris-api  > /tmp/polaris-api.log  2>&1 & echo $$! > /tmp/polaris-api.pid; \
-	  DATABASE_URL="$(DB_URL)" /tmp/polaris-sync > /tmp/polaris-sync.log 2>&1 & echo $$! > /tmp/polaris-sync.pid; \
+	  echo "starting api, sync and worker…"; \
+	  DATABASE_URL="$(DB_URL)" /tmp/polaris-api    > /tmp/polaris-api.log    2>&1 & echo $$! > /tmp/polaris-api.pid; \
+	  DATABASE_URL="$(DB_URL)" /tmp/polaris-sync   > /tmp/polaris-sync.log   2>&1 & echo $$! > /tmp/polaris-sync.pid; \
+	  DATABASE_URL="$(DB_URL)" /tmp/polaris-worker > /tmp/polaris-worker.log 2>&1 & echo $$! > /tmp/polaris-worker.pid; \
 	fi
 	@until curl -sf http://127.0.0.1:8088/healthz >/dev/null; do sleep 1; done
-	@echo "api :8088  sync :8089  — Vite left running if make dev is up"
+	@echo "api :8088  sync :8089  worker (no port)  — Vite left running if make dev is up"
 
 # Verifies rather than announces. "stopped" while something is still listening is the
 # statement that made the bug above so expensive.
 .PHONY: stack-stop
-stack-stop: ## Stop the background api and sync processes (no-op if make dev owns them)
+stack-stop: ## Stop the background api, sync and worker processes (no-op if make dev owns them)
 	@if bash scripts/dev-up.sh keepalive-running; then \
-	  echo "keep-alive (make dev) owns api/sync/Vite — not stopping."; \
+	  echo "keep-alive (make dev) owns api/sync/worker/Vite — not stopping."; \
 	  echo "  Restart API without killing Vite: make stack"; \
 	  echo "  Tear the keep-alive stack down:     make dev-down"; \
 	else \
+	  wpid="$$(cat /tmp/polaris-worker.pid 2>/dev/null)"; \
 	  kill $$(cat /tmp/polaris-api.pid 2>/dev/null) 2>/dev/null || true; \
 	  kill $$(cat /tmp/polaris-sync.pid 2>/dev/null) 2>/dev/null || true; \
-	  rm -f /tmp/polaris-api.pid /tmp/polaris-sync.pid; \
+	  kill $$wpid 2>/dev/null || true; \
+	  rm -f /tmp/polaris-api.pid /tmp/polaris-sync.pid /tmp/polaris-worker.pid; \
 	  for i in 1 2 3 4 5 6 7 8 9 10; do \
 	    lsof -ti :8088 -ti :8089 >/dev/null 2>&1 || break; \
 	    sleep 0.2; \
@@ -278,6 +286,11 @@ stack-stop: ## Stop the background api and sync processes (no-op if make dev own
 	    echo "NOT stopped — still listening on :8088/:8089 as pid(s): $$held"; \
 	    echo "  These are almost certainly a previous build. Kill them before starting again,"; \
 	    echo "  or the stack you test will not be the code you just wrote."; \
+	    exit 1; \
+	  fi; \
+	  if [ -n "$$wpid" ] && kill -0 "$$wpid" 2>/dev/null; then \
+	    echo "NOT stopped — worker pid $$wpid is still running (it holds no port, so"; \
+	    echo "  nothing above would have caught it). Kill it before starting again."; \
 	    exit 1; \
 	  fi; \
 	  echo "stopped"; \

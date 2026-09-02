@@ -144,7 +144,11 @@ final class IssueListQATests: XCTestCase {
         XCTAssertTrue(app.staticTexts["ENG-1"].waitForExistence(timeout: 20), "detail should open")
         snap(app, "06-detail-open")
 
-        let statusPicker = app.buttons["Status"].exists ? app.buttons["Status"] : app.otherElements["Status"]
+        // The detail screen's property rows are `Menu`s carrying an accessibility identifier,
+        // and the label they expose is the whole row — "Status, In Progress" — not the word
+        // "Status". Matching on the identifier is what survives the value changing, which is
+        // the entire point of the test underneath it.
+        let statusPicker = app.buttons["issue.status"]
         if statusPicker.waitForExistence(timeout: 10) {
             statusPicker.tap()
             let done = app.buttons["Done"]

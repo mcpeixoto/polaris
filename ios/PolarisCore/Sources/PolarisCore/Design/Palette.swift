@@ -33,12 +33,18 @@ public enum Palette {
     ///
     /// The web's `--text-tertiary` in dark is neutral-500, and on a *page* it is fine — 4.62:1.
     /// It is not fine on the raised surfaces this app draws tertiary text on: a placeholder
-    /// inside a field, an eyebrow on a card, both of which sit on neutral-900, where it
-    /// measures 4.08:1. A placeholder is real text — WCAG exempts inactive controls, not the
-    /// words inside an active one — and that failure is the one three separate accessibility
-    /// audits of this app have caught. 4.86:1 on neutral-900, and still a visible step below
-    /// `--text-secondary`.
-    public static let neutral450: UInt32 = 0x838A96
+    /// inside a field, an eyebrow on a card. A placeholder is real text — WCAG exempts inactive
+    /// controls, not the words inside an active one — and that failure is the one three
+    /// separate accessibility audits of this app have caught.
+    ///
+    /// The value was picked against *solid* neutral-900, where it measured 4.86:1. No raised
+    /// surface in this app is solid: `Theme.card`, `Theme.fieldFill` and `Theme.chipInactive`
+    /// are `bgHover`, six percent of white composited over the page gradient, and
+    /// `Theme.accentTint` is the accent at eighteen percent — both lighter than neutral-900,
+    /// where the old `#838A96` measured 4.09:1 and 4.45:1. `CompositedSurfaceContrastTests`
+    /// measures the surfaces as drawn; this stop clears 4.5:1 on the worst of them at 4.56:1,
+    /// and is still a 1.18:1 step below `--text-secondary`.
+    public static let neutral450: UInt32 = 0x8D949F
     public static let neutral600: UInt32 = 0x545A63
     public static let neutral700: UInt32 = 0x3C414A
     public static let neutral800: UInt32 = 0x282C33

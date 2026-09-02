@@ -76,6 +76,7 @@ import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
 import { Relations, SubIssues } from '~/features/issue/relations';
 import { Links } from '~/features/attachments/Links';
+import { Reactions } from '~/features/reaction/Reactions';
 import { detectPlatform } from '~/keys';
 import { IssueCustomers } from '~/features/customers/IssueCustomers';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
@@ -1612,6 +1613,7 @@ export function Comments({
                 <CommentBody
                   comment={comment}
                   names={names}
+                  viewerId={viewerId}
                   editing={editing === comment.id}
                   canEdit={mayEdit(comment, viewerId)}
                   canDelete={mayDelete(comment, viewerId, viewerRole)}
@@ -1634,6 +1636,7 @@ export function Comments({
                         <CommentBody
                           comment={reply}
                           names={names}
+                          viewerId={viewerId}
                           editing={editing === reply.id}
                           canEdit={mayEdit(reply, viewerId)}
                           canDelete={mayDelete(reply, viewerId, viewerRole)}
@@ -1710,6 +1713,8 @@ function deleteConsequence(comment: Comment | null, threads: readonly Thread[]):
 interface CommentBodyProps {
   readonly comment: Comment;
   readonly names: Record<string, string>;
+  /** Whose reactions are the viewer's own. Null until the session knows who is reading. */
+  readonly viewerId: UUID | null;
   readonly editing: boolean;
   readonly canEdit: boolean;
   readonly canDelete: boolean;
@@ -1723,6 +1728,7 @@ interface CommentBodyProps {
 function CommentBody({
   comment,
   names,
+  viewerId,
   editing,
   canEdit,
   canDelete,
@@ -1803,7 +1809,18 @@ function CommentBody({
       {editing ? (
         <CommentEditor comment={comment} onDone={onDone} />
       ) : (
-        <p className={styles.commentBody}>{comment.body}</p>
+        <>
+          <p className={styles.commentBody}>{comment.body}</p>
+          {/* Reactions belong to the comment and not to the thread, so a reply carries its
+              own row. The subject names which comment, because a thread of six otherwise
+              announces six identical controls. */}
+          <Reactions
+            commentId={comment.id}
+            viewerId={viewerId}
+            names={names}
+            subject={`the comment from ${author}, ${when(comment.createdAt)}`}
+          />
+        </>
       )}
     </article>
   );

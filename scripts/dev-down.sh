@@ -22,13 +22,13 @@ kill_pid() {
 }
 
 # Supervisors honor SIGTERM only when the stop file exists.
-for key in WATCHDOG VITE_SUPERVISOR API_SUPERVISOR SYNC_SUPERVISOR VITE API SYNC; do
+for key in WATCHDOG VITE_SUPERVISOR API_SUPERVISOR SYNC_SUPERVISOR WORKER_SUPERVISOR VITE API SYNC WORKER; do
   kill_pid "$(read_pid "$key")"
 done
 
 for i in 1 2 3 4 5 6 7 8 9 10; do
   alive=0
-  for key in WATCHDOG VITE_SUPERVISOR API_SUPERVISOR SYNC_SUPERVISOR VITE API SYNC; do
+  for key in WATCHDOG VITE_SUPERVISOR API_SUPERVISOR SYNC_SUPERVISOR WORKER_SUPERVISOR VITE API SYNC WORKER; do
     pid="$(read_pid "$key")"
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
       alive=1
@@ -38,7 +38,7 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
   sleep 0.2
 done
 
-for key in WATCHDOG VITE_SUPERVISOR API_SUPERVISOR SYNC_SUPERVISOR VITE API SYNC; do
+for key in WATCHDOG VITE_SUPERVISOR API_SUPERVISOR SYNC_SUPERVISOR WORKER_SUPERVISOR VITE API SYNC WORKER; do
   pid="$(read_pid "$key")"
   if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
     kill -9 "$pid" 2>/dev/null || true

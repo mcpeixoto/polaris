@@ -1,0 +1,138 @@
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * A pill is a toggle, so it is bordered: with no border and no label it would read as static
+ * text beside the comment body, which is the row the composition rules single out.
+ * `--control-height-sm` because it is nested inside the comment rather than standing on its
+ * own — 22px, the ladder's nested step.
+ */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-sm);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-none);
+  cursor: pointer;
+}
+
+.pill:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.pill:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.pill:disabled {
+  cursor: default;
+}
+
+/*
+ * The viewer's own. Written as `.pill.mine` rather than left to emission order, because both
+ * class names land on the element at equal weight and the bundler would otherwise decide it.
+ *
+ * The tint is not the only carrier: the button is `aria-pressed`, so the state is announced
+ * as well as painted, and the border does the work for anybody who cannot see the tint.
+ */
+.pill.mine {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+
+.emoji {
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+}
+
+.picker {
+  position: relative;
+  display: inline-flex;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: var(--z-dropdown);
+  padding: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  animation: panelIn var(--duration-fast) var(--ease-out);
+}
+
+/* Reduced motion is answered at the token: --duration-fast collapses to 1ms. */
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(6, var(--control-height-md));
+  gap: var(--space-1);
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-none);
+  cursor: pointer;
+}
+
+.choice:hover {
+  background: var(--bg-hover);
+}
+
+.choice:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.choice[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
